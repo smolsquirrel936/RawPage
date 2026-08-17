@@ -149,36 +149,24 @@ each DPI over the corpus, settling risk A2.
 
 ### Stage 0 — Toolchain, skeleton, and the four gates
 
-**Status:** ⚪ **Not started — no code.** Both planning artifacts are written, in the §5 order:
+**Status:** 🟡 **In progress — T1–T3 of T15 complete; T4 (presets) next.**
+
+Both planning artifacts were written first, in the §5 order:
 [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md) (execution plan — tasks T1–T15, the
 Stage-0-local decisions D0-1…D0-8, and the §7 precondition checklist) and
 [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) (written **from** that plan,
-**before** any code). No case in the guide has been run and no verdict is recorded yet. **Preconditions V-1…V-4 verified
-2026-08-17** — vcpkg at `C:\Users\squirrel\vcpkg`, baseline `94a5411977…`, `x64-mingw-dynamic` triplet
-present.
+**before** any code). **No guide case has been formally run and neither the A5 nor the A6 verdict
+exists.** Preconditions V-1…V-4 verified 2026-08-17 — vcpkg at `C:\Users\squirrel\vcpkg`, baseline
+`94a5411977…`, community triplet `x64-mingw-dynamic` present.
 
-**T1 (repository skeleton) complete 2026-08-17**, pending its commit: `.gitignore`, `.gitattributes`,
-`scripts/env.ps1`, `scripts/bootstrap.ps1`, and the root `README.md` build section. Verified on the
-build machine — `env.ps1` yields **cmake 3.30.5 · ninja 1.12.1 · g++ 13.1.0 (x86_64-w64-mingw32)**,
-resolves `g++` to the pinned `C:\Qt\Tools\mingw1310_64`, and sets `VCPKG_ROOT` in-process, which
-retires the setx-does-not-reach-a-running-process problem for good. **Deviation from plan:** the
-vendored `claude-plan/skills-specs-generation` had been committed as a gitlink with no `.gitmodules`
-— an accidental submodule that would have failed a fresh clone, and so **case M-01** — untracked and
-ignored instead.
+| Task | State | Outcome and deviations |
+|---|---|---|
+| **T1** repository skeleton | ✅ 2026-08-17 | `.gitignore`, `.gitattributes`, `scripts/env.ps1`, `scripts/bootstrap.ps1`, root `README.md`. `env.ps1` yields cmake 3.30.5 · ninja 1.12.1 · g++ 13.1.0 (`x86_64-w64-mingw32`), resolves `g++` to the pin, and sets `VCPKG_ROOT` in-process — retiring the "setx does not reach a running process" problem. **Deviation:** `claude-plan/skills-specs-generation` had been committed as a gitlink with no `.gitmodules` — an accidental submodule that would have failed a fresh clone and so **case M-01**; untracked and ignored instead |
+| **T2** target graph | ✅ 2026-08-17 | Root + five layer `CMakeLists.txt`, `RectoWarnings.cmake`, `RectoQt.cmake`, four placeholder TUs, `app/main.cpp`. Five TUs compile clean under `-Werror`; four static libs and `recto.exe` link; the exe **runs, exits 0**, subsystem **Windows GUI**, imports **`msvcrt.dll`, never `ucrtbase.dll`**. `recto_link_qt()` **fails configure on `Qt6::Charts`** with the GPL-3.0 diagnostic. **Deviations:** (a) `-municode` deferred to Stage 1 — measured, `-mwindows -municode` with a plain `main()` fails to link (*undefined reference to `wWinMain`*), and inventing a stub to satisfy a flag is worse than waiting for the real entry point; (b) `RectoQt.cmake` pulled forward from T7, because the wrapper must exist before the *first* Qt link; (c) guide case **A-41** corrected — see the note there |
+| **T3** toolchain pin | ✅ 2026-08-18 | `cmake/toolchain-mingw.cmake` + `cmake/ToolchainAssert.cmake`, TA-1…TA-9. Clean configure reports *"Toolchain pin verified: GCC 13.1.0 x86_64-w64-mingw32, SEH/posix/msvcrt, no GCC plugin"*; `compiler-plugins.txt` written empty. **Three negative tests pass:** a bad `RECTO_MINGW_ROOT`, an injected `-fplugin`, and `-static-libstdc++` each fail configure with their own diagnostic. **Deviations:** (a) `CMAKE_SYSTEM_NAME` is **not** set, against the plan's §5.1 sketch — setting it in a toolchain file switches CMake into cross-compiling mode, disabling `try_run()` and altering `find_package()`, for no benefit on a native build; (b) the `-fplugin` scan is **duplicated** into the toolchain file, because a plugin that fails to load breaks GCC's own compiler probe *before* `project()`, and CMake then reports "the compiler is broken" instead of the licence consequence. **Not yet tested:** TA-2 and TA-6 have no negative test — a wrong *version* or a UCRT runtime needs a second toolchain, which is T9's `wrong-compiler` fixture and manual case **M-02** |
+| **T4–T15** | ⚪ | Not started |
 
-**T2 (target graph) complete 2026-08-17.** Root `CMakeLists.txt`, one per layer, `cmake/RectoWarnings.cmake`,
-`cmake/RectoQt.cmake`, four placeholder TUs, and `app/main.cpp`. Verified by building against a
-*stubbed* `ToolchainAssert` (T3's file, so the assertions themselves remain untested): all five TUs
-compile clean under `-Werror`, the four static libraries and `recto.exe` link, the executable **runs
-and exits 0**, its subsystem is **Windows GUI**, and it imports **`msvcrt.dll`, never `ucrtbase.dll`**.
-`qt-modules.txt` is generated. The `recto_link_qt()` licence guard was tested directly and **fails
-configure on `Qt6::Charts`** with the GPL-3.0 diagnostic — the D0-5 mechanism working months before
-`license-audit` exists. **Deviations:** (a) `-municode` is **not** applied yet — measured on the pinned
-toolchain, `-mwindows -municode` with a plain `main()` fails to link with *undefined reference to
-`wWinMain`*, so it arrives at Stage 1 with the real entry point rather than with an invented stub;
-(b) `cmake/RectoQt.cmake` was pulled forward from T7 to T2, because the wrapper has to exist before the
-*first* Qt link or the first few bypass it; (c) guide case **A-41** was corrected — see the note there.
-**T3 is next.** This stage exists because the gates in §1.3 are worthless if added
+This stage exists because the gates in §1.3 are worthless if added
 later — by then the violations are already in the tree.
 
 **Objectives.** A repository that builds an empty executable on a clean machine, with all four

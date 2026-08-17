@@ -4,16 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository currently is
 
-**A design-document set with no source code yet.** The product is **Recto** (working codename, open
-decision O9), a Windows-first desktop PDF editor modeled on Right PDF Professional. Everything lives
-under `claude-plan/`; there is no `CMakeLists.txt`, no `src/`, and no build.
+**A design-document set plus Stage 0 build scaffolding — no product code yet.** The product is
+**Recto** (working codename, open decision O9), a Windows-first desktop PDF editor modeled on Right
+PDF Professional. The design lives under `claude-plan/`.
+
+What exists in the tree today: a root `CMakeLists.txt` and one per layer, `cmake/` (the pinned
+toolchain plus its TA-1…TA-9 assertions, the warning module, the Qt link guard), `scripts/`
+(`env.ps1`, `bootstrap.ps1`), and four layer libraries containing a single placeholder TU each,
+linked by an empty `recto.exe`. **Nothing in `core/`, `pdf/`, `ui/`, `platform/`, or `app/` is real
+yet** — every row in `Architecture-FileMap.md` is still ○.
 
 The documented next action is **Stage 0** (toolchain skeleton + the four enforcement gates) in
 `claude-plan/Implementation-Plan.md`, now planned in full: `claude-plan/Stage0-Toolchain-Plan.md`
 holds its tasks T1–T15, and `claude-plan/Stage0-Toolchain-Testing-Guide.md` holds its verification.
-Stage 0's §7 preconditions are met — vcpkg is installed at `C:\Users\squirrel\vcpkg` with its baseline
-recorded — so **T1 is the next action**. Do not skip ahead to feature work — the stage order is
-deliberate risk retirement, not a backlog.
+Stage 0's §7 preconditions are met and **T1–T3 are complete**; **T4 (CMake presets) is the next
+action**. Do not skip ahead to feature work — the stage order is deliberate risk retirement, not a
+backlog.
 
 `claude-plan/skills-specs-generation/` is a **vendored third-party skill set** (its own nested git
 repo, MIT-ish LICENSE) that generated these docs. Don't edit it as part of product work.

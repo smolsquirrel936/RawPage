@@ -59,6 +59,9 @@ else()
     find_package(Qt6 REQUIRED COMPONENTS Core)
 endif()
 
+# TA-8. Deferred to here because it can only run once Qt6_VERSION and Qt6_DIR exist.
+recto_assert_qt()
+
 # --- Layers ------------------------------------------------------------------
 add_subdirectory(core)
 add_subdirectory(pdf)

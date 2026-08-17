@@ -49,20 +49,20 @@ than a gap — those files are written when their stage comes up, not in advance
 
 ## Current state
 
-**No code is implemented.** All ③ file rows are `○ planned` and all ④ stages are `⚪ not started` —
-this is the honest end state of the planning pipeline, and the stage tags in ③ are the contract
-between the map and the roadmap.
+**Stage 0 is under way; no product code exists.** What builds today is the *scaffolding*: a pinned
+toolchain, four empty layer libraries, and an empty `recto.exe`. Every ③ file row is still `○ planned`
+— none of the files ③ describes has been written — and stages 1–16 are `⚪ not started`.
 
-**Stage 0 is planned in full and not started.** Its ⑤
-[execution plan](./Stage0-Toolchain-Plan.md) (tasks T1–T15) and its ⑥
-[testing guide](./Stage0-Toolchain-Testing-Guide.md) (40 automated cases, 7 manual) are written, in
-that order, before any code — which is the point of the sequence. No case has been run and neither
-the **A5** nor the **A6** verdict exists yet.
+Stage 0's ⑤ [execution plan](./Stage0-Toolchain-Plan.md) and ⑥
+[testing guide](./Stage0-Toolchain-Testing-Guide.md) were written in that order **before any code**,
+which is the point of the sequence. **Tasks T1–T3 of T15 are complete** — repository skeleton,
+layer target graph, and the toolchain pin with assertions TA-1…TA-9. **T4 (presets) is next.**
+No guide case has been formally run, and neither the **A5** nor the **A6** verdict exists yet.
 
-The next action is Stage 0's task **T1**, gated on the
-[§7 precondition checklist](./Stage0-Toolchain-Plan.md#7-blocking-preconditions--setup-checklist):
-vcpkg is not installed on the build machine, so **V-1…V-6 come first**. Stage 0's whole purpose is to
-make the enforcement gates fail correctly *before* there is any code for them to fail on.
+Live task-by-task status is in
+[④'s Stage 0 block](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates),
+deviations included. Stage 0's whole purpose is to make the enforcement gates fail correctly *before*
+there is any code for them to fail on.
 
 ## Keeping the set in lockstep
 
