@@ -1,0 +1,5 @@
+{
+  "$comment": "NEGATIVE CONTROL against substring matching: LGPL-3.0 contains the letters GPL and must pass.",
+  "name": "fixture-lgpl", "version": "0.0.0",
+  "dependencies": ["fixture-lgpl-lib"]
+}

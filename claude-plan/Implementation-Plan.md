@@ -149,7 +149,7 @@ each DPI over the corpus, settling risk A2.
 
 ### Stage 0 — Toolchain, skeleton, and the four gates
 
-**Status:** 🟡 **In progress — T1-T6 of T15 complete; T7 (layer-lint) next.**
+**Status:** 🟡 **In progress — T1-T9 of T15 complete; T10 (core vocabulary headers) next.**
 
 Both planning artifacts were written first, in the §5 order:
 [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md) (execution plan — tasks T1–T15, the
@@ -166,7 +166,32 @@ Stage-0-local decisions D0-1…D0-8, and the §7 precondition checklist) and
 | **T4** presets | ✅ 2026-08-18 | `CMakePresets.json`, version 6: `x64-debug`, `x64-release`, `arm64-release`, `portable-asan`, `portable-fuzz`, plus build and test presets. vcpkg is outermost with the pin chainloaded via `VCPKG_CHAINLOAD_TOOLCHAIN_FILE` — verified working before `vcpkg.json` exists (manifest mode simply stays off until T6). `hostSystemName` conditions hide the Linux presets on Windows and vice versa. **Windows presets fully verified**: configure, build, and `recto.exe` exit 0; `arm64-release` exits 1 with the O6 explanation. **Deviations:** (a) the toolchain pin and TA-8 are **skipped** when `RECTO_PORTABLE_SUBSET=ON` — a Linux gate build compiles the same sources with a different compiler on a different OS, which is the entire point, so asserting "exactly GCC 13.1.0, SEH, msvcrt" there would reject the configuration we are trying to prove; (b) `arm64-release` **fails at configure** rather than configuring, and guide case **A-03** was tightened from "succeeds or fails explicitly" to one expected outcome. **Untested:** `portable-asan` and `portable-fuzz` are JSON-schema-valid (`--list-presets` parses the whole file) but **have never been run** — there is no Linux here. They are first exercised by CI at T13, and that is where a mistake in them will surface |
 | **T5** vcpkg baseline | ✅ 2026-08-18 | `vcpkg-configuration.json` pins baseline `94a541197763a4f449a1b91478df48c0584a6256` and registers `tools/ports/` as an overlay directory (created, empty, with the rule written down: a port that builds only under MSVC is vendored there, **never** worked around by changing the triplet) |
 | **T6** manifest + **A5** | ✅ 2026-08-18 | `vcpkg.json` declares every §6.2 vcpkg dependency across five features. **A5 verdict recorded** in [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified): all five groups **resolve** on `x64-mingw-dynamic`; no MSVC-only port; no overlay needed. The default set was **really built** — catch2 3.15.3 → `libCatch2.a`, installed and consumed through the preset. **Deviations:** (a) D0-3 is applied more broadly than written — *everything* except the test harness sits behind a feature, because making OpenSSL a default dependency would couple Stage 0's build to a Stage 10 need and let a Stage 10 port failure block Stage 1; (b) `VCPKG_HOST_TRIPLET=x64-mingw-dynamic` added to the presets, since the default `x64-windows` host triplet resolves MSVC — present here, absent by design in **M-01**. **Not closed:** resolution ≠ compilation. `codecs`, `text`, `crypto`, `ocr` have never been compiled; ICU and OpenSSL are the known MinGW risks, and each group closes when its stage switches the feature on |
-| **T7–T15** | ⚪ | Not started |
+| **T7** layer-lint | ✅ 2026-08-18 | `tools/layer-lint/` (RuleSet · IncludeGraph · LayerLint · main) plus `tools/common/Json.h`, all standard-library-only per D0-1. **Clean on the real tree** (13 files, 38 includes) and **six fixtures verified by hand** in `tests/gates/fixtures/layer-lint/`: `core/`→`pdf/`, `ui/`→`pdf/`, `FPDF_` outside `pdf/`, a write outside the allowed layers, `<QtWidgets/QWidget>` in `core/` — each exit 1 with `file:line: rule: detail` — plus **`write-escaped`, a negative control proving the inline waiver works** (exit 0). `--explain` prints the graph, the rules, the exclusions, and every live escape; a missing rules file exits **2**, not 1. **Deviations:** (a) external includes are checked by **deny-list, not allowlist** — an allowlist would have to enumerate the whole standard library and would fail closed on every unlisted header, which teaches people to edit the rules file to get work done; the linker enforces the remainder, since `core/` links only `Qt6::Core`; (b) `tools/common/Json.h` is a new shared file the plan did not name — the gates cannot use Qt's JSON (D0-1) and T8 must read `vcpkg.json`; (c) `core/settings/` is its own layer entry with longest-prefix-first matching, since it is the one part of `core/` permitted to write; (d) fixtures pulled forward from T9, which now inherits working cases. **`tools/layer-lint/` flipped ○ → ✅ in `Architecture-FileMap.md`** — the first row in the project to do so |
+| **T8** license-audit | ✅ 2026-08-18 | `tools/license-audit/` (LicenseAudit · Inventory · main) + `spdx-map.json`. Reads **vcpkg's own SPDX SBOM** (`vcpkg.spdx.json`) for exact versions and concluded licences, falling back to the map; runs with **no installed tree at all**, because the CI gates job has no vcpkg. `THIRD-PARTY.md` generates. The allowlist appears in exactly one place. **Deviations:** (a) the plan's signature `audit(const VcpkgManifest&, const QtModuleList&)` is preserved, so the compiler-plugin re-check is a separate `checkCompilerPlugins()` called from `main`; (b) **findings are blocking or warning** — see the note below |
+| **T9** checks + gate tests | ✅ 2026-08-18 | `cmake/RectoChecks.cmake` and `tests/gates/`. `--target checks` runs both gates and **depends only on the two gate executables, never the layer libraries** — the property that makes "gates before compile" real. **16 CTest cases, all passing**, via `RunGateCase.cmake`, which asserts **both** exit code and diagnostic: CTest's `WILL_FAIL` cannot tell exit 1 from exit 2 (a correct finding from a crashed gate), and `PASS_REGULAR_EXPRESSION` ignores the exit code entirely. Includes four **negative controls** — the escaped write, `GPL-3.0-or-later WITH GCC-exception-3.1`, `LGPL-3.0`, and an allowed Qt module set — without which every positive case is equally satisfied by a gate that rejects everything |
+| **T10–T15** | ⚪ | Not started |
+
+> **Two bugs the gate found in itself on first run, both fixed.** `$`-prefixed comment keys in
+> `spdx-map.json` were being read as components with no licence — JSON has no comment syntax, so the
+> convention vcpkg uses was turned against us. And the audit initially **failed** on dependencies this
+> build does not ship: `vcpkg.json` declares every future dependency so that A5 could be answered early
+> (D0-3), which meant Stage 0 could not go green until every future licence was reconciled — and the
+> tempting way to make that go away is to widen the allowlist, the precise failure this gate exists to
+> prevent. Findings are now **blocking** for components in the active feature set and **warnings** for
+> declared-but-unbuilt ones, with `--feature` to promote them. The warnings are printed on every run,
+> so nothing is lost, only deferred to the stage that owns it.
+>
+> ✅ **Finding raised and resolved, 2026-08-18.** The gate reported Hunspell's `MPL-2.0` as not on the
+> §8.2 allowlist. Checking upstream showed the owning document was wrong in a way nobody had noticed:
+> Hunspell's grant is **`MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later`** — it does not offer
+> MPL-2.0 at all, so §6.2 was electing a licence that was never granted. Resolution (yours): elect the
+> **LGPL** branch, taken as **LGPL-3.0** since the grant reads *"or later"*. That identifier is already
+> on the allowlist and is exactly Qt's licence, so **the allowlist did not have to be widened** — the
+> gate was satisfied by fixing the fact, not by loosening the rule. `Tech-Stack-Plan.md` §6.2 corrected
+> in the same change. Consequence carried forward: Hunspell now owes a **corresponding-source offer**
+> like Qt's, currently a `TODO-BEFORE-RELEASE` in `spdx-map.json` and owned by Stage 15's release gate.
+> The audit's LGPL check was generalized from the exact string `LGPL-3.0` to any LGPL expression, so a
+> future `LGPL-2.1-or-later` component cannot ship without a source offer.
 
 This stage exists because the gates in §1.3 are worthless if added
 later — by then the violations are already in the tree.

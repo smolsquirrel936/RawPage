@@ -1,0 +1,35 @@
+{
+  "$comment": [
+    "A fixture-only SPDX map. Deliberately separate from tools/license-audit/spdx-map.json:",
+    "adding fixture components to the production map would mean the gate's own test data",
+    "ships in the licence report, which is exactly the class of mistake this gate exists to",
+    "prevent.",
+    "",
+    "Every entry has origin 'vcpkg' so nothing is added unless a fixture manifest asks for it.",
+    "That keeps each case's baseline empty and its result attributable to one component."
+  ],
+  "components": {
+    "fixture-xapian": {
+      "spdx": "GPL-2.0",
+      "origin": "vcpkg",
+      "upstream": "https://xapian.org/",
+      "$note": "Stands in for the real hazard: vcpkg HAS a xapian port, and D4 forbids it."
+    },
+    "fixture-bare-gpl-runtime": {
+      "spdx": "GPL-3.0-or-later",
+      "origin": "vcpkg",
+      "$note": "The GCC runtime identifier with the WITH clause dropped. Must FAIL."
+    },
+    "fixture-gcc-runtime": {
+      "spdx": "GPL-3.0-or-later WITH GCC-exception-3.1",
+      "origin": "vcpkg",
+      "$note": "The same identifier, intact. Must PASS -- the control that proves the gate is not simply rejecting everything."
+    },
+    "fixture-lgpl-lib": {
+      "spdx": "LGPL-3.0",
+      "origin": "vcpkg",
+      "sourceOffer": "https://example.invalid/fixture-source-offer",
+      "$note": "Must PASS. LGPL-3.0 contains the letters GPL; a substring test would wrongly reject Qt itself."
+    }
+  }
+}

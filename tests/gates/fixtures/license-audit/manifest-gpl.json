@@ -1,0 +1,5 @@
+{
+  "$comment": "Xapian is GPL-2.0 and its port really exists in vcpkg -- Tech-Stack-Plan.md 6.2 rejects it explicitly (risk R2) precisely so nobody adds it later believing it was merely overlooked.",
+  "name": "fixture-gpl", "version": "0.0.0",
+  "dependencies": ["fixture-xapian"]
+}

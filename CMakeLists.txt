@@ -66,6 +66,9 @@ endif()
 
 include(RectoWarnings)
 include(RectoQt)
+include(RectoChecks)
+
+enable_testing()
 
 # --- Build layout ------------------------------------------------------------
 # Everything runnable lands in one directory so the Qt and GCC runtime DLLs sit beside
@@ -95,6 +98,12 @@ if(NOT RECTO_PORTABLE_SUBSET)
     recto_assert_qt()
 endif()
 
+# --- Gates -------------------------------------------------------------------
+# Before the layers, and independent of them: the gate executables link nothing but the
+# standard library, so `--target checks` compiles two small programs rather than the
+# whole project. That ordering is the guarantee, not a convenience.
+add_subdirectory(tools)
+
 # --- Layers ------------------------------------------------------------------
 add_subdirectory(core)
 add_subdirectory(pdf)
@@ -105,10 +114,14 @@ if(NOT RECTO_PORTABLE_SUBSET)
     add_subdirectory(app)
 endif()
 
+# --- Gate tests --------------------------------------------------------------
+add_subdirectory(tests/gates)
+
 # --- Gate inputs -------------------------------------------------------------
 # Written last, after every target exists: a global property read earlier would see a
 # partial module list and let tools/license-audit pass by accident.
 recto_write_qt_module_list()
+recto_add_checks_target()
 
 # --- Summary -----------------------------------------------------------------
 message(STATUS "")

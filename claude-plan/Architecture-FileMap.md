@@ -82,9 +82,14 @@ boundary outward, on `FPDF_` outside `pdf/`, and on a filesystem write outside `
 | ○ | Planned. The parenthesized **S*n*** is the [roadmap](./Implementation-Plan.md) stage that builds it. |
 | ⤵ | Folded into another file — the row stays as a breadcrumb, pointing at where the responsibility went. |
 
-**Nothing is ✅ yet: no code has been written.** Every row below is ○ with its stage tag. That is
-the honest state of this document at the end of the planning pipeline, and it is also what makes it
-useful — the stage tags are the contract between this map and the roadmap.
+**One row is ✅: `tools/layer-lint/` (Stage 0, task T7).** Everything else is ○ with its stage tag —
+no *product* code exists yet, only the Stage 0 scaffolding that the gates run on. The stage tags are
+the contract between this map and the roadmap.
+
+Stage 0 also adds files this map does not yet describe — the build definition, the CMake modules, the
+gate fixtures, the CI workflow, and `scripts/`. Rows for those are owed by **task T15**, recorded in
+[`Stage0-Toolchain-Plan.md` §10](./Stage0-Toolchain-Plan.md#10-lockstep-debt-this-stage-creates) so
+the gap is a scheduled item rather than drift.
 
 A row whose "File" cell names a folder with a `/*` suffix covers a **tight family** of same-shaped
 files (one per tool, one per filter) that share a base class and a single responsibility; the Role
@@ -403,10 +408,10 @@ because declaring their interface early is what keeps them from reshaping the co
 
 | File | Status | Role | Interacts with |
 |---|---|---|---|
-| `tools/layer-lint/` | ○ (S0) | Parses every `#include` and fails on any outward edge, any `FPDF_` outside `pdf/`, and any filesystem write outside `pdf/` and `core/settings/`. `--explain` prints the include graph. | CI, the `checks` CMake target |
+| `tools/layer-lint/` | ✅ (S0 · T7) | Parses every `#include` and fails on any outward edge, any `FPDF_` outside `pdf/`, and any filesystem write outside `pdf/` and `core/settings/`. `--explain` prints the include graph, the active rules, and every live escape. Rules live in `rules.json` (data, not code) so widening a layer's permissions is a reviewable diff. Exit codes: 0 clean · 1 violations · **2 could-not-run**, distinct so CI never reads a broken gate as a passing one. Standard library only — no Qt, no vcpkg (D0-1). | CI, the `checks` CMake target |
 | `tools/mutation-lint/` | ○ (S3) | Asserts every `Command` subclass is in `CommandRegistry` and has a serialize round-trip test and a revert test. A new command without tests fails the build. | `core/cmd/CommandRegistry`, CI |
 | `tools/i18n-lint/` | ○ (S1) | Fails on any user-facing literal not wrapped in `tr()`, and on catalog keys missing from a shipped locale. | `i18n/*.ts`, CI |
-| `tools/license-audit/` | ○ (S0) | Walks the resolved vcpkg manifest plus the Qt module list and the GCC runtime, emits `THIRD-PARTY.md`, and fails on any SPDX **expression** outside the allowlist. Matching is whole-expression, never a `GPL` substring: `GPL-3.0-or-later WITH GCC-exception-3.1` must pass while bare `GPL-3.0-or-later` must fail. Also asserts no non-free GCC plugin was loaded, which is the condition the exception rests on. | `vcpkg.json`, `cmake/toolchain-mingw.cmake`, `ui/dialogs/ThirdPartyNoticesDialog`, CI |
+| `tools/license-audit/` | ✅ (S0 · T8) | Walks the resolved vcpkg manifest plus the Qt module list and the GCC runtime, emits `THIRD-PARTY.md`, and fails on any SPDX **expression** outside the allowlist. Matching is whole-expression, never a `GPL` substring: `GPL-3.0-or-later WITH GCC-exception-3.1` must pass while bare `GPL-3.0-or-later` must fail. Also asserts no non-free GCC plugin was loaded, which is the condition the exception rests on. | `vcpkg.json`, `cmake/toolchain-mingw.cmake`, `ui/dialogs/ThirdPartyNoticesDialog`, CI |
 | `tools/golden-update/` | ○ (S2) | Regenerates `golden/` reference rasters, requiring an explicit reason so a rendering regression cannot be laundered into a new baseline. | `golden/`, `tests/golden/` |
 | `tests/unit/` | ○ (S0) | Catch2 suites over `core/` and `pdf/`, linked **without** `recto_ui` and `recto_platform` — the standing proof that the boundary holds. | `core/*`, `pdf/*` |
 | `tests/golden/` | ○ (S2) | Renders corpus pages at fixed resolutions and compares against `golden/` with a perceptual threshold; writes a diff image on failure. | `pdf/render/PdfiumRasterizer`, `golden/` |

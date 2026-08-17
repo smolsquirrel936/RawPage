@@ -421,7 +421,7 @@ for later, and its fixture set must include "a build that links Qt Charts" as a 
 | FreeType | FTL or GPL-2 → **take FTL** | Document glyph rasterization for embedded fonts |
 | HarfBuzz | MIT | Complex-script shaping in the reflow engine |
 | ICU | Unicode-DFS | Collation, boundary analysis, transliteration, encoding conversion |
-| Hunspell | MPL-2.0 (tri-licensed GPL/LGPL/MPL — **we elect MPL-2.0**) | Spell checking in Write mode and in comments |
+| Hunspell | **LGPL-3.0** — upstream is `MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later`; **we elect the LGPL branch, taken as 3.0** (see note) | Spell checking in Write mode and in comments |
 | OpenSSL 3.x | Apache-2.0 | PDF encryption primitives, PKCS#7/CMS signatures, OCSP, timestamps |
 | Tesseract + Leptonica | Apache-2.0 / BSD-2 | OCR (a later stage; interface declared early) |
 | Xapian | **GPL-2.0 → REJECTED** | — full-text index; use a first-party inverted index instead (see R2) |
@@ -430,8 +430,21 @@ for later, and its fixture set must include "a build that links Qt Charts" as a 
 | **libstdc++ / libgcc** (GCC runtime, shipped as DLLs) | **GPL-3.0-or-later WITH GCC-exception-3.1** | The C++ standard library and unwinder our binaries link against (D1) |
 | **mingw-w64 runtime** (`libwinpthread`, CRT import libs, Win32 headers) | Permissive mix — public domain / ZPL-2.1 / MIT / BSD-2, recorded per component | Win32 API headers, import libraries, and threading runtime |
 
-**Every entry above is permissive except the GCC runtime, which is GPL-3.0 *with the Runtime
-Library Exception* — and that exception is the whole reason it is allowed here.** See §8.1; this is
+**Hunspell's licence, corrected 2026-08-18 (Stage 0, task T8).** This table previously said
+"MPL-2.0", which upstream does not offer. Verified against
+[`license.hunspell`](https://github.com/hunspell/hunspell) and vcpkg's port manifest, the grant is
+**`MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later`**. We elect the **LGPL** branch, and because that
+grant reads *"or later"* we take it specifically as **LGPL-3.0** — the identifier §8.2 already
+allows, and precisely Qt's licence. One obligation model therefore covers both libraries: dynamic
+linking, user-replaceable binaries, and a corresponding-source offer, all of which the release gate
+already tests for Qt. MPL-1.1 would have been the lighter election (file-level copyleft, no relinking
+obligation), and was declined because a second, differently-shaped obligation set costs more to
+comply with than the stricter licence does. **§8.2's allowlist needs no change** — which is the point:
+the gate was not satisfied by widening it.
+
+**Every entry above is permissive except Qt, Hunspell (both LGPL-3.0), and the GCC runtime, which is
+GPL-3.0 *with the Runtime Library Exception* — and that exception is the whole reason it is allowed
+here.** See §8.1; this is
 the one place D4's flat "no GPL in the tree" rule needs a named, reasoned carve-out rather than a
 substring match. The two genuine GPL-family traps found while assembling this list — Qt
 Charts/DataVisualization and Xapian — are recorded explicitly so nobody adds them later believing

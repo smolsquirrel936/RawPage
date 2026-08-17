@@ -1,0 +1,148 @@
+{
+  "$comment": [
+    "Licence facts that vcpkg cannot supply, plus the decisions that are ours rather than",
+    "observations: which licence we ELECT for a dual-licensed component, and where the",
+    "corresponding-source offer lives.",
+    "",
+    "Entries with origin != 'vcpkg' are components that never appear in vcpkg.json because",
+    "they do not come from vcpkg. They are still SHIPPED, so they are still audited -- the",
+    "GCC runtime above all, since it is the one GPL-family licence present in every binary",
+    "we produce, and it is allowed only by its Runtime Library Exception.",
+    "",
+    "Tech-Stack-Plan.md 6.2 and 8.1 own these facts. This file is their machine-readable form."
+  ],
+
+  "components": {
+    "qt": {
+      "version": "6.11.1",
+      "spdx": "LGPL-3.0",
+      "origin": "qt",
+      "upstream": "https://www.qt.io/",
+      "sourceOffer": "TODO-BEFORE-RELEASE: host the exact Qt 6.11.1 source tarball and any patch series at a stable URL, and link it from About -> Third-Party Notices (Tech-Stack-Plan.md 8.1).",
+      "election": "Qt is taken under LGPL-3.0, linked dynamically and shipped as replaceable DLLs. Never -static; never signature-locked or anti-tampered.",
+      "noticeRequired": false
+    },
+
+    "gcc-runtime": {
+      "version": "13.1.0",
+      "spdx": "GPL-3.0-or-later WITH GCC-exception-3.1",
+      "origin": "toolchain",
+      "upstream": "https://gcc.gnu.org/",
+      "election": "libstdc++-6.dll, libgcc_s_seh-1.dll and libwinpthread-1.dll are shipped beside the executable, never statically linked. The Runtime Library Exception permits distributing a program under any licence, INCLUDING PROPRIETARY, provided it was produced by an Eligible Compilation Process -- i.e. stock GCC with no non-free plugin. TA-9 and license-audit both check that condition.",
+      "noticeRequired": false
+    },
+
+    "mingw-w64-runtime": {
+      "version": "11.0 (rt_v11-rev1)",
+      "spdx": "Zlib",
+      "origin": "toolchain",
+      "upstream": "https://www.mingw-w64.org/",
+      "election": "The mingw-w64 runtime is a permissive mix (public domain / ZPL-2.1 / MIT / BSD-2) recorded per component. Zlib is used here as the representative expression; the per-component breakdown is owed before release.",
+      "noticeRequired": false
+    },
+
+    "pdfium": {
+      "version": "TODO-AT-T12: the pinned bblanchon/pdfium-binaries release",
+      "spdx": "BSD-3-Clause",
+      "origin": "prebuilt",
+      "upstream": "https://pdfium.googlesource.com/pdfium/",
+      "election": "Consumed as a DLL through its FPDF_ C API, so the compiler that built it does not matter. Read and raster only -- every write goes through our own COS layer.",
+      "noticeRequired": false
+    },
+
+    "freetype": {
+      "spdx": "FTL",
+      "origin": "vcpkg",
+      "upstream": "https://freetype.org/",
+      "election": "FreeType is dual-licensed FTL / GPL-2.0. We ELECT FTL. FTL requires a credit in the documentation, which the Third-Party Notices dialog provides.",
+      "noticeRequired": false
+    },
+
+    "hunspell": {
+      "spdx": "LGPL-3.0",
+      "origin": "vcpkg",
+      "upstream": "https://github.com/hunspell/hunspell",
+      "sourceOffer": "TODO-BEFORE-RELEASE: host the exact Hunspell source and any patch we apply, alongside the Qt source offer, and link both from About -> Third-Party Notices.",
+      "election": "Hunspell is tri-licensed 'MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later' (verified against upstream license.hunspell and vcpkg's port manifest, 2026-08-18). We ELECT the LGPL branch, and because that grant is '2.1 OR LATER' we take it specifically as LGPL-3.0 -- the same licence as Qt. That means one obligation model covers both libraries: dynamic linking, user-replaceable binaries, and a corresponding-source offer. Electing MPL-1.1 would have been lighter (file-level copyleft, no relinking obligation) but would add a second, differently-shaped set of obligations to track and release-gate.",
+      "noticeRequired": false
+    },
+
+    "openssl": {
+      "spdx": "Apache-2.0",
+      "origin": "vcpkg",
+      "upstream": "https://www.openssl.org/",
+      "noticeRequired": true
+    },
+
+    "tesseract": {
+      "spdx": "Apache-2.0",
+      "origin": "vcpkg",
+      "upstream": "https://github.com/tesseract-ocr/tesseract",
+      "noticeRequired": true
+    },
+
+    "icu": {
+      "spdx": "Unicode-DFS-2016",
+      "origin": "vcpkg",
+      "upstream": "https://icu.unicode.org/"
+    },
+
+    "$comment-completeness": [
+      "EVERY dependency declared in vcpkg.json needs an entry here, even the obvious ones.",
+      "The audit must produce a verdict with NO installed vcpkg tree, because the CI gates job",
+      "has no vcpkg at all (D0-1) -- and without an entry, a component has no licence and",
+      "blocks. Relying on the SBOM alone would mean the licence gate only worked on machines",
+      "that had already built the dependency, which is precisely backwards.",
+      "Sources for the identifiers below: Tech-Stack-Plan.md 6.2."
+    ],
+
+    "zlib": {
+      "spdx": "Zlib",
+      "origin": "vcpkg",
+      "upstream": "https://zlib.net/"
+    },
+
+    "openjpeg": {
+      "spdx": "BSD-2-Clause",
+      "origin": "vcpkg",
+      "upstream": "https://www.openjpeg.org/"
+    },
+
+    "harfbuzz": {
+      "spdx": "MIT",
+      "origin": "vcpkg",
+      "upstream": "https://harfbuzz.github.io/"
+    },
+
+    "leptonica": {
+      "spdx": "BSD-2-Clause",
+      "origin": "vcpkg",
+      "upstream": "https://leptonica.sourceforge.io/"
+    },
+
+    "catch2": {
+      "spdx": "BSL-1.0",
+      "origin": "vcpkg",
+      "upstream": "https://github.com/catchorg/Catch2"
+    },
+
+    "libpng": {
+      "spdx": "libpng-2.0",
+      "origin": "vcpkg",
+      "upstream": "http://www.libpng.org/pub/png/libpng.html"
+    },
+
+    "tiff": {
+      "spdx": "libtiff",
+      "origin": "vcpkg",
+      "upstream": "https://libtiff.gitlab.io/libtiff/"
+    },
+
+    "libjpeg-turbo": {
+      "spdx": "IJG",
+      "origin": "vcpkg",
+      "upstream": "https://libjpeg-turbo.org/",
+      "election": "libjpeg-turbo is offered under IJG / BSD-3-Clause / zlib. We ELECT IJG, matching Tech-Stack-Plan.md 6.2."
+    }
+  }
+}

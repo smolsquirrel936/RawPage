@@ -1,0 +1,5 @@
+{
+  "$comment": "The GCC runtime identifier WITHOUT its exception. Must fail: dropping the WITH clause is exactly how the Runtime Library Exception gets lost.",
+  "name": "fixture-bare-gpl", "version": "0.0.0",
+  "dependencies": ["fixture-bare-gpl-runtime"]
+}

@@ -1,0 +1,122 @@
+{
+  "$comment": [
+    "The inward-only dependency rule, written so a machine can check it.",
+    "Tech-Stack-Plan.md 4.2 owns the rule itself; this file is its executable form and must",
+    "not drift from it. Widening a mayInclude list is a licensing-grade decision about the",
+    "architecture -- make it here, in a diff, with a reason in the commit message.",
+    "",
+    "Layers are matched by path prefix, longest first, so core/settings/ can carry different",
+    "permissions from core/ without depending on JSON key order."
+  ],
+
+  "extensions": [".h", ".hpp", ".cpp", ".cc"],
+
+  "exclude": [
+    "build/",
+    "vcpkg_installed/",
+    "claude-plan/",
+    "tests/gates/fixtures/"
+  ],
+
+  "$comment-exclude": [
+    "tests/gates/fixtures/ holds files that are violations BY CONSTRUCTION -- that is what",
+    "they test. Excluding them by an explicit path (decision D0-4) rather than by a filename",
+    "convention means the exclusion is greppable and shows up in --explain. A convention like",
+    "'*_bad.cpp' would silently stop testing the first fixture that forgot the suffix."
+  ],
+
+  "layers": {
+    "app": {
+      "paths": ["app/"],
+      "mayInclude": ["app/", "ui/", "core/", "pdf/", "platform/"],
+      "denyExternal": [],
+      "note": "app/ is the composition root -- the only place that may name a concrete backend or platform. It holds no domain logic."
+    },
+
+    "ui": {
+      "paths": ["ui/"],
+      "mayInclude": ["ui/", "core/"],
+      "denyExternal": ["fpdfview.h", "fpdf_", "windows.h", "Windows.h"],
+      "note": "ui/ may never include pdf/ or platform/win/, and may never mutate a Document: its entire mutation vocabulary is to construct a Command and hand it to CommandJournal."
+    },
+
+    "core-settings": {
+      "paths": ["core/settings/"],
+      "mayInclude": ["core/", "platform/platform.h"],
+      "denyExternal": ["QtWidgets", "QtGui", "QWidget", "QGuiApplication", "fpdfview.h", "fpdf_", "windows.h", "Windows.h"],
+      "note": "core/settings/ is core/ with one added privilege: it is the only part of core/ permitted to write to the filesystem."
+    },
+
+    "core": {
+      "paths": ["core/"],
+      "mayInclude": ["core/", "platform/platform.h"],
+      "denyExternal": ["QtWidgets", "QtGui", "QWidget", "QGuiApplication", "QPainter", "QImage", "fpdfview.h", "fpdf_", "windows.h", "Windows.h"],
+      "note": "core/ is the domain layer: std, QtCore, a short pure-computation allowlist (ICU, HarfBuzz, Hunspell), and its two interface headers. It must build and pass its full test suite with no display and no PDF engine linked."
+    },
+
+    "pdf": {
+      "paths": ["pdf/"],
+      "mayInclude": ["pdf/", "core/"],
+      "denyExternal": ["QtWidgets", "QWidget"],
+      "note": "pdf/ is the only layer that may emit PDF bytes or call FPDF_. It implements core/backend.h and does not know ui/ exists."
+    },
+
+    "platform": {
+      "paths": ["platform/"],
+      "mayInclude": ["platform/", "core/"],
+      "denyExternal": ["QtWidgets", "QWidget", "fpdfview.h", "fpdf_"],
+      "note": "platform/win/ implements platform/platform.h and nothing else. It makes no policy decisions."
+    }
+  },
+
+  "$comment-external": [
+    "denyExternal is a DENY list, not an allowlist, and that is deliberate. An allowlist",
+    "would have to enumerate the entire C++ standard library, and would fail closed every",
+    "time somebody used a header nobody had listed -- which teaches people to edit this file",
+    "to get their work done, and a rules file that is edited casually stops meaning anything.",
+    "The deny list names what must never appear. The linker enforces the remainder: core/",
+    "links only Qt6::Core, so an errant QtWidgets include fails to link even if it slips",
+    "past this scan."
+  ],
+
+  "tokenRules": [
+    {
+      "kind": "fpdf",
+      "patterns": ["FPDF_", "FPDFPage_", "FPDFText_", "FPDFDoc_", "FPDFBitmap_"],
+      "allowedPaths": ["pdf/"],
+      "escapable": false,
+      "message": "Only pdf/ may name the PDFium C API. Everything else reaches the engine through core/backend.h, which is what keeps the engine replaceable and core/ testable with no engine linked."
+    },
+    {
+      "kind": "filesystem-write",
+      "patterns": [
+        "std::ofstream",
+        "std::fstream",
+        "QSaveFile",
+        "fopen(",
+        "_wfopen(",
+        "freopen(",
+        "CreateFileW(",
+        "CreateFileA(",
+        "std::filesystem::remove",
+        "std::filesystem::rename",
+        "std::filesystem::create_",
+        "std::filesystem::copy"
+      ],
+      "allowedPaths": ["pdf/", "core/settings/", "tools/", "tests/"],
+      "escapable": true,
+      "message": "Writing to disk is confined to pdf/ (which owns the file format) and core/settings/ (which owns configuration), so that every byte reaching a user's document goes through the mutation pipeline. If a write here is genuinely correct, waive it inline with  // layer-lint: allow-filesystem-write(reason)  -- every waiver is listed by --explain."
+    }
+  ],
+
+  "$comment-tokens": [
+    "The filesystem-write rule is a HEURISTIC: it matches substrings on the code part of a",
+    "line, so it can miss a write behind a helper and can flag a mention that is not one.",
+    "That is why it is the only escapable rule. If the waivers ever number more than a",
+    "handful, the rule is wrong and should be narrowed -- an unusable gate gets switched off,",
+    "which is worse than a narrow one that stays on.",
+    "",
+    "tools/ and tests/ are allowed to write because they are not product code: license-audit",
+    "generates THIRD-PARTY.md, and the test harness writes fixtures and diff images."
+  ]
+}

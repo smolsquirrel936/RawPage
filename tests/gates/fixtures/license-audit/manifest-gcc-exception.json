@@ -1,0 +1,5 @@
+{
+  "$comment": "NEGATIVE CONTROL for the case above: the same identifier WITH the exception must pass.",
+  "name": "fixture-gcc-exception", "version": "0.0.0",
+  "dependencies": ["fixture-gcc-runtime"]
+}
