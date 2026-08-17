@@ -1,7 +1,10 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
-
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "_base",
@@ -9,7 +12,17 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}"
     },
-
+    {
+      "name": "gates",
+      "displayName": "Gates only (no Qt, no vcpkg)",
+      "description": "tools/ and tests/gates/ only. Runs anywhere with a C++20 compiler -- this is the configuration the CI gates job uses, and what makes 'the gates run before anything is compiled' real rather than aspirational.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "RECTO_GATES_ONLY": "ON",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
     {
       "name": "_windows",
       "hidden": true,
@@ -28,23 +41,24 @@
         "RECTO_TARGET_ARCH": "x64"
       }
     },
-
     {
       "name": "x64-debug",
       "inherits": "_windows",
       "displayName": "x64 Debug",
       "description": "Day-to-day development and ctest.",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
-
     {
       "name": "x64-release",
       "inherits": "_windows",
       "displayName": "x64 Release",
       "description": "The shipping configuration. CI builds this.",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
-
     {
       "name": "arm64-release",
       "inherits": "_base",
@@ -60,7 +74,6 @@
         "RECTO_TARGET_ARCH": "arm64"
       }
     },
-
     {
       "name": "_portable",
       "hidden": true,
@@ -77,7 +90,6 @@
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     },
-
     {
       "name": "portable-asan",
       "inherits": "_portable",
@@ -89,7 +101,6 @@
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
       }
     },
-
     {
       "name": "portable-fuzz",
       "inherits": "_portable",
@@ -104,32 +115,72 @@
       }
     }
   ],
-
   "buildPresets": [
-    { "name": "x64-debug",     "configurePreset": "x64-debug" },
-    { "name": "x64-release",   "configurePreset": "x64-release" },
-    { "name": "portable-asan", "configurePreset": "portable-asan" },
-    { "name": "portable-fuzz", "configurePreset": "portable-fuzz" }
+    {
+      "name": "gates",
+      "configurePreset": "gates"
+    },
+    {
+      "name": "x64-debug",
+      "configurePreset": "x64-debug"
+    },
+    {
+      "name": "x64-release",
+      "configurePreset": "x64-release"
+    },
+    {
+      "name": "portable-asan",
+      "configurePreset": "portable-asan"
+    },
+    {
+      "name": "portable-fuzz",
+      "configurePreset": "portable-fuzz"
+    }
   ],
-
   "testPresets": [
+    {
+      "name": "gates",
+      "configurePreset": "gates",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
+    },
     {
       "name": "x64-debug",
       "configurePreset": "x64-debug",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
     },
     {
       "name": "x64-release",
       "configurePreset": "x64-release",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
     },
     {
       "name": "portable-asan",
       "configurePreset": "portable-asan",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
     }
   ]
 }

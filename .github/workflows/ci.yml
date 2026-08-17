@@ -1,0 +1,179 @@
+# Recto CI.
+#
+# THE ORDERING IS THE POINT. `gates` runs first, on a bare Linux runner with no Qt and no
+# vcpkg, and everything else `needs:` it. A layering or licence violation therefore fails in
+# well under a minute, before any runner has spent time installing a toolchain --
+# Tech-Stack-Plan.md 9: "checks must pass before compilation".
+#
+# That is only possible because the gate executables link nothing but the C++ standard
+# library (decision D0-1) and the root CMakeLists has a RECTO_GATES_ONLY configuration that
+# does not call find_package(Qt6). Measured locally: 3.8 s from configure to green.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =====================================================================================
+  # 1. The gates. No Qt. No vcpkg. No layers. Fails first and fastest.
+  # =====================================================================================
+  gates:
+    name: Gates (layer-lint, license-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: cmake --preset gates
+
+      - name: Build the gate executables
+        run: cmake --build --preset gates
+
+      - name: Run the gates
+        run: cmake --build --preset gates --target checks
+
+      # The gates are also tested against deliberately bad input. A gate that has only ever
+      # been run on a clean tree is an assumption, not a check.
+      #
+      # The gates.wrong_compiler.* cases are absent here by design: they configure against
+      # cmake/toolchain-mingw.cmake, which pins a Windows compiler. tests/gates/CMakeLists.txt
+      # guards them with if(WIN32), so this runner sees 16 cases and the Windows job sees 23.
+      - name: Gate fixtures
+        run: ctest --preset gates
+
+      - name: Upload THIRD-PARTY.md
+        uses: actions/upload-artifact@v4
+        with:
+          name: third-party-notices
+          path: THIRD-PARTY.md
+          if-no-files-found: error
+
+  # =====================================================================================
+  # 2. The shipping build.
+  # =====================================================================================
+  windows:
+    name: Windows x64 (Qt 6.11.1, MinGW 13.1.0)
+    needs: gates
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The pin is NOT negotiable to make CI easier: Qt 6.11.1's MinGW build is GCC 13.1.0,
+      # msvcrt-based, and cmake/toolchain-mingw.cmake asserts exactly that (TA-1..TA-9). If
+      # this action cannot supply tools_mingw1310, the documented fallback is a self-hosted
+      # runner on the development machine -- not relaxing the assertions.
+      - name: Install Qt and the pinned MinGW toolchain
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.1'
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          modules: 'qtsvg'
+          tools: 'tools_mingw1310'
+          cache: true
+
+      # MUST come before the first vcpkg invocation, not merely before the compile step.
+      # Measured at T6: vcpkg's x64-mingw-dynamic triplet runs a detect_compiler probe that
+      # invokes the pinned g++, and without the toolchain bin on PATH, cc1plus cannot load
+      # its own DLLs (0xC0000135). vcpkg reports that as "unable to detect the active
+      # compiler's information", which reads exactly like a broken triplet or a missing port
+      # and cost a false-negative A5 reading before the cause was found.
+      - name: Put the pinned toolchain on PATH
+        shell: pwsh
+        run: |
+          $mingw = "${env:IQTA_TOOLS}\mingw1310_64\bin"
+          if (-not (Test-Path $mingw)) { throw "pinned MinGW not found at $mingw" }
+          echo $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "RECTO_MINGW_ROOT=${env:IQTA_TOOLS}/mingw1310_64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "RECTO_QT_PREFIX=${env:QT_ROOT_DIR}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify the toolchain is the pinned one
+        shell: pwsh
+        run: |
+          g++ --version
+          g++ -dumpmachine
+          if ((g++ -dumpversion) -ne '13.1.0') { throw "expected GCC 13.1.0" }
+
+      # vcpkg re-resolves the pinned baseline on a cold cache, which cost ~200 s locally.
+      # Caching the built packages keeps that off every run.
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LOCALAPPDATA }}/vcpkg/archives
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Configure
+        run: cmake --preset x64-release
+
+      # Run the gates again here, against the REAL configuration. The Linux job cannot see
+      # qt-modules.txt or compiler-plugins.txt -- both are written at configure time from
+      # the actual Qt link closure and the actual compiler -- so the Qt Charts check and the
+      # GCC-plugin check only have teeth in this job.
+      - name: Gates against the real configuration
+        run: cmake --build --preset x64-release --target checks
+
+      - name: Build
+        run: cmake --build --preset x64-release
+
+      - name: Test
+        run: ctest --preset x64-release
+
+      # The cheapest possible check that the CRT still matches Qt's (Tech-Stack-Plan.md 9).
+      - name: Verify linkage
+        shell: pwsh
+        run: |
+          $imports = objdump -p build/x64-release/bin/recto.exe | Select-String 'DLL Name'
+          $imports
+          if ($imports -match 'ucrtbase\.dll') { throw "recto.exe imports ucrtbase.dll -- the CRT no longer matches Qt's" }
+          if ($imports -match 'Qt6Charts')     { throw "recto.exe imports Qt6Charts -- GPL-3.0-only module linked (D4)" }
+          if (-not ($imports -match 'msvcrt\.dll')) { throw "recto.exe does not import msvcrt.dll" }
+
+  # =====================================================================================
+  # 3. The sanitizer gate MinGW GCC cannot give us on Windows (risk R7).
+  #
+  # This job is also the standing proof of the layer contract: core/ and pdf/cos/ must build
+  # and pass with no display and no PDF engine. Here there is genuinely neither.
+  # =====================================================================================
+  portable-asan:
+    name: Portable ASan + UBSan (Linux)
+    needs: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools and QtCore
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build qt6-base-dev
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-linux-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-linux-
+
+      - name: Configure
+        run: cmake --preset portable-asan
+
+      - name: Build core/ and pdf/cos/
+        run: cmake --build --preset portable-asan
+
+      # -fno-sanitize-recover=all is set in the preset, so any finding aborts rather than
+      # printing and continuing. A sanitizer report that does not fail the build is a
+      # sanitizer report nobody reads.
+      - name: Run the headless suite under ASan+UBSan
+        run: ctest --preset portable-asan

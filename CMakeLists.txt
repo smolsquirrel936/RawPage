@@ -30,6 +30,18 @@ option(RECTO_PORTABLE_SUBSET
     "Build only core/ and pdf/cos/ -- the layers that must build with no display and no PDF engine"
     OFF)
 
+# --- Gates-only -------------------------------------------------------------
+# Builds tools/ and tests/gates/ and NOTHING else: no Qt, no vcpkg, no layers.
+#
+# This is what makes decision D0-1 true rather than aspirational. The CI `gates` job runs on
+# a bare runner with no Qt and no vcpkg installed, so a layering or licence violation fails
+# in under a minute instead of behind a full toolchain provisioning step. Without this
+# option the root would still call find_package(Qt6 REQUIRED) and the job could not exist --
+# the claim would have been false the first time anyone tested it.
+option(RECTO_GATES_ONLY
+    "Build only the enforcement gates -- no Qt, no vcpkg, no layer libraries"
+    OFF)
+
 option(RECTO_BUILD_FUZZERS
     "Build the libFuzzer targets (portable-fuzz preset). No targets exist until Stage 2."
     OFF)
@@ -58,8 +70,8 @@ endif()
 # same sources with a different compiler on a different OS -- that is the entire point
 # of them -- so applying an "exactly GCC 13.1.0, SEH, msvcrt" assertion there would
 # reject the configuration we are specifically trying to prove works.
-if(RECTO_PORTABLE_SUBSET)
-    message(STATUS "Portable subset: toolchain pin NOT applied -- this is a gate build, not a shipping build")
+if(RECTO_PORTABLE_SUBSET OR RECTO_GATES_ONLY)
+    message(STATUS "Gate build: toolchain pin NOT applied -- this is not a shipping build")
 else()
     include(ToolchainAssert)
 endif()
@@ -85,16 +97,15 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Not built by vcpkg: it comes from Qt's official MinGW distribution, both because
 # vcpkg's Qt-on-MinGW path is fragile and because D8 requires shipping a Qt the user
 # can rebuild and drop in. The exact-version assertion belongs to ToolchainAssert (TA-8).
-if(NOT RECTO_PORTABLE_SUBSET)
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
-else()
+if(RECTO_GATES_ONLY)
+    message(STATUS "Gates only: Qt is NOT required")
+elseif(RECTO_PORTABLE_SUBSET)
     find_package(Qt6 REQUIRED COMPONENTS Core)
-endif()
-
-# TA-8. Deferred to here because it can only run once Qt6_VERSION and Qt6_DIR exist,
-# and skipped for the portable subset for the same reason the rest of the pin is: a
-# Linux gate build uses whatever QtCore the distro ships, and must.
-if(NOT RECTO_PORTABLE_SUBSET)
+else()
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
+    # TA-8 can only run once Qt6_VERSION and Qt6_DIR exist. Skipped for the gate builds for
+    # the same reason the rest of the pin is: a Linux gate build uses whatever QtCore the
+    # distro ships, and must.
     recto_assert_qt()
 endif()
 
@@ -105,18 +116,23 @@ endif()
 add_subdirectory(tools)
 
 # --- Layers ------------------------------------------------------------------
-add_subdirectory(core)
-add_subdirectory(pdf)
+if(NOT RECTO_GATES_ONLY)
+    add_subdirectory(core)
+    add_subdirectory(pdf)
 
-if(NOT RECTO_PORTABLE_SUBSET)
-    add_subdirectory(platform)
-    add_subdirectory(ui)
-    add_subdirectory(app)
+    if(NOT RECTO_PORTABLE_SUBSET)
+        add_subdirectory(platform)
+        add_subdirectory(ui)
+        add_subdirectory(app)
+    endif()
 endif()
 
 # --- Tests -------------------------------------------------------------------
 add_subdirectory(tests/gates)
-add_subdirectory(tests/unit)
+
+if(NOT RECTO_GATES_ONLY)
+    add_subdirectory(tests/unit)   # needs Catch2 from vcpkg, and core/ to test
+endif()
 
 # --- Gate inputs -------------------------------------------------------------
 # Written last, after every target exists: a global property read earlier would see a

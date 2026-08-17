@@ -123,6 +123,12 @@ recto_add_gate_test(NAME gates.license_audit.missing_manifest_is_exit_2
 # the machine -- which stays with manual case M-02. See the fixture README for why both
 # halves matter.
 # --------------------------------------------------------------------------------------
+# Windows only: these configure against cmake/toolchain-mingw.cmake, which pins a
+# Windows compiler by definition. On the Linux gates runner there is nothing to pin, and a
+# case that cannot run must be absent rather than failing -- a red CI job that everyone
+# learns to ignore protects nothing.
+if(WIN32)
+
 set(WC_PROJECT "${FIXTURES}/wrong-compiler/project")
 set(WC_TOOLCHAIN "${CMAKE_SOURCE_DIR}/cmake/toolchain-mingw.cmake")
 
@@ -181,3 +187,5 @@ recto_add_toolchain_test(NAME gates.wrong_compiler.wc5_gcc_plugin
 recto_add_toolchain_test(NAME gates.wrong_compiler.wc6_static_runtime
     EXTRA "-DCMAKE_CXX_FLAGS=-static-libstdc++"
     EXPECT_MATCH "static")
+
+endif()  # WIN32 -- toolchain pin cases

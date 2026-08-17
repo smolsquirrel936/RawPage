@@ -423,7 +423,7 @@ Three jobs, and the ordering is the point: **`checks` runs before anything is co
 
 | Job | Runner | Does | Why it is shaped this way |
 |---|---|---|---|
-| `gates` | `ubuntu-latest` | builds `layer-lint` + `license-audit` and runs `--target checks`; runs `tst_gates` | D0-1's payoff: **no Qt, no vcpkg, no Windows** — under a minute, and it is the job that fails first. A layering violation must not wait behind a Qt install |
+| `gates` | `ubuntu-latest` | `cmake --preset gates` → build → `--target checks` → `ctest --preset gates` | D0-1's payoff: **no Qt, no vcpkg, no Windows**. Measured 2026-08-18 with Qt and vcpkg deliberately hidden: **3.8 s, 23/23**. Requires the `RECTO_GATES_ONLY` configuration — without it the root calls `find_package(Qt6 REQUIRED)` and this job cannot exist. `windows` and `portable-asan` both `needs:` it, so a violation stops everything before a runner installs a toolchain |
 | `windows` | `windows-latest` + Qt install action, **or a self-hosted runner on this machine** | `cmake --preset x64-release` → `--target checks` → build → `ctest` | The A7 pin means CI must install *exactly* Qt 6.11.1 mingw_64 **and** `tools_mingw1310`. If the Qt install action cannot supply that tool package, the self-hosted route is the fallback — the pin is not negotiable to make CI easier |
 | `portable-asan` | `ubuntu-latest` | configures `portable-asan`, builds `core/` + `pdf/cos/` + unit tests, runs `ctest` under ASan+UBSan | Recovers the gate MinGW cannot give us (R7), and mechanically proves the portability the architecture claims |
 
