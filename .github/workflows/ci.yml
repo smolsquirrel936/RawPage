@@ -62,27 +62,40 @@ jobs:
   # =====================================================================================
   # 2. The shipping build.
   # =====================================================================================
+  # -------------------------------------------------------------------------------------
+  # SELF-HOSTED, and here is why.
+  #
+  # The first CI run failed at "Install Qt". Investigated 2026-08-18; it is not a flake and
+  # not our configuration:
+  #
+  #   * Qt 6.11.1 IS published, and tools_mingw1310 IS listed by aqt.
+  #   * Both Updates.xml and its .sha256 return HTTP 200 from download.qt.io.
+  #   * With hash checking disabled, aqt reveals the real error -- it requests
+  #       .../qt6_6111/qt6_6111/Updates.xml   -> 404
+  #     while Qt 6.11 splits its repository per architecture:
+  #       .../qt6_6111/qt6_6111_mingw/Updates.xml   -> 200
+  #   * aqtinstall 3.3.0 (latest) and 3.2.1 fail identically, and a trusted-mirror config
+  #     does not help. The "checksum" error was masking the 404.
+  #
+  # So aqtinstall cannot install Qt 6.11.1 at all today. The options were: downgrade the Qt
+  # pin to something aqt can fetch, or run this job on the machine that already has the
+  # pinned toolchain. Downgrading was rejected -- TA-8 asserts 6.11.1, and testing against a
+  # different Qt than we ship is precisely the ABI question risk A7 exists to prevent. The
+  # plan (Stage0-Toolchain-Plan.md §9) named the self-hosted runner as the fallback for
+  # exactly this, and said the pin is not negotiable to make CI easier.
+  #
+  # This job is gated on a repository variable so the workflow stays green until a runner is
+  # registered. That is deliberate: a job queued forever, or one marked continue-on-error,
+  # would claim coverage the project does not have. Set RECTO_HAS_WINDOWS_RUNNER=true once
+  # the runner exists.
+  # -------------------------------------------------------------------------------------
   windows:
     name: Windows x64 (Qt 6.11.1, MinGW 13.1.0)
     needs: gates
-    runs-on: windows-latest
+    if: vars.RECTO_HAS_WINDOWS_RUNNER == 'true'
+    runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v4
-
-      # The pin is NOT negotiable to make CI easier: Qt 6.11.1's MinGW build is GCC 13.1.0,
-      # msvcrt-based, and cmake/toolchain-mingw.cmake asserts exactly that (TA-1..TA-9). If
-      # this action cannot supply tools_mingw1310, the documented fallback is a self-hosted
-      # runner on the development machine -- not relaxing the assertions.
-      - name: Install Qt and the pinned MinGW toolchain
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.11.1'
-          host: windows
-          target: desktop
-          arch: win64_mingw
-          modules: 'qtsvg'
-          tools: 'tools_mingw1310'
-          cache: true
 
       # MUST come before the first vcpkg invocation, not merely before the compile step.
       # Measured at T6: vcpkg's x64-mingw-dynamic triplet runs a detect_compiler probe that
@@ -90,14 +103,17 @@ jobs:
       # its own DLLs (0xC0000135). vcpkg reports that as "unable to detect the active
       # compiler's information", which reads exactly like a broken triplet or a missing port
       # and cost a false-negative A5 reading before the cause was found.
+      # On the self-hosted runner the pinned toolchain is the machine's own Qt install --
+      # which is stronger than a downloaded one: CI then tests with the exact bytes the
+      # release is built from, rather than a same-version copy.
       - name: Put the pinned toolchain on PATH
         shell: pwsh
         run: |
-          $mingw = "${env:IQTA_TOOLS}\mingw1310_64\bin"
-          if (-not (Test-Path $mingw)) { throw "pinned MinGW not found at $mingw" }
-          echo $mingw | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "RECTO_MINGW_ROOT=${env:IQTA_TOOLS}/mingw1310_64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "RECTO_QT_PREFIX=${env:QT_ROOT_DIR}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          . .\scripts\env.ps1
+          echo "$env:PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "RECTO_MINGW_ROOT=$env:RECTO_MINGW_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "RECTO_QT_PREFIX=$env:RECTO_QT_PREFIX"   | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "VCPKG_ROOT=$env:VCPKG_ROOT"             | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify the toolchain is the pinned one
         shell: pwsh
@@ -106,15 +122,9 @@ jobs:
           g++ -dumpmachine
           if ((g++ -dumpversion) -ne '13.1.0') { throw "expected GCC 13.1.0" }
 
-      # vcpkg re-resolves the pinned baseline on a cold cache, which cost ~200 s locally.
-      # Caching the built packages keeps that off every run.
-      - name: Cache vcpkg binaries
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.LOCALAPPDATA }}/vcpkg/archives
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-          restore-keys: vcpkg-${{ runner.os }}-
-
+      # No vcpkg cache step here: a self-hosted runner keeps %LOCALAPPDATA%\vcpkg\archives
+      # between runs already, so an actions/cache round-trip would upload and re-download
+      # what is sitting on the disk it is running from.
       - name: Configure
         run: cmake --preset x64-release
 
@@ -158,6 +168,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build qt6-base-dev
+
+      # ubuntu-latest ships vcpkg but exports it as VCPKG_INSTALLATION_ROOT, not VCPKG_ROOT
+      # (windows-latest sets both, which is why this only failed on Linux). The preset reads
+      # $env{VCPKG_ROOT}, so without this the toolchain path expanded to the bare
+      # "/scripts/buildsystems/vcpkg.cmake" and configure failed on a file that never existed.
+      - name: Export VCPKG_ROOT
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
       - name: Cache vcpkg binaries
         uses: actions/cache@v4
