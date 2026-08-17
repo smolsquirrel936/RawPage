@@ -1,0 +1,441 @@
+# Stage 0 — Toolchain & Gates · Testing Guide
+
+> **Authoritative verification document for Stage 0.** Written from
+> [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md) and
+> [`Implementation-Plan.md` § Stage 0](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates),
+> **before any Stage 0 code exists** — which is the point: verification written afterwards only ever
+> confirms whatever got built, including the parts built wrong.
+>
+> **Status:** ⚪ **Not started.** No case below has been run. Failures are recorded in the
+> [issue log](#8-issue-log), which is this guide's only progress record.
+>
+> Two halves, per [`CLAUDE.md`](../CLAUDE.md): **[§5 Automated](#5-automated-verification--i-run-this)**
+> — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
+> you walk it on real hardware, and **I never mark a manual case passed on your behalf.**
+
+---
+
+## 1. Scope
+
+### In scope — must pass for sign-off
+
+The four things Stage 0 exists to guarantee ([plan §1](./Stage0-Toolchain-Plan.md#1-what-stage-0-is-actually-for)):
+the toolchain pin holds, the two live gates fail correctly on bad input and pass on the real tree,
+every dependency resolves and audits clean, and **A5 and A6 have recorded verdicts**.
+
+### Out of scope — do NOT file these as bugs
+
+These are planned absences, not defects. Filing them wastes a triage cycle and, worse, invites someone
+to "fix" them early.
+
+| Not present at Stage 0 | Arrives at |
+|---|---|
+| `recto.exe` does anything at all — it opens no window, prints nothing, returns 0 | Stage 1 |
+| `mutation-lint` and `i18n-lint` — **only two of the four gates exist** | Stages 3 and 1 |
+| Any settings key, any `tr()` string, any ribbon, any document | Stages 1–2 |
+| Golden-image, round-trip, and bench suites | Stages 2–3 |
+| `portable-fuzz` producing findings — it configures with **zero targets** | Stage 2 |
+| arm64 running on hardware — it **configures only** (O6, R8) | Stage 15 |
+| PDFium used for anything beyond opening one file in a throwaway spike | Stage 2 |
+| Installers, signing, the release gate | Stage 15 |
+
+### Case anatomy
+
+Every case below is **ID · Goal · Pre · Steps · Expect · If it fails**, with a `☐` you change to ✅ or
+❌. A case either passes or yields a **specific** failure — "looks fine" is not a result.
+
+### Severity
+
+| Sev | Meaning |
+|---|---|
+| **S1** | A gate does not fail on a violation, the compiler pin does not hold, or the build is unreproducible. Stage 0's whole purpose has failed — blocks sign-off outright |
+| **S2** | A gate fails for the wrong reason, a verdict cannot be recorded, or CI cannot run the gates before compiling |
+| **S3** | A diagnostic is unclear, a documented command is wrong, output is ugly |
+| **S4** | Polish |
+
+**An S1 in this stage is different from an S1 elsewhere:** everywhere else it means the product is
+broken; here it means the *safety net for the next sixteen stages* is broken, and shipping it means
+every later stage inherits an unenforced rule.
+
+---
+
+## 2. Build, launch, environment
+
+`cmake`, `ninja`, and `g++` are **not on this machine's `PATH`** ([plan §2](./Stage0-Toolchain-Plan.md#2-environment-ledger--measured-on-this-machine-2026-08-17)).
+Every command below assumes `scripts\env.ps1` has been dot-sourced first — and a case that works only
+*without* it is itself a finding.
+
+```powershell
+. .\scripts\env.ps1                                          # prepends C:\Qt\Tools\{CMake_64,Ninja,mingw1310_64}\bin
+cmake --preset x64-release
+cmake --build --preset x64-release --target checks            # the gates — always first
+cmake --build --preset x64-release
+ctest --preset x64-debug --output-on-failure
+```
+
+**What "launched" looks like at this stage:** `recto.exe` is a GUI-subsystem binary that creates no
+window and writes nothing. It has run correctly when it exits `0`. There is nothing to look at — that
+is expected, not a failure.
+
+### Environment variables and cache variables that affect these cases
+
+Stage 0 has **no settings keys** (`SettingsSchema` is Stage 1), so this table replaces the usual
+settings table.
+
+| Variable | Where set | Default | Effect | Cases that must change it |
+|---|---|---|---|---|
+| `RECTO_MINGW_ROOT` | CMake cache | `C:/Qt/Tools/mingw1310_64` | The pinned compiler ([plan §5.1](./Stage0-Toolchain-Plan.md#51-cmaketoolchain-mingwcmake--cmaketoolchainassertcmake)) | A-04, M-02 |
+| `RECTO_QT_PREFIX` | CMake cache | `C:/Qt/6.11.1/mingw_64` | Qt location; TA-8 | M-03 |
+| `VCPKG_ROOT` | environment | `C:\Users\squirrel\vcpkg` | Dependency resolution | A-60, M-04 |
+| `VCPKG_TARGET_TRIPLET` | preset | `x64-mingw-dynamic` | **The A5 question itself** — never change it to make a port resolve | A-60, A-61 |
+| `RECTO_PORTABLE_SUBSET` | preset | `ON` for `portable-*` | Restricts the build to `core/` + `pdf/cos/` | A-70 |
+
+### Test rig
+
+Almost nothing here needs special hardware — which is why the manual section is short.
+
+- **The primary machine** (Qt 6.11.1, `mingw1310_64`, vcpkg at `C:\Users\squirrel\vcpkg`) for everything.
+- **A second, clean Windows machine or a fresh VM** with *only* a stock `C:\Qt\6.11.1` install and git —
+  no MSYS2, no Visual Studio, no vcpkg on the `PATH`. This is the rig for **M-01**, and it is the only
+  case that can catch "it builds because of something that happens to be installed here".
+- **An MSYS2 UCRT64 install** (or any non-Qt MinGW GCC) for **M-02**. This is the one case a stub
+  compiler cannot fake: only a real UCRT toolchain exercises TA-6, and TA-6 is the assertion that
+  catches the realistic regression.
+- **Network access** for the vcpkg resolve and the pinned PDFium download.
+
+---
+
+## 3. Verdicts this guide must produce
+
+Sign-off is not just green cases. Three answers must exist in writing, in their owning documents
+([plan §8](./Stage0-Toolchain-Plan.md#8-verdict-ledger--what-stage-0-owes-and-where-each-answer-lands)):
+
+| Verdict | Produced by | Recorded in |
+|---|---|---|
+| **A5** — does the §6.2 set resolve on `x64-mingw-dynamic`? | A-60, A-61 | `Tech-Stack-Plan.md` §3.3 + Stage 0 status |
+| **A6** — does a PDFium DLL link from `g++` and open a file? | A-62, A-63 | same |
+| **A7 stays settled** | A-04 + M-02 | no new record — the assertions *are* the record |
+
+A stage that is green but has no verdicts is **not** signed off. The verdicts are the deliverable;
+the green is the evidence.
+
+---
+
+## 4. Traceability — exit criterion → case
+
+| [Exit criterion](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates) | Cases |
+|---|---|
+| Clean checkout → documented command → empty `recto.exe` builds | M-01, A-01, A-02, A-40 |
+| `checks` passes on the real tree | A-10, A-11, A-12 |
+| `checks` fails on each bad fixture, **Qt Charts included** | A-20 … A-30 |
+| `THIRD-PARTY.md` generated, no non-allowlisted license, lists Qt 6.11.1 and the GCC runtime with its exception | A-12, A-13, M-07 |
+| **A5 verdict** — manifest resolves on `x64-mingw-dynamic` | A-60, A-61 |
+| **A6 verdict** — the PDFium DLL spike opens a file | A-62, A-63 |
+| **A7 stays settled** — a mismatched compiler fails configure | A-04, M-02 |
+| `core/` builds with no display and no PDF engine | A-43, A-44, A-70 |
+
+---
+
+## 5. Automated verification — I run this
+
+Every case names its exact command and its pass condition. I report the **actual** output; a failing
+case is reported as failing, with that output, and is never declared fixed without a re-run.
+
+### 5.1 Configure and the toolchain pin
+
+**A-01 · Configure debug**
+☐ **Goal** The pinned toolchain configures. **Pre** T3, T4 complete; `VCPKG_ROOT` set.
+**Steps** `cmake --preset x64-debug`
+**Expect** Exit 0. Log names GCC **13.1.0** at `C:/Qt/Tools/mingw1310_64`, Qt **6.11.1**, triplet
+`x64-mingw-dynamic`, generator Ninja. **If it fails** S1 — nothing else in the stage can run.
+
+**A-02 · Configure release** ☐ As A-01 with `--preset x64-release`. **If it fails** S1.
+
+**A-03 · arm64 configures only**
+☐ **Goal** The arm64 preset is syntactically real without pretending to be validated.
+**Steps** `cmake --preset arm64-release`
+**Expect** Configure succeeds **or** fails with an explicit "arm64 is configure-only, see O6/R8"
+message. What must *not* happen is a confusing failure that looks like a bug. **No build, no run.**
+**If it fails** S3 (S2 if the message misleads).
+
+**A-04 · A mismatched compiler fails configure — the A7 guard**
+☐ **Goal** TA-2 fires. **Pre** `tests/gates/fixtures/wrong-compiler/` stub reporting GCC 14.2.0.
+**Steps** `ctest --preset x64-debug -R gates.wrong_compiler`
+**Expect** Configure of the fixture project fails; the message names **TA-2**, the expected version
+`13.1.0`, the version found, and the fix. **If it fails** **S1** — this is the assertion that stops a
+week-long crash hunt in Stage 6.
+
+**A-05 · No static linking of the runtimes**
+☐ **Goal** `-static`, `-static-libstdc++`, `-static-libgcc` cannot enter the flags — an LGPL
+obligation *and* an ABI hazard ([`Tech-Stack-Plan.md` §8.1](./Tech-Stack-Plan.md#81-obligation--concrete-action)).
+**Steps** Configure with `-DCMAKE_CXX_FLAGS=-static-libstdc++`.
+**Expect** Configure fails naming the flag. **If it fails** S1 (license) — an obligation that is only
+documented is not met.
+
+**A-06 · The compiler plugin list is empty**
+☐ **Goal** The Runtime Library Exception's condition (TA-9) is checked, not assumed.
+**Steps** `cmake --preset x64-release` then read `build/x64-release/compiler-plugins.txt`.
+**Expect** File exists and is empty. **If it fails** S1 (license) — a non-free plugin would relicense
+our own source.
+
+### 5.2 The gates on the real tree
+
+**A-10 · `checks` is clean**
+☐ **Steps** `cmake --build --preset x64-release --target checks`
+**Expect** Exit 0; both gates report clean; **completes without compiling any layer library**
+(the log shows only the two tool targets building). **If it fails** S1 if a real violation exists in
+the tree; S2 if `checks` dragged the whole build in — that defeats "the gates run first".
+
+**A-11 · The include graph has no outward edge**
+☐ **Steps** `./layer-lint --explain > graph.txt`
+**Expect** Non-empty graph; zero outward edges; the excluded-path list ([plan D0-4](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions))
+and every active `allow-write` escape are printed. **If it fails** S2.
+
+**A-12 · `THIRD-PARTY.md` is generated and correct**
+☐ **Steps** `./license-audit --emit THIRD-PARTY.md`; read it.
+**Expect** Exit 0. Contains **Qt 6.11.1 under LGPL-3.0** with its source-offer URL; the **GCC runtime
+as `GPL-3.0-or-later WITH GCC-exception-3.1`**; FreeType's **FTL** election and Hunspell's **MPL-2.0**
+election stated explicitly; a NOTICE column. No identifier outside the §8.2 allowlist.
+**If it fails** S2 (S1 if a non-allowlisted license is present and passed).
+
+**A-13 · The allowlist exists in exactly one place**
+☐ **Goal** A second copy of the allowlist is how the two copies drift apart.
+**Steps** grep the tree for `Unicode-DFS-2016`.
+**Expect** One hit, in `tools/license-audit/`. **If it fails** S3.
+
+### 5.3 The gates on deliberately bad input
+
+The heart of the stage. Every case asserts the gate exits **1** *and* prints its **named diagnostic** —
+a gate that fails for an unrelated reason has not been tested. Run as one suite:
+`ctest --preset x64-debug -R tst_gates --output-on-failure`.
+
+| ID | Fixture | Gate | Expect | Fail sev |
+|---|---|---|---|---|
+| ☐ **A-20** | `outward-include/` | layer-lint | Exit 1; `core/` → `pdf/cos/CosDict.h` reported with `file:line` | S1 |
+| ☐ **A-21** | `ui-includes-pdf/` | layer-lint | Exit 1; `ui/` → `pdf/` reported | S1 |
+| ☐ **A-22** | `fpdf-outside-pdf/` | layer-lint | Exit 1; `FPDF_InitLibrary` outside `pdf/` reported | S1 |
+| ☐ **A-23** | `write-outside-allowed/` | layer-lint | Exit 1; the write site reported; adding `// layer-lint: allow-write(test)` makes it pass **and** the escape appears in `--explain` | S1 |
+| ☐ **A-24** | `manifest-gpl/` | license-audit | Exit 1; the GPL-2.0 dependency named | S1 |
+| ☐ **A-25** | `manifest-bare-gcc-gpl/` | license-audit | Exit 1 on **bare `GPL-3.0-or-later`** — proves the GCC allowance is a whole-expression match, not a `GPL` substring hole | **S1** |
+| ☐ **A-26** | `manifest-gcc-exception/` | license-audit | **Exit 0** — the same identifier `WITH GCC-exception-3.1` passes. Without this control, A-25 is satisfied by a tool that rejects everything | **S1** |
+| ☐ **A-27** | `manifest-lgpl/` | license-audit | **Exit 0** — `LGPL-3.0` must not be caught by any `GPL` test | **S1** |
+| ☐ **A-28** | `qt-charts-link/` | license-audit | Exit 1; message names Qt Charts as **GPL-3.0-only** and cites D4 — not a generic "not on the allowlist", which invites someone to widen the allowlist | **S1** |
+| ☐ **A-29** | `plugin-loaded/` | license-audit | Exit 1; the plugin named; the exception-void consequence stated | S1 |
+| ☐ **A-30** | fixtures excluded from the real run | layer-lint | The production run over the tree ignores `tests/gates/fixtures/` **by the explicit deny-path**, and says so in `--explain` | S2 |
+
+### 5.4 Build shape and the layer boundary
+
+**A-40 · The empty executable builds and runs**
+☐ **Steps** `cmake --build --preset x64-release`; run `recto.exe`; `echo $LASTEXITCODE`
+**Expect** Builds with zero warnings in `core`/`pdf` (`-Werror`); exits **0**; no window, no output.
+**If it fails** S1.
+
+**A-41 · The CRT still matches Qt's**
+☐ **Steps** `objdump -p build/x64-release/recto.exe | Select-String "DLL Name"`
+**Expect** `msvcrt.dll` present; **`ucrtbase.dll` absent**; `libstdc++-6.dll`, `libgcc_s_seh-1.dll`,
+`libwinpthread-1.dll` present as **imports, not statically linked**. This is the cheapest possible
+check that the CRT matches Qt's ([`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification)).
+**If it fails** S1.
+
+**A-42 · No Qt Charts anywhere**
+☐ **Steps** Same output; also list the build tree.
+**Expect** No `Qt6Charts.dll` or `Qt6DataVisualization.dll` among imports or in the tree.
+**If it fails** S1 (license).
+
+**A-43 · The unit test binary links no UI and no platform**
+☐ **Steps** Inspect the resolved link closure of the `tests/unit` target.
+**Expect** `recto_core` and `recto_pdf` only. **`recto_ui` and `recto_platform` absent.**
+**If it fails** S1 — "if it cannot, the boundary has already leaked".
+
+**A-44 · …and that is enforced, not observed**
+☐ **Steps** Add `recto_ui` to the test target's `target_link_libraries` and configure.
+**Expect** **Configure fails** with a message naming the boundary rule. **If it fails** S2 — an
+unenforced invariant is one refactor from being false.
+
+### 5.5 The `core/` vocabulary
+
+Run: `ctest --preset x64-debug --output-on-failure`.
+
+| ID | Suite | Expect | Fail sev |
+|---|---|---|---|
+| ☐ **A-50** | all | Every suite green: `tst_result`, `tst_units`, `tst_geometry`, `tst_log`, `tst_gates` | S1 |
+| ☐ **A-51** | `tst_geometry` | The **compile-time negatives** hold: `static_assert(!std::is_convertible_v<PdfPoint, DevicePoint>)` and siblings, both directions, points and rects. Conversion is possible **only** through an explicit `PageTransform` | **S1** — this is the assertion that prevents the "slightly wrong at 150% scaling" bug class |
+| ☐ **A-52** | `tst_log` | A `Redacted<QString>` renders as `<redacted>` at info/warning/error and as the real value at debug/trace; `trace` compiles out in release | S2 — [`Features.md` §9.5](./Features.md#95-logging-and-diagnostics) makes this a rule, and a rule enforced by a type is a rule |
+| ☐ **A-53** | `tst_units` | Exact ratios: 1 in = 72 pt, 1 pica = 12 pt, 1 mm = 72/25.4 pt; round-trip through all five units within a stated tolerance; parse and format | S2 |
+| ☐ **A-54** | `tst_result` | `Result<T>` and `Result<void>` carry code + catalog key + context; **nothing in the header throws**; `RECTO_TRY` propagates | S2 |
+
+### 5.6 Dependencies and the two spikes
+
+**A-60 · A5 — the manifest resolves on `x64-mingw-dynamic`**
+☐ **Steps** `vcpkg install --dry-run --triplet x64-mingw-dynamic` over the default feature set.
+**Expect** Every package resolves. **Any port that resolves only under MSVC is the A5 finding** — it is
+recorded with an owning stage and an overlay port, **not** worked around by changing the triplet.
+**If it fails** S2 and **record the verdict anyway** — a negative A5 is a successful Stage 0 outcome,
+found now instead of in Stage 6.
+
+**A-61 · A5 across the deferred features**
+☐ **Steps** Repeat A-60 for each optional feature (`ocr`, `office`, `media` — [plan D0-3](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions)).
+**Expect** Each resolves, or produces a named finding against its owning stage. **If it fails** S3 for a
+Stage 16 feature, S2 for anything needed before Stage 8.
+
+**A-62 · A6 — the PDFium DLL spike**
+☐ **Pre** Pinned prebuilt DLL with recorded SHA-256; `libpdfium.dll.a` generated via `gendef` + `dlltool`;
+one PDF in `corpus/`.
+**Steps** Build and run `tools/spike-pdfium`.
+**Expect** `FPDF_InitLibrary` → `FPDF_LoadDocument` → `FPDF_GetPageCount` > 0 → `FPDF_DestroyLibrary`,
+exit 0. **If it fails** S1 for the stage's A6 objective — the documented fallback is building PDFium
+from source with its own clang toolchain, **not** switching engines and **not** a static MSVC
+`pdfium.lib`.
+
+**A-63 · The spike's imports are sane**
+☐ **Steps** `objdump -p spike.exe | Select-String "DLL Name"`
+**Expect** `pdfium.dll` and `msvcrt.dll`; **no `ucrtbase.dll`**. **If it fails** S1 — a CRT split across
+the PDFium boundary is exactly the ABI hazard A6 asks about.
+
+### 5.7 Portable presets and CI
+
+**A-70 · `portable-asan` on Linux**
+☐ **Steps** Configure `portable-asan`; build; `ctest`.
+**Expect** `core/` (+ `pdf/cos/`, empty at Stage 0) and the unit suites build **with no display and no
+PDF engine linked**, and run clean under ASan+UBSan. **If it fails** S1 — this is the day-one proof of
+the portability claim the whole layer contract rests on, and it is the only sanitizer coverage the
+project has (R7).
+
+**A-71 · `portable-fuzz` configures with zero targets**
+☐ **Expect** Configures; builds nothing; **says** it has no targets until Stage 2. A silent
+zero-target build is indistinguishable from a broken one. **If it fails** S3.
+
+**A-72 · CI, all three jobs**
+☐ **Steps** Push; watch `gh run watch`.
+**Expect** `gates`, `windows`, `portable-asan` all green; `gates` finishes first and **runs `checks`
+before anything is compiled**. **If it fails** S2.
+
+**A-73 · The `gates` job needs no Qt**
+☐ **Goal** [Plan D0-1](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions)'s payoff is real.
+**Steps** Confirm the `gates` job installs neither Qt nor vcpkg, and check its wall-clock time.
+**Expect** No Qt, no vcpkg, under a couple of minutes. **If it fails** S2 — a gate that waits behind a
+Qt install is a gate that runs last, and the ordering guarantee quietly disappears.
+
+---
+
+## 6. Manual verification — you run this
+
+Short by design: almost everything above is automatable, and
+[`CLAUDE.md`](../CLAUDE.md) is explicit that a manual case that could have been automated is a defect
+in this guide. What is left is the residue that genuinely needs a second machine, a real second
+toolchain, or human judgement.
+
+**M-01 · Clean-machine bootstrap** ☐
+- **Goal** The build works from a bare checkout on a machine whose environment we did not curate.
+- **Pre** A clean Windows box or fresh VM: stock `C:\Qt\6.11.1` + `C:\Qt\Tools`, git, **no** MSYS2, **no**
+  Visual Studio, **no** vcpkg on `PATH`, nothing from this machine's `PATH`.
+- **Steps** 1. Clone into an empty directory. 2. Follow `README.md`'s build section **literally** —
+  no improvising, no "obviously you also need X". 3. `. .\scripts\env.ps1` 4. `scripts\bootstrap.ps1`
+  5. `cmake --preset x64-release` 6. `--target checks` 7. build 8. `ctest`.
+- **Expect** Every step succeeds with **no manual step that is not written down**. `recto.exe` exists
+  and exits 0.
+- **If it fails** **S1.** Note the *exact* step and the *exact* undocumented thing you had to do — that
+  missing line is the finding, and this case is the only one that can find it.
+
+**M-02 · A real MSYS2 / UCRT64 GCC is refused** ☐
+- **Goal** TA-6 — the assertion a stub compiler cannot exercise, and the realistic way the pin regresses:
+  the next developer's MSYS2 install.
+- **Pre** A real MSYS2 UCRT64 (or any non-Qt MinGW) GCC installed.
+- **Steps** `cmake --preset x64-release -DRECTO_MINGW_ROOT=C:/msys64/ucrt64` (adjust path).
+- **Expect** **Configure fails**, and the message names the CRT mismatch (`_UCRT` defined), says the pin
+  is Qt's own bundled GCC 13.1.0/msvcrt, and states the fix. It must not fail with a link error later,
+  and it must not succeed.
+- **If it fails** **S1.** A pin that a real toolchain can slip past is not a pin. If it *fails* but with
+  an unhelpful message, that is S3 — log it separately, do not merge the two.
+
+**M-03 · A moved Qt prefix fails clearly** ☐
+- **Goal** TA-8's diagnostic is usable by someone who does not know the codebase.
+- **Steps** Configure with `-DRECTO_QT_PREFIX=C:/nope`.
+- **Expect** Configure fails naming the missing prefix and the expected version 6.11.1. Not a CMake
+  package-search wall of text.
+- **If it fails** S3.
+
+**M-04 · A missing vcpkg is diagnosed, not crashed into** ☐
+- **Goal** The one precondition this machine did not have ([plan §7.1 checklist](./Stage0-Toolchain-Plan.md#71-vcpkg--owner-you)).
+- **Steps** Unset `VCPKG_ROOT`; run `scripts\bootstrap.ps1`, then configure.
+- **Expect** `bootstrap.ps1` says what is missing, where it should live
+  (`C:\Users\squirrel\vcpkg`), and what to run. Configure fails with the same information rather than a
+  toolchain-file-not-found.
+- **If it fails** S3 (S2 if it configures anyway and fails much later).
+
+**M-05 · Fixture realism review** ☐
+- **Goal** Human judgement, which is the reason this case cannot be automated: do the fixtures resemble
+  violations a real developer would actually write?
+- **Steps** Read each directory under `tests/gates/fixtures/`. Ask of each: *would a rushed developer
+  write this?* An `#include` in an unusual place, a write hidden behind a helper, a `find_package` line
+  added to get a chart into a dialog.
+- **Expect** Each is plausible. A fixture that only fails because it was built to fail proves the gate
+  catches nothing real.
+- **If it fails** S2 — file the specific fixture and what a realistic version would look like.
+
+**M-06 · `THIRD-PARTY.md` read as an auditor would** ☐
+- **Goal** The document that answers a license audit is legible to someone outside the project.
+- **Steps** Read it end to end. For three entries at random, check the version matches what is actually
+  installed and the upstream URL resolves. Confirm the GCC runtime entry states the **exception**, and
+  that Qt's **source-offer** URL is present.
+- **Expect** No entry is vague, missing a version, or missing a URL that its license requires.
+- **If it fails** S2 — the release gate ([`Tech-Stack-Plan.md` §8.3](./Tech-Stack-Plan.md#83-release-gate-must-all-be-ticked))
+  depends on this file being right, and Stage 15 is a bad time to find out it is not.
+
+**M-07 · The plan's own claims survive contact** ☐
+- **Goal** Stage 0 sets conventions that sixteen stages inherit; this is the moment to reject one that
+  is wrong, while it costs a day.
+- **Steps** Skim [`Stage0-Toolchain-Plan.md` §3](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions)
+  (D0-1 … D0-8) against what actually got built. Are the gates genuinely fast? Is the `allow-write`
+  escape being used a handful of times or a hundred?
+- **Expect** Each decision either held or is recorded as revisited, with the reason, in the plan.
+- **If it fails** S3, but **record it** — an inherited convention that nobody believes in is worse than
+  one that was changed.
+
+---
+
+## 7. Known caveats — verify, do not assume broken
+
+- **`recto.exe` does nothing.** Correct at Stage 0 (D0-8). Verify it exits 0; do not file "app does not
+  start".
+- **Only two gates run.** `mutation-lint` and `i18n-lint` do not exist yet. If `checks` claims four
+  gates ran, *that* is the bug.
+- **`portable-fuzz` builds nothing.** Expected until Stage 2 — but it must **say** so (A-71).
+- **arm64 is configure-only.** Not a regression; O6/R8 own it.
+- **A negative A5 or A6 verdict is a successful Stage 0.** The stage exists to find these now. Record
+  the verdict and the fallback; do not retry until it passes by changing the triplet or the linkage
+  model, both of which would hide the finding rather than settle it.
+
+---
+
+## 8. Issue log
+
+Everything found in §5 or §6 goes here. This table is the fix-pass backlog and the stage's progress
+record.
+
+| # | Case / area | What happens | Expected | Sev | Repro / notes | State |
+|---|---|---|---|---|---|---|
+| | | | | | | |
+
+---
+
+## 9. Sign-off criteria
+
+Stage 0 is signed off when **all** of the following hold — this is
+[`Implementation-Plan.md` §2's Definition of Done](./Implementation-Plan.md#definition-of-done--every-stage-no-exceptions)
+made concrete for this stage:
+
+- [ ] Every **automated** case A-01 … A-73 is ✅, run by me, with actual output reported.
+- [ ] Every **manual** case M-01 … M-07 is ✅, walked by you on the rig in §2, and **signed off by you** —
+      I do not mark these.
+- [ ] Every caveat in §7 has a human verdict, not an assumption.
+- [ ] No open **S1** or **S2** in the issue log; every ❌ is either fixed and re-run or triaged into an
+      accepted, written deferral.
+- [ ] **A5 and A6 verdicts are recorded** in `Tech-Stack-Plan.md` §3.3 and the Stage 0 status block —
+      including a negative verdict with its fallback.
+- [ ] `Architecture-FileMap.md` S0 rows flipped ○ → ✅, **and the rows missing for the build system,
+      CMake modules, gate fixtures, CI workflow, and scripts added** ([plan §10](./Stage0-Toolchain-Plan.md#10-lockstep-debt-this-stage-creates)).
+- [ ] `Implementation-Plan.md` Stage 0 status, §5's guide row, and `README.md`'s *Current state* updated
+      to reality, deviations included.
+
+**"Automated green, manual not yet walked" is a legitimate state to report. It is not done.**
