@@ -1,0 +1,83 @@
+# Line-ending and diff policy.
+#
+# WHY THIS FILE IS LOAD-BEARING, not boilerplate:
+# Git decides "text vs binary" by scanning the first 8000 bytes for a NUL. A minimal,
+# uncompressed, hand-written PDF -- exactly what corpus/malformed/ consists of -- is pure
+# ASCII and gets misdetected as text. With core.autocrlf=true (the default on this build
+# machine) checkout then injects a CR before every LF, and since PDF's xref table stores
+# ABSOLUTE BYTE OFFSETS, every offset past the first newline becomes wrong. The file is
+# structurally broken, or worse, silently becomes a DIFFERENT malformed file than the test
+# was written against.
+#
+# This is also what keeps tests/roundtrip honest: it asserts untouched objects are
+# byte-identical, so a Windows checkout and the Linux portable-asan checkout must produce
+# identical bytes from the same commit. eol=lf below is what guarantees that.
+#
+# .gitattributes is NOT retroactive. Rules must exist before the bytes land.
+
+# Default: normalize in the repository, check out LF everywhere including Windows.
+* text=auto eol=lf
+
+# ---------------------------------------------------------------------------
+# Never touch these. Test data and reference images -- byte-exact by definition.
+# ---------------------------------------------------------------------------
+corpus/**   binary
+golden/**   binary
+
+*.pdf   binary
+*.fdf   binary
+*.xfdf  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.tif   binary
+*.tiff  binary
+*.ico   binary
+*.icns  binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+
+# Compiled Qt translation catalogs (the .ts sources are text, the .qm outputs are not)
+*.qm    binary
+
+# Prebuilt binaries and archives (the pinned PDFium DLL and its import library)
+*.dll   binary
+*.dll.a binary
+*.lib   binary
+*.a     binary
+*.exe   binary
+*.pdb   binary
+*.zip   binary
+*.7z    binary
+*.tgz   binary
+*.gz    binary
+
+# ---------------------------------------------------------------------------
+# Files whose interpreter or host genuinely wants CRLF on Windows
+# ---------------------------------------------------------------------------
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.sln   text eol=crlf
+*.rc    text eol=crlf
+
+# ---------------------------------------------------------------------------
+# Diff and merge behaviour
+# ---------------------------------------------------------------------------
+*.h     diff=cpp
+*.hpp   diff=cpp
+*.cpp   diff=cpp
+*.cc    diff=cpp
+
+# Qt translation catalogs and generated license reports: never auto-merge, the
+# resolution is always "regenerate", never "splice two versions together".
+*.ts           text merge=union
+THIRD-PARTY.md text merge=ours
+
+# Keep design docs and test data out of GitHub's language statistics
+claude-plan/** linguist-documentation
+corpus/**      linguist-vendored
+golden/**      linguist-vendored
