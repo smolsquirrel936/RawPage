@@ -153,10 +153,33 @@ each DPI over the corpus, settling risk A2.
 [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md) (execution plan — tasks T1–T15, the
 Stage-0-local decisions D0-1…D0-8, and the §7 precondition checklist) and
 [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) (written **from** that plan,
-**before** any code). No case in the guide has been run and no verdict is recorded yet. **Precondition V-1…V-4 verified
-2026-08-17** — vcpkg is installed at `C:\Users\squirrel\vcpkg`, baseline `94a5411977…` recorded, and
-the `x64-mingw-dynamic` triplet is present, so **T1 may start**. This stage exists because the gates in
-§1.3 are worthless if added later — by then the violations are already in the tree.
+**before** any code). No case in the guide has been run and no verdict is recorded yet. **Preconditions V-1…V-4 verified
+2026-08-17** — vcpkg at `C:\Users\squirrel\vcpkg`, baseline `94a5411977…`, `x64-mingw-dynamic` triplet
+present.
+
+**T1 (repository skeleton) complete 2026-08-17**, pending its commit: `.gitignore`, `.gitattributes`,
+`scripts/env.ps1`, `scripts/bootstrap.ps1`, and the root `README.md` build section. Verified on the
+build machine — `env.ps1` yields **cmake 3.30.5 · ninja 1.12.1 · g++ 13.1.0 (x86_64-w64-mingw32)**,
+resolves `g++` to the pinned `C:\Qt\Tools\mingw1310_64`, and sets `VCPKG_ROOT` in-process, which
+retires the setx-does-not-reach-a-running-process problem for good. **Deviation from plan:** the
+vendored `claude-plan/skills-specs-generation` had been committed as a gitlink with no `.gitmodules`
+— an accidental submodule that would have failed a fresh clone, and so **case M-01** — untracked and
+ignored instead.
+
+**T2 (target graph) complete 2026-08-17.** Root `CMakeLists.txt`, one per layer, `cmake/RectoWarnings.cmake`,
+`cmake/RectoQt.cmake`, four placeholder TUs, and `app/main.cpp`. Verified by building against a
+*stubbed* `ToolchainAssert` (T3's file, so the assertions themselves remain untested): all five TUs
+compile clean under `-Werror`, the four static libraries and `recto.exe` link, the executable **runs
+and exits 0**, its subsystem is **Windows GUI**, and it imports **`msvcrt.dll`, never `ucrtbase.dll`**.
+`qt-modules.txt` is generated. The `recto_link_qt()` licence guard was tested directly and **fails
+configure on `Qt6::Charts`** with the GPL-3.0 diagnostic — the D0-5 mechanism working months before
+`license-audit` exists. **Deviations:** (a) `-municode` is **not** applied yet — measured on the pinned
+toolchain, `-mwindows -municode` with a plain `main()` fails to link with *undefined reference to
+`wWinMain`*, so it arrives at Stage 1 with the real entry point rather than with an invented stub;
+(b) `cmake/RectoQt.cmake` was pulled forward from T7 to T2, because the wrapper has to exist before the
+*first* Qt link or the first few bypass it; (c) guide case **A-41** was corrected — see the note there.
+**T3 is next.** This stage exists because the gates in §1.3 are worthless if added
+later — by then the violations are already in the tree.
 
 **Objectives.** A repository that builds an empty executable on a clean machine, with all four
 enforcement gates already failing correctly on deliberately bad input, every third-party dependency

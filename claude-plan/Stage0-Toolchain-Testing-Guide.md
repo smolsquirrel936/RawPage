@@ -231,11 +231,19 @@ a gate that fails for an unrelated reason has not been tested. Run as one suite:
 **If it fails** S1.
 
 **A-41 · The CRT still matches Qt's**
-☐ **Steps** `objdump -p build/x64-release/recto.exe | Select-String "DLL Name"`
-**Expect** `msvcrt.dll` present; **`ucrtbase.dll` absent**; `libstdc++-6.dll`, `libgcc_s_seh-1.dll`,
-`libwinpthread-1.dll` present as **imports, not statically linked**. This is the cheapest possible
-check that the CRT matches Qt's ([`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification)).
-**If it fails** S1.
+☐ **Steps** `objdump -p build/x64-release/bin/recto.exe | Select-String "DLL Name"`
+**Expect** `msvcrt.dll` present and **`ucrtbase.dll` absent** — the cheapest possible check that the
+CRT matches Qt's ([`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification)). **If it fails** S1.
+
+> **Corrected during T2, from the first real build.** This case originally also required
+> `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, and `libwinpthread-1.dll` among the imports. At Stage 0
+> that is wrong and the case would have failed for a legitimate reason: the placeholder translation
+> units use no C++ runtime facility and no Qt symbol, so the linker records no import for those DLLs
+> at all. Measured on the T2 build, `recto.exe` imports exactly `KERNEL32.dll` and `msvcrt.dll`.
+> The runtime-DLL half of the check becomes meaningful once real code exists and moves to **Stage 1**;
+> what survives here is the msvcrt/ucrtbase discrimination, which is the part that actually guards
+> the A7 pin. An expectation that cannot hold yet is not a stricter test — it is a case that gets
+> waved through once and then never believed again.
 
 **A-42 · No Qt Charts anywhere**
 ☐ **Steps** Same output; also list the build tree.
