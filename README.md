@@ -88,7 +88,7 @@ process that immediately exits; the script detects this and tells you.
 |---|---|---|
 | `x64-debug` | Windows | Day-to-day development and `ctest` |
 | `x64-release` | Windows | Optimized build, the release configuration |
-| `arm64-release` | Windows | **Configures only.** Not validated on hardware |
+| `arm64-release` | Windows | **Placeholder — does not configure.** Fails with an explanation: the pin is x86_64 GCC 13.1.0, and whether arm64 means moving to LLVM-MinGW is open decision O6 |
 | `portable-asan` | Linux | `core/` + `pdf/cos/` under ASan+UBSan — MinGW GCC has no sanitizer runtime |
 | `portable-fuzz` | Linux | libFuzzer over the COS parser. **No targets until Stage 2** |
 

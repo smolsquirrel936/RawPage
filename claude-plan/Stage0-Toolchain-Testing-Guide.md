@@ -114,7 +114,7 @@ Sign-off is not just green cases. Three answers must exist in writing, in their 
 |---|---|---|
 | **A5** — does the §6.2 set resolve on `x64-mingw-dynamic`? | A-60, A-61 | `Tech-Stack-Plan.md` §3.3 + Stage 0 status |
 | **A6** — does a PDFium DLL link from `g++` and open a file? | A-62, A-63 | same |
-| **A7 stays settled** | A-04 + M-02 | no new record — the assertions *are* the record |
+| **A7 stays settled** | A-04, A-07, A-08 + M-02 | no new record — the assertions *are* the record |
 
 A stage that is green but has no verdicts is **not** signed off. The verdicts are the deliverable;
 the green is the evidence.
@@ -131,7 +131,7 @@ the green is the evidence.
 | `THIRD-PARTY.md` generated, no non-allowlisted license, lists Qt 6.11.1 and the GCC runtime with its exception | A-12, A-13, M-07 |
 | **A5 verdict** — manifest resolves on `x64-mingw-dynamic` | A-60, A-61 |
 | **A6 verdict** — the PDFium DLL spike opens a file | A-62, A-63 |
-| **A7 stays settled** — a mismatched compiler fails configure | A-04, M-02 |
+| **A7 stays settled** — a mismatched compiler fails configure | A-04, A-07, A-08, M-02 |
 | `core/` builds with no display and no PDF engine | A-43, A-44, A-70 |
 
 ---
@@ -151,19 +151,29 @@ case is reported as failing, with that output, and is never declared fixed witho
 
 **A-02 · Configure release** ☐ As A-01 with `--preset x64-release`. **If it fails** S1.
 
-**A-03 · arm64 configures only**
-☐ **Goal** The arm64 preset is syntactically real without pretending to be validated.
+**A-03 · arm64 fails honestly**
+☐ **Goal** The arm64 preset is real enough not to be forgotten, without pretending to be validated.
 **Steps** `cmake --preset arm64-release`
-**Expect** Configure succeeds **or** fails with an explicit "arm64 is configure-only, see O6/R8"
-message. What must *not* happen is a confusing failure that looks like a bug. **No build, no run.**
-**If it fails** S3 (S2 if the message misleads).
+**Expect** Exit 1, with a message naming **O6**, LLVM-MinGW, and "a known, recorded gap — not a broken
+build". What must *not* happen is a confusing failure that looks like a bug, or a silent success that
+implies arm64 works. **No build, no run.** **If it fails** S3 (S2 if the message misleads).
+✅ **Passed 2026-08-18.**
 
-**A-04 · A mismatched compiler fails configure — the A7 guard**
-☐ **Goal** TA-2 fires. **Pre** `tests/gates/fixtures/wrong-compiler/` stub reporting GCC 14.2.0.
-**Steps** `ctest --preset x64-debug -R gates.wrong_compiler`
-**Expect** Configure of the fixture project fails; the message names **TA-2**, the expected version
-`13.1.0`, the version found, and the fix. **If it fails** **S1** — this is the assertion that stops a
-week-long crash hunt in Stage 6.
+> **Resolved during T4.** This case originally allowed *either* a successful configure or an explicit
+> failure. That ambiguity was a placeholder for a fact nobody had checked: arm64 cannot configure,
+> because the toolchain file pins an x86_64 triple and TA-3 rejects anything else. Rather than let it
+> fail three assertions deep, the root `CMakeLists.txt` now checks `RECTO_TARGET_ARCH` first and says
+> why. The case is no longer "either" — it has one expected outcome.
+
+**A-04 · A mismatched compiler version fails configure — the A7 guard**
+☐ **Goal** TA-2 fires. **Pre** `tests/gates/fixtures/wrong-compiler/` (case **WC-1**).
+**Steps** `ctest --preset x64-debug -R gates.wrong_compiler` — until T9 wraps it, the fixture's
+`README.md` gives the command by hand.
+**Expect** Configure fails; the message names **TA-2**, the expected version `13.1.0`, the version
+found, and the fix. **If it fails** **S1** — this is the assertion that stops a week-long crash hunt
+in Stage 6.
+✅ **Passed 2026-08-18** (by hand, pre-T9): reported `GNU 13.9.0` → `Toolchain pin violated: TA-2
+compiler version · found: 13.9.0 · expected: 13.1.0`.
 
 **A-05 · No static linking of the runtimes**
 ☐ **Goal** `-static`, `-static-libstdc++`, `-static-libgcc` cannot enter the flags — an LGPL
@@ -177,6 +187,28 @@ documented is not met.
 **Steps** `cmake --preset x64-release` then read `build/x64-release/compiler-plugins.txt`.
 **Expect** File exists and is empty. **If it fails** S1 (license) — a non-free plugin would relicense
 our own source.
+
+**A-07 · A UCRT runtime fails configure — the assertion that catches MSYS2**
+☐ **Goal** TA-6 fires. **Pre** fixture case **WC-2**.
+**Steps** configure with `-DCMAKE_CXX_FLAGS=-D_UCRT`.
+**Expect** Configure fails naming **TA-6 C runtime**, `found: UCRT (_UCRT is defined)`, and MSYS2
+ucrt64 as the usual source. **If it fails** **S1** — an MSYS2 UCRT64 toolchain passes TA-1, TA-3,
+TA-4 and TA-5; this is the only assertion that stops it.
+✅ **Passed 2026-08-18** (by hand, pre-T9).
+
+> **This case changed the implementation.** TA-6's probe originally ran the bare compiler, so this
+> exact command configured **cleanly** and reported "msvcrt" while the whole build compiled as UCRT —
+> the assertion was interrogating a compilation the project never performs. The probe is now compiled
+> with `CMAKE_CXX_FLAGS`, which is what makes `--sysroot`, `-target`, and a UCRT `-isystem` reachable
+> by it too.
+
+**A-08 · TA-6 cannot pass vacuously**
+☐ **Goal** The probe's own failure is not mistaken for success. **Pre** fixture case **WC-3**.
+**Steps** configure with `-DCMAKE_CXX_FLAGS=-U__MSVCRT__`.
+**Expect** Configure fails with `found: __MSVCRT__ is not defined` — TA-6 requires the positive
+marker present, not merely `_UCRT` absent. **If it fails** **S2** — a check that passes when its own
+probe breaks is not a check.
+✅ **Passed 2026-08-18** (by hand, pre-T9).
 
 ### 5.2 The gates on the real tree
 

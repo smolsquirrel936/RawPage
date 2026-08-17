@@ -1,0 +1,135 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+
+  "configurePresets": [
+    {
+      "name": "_base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+
+    {
+      "name": "_windows",
+      "hidden": true,
+      "inherits": "_base",
+      "description": "Shared Windows wiring: vcpkg outermost, the pinned MinGW toolchain chainloaded inside it.",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchain-mingw.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic",
+        "RECTO_TARGET_ARCH": "x64"
+      }
+    },
+
+    {
+      "name": "x64-debug",
+      "inherits": "_windows",
+      "displayName": "x64 Debug",
+      "description": "Day-to-day development and ctest.",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+
+    {
+      "name": "x64-release",
+      "inherits": "_windows",
+      "displayName": "x64 Release",
+      "description": "The shipping configuration. CI builds this.",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+
+    {
+      "name": "arm64-release",
+      "inherits": "_base",
+      "displayName": "arm64 Release (placeholder -- cannot configure yet)",
+      "description": "Reserved so the target is not forgotten. It fails at configure with an explanation: the pinned compiler is x86_64 GCC 13.1.0, MinGW-w64 GCC's aarch64 support is immature, and whether arm64 means moving to LLVM-MinGW is open decision O6 (Stage 15, risk R8).",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "RECTO_TARGET_ARCH": "arm64"
+      }
+    },
+
+    {
+      "name": "_portable",
+      "hidden": true,
+      "inherits": "_base",
+      "description": "core/ + pdf/cos/ only, on Linux. NOT a shipping build: the toolchain pin is deliberately not applied, because the whole point is compiling the same sources with a different compiler on a different OS.",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "RECTO_PORTABLE_SUBSET": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+
+    {
+      "name": "portable-asan",
+      "inherits": "_portable",
+      "displayName": "Portable ASan+UBSan (Linux)",
+      "description": "Recovers the sanitizer gate MinGW GCC cannot provide on Windows (risk R7). A finding here is reproduced in x64-debug before it counts as fixed.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    },
+
+    {
+      "name": "portable-fuzz",
+      "inherits": "_portable",
+      "displayName": "Portable libFuzzer (Linux, clang)",
+      "description": "libFuzzer over the COS lexer and parser. Wired now, but NO TARGETS EXIST until Stage 2 -- configure says so rather than silently building nothing.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "RECTO_BUILD_FUZZERS": "ON",
+        "CMAKE_CXX_FLAGS": "-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    { "name": "x64-debug",     "configurePreset": "x64-debug" },
+    { "name": "x64-release",   "configurePreset": "x64-release" },
+    { "name": "portable-asan", "configurePreset": "portable-asan" },
+    { "name": "portable-fuzz", "configurePreset": "portable-fuzz" }
+  ],
+
+  "testPresets": [
+    {
+      "name": "x64-debug",
+      "configurePreset": "x64-debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    },
+    {
+      "name": "x64-release",
+      "configurePreset": "x64-release",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    },
+    {
+      "name": "portable-asan",
+      "configurePreset": "portable-asan",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    }
+  ]
+}

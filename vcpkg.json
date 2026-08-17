@@ -1,0 +1,91 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "recto",
+  "version": "0.1.0",
+  "description": "Windows-first desktop PDF editor",
+  "homepage": "https://github.com/smolsquirrel936/Recto",
+  "license": null,
+
+  "$comment-license": [
+    "license is null because Recto's own source is proprietary (Tech-Stack-Plan.md 8.1).",
+    "null means 'not an SPDX expression', which is the honest value here."
+  ],
+
+  "$comment-features": [
+    "EVERY dependency from Tech-Stack-Plan.md 6.2 is declared here, but grouped into features",
+    "so that resolution can be TESTED now and REQUIRED later -- decision D0-3.",
+    "",
+    "Why not put them all in the default set: risk A5 asks whether these ports build on the",
+    "x64-mingw-dynamic COMMUNITY triplet. Making OpenSSL a default dependency would couple",
+    "Stage 0's build to a Stage 10 dependency -- every configure paying for a library nothing",
+    "uses yet, and a Stage 10 port failure blocking Stage 1. Leaving them out entirely would",
+    "defer the A5 finding to whichever stage first needs them, which is the 'Stage 6 surprise'",
+    "A5 exists to prevent.",
+    "",
+    "Features resolve both problems: `vcpkg install --dry-run --x-feature=<f>` answers A5 today",
+    "for every group, while only `tests` is actually built. Each stage switches its feature on",
+    "as it arrives, and the answer is already known by then.",
+    "",
+    "NOT here, deliberately:",
+    "  PDFium  -- no vcpkg port exists. Consumed as a prebuilt DLL through its C API (D0-6, A6).",
+    "  Qt      -- from the official MinGW distribution, not vcpkg (Tech-Stack-Plan.md 6.3).",
+    "  WiX v4  -- an authoring tool, not a linked dependency (Stage 15).",
+    "  Xapian  -- GPL-2.0, REJECTED (Tech-Stack-Plan.md 6.2, risk R2). The port exists in vcpkg;",
+    "             adding it would breach D4. A first-party inverted index replaces it."
+  ],
+
+  "default-features": [
+    "tests"
+  ],
+
+  "features": {
+    "tests": {
+      "description": "Unit test harness (Stage 0, T11)",
+      "dependencies": [
+        "catch2"
+      ]
+    },
+
+    "codecs": {
+      "description": "Image and stream codecs for the COS filters and import/export (Stages 2, 8, 12)",
+      "dependencies": [
+        "zlib",
+        "libjpeg-turbo",
+        "openjpeg",
+        "tiff",
+        "libpng"
+      ]
+    },
+
+    "text": {
+      "description": "Glyph rasterization, complex-script shaping, collation, spelling (Stages 2, 5, 13)",
+      "dependencies": [
+        {
+          "name": "freetype",
+          "$comment": "Dual FTL / GPL-2.0. We elect FTL -- recorded explicitly in THIRD-PARTY.md."
+        },
+        "harfbuzz",
+        "icu",
+        {
+          "name": "hunspell",
+          "$comment": "Tri-licensed GPL/LGPL/MPL. We elect MPL-2.0."
+        }
+      ]
+    },
+
+    "crypto": {
+      "description": "PDF encryption, PKCS#7/CMS signatures, OCSP, timestamps (Stages 10, 11)",
+      "dependencies": [
+        "openssl"
+      ]
+    },
+
+    "ocr": {
+      "description": "Optical character recognition (Stage 16 -- interface declared early, engine late)",
+      "dependencies": [
+        "tesseract",
+        "leptonica"
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "The pinned vcpkg baseline. This commit -- not whatever the local clone happens to be",
+    "checked out at -- decides which version of every dependency resolves. That is what makes",
+    "the build reproducible: `git pull` in the vcpkg clone changes nothing here, and updating",
+    "dependencies is an edit to this file, visible in a diff and attributable to a person.",
+    "",
+    "Recorded 2026-08-17 from C:/Users/squirrel/vcpkg. See Stage0-Toolchain-Plan.md 7.1 (V-3).",
+    "",
+    "overlay-ports is where a dependency goes when vcpkg lacks a serviceable port ON THE",
+    "x64-mingw-dynamic TRIPLET -- which is a community triplet, and is exactly the question",
+    "risk A5 asks. A port that builds only under MSVC becomes an overlay here, never a reason",
+    "to change the triplet."
+  ],
+  "default-registry": {
+    "kind": "git",
+    "repository": "https://github.com/microsoft/vcpkg",
+    "baseline": "94a541197763a4f449a1b91478df48c0584a6256"
+  },
+  "overlay-ports": [
+    "./tools/ports"
+  ]
+}

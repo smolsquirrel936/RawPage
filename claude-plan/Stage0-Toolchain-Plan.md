@@ -288,13 +288,21 @@ headless, and they are what `portable-asan` compiles on Linux from day one.
   | `manifest-lgpl/` | license-audit | *passes* — `LGPL-3.0`, the substring false-positive control |
   | `qt-charts-link/` | license-audit | a target linking `Qt6::Charts` |
   | `plugin-loaded/` | license-audit | a non-empty `compiler-plugins.txt` |
-  | `wrong-compiler/` | toolchain | a stub `g++` reporting 14.2.0 → **configure** fails, TA-2 named |
+  | `wrong-compiler/` **WC-1** | toolchain | reported version 13.9.0 → configure fails, **TA-2** named |
+  | `wrong-compiler/` **WC-2** | toolchain | `_UCRT` defined → configure fails, **TA-6** named |
+  | `wrong-compiler/` **WC-3** | toolchain | `__MSVCRT__` undefined → **TA-6** fails rather than passing vacuously |
+  | `wrong-compiler/` **WC-4…WC-6** | toolchain | bad root, `-fplugin`, `-static-libstdc++` |
 
-  The last one is worth calling out: it moves the roadmap's *manual* "point configure at a different
-  GCC" case into the automated half, which is the direction every case should travel
-  ([`CLAUDE.md`](../CLAUDE.md): if it can be automated, it belongs in the automated part). The manual
-  case survives only for the *real* MSYS2 UCRT64 install, which a stub cannot simulate — a stub cannot
-  reproduce TA-6.
+  The `wrong-compiler` family is worth calling out: it moves the roadmap's *manual* "point configure
+  at a different GCC" case into the automated half, which is the direction every case should travel
+  ([`CLAUDE.md`](../CLAUDE.md): if it can be automated, it belongs in the automated part).
+
+  **Written and passing at T3, ahead of this task** — see `tests/gates/fixtures/wrong-compiler/README.md`,
+  which also records what these fixtures deliberately do *not* prove. They drive the compiler to
+  *report* the wrong thing, which tests each assertion's logic and its message. They do not reproduce
+  the scenario: that needs a second, genuinely different GCC on the machine, and stays with manual
+  case **M-02**. Both halves matter — logic tested alone means the pin has never met a real intruder;
+  scenario tested alone means a logic bug surfaces months later on somebody else's machine.
 
 ---
 
@@ -422,6 +430,20 @@ Three jobs, and the ordering is the point: **`checks` runs before anything is co
 `portable-fuzz` is wired in the presets but has **no targets until Stage 2** gives it a lexer — a
 documented Stage 0 deferral, not a gap. `THIRD-PARTY.md` is uploaded as a build artifact from the
 `windows` job so a license change is visible in the PR without a local build.
+
+> **⚠️ The `windows` job must put `C:\Qt\Tools\mingw1310_64\bin` on `PATH` before its FIRST vcpkg
+> invocation — not merely before the compile step.** Measured at T6: vcpkg's `x64-mingw-dynamic`
+> triplet runs a `detect_compiler` probe that invokes the pinned `g++`, and without that directory on
+> `PATH`, `cc1plus` cannot load its own DLLs (`0xC0000135`). vcpkg reports the result as
+> *"error: vcpkg was unable to detect the active compiler's information"*, which reads exactly like a
+> broken triplet or an unavailable port. It cost a false-negative A5 reading during T6 before the
+> cause was found, and in CI it would look like a dependency failure rather than an environment one.
+> Dot-source `scripts/env.ps1` as the job's first step.
+>
+> Also set **`VCPKG_HOST_TRIPLET=x64-mingw-dynamic`** (done in `CMakePresets.json`). Left at its
+> default, vcpkg builds host tools for `x64-windows` and goes looking for MSVC — which exists on the
+> current development machine but is explicitly promised *not* to be required by `README.md`, and so
+> would fail the clean-machine case **M-01** rather than failing here.
 
 ---
 

@@ -92,10 +92,18 @@ endif()
 # Note it requires __MSVCRT__ to be PRESENT as well as _UCRT to be ABSENT. Testing
 # only for the absence of _UCRT would pass vacuously if the macro dump failed for any
 # reason, and a check that passes when its own probe breaks is not a check.
+#
+# The probe is compiled WITH CMAKE_CXX_FLAGS, on purpose. An earlier version ran the
+# bare compiler, and a test showed why that is not good enough: configuring with
+# -DCMAKE_CXX_FLAGS=-D_UCRT passed cleanly and printed "msvcrt" while the whole build
+# compiled as UCRT. The assertion has to interrogate the compilation the project
+# actually performs -- flags can carry --sysroot, -target, or an -isystem pointing at
+# UCRT headers, and any of those changes the answer.
 set(_recto_empty "${CMAKE_BINARY_DIR}/CMakeFiles/recto-crt-probe.cpp")
 file(WRITE "${_recto_empty}" "")
+separate_arguments(_recto_cxx_flag_list NATIVE_COMMAND "${CMAKE_CXX_FLAGS}")
 execute_process(
-    COMMAND "${CMAKE_CXX_COMPILER}" -dM -E -x c++ "${_recto_empty}"
+    COMMAND "${CMAKE_CXX_COMPILER}" ${_recto_cxx_flag_list} -dM -E -x c++ "${_recto_empty}"
     OUTPUT_VARIABLE _recto_macros
     ERROR_QUIET
     RESULT_VARIABLE _recto_rc)

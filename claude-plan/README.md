@@ -55,8 +55,7 @@ toolchain, four empty layer libraries, and an empty `recto.exe`. Every ③ file 
 
 Stage 0's ⑤ [execution plan](./Stage0-Toolchain-Plan.md) and ⑥
 [testing guide](./Stage0-Toolchain-Testing-Guide.md) were written in that order **before any code**,
-which is the point of the sequence. **Tasks T1–T3 of T15 are complete** — repository skeleton,
-layer target graph, and the toolchain pin with assertions TA-1…TA-9. **T4 (presets) is next.**
+which is the point of the sequence. **Tasks T1-T4 of T15 are complete** - repository skeleton, layer target graph, the toolchain pin with assertions TA-1...TA-9, and the five CMake presets. **T5/T6 (vcpkg manifest and the A5 sweep) are next.**
 No guide case has been formally run, and neither the **A5** nor the **A6** verdict exists yet.
 
 Live task-by-task status is in

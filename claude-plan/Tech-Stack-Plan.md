@@ -93,9 +93,44 @@ mistaken for evidence, and each has a concrete way to settle it. **Stage 0 owes 
 | A2 | PDFium's `FPDF_RenderPageBitmap` throughput is sufficient for smooth 60 Hz scrolling of a text-heavy A4 page at 200% on a 150 %-scaled 4K monitor with an 8-worker pool. | Build the Stage 2 spike and measure: per-tile milliseconds at the target DPI, p50/p95, over a 20-file corpus. **This is a go/no-go for D3's render half.** |
 | A3 | Qt Widgets can deliver a ribbon, tear-off document tabs, and dockable auto-hiding panes without a commercial ribbon library. | Prototype the shell in Stage 1. If it cannot, the fallback is a first-party ribbon widget — not a switch away from Qt. |
 | A4 | Incremental save can preserve the original bytes closely enough that a signature applied before an unrelated later edit still validates. | Corpus round-trip harness in Stage 3: sign, then add an annotation incrementally, then validate. |
-| A5 | vcpkg has serviceable ports for every dependency in §6 at the versions we want, **on the `x64-mingw-dynamic` triplet** — which is a community-supported triplet, not a first-class one. | Resolve the manifest in Stage 0 on that triplet specifically; any gap becomes a vendored port in `tools/ports/`. A port that only builds under MSVC is a Stage 0 finding, not a Stage 6 surprise. |
+| ~~A5~~ | vcpkg has serviceable ports for every dependency in §6 at the versions we want, **on the `x64-mingw-dynamic` triplet**. | ✅ **Resolution settled 2026-08-18 — see below.** Build fidelity remains partly open. |
 | A6 | **PDFium can be consumed from a GCC-built binary.** The `FPDF_*` surface is a **C** API and x64 Windows has a single calling convention, so a PDFium **DLL** — however it was compiled — is linkable from `g++`; only C++ objects, exceptions, and CRT handles crossing the boundary would break, and the facade in `pdf/render/` passes none of them. | Stage 0: link a trivial `FPDF_InitLibrary`/`FPDF_LoadDocument` program against a prebuilt `pdfium.dll` (generating a `.dll.a` with `gendef` + `dlltool` if no import library is shipped) and open a corpus file. **If a DLL build cannot be obtained or built, the fallback is to build PDFium from source with its own clang toolchain and emit a DLL — not to switch the engine.** A static MSVC `pdfium.lib` is *not* an option. |
 | ~~A7~~ | **Our GCC and Qt's GCC are ABI-compatible.** | ✅ **Settled 2026-08-17 — see below.** |
+
+**A5, measured on the build machine (2026-08-18), Stage 0 task T6.** Every §6.2 dependency that comes
+from vcpkg **resolves** on `x64-mingw-dynamic` at the pinned baseline `94a5411977…`. No port is
+MSVC-only, and **no vendored overlay is needed** — `tools/ports/` stays empty, which was the outcome
+this assumption existed to check.
+
+| Feature group | Resolved versions |
+|---|---|
+| `tests` (default) | catch2 3.15.3 |
+| `codecs` | zlib 1.3.2#2 · libjpeg-turbo 3.2.0 · libpng 1.6.58 · openjpeg 2.5.4 · tiff 4.7.2 |
+| `text` | freetype 2.14.3 · harfbuzz 14.3.1 · icu 78.3#2 · hunspell 1.7.3 |
+| `crypto` | openssl 3.6.3 |
+| `ocr` | leptonica 1.87.0 · tesseract 5.5.2 |
+
+**What is proven, and what is not.** Resolution is not compilation. `--dry-run` proves the dependency
+graph closes and a version exists for the triplet; only the default set was actually **built**
+(catch2 → `libCatch2.a`, installed and consumed through the preset). ICU and OpenSSL are the two with
+a reputation for failing under MinGW, and neither has been compiled here. Each remaining group is
+built when its stage switches the feature on — Stage 2 for `codecs`, Stage 5 for `text`, Stage 10 for
+`crypto`, Stage 16 for `ocr` — and **that** is when A5 is fully closed for it. Recording this as a
+flat pass would be the overclaim A5 exists to prevent.
+
+Two operational facts fell out of the measurement and are load-bearing for CI:
+
+- vcpkg's `x64-mingw-dynamic` triplet runs a `detect_compiler` probe that invokes the pinned `g++`.
+  **Without `C:\Qt\Tools\mingw1310_64\bin` on `PATH`, that probe fails** (`cc1plus` cannot load its
+  own DLLs, `0xC0000135`) and vcpkg reports *"unable to detect the active compiler's information"* —
+  indistinguishable from a broken triplet. This produced a false-negative A5 reading before the cause
+  was found.
+- **`VCPKG_HOST_TRIPLET` must be set to `x64-mingw-dynamic`.** At its default, vcpkg builds host tools
+  for `x64-windows` and resolves MSVC — present on the current dev machine, absent by design on the
+  clean machine of manual case M-01.
+
+vcpkg also emits, for every port: *"community triplets are not built in the curated registry and are
+thus less likely to succeed"*. That is the risk this assumption named, stated by the tool itself.
 
 **A7, settled by inspection of the installed toolchain (2026-08-17).** The question dissolves rather
 than being answered: **we build with the compiler Qt ships**, so there is no second toolchain to
