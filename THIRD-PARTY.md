@@ -25,7 +25,7 @@ Project: recto 0.1.0
 | hunspell | *(not resolved)* | `LGPL-3.0` | vcpkg | text | n/a | https://github.com/hunspell/hunspell |
 | gcc-runtime | 13.1.0 | `GPL-3.0-or-later WITH GCC-exception-3.1` | toolchain | always | n/a | https://gcc.gnu.org/ |
 | mingw-w64-runtime | 11.0 (rt_v11-rev1) | `Zlib` | toolchain | always | n/a | https://www.mingw-w64.org/ |
-| pdfium | TODO-AT-T12: the pinned bblanchon/pdfium-binaries release | `BSD-3-Clause` | prebuilt | always | n/a | https://pdfium.googlesource.com/pdfium/ |
+| pdfium | 153.0.8009.0 | `BSD-3-Clause` | prebuilt | always | n/a | https://pdfium.googlesource.com/pdfium/ |
 | qt | 6.11.1 | `LGPL-3.0` | qt | always | n/a | https://www.qt.io/ |
 
 ## Licence elections
@@ -37,7 +37,7 @@ Where a component is offered under more than one licence, the one we take is rec
 - **hunspell** — Hunspell is tri-licensed 'MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later' (verified against upstream license.hunspell and vcpkg's port manifest, 2026-08-18). We ELECT the LGPL branch, and because that grant is '2.1 OR LATER' we take it specifically as LGPL-3.0 -- the same licence as Qt. That means one obligation model covers both libraries: dynamic linking, user-replaceable binaries, and a corresponding-source offer. Electing MPL-1.1 would have been lighter (file-level copyleft, no relinking obligation) but would add a second, differently-shaped set of obligations to track and release-gate.
 - **gcc-runtime** — libstdc++-6.dll, libgcc_s_seh-1.dll and libwinpthread-1.dll are shipped beside the executable, never statically linked. The Runtime Library Exception permits distributing a program under any licence, INCLUDING PROPRIETARY, provided it was produced by an Eligible Compilation Process -- i.e. stock GCC with no non-free plugin. TA-9 and license-audit both check that condition.
 - **mingw-w64-runtime** — The mingw-w64 runtime is a permissive mix (public domain / ZPL-2.1 / MIT / BSD-2) recorded per component. Zlib is used here as the representative expression; the per-component breakdown is owed before release.
-- **pdfium** — Consumed as a DLL through its FPDF_ C API, so the compiler that built it does not matter. Read and raster only -- every write goes through our own COS layer.
+- **pdfium** — Consumed as a DLL through its FPDF_ C API (verified T12, 2026-08-18), so the compiler that built it does not matter. Read and raster only -- every write goes through our own COS layer. NOTE: the prebuilt archive ships only the packager MIT licence; PDFium own BSD-3-Clause text and its third-party notices must be fetched into res/licenses/ before release.
 - **qt** — Qt is taken under LGPL-3.0, linked dynamically and shipped as replaceable DLLs. Never -static; never signature-locked or anti-tampered.
 
 ## Source offers

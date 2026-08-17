@@ -12,6 +12,14 @@ CMakeUserPresets.json
 # See CLAUDE.md — it generated the design docs and is not edited as part of product work.
 claude-plan/skills-specs-generation/
 
+# Prebuilt PDFium: fetched and hash-verified by scripts/fetch-pdfium.ps1, never committed.
+# The pin (version + SHA-256) lives in that script and in third_party/pdfium/README.md,
+# which ARE committed -- the reproducibility is in the pin, not in the bytes.
+# Note the trailing /* rather than /: git does not descend into an excluded DIRECTORY, so
+# the negation below would never be reached and the README would silently go untracked.
+/third_party/pdfium/*
+!/third_party/pdfium/README.md
+
 # IDE / editor
 .vs/
 .idea/

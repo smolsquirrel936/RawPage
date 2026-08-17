@@ -94,8 +94,35 @@ mistaken for evidence, and each has a concrete way to settle it. **Stage 0 owes 
 | A3 | Qt Widgets can deliver a ribbon, tear-off document tabs, and dockable auto-hiding panes without a commercial ribbon library. | Prototype the shell in Stage 1. If it cannot, the fallback is a first-party ribbon widget — not a switch away from Qt. |
 | A4 | Incremental save can preserve the original bytes closely enough that a signature applied before an unrelated later edit still validates. | Corpus round-trip harness in Stage 3: sign, then add an annotation incrementally, then validate. |
 | ~~A5~~ | vcpkg has serviceable ports for every dependency in §6 at the versions we want, **on the `x64-mingw-dynamic` triplet**. | ✅ **Resolution settled 2026-08-18 — see below.** Build fidelity remains partly open. |
-| A6 | **PDFium can be consumed from a GCC-built binary.** The `FPDF_*` surface is a **C** API and x64 Windows has a single calling convention, so a PDFium **DLL** — however it was compiled — is linkable from `g++`; only C++ objects, exceptions, and CRT handles crossing the boundary would break, and the facade in `pdf/render/` passes none of them. | Stage 0: link a trivial `FPDF_InitLibrary`/`FPDF_LoadDocument` program against a prebuilt `pdfium.dll` (generating a `.dll.a` with `gendef` + `dlltool` if no import library is shipped) and open a corpus file. **If a DLL build cannot be obtained or built, the fallback is to build PDFium from source with its own clang toolchain and emit a DLL — not to switch the engine.** A static MSVC `pdfium.lib` is *not* an option. |
+| ~~A6~~ | **PDFium can be consumed from a GCC-built binary.** ✅ **Settled 2026-08-18 — see below.** ~~ The `FPDF_*` surface is a **C** API and x64 Windows has a single calling convention, so a PDFium **DLL** — however it was compiled — is linkable from `g++`; only C++ objects, exceptions, and CRT handles crossing the boundary would break, and the facade in `pdf/render/` passes none of them.~~ | Stage 0: link a trivial `FPDF_InitLibrary`/`FPDF_LoadDocument` program against a prebuilt `pdfium.dll` (generating a `.dll.a` with `gendef` + `dlltool` if no import library is shipped) and open a corpus file. **If a DLL build cannot be obtained or built, the fallback is to build PDFium from source with its own clang toolchain and emit a DLL — not to switch the engine.** A static MSVC `pdfium.lib` is *not* an option. |
 | ~~A7~~ | **Our GCC and Qt's GCC are ABI-compatible.** | ✅ **Settled 2026-08-17 — see below.** |
+
+**A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
+links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
+`chromium/8009`, SHA-256 `c78a8cd51b48ab…`, acquired by `scripts/fetch-pdfium.ps1`.
+
+| Step | Result |
+|---|---|
+| `gendef` over the DLL export table | 472 symbols |
+| `dlltool` → `libpdfium.dll.a` | 379 KB GNU import library (upstream ships MSVC-format `.lib` only) |
+| `g++ -std=c++20 … -lpdfium` | links, no warnings |
+| `FPDF_InitLibraryWithConfig` → `FPDF_LoadDocument` → `FPDF_GetPageCount` | `pages=1`, `page0=ok 595.276 x 841.890 pt` |
+| `objdump -p spike.exe` | `KERNEL32.dll`, **`msvcrt.dll`**, `pdfium.dll` — **no `ucrtbase.dll`** |
+
+**The result is stronger than the assumption.** A6 worried about a C runtime arriving with
+PDFium and mixing with ours. It cannot: `pdfium.dll` imports **no CRT at all** — only
+`KERNEL32`, `ADVAPI32`, `GDI32`, `USER32` — because it statically links its own. There is
+therefore no shared-CRT surface between us and PDFium in either direction.
+
+That has one consequence which is now a rule rather than a preference: **memory allocated by
+PDFium must be released by PDFium**, through the matching `FPDF_*` call. Calling our `free()`
+on a PDFium pointer hands it to a different allocator's heap. The `pdf/render/` facade already
+passes nothing but buffers and callbacks; this measurement is the concrete reason why.
+
+**One obligation found and carried forward.** The prebuilt archive's `LICENSE` is the
+*packager's* MIT licence covering the build scripts — **PDFium's own BSD-3-Clause text and its
+third-party notices are not in it**. §8.1 requires retaining and shipping them, so fetching
+those into `res/licenses/` is owed by Stage 15's release gate.
 
 **A5, measured on the build machine (2026-08-18), Stage 0 task T6.** Every §6.2 dependency that comes
 from vcpkg **resolves** on `x64-mingw-dynamic` at the pinned baseline `94a5411977…`. No port is

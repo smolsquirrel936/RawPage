@@ -42,11 +42,11 @@
     },
 
     "pdfium": {
-      "version": "TODO-AT-T12: the pinned bblanchon/pdfium-binaries release",
+      "version": "153.0.8009.0",
       "spdx": "BSD-3-Clause",
       "origin": "prebuilt",
       "upstream": "https://pdfium.googlesource.com/pdfium/",
-      "election": "Consumed as a DLL through its FPDF_ C API, so the compiler that built it does not matter. Read and raster only -- every write goes through our own COS layer.",
+      "election": "Consumed as a DLL through its FPDF_ C API (verified T12, 2026-08-18), so the compiler that built it does not matter. Read and raster only -- every write goes through our own COS layer. NOTE: the prebuilt archive ships only the packager MIT licence; PDFium own BSD-3-Clause text and its third-party notices must be fetched into res/licenses/ before release.",
       "noticeRequired": false
     },
 
