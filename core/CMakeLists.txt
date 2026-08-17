@@ -12,6 +12,10 @@
 
 add_library(recto_core STATIC
     CoreModule.cpp
+    Result.h
+    Log.h
+    Geometry.h
+    Units.h
 )
 
 target_include_directories(recto_core PUBLIC "${CMAKE_SOURCE_DIR}")

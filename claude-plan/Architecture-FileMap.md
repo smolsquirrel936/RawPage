@@ -82,8 +82,9 @@ boundary outward, on `FPDF_` outside `pdf/`, and on a filesystem write outside `
 | ○ | Planned. The parenthesized **S*n*** is the [roadmap](./Implementation-Plan.md) stage that builds it. |
 | ⤵ | Folded into another file — the row stays as a breadcrumb, pointing at where the responsibility went. |
 
-**One row is ✅: `tools/layer-lint/` (Stage 0, task T7).** Everything else is ○ with its stage tag —
-no *product* code exists yet, only the Stage 0 scaffolding that the gates run on. The stage tags are
+**Six rows are ✅** — the two gates (T7, T8), the four `core/` vocabulary headers (T10), and the unit
+harness (T11). Everything else is ○ with its stage tag: no *document* code exists yet, only Stage 0's
+scaffolding and the shared vocabulary every later layer is written in. The stage tags are
 the contract between this map and the roadmap.
 
 Stage 0 also adds files this map does not yet describe — the build definition, the CMake modules, the
@@ -226,9 +227,9 @@ cell names the members. Everything else is one row per file, with `{.h,.cpp}` co
 | `core/settings/RecentFiles.{h,cpp}` | ○ (S1) | Recent list with pinning, per-document view state, and the clear action. | `core/doc/DocumentId`, `platform::IShellIntegration` (jump list) |
 | `core/settings/SessionState.{h,cpp}` | ○ (S4) | The open-document set, tab order, window geometry per monitor arrangement, and pane layout, for session restore. | `app/Application`, `ui/shell/MainWindow`, `platform::IDisplayTopology` |
 | `core/backend.h` | ○ (S2) | **The engine contract.** Declares `IDocumentBackend`, `IPageRasterizer`, `ITextExtractor`, `MutationSink`, `ISigner`, `IOcrEngine`, `IIndexer`. The narrowest and most important header in the project: it is what makes `core/` testable and the engine replaceable. | Implemented by `pdf/`; consumed by `core/*` and (read-only interfaces) by `ui/` |
-| `core/Result.h` | ○ (S0) | `Result<T>` / `Error` with a code, a message key for `tr()`, and context — so no layer signals failure by exception across a boundary. | Everything |
-| `core/Log.h` | ○ (S0) | Subsystem-tagged, level-filtered logging macros. Enforces the rule that document text and file paths never appear above debug level. | Everything; `ui/panes/LogPane` |
-| `core/Geometry.h`, `core/Units.h` | ○ (S0) | PDF-space vs device-space point/rect types that do not implicitly convert, and the unit conversions for rulers and measurement. Keeping these distinct is what prevents a whole class of coordinate bugs. | `core/render/*`, `ui/viewer/*`, `core/doc/Page` |
+| `core/Result.h` | ✅ (S0 · T10) | `Result<T>` / `Error` with a code, a message key for `tr()`, and context — so no layer signals failure by exception across a boundary. | Everything |
+| `core/Log.h` | ✅ (S0 · T10) | Subsystem-tagged, level-filtered logging macros. Enforces the rule that document text and file paths never appear above debug level. | Everything; `ui/panes/LogPane` |
+| `core/Geometry.h`, `core/Units.h` | ✅ (S0 · T10) | PDF-space vs device-space point/rect types that do not implicitly convert, and the unit conversions for rulers and measurement. Keeping these distinct is what prevents a whole class of coordinate bugs. | `core/render/*`, `ui/viewer/*`, `core/doc/Page` |
 
 ### 3.9 `pdf/cos/` — first-party PDF object layer (we own this outright)
 
@@ -413,7 +414,7 @@ because declaring their interface early is what keeps them from reshaping the co
 | `tools/i18n-lint/` | ○ (S1) | Fails on any user-facing literal not wrapped in `tr()`, and on catalog keys missing from a shipped locale. | `i18n/*.ts`, CI |
 | `tools/license-audit/` | ✅ (S0 · T8) | Walks the resolved vcpkg manifest plus the Qt module list and the GCC runtime, emits `THIRD-PARTY.md`, and fails on any SPDX **expression** outside the allowlist. Matching is whole-expression, never a `GPL` substring: `GPL-3.0-or-later WITH GCC-exception-3.1` must pass while bare `GPL-3.0-or-later` must fail. Also asserts no non-free GCC plugin was loaded, which is the condition the exception rests on. | `vcpkg.json`, `cmake/toolchain-mingw.cmake`, `ui/dialogs/ThirdPartyNoticesDialog`, CI |
 | `tools/golden-update/` | ○ (S2) | Regenerates `golden/` reference rasters, requiring an explicit reason so a rendering regression cannot be laundered into a new baseline. | `golden/`, `tests/golden/` |
-| `tests/unit/` | ○ (S0) | Catch2 suites over `core/` and `pdf/`, linked **without** `recto_ui` and `recto_platform` — the standing proof that the boundary holds. | `core/*`, `pdf/*` |
+| `tests/unit/` | ✅ (S0 · T11) | Catch2 suites over `core/` and `pdf/`, linked **without** `recto_ui` and `recto_platform` — the standing proof that the boundary holds. | `core/*`, `pdf/*` |
 | `tests/golden/` | ○ (S2) | Renders corpus pages at fixed resolutions and compares against `golden/` with a perceptual threshold; writes a diff image on failure. | `pdf/render/PdfiumRasterizer`, `golden/` |
 | `tests/roundtrip/` | ○ (S3) | Open → command → incremental save → reopen: asserts the mutation landed, untouched objects are byte-identical, and pre-existing signatures still validate. | `pdf/cos/IncrementalWriter`, `corpus/` |
 | `tests/fuzz/` | ○ (S3) | libFuzzer targets over `pdf/cos/Lexer` and `pdf/cos/Parser`, seeded from `corpus/malformed/`. Built by the `portable-fuzz` preset, **not** by the Windows GCC build, which has no libFuzzer; findings are reproduced in `x64-debug` before they count as fixed. | `pdf/cos/*` |

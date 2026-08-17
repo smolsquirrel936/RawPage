@@ -114,8 +114,9 @@ if(NOT RECTO_PORTABLE_SUBSET)
     add_subdirectory(app)
 endif()
 
-# --- Gate tests --------------------------------------------------------------
+# --- Tests -------------------------------------------------------------------
 add_subdirectory(tests/gates)
+add_subdirectory(tests/unit)
 
 # --- Gate inputs -------------------------------------------------------------
 # Written last, after every target exists: a global property read earlier would see a

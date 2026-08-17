@@ -172,8 +172,8 @@ implies arm64 works. **No build, no run.** **If it fails** S3 (S2 if the message
 **Expect** Configure fails; the message names **TA-2**, the expected version `13.1.0`, the version
 found, and the fix. **If it fails** **S1** — this is the assertion that stops a week-long crash hunt
 in Stage 6.
-✅ **Passed 2026-08-18** (by hand, pre-T9): reported `GNU 13.9.0` → `Toolchain pin violated: TA-2
-compiler version · found: 13.9.0 · expected: 13.1.0`.
+✅ **Passed 2026-08-18.** Wired as `gates.wrong_compiler.wc1_wrong_version`; reported
+`GNU 13.9.0` → `Toolchain pin violated: TA-2 compiler version · found: 13.9.0 · expected: 13.1.0`.
 
 **A-05 · No static linking of the runtimes**
 ☐ **Goal** `-static`, `-static-libstdc++`, `-static-libgcc` cannot enter the flags — an LGPL
@@ -194,7 +194,7 @@ our own source.
 **Expect** Configure fails naming **TA-6 C runtime**, `found: UCRT (_UCRT is defined)`, and MSYS2
 ucrt64 as the usual source. **If it fails** **S1** — an MSYS2 UCRT64 toolchain passes TA-1, TA-3,
 TA-4 and TA-5; this is the only assertion that stops it.
-✅ **Passed 2026-08-18** (by hand, pre-T9).
+✅ **Passed 2026-08-18.** Wired as `gates.wrong_compiler.wc2_ucrt_runtime`.
 
 > **This case changed the implementation.** TA-6's probe originally ran the bare compiler, so this
 > exact command configured **cleanly** and reported "msvcrt" while the whole build compiled as UCRT —
@@ -208,7 +208,7 @@ TA-4 and TA-5; this is the only assertion that stops it.
 **Expect** Configure fails with `found: __MSVCRT__ is not defined` — TA-6 requires the positive
 marker present, not merely `_UCRT` absent. **If it fails** **S2** — a check that passes when its own
 probe breaks is not a check.
-✅ **Passed 2026-08-18** (by hand, pre-T9).
+✅ **Passed 2026-08-18.** Wired as `gates.wrong_compiler.wc3_probe_self_check`.
 
 ### 5.2 The gates on the real tree
 

@@ -52,7 +52,14 @@ function(recto_link_qt target)
         endif()
 
         set_property(GLOBAL APPEND PROPERTY RECTO_QT_MODULES ${module})
-        target_link_libraries(${target} PRIVATE Qt6::${module})
+
+        # PUBLIC, not PRIVATE. core/'s public headers include <QString> -- Result carries a
+        # QString context, Log builds QStrings, Units formats them -- so Qt's include path
+        # is part of core's INTERFACE, not an implementation detail. With PRIVATE, anything
+        # consuming core (the unit suite first, every other layer next) fails to find
+        # QString, and the tempting repair is to re-link Qt in each consumer, which quietly
+        # scatters the dependency the layer contract is trying to keep in one place.
+        target_link_libraries(${target} PUBLIC Qt6::${module})
     endforeach()
 endfunction()
 

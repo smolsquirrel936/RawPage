@@ -15,7 +15,11 @@ if(NOT DEFINED COMMAND_STR OR NOT DEFINED EXPECT_EXIT)
     message(FATAL_ERROR "RunGateCase.cmake: COMMAND_STR and EXPECT_EXIT are required")
 endif()
 
-separate_arguments(command_list NATIVE_COMMAND "${COMMAND_STR}")
+# Arguments are joined with '|' rather than spaces by the caller. A toolchain case passes
+# things like  -DCMAKE_CXX_FLAGS=-U__GNUC_MINOR__ -D__GNUC_MINOR__=9  as ONE argument, and
+# splitting on whitespace would tear it in half -- producing a test that fails for a reason
+# unrelated to what it claims to check.
+string(REPLACE "|" ";" command_list "${COMMAND_STR}")
 
 execute_process(
     COMMAND ${command_list}

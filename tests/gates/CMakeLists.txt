@@ -12,7 +12,9 @@ set(RUNNER "${CMAKE_CURRENT_SOURCE_DIR}/RunGateCase.cmake")
 
 function(recto_add_gate_test)
     cmake_parse_arguments(ARG "" "NAME;EXPECT_EXIT;EXPECT_MATCH" "COMMAND" ${ARGN})
-    string(REPLACE ";" " " command_str "${ARG_COMMAND}")
+    # '|' rather than ' ' as the separator: a toolchain case passes an argument that itself
+    # contains spaces, and joining on space would split it back into two.
+    string(REPLACE ";" "|" command_str "${ARG_COMMAND}")
     add_test(NAME ${ARG_NAME}
         COMMAND ${CMAKE_COMMAND}
                 "-DCOMMAND_STR=${command_str}"
@@ -109,3 +111,73 @@ recto_add_gate_test(NAME gates.license_audit.compiler_plugin_loaded
 recto_add_gate_test(NAME gates.license_audit.missing_manifest_is_exit_2
     COMMAND ${LA} --manifest ${FIXTURES}/does-not-exist.json --spdx-map ${LA_MAP}
     EXPECT_EXIT 2 EXPECT_MATCH "cannot open")
+
+# --------------------------------------------------------------------------------------
+# The toolchain pin (TA-1 .. TA-9), against a minimal fixture project.
+#
+# These were written and passing by hand at T3; wiring them here is what the plan assigns
+# to T9, and it is what makes the testing guide's `ctest -R gates.wrong_compiler` real.
+#
+# Each drives the compiler to REPORT the wrong thing, which tests the assertion's logic and
+# its message. None of them reproduces the SCENARIO -- a genuinely different toolchain on
+# the machine -- which stays with manual case M-02. See the fixture README for why both
+# halves matter.
+# --------------------------------------------------------------------------------------
+set(WC_PROJECT "${FIXTURES}/wrong-compiler/project")
+set(WC_TOOLCHAIN "${CMAKE_SOURCE_DIR}/cmake/toolchain-mingw.cmake")
+
+function(recto_add_toolchain_test)
+    cmake_parse_arguments(TC "" "NAME;EXPECT_MATCH;EXTRA" "" ${ARGN})
+    recto_add_gate_test(NAME ${TC_NAME}
+        COMMAND ${CMAKE_COMMAND} --fresh
+                -S ${WC_PROJECT}
+                -B ${CMAKE_BINARY_DIR}/gate-fixtures/${TC_NAME}
+                -G Ninja
+                -DCMAKE_TOOLCHAIN_FILE=${WC_TOOLCHAIN}
+                -DRECTO_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+                ${TC_EXTRA}
+        EXPECT_EXIT 1 EXPECT_MATCH "${TC_EXPECT_MATCH}")
+endfunction()
+
+# The fixture must configure cleanly on the real toolchain, or every case below could be
+# passing for the wrong reason.
+recto_add_gate_test(NAME gates.wrong_compiler.baseline_is_clean
+    COMMAND ${CMAKE_COMMAND} --fresh -S ${WC_PROJECT}
+            -B ${CMAKE_BINARY_DIR}/gate-fixtures/baseline -G Ninja
+            -DCMAKE_TOOLCHAIN_FILE=${WC_TOOLCHAIN}
+            -DRECTO_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+    EXPECT_EXIT 0 EXPECT_MATCH "all toolchain assertions passed")
+
+# WC-1 -- TA-2, wrong compiler version.
+recto_add_toolchain_test(NAME gates.wrong_compiler.wc1_wrong_version
+    EXTRA "-DCMAKE_CXX_FLAGS=-U__GNUC_MINOR__ -D__GNUC_MINOR__=9"
+    EXPECT_MATCH "TA-2 compiler version")
+
+# WC-2 -- TA-6, a UCRT runtime. The assertion that actually catches an MSYS2 install.
+recto_add_toolchain_test(NAME gates.wrong_compiler.wc2_ucrt_runtime
+    EXTRA "-DCMAKE_CXX_FLAGS=-D_UCRT"
+    EXPECT_MATCH "TA-6 C runtime")
+
+# WC-3 -- TA-6 must require __MSVCRT__ to be PRESENT, not merely _UCRT to be absent,
+# or it passes vacuously whenever its own probe fails.
+recto_add_toolchain_test(NAME gates.wrong_compiler.wc3_probe_self_check
+    EXTRA "-DCMAKE_CXX_FLAGS=-U__MSVCRT__"
+    EXPECT_MATCH "__MSVCRT__ is not defined")
+
+# WC-4 -- the pinned root points nowhere.
+recto_add_toolchain_test(NAME gates.wrong_compiler.wc4_bad_mingw_root
+    EXTRA "-DRECTO_MINGW_ROOT=C:/nonexistent-gcc"
+    # Deliberately avoids the "g++" in the message: EXPECT_MATCH is a CMake regex, and a
+    # bare '+' there is a quantifier with nothing to repeat -- it fails to COMPILE rather
+    # than fails to match, which reads like a broken gate instead of a broken pattern.
+    EXPECT_MATCH "under RECTO_MINGW_ROOT")
+
+# WC-5 -- a GCC plugin voids the Runtime Library Exception.
+recto_add_toolchain_test(NAME gates.wrong_compiler.wc5_gcc_plugin
+    EXTRA "-DCMAKE_CXX_FLAGS=-fplugin=evil.dll"
+    EXPECT_MATCH "Runtime Library Exception")
+
+# WC-6 -- static runtime linking breaches the LGPL replaceability obligation.
+recto_add_toolchain_test(NAME gates.wrong_compiler.wc6_static_runtime
+    EXTRA "-DCMAKE_CXX_FLAGS=-static-libstdc++"
+    EXPECT_MATCH "static")

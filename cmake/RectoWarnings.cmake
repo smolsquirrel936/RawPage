@@ -63,7 +63,23 @@ function(recto_common_flags target)
         # Large object files (was /bigobj). Debug builds of template-heavy TUs
         # genuinely need this; Catch2 and the COS object model will hit it.
         $<$<CONFIG:Debug>:-Wa,-mbig-obj>
+
+        # Debug information in EVERY configuration, release included (was /Zi).
+        # This toolchain emits DWARF and never a .pdb, so a field minidump is symbolized
+        # against an archived unstripped binary rather than by a symbol server
+        # (Tech-Stack-Plan.md 6.3, risk R7). A release build with no DWARF makes that
+        # story impossible, and the shipped artifact is stripped separately at packaging
+        # time -- so the size cost is paid in the archive, not by the user.
+        -g
+
+        # Stack-smashing detection. Named in 6.3 as part of what stands in for the ASan
+        # coverage MinGW GCC cannot give us on Windows-only code.
+        -fstack-protector-strong
     )
+
+    # Bounds and precondition checks inside libstdc++ itself -- the other half of the
+    # sanitizer substitute. Debug only: it changes libstdc++ behaviour and costs time.
+    target_compile_definitions(${target} PRIVATE $<$<CONFIG:Debug>:_GLIBCXX_ASSERTIONS>)
 
     target_link_options(${target} PRIVATE
         $<$<CONFIG:Release,MinSizeRel>:-Wl,--gc-sections>
@@ -75,6 +91,23 @@ endfunction()
 # upgrade can introduce new warnings where MSVC would not -- which is exactly what
 # the toolchain pin in cmake/toolchain-mingw.cmake exists to prevent. The answer to
 # a new warning is to fix the code, never to relax this.
+#
+# NOT APPLIED HERE: -fanalyzer.
+#
+# Tech-Stack-Plan.md 6.3's flag table lists it as the translation of MSVC's /analyze, on
+# core/ and pdf/cos/. Measured on the pinned toolchain 2026-08-18, it is not usable on C++:
+#
+#     int main() { std::string s = "x"; return s.size(); }
+#     warning: leak of 's.std::__cxx11::basic_string<char>::...::_M_p' [-Wanalyzer-malloc-leak]
+#
+# GCC's analyzer is built for C; on C++ it false-positives on the simplest possible use of
+# the standard library. Combined with -Werror -- which is exactly where 6.3 puts it -- it
+# would fail the build on any file that touches std::string. Enabling it and then papering
+# over the noise with -Wno-analyzer-* would leave a flag that looks like static analysis and
+# performs none.
+#
+# The same table row also names clang-tidy, which does work on C++ and is the real static
+# analysis route. Recorded as a Stage 0 finding against the owning document.
 function(recto_strict target)
     recto_common_flags(${target})
     target_compile_options(${target} PRIVATE -Werror)

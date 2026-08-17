@@ -515,8 +515,23 @@ silently dropped in the move:
 | Unicode entry point | `/ENTRY:wWinMainCRTStartup` | `-municode` |
 | GUI subsystem, no console window | `/SUBSYSTEM:WINDOWS` | `-mwindows` |
 | Dead-code stripping | `/OPT:REF` | `-ffunction-sections -fdata-sections -Wl,--gc-sections` |
-| Static analysis | `/analyze` | `-fanalyzer` on `core/` and `pdf/cos/`, plus clang-tidy |
-| Debug symbols | `/Zi` → `.pdb` | `-g` → DWARF in the binary; see the symbol-archive note above |
+| Static analysis | `/analyze` | ~~`-fanalyzer` on `core/` and `pdf/cos/`~~ **— not viable, see below** — **clang-tidy** is the route |
+| Debug symbols | `/Zi` → `.pdb` | `-g` → DWARF in the binary, in **every** configuration including Release; see the symbol-archive note above |
+
+**`-fanalyzer` measured and dropped, 2026-08-18 (Stage 0, task T2).** GCC's analyzer is built for C.
+On the pinned GCC 13.1.0 it false-positives on the simplest possible C++:
+
+```
+int main() { std::string s = "x"; return s.size(); }
+warning: leak of 's.…basic_string<char>::_M_dataplus.…_M_p' [-Wanalyzer-malloc-leak]
+```
+
+Since this table puts it on `core/` and `pdf/cos/` — precisely the two layers that carry `-Werror` —
+enabling it would fail the build on any file that touches `std::string`. Suppressing the noise with
+`-Wno-analyzer-*` would leave a flag that looks like static analysis and performs none, which is worse
+than not having it. **clang-tidy, already named in the same row, is the static-analysis route**; it is
+scheduled with the first real `core/` code. `cmake/RectoWarnings.cmake` records this at the point
+where a reader would otherwise wonder why the flag is missing.
 
 ---
 
