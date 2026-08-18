@@ -14,6 +14,7 @@
   "exclude": [
     "build/",
     "vcpkg_installed/",
+    "third_party/",
     "claude-plan/",
     "tests/gates/fixtures/"
   ],
@@ -22,7 +23,13 @@
     "tests/gates/fixtures/ holds files that are violations BY CONSTRUCTION -- that is what",
     "they test. Excluding them by an explicit path (decision D0-4) rather than by a filename",
     "convention means the exclusion is greppable and shows up in --explain. A convention like",
-    "'*_bad.cpp' would silently stop testing the first fixture that forgot the suffix."
+    "'*_bad.cpp' would silently stop testing the first fixture that forgot the suffix.",
+    "",
+    "third_party/ is fetched, not committed (scripts/fetch-pdfium.ps1), so without this entry",
+    "the scanned set depends on whether a developer has run that script: 27 files on a fresh",
+    "clone, 51 once PDFium is present. The gate's own report must not vary with machine state.",
+    "Nothing was being checked there in any case -- third-party files match no layer, and",
+    "LayerLint skips unlayered files before any include or token rule runs."
   ],
 
   "layers": {
