@@ -8,18 +8,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Recto** (working codename, open decision O9), a Windows-first desktop PDF editor modeled on Right
 PDF Professional. The design lives under `claude-plan/`.
 
-What exists in the tree today: a root `CMakeLists.txt` and one per layer, `cmake/` (the pinned
-toolchain plus its TA-1…TA-9 assertions, the warning module, the Qt link guard), `scripts/`
-(`env.ps1`, `bootstrap.ps1`), and four layer libraries containing a single placeholder TU each,
-linked by an empty `recto.exe`. **Nothing in `core/`, `pdf/`, `ui/`, `platform/`, or `app/` is real
-yet** — every row in `Architecture-FileMap.md` is still ○.
+**Stage 0 is built and its automated verification is green; its manual pass is not walked, so it is
+not done.** What exists is scaffolding, not product:
+
+- the build system and six CMake presets, with the toolchain pin (TA-1…TA-9) refusing any compiler
+  but Qt's own GCC 13.1.0/msvcrt;
+- **two live gates** — `tools/layer-lint` and `tools/license-audit` — plus 23 CTest fixtures that
+  prove they fail correctly, negative controls included;
+- the four `core/` vocabulary headers (`Result.h`, `Log.h`, `Geometry.h`, `Units.h`) and a Catch2
+  suite; **50 tests on Windows, 43 on Linux under ASan+UBSan**;
+- CI on three jobs, the Windows one self-hosted;
+- `recto.exe`, which links all four layers and **opens no window**.
+
+**No document code exists**: nothing in `core/doc/`, `core/cmd/`, `pdf/cos/`, `pdf/render/`,
+`pdf/ops/`, `ui/`, `platform/win/`, or `app/` beyond one placeholder TU per layer. Both Stage 0 risk
+verdicts are recorded in `Tech-Stack-Plan.md` §3.3: **A5** and **A6**.
 
 The documented next action is **Stage 0** (toolchain skeleton + the four enforcement gates) in
 `claude-plan/Implementation-Plan.md`, now planned in full: `claude-plan/Stage0-Toolchain-Plan.md`
 holds its tasks T1–T15, and `claude-plan/Stage0-Toolchain-Testing-Guide.md` holds its verification.
-Stage 0's §7 preconditions are met and **T1–T3 are complete**; **T4 (CMake presets) is the next
-action**. Do not skip ahead to feature work — the stage order is deliberate risk retirement, not a
-backlog.
+**All fifteen Stage 0 tasks are complete.** The next action is the **manual pass** —
+`Stage0-Toolchain-Testing-Guide.md` §6, cases M-01…M-07, walked by the user on real hardware. I never
+mark those passed on their behalf, and Stage 0's Definition of Done is not met until they are.
+**Stage 1 does not start before that sign-off.** Do not skip ahead to feature work — the stage order
+is deliberate risk retirement, not a backlog.
 
 `claude-plan/skills-specs-generation/` is a **vendored third-party skill set** (its own nested git
 repo, MIT-ish LICENSE) that generated these docs. Don't edit it as part of product work.

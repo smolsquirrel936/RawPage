@@ -11,8 +11,9 @@
 > | What each file is for | [`Architecture-FileMap.md` §3.8, §3.17](./Architecture-FileMap.md#38-corebatch-coresettings-and-shared-headers) |
 > | How Stage 0 is verified | [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** ⚪ Planned. No task below has started. This file is a plan, not a progress log — Stage 0's
-> live status stays in `Implementation-Plan.md`'s Stage 0 status block.
+> **Status:** All fifteen tasks complete as of 2026-08-18; the manual pass is outstanding. This file is
+> a plan, not a progress log — Stage 0's live status, task by task and deviation by deviation, stays in
+> `Implementation-Plan.md`'s Stage 0 status block.
 
 ---
 
@@ -453,10 +454,13 @@ Nine of the files in §4 have **no row in `Architecture-FileMap.md`** — the bu
 modules, the gate fixtures, the CI workflow, and the scripts. `CLAUDE.md`'s rule is that a
 *Components* entry resolves to a FileMap row and that rows flip in the same change as the code.
 
-**T15 therefore includes adding those rows to `Architecture-FileMap.md` §3.17**, not just flipping the
-existing ones. Flagging it here rather than discovering it at sign-off: the map is meant to answer
-"what is this file for" for *every* file, and a build system that is invisible to it is the first
-place the map starts drifting from the tree.
+**✅ Paid at T15, 2026-08-18.** `Architecture-FileMap.md` gained a new **§3.18 — Build system, scripts,
+and CI** covering the root `CMakeLists.txt`, `CMakePresets.json`, the four `cmake/` modules, both vcpkg
+manifests, `tools/ports/`, all three `scripts/`, `third_party/pdfium/`, `corpus/make-minimal.py`,
+`THIRD-PARTY.md`, the CI workflow, and `.gitattributes`. Several rows carry the *reason* rather than
+only the role — why `.gitattributes` is load-bearing, why the `checks` target must not depend on the
+layer libraries, why the Windows CI job is self-hosted — because those are the facts a later reader
+would otherwise have to rediscover from a failure.
 
 The other lockstep edits T15 owes:
 

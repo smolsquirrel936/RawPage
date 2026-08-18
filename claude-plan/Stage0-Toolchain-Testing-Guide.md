@@ -6,8 +6,12 @@
 > **before any Stage 0 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** ⚪ **Not started.** No case below has been run. Failures are recorded in the
-> [issue log](#8-issue-log), which is this guide's only progress record.
+> **Status:** 🟡 **Automated half green; manual half not walked.** Every automated case A-01…A-73 has
+> been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
+> self-hosted runner, `portable-asan` on Linux; 50 tests on Windows, 43 on Linux). **No manual case
+> M-01…M-07 has been walked**, and I do not mark those. Per
+> [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
+> report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
 >
 > Two halves, per [`CLAUDE.md`](../CLAUDE.md): **[§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -112,9 +116,9 @@ Sign-off is not just green cases. Three answers must exist in writing, in their 
 
 | Verdict | Produced by | Recorded in |
 |---|---|---|
-| **A5** — does the §6.2 set resolve on `x64-mingw-dynamic`? | A-60, A-61 | `Tech-Stack-Plan.md` §3.3 + Stage 0 status |
-| **A6** — does a PDFium DLL link from `g++` and open a file? | A-62, A-63 | same |
-| **A7 stays settled** | A-04, A-07, A-08 + M-02 | no new record — the assertions *are* the record |
+| **A5** — does the §6.2 set resolve on `x64-mingw-dynamic`? | A-60, A-61 | ✅ **recorded** in `Tech-Stack-Plan.md` §3.3 — resolves; only the default set is *built*, each feature closing at its own stage |
+| **A6** — does a PDFium DLL link from `g++` and open a file? | A-62, A-63 | ✅ **recorded** in §3.3 — yes, and PDFium links no CRT at all, which is stronger than the assumption |
+| **A7 stays settled** | A-04, A-07, A-08 + M-02 | ✅ assertions TA-1…TA-9 are the record; six negative cases run in CI on every push. **M-02 still outstanding** |
 
 A stage that is green but has no verdicts is **not** signed off. The verdicts are the deliverable;
 the green is the evidence.
@@ -349,8 +353,23 @@ zero-target build is indistinguishable from a broken one. **If it fails** S3.
 ☐ **Steps** Push; watch `gh run watch`.
 **Expect** `gates`, `windows`, `portable-asan` all green; `gates` finishes first and **runs `checks`
 before anything is compiled**. **If it fails** S2.
+✅ **Passed 2026-08-18** (run `32064437614`): all three green. `windows` reported *"Toolchain pin
+verified: GCC 13.1.0 x86_64-w64-mingw32, SEH/posix/msvcrt, no GCC plugin"*, 50/50 tests, and imports
+`msvcrt.dll` with no `ucrtbase.dll` and no `Qt6Charts`. `portable-asan` ran 43 tests clean.
+
+> **The Windows job is self-hosted, and that was forced rather than chosen.** aqtinstall cannot
+> install Qt 6.11.1: Qt 6.11 splits its repository per architecture (`qt6_6111_mingw/`) and aqt still
+> requests the old single-repo path, returning 404 behind a misleading "checksum" error. 3.3.0 and
+> 3.2.1 fail identically. Downgrading the Qt pin to suit CI was rejected — TA-8 asserts 6.11.1, and
+> testing against a different Qt than we ship is the ABI question A7 exists to prevent. The
+> consequence is an improvement: CI now builds with the **exact** toolchain bytes a release uses.
 
 **A-73 · The `gates` job needs no Qt**
+✅ **Passed 2026-08-18.** Verified twice: locally with `VCPKG_ROOT` cleared and `RECTO_QT_PREFIX`
+pointed at a nonexistent path (3.8 s, 23/23), and in CI on `ubuntu-latest` with neither installed
+(~40 s). **This case found a real defect:** the root `CMakeLists.txt` called `find_package(Qt6
+REQUIRED)` unconditionally, so the job it describes could not have existed. `RECTO_GATES_ONLY` fixed it.
+
 ☐ **Goal** [Plan D0-1](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions)'s payoff is real.
 **Steps** Confirm the `gates` job installs neither Qt nor vcpkg, and check its wall-clock time.
 **Expect** No Qt, no vcpkg, under a couple of minutes. **If it fails** S2 — a gate that waits behind a

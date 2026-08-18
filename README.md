@@ -3,12 +3,14 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stage 0 in progress — there is no build yet.**
-> The design is complete and lives in [`claude-plan/`](./claude-plan/README.md). Source code does not
-> exist yet; the commands under *Build* below become live as Stage 0 lands, and each is marked with
-> the task that turns it on. This section is written ahead of the code deliberately — the
-> clean-machine bootstrap (testing guide case **M-01**) is walked by following it *literally*, so a
-> step that is missing here is a defect in the project, not in the tester.
+> **Status: Stage 0 built; no product features yet.**
+> The commands below work. What they build is *scaffolding* — a pinned toolchain, two enforcement
+> gates, and an empty `recto.exe` that opens no window. That is the intended state: Stage 0 exists to
+> make the enforcement gates fail correctly before there is any code for them to fail on.
+> The design lives in [`claude-plan/`](./claude-plan/README.md).
+>
+> This section is walked literally by testing-guide case **M-01** on a clean machine, so a step that
+> is missing here is a defect in the project, not in the tester.
 
 ---
 
@@ -69,10 +71,10 @@ cd Recto
 .\scripts\bootstrap.ps1          # verify prerequisites; reports what to fix, installs nothing
 . .\scripts\env.ps1              # DOT-SOURCE this -- it puts the pinned toolchain on PATH
 
-cmake --preset x64-release                                    # (T3, T4)
-cmake --build --preset x64-release --target checks            # (T9) the gates -- always first
-cmake --build --preset x64-release                            # (T2)
-ctest --preset x64-debug --output-on-failure                  # (T11)
+cmake --preset x64-release
+cmake --build --preset x64-release --target checks            # the gates -- always first
+cmake --build --preset x64-release
+ctest --preset x64-debug --output-on-failure                  # 50 tests
 ```
 
 `checks` runs the enforcement gates **before** anything is compiled, so a layering or license
@@ -88,6 +90,7 @@ process that immediately exits; the script detects this and tells you.
 |---|---|---|
 | `x64-debug` | Windows | Day-to-day development and `ctest` |
 | `x64-release` | Windows | Optimized build, the release configuration |
+| `gates` | any | **tools/ and tests/gates/ only — no Qt, no vcpkg.** What CI runs first; ~4 s |
 | `arm64-release` | Windows | **Placeholder — does not configure.** Fails with an explanation: the pin is x86_64 GCC 13.1.0, and whether arm64 means moving to LLVM-MinGW is open decision O6 |
 | `portable-asan` | Linux | `core/` + `pdf/cos/` under ASan+UBSan — MinGW GCC has no sanitizer runtime |
 | `portable-fuzz` | Linux | libFuzzer over the COS parser. **No targets until Stage 2** |

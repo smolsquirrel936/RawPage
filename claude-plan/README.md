@@ -49,19 +49,23 @@ than a gap — those files are written when their stage comes up, not in advance
 
 ## Current state
 
-**Stage 0 is under way; no product code exists.** What builds today is the *scaffolding*: a pinned
-toolchain, four empty layer libraries, and an empty `recto.exe`. Every ③ file row is still `○ planned`
-— none of the files ③ describes has been written — and stages 1–16 are `⚪ not started`.
+**Stage 0's automated work is complete; its manual pass is not.** All fifteen tasks are done and CI is
+green on three jobs — `gates` (bare Linux, no Qt or vcpkg), `windows` (self-hosted, the exact pinned
+toolchain, 50 tests), and `portable-asan` (43 tests under ASan+UBSan). Both Stage 0 risk verdicts are
+recorded in ②: **A5** (the dependency set resolves on `x64-mingw-dynamic`) and **A6** (a PDFium DLL
+links from `g++`).
 
-Stage 0's ⑤ [execution plan](./Stage0-Toolchain-Plan.md) and ⑥
-[testing guide](./Stage0-Toolchain-Testing-Guide.md) were written in that order **before any code**,
-which is the point of the sequence. **Tasks T1-T4 of T15 are complete** - repository skeleton, layer target graph, the toolchain pin with assertions TA-1...TA-9, and the five CMake presets. **T5/T6 (vcpkg manifest and the A5 sweep) are next.**
-No guide case has been formally run, and neither the **A5** nor the **A6** verdict exists yet.
+What exists is *scaffolding*: a pinned toolchain that refuses anything else, two live enforcement
+gates with 23 fixtures, the build and CI, and the four `core/` vocabulary headers. **No document code
+exists** — nothing in `core/doc/`, `core/cmd/`, `pdf/cos/`, `pdf/render/`, `ui/`, `platform/win/` or
+`app/`, and `recto.exe` opens no window. Stages 1–16 are `⚪ not started`.
 
-Live task-by-task status is in
-[④'s Stage 0 block](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates),
-deviations included. Stage 0's whole purpose is to make the enforcement gates fail correctly *before*
-there is any code for them to fail on.
+**Stage 0 is not done.** Its Definition of Done requires ⑥'s manual section — M-01 through M-07 —
+walked and signed off by a person, and no manual case has been walked. "Automated green, manual not
+yet walked" is a reportable state, not a finished one.
+
+Live task-by-task status, deviations included, is in
+[④'s Stage 0 block](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates).
 
 ## Keeping the set in lockstep
 
