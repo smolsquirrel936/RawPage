@@ -416,7 +416,13 @@ toolchain, or human judgement.
 
 **M-04 · A missing vcpkg is diagnosed, not crashed into** ☐
 - **Goal** The one precondition this machine did not have ([plan §7.1 checklist](./Stage0-Toolchain-Plan.md#71-vcpkg--owner-you)).
-- **Steps** Unset `VCPKG_ROOT`; run `scripts\bootstrap.ps1`, then configure.
+- **Steps** Clearing `$env:VCPKG_ROOT` alone is **not enough** - both `bootstrap.ps1` and `env.ps1`
+  fall back to the user registry and then to `%USERPROFILE%\vcpkg`, so with the clone present this
+  case passes vacuously (issue **I-03**; the same shape as TA-6 at T3). Make vcpkg genuinely absent:
+  in a **fresh shell**, without dot-sourcing `env.ps1`, rename `%USERPROFILE%\vcpkg` aside, set
+  `$env:VCPKG_ROOT = ''`, run `scripts\bootstrap.ps1`, then `cmake --preset x64-release`. Rename it
+  back afterwards. Leave the registry value alone - it then points at a missing directory, which is
+  exactly the failure this case is about.
 - **Expect** `bootstrap.ps1` says what is missing, where it should live
   (`C:\Users\squirrel\vcpkg`), and what to run. Configure fails with the same information rather than a
   toolchain-file-not-found.
@@ -474,7 +480,12 @@ record.
 
 | # | Case / area | What happens | Expected | Sev | Repro / notes | State |
 |---|---|---|---|---|---|---|
-| | | | | | | |
+| I-01 | M-01 | The Qt online installer offers only **6.11.2**; `README.md` said "selecting Qt 6.11.1" without saying 6.11.1 sits behind the **Archive** category filter. Following the README literally on a clean box yields the wrong Qt and a TA-8 configure failure. | The build section is followable with no undocumented step | **S1** | Found on the M-01 VM, 2026-08-18, before the case reached step 5 | **Fixed in `README.md`** - Archive note added; M-01 re-walk pending |
+| I-02 | M-01 | `README.md` said "Exactly two installs... Nothing else is required", but `git clone` is step one of *Get the source* and `bootstrap.ps1` checks for git. | Every install the clean box needs is named | S3 | Same VM, same pass | **Fixed in `README.md`** - Git for Windows is now prerequisite 3 |
+| I-03 | M-04 (this guide) | The case said only "unset `VCPKG_ROOT`", but `bootstrap.ps1` and `env.ps1` both fall back registry then `%USERPROFILE%\vcpkg`. With the clone present the case passes without testing anything - the same vacuity TA-6 had at T3. | The case exercises a genuinely absent vcpkg | S2 | Read of `scripts/bootstrap.ps1` and `scripts/env.ps1` while preparing the rig; case not yet run | **Fixed in section 6** - M-04's Steps now require the directory to be absent |
+| I-04 | M-01 | On a stock Windows install PowerShell's execution policy is `Restricted`, so `bootstrap.ps1` and `env.ps1` both refuse to run. `README.md` never said to change it, and no script can diagnose this - the diagnosing script is itself blocked. | The documented build sequence runs on a clean account | **S1** | M-01 VM, 2026-08-18: `. \scripts\env.ps1` -> *"running scripts is disabled on this system"*, `UnauthorizedAccess` | **Fixed in `README.md`** - `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` is now the first line of the Build block |
+| I-05 | M-01 | `README.md`'s Build block ran `ctest --preset x64-debug` after configuring and building only `x64-release`. Each preset owns `build/<preset>`, so the debug tree does not exist and CTest fails. | The documented sequence ends in a green test run | S3 | M-01 VM, 2026-08-18. `CLAUDE.md`'s command list already used `x64-release`, so the README was the outlier | **Fixed in `README.md`** - the block now uses `x64-release`, with a note that `x64-debug` needs its own configure and build |
+| I-06 | M-01 (rig) | The first M-01 attempt used a **folder copy** of the primary machine's working tree, not `git clone`. It carried a gitignored `build/x64-debug` whose CMake cache held the primary machine's absolute paths; `x64-debug` failed to configure while `x64-release`, which had no counterpart directory, succeeded. | M-01 runs from a clone into an empty directory | n/a - rig error, not a product defect | Recorded so the walk is not mistaken for a valid one. I-01, I-02, I-04 and I-05 concern installs and documentation, not the tree, and remain valid | **Re-walk required** from a real clone |
 
 ---
 
