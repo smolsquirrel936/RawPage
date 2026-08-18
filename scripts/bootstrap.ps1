@@ -128,7 +128,12 @@ if (-not $env:VCPKG_ROOT) {
 # --- Baseline pin -----------------------------------------------------------
 $repoRoot   = Split-Path -Parent $PSScriptRoot
 $vcpkgConfig = Join-Path $repoRoot 'vcpkg-configuration.json'
-if (Test-Path $vcpkgConfig) {
+# Only meaningful against a clone that exists. Without this the check reported
+# 'the clone is at .' -- an empty revision rendered as a bare full stop, dressed as a
+# warning, directly under three FAILs that already said the directory is missing (I-14).
+if (-not (Test-Path (Join-Path $vcpkgRoot '.git'))) {
+    Write-Host '  [INFO] Baseline not checked -- no vcpkg clone to compare against.' -ForegroundColor DarkGray
+} elseif (Test-Path $vcpkgConfig) {
     try {
         $pinned = (Get-Content $vcpkgConfig -Raw | ConvertFrom-Json).'default-registry'.baseline
         $actual = (& git -C $vcpkgRoot rev-parse HEAD 2>$null)

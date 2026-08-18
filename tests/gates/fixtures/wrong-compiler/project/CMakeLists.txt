@@ -23,7 +23,15 @@ endif()
 # messages a person actually sees, and the pre-project ones abort without CMake's follow-on
 # noise (I-12). The compiler-runs probe (I-10) is here too, and is why fake-root/ exists.
 include("${RECTO_SOURCE_DIR}/cmake/ToolchainPreflight.cmake")
-recto_preflight(QT)
+
+# The fixture does not use vcpkg, so that check is opt-in -- but it has to be reachable
+# from here, because the only way to test an unset VCPKG_ROOT is to run a configure with
+# the variable removed from the environment.
+if(RECTO_FIXTURE_VCPKG)
+    recto_preflight(QT VCPKG)
+else()
+    recto_preflight(QT)
+endif()
 
 project(RectoWrongCompilerFixture LANGUAGES CXX)
 

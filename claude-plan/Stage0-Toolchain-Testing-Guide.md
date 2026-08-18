@@ -8,9 +8,9 @@
 >
 > **Status:** 🟡 **Automated half green; manual half in progress.** Every automated case A-01…A-73 has
 > been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
-> self-hosted runner, `portable-asan` on Linux). The suite is **56 tests on Windows** (29 gate + 27 unit) after I-08,
-> I-10 and I-11; the Linux figure is **45**, which is arithmetic until the next CI run confirms it - the three
-> I-11 cases are inside the `WIN32` block, so only I-08's two reach Linux. **M-01, M-02 and M-03 are walked and signed off (2026-08-19); M-04…M-07 are not**, and I
+> self-hosted runner, `portable-asan` on Linux). The suite is **58 tests on Windows** (31 gate + 27 unit) after I-08,
+> I-10, I-11 and I-13; the Linux figure is **45**, which is arithmetic until the next CI run confirms it - the three
+> I-11 cases are inside the `WIN32` block, so only I-08's two reach Linux. **M-01…M-04 are walked and signed off (2026-08-19); M-05…M-07 are not**, and I
 > do not mark those. Per
 > [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
 > report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
@@ -464,7 +464,7 @@ toolchain, or human judgement.
   *"CMAKE_CXX_COMPILER not set"* after the real message. The checks now run from
   `cmake/ToolchainPreflight.cmake` **before `project()`**, and the abort is clean.
 
-**M-04 · A missing vcpkg is diagnosed, not crashed into** ☐
+**M-04 · A missing vcpkg is diagnosed, not crashed into** ✅ **2026-08-19**
 - **Goal** The one precondition this machine did not have ([plan §7.1 checklist](./Stage0-Toolchain-Plan.md#71-vcpkg--owner-you)).
 - **Steps** Clearing `$env:VCPKG_ROOT` alone is **not enough** - both `bootstrap.ps1` and `env.ps1`
   fall back to the user registry and then to `%USERPROFILE%\vcpkg`, so with the clone present this
@@ -477,6 +477,19 @@ toolchain, or human judgement.
   (`C:\Users\squirrel\vcpkg`), and what to run. Configure fails with the same information rather than a
   toolchain-file-not-found.
 - **If it fails** S3 (S2 if it configures anyway and fails much later).
+- **Result** ✅ **Passed after fix**, scored as two halves.
+  - **`bootstrap.ps1`: passed first time.** Three `[FAIL]` lines, each naming the path and the exact
+    command — the clone, the bootstrap batch file, the triplet — then *"3 blocking problem(s)"* and
+    exit 1. Nothing had to be guessed.
+  - **Configure: failed the case**, exactly as its Expect warned — *"Could not find toolchain file:
+    /scripts/buildsystems/vcpkg.cmake"*, a path assembled from an empty variable. Logged **I-13**,
+    fixed in preflight, re-run: it now names `VCPKG_ROOT`, what was expected there, and the commands
+    that repair it, aborting before `project()` with nothing after it.
+  - **I-14** (S4) came out of the same run and is fixed.
+  - Steps were corrected before this walk (**I-03**): clearing `$env:VCPKG_ROOT` alone tests nothing,
+    because `bootstrap.ps1` and `env.ps1` both fall back to the registry and then to
+    `%USERPROFILE%cpkg`. The clone must actually be absent.
+  - Signed off by the user, 2026-08-19.
 
 **M-05 · Fixture realism review** ☐
 - **Goal** Human judgement, which is the reason this case cannot be automated: do the fixtures resemble
@@ -542,6 +555,8 @@ record.
 | I-10 | M-02 | Pointing `RECTO_MINGW_ROOT` at a toolchain whose own `bin` is **not** on `PATH` fails at `project()` with CMake's generic *"the C++ compiler is not able to compile a simple test program"*, with no output from the compiler at all - the pin's diagnostic never runs. MSYS2's `g++` spawns `cc1plus.exe` from `lib/gcc/...`, which is not the driver's directory, so it needs `C:/msys64/ucrt64/bin` on `PATH` to find its own DLLs. | The pin explains itself before CMake's probe does | S3 | M-02, 2026-08-19. Adding `C:/msys64/ucrt64/bin` to `PATH` makes the same command reach **TA-2** correctly. Precedent: `toolchain-mingw.cmake` already duplicates the `-fplugin` scan for this exact reason, calling CMake's message *"true, useless, and nowhere near the actual reason"* | **Fixed** - `recto_preflight_compiler_runs()` in the new `cmake/ToolchainPreflight.cmake`, called from the top-level `CMakeLists` **before `project()`**, so it runs once per configure rather than once per `try_compile()` - which is what made the trade-off go away. The probe is `-fsyntax-only` on an empty file, **not** `-dumpversion`: the driver answers that one itself and reports success while the toolchain is unusable. Verified against the real MSYS2 install with its `bin` off `PATH`. Gate case `compiler_cannot_run` uses a `fake-root/bin/g++.exe` that is a text file |
 | I-11 | M-03 | With `RECTO_QT_PREFIX` pointing at a path that does not exist, configure failed at **TA-8 Qt prefix** saying *"A second Qt install won the search"*. There was no second install: the prefix was absent, nothing constrained the search, and the machine's only Qt was used. The message sends the reader hunting a rival Qt and pruning a `CMAKE_PREFIX_PATH` that is fine. `toolchain-mingw.cmake` guards `RECTO_MINGW_ROOT` with an `EXISTS` check but had no equivalent for the Qt prefix, and the closing paragraph about libstdc++ and the C runtime was appended to a Qt **location** failure where it does not apply. | The diagnostic is usable by someone who does not know the codebase | S3 | M-03, 2026-08-19, `cmake --preset x64-debug -DRECTO_QT_PREFIX=C:/nope` | **Fixed** - four changes: an `EXISTS` guard for `RECTO_QT_PREFIX` in the toolchain file, firing before Qt is searched; TA-8's prefix branch split by cause; the closing rationale chosen per assertion; and the pinned Qt version now stated in both TA-8 branches from one variable. Three gate cases added, each asserting a word from the sentence tail. 28/28 gates, 55/55 on `x64-debug` |
 | I-12 | M-03 | A `FATAL_ERROR` from inside the toolchain file is raised during CMake's compiler detection, and CMake does not stop there: it prints *"unable to find a build program corresponding to Ninja"* and *"CMAKE_CXX_COMPILER not set"* afterwards. The real message is first but two red herrings follow it. Pre-existing - the `RECTO_MINGW_ROOT` guard always behaved this way. | A failed pin check aborts with nothing after it | S4 | Seen on every M-03 run, and on WC-4 since T3 | **Fixed** - the cheap checks moved to `cmake/ToolchainPreflight.cmake`, called before `project()` by both the real root and the fixture project. The toolchain file still calls the same two functions as a fallback for anyone configuring with `-DCMAKE_TOOLCHAIN_FILE` and no preflight, so the wording has one home |
+| I-13 | M-04 | With `VCPKG_ROOT` unset, `CMakePresets.json:37` expands `$env{VCPKG_ROOT}` to the **empty string** rather than erroring, so `CMAKE_TOOLCHAIN_FILE` became `/scripts/buildsystems/vcpkg.cmake` and CMake reported *"Could not find toolchain file"* for a path that never existed - naming neither the variable nor the fix, and followed by the usual two red herrings. This is the outcome M-04's Expect calls out by name. | Configure carries the same information `bootstrap.ps1` gives | S3 | M-04, 2026-08-19, with `%USERPROFILE%\vcpkg` renamed aside and the variable removed from the process | **Fixed** - `recto_preflight_vcpkg()`, opted into by the root with `recto_preflight(QT VCPKG)`, before `project()`. Two branches: unset (names `setx`'s already-open-shell trap, `env.ps1`, `bootstrap.ps1`, README) and set-but-no-clone (names the path and the clone/bootstrap commands). Two gate cases via `cmake -E env --unset=` |
+| I-14 | M-04 | `bootstrap.ps1`'s baseline check ran even with no clone present, so `git rev-parse` returned nothing and it printed *"the clone is at ."* - an empty revision rendered as a bare full stop, dressed as a `[WARN]`, directly beneath three `[FAIL]`s that had already said the directory does not exist. | No warning about a comparison that cannot be made | S4 | Same run | **Fixed** - the baseline check is skipped with an `[INFO]` line when there is no clone to compare against |
 
 ---
 

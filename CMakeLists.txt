@@ -22,7 +22,7 @@ cmake_minimum_required(VERSION 3.25)
 # here, and neither configuration uses the pinned toolchain at all.
 if(CMAKE_HOST_WIN32 AND NOT RECTO_GATES_ONLY AND NOT RECTO_PORTABLE_SUBSET)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ToolchainPreflight.cmake")
-    recto_preflight(QT)
+    recto_preflight(QT VCPKG)
 endif()
 
 project(Recto

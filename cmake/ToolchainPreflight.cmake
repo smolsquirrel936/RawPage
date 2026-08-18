@@ -81,13 +81,51 @@ function(recto_preflight_compiler_runs)
     endif()
 endfunction()
 
+# I-13. vcpkg is the OUTER toolchain: CMakePresets sets
+# CMAKE_TOOLCHAIN_FILE to "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake", and an
+# undefined $env{...} expands to the empty string rather than erroring. CMake then reports
+# "Could not find toolchain file: /scripts/buildsystems/vcpkg.cmake" -- a path that never
+# existed, naming neither the variable nor the fix. Checked here because preflight runs
+# before project(), which is where CMake would otherwise resolve it.
+function(recto_preflight_vcpkg)
+    # TO_CMAKE_PATH so the message does not come out as
+    # "C:\Users\squirrel\vcpkg/bootstrap-vcpkg.bat", half one separator and half the other.
+    file(TO_CMAKE_PATH "$ENV{VCPKG_ROOT}" _root)
+
+    if(_root STREQUAL "")
+        message(FATAL_ERROR
+            "\nVCPKG_ROOT is not set in this process.\n\n"
+            "The presets build CMAKE_TOOLCHAIN_FILE out of it, so an unset value silently "
+            "becomes the path '/scripts/buildsystems/vcpkg.cmake', which has never existed "
+            "anywhere. Note that setx writes the registry and does NOT reach a shell that "
+            "is already open. Either dot-source the build environment, which sets it:\n"
+            "    . ./scripts/env.ps1\n"
+            "or run scripts/bootstrap.ps1, which reports what is missing and how to fix it. "
+            "See README.md, Prerequisites 2.\n")
+    endif()
+
+    if(NOT EXISTS "${_root}/scripts/buildsystems/vcpkg.cmake")
+        message(FATAL_ERROR
+            "\nVCPKG_ROOT='${_root}' has no vcpkg toolchain file.\n\n"
+            "Expected: ${_root}/scripts/buildsystems/vcpkg.cmake\n\n"
+            "The variable points somewhere, but not at a vcpkg clone -- a moved or deleted "
+            "checkout is the usual cause. Clone and bootstrap it:\n"
+            "    git clone https://github.com/microsoft/vcpkg ${_root}\n"
+            "    ${_root}/bootstrap-vcpkg.bat\n"
+            "scripts/bootstrap.ps1 checks this and prints the same commands.\n")
+    endif()
+endfunction()
+
 # Everything the pin can check before a compiler exists. Callers decide whether Qt applies:
 # the gate and portable configurations build without it.
 macro(recto_preflight)
-    cmake_parse_arguments(_RECTO_PF "QT" "" "" ${ARGN})
+    cmake_parse_arguments(_RECTO_PF "QT;VCPKG" "" "" ${ARGN})
     recto_preflight_mingw_root()
     recto_preflight_compiler_runs()
     if(_RECTO_PF_QT)
         recto_preflight_qt_prefix()
+    endif()
+    if(_RECTO_PF_VCPKG)
+        recto_preflight_vcpkg()
     endif()
 endmacro()

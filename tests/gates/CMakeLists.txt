@@ -267,4 +267,28 @@ recto_add_toolchain_test(NAME gates.wrong_compiler.qt_version_mismatch
     EXTRA "-DRECTO_FIXTURE_ASSERT_QT=ON|-DQt6_VERSION=6.11.2|-DQt6_DIR=${WC_QT_DIR}"
     EXPECT_MATCH "same change")
 
+# I-13 -- an unset VCPKG_ROOT. The presets build CMAKE_TOOLCHAIN_FILE out of it, and an
+# undefined $env{} expands to empty, so CMake reports a toolchain file at
+# "/scripts/buildsystems/vcpkg.cmake" -- a path that never existed, naming neither the
+# variable nor the fix. `cmake -E env --unset=` is what makes this testable at all.
+recto_add_gate_test(NAME gates.wrong_compiler.vcpkg_root_unset
+    COMMAND ${CMAKE_COMMAND} -E env --unset=VCPKG_ROOT
+            ${CMAKE_COMMAND} --fresh -S ${WC_PROJECT}
+            -B ${CMAKE_BINARY_DIR}/gate-fixtures/vcpkg_root_unset -G Ninja
+            -DCMAKE_TOOLCHAIN_FILE=${WC_TOOLCHAIN}
+            -DRECTO_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -DRECTO_FIXTURE_VCPKG=ON
+    EXPECT_EXIT 1 EXPECT_MATCH "bootstrap.ps1")
+
+# NEGATIVE CONTROL: a VCPKG_ROOT that is set but points at no clone must say something
+# different from the unset case, and must name the path it looked for.
+recto_add_gate_test(NAME gates.wrong_compiler.vcpkg_root_bogus
+    COMMAND ${CMAKE_COMMAND} -E env VCPKG_ROOT=C:/nonexistent-vcpkg
+            ${CMAKE_COMMAND} --fresh -S ${WC_PROJECT}
+            -B ${CMAKE_BINARY_DIR}/gate-fixtures/vcpkg_root_bogus -G Ninja
+            -DCMAKE_TOOLCHAIN_FILE=${WC_TOOLCHAIN}
+            -DRECTO_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -DRECTO_FIXTURE_VCPKG=ON
+    EXPECT_EXIT 1 EXPECT_MATCH "nonexistent-vcpkg")
+
 endif()  # WIN32 -- toolchain pin cases
