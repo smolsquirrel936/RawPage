@@ -3,6 +3,7 @@
 #include "tools/common/Json.h"
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -18,8 +19,21 @@ std::string readFile(const std::filesystem::path& path) {
     return buffer.str();
 }
 
+// Case-INSENSITIVE, because resolution and classification must not disagree. Windows
+// filesystems are case-insensitive, so
+//     #include "Pdf/Cos/CosDict.h"
+// resolves happily and comes back spelled as written; a case-sensitive prefix test then
+// failed to match "pdf/" and filed an outward include as an external header (I-15). The
+// tree's own paths are lowercase by convention, so folding case here cannot merge two
+// layers that were meant to be distinct.
 bool startsWith(const std::string& text, const std::string& prefix) {
-    return text.size() >= prefix.size() && text.compare(0, prefix.size(), prefix) == 0;
+    if (text.size() < prefix.size()) return false;
+    for (size_t i = 0; i < prefix.size(); ++i) {
+        const unsigned char a = static_cast<unsigned char>(text[i]);
+        const unsigned char b = static_cast<unsigned char>(prefix[i]);
+        if (std::tolower(a) != std::tolower(b)) return false;
+    }
+    return true;
 }
 
 } // namespace

@@ -99,19 +99,28 @@ bool parseEscape(const std::string& comment, Escape& out) {
 }
 
 std::string resolveInclude(const Include& include, const std::string& includingPath, const fs::path& root) {
-    if (include.angled) return {};            // always external by convention in this tree
-
-    // Includes in this project are written repo-relative, because every layer target
-    // adds the source root to its include path. Check that first.
+    // Repo-relative form. Checked for ANGLED includes too, which this function used to
+    // dismiss as "always external by convention" -- but every layer target does
+    // target_include_directories(... PUBLIC "${CMAKE_SOURCE_DIR}"), so
+    //     #include <pdf/cos/CosDict.h>
+    // compiles exactly like the quoted spelling and reached core/ unreported (I-15). A real
+    // system header does not exist under the repo root, so this test separates them.
     if (fs::exists(root / include.target)) {
-        return fs::path(include.target).generic_string();
+        return fs::path(include.target).lexically_normal().generic_string();
     }
+
+    if (include.angled) return {};            // a genuine external or system header
 
     // Then the sibling form, which is legitimate within one directory.
     const fs::path parent = fs::path(includingPath).parent_path();
     const fs::path sibling = parent / include.target;
     if (fs::exists(root / sibling)) {
-        return sibling.generic_string();
+        // lexically_normal() collapses the ../ segments, so that
+        //     core/doc/../../pdf/cos/CosDict.h
+        // becomes pdf/cos/CosDict.h. Without it the string still STARTS with "core/", and
+        // the layer lookup matches on path prefix -- so an outward include was filed as an
+        // internal one and passed clean (I-15). This is the spelling an IDE inserts.
+        return sibling.lexically_normal().generic_string();
     }
 
     return {};                                 // third-party or system header

@@ -13,10 +13,10 @@ not done.** What exists is scaffolding, not product:
 
 - the build system and six CMake presets, with the toolchain pin (TA-1…TA-9) refusing any compiler
   but Qt's own GCC 13.1.0/msvcrt;
-- **two live gates** — `tools/layer-lint` and `tools/license-audit` — plus 31 CTest fixtures that
+- **two live gates** — `tools/layer-lint` and `tools/license-audit` — plus 36 CTest fixtures that
   prove they fail correctly, negative controls included;
 - the four `core/` vocabulary headers (`Result.h`, `Log.h`, `Geometry.h`, `Units.h`) and a Catch2
-  suite; **58 tests on Windows, 45 on Linux under ASan+UBSan**;
+  suite; **63 tests on Windows, 50 on Linux under ASan+UBSan**;
 - CI on three jobs, the Windows one self-hosted;
 - `recto.exe`, which links all four layers and **opens no window**.
 

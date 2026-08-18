@@ -60,6 +60,31 @@ recto_add_gate_test(NAME gates.layer_lint.write_escaped_is_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/write-escaped --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")
 
+# I-15. The same violations, spelled the other ways a developer actually writes them. All
+# three compiled and all three passed clean, because every fixture above used the one
+# canonical spelling -- the gate was only ever tested against the form the fixtures used.
+recto_add_gate_test(NAME gates.layer_lint.outward_include_relative
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/outward-include-relative --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+
+recto_add_gate_test(NAME gates.layer_lint.outward_include_angled
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/outward-include-angled --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+
+recto_add_gate_test(NAME gates.layer_lint.outward_include_casemix
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/outward-include-casemix --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+
+recto_add_gate_test(NAME gates.layer_lint.qt_write_outside_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qt-write --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write")
+
+# NEGATIVE CONTROL for the widened matching: prose that NAMES the forbidden things must stay
+# legal. Without this, the fix for I-15 could just as well have been "flag everything".
+recto_add_gate_test(NAME gates.layer_lint.mention_in_comment_is_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/mention-in-comment --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
 # A gate that could not run must not look like a gate that passed.
 recto_add_gate_test(NAME gates.layer_lint.missing_rules_is_exit_2
     COMMAND ${LL} --root ${CMAKE_SOURCE_DIR} --rules ${FIXTURES}/does-not-exist.json
