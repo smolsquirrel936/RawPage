@@ -10,6 +10,21 @@
 
 cmake_minimum_required(VERSION 3.25)
 
+# --- Preflight, BEFORE project() ---------------------------------------------
+# The pin's cheap checks run here rather than only from the toolchain file, because a
+# FATAL_ERROR raised inside a toolchain file lands in the middle of CMake's compiler
+# detection: CMake carries on and prints "unable to find a build program corresponding to
+# Ninja" and "CMAKE_CXX_COMPILER not set" after the real message (I-12). Here it aborts
+# cleanly. Same reason the -fplugin scan is duplicated -- see toolchain-mingw.cmake.
+#
+# Gated on the host, not on WIN32: WIN32 does not exist before project(). RECTO_GATES_ONLY
+# and RECTO_PORTABLE_SUBSET arrive from the presets as cache variables, so they are readable
+# here, and neither configuration uses the pinned toolchain at all.
+if(CMAKE_HOST_WIN32 AND NOT RECTO_GATES_ONLY AND NOT RECTO_PORTABLE_SUBSET)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ToolchainPreflight.cmake")
+    recto_preflight(QT)
+endif()
+
 project(Recto
     VERSION 0.1.0
     DESCRIPTION "Windows-first desktop PDF editor"

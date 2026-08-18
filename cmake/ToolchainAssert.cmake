@@ -22,6 +22,24 @@ function(_recto_pin_error label found expected)
     set(_recto_fix_parts ${ARGN})
     list(JOIN _recto_fix_parts "" fix)
 
+    # The closing paragraph says WHY the pin exists, and the reason is not the same for
+    # every assertion. Appending the libstdc++/C-runtime argument to a Qt LOCATION
+    # failure explains a problem the reader does not have (I-11).
+    if(label MATCHES "^TA-8")
+        set(_recto_why
+            "Recto pins Qt and its compiler together (Tech-Stack-Plan.md 3.3, risk A7). "
+            "The Qt we link is part of the pin: a different build of Qt against this "
+            "compiler does not fail here -- it fails as an unexplained crash several "
+            "stages later. That is the entire reason this check exists.")
+    else()
+        set(_recto_why
+            "Recto builds with Qt's own bundled GCC (Tech-Stack-Plan.md 3.3, risk A7). A "
+            "different libstdc++ or C runtime against this Qt does not fail here -- it "
+            "fails as an unexplained crash several stages later. That is the entire "
+            "reason this check exists.")
+    endif()
+    list(JOIN _recto_why "" _recto_why)
+
     message(FATAL_ERROR
         "\n"
         "Toolchain pin violated: ${label}\n"
@@ -30,13 +48,11 @@ function(_recto_pin_error label found expected)
         "\n"
         "${fix}\n"
         "\n"
-        "Recto builds with Qt's own bundled GCC (Tech-Stack-Plan.md 3.3, risk A7). A "
-        "different libstdc++ or C runtime against this Qt does not fail here -- it "
-        "fails as an unexplained crash several stages later. That is the entire "
-        "reason this check exists.\n")
+        "${_recto_why}\n")
 endfunction()
 
 set(_recto_expected_version "13.1.0")
+set(_recto_expected_qt      "6.11.1")
 set(_recto_expected_triple  "x86_64-w64-mingw32")
 
 # --- TA-1 · Compiler is GCC --------------------------------------------------
@@ -189,8 +205,8 @@ file(WRITE "${CMAKE_BINARY_DIR}/compiler-plugins.txt" "${_recto_plugin_file_cont
 # A function, not inline: it can only run after find_package(Qt6), which the top-level
 # CMakeLists does further down.
 function(recto_assert_qt)
-    if(NOT Qt6_VERSION VERSION_EQUAL "6.11.1")
-        _recto_pin_error("TA-8 Qt version" "${Qt6_VERSION}" "6.11.1"
+    if(NOT Qt6_VERSION VERSION_EQUAL "${_recto_expected_qt}")
+        _recto_pin_error("TA-8 Qt version" "${Qt6_VERSION}" "${_recto_expected_qt}"
             "Recto pins Qt and its compiler together. Upgrading Qt means moving "
             "RECTO_MINGW_ROOT and the TA-2 expected version in the same change.")
     endif()
@@ -201,9 +217,20 @@ function(recto_assert_qt)
     string(TOLOWER "${_qt_expected}"   _qt_expected_lc)
     string(FIND "${_qt_config_lc}" "${_qt_expected_lc}" _qt_pos)
     if(NOT _qt_pos EQUAL 0)
-        _recto_pin_error("TA-8 Qt prefix" "${_qt_config_dir}" "a path under ${_qt_expected}"
-            "A second Qt install won the search. Set RECTO_QT_PREFIX, or remove the "
-            "stray Qt from CMAKE_PREFIX_PATH.")
+        # Two very different causes reach this line, and saying "a second install won" for
+        # both is what sent M-03 hunting for a rival Qt that was never there (I-11).
+        if(NOT EXISTS "${RECTO_QT_PREFIX}")
+            _recto_pin_error("TA-8 Qt prefix" "${_qt_config_dir}" "a path under ${_qt_expected}"
+                "RECTO_QT_PREFIX names a directory that does not exist, so nothing constrained "
+                "the search and the machine's own Qt was used. This is NOT a second install -- "
+                "the path is simply not there. Point it at the pinned prefix, Qt "
+                "${_recto_expected_qt} at C:/Qt/${_recto_expected_qt}/mingw_64.")
+        else()
+            _recto_pin_error("TA-8 Qt prefix" "${_qt_config_dir}" "a path under ${_qt_expected}"
+                "RECTO_QT_PREFIX exists, but a DIFFERENT Qt won the search. Set RECTO_QT_PREFIX "
+                "to the Qt ${_recto_expected_qt} prefix you mean, or remove the stray Qt from "
+                "CMAKE_PREFIX_PATH.")
+        endif()
     endif()
 endfunction()
 

@@ -223,4 +223,48 @@ recto_add_toolchain_test(NAME gates.wrong_compiler.wc6_static_runtime
     EXTRA "-DCMAKE_CXX_FLAGS=-static-libstdc++"
     EXPECT_MATCH "static")
 
+# --------------------------------------------------------------------------------------
+# TA-8 and the Qt prefix (I-11).
+#
+# M-03 pointed RECTO_QT_PREFIX at a path that does not exist and was told "a second Qt
+# install won the search" -- true of the code path, false of the situation, and it sends
+# the reader after a rival install that is not there. Each case below asserts a word from
+# the END of its sentence, for the reason wc1/wc2 do (I-09).
+# --------------------------------------------------------------------------------------
+
+# The toolchain file refuses a missing prefix outright, before Qt is ever searched.
+recto_add_toolchain_test(NAME gates.wrong_compiler.qt_prefix_missing
+    EXTRA "-DRECTO_QT_PREFIX=C:/nonexistent-qt"
+    EXPECT_MATCH "mingw_64")
+
+# I-10 -- the compiler is PRESENT but cannot run. fake-root/bin/g++.exe is a text file, which
+# is deterministic where a second real toolchain would depend on what the machine happens to
+# have installed. Without the preflight probe this surfaces as CMake's "not able to compile a
+# simple test program", with no compiler output at all.
+recto_add_toolchain_test(NAME gates.wrong_compiler.compiler_cannot_run
+    EXTRA "-DRECTO_MINGW_ROOT=${FIXTURES}/wrong-compiler/fake-root"
+    EXPECT_MATCH "cc1plus")
+
+# TA-8's two prefix branches, with Qt6_VERSION and Qt6_DIR injected -- testing them for
+# real would need a second Qt installed, which is M-03's job, not a unit test's.
+# Follow the pin rather than restating it. RECTO_QT_PREFIX is a cache variable of the
+# toolchain file, which the `gates` configuration does not load -- hence the fallback.
+if(DEFINED RECTO_QT_PREFIX AND NOT RECTO_QT_PREFIX STREQUAL "")
+    set(WC_QT_PREFIX "${RECTO_QT_PREFIX}")
+else()
+    set(WC_QT_PREFIX "C:/Qt/6.11.1/mingw_64")
+endif()
+set(WC_QT_DIR "${WC_QT_PREFIX}/lib/cmake/Qt6")
+
+# Branch A: the prefix EXISTS but a different Qt won. Must NOT be the "does not exist" text.
+recto_add_toolchain_test(NAME gates.wrong_compiler.qt_prefix_other_install
+    EXTRA "-DRECTO_FIXTURE_ASSERT_QT=ON|-DQt6_VERSION=6.11.1|-DQt6_DIR=${WC_QT_DIR}|-DRECTO_QT_PREFIX=C:/Qt/Tools"
+    EXPECT_MATCH "CMAKE_PREFIX_PATH")
+
+# TA-8's version branch -- the one that catches a Qt upgrade, which is exactly how a 6.11.2
+# install presents itself.
+recto_add_toolchain_test(NAME gates.wrong_compiler.qt_version_mismatch
+    EXTRA "-DRECTO_FIXTURE_ASSERT_QT=ON|-DQt6_VERSION=6.11.2|-DQt6_DIR=${WC_QT_DIR}"
+    EXPECT_MATCH "same change")
+
 endif()  # WIN32 -- toolchain pin cases

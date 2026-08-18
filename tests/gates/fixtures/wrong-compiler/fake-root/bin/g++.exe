@@ -1,0 +1,10 @@
+This file is deliberately NOT an executable.
+
+It exists so a gate case can reach the one state the EXISTS guards cannot describe: the
+pinned compiler is PRESENT but cannot run. Windows refuses to start it, execute_process
+returns a failure, and recto_preflight_compiler_runs() reports the PATH explanation instead
+of letting CMake say "the C++ compiler is not able to compile a simple test program" with no
+compiler output at all (I-10, found by M-02 against a real MSYS2 install whose own bin was
+not on PATH).
+
+Do not "fix" this file by making it a real binary.

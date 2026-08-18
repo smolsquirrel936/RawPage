@@ -6,19 +6,35 @@
 # test suite people stop running is worse than one that tests slightly less.
 #
 # This project includes exactly what is under test: cmake/ToolchainAssert.cmake, plus
-# RectoWarnings for the -static guard. TA-8 (Qt) is a function called only by the real
-# root, so it is out of scope here and stays covered by the ordinary build.
+# RectoWarnings for the -static guard.
+#
+# TA-8 (Qt) is a function the real root calls after find_package(Qt6). It is opt-in here,
+# with Qt6_VERSION and Qt6_DIR injected by the caller: its two prefix branches -- "the path
+# does not exist" versus "a different Qt won" -- cannot otherwise be tested without a second
+# Qt installed, and I-09 showed what happens to message text no case asserts.
 
 cmake_minimum_required(VERSION 3.25)
-project(RectoWrongCompilerFixture LANGUAGES CXX)
 
 if(NOT DEFINED RECTO_SOURCE_DIR)
     message(FATAL_ERROR "fixture requires -DRECTO_SOURCE_DIR=<repo root>")
 endif()
 
+# Preflight before project(), exactly as the real root does -- these cases exist to check the
+# messages a person actually sees, and the pre-project ones abort without CMake's follow-on
+# noise (I-12). The compiler-runs probe (I-10) is here too, and is why fake-root/ exists.
+include("${RECTO_SOURCE_DIR}/cmake/ToolchainPreflight.cmake")
+recto_preflight(QT)
+
+project(RectoWrongCompilerFixture LANGUAGES CXX)
+
 list(PREPEND CMAKE_MODULE_PATH "${RECTO_SOURCE_DIR}/cmake")
 
 include(ToolchainAssert)
 include(RectoWarnings)
+
+# Opt-in, because every other case here must reach the end of the file without it.
+if(RECTO_FIXTURE_ASSERT_QT)
+    recto_assert_qt()
+endif()
 
 message(STATUS "wrong-compiler fixture: all toolchain assertions passed")
