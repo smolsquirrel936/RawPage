@@ -88,13 +88,39 @@ int main(int argc, char** argv) {
 
         // THIRD-PARTY.md is emitted even when there are findings, so the reader can see the
         // full inventory next to what failed rather than only an error.
+        //
+        // But it is a COMMITTED artifact, and a gate must never quietly degrade one. Only a
+        // run holding the inputs that make the inventory complete may rewrite it: the Qt link
+        // closure (--qt-modules) and an installed vcpkg tree (--vcpkg-installed), which
+        // supplies exact versions from vcpkg own SBOM. The CI gates job and the `gates`
+        // preset have neither by design, and a run there would replace catch2 version with
+        // "(not resolved)" and drop every Qt row -- a smaller file that still reads as
+        // plausible, which is the dangerous kind of wrong. Skipping is not a failure: the
+        // audit itself ran, and its verdict is unaffected.
         if (!emitPath.empty()) {
-            std::ofstream out(emitPath);
-            if (!out) {
-                std::cerr << "license-audit: cannot write " << emitPath.string() << "\n";
-                return 2;
+            std::string missing;
+            // The gates configuration writes an EMPTY qt-modules.txt, so the flag being
+            // present proves nothing -- what matters is a real link closure behind it.
+            if (qtModules.modules.empty()) missing = "no Qt link closure";
+            if (inputs.vcpkgInstalledDir.empty()) {
+                if (!missing.empty()) missing += ", ";
+                missing += "no --vcpkg-installed";
             }
-            out << recto::tools::renderThirdPartyMarkdown(report, manifest);
+
+            if (missing.empty()) {
+                // Binary mode: the renderer emits '\n', and this file is stored with LF
+                // (.gitattributes). Letting the CRT translate would rewrite all of it as CRLF
+                // on every Windows run and show up as a whole-file diff.
+                std::ofstream out(emitPath, std::ios::binary);
+                if (!out) {
+                    std::cerr << "license-audit: cannot write " << emitPath.string() << "\n";
+                    return 2;
+                }
+                out << recto::tools::renderThirdPartyMarkdown(report, manifest);
+            } else {
+                std::cout << "license-audit: " << emitPath.filename().string()
+                          << " left unchanged -- incomplete inventory (" << missing << ")\n";
+            }
         }
 
         // Warnings are printed in BOTH branches and always labelled. A warning about a

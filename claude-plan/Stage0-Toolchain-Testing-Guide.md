@@ -6,10 +6,12 @@
 > **before any Stage 0 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Automated half green; manual half not walked.** Every automated case A-01…A-73 has
+> **Status:** 🟡 **Automated half green; manual half in progress.** Every automated case A-01…A-73 has
 > been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
-> self-hosted runner, `portable-asan` on Linux; 50 tests on Windows, 43 on Linux). **No manual case
-> M-01…M-07 has been walked**, and I do not mark those. Per
+> self-hosted runner, `portable-asan` on Linux). The suite is **52 tests on Windows** (25 gate +
+> 27 unit) since I-08 added two emission cases; the Linux figure is **45**, which is arithmetic until
+> the next CI run confirms it. **M-01 is walked and signed off (2026-08-19); M-02…M-07 are not**, and I
+> do not mark those. Per
 > [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
 > report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
 >
@@ -356,6 +358,8 @@ before anything is compiled**. **If it fails** S2.
 ✅ **Passed 2026-08-18** (run `32064437614`): all three green. `windows` reported *"Toolchain pin
 verified: GCC 13.1.0 x86_64-w64-mingw32, SEH/posix/msvcrt, no GCC plugin"*, 50/50 tests, and imports
 `msvcrt.dll` with no `ucrtbase.dll` and no `Qt6Charts`. `portable-asan` ran 43 tests clean.
+**Re-run pending:** I-08 added two license-audit cases after that run, taking Windows to 52 and Linux
+to 45. The next push re-confirms this case at the new counts.
 
 > **The Windows job is self-hosted, and that was forced rather than chosen.** aqtinstall cannot
 > install Qt 6.11.1: Qt 6.11 splits its repository per architecture (`qt6_6111_mingw/`) and aqt still
@@ -503,7 +507,7 @@ record.
 | I-05 | M-01 | `README.md`'s Build block ran `ctest --preset x64-debug` after configuring and building only `x64-release`. Each preset owns `build/<preset>`, so the debug tree does not exist and CTest fails. | The documented sequence ends in a green test run | S3 | M-01 VM, 2026-08-18. `CLAUDE.md`'s command list already used `x64-release`, so the README was the outlier | **Closed** - the block now uses `x64-release`, with a note that `x64-debug` needs its own configure and build; both trees re-run green |
 | I-06 | M-01 (rig) | The first M-01 attempt used a **folder copy** of the primary machine's working tree, not `git clone`. It carried a gitignored `build/x64-debug` whose CMake cache held the primary machine's absolute paths; `x64-debug` failed to configure while `x64-release`, which had no counterpart directory, succeeded. | M-01 runs from a clone into an empty directory | n/a - rig error, not a product defect | Recorded so the walk is not mistaken for a valid one. I-01, I-02, I-04 and I-05 concern installs and documentation, not the tree, and remain valid | **Closed** - re-walked from a real clone of `9c305ce`; M-01's Result records the two-run split |
 | I-07 | M-01 / A-10 | `layer-lint`'s exclude list omitted `third_party/`, so the scanned set depended on whether `fetch-pdfium.ps1` had been run: **51 files / 135 includes** on a machine with PDFium fetched, **27 / 93** on a clean clone. Nothing was actually checked there - third-party files match no layer, and `LayerLint.cpp:35` skips unlayered files before any rule runs - but a gate whose own report varies with machine state undercuts the point of having gates. | The gate reports the same figures on any machine at a given commit | S3 | Found by comparing the M-01 VM run against the primary machine; A-10 asserts no count, so the guide was not wrong | **Fixed** - `third_party/` added to `tools/layer-lint/rules.json`; this machine now reports 27 / 93, matching the clean clone. 23/23 gate cases and 50/50 unit tests re-run green |
-| I-08 | A-10 / A-12 | `checks` always passes `--emit THIRD-PARTY.md` into the **source tree** (`RectoChecks.cmake:26`), while `--qt-modules` and `--vcpkg-installed` are conditional on the configuration. Running `checks` from the `gates` preset therefore **rewrites a committed file with less information**: catch2's version became `*(not resolved)*` and the Qt module count dropped from 4 to 0. The emitted file also carries CRLF where the repository stores LF. | Running any gate configuration never degrades a committed artifact | S3 | Reproduced 2026-08-18 while verifying I-07: `cmake --build --preset gates --target checks` then `git diff THIRD-PARTY.md`. Restored with `git checkout`. Harmless in CI, where nothing commits the result, but silent on a developer machine | **Open** - suggested fix: emit only when the audit has its full inputs (Qt modules + an installed vcpkg tree), and verify-without-writing otherwise |
+| I-08 | A-10 / A-12 | `checks` always passes `--emit THIRD-PARTY.md` into the **source tree** (`RectoChecks.cmake:26`), while `--qt-modules` and `--vcpkg-installed` are conditional on the configuration. Running `checks` from the `gates` preset therefore **rewrites a committed file with less information**: catch2's version became `*(not resolved)*` and the Qt module count dropped from 4 to 0. The emitted file also carries CRLF where the repository stores LF. | Running any gate configuration never degrades a committed artifact | S3 | Reproduced 2026-08-18 while verifying I-07: `cmake --build --preset gates --target checks` then `git diff THIRD-PARTY.md`. Restored with `git checkout`. Harmless in CI, where nothing commits the result, but silent on a developer machine | **Fixed** - `license-audit` now rewrites the file only with a real Qt link closure **and** an installed vcpkg tree, skipping with a named reason otherwise, and writes in binary mode so the file stays LF. Two new gate cases assert the file, not just the message; `RunGateCase.cmake` gained `EXPECT_FILE` / `EXPECT_ABSENT` for that. 25/25 gates, 52/52 on `x64-debug` |
 
 ---
 
