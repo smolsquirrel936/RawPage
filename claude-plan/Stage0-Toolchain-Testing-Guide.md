@@ -10,7 +10,7 @@
 > been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
 > self-hosted runner, `portable-asan` on Linux). The suite is **63 tests on Windows** (36 gate + 27 unit) after I-08,
 > I-10, I-11, I-13 and I-15; the Linux figure is **50**, arithmetic until the next CI run confirms it - the
-> toolchain-pin cases are inside the `WIN32` block, so only I-08's two and I-15's four reach Linux. **M-01…M-04 are walked and signed off (2026-08-19); M-05…M-07 are not**, and I
+> toolchain-pin cases are inside the `WIN32` block, so only I-08's two and I-15's four reach Linux. **M-01…M-05 are walked and signed off (2026-08-19); M-06 and M-07 are not**, and I
 > do not mark those. Per
 > [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
 > report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
@@ -491,7 +491,7 @@ toolchain, or human judgement.
     `%USERPROFILE%cpkg`. The clone must actually be absent.
   - Signed off by the user, 2026-08-19.
 
-**M-05 · Fixture realism review** ☐
+**M-05 · Fixture realism review** ✅ **2026-08-19**
 - **Goal** Human judgement, which is the reason this case cannot be automated: do the fixtures resemble
   violations a real developer would actually write?
 - **Steps** Read each directory under `tests/gates/fixtures/`. Ask of each: *would a rushed developer
@@ -500,6 +500,23 @@ toolchain, or human judgement.
 - **Expect** Each is plausible. A fixture that only fails because it was built to fail proves the gate
   catches nothing real.
 - **If it fails** S2 — file the specific fixture and what a realistic version would look like.
+- **Result** ✅ **Passed after fix**, and it produced the stage's first **S1**.
+  - The review question — *would a rushed developer write this?* — turned out to be answerable
+    mechanically. A probe tree of four plausible spellings of violations the fixtures already
+    covered, with the canonical spelling alongside as a positive control: the canonical one was
+    caught, **all four others passed clean**. Logged **I-15**, fixed, all four now caught.
+  - **License-audit fixtures judged realistic**: each names a hazard that could actually land in a
+    manifest — Xapian (whose vcpkg port really exists), Qt Charts (installed on this machine), and
+    the GCC runtime identifier with its `WITH` clause dropped.
+  - **Layer-lint fixtures judged adequate.** The six original trees are four-line files named
+    `Offender.cpp`; rewriting them as plausible-looking code was considered and **declined** — the
+    gate reads includes and tokens, never file names or surrounding code, so it would be churn
+    against passing tests for no coverage. The five spelling trees added by I-15 are written as
+    plausible files because there the *form* is what is under test.
+  - **`fixtures/layer-lint/README.md`** now records the covered spellings and the knowingly
+    uncovered ones, marking which fail toward noise and which fail toward silence. Its absence is
+    why I-15 survived as long as it did.
+  - Signed off by the user, 2026-08-19.
 
 **M-06 · `THIRD-PARTY.md` read as an auditor would** ☐
 - **Goal** The document that answers a license audit is legible to someone outside the project.
