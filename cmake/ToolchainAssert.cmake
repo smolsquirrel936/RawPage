@@ -12,7 +12,16 @@
 
 include_guard(GLOBAL)
 
-function(_recto_pin_error label found expected fix)
+function(_recto_pin_error label found expected)
+    # The fix text is written as several adjacent quoted literals at most call sites. CMake
+    # does not concatenate those the way C does -- each is a separate ARGUMENT -- so a named
+    # `fix` parameter silently kept only the first fragment and dropped the rest into ARGN.
+    # Six of the nine diagnostics were being cut mid-sentence, losing exactly the actionable
+    # half (I-09): TA-7 ended at "Do not 'fix' this by", TA-6 at "the usual source. Qt".
+    # Joining ARGN is what every call site already meant.
+    set(_recto_fix_parts ${ARGN})
+    list(JOIN _recto_fix_parts "" fix)
+
     message(FATAL_ERROR
         "\n"
         "Toolchain pin violated: ${label}\n"

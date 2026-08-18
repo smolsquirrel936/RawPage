@@ -182,14 +182,22 @@ recto_add_gate_test(NAME gates.wrong_compiler.baseline_is_clean
     EXPECT_EXIT 0 EXPECT_MATCH "all toolchain assertions passed")
 
 # WC-1 -- TA-2, wrong compiler version.
+# The EXPECT_MATCH deliberately reaches the END of the fix sentence. Matching only the
+# label "TA-2 compiler version" passed happily while the advice after the first quoted
+# fragment was being dropped on the floor (I-09) -- a gate whose message is half a sentence
+# is the failure this file exists to prevent.
+#
+# It matches a SINGLE WORD, not a phrase: message(FATAL_ERROR) hard-wraps its text, so any
+# multi-word pattern can be split across a line break and fail for a reason that has nothing
+# to do with the diagnostic.
 recto_add_toolchain_test(NAME gates.wrong_compiler.wc1_wrong_version
     EXTRA "-DCMAKE_CXX_FLAGS=-U__GNUC_MINOR__ -D__GNUC_MINOR__=9"
-    EXPECT_MATCH "TA-2 compiler version")
+    EXPECT_MATCH "together")
 
 # WC-2 -- TA-6, a UCRT runtime. The assertion that actually catches an MSYS2 install.
 recto_add_toolchain_test(NAME gates.wrong_compiler.wc2_ucrt_runtime
     EXTRA "-DCMAKE_CXX_FLAGS=-D_UCRT"
-    EXPECT_MATCH "TA-6 C runtime")
+    EXPECT_MATCH "corrupts")
 
 # WC-3 -- TA-6 must require __MSVCRT__ to be PRESENT, not merely _UCRT to be absent,
 # or it passes vacuously whenever its own probe fails.

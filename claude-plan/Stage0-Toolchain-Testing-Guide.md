@@ -10,7 +10,7 @@
 > been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
 > self-hosted runner, `portable-asan` on Linux). The suite is **52 tests on Windows** (25 gate +
 > 27 unit) since I-08 added two emission cases; the Linux figure is **45**, which is arithmetic until
-> the next CI run confirms it. **M-01 is walked and signed off (2026-08-19); M-02…M-07 are not**, and I
+> the next CI run confirms it. **M-01 and M-02 are walked and signed off (2026-08-19); M-03…M-07 are not**, and I
 > do not mark those. Per
 > [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
 > report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
@@ -416,16 +416,37 @@ toolchain, or human judgement.
     overrides any fresh machine's `autocrlf`, which the host checkout demonstrated directly.
   - Signed off by the user, 2026-08-18.
 
-**M-02 · A real MSYS2 / UCRT64 GCC is refused** ☐
+**M-02 · A real MSYS2 / UCRT64 GCC is refused** ✅ **2026-08-19**
 - **Goal** TA-6 — the assertion a stub compiler cannot exercise, and the realistic way the pin regresses:
   the next developer's MSYS2 install.
 - **Pre** A real MSYS2 UCRT64 (or any non-Qt MinGW) GCC installed.
 - **Steps** `cmake --preset x64-release -DRECTO_MINGW_ROOT=C:/msys64/ucrt64` (adjust path).
-- **Expect** **Configure fails**, and the message names the CRT mismatch (`_UCRT` defined), says the pin
-  is Qt's own bundled GCC 13.1.0/msvcrt, and states the fix. It must not fail with a link error later,
-  and it must not succeed.
+- **Expect** **Configure fails**, the message names the pin as Qt's own bundled GCC 13.1.0/msvcrt, and
+  it states the fix. It must not fail with a link error later, and it must not succeed.
+  **Which assertion fires depends on the MSYS2 build, and TA-6 is usually not the one:**
+  `_recto_pin_error` is `FATAL_ERROR`, so the assertions stop at the first violation in numbered
+  order, and a stock MSYS2 GCC is never version 13.1.0 - **TA-2 fires first**. Refusal at TA-2 with a
+  complete, actionable message satisfies this case's Goal. TA-6's own logic stays covered by
+  `wc2_ucrt_runtime` and `wc3_probe_self_check`, which inject `-D_UCRT` and `-U__MSVCRT__`; this case
+  covers the *scenario*, those cover the *logic*.
 - **If it fails** **S1.** A pin that a real toolchain can slip past is not a pin. If it *fails* but with
   an unhelpful message, that is S3 — log it separately, do not merge the two.
+- **Result** ✅ **Passed.** MSYS2 UCRT64 **GCC 15.2.0** at `C:/msys64/ucrt64`, driven through
+  `toolchain-mingw.cmake` against the `wrong-compiler` fixture project. Configure **failed at
+  `project()`-time assertion TA-2**: *found 15.2.0, expected 13.1.0*, followed by the whole fix
+  sentence — *"Use C:/Qt/Tools/mingw1310_64. If Qt was upgraded, the compiler moves with it in the
+  same change -- update RECTO_MINGW_ROOT and this expected version together."* Message judged clear
+  enough by the user; **no separate S3 logged** for diagnostic quality.
+  - This is the half the injected-macro cases cannot reach: `wc1`…`wc6` test each assertion's
+    *logic*, this tests the *scenario* — a second real toolchain on a real machine.
+  - **TA-2 fires, not TA-6**, because `_recto_pin_error` is `FATAL_ERROR` and no MSYS2 build is
+    version 13.1.0. The Expect text was corrected to say so; TA-6's logic stays covered by
+    `wc2_ucrt_runtime` and `wc3_probe_self_check`.
+  - Two findings came out of the attempts rather than the result: **I-09** (six diagnostics were
+    printing half a sentence — fixed, and this run is what confirmed the repair in the live path) and
+    **I-10** (a toolchain whose own `bin` is off `PATH` fails as CMake's generic "compiler is broken"
+    before the pin can speak — open).
+  - Signed off by the user, 2026-08-19.
 
 **M-03 · A moved Qt prefix fails clearly** ☐
 - **Goal** TA-8's diagnostic is usable by someone who does not know the codebase.
@@ -508,6 +529,8 @@ record.
 | I-06 | M-01 (rig) | The first M-01 attempt used a **folder copy** of the primary machine's working tree, not `git clone`. It carried a gitignored `build/x64-debug` whose CMake cache held the primary machine's absolute paths; `x64-debug` failed to configure while `x64-release`, which had no counterpart directory, succeeded. | M-01 runs from a clone into an empty directory | n/a - rig error, not a product defect | Recorded so the walk is not mistaken for a valid one. I-01, I-02, I-04 and I-05 concern installs and documentation, not the tree, and remain valid | **Closed** - re-walked from a real clone of `9c305ce`; M-01's Result records the two-run split |
 | I-07 | M-01 / A-10 | `layer-lint`'s exclude list omitted `third_party/`, so the scanned set depended on whether `fetch-pdfium.ps1` had been run: **51 files / 135 includes** on a machine with PDFium fetched, **27 / 93** on a clean clone. Nothing was actually checked there - third-party files match no layer, and `LayerLint.cpp:35` skips unlayered files before any rule runs - but a gate whose own report varies with machine state undercuts the point of having gates. | The gate reports the same figures on any machine at a given commit | S3 | Found by comparing the M-01 VM run against the primary machine; A-10 asserts no count, so the guide was not wrong | **Fixed** - `third_party/` added to `tools/layer-lint/rules.json`; this machine now reports 27 / 93, matching the clean clone. 23/23 gate cases and 50/50 unit tests re-run green |
 | I-08 | A-10 / A-12 | `checks` always passes `--emit THIRD-PARTY.md` into the **source tree** (`RectoChecks.cmake:26`), while `--qt-modules` and `--vcpkg-installed` are conditional on the configuration. Running `checks` from the `gates` preset therefore **rewrites a committed file with less information**: catch2's version became `*(not resolved)*` and the Qt module count dropped from 4 to 0. The emitted file also carries CRLF where the repository stores LF. | Running any gate configuration never degrades a committed artifact | S3 | Reproduced 2026-08-18 while verifying I-07: `cmake --build --preset gates --target checks` then `git diff THIRD-PARTY.md`. Restored with `git checkout`. Harmless in CI, where nothing commits the result, but silent on a developer machine | **Fixed** - `license-audit` now rewrites the file only with a real Qt link closure **and** an installed vcpkg tree, skipping with a named reason otherwise, and writes in binary mode so the file stays LF. Two new gate cases assert the file, not just the message; `RunGateCase.cmake` gained `EXPECT_FILE` / `EXPECT_ABSENT` for that. 25/25 gates, 52/52 on `x64-debug` |
+| I-09 | M-02 | `_recto_pin_error` took a named `fix` parameter, but six of the nine call sites write that text as **several adjacent quoted literals** - separate arguments in CMake, not concatenated as in C. Only the first fragment was printed and the rest went to `ARGN` and vanished. TA-7 ended at *"Do not 'fix' this by"*, TA-6 at *"the usual source. Qt"* - in every case the half that says what to do. The file's own header says a message that only names the problem "turns a five-second fix into an afternoon". | Each diagnostic prints its whole fix sentence | S3 | Surfaced by the first M-02 attempt, whose TA-7 output was visibly cut off. The seven `wrong_compiler` cases could not catch it: every `EXPECT_MATCH` asserted the label only | **Fixed** - the helper joins `ARGN`; `wc1`/`wc2` now assert a word from the **tail** of the sentence. Those patterns are single words on purpose: `message(FATAL_ERROR)` hard-wraps, so a phrase can be split across a line break and fail for an unrelated reason - which it did on the first attempt. 25/25 gates, 52/52 on `x64-debug` |
+| I-10 | M-02 | Pointing `RECTO_MINGW_ROOT` at a toolchain whose own `bin` is **not** on `PATH` fails at `project()` with CMake's generic *"the C++ compiler is not able to compile a simple test program"*, with no output from the compiler at all - the pin's diagnostic never runs. MSYS2's `g++` spawns `cc1plus.exe` from `lib/gcc/...`, which is not the driver's directory, so it needs `C:/msys64/ucrt64/bin` on `PATH` to find its own DLLs. | The pin explains itself before CMake's probe does | S3 | M-02, 2026-08-19. Adding `C:/msys64/ucrt64/bin` to `PATH` makes the same command reach **TA-2** correctly. Precedent: `toolchain-mingw.cmake` already duplicates the `-fplugin` scan for this exact reason, calling CMake's message *"true, useless, and nowhere near the actual reason"* | **Open** - a pre-`project()` probe would catch it, but that file is re-read for **every** `try_compile()` and its header forbids anything fallible there. Trade-off is the user's call, not a silent fix |
 
 ---
 
