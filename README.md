@@ -92,7 +92,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned   # once pe
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks            # the gates -- always first
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure                # 64 tests
+ctest --preset x64-release --output-on-failure                # 66 tests
 ```
 
 A stock Windows install runs no scripts at all: without the first line, both `.ps1` files fail with

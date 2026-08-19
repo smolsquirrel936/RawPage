@@ -102,6 +102,13 @@ const Layer* RuleSet::layerFor(const std::string& repoRelativePath) const {
     return nullptr;
 }
 
+bool RuleSet::isEscapableKind(const std::string& kind) const {
+    for (const TokenRule& rule : tokenRules_) {
+        if (rule.kind == kind) return rule.escapable;
+    }
+    return false;
+}
+
 bool RuleSet::isExcluded(const std::string& repoRelativePath) const {
     for (const std::string& prefix : excluded_) {
         if (startsWith(repoRelativePath, prefix)) return true;

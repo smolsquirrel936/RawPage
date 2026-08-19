@@ -58,6 +58,18 @@ recto_add_gate_test(NAME gates.layer_lint.qtwidgets_in_core
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/qtwidgets-in-core --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "external-include")
 
+# I-20. A waiver must be APPLIED, not merely mentioned. layer-lint counted its own
+# documentation as three active waivers, so --explain reported 3 where the truth was 0 --
+# and D0-4's whole value is that this census can be trusted to show waivers creeping from a
+# handful to a hundred.
+recto_add_gate_test(NAME gates.layer_lint.quoted_waiver_does_not_waive
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/write-escape-quoted --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write")
+
+recto_add_gate_test(NAME gates.layer_lint.unknown_waiver_kind_does_not_waive
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/write-escape-unknown-kind --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write")
+
 # NEGATIVE CONTROL: the inline waiver must actually waive.
 recto_add_gate_test(NAME gates.layer_lint.write_escaped_is_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/write-escaped --rules ${LL_RULES}
@@ -182,10 +194,10 @@ recto_add_gate_test(NAME gates.license_audit.notice_states_render
     EXPECT_EXIT 1 EXPECT_MATCH "no NOTICE file"
     EXPECT_FILE ${LA_EMIT_STATES}
     EXPECT_FILE_MATCH
-        "fixture-notice-present.*1.2.3.*yes"
-        "fixture-notice-absent.*MISSING"
-        "fixture-notice-unbuilt.*not checked"
-        "fixture-lgpl-lib.*n/a"
+        "fixture-notice-present.*licence text and NOTICE"
+        "fixture-notice-absent.*NOTICE MISSING"
+        "fixture-notice-unbuilt.*NOTICE not checked"
+        "fixture-lgpl-lib.*licence text"
         "Reading this table")
 
 # NEGATIVE CONTROL: with both inputs present the emission must actually happen. Without

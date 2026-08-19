@@ -42,6 +42,11 @@ public:
     bool isExcluded(const std::string& repoRelativePath) const;
     bool isScannableExtension(const std::filesystem::path& path) const;
 
+    // True only for a kind that some rule actually declares AND marks escapable. A waiver
+    // naming anything else waives nothing, so counting it as active would overstate the
+    // census D0-4 relies on -- "allow-<kind>" in this file's own prose was one such (I-20).
+    bool isEscapableKind(const std::string& kind) const;
+
     const std::vector<Layer>& layers() const { return layers_; }
     const std::vector<TokenRule>& tokenRules() const { return tokenRules_; }
     const std::vector<std::string>& excludedPaths() const { return excluded_; }

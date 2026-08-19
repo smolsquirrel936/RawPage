@@ -227,8 +227,10 @@ placeholder TU each so the target graph and the link order are exercised from th
   allowlist" message invites someone to add it to the allowlist.
 - **Emits `THIRD-PARTY.md`** with, per dependency: name · exact version · SPDX expression · upstream
   URL · source-offer URL where required · whether a `NOTICE` file exists (Apache-2.0 requires shipping
-  it verbatim). FreeType's **FTL election** and Hunspell's **MPL-2.0 election** are recorded explicitly
-  rather than inferred.
+  it verbatim). FreeType's **FTL election** and Hunspell's **LGPL-3.0 election** are recorded explicitly
+  rather than inferred. (Hunspell was written as MPL-2.0 when this plan was drafted; T8 found
+  upstream does not offer that licence at all and the election was corrected —
+  [`Tech-Stack-Plan.md` §6.2](./Tech-Stack-Plan.md#62-dependencies) owns the decision.)
 - **Exit codes** as `layer-lint`.
 
 ### 5.5 The `core/` vocabulary headers

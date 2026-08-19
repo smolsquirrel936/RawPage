@@ -74,12 +74,27 @@ bool parseInclude(const std::string& code, Include& out) {
     return !out.target.empty();
 }
 
-// // layer-lint: allow-filesystem-write(reason)
-bool parseEscape(const std::string& comment, Escape& out) {
+// A waiver looks like this, in the trailing comment of the line it waives:
+//     std::ofstream out(path);   // layer-lint: allow-filesystem-write(reason)
+//
+// Two structural guards, because without them this tool counted its OWN documentation as
+// three active waivers and the census read 3 where the truth was 0 (I-20). D0-4's value
+// rests on that census: it is how anyone notices waivers creeping from a handful to a
+// hundred, and a number that includes prose cannot do that job.
+//
+//   codeOnLine  - a waiver waives a violation ON ITS LINE. With no code there is nothing to
+//                 waive, which is what "// // layer-lint: allow-..." in a comment block is.
+//   inner //    - a second // before the marker means the marker is being QUOTED, as in
+//                 "... from // layer-lint: allow-filesystem-write(reason)". Applied waivers
+//                 sit in the first comment on the line.
+bool parseEscape(const std::string& comment, bool codeOnLine, Escape& out) {
+    if (!codeOnLine) return false;
+
     const std::string text = trim(comment);
     const std::string marker = "layer-lint:";
     const size_t markerPos = text.find(marker);
     if (markerPos == std::string::npos) return false;
+    if (text.find("//") < markerPos) return false;
 
     size_t pos = markerPos + marker.size();
     while (pos < text.size() && text[pos] == ' ') ++pos;
@@ -180,7 +195,8 @@ IncludeGraph IncludeGraph::scan(const fs::path& root, const RuleSet& rules) {
             if (!parts.comment.empty()) {
                 Escape escape;
                 escape.line = lineNumber;
-                if (parseEscape(parts.comment, escape)) {
+                if (parseEscape(parts.comment, !trim(parts.code).empty(), escape)
+                    && rules.isEscapableKind(escape.kind)) {
                     file.escapes.push_back(std::move(escape));
                 }
             }

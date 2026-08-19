@@ -190,7 +190,7 @@ std::string renderThirdPartyMarkdown(const Report& report, const VcpkgManifest& 
         << "Project: " << manifest.projectName << " " << manifest.projectVersion << "\n\n";
 
     out << "## Components\n\n"
-        << "| Component | Version | SPDX | Origin | Group | NOTICE | Upstream |\n"
+        << "| Component | Version | SPDX | Origin | Group | Attribution owed | Upstream |\n"
         << "|---|---|---|---|---|---|---|\n";
 
     for (const Dependency& dep : report.entries) {
@@ -203,10 +203,14 @@ std::string renderThirdPartyMarkdown(const Report& report, const VcpkgManifest& 
             // absent" and "required, never looked because this configuration does not build
             // it" -- the first is a release blocker and the second is routine, and an auditor
             // reading the table could not tell them apart (I-17).
-            << " | " << (!dep.noticeRequired  ? "n/a"
-                         : !dep.noticeChecked ? "not checked"
-                         : dep.hasNotice      ? "yes"
-                                              : "**MISSING**")
+            // Attribution is owed by EVERY licence here, so this cell never reads "n/a" -- it
+            // says what is owed. The old column tracked Apache-2.0 4(d) alone and printed "n/a"
+            // for eleven BSD/MIT/zlib/BSL rows, which reads as "nothing owed" and is the
+            // opposite of Tech-Stack-Plan 8.1 (I-22).
+            << " | " << (!dep.noticeRequired  ? "licence text"
+                         : !dep.noticeChecked ? "licence text, NOTICE not checked"
+                         : dep.hasNotice      ? "licence text and NOTICE"
+                                              : "licence text and NOTICE MISSING")
             << " | " << (dep.upstream.empty() ? "" : dep.upstream)
             << " |\n";
     }
@@ -216,11 +220,19 @@ std::string renderThirdPartyMarkdown(const Report& report, const VcpkgManifest& 
     out << "\n> **Reading this table.** *(not resolved)* under Version means the component is "
            "**declared** in `vcpkg.json` but its feature is not enabled in this configuration, "
            "so there is no installed tree to read a version from. It is not shipped in this "
-           "build; a version appears once the stage that needs it turns the feature on. Under "
-           "NOTICE, `n/a` means the licence requires no notice file, `not checked` means the "
-           "component is not built here, `yes` means one was found, and **MISSING** means a "
-           "notice is required, the installed tree was present, and the file was absent -- "
-           "which is a release blocker.\n";
+           "build; a version appears once the stage that needs it turns the feature on.\n"
+           "\n> **Attribution owed** is never empty: every licence here requires that the "
+           "component copyright notice and licence text be retained and shipped "
+           "(Tech-Stack-Plan.md 8.1), so the cell says what is owed rather than whether "
+           "anything is. `licence text` is that baseline. **Apache-2.0 alone** adds 4(d), "
+           "propagating an upstream `NOTICE` file verbatim, which is why only those rows "
+           "mention NOTICE: `and NOTICE` means one was found, `NOTICE not checked` means the "
+           "component is not built in this configuration so nothing was looked for, and "
+           "`NOTICE MISSING` means the installed tree was there and the file was not -- a "
+           "release blocker. The licence files live in `res/licenses/`, are reproduced in "
+           "About -> Third-Party Notices and in the installed `licenses` folder, and are "
+           "verified by the release gate (8.3). `res/licenses/` does not exist yet; "
+           "populating it is Stage 15 work.\n";
 
     out << "\n## Licence elections\n\n"
         << "Where a component is offered under more than one licence, the one we take is "

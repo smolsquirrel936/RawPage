@@ -68,7 +68,7 @@
         "icu",
         {
           "name": "hunspell",
-          "$comment": "Tri-licensed GPL/LGPL/MPL. We elect MPL-2.0."
+          "$comment": "Tri-licensed 'MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later'. We ELECT the LGPL branch and, because that grant is '2.1 OR LATER', take it specifically as LGPL-3.0 -- the same licence as Qt, so one obligation model covers both: dynamic linking, user-replaceable binaries, a corresponding-source offer. The election and its reasoning are owned by tools/license-audit/spdx-map.json and reproduced in THIRD-PARTY.md; this comment must not drift from them again (I-21)."
         }
       ]
     },

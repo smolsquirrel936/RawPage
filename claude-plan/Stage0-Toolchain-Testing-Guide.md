@@ -6,14 +6,15 @@
 > **before any Stage 0 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Automated half green; manual half in progress.** Every automated case A-01…A-73 has
-> been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
-> self-hosted runner, `portable-asan` on Linux). The suite is **64 tests on Windows** (37 gate + 27 unit) after I-08,
-> I-10, I-11, I-13 and I-15; the Linux figure is **50**, arithmetic until the next CI run confirms it - the
-> toolchain-pin cases are inside the `WIN32` block, so only I-08's two and I-15's four reach Linux. **M-01…M-06 are walked and signed off; M-07 is not**, and I
-> do not mark those. Per
-> [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
-> report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
+> **Status:** 🟡 **Manual half complete and signed off; the automated half owes one re-run.**
+> **M-01…M-07 are all walked and signed off (2026-08-18/19)** — seven for seven, and I did not mark
+> any of them.
+>
+> The automated cases A-01…A-73 were last run green **at 50 tests**. Walking the manual half produced
+> **22 issue-log entries**, three of them S1, and the suite is now **66 on Windows** (39 gate + 27
+> unit) and **52 on Linux**. Every case has been re-run locally at those counts, but **CI has not yet
+> gone green across all three jobs since the changes** — A-72 carries that note. Until it does, Stage 0
+> is *not* done. Failures are recorded in the [issue log](#8-issue-log).
 >
 > Two halves, per [`CLAUDE.md`](../CLAUDE.md): **[§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -557,9 +558,13 @@ toolchain, or human judgement.
     line was widened from Qt alone to **every** LGPL-3.0 component, which Hunspell needed.
   - **No generation stamp, on purpose.** A timestamp would rewrite the file on every `checks` run,
     dirtying `git status` and undoing I-08. Provenance comes from the release tag (§8.2).
+  - **Found after sign-off (I-22, S2):** the NOTICE column tracked Apache-2.0's obligation only,
+    while reading as though `n/a` meant nothing was owed — for eleven BSD/MIT/zlib/BSL rows that
+    is the opposite of §8.1. Fixed the same day; the sign-off below stands, but the case did not
+    catch this on the day it was walked, which is worth knowing about the case.
   - Signed off by the user, 2026-08-19.
 
-**M-07 · The plan's own claims survive contact** ☐
+**M-07 · The plan's own claims survive contact** ✅ **2026-08-19**
 - **Goal** Stage 0 sets conventions that sixteen stages inherit; this is the moment to reject one that
   is wrong, while it costs a day.
 - **Steps** Skim [`Stage0-Toolchain-Plan.md` §3](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions)
@@ -568,6 +573,30 @@ toolchain, or human judgement.
 - **Expect** Each decision either held or is recorded as revisited, with the reason, in the plan.
 - **If it fails** S3, but **record it** — an inherited convention that nobody believes in is worse than
   one that was changed.
+- **Result** ✅ **Passed.** All eight decisions hold; two produced findings, both fixed.
+  - **The two probe questions, measured rather than asserted.** `--target checks` runs both gates over
+    the real tree in **0.13 s** (`layer-lint` alone: 77 ms); the full 39-case gate suite is 5.4 s. The
+    `allow-write` census reads **`(none)`** — zero waivers in product code, the single real one living
+    in the `write-escaped/` fixture. D0-1's "seconds, on a bare Linux runner" is not aspirational.
+  - **D0-1, D0-2, D0-5, D0-6, D0-7, D0-8** — accepted by the user as holding, each visible in what was
+    built: gates link only the standard library; they are C++ built by CMake; the Qt module list comes
+    from the real link closure; PDFium is the hash-pinned prebuilt DLL with a locally generated import
+    library; CI is the three GitHub Actions jobs; `recto.exe` is an empty `main()` linking all four
+    layers.
+  - **D0-3 — held, applied more broadly than written.** `office` and `media` features are correctly
+    absent: neither has a vcpkg port (Office is COM automation, multimedia is `QtMultimedia` from the
+    Qt install), so the decision named subsystems where the file can only hold ports. T6 already
+    records the broadening. Produced **I-21**: the Hunspell licence election was recorded in four
+    places and **two were stale**, including `vcpkg.json`'s dependency comment — the copy a developer
+    adding a port reads. Fixed to LGPL-3.0.
+  - **D0-4 — held.** The fixture tree is excluded by an explicit greppable deny-path that `--explain`
+    prints, and it survived the tree growing from 6 to 12 fixture directories during M-05 with no
+    change. Produced **I-20**: the waiver census counted `layer-lint`'s own documentation as three
+    live waivers, so the very question this case asks could not be answered honestly. Fixed with three
+    guards, each for its own reason, and two fixtures.
+  - **Nothing was revisited.** No decision needed changing — the findings were all in the *evidence*
+    the decisions rest on, not in the decisions themselves.
+  - Signed off by the user, 2026-08-19.
 
 ---
 
@@ -611,6 +640,9 @@ record.
 | I-17 | M-06 | `THIRD-PARTY.md` used two markers it never explained. `*(not resolved)*` sat in twelve of seventeen Version cells, leaving an outside reader unable to tell whether those components ship. Worse, `**MISSING**` in the NOTICE column conflated two opposite meanings: *a required notice was looked for and is absent* - a release blocker - and *this configuration does not build the component, so nothing was looked for* - routine. `openssl` and `tesseract` both read `**MISSING**` for the second reason. | The table is legible to someone outside the project | S3 | M-06, 2026-08-19 | **Fixed** - the NOTICE column now renders four states (`n/a`, `not checked`, `yes`, `**MISSING**`), so the blocker cannot hide among the routine ones, and a legend under the table explains both markers. `openssl` and `tesseract` now read `not checked`. **Now tested.** `RunGateCase.cmake` gained `EXPECT_FILE_MATCH`, which checks patterns **line by line** - a pattern run against the whole file lets `.` cross newlines and match halves of two different rows. `gates.license_audit.notice_states_render` emits one file containing all four states from a purpose-built `installed-tree/` fixture: a port with a NOTICE, one without, one absent from the tree, and one requiring none. It asserts the legend too. The case expects **exit 1**, because the absent-NOTICE port is a genuine blocker and the emission happens anyway - by design, so the reader sees the inventory beside the failure |
 | I-18 | A-12 (this guide) | A-12's pass condition was stale in two ways. It required `THIRD-PARTY.md` to carry **Qt's source-offer URL**, which is deliberately deferred to the §8.3 release gate, and it named Hunspell's election as **MPL-2.0** - the branch the project explicitly did **not** take. T15 recorded the correction to LGPL-3.0 (one obligation model shared with Qt) but this case was never updated, so a passing A-12 was being scored against a condition that contradicted the shipped decision. | An automated case's Expect matches the decision it is checking | S3 | Found while recording the source-offer decision after M-06, 2026-08-19 | **Fixed** - A-12 now expects the LGPL-3.0 election and treats the source offers as *stated obligations*, pointing at `Tech-Stack-Plan.md` §8.2. The decision itself is now written in §8.2, and §8.3's gate line covers **every** LGPL-3.0 component rather than Qt alone |
 | I-19 | A-72 / CI | `gates.layer_lint.outward_include_casemix` failed the **Linux** gates job. Correctly: on a case-sensitive filesystem `#include "Pdf/Cos/CosDict.h"` does not resolve at all, so it is a compile error rather than a layering violation and there is nothing for the gate to find. The case was added on Windows, where the scenario is real, and placed outside the host guard. | A case runs only where its scenario can occur | S3 | Run `32205611580`, 2026-08-19: 23/24 passed on Linux, this one red | **Fixed** - wrapped in `if(CMAKE_HOST_WIN32)`, the same treatment the toolchain-pin cases already get, with the reason written beside it: *a red CI job that everyone learns to ignore protects nothing*. Windows stays 37 gate cases; Linux is 23, so `portable-asan` is 50 |
+| I-20 | M-07 (D0-4) | `--explain`'s **active escapes** census counted `layer-lint`'s own documentation as three live waivers: `// // layer-lint: allow-filesystem-write(reason)` in a comment block, and two lines describing the syntax behind a second `//`, one of them the placeholder `allow-<kind>`. The census read **3** where the truth in product code is **0**. D0-4's value rests on that number being trustworthy - it is how anyone notices waivers creeping from a handful to a hundred - so M-07's own probe question could not be answered honestly. | The census counts applied waivers only | S3 | M-07, 2026-08-19, `layer-lint --explain` on the real tree | **Fixed** - three guards, each with a reason rather than a pattern tweak: a waiver needs **code on its line** (nothing to waive otherwise), the marker must sit in the **first** comment (a second `//` before it means the marker is being quoted), and the kind must be one a rule actually **declares as escapable**. Census now reads `(none)`; the real waiver in `write-escaped/` still waives. Two fixtures added for the quoted and unknown-kind shapes |
+| I-21 | M-07 (D0-3) | The Hunspell licence **election was recorded three more times and two of them were stale**. `vcpkg.json`'s dependency comment still said *"We elect MPL-2.0"*, and `Stage0-Toolchain-Plan.md` §6 described `license-audit` as recording *"Hunspell's MPL-2.0 election"*. T8 corrected the election to the **LGPL branch taken as LGPL-3.0** after finding upstream offers no MPL-2.0 at all, but only `spdx-map.json`, `THIRD-PARTY.md` and `Tech-Stack-Plan.md` were updated. The `vcpkg.json` copy is the one a developer adding a port reads. | One election, recorded consistently wherever it appears | S3 | M-07, 2026-08-19, while reviewing D0-3. Found by a tree-wide sweep for `MPL-2.0` after the first copy turned up | **Fixed** - both corrected to LGPL-3.0 with the reasoning and a pointer to the owning document. The remaining `MPL-2.0` hits in the tree are **historical records of the correction** (`Implementation-Plan.md`'s finding entry, `Tech-Stack-Plan.md` §6.2's *"previously said MPL-2.0, which upstream does not offer"*, and I-18 here), which must stay |
+| I-22 | M-06 (post-sign-off) | `THIRD-PARTY.md` tracked **one** of the two attribution obligations and presented it as if it were both. The column headed simply *NOTICE* carries `n/a` for every BSD-2, BSD-3, MIT, zlib, BSL and libpng component, and the legend read *"`n/a` means the licence requires no notice file"* - so an auditor could reasonably conclude nothing is owed for openjpeg, leptonica, pdfium, harfbuzz, catch2 or zlib. [`Tech-Stack-Plan.md` §8.1](./Tech-Stack-Plan.md#81-license-obligations) says the opposite: each of those must have its copyright notice and licence text retained and shipped, and Apache-2.0 *additionally* requires propagating a `NOTICE` file. The register showed the additional obligation and hid the universal one. | The register does not imply an obligation is absent | **S2** | Found by the user reading the rendered table, 2026-08-19 - after M-06 was signed off | **Fixed, on the second attempt.** The first fix renamed the column to *NOTICE (Apache 4)* and added a second paragraph stating the universal obligation - but left the original legend's *"`n/a` means the licence requires no notice file"* in place and the eleven `n/a` cells untouched, so the file held a misleading sentence followed by one correcting it and the **table still read the same way**. The column is now **Attribution owed** and never empty, because attribution never is: `licence text` is the baseline for every row, and only Apache-2.0 rows add `and NOTICE` / `NOTICE not checked` / `and NOTICE MISSING` for its 4(d) obligation. One legend, not two. The four gate patterns moved with it. `res/licenses/` still does not exist and the file says so - Stage 15 owns populating it |
 
 ---
 
