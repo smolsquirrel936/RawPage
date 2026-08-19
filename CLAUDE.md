@@ -16,7 +16,7 @@ not done.** What exists is scaffolding, not product:
 - **two live gates** — `tools/layer-lint` and `tools/license-audit` — plus 37 CTest fixtures that
   prove they fail correctly, negative controls included;
 - the four `core/` vocabulary headers (`Result.h`, `Log.h`, `Geometry.h`, `Units.h`) and a Catch2
-  suite; **64 tests on Windows, 51 on Linux under ASan+UBSan**;
+  suite; **64 tests on Windows, 50 on Linux under ASan+UBSan**;
 - CI on three jobs, the Windows one self-hosted;
 - `recto.exe`, which links all four layers and **opens no window**.
 

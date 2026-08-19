@@ -18,7 +18,7 @@ toolchain pin.
 | `outward-include/` | `#include "pdf/cos/CosDict.h"` — canonical, repo-relative |
 | `outward-include-relative/` | `#include "../../pdf/cos/CosDict.h"` — what an IDE inserts |
 | `outward-include-angled/` | `#include <pdf/cos/CosDict.h>` — compiles, since every layer target puts the source root on its include path |
-| `outward-include-casemix/` | `#include "Pdf/Cos/CosDict.h"` — resolves on a case-insensitive filesystem |
+| `outward-include-casemix/` | `#include "Pdf/Cos/CosDict.h"` — resolves on a case-insensitive filesystem. **Its case is Windows-only:** on Linux the include does not resolve at all, so it is a compile error rather than a layering violation |
 | `ui-includes-pdf/` | the same rule in the other direction: `ui/` reaching the engine |
 
 A backslash spelling (`#include "pdf\cos\CosDict.h"`) is handled by `std::filesystem`'s own

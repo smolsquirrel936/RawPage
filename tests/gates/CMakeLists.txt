@@ -74,9 +74,16 @@ recto_add_gate_test(NAME gates.layer_lint.outward_include_angled
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/outward-include-angled --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
 
-recto_add_gate_test(NAME gates.layer_lint.outward_include_casemix
-    COMMAND ${LL} --root ${FIXTURES}/layer-lint/outward-include-casemix --rules ${LL_RULES}
-    EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+# Windows only, and not for convenience: on a case-sensitive filesystem
+# #include "Pdf/Cos/CosDict.h" does not resolve at all, so it is a compile error rather than a
+# layering violation and there is nothing for the gate to find. Running it on the Linux gates
+# runner produced a red job for a scenario that cannot happen there -- and a red CI job that
+# everyone learns to ignore protects nothing.
+if(CMAKE_HOST_WIN32)
+    recto_add_gate_test(NAME gates.layer_lint.outward_include_casemix
+        COMMAND ${LL} --root ${FIXTURES}/layer-lint/outward-include-casemix --rules ${LL_RULES}
+        EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+endif()
 
 recto_add_gate_test(NAME gates.layer_lint.qt_write_outside_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/qt-write --rules ${LL_RULES}
