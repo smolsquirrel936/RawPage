@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Recto** (working codename, open decision O9), a Windows-first desktop PDF editor modeled on Right
 PDF Professional. The design lives under `claude-plan/`.
 
-**Stage 0 is built and its automated verification is green; its manual pass is not walked, so it is
-not done.** What exists is scaffolding, not product:
+**Stage 0 is DONE — both halves of its verification are green and signed off (2026-08-19).** What
+exists is scaffolding, not product:
 
 - the build system and six CMake presets, with the toolchain pin (TA-1…TA-9) refusing any compiler
   but Qt's own GCC 13.1.0/msvcrt;
@@ -24,14 +24,21 @@ not done.** What exists is scaffolding, not product:
 `pdf/ops/`, `ui/`, `platform/win/`, or `app/` beyond one placeholder TU per layer. Both Stage 0 risk
 verdicts are recorded in `Tech-Stack-Plan.md` §3.3: **A5** and **A6**.
 
-The documented next action is **Stage 0** (toolchain skeleton + the four enforcement gates) in
-`claude-plan/Implementation-Plan.md`, now planned in full: `claude-plan/Stage0-Toolchain-Plan.md`
-holds its tasks T1–T15, and `claude-plan/Stage0-Toolchain-Testing-Guide.md` holds its verification.
-**All fifteen Stage 0 tasks are complete.** The next action is the **manual pass** —
-`Stage0-Toolchain-Testing-Guide.md` §6, cases M-01…M-07, walked by the user on real hardware. I never
-mark those passed on their behalf, and Stage 0's Definition of Done is not met until they are.
-**Stage 1 does not start before that sign-off.** Do not skip ahead to feature work — the stage order
-is deliberate risk retirement, not a backlog.
+**Stage 0 is complete.** All fifteen tasks (T1–T15), every automated case A-01…A-73, and all seven
+manual cases M-01…M-07 — walked on real hardware and signed off by the user — are green, with CI run
+`32207889494` green on all three jobs at 25/66/52. Its Definition of Done is met and its issue log is
+closed: **22 entries, none open.**
+
+**The next action is Stage 1** (app shell, action layer, settings, single instance) in
+`claude-plan/Implementation-Plan.md`, which carries the **A3** go/no-go — can Qt Widgets host a real
+ribbon. Per the workflow below, **`Stage1-AppShell-Testing-Guide.md` is written before any Stage 1
+code.** Do not skip ahead past it — the stage order is deliberate risk retirement, not a backlog.
+
+**What Stage 0's manual pass should teach Stage 1's:** it produced 22 findings including three S1s,
+and *every* S1 came from a manual case that no automated run could have reached — two documentation
+gaps that made a clean-machine build unreproducible, and a gate that did not fail on real violations
+because every fixture used the same spelling. Write the manual half to look for what the harness
+structurally cannot see, not for what is merely convenient to check by hand.
 
 `claude-plan/skills-specs-generation/` is a **vendored third-party skill set** (its own nested git
 repo, MIT-ish LICENSE) that generated these docs. Don't edit it as part of product work.

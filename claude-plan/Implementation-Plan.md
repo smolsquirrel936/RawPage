@@ -149,7 +149,9 @@ each DPI over the corpus, settling risk A2.
 
 ### Stage 0 — Toolchain, skeleton, and the four gates
 
-**Status:** 🟡 **Automated half done — **all 15 tasks complete, automated verification green, awaiting the manual pass**. Both verdicts recorded: A5 and A6.**
+**Status:** 🟢 **DONE, 2026-08-19.** All 15 tasks complete; **both halves of [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) are green** — A-01…A-73 run by me, M-01…M-07 walked and signed off by the user on 2026-08-18/19. CI run `32207889494` is green on all three jobs: `gates` 25, `windows` 66, `portable-asan` 52. Verdicts recorded: **A5** and **A6**.
+
+> **What the manual pass cost, and bought.** Seven cases produced **22 issue-log entries** and took the suite from 50 tests to 66/52. Three were **S1**, and all three came from manual cases with none reachable by the automated half: **I-01** (Qt 6.11.1 is behind the installer's Archive filter, so the README led to the wrong Qt), **I-04** (a stock Windows account runs no scripts, and no script can diagnose that — the diagnosing script is itself blocked), and **I-15** (`layer-lint` missed outward includes spelled `../`, `<>`, or with different case, and Qt writes entirely). The first two made a clean-machine build unreproducible from the documentation; the third meant the gate the next sixteen stages lean on did not fail on real violations. One **S2** followed later: **I-22**, the licence register implying no attribution was owed for eleven BSD/MIT/zlib rows. None of these was visible from a green automated run.
 
 Both planning artifacts were written first, in the §5 order:
 [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md) (execution plan — tasks T1–T15, the

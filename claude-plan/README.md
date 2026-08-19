@@ -49,7 +49,7 @@ than a gap — those files are written when their stage comes up, not in advance
 
 ## Current state
 
-**Stage 0's automated work is complete; its manual pass is not.** All fifteen tasks are done and CI is
+**Stage 0 is complete — both halves of its verification are green and signed off (2026-08-19).** All fifteen tasks are done and CI is
 green on three jobs — `gates` (bare Linux, no Qt or vcpkg), `windows` (self-hosted, the exact pinned
 toolchain, 66 tests), and `portable-asan` (52 tests under ASan+UBSan). Both Stage 0 risk verdicts are
 recorded in ②: **A5** (the dependency set resolves on `x64-mingw-dynamic`) and **A6** (a PDFium DLL

@@ -6,15 +6,19 @@
 > **before any Stage 0 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Manual half complete and signed off; the automated half owes one re-run.**
-> **M-01…M-07 are all walked and signed off (2026-08-18/19)** — seven for seven, and I did not mark
-> any of them.
+> **Status:** 🟢 **Both halves complete. Stage 0 verification is done.**
+> **A-01…A-73 green** and **M-01…M-07 all walked and signed off** (2026-08-18/19) — I did not mark any
+> manual case.
 >
-> The automated cases A-01…A-73 were last run green **at 50 tests**. Walking the manual half produced
-> **22 issue-log entries**, three of them S1, and the suite is now **66 on Windows** (39 gate + 27
-> unit) and **52 on Linux**. Every case has been re-run locally at those counts, but **CI has not yet
-> gone green across all three jobs since the changes** — A-72 carries that note. Until it does, Stage 0
-> is *not* done. Failures are recorded in the [issue log](#8-issue-log).
+> Walking the manual half produced **22 issue-log entries**, three of them **S1**, and took the suite
+> from 50 tests to **66 on Windows** (39 gate + 27 unit) and **52 on Linux**. CI run
+> [`32207889494`](https://github.com/smolsquirrel936/Recto/actions/runs/32207889494), 2026-08-19,
+> is green on all three jobs at exactly those figures: `gates` 25, `windows` 66, `portable-asan` 52.
+> **No open S1 or S2.** Everything found is in the [issue log](#8-issue-log).
+>
+> Worth carrying into later stages: all three S1s came from **manual** cases, and none was reachable
+> by the automated half — two were documentation gaps that made a clean-machine build unreproducible
+> (M-01), and one was a gate that did not fail on real violations (M-05).
 >
 > Two halves, per [`CLAUDE.md`](../CLAUDE.md): **[§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -362,8 +366,11 @@ before anything is compiled**. **If it fails** S2.
 ✅ **Passed 2026-08-18** (run `32064437614`): all three green. `windows` reported *"Toolchain pin
 verified: GCC 13.1.0 x86_64-w64-mingw32, SEH/posix/msvcrt, no GCC plugin"*, 50/50 tests, and imports
 `msvcrt.dll` with no `ucrtbase.dll` and no `Qt6Charts`. `portable-asan` ran 43 tests clean.
-**Re-run pending:** I-08 added two license-audit cases after that run, taking Windows to 52 and Linux
-to 45. The next push re-confirms this case at the new counts.
+**Re-confirmed 2026-08-19** at the final counts, run
+[`32207889494`](https://github.com/smolsquirrel936/Recto/actions/runs/32207889494): `gates` **25**,
+`windows` **66**, `portable-asan` **52**, all green, `gates` first and before anything is compiled.
+The intervening run `32205611580` failed on `outward_include_casemix` (I-19) — recorded because a
+green history that hides a red run is not a history.
 
 > **The Windows job is self-hosted, and that was forced rather than chosen.** aqtinstall cannot
 > install Qt 6.11.1: Qt 6.11 splits its repository per architecture (`qt6_6111_mingw/`) and aqt still
@@ -652,17 +659,24 @@ Stage 0 is signed off when **all** of the following hold — this is
 [`Implementation-Plan.md` §2's Definition of Done](./Implementation-Plan.md#definition-of-done--every-stage-no-exceptions)
 made concrete for this stage:
 
-- [ ] Every **automated** case A-01 … A-73 is ✅, run by me, with actual output reported.
-- [ ] Every **manual** case M-01 … M-07 is ✅, walked by you on the rig in §2, and **signed off by you** —
-      I do not mark these.
-- [ ] Every caveat in §7 has a human verdict, not an assumption.
-- [ ] No open **S1** or **S2** in the issue log; every ❌ is either fixed and re-run or triaged into an
-      accepted, written deferral.
-- [ ] **A5 and A6 verdicts are recorded** in `Tech-Stack-Plan.md` §3.3 and the Stage 0 status block —
-      including a negative verdict with its fallback.
-- [ ] `Architecture-FileMap.md` S0 rows flipped ○ → ✅, **and the rows missing for the build system,
-      CMake modules, gate fixtures, CI workflow, and scripts added** ([plan §10](./Stage0-Toolchain-Plan.md#10-lockstep-debt-this-stage-creates)).
-- [ ] `Implementation-Plan.md` Stage 0 status, §5's guide row, and `README.md`'s *Current state* updated
+- [x] Every **automated** case A-01 … A-73 is ✅, run by me, with actual output reported — and re-run in CI
+      at the final counts (run `32207889494`: `gates` 25, `windows` 66, `portable-asan` 52).
+- [x] Every **manual** case M-01 … M-07 is ✅, walked by you on the rig in §2, and **signed off by you** —
+      I do not mark these. Seven for seven, 2026-08-18/19.
+- [x] Every caveat in §7 has a human verdict, not an assumption. `recto.exe` doing nothing and `checks`
+      running **two** gates were both confirmed by you during M-01; `portable-fuzz` announcing zero
+      targets is A-71; arm64 configuring-only is A-03, whose own note records that the original
+      message was corrected after nobody had actually checked what arm64 does.
+- [x] No open **S1** or **S2** in the issue log — **22 entries, none open**, three S1 and one S2 among
+      them, each fixed and re-run rather than deferred.
+- [x] **A5 and A6 verdicts are recorded** in `Tech-Stack-Plan.md` §3.3 and the Stage 0 status block.
+      Both positive; A6 came back stronger than assumed — `pdfium.dll` links no C runtime at all.
+- [x] `Architecture-FileMap.md` S0 rows flipped ○ → ✅, the build-system rows added at T15 (§3.18), and
+      `cmake/ToolchainPreflight.cmake` added when I-10/I-12 created it.
+- [x] `Implementation-Plan.md` Stage 0 status, §5's guide row, and `README.md`'s *Current state* updated
       to reality, deviations included.
 
-**"Automated green, manual not yet walked" is a legitimate state to report. It is not done.**
+**All of the above hold as of 2026-08-19. Stage 0 is done.**
+
+*"Automated green, manual not yet walked" was a legitimate state to report for most of this
+stage. It is not this one.*
