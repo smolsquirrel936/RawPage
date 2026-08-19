@@ -13,6 +13,10 @@
 # Optional: -DEXPECT_MATCH=<regex>   the diagnostic must mention this
 #           -DEXPECT_FILE=<path>     the gate must have written this file
 #           -DEXPECT_ABSENT=<path>   the gate must NOT have written this file
+#           -DEXPECT_FILE_MATCH=<patterns>  every pattern must match some LINE of EXPECT_FILE,
+#                                    several joined by @@. Line-scoped on purpose: a pattern
+#                                    checked against the whole file lets '.' cross newlines and
+#                                    match halves of two different rows.
 #
 # EXPECT_FILE / EXPECT_ABSENT exist because a gate that only PRINTS what it is about to do
 # has not been tested. Both paths are removed before the run, so the result is the gate's
@@ -79,6 +83,31 @@ if(DEFINED EXPECT_FILE AND NOT EXPECT_FILE STREQUAL "")
             "--- output ---
 ${combined}")
     endif()
+endif()
+
+# Content assertions on the produced file. Rendered output had no coverage at all until
+# I-17: the NOTICE column and its legend are what an outside auditor reads, and nothing
+# checked either of them.
+if(DEFINED EXPECT_FILE_MATCH AND NOT EXPECT_FILE_MATCH STREQUAL "")
+    if(NOT EXISTS "${EXPECT_FILE}")
+        message(FATAL_ERROR "EXPECT_FILE_MATCH needs EXPECT_FILE, and ${EXPECT_FILE} is not there.")
+    endif()
+    file(STRINGS "${EXPECT_FILE}" produced_lines)
+    string(REPLACE "@@" ";" wanted_patterns "${EXPECT_FILE_MATCH}")
+
+    foreach(pattern IN LISTS wanted_patterns)
+        set(found FALSE)
+        foreach(line IN LISTS produced_lines)
+            if(line MATCHES "${pattern}")
+                set(found TRUE)
+                break()
+            endif()
+        endforeach()
+        if(NOT found)
+            message(FATAL_ERROR
+                "no line of ${EXPECT_FILE} matches: ${pattern}")
+        endif()
+    endforeach()
 endif()
 
 message(STATUS "ok: exit ${actual_exit}, diagnostic matched")

@@ -199,10 +199,28 @@ std::string renderThirdPartyMarkdown(const Report& report, const VcpkgManifest& 
             << " | `" << dep.spdx << "`"
             << " | " << dep.origin
             << " | " << (dep.featureGroup.empty() ? "always" : dep.featureGroup)
-            << " | " << (dep.noticeRequired ? (dep.hasNotice ? "yes" : "**MISSING**") : "n/a")
+            // Four states, not two. "**MISSING**" used to cover both "required, looked,
+            // absent" and "required, never looked because this configuration does not build
+            // it" -- the first is a release blocker and the second is routine, and an auditor
+            // reading the table could not tell them apart (I-17).
+            << " | " << (!dep.noticeRequired  ? "n/a"
+                         : !dep.noticeChecked ? "not checked"
+                         : dep.hasNotice      ? "yes"
+                                              : "**MISSING**")
             << " | " << (dep.upstream.empty() ? "" : dep.upstream)
             << " |\n";
     }
+
+    // The two odd-looking cells are the first thing an outside reader stops on, and neither
+    // was explained anywhere on the page (I-17, found by M-06).
+    out << "\n> **Reading this table.** *(not resolved)* under Version means the component is "
+           "**declared** in `vcpkg.json` but its feature is not enabled in this configuration, "
+           "so there is no installed tree to read a version from. It is not shipped in this "
+           "build; a version appears once the stage that needs it turns the feature on. Under "
+           "NOTICE, `n/a` means the licence requires no notice file, `not checked` means the "
+           "component is not built here, `yes` means one was found, and **MISSING** means a "
+           "notice is required, the installed tree was present, and the file was absent -- "
+           "which is a release blocker.\n";
 
     out << "\n## Licence elections\n\n"
         << "Where a component is offered under more than one licence, the one we take is "

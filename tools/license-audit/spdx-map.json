@@ -117,7 +117,8 @@
     "leptonica": {
       "spdx": "BSD-2-Clause",
       "origin": "vcpkg",
-      "upstream": "https://leptonica.sourceforge.io/"
+      "upstream": "https://github.com/DanBloomberg/leptonica",
+      "$note": "Was https://leptonica.sourceforge.io/, which 302s to SourceForge's project-hosting page rather than serving the project (I-16, found by M-06). The upstream's own README names this repository as official; www.leptonica.org is the documentation site but serves no valid TLS, which is not a link to put in a licence document."
     },
 
     "catch2": {
@@ -129,7 +130,7 @@
     "libpng": {
       "spdx": "libpng-2.0",
       "origin": "vcpkg",
-      "upstream": "http://www.libpng.org/pub/png/libpng.html"
+      "upstream": "https://www.libpng.org/pub/png/libpng.html"
     },
 
     "tiff": {

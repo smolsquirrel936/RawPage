@@ -25,6 +25,30 @@
       "origin": "vcpkg",
       "$note": "The same identifier, intact. Must PASS -- the control that proves the gate is not simply rejecting everything."
     },
+    "fixture-notice-present": {
+      "spdx": "Apache-2.0",
+      "origin": "vcpkg",
+      "upstream": "https://example.invalid/notice-present",
+      "noticeRequired": true,
+      "$note": "Installed in the fixture tree WITH a NOTICE file -> renders 'yes'."
+    },
+
+    "fixture-notice-absent": {
+      "spdx": "Apache-2.0",
+      "origin": "vcpkg",
+      "upstream": "https://example.invalid/notice-absent",
+      "noticeRequired": true,
+      "$note": "Installed WITHOUT a NOTICE file -> renders '**MISSING**'. This is the release blocker, and the whole reason the four states must be distinguishable."
+    },
+
+    "fixture-notice-unbuilt": {
+      "spdx": "Apache-2.0",
+      "origin": "vcpkg",
+      "upstream": "https://example.invalid/notice-unbuilt",
+      "noticeRequired": true,
+      "$note": "Absent from the installed tree -> renders 'not checked'. Before I-17 this was also '**MISSING**', which hid the real blocker among routine rows."
+    },
+
     "fixture-lgpl-lib": {
       "spdx": "LGPL-3.0",
       "origin": "vcpkg",

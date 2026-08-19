@@ -1,0 +1,11 @@
+{
+  "$comment": "Four NOTICE states in one emitted file: yes / **MISSING** / not checked / n/a (I-17).",
+  "name": "fixture-notice-states",
+  "version": "0.0.0",
+  "dependencies": [
+    "fixture-notice-present",
+    "fixture-notice-absent",
+    "fixture-notice-unbuilt",
+    "fixture-lgpl-lib"
+  ]
+}

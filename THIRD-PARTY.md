@@ -14,10 +14,10 @@ Project: recto 0.1.0
 | libjpeg-turbo | *(not resolved)* | `IJG` | vcpkg | codecs | n/a | https://libjpeg-turbo.org/ |
 | openjpeg | *(not resolved)* | `BSD-2-Clause` | vcpkg | codecs | n/a | https://www.openjpeg.org/ |
 | tiff | *(not resolved)* | `libtiff` | vcpkg | codecs | n/a | https://libtiff.gitlab.io/libtiff/ |
-| libpng | *(not resolved)* | `libpng-2.0` | vcpkg | codecs | n/a | http://www.libpng.org/pub/png/libpng.html |
-| openssl | *(not resolved)* | `Apache-2.0` | vcpkg | crypto | **MISSING** | https://www.openssl.org/ |
-| tesseract | *(not resolved)* | `Apache-2.0` | vcpkg | ocr | **MISSING** | https://github.com/tesseract-ocr/tesseract |
-| leptonica | *(not resolved)* | `BSD-2-Clause` | vcpkg | ocr | n/a | https://leptonica.sourceforge.io/ |
+| libpng | *(not resolved)* | `libpng-2.0` | vcpkg | codecs | n/a | https://www.libpng.org/pub/png/libpng.html |
+| openssl | *(not resolved)* | `Apache-2.0` | vcpkg | crypto | not checked | https://www.openssl.org/ |
+| tesseract | *(not resolved)* | `Apache-2.0` | vcpkg | ocr | not checked | https://github.com/tesseract-ocr/tesseract |
+| leptonica | *(not resolved)* | `BSD-2-Clause` | vcpkg | ocr | n/a | https://github.com/DanBloomberg/leptonica |
 | catch2 | 3.15.3 | `BSL-1.0` | vcpkg | tests | n/a | https://github.com/catchorg/Catch2 |
 | freetype | *(not resolved)* | `FTL` | vcpkg | text | n/a | https://freetype.org/ |
 | harfbuzz | *(not resolved)* | `MIT` | vcpkg | text | n/a | https://harfbuzz.github.io/ |
@@ -27,6 +27,8 @@ Project: recto 0.1.0
 | mingw-w64-runtime | 11.0 (rt_v11-rev1) | `Zlib` | toolchain | always | n/a | https://www.mingw-w64.org/ |
 | pdfium | 153.0.8009.0 | `BSD-3-Clause` | prebuilt | always | n/a | https://pdfium.googlesource.com/pdfium/ |
 | qt | 6.11.1 | `LGPL-3.0` | qt | always | n/a | https://www.qt.io/ |
+
+> **Reading this table.** *(not resolved)* under Version means the component is **declared** in `vcpkg.json` but its feature is not enabled in this configuration, so there is no installed tree to read a version from. It is not shipped in this build; a version appears once the stage that needs it turns the feature on. Under NOTICE, `n/a` means the licence requires no notice file, `not checked` means the component is not built here, `yes` means one was found, and **MISSING** means a notice is required, the installed tree was present, and the file was absent -- which is a release blocker.
 
 ## Licence elections
 

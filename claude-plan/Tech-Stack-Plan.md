@@ -652,6 +652,16 @@ provenance line in `THIRD-PARTY.md` before it merges.
 `THIRD-PARTY.md` is generated, not hand-written: `tools/license-audit` walks the resolved vcpkg
 manifest plus the Qt module list and emits, per dependency, its **name, exact version, license
 SPDX identifier, upstream URL, source-offer URL where required, and whether a NOTICE file exists**.
+
+**When the source-offer URL is expected to exist.** Not before there is a release to host a tarball
+against. Until then each LGPL-3.0 component — currently **Qt** and **Hunspell**, the latter by our
+own election (§8.1) — carries its obligation in `spdx-map.json` as a `TODO-BEFORE-RELEASE` string
+naming what must be hosted and where it must be linked from, and `THIRD-PARTY.md` reproduces it
+verbatim under *Source offers*. That is the required state for every stage before 15: the obligation
+**stated, attached to its component, and visible in the generated file**. An obligation that has
+silently disappeared from the register is a defect at any stage; one that is written down and
+unfinished is not. §8.3 is where it stops being acceptable — the release gate below turns each entry
+into a URL that must resolve and serve the exact shipped version.
 The build fails if a dependency's SPDX identifier is not on the allowlist
 (`BSD-2-Clause, BSD-3-Clause, MIT, Apache-2.0, Zlib, BSL-1.0, Unicode-DFS-2016, FTL, LGPL-3.0,
 libpng-2.0, libtiff, IJG, MS-RL, ZPL-2.1, GPL-3.0-or-later WITH GCC-exception-3.1`) — which is what
@@ -679,8 +689,10 @@ passing silently. Matching is on the whole expression — see §8.1's note on su
       not assumed.**
 - [ ] LGPL-3.0 + GPL-3.0 texts and every third-party license and NOTICE file are installed.
 - [ ] The About → Third-Party Notices dialog matches the generated `THIRD-PARTY.md` exactly.
-- [ ] The Qt source-offer URL resolves and serves the exact shipped version; any Qt patch we carry
-      is published there.
+- [ ] **Every LGPL-3.0 component's** source-offer URL resolves and serves the exact shipped version,
+      and any patch we carry is published there. That is **Qt and Hunspell** as of Stage 0 — Hunspell
+      because §8.1 elects its LGPL branch — and any component a later stage adds under that licence.
+      Until this gate, each is carried as a `TODO-BEFORE-RELEASE` entry in `spdx-map.json` (§8.2).
 - [ ] `THIRD-PARTY.md` for this release is committed and tagged.
 - [ ] The EULA has no clause forbidding reverse-engineering for LGPL debugging purposes.
 - [ ] No bundled font, icon, stamp template, or corpus file lacks a recorded license.

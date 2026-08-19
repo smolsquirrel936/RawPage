@@ -8,9 +8,9 @@
 >
 > **Status:** 🟡 **Automated half green; manual half in progress.** Every automated case A-01…A-73 has
 > been run and passed — on this machine and, since 2026-08-18, in CI (`gates`, `windows` on a
-> self-hosted runner, `portable-asan` on Linux). The suite is **63 tests on Windows** (36 gate + 27 unit) after I-08,
-> I-10, I-11, I-13 and I-15; the Linux figure is **50**, arithmetic until the next CI run confirms it - the
-> toolchain-pin cases are inside the `WIN32` block, so only I-08's two and I-15's four reach Linux. **M-01…M-05 are walked and signed off (2026-08-19); M-06 and M-07 are not**, and I
+> self-hosted runner, `portable-asan` on Linux). The suite is **64 tests on Windows** (37 gate + 27 unit) after I-08,
+> I-10, I-11, I-13 and I-15; the Linux figure is **51**, arithmetic until the next CI run confirms it - the
+> toolchain-pin cases are inside the `WIN32` block, so only I-08's two and I-15's four reach Linux. **M-01…M-06 are walked and signed off; M-07 is not**, and I
 > do not mark those. Per
 > [`CLAUDE.md`](../CLAUDE.md), *"automated green, manual not yet walked"* is a legitimate state to
 > report and is **not** done. Failures are recorded in the [issue log](#8-issue-log).
@@ -231,9 +231,12 @@ and every active `allow-write` escape are printed. **If it fails** S2.
 
 **A-12 · `THIRD-PARTY.md` is generated and correct**
 ☐ **Steps** `./license-audit --emit THIRD-PARTY.md`; read it.
-**Expect** Exit 0. Contains **Qt 6.11.1 under LGPL-3.0** with its source-offer URL; the **GCC runtime
-as `GPL-3.0-or-later WITH GCC-exception-3.1`**; FreeType's **FTL** election and Hunspell's **MPL-2.0**
+**Expect** Exit 0. Contains **Qt 6.11.1 under LGPL-3.0**; the **GCC runtime as
+`GPL-3.0-or-later WITH GCC-exception-3.1`**; FreeType's **FTL** election and Hunspell's **LGPL-3.0**
 election stated explicitly; a NOTICE column. No identifier outside the §8.2 allowlist.
+Qt's and Hunspell's **source offers appear as stated obligations, not as URLs** — see M-06's Expect
+and [`Tech-Stack-Plan.md` §8.2](./Tech-Stack-Plan.md#82-third-party-license-register): the URL is
+owed at §8.3's release gate, not at Stage 0.
 **If it fails** S2 (S1 if a non-allowlisted license is present and passed).
 
 **A-13 · The allowlist exists in exactly one place**
@@ -518,14 +521,43 @@ toolchain, or human judgement.
     why I-15 survived as long as it did.
   - Signed off by the user, 2026-08-19.
 
-**M-06 · `THIRD-PARTY.md` read as an auditor would** ☐
+**M-06 · `THIRD-PARTY.md` read as an auditor would** ✅ **2026-08-19**
 - **Goal** The document that answers a license audit is legible to someone outside the project.
 - **Steps** Read it end to end. For three entries at random, check the version matches what is actually
   installed and the upstream URL resolves. Confirm the GCC runtime entry states the **exception**, and
-  that Qt's **source-offer** URL is present.
-- **Expect** No entry is vague, missing a version, or missing a URL that its license requires.
+  that Qt's and Hunspell's **source-offer** obligations are named and owned.
+- **Expect** No entry is vague, missing a version, or carrying a URL that does not reach the project.
+  **The LGPL source-offer URLs themselves are not expected at Stage 0** — hosting a source tarball
+  needs a release to host it against. What this case checks is that each obligation is *stated, with
+  the component it belongs to*, and carried as `TODO-BEFORE-RELEASE` into
+  [`Tech-Stack-Plan.md` §8.3](./Tech-Stack-Plan.md#83-release-gate-must-all-be-ticked), where Stage 15
+  owns it. An obligation that has quietly vanished from the file is the failure this looks for; one
+  that is written down and unfinished is the expected state.
 - **If it fails** S2 — the release gate ([`Tech-Stack-Plan.md` §8.3](./Tech-Stack-Plan.md#83-release-gate-must-all-be-ticked))
   depends on this file being right, and Stage 15 is a bad time to find out it is not.
+- **Result** ✅ **Passed after fixes.** Three findings, all fixed.
+  - **Versions check out.** All five entries that *can* be verified against this machine match:
+    Qt 6.11.1, GCC 13.1.0, mingw-w64 runtime 11.0 (`__MINGW64_VERSION_MAJOR/MINOR/BUGFIX` = 11/0/1),
+    PDFium 153.0.8009.0 (the `VERSION` file and `fetch-pdfium.ps1`'s pin agree), catch2 3.15.3 (from
+    vcpkg's own SBOM). The other twelve read `*(not resolved)*` because their features are off.
+  - **I-16** — the user checked entries at random, as the case asks, and found `leptonica`'s upstream
+    URL 302ing to SourceForge's project-hosting page instead of the project. A sweep of all 17
+    afterwards found no others; `libpng` moved from `http://` to `https://` in the same pass.
+  - **I-17** — `**MISSING**` meant two opposite things, one a release blocker and one routine, and
+    `*(not resolved)*` was never explained. Four states now, plus a legend, and
+    `gates.license_audit.notice_states_render` covers all four with the `EXPECT_FILE_MATCH` harness
+    support added for it.
+  - **I-18** — correcting A-12 to match the source-offer decision exposed that its Expect still named
+    Hunspell's election as **MPL-2.0**, which the project explicitly rejected in favour of LGPL-3.0.
+    An automated case had been passing against a condition that contradicted the shipped decision.
+  - **Source offers deliberately absent.** The LGPL-3.0 URLs for Qt and Hunspell stay
+    `TODO-BEFORE-RELEASE` — a tarball needs a release to host it against. The decision and the state
+    required before Stage 15 are now written in
+    [`Tech-Stack-Plan.md` §8.2](./Tech-Stack-Plan.md#82-third-party-license-register), and §8.3's gate
+    line was widened from Qt alone to **every** LGPL-3.0 component, which Hunspell needed.
+  - **No generation stamp, on purpose.** A timestamp would rewrite the file on every `checks` run,
+    dirtying `git status` and undoing I-08. Provenance comes from the release tag (§8.2).
+  - Signed off by the user, 2026-08-19.
 
 **M-07 · The plan's own claims survive contact** ☐
 - **Goal** Stage 0 sets conventions that sixteen stages inherit; this is the moment to reject one that
@@ -575,6 +607,9 @@ record.
 | I-13 | M-04 | With `VCPKG_ROOT` unset, `CMakePresets.json:37` expands `$env{VCPKG_ROOT}` to the **empty string** rather than erroring, so `CMAKE_TOOLCHAIN_FILE` became `/scripts/buildsystems/vcpkg.cmake` and CMake reported *"Could not find toolchain file"* for a path that never existed - naming neither the variable nor the fix, and followed by the usual two red herrings. This is the outcome M-04's Expect calls out by name. | Configure carries the same information `bootstrap.ps1` gives | S3 | M-04, 2026-08-19, with `%USERPROFILE%\vcpkg` renamed aside and the variable removed from the process | **Fixed** - `recto_preflight_vcpkg()`, opted into by the root with `recto_preflight(QT VCPKG)`, before `project()`. Two branches: unset (names `setx`'s already-open-shell trap, `env.ps1`, `bootstrap.ps1`, README) and set-but-no-clone (names the path and the clone/bootstrap commands). Two gate cases via `cmake -E env --unset=` |
 | I-14 | M-04 | `bootstrap.ps1`'s baseline check ran even with no clone present, so `git rev-parse` returned nothing and it printed *"the clone is at ."* - an empty revision rendered as a bare full stop, dressed as a `[WARN]`, directly beneath three `[FAIL]`s that had already said the directory does not exist. | No warning about a comparison that cannot be made | S4 | Same run | **Fixed** - the baseline check is skipped with an `[INFO]` line when there is no clone to compare against |
 | I-15 | M-05 | **`layer-lint` missed real violations.** Every fixture used one spelling, so only that spelling was ever tested. Three that compile and passed clean: `#include "../../pdf/cos/CosDict.h"` from `core/doc/` (the sibling form resolved to `core/doc/../../pdf/...` un-normalised, and the layer lookup matches on **prefix**, so an outward include was filed under `core/`); `#include <pdf/cos/CosDict.h>` (dismissed as external "by convention", though every layer target puts the source root on its include path, so it compiles like the quoted form); and `QFile` + `QIODevice::WriteOnly` in `ui/` (the write list had `QSaveFile` but no Qt open-mode at all). | The gate fails on a violation however it is spelled | **S1** | M-05, 2026-08-19. Probe tree of the three, plus the canonical form as a positive control in the same tree: canonical caught, all three missed. Re-run after the fix: **all three caught** | **Fixed** - `resolveInclude` normalises `..` segments and resolves angled includes that exist under the root; the write list gains `QIODevice::WriteOnly/Append/Truncate`, `QTemporaryFile`, `QFile::remove/rename/copy`. Matching is on the **open mode**, not on `QFile`, which is equally the idiomatic way to READ and would have buried the rule in waivers. A fourth spelling found on the second pass: `#include "Pdf/Cos/CosDict.h"` resolved on a case-insensitive filesystem and came back spelled as written, while the layer lookup's prefix test was case-sensitive - `startsWith` in `RuleSet.cpp` now folds case, which is safe because the tree's own paths are lowercase by convention. Five gate cases, one per spelling, plus a negative control that prose naming the forbidden things stays legal. `tests/gates/fixtures/layer-lint/README.md` added, listing what is covered **and what is not** - block comments, string literals holding `FPDF_`, computed includes, a write behind a helper - because the absence of that list is why three spellings went untested. Real tree still clean. 36/36 gates, 63/63 on `x64-debug` |
+| I-16 | M-06 | `leptonica`'s upstream URL, `https://leptonica.sourceforge.io/`, does not serve the project: it **302s to SourceForge's project-hosting page**. An upstream link is the one thing a licence notice must get right, since it is how a recipient reaches the source and the licence text. Found by the user checking entries at random, which is exactly what M-06 asks for. | Every upstream URL reaches the project | S3 | M-06, 2026-08-19. A sweep of all 17 URLs afterwards: **only this one** is broken; the other 16 return 200 | **Fixed** - now `https://github.com/DanBloomberg/leptonica`, which upstream's own README names as the official repository and which carries `leptonica-license.txt`. `www.leptonica.org` is the documentation site but serves no valid TLS, so it is not a link to put in a licence document. `libpng` moved from `http://` to `https://` in the same pass; the map now contains no plain-HTTP URL |
+| I-17 | M-06 | `THIRD-PARTY.md` used two markers it never explained. `*(not resolved)*` sat in twelve of seventeen Version cells, leaving an outside reader unable to tell whether those components ship. Worse, `**MISSING**` in the NOTICE column conflated two opposite meanings: *a required notice was looked for and is absent* - a release blocker - and *this configuration does not build the component, so nothing was looked for* - routine. `openssl` and `tesseract` both read `**MISSING**` for the second reason. | The table is legible to someone outside the project | S3 | M-06, 2026-08-19 | **Fixed** - the NOTICE column now renders four states (`n/a`, `not checked`, `yes`, `**MISSING**`), so the blocker cannot hide among the routine ones, and a legend under the table explains both markers. `openssl` and `tesseract` now read `not checked`. **Now tested.** `RunGateCase.cmake` gained `EXPECT_FILE_MATCH`, which checks patterns **line by line** - a pattern run against the whole file lets `.` cross newlines and match halves of two different rows. `gates.license_audit.notice_states_render` emits one file containing all four states from a purpose-built `installed-tree/` fixture: a port with a NOTICE, one without, one absent from the tree, and one requiring none. It asserts the legend too. The case expects **exit 1**, because the absent-NOTICE port is a genuine blocker and the emission happens anyway - by design, so the reader sees the inventory beside the failure |
+| I-18 | A-12 (this guide) | A-12's pass condition was stale in two ways. It required `THIRD-PARTY.md` to carry **Qt's source-offer URL**, which is deliberately deferred to the §8.3 release gate, and it named Hunspell's election as **MPL-2.0** - the branch the project explicitly did **not** take. T15 recorded the correction to LGPL-3.0 (one obligation model shared with Qt) but this case was never updated, so a passing A-12 was being scored against a condition that contradicted the shipped decision. | An automated case's Expect matches the decision it is checking | S3 | Found while recording the source-offer decision after M-06, 2026-08-19 | **Fixed** - A-12 now expects the LGPL-3.0 election and treats the source offers as *stated obligations*, pointing at `Tech-Stack-Plan.md` §8.2. The decision itself is now written in §8.2, and §8.3's gate line covers **every** LGPL-3.0 component rather than Qt alone |
 
 ---
 

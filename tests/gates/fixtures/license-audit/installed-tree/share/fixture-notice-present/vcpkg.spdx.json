@@ -1,0 +1,11 @@
+{
+  "packages": [
+    {
+      "name": "fixture-notice-present",
+      "versionInfo": "1.2.3",
+      "downloadLocation": "https://example.invalid/fixture-notice-present",
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0"
+    }
+  ]
+}

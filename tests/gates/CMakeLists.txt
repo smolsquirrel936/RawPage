@@ -11,7 +11,9 @@ set(FIXTURES "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set(RUNNER "${CMAKE_CURRENT_SOURCE_DIR}/RunGateCase.cmake")
 
 function(recto_add_gate_test)
-    cmake_parse_arguments(ARG "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXPECT_FILE;EXPECT_ABSENT" "COMMAND" ${ARGN})
+    cmake_parse_arguments(ARG "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXPECT_FILE;EXPECT_ABSENT" "COMMAND;EXPECT_FILE_MATCH" ${ARGN})
+    # Patterns travel joined by @@, because | is already the argument separator below.
+    string(REPLACE ";" "@@" file_match_str "${ARG_EXPECT_FILE_MATCH}")
     # '|' rather than ' ' as the separator: a toolchain case passes an argument that itself
     # contains spaces, and joining on space would split it back into two.
     string(REPLACE ";" "|" command_str "${ARG_COMMAND}")
@@ -22,6 +24,7 @@ function(recto_add_gate_test)
                 "-DEXPECT_MATCH=${ARG_EXPECT_MATCH}"
                 "-DEXPECT_FILE=${ARG_EXPECT_FILE}"
                 "-DEXPECT_ABSENT=${ARG_EXPECT_ABSENT}"
+                "-DEXPECT_FILE_MATCH=${file_match_str}"
                 -P "${RUNNER}")
 endfunction()
 
@@ -153,6 +156,30 @@ recto_add_gate_test(NAME gates.license_audit.emit_skipped_when_incomplete
             --emit ${LA_EMIT_SKIP}
     EXPECT_EXIT 0 EXPECT_MATCH "left unchanged"
     EXPECT_ABSENT ${LA_EMIT_SKIP})
+
+# I-17. The four NOTICE states in one emitted file. Rendered output had no coverage at all:
+# "**MISSING**" meant both "a required notice is absent" -- a release blocker -- and "this
+# configuration does not build it, so nothing was looked for", and the document an auditor reads
+# is exactly where those two must not look alike.
+set(LA_EMIT_STATES "${CMAKE_CURRENT_BINARY_DIR}/emit-notice-states.md")
+
+recto_add_gate_test(NAME gates.license_audit.notice_states_render
+    COMMAND ${LA} --manifest ${FIXTURES}/license-audit/manifest-notice-states.json
+            --spdx-map ${LA_FIXMAP}
+            --qt-modules ${FIXTURES}/license-audit/qt-modules-ok.txt
+            --vcpkg-installed ${FIXTURES}/license-audit/installed-tree
+            --emit ${LA_EMIT_STATES}
+    # Exit 1, not 0: fixture-notice-absent is a REAL blocker -- Apache-2.0 with the installed
+    # tree present and no NOTICE in it. The emission still happens, deliberately, so the reader
+    # sees the whole inventory next to what failed.
+    EXPECT_EXIT 1 EXPECT_MATCH "no NOTICE file"
+    EXPECT_FILE ${LA_EMIT_STATES}
+    EXPECT_FILE_MATCH
+        "fixture-notice-present.*1.2.3.*yes"
+        "fixture-notice-absent.*MISSING"
+        "fixture-notice-unbuilt.*not checked"
+        "fixture-lgpl-lib.*n/a"
+        "Reading this table")
 
 # NEGATIVE CONTROL: with both inputs present the emission must actually happen. Without
 # this, the case above is satisfied by a tool that never writes anything at all.
