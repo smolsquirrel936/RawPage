@@ -14,7 +14,7 @@ corpus -- encrypted, signed, tagged, XFA, and the malformed set -- belongs to St
 
 import pathlib
 
-CONTENT = b"BT /F1 24 Tf 72 760 Td (Recto corpus seed) Tj ET\n"
+CONTENT = b"BT /F1 24 Tf 72 760 Td (RawPage corpus seed) Tj ET\n"
 
 
 def build() -> bytes:

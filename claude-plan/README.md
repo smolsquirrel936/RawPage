@@ -1,9 +1,9 @@
-# Recto — Design Document Set
+# RawPage — Design Document Set
 
-Upfront design for **Recto**, a Windows-first desktop PDF editor modeled on
+Upfront design for **RawPage**, a Windows-first desktop PDF editor modeled on
 [Right PDF Professional](https://www.rightpdf.com/zh-TW/helpcontent/Right-PDF-Pro/20933-About-this-User-Manual).
 Produced with the [`design-pipeline`](./skills-specs-generation/SKILL.md) skill set, in dependency
-order. *"Recto" is a working codename — see open decision O9.*
+order.
 
 > **This file is an index only.** It owns no facts. Every statement about the product lives in
 > exactly one of the documents below, and the others cross-reference it rather than restating it.
@@ -16,8 +16,8 @@ order. *"Recto" is a working codename — see open decision O9.*
 | ② | **[Tech-Stack-Plan.md](./Tech-Stack-Plan.md)** | The locked stack and license posture, the directory layout and **inward-only dependency rule**, the **mutation-through-commands** cross-cutting design, and the risk-reducing first milestone. |
 | ③ | **[Architecture-FileMap.md](./Architecture-FileMap.md)** | What **every file** does and what it interacts with, plus the primary call-trace flows. |
 | ④ | **[Implementation-Plan.md](./Implementation-Plan.md)** | **Stage ordering and live status**, the shared conventions, the testing strategy and Definition of Done, milestones, and traceability. |
-| ⑤ | `Stage<N>-<Area>-Plan.md` — **[Stage 0's is written](./Stage0-Toolchain-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
-| ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **[Stage 0's is written](./Stage0-Toolchain-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
+| ⑤ | `Stage<N>-<Area>-Plan.md` — **written for [Stage 0](./Stage0-Toolchain-Plan.md) and [Stage 1](./Stage1-AppShell-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
+| ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **written for [Stage 0](./Stage0-Toolchain-Testing-Guide.md) and [Stage 1](./Stage1-AppShell-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
 
 **⑤ and ⑥ are forms, not a full set of existing files.** One guide per stage, written **immediately
 after that stage's plan and before its first line of code** — the sequence is
@@ -58,7 +58,7 @@ links from `g++`).
 What exists is *scaffolding*: a pinned toolchain that refuses anything else, two live enforcement
 gates with 23 fixtures, the build and CI, and the four `core/` vocabulary headers. **No document code
 exists** — nothing in `core/doc/`, `core/cmd/`, `pdf/cos/`, `pdf/render/`, `ui/`, `platform/win/` or
-`app/`, and `recto.exe` opens no window. Stages 1–16 are `⚪ not started`.
+`app/`, and `rawpage.exe` opens no window. Stages 1–16 are `⚪ not started`.
 
 **Stage 0 is not done.** Its Definition of Done requires ⑥'s manual section — M-01 through M-07 —
 walked and signed off by a person, and no manual case has been walked. "Automated green, manual not

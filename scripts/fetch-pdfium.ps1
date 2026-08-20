@@ -33,7 +33,7 @@ $Asset        = 'pdfium-win-x64.tgz'     # NOT the -v8- variant; see the note be
 $ExpectedHash = 'c78a8cd51b48abafcb266d868e401afefda1d189aa01ebbe743dc1d144e06031'
 $PdfiumVersion = '153.0.8009.0'
 
-# The v8 build is 12.5 MB against 3.7 MB and carries a JavaScript engine. Recto uses PDFium
+# The v8 build is 12.5 MB against 3.7 MB and carries a JavaScript engine. RawPage uses PDFium
 # for READ AND RASTER ONLY, so V8 would be ~9 MB and a large attack surface for an entry
 # point we never call. If PDF form JavaScript is ever wanted (Features.md 9.1 reserves a
 # javascript/ settings group), that is a decision for Stage 9 with its own security review,
@@ -91,4 +91,4 @@ Write-Host ""
 Write-Host "PDFium $PdfiumVersion ready:" -ForegroundColor Green
 Write-Host "  headers      $target\include"
 Write-Host "  import lib   $target\lib\libpdfium.dll.a"
-Write-Host "  runtime DLL  $target\bin\pdfium.dll   (must sit beside recto.exe, or be on PATH)"
+Write-Host "  runtime DLL  $target\bin\pdfium.dll   (must sit beside rawpage.exe, or be on PATH)"

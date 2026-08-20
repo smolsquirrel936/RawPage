@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-  "name": "recto",
+  "name": "rawpage",
   "version": "0.1.0",
   "description": "Windows-first desktop PDF editor",
-  "homepage": "https://github.com/smolsquirrel936/Recto",
+  "homepage": "https://github.com/smolsquirrel936/RawPage",
   "license": null,
 
   "$comment-license": [
-    "license is null because Recto's own source is proprietary (Tech-Stack-Plan.md 8.1).",
+    "license is null because RawPage's own source is proprietary (Tech-Stack-Plan.md 8.1).",
     "null means 'not an SPDX expression', which is the honest value here."
   ],
 

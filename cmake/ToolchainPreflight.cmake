@@ -9,37 +9,37 @@
 # cmake/toolchain-mingw.cmake includes this module as well, so the wording exists in exactly
 # one place and still fires for anyone who configures with -DCMAKE_TOOLCHAIN_FILE and no
 # preflight. Only the EXISTS checks are safe there: that file is re-read for EVERY
-# try_compile(). recto_preflight_compiler_runs() starts a process and is preflight-only.
+# try_compile(). rawpage_preflight_compiler_runs() starts a process and is preflight-only.
 
 include_guard(GLOBAL)
 
 # The pin's two roots, defined here because preflight runs before the toolchain file has been
 # read and both need the same defaults. CACHE set is idempotent, so the toolchain file's own
 # include of this module is a no-op.
-set(RECTO_MINGW_ROOT "C:/Qt/Tools/mingw1310_64"
+set(RAWPAGE_MINGW_ROOT "C:/Qt/Tools/mingw1310_64"
     CACHE PATH "Root of the pinned MinGW-w64 GCC 13.1.0 -- Qt's own bundled compiler")
-set(RECTO_QT_PREFIX "C:/Qt/6.11.1/mingw_64"
+set(RAWPAGE_QT_PREFIX "C:/Qt/6.11.1/mingw_64"
     CACHE PATH "Qt 6.11.1 MinGW prefix")
 
-function(recto_preflight_mingw_root)
-    if(NOT EXISTS "${RECTO_MINGW_ROOT}/bin/g++.exe")
+function(rawpage_preflight_mingw_root)
+    if(NOT EXISTS "${RAWPAGE_MINGW_ROOT}/bin/g++.exe")
         message(FATAL_ERROR
-            "\nNo g++.exe under RECTO_MINGW_ROOT='${RECTO_MINGW_ROOT}'.\n\n"
-            "Recto builds with Qt's own bundled compiler. Install the 'MinGW 13.1.0 64-bit' "
-            "tool package with the Qt Maintenance Tool, or point RECTO_MINGW_ROOT at an "
+            "\nNo g++.exe under RAWPAGE_MINGW_ROOT='${RAWPAGE_MINGW_ROOT}'.\n\n"
+            "RawPage builds with Qt's own bundled compiler. Install the 'MinGW 13.1.0 64-bit' "
+            "tool package with the Qt Maintenance Tool, or point RAWPAGE_MINGW_ROOT at an "
             "existing Qt Tools MinGW install:\n"
-            "    cmake --preset x64-release -DRECTO_MINGW_ROOT=<path>\n")
+            "    cmake --preset x64-release -DRAWPAGE_MINGW_ROOT=<path>\n")
     endif()
 endfunction()
 
-function(recto_preflight_qt_prefix)
-    if(NOT EXISTS "${RECTO_QT_PREFIX}")
+function(rawpage_preflight_qt_prefix)
+    if(NOT EXISTS "${RAWPAGE_QT_PREFIX}")
         message(FATAL_ERROR
-            "\nRECTO_QT_PREFIX='${RECTO_QT_PREFIX}' does not exist.\n\n"
+            "\nRAWPAGE_QT_PREFIX='${RAWPAGE_QT_PREFIX}' does not exist.\n\n"
             "Nothing was found there, so this is NOT the 'a second Qt won the search' case "
-            "that TA-8 reports -- the path is simply not present. Recto links Qt 6.11.1 from "
-            "Qt's official MinGW install; point RECTO_QT_PREFIX at it:\n"
-            "    cmake --preset x64-release -DRECTO_QT_PREFIX=C:/Qt/6.11.1/mingw_64\n")
+            "that TA-8 reports -- the path is simply not present. RawPage links Qt 6.11.1 from "
+            "Qt's official MinGW install; point RAWPAGE_QT_PREFIX at it:\n"
+            "    cmake --preset x64-release -DRAWPAGE_QT_PREFIX=C:/Qt/6.11.1/mingw_64\n")
     endif()
 endfunction()
 
@@ -50,16 +50,16 @@ endfunction()
 # lib/gcc/<triple>/<version>/, which is NOT the driver's directory, so the DLLs sitting beside
 # g++.exe are never found. Costs one process per configure, and runs once because preflight
 # is called from the top-level CMakeLists rather than from the toolchain file.
-function(recto_preflight_compiler_runs)
+function(rawpage_preflight_compiler_runs)
     # -fsyntax-only on an empty translation unit, NOT -dumpversion. The driver answers
     # -dumpversion by itself and reports success even when the toolchain is unusable; only a
     # real compile spawns cc1plus, which is the process that cannot find its DLLs. Measured:
     # a real MSYS2 g++ with its bin off PATH passes -dumpversion and fails this.
-    set(_probe "${CMAKE_CURRENT_BINARY_DIR}/recto-preflight-probe.cpp")
+    set(_probe "${CMAKE_CURRENT_BINARY_DIR}/rawpage-preflight-probe.cpp")
     file(WRITE "${_probe}" "int main() { return 0; }\n")
 
     execute_process(
-        COMMAND "${RECTO_MINGW_ROOT}/bin/g++.exe" -x c++ -fsyntax-only "${_probe}"
+        COMMAND "${RAWPAGE_MINGW_ROOT}/bin/g++.exe" -x c++ -fsyntax-only "${_probe}"
         RESULT_VARIABLE _rc
         OUTPUT_VARIABLE _out
         ERROR_VARIABLE  _err)
@@ -67,14 +67,14 @@ function(recto_preflight_compiler_runs)
     if(NOT _rc STREQUAL "0")
         message(FATAL_ERROR
             "\nThe pinned compiler is present but cannot compile:\n"
-            "    ${RECTO_MINGW_ROOT}/bin/g++.exe -x c++ -fsyntax-only <empty file>\n"
+            "    ${RAWPAGE_MINGW_ROOT}/bin/g++.exe -x c++ -fsyntax-only <empty file>\n"
             "  exit:   ${_rc}\n"
             "  stderr: ${_err}\n\n"
             "On Windows this is almost always PATH. A mingw g++ spawns cc1plus.exe from "
             "lib/gcc/<triple>/<version>/, which is NOT the driver's own directory, so the "
             "DLLs sitting beside g++.exe are never found -- the driver starts, the compiler "
             "proper does not, and it fails with no output at all. Put "
-            "${RECTO_MINGW_ROOT}/bin on PATH; for the pinned toolchain that is what "
+            "${RAWPAGE_MINGW_ROOT}/bin on PATH; for the pinned toolchain that is what "
             "scripts/env.ps1 does:
 "
             "    . ./scripts/env.ps1\n")
@@ -87,7 +87,7 @@ endfunction()
 # "Could not find toolchain file: /scripts/buildsystems/vcpkg.cmake" -- a path that never
 # existed, naming neither the variable nor the fix. Checked here because preflight runs
 # before project(), which is where CMake would otherwise resolve it.
-function(recto_preflight_vcpkg)
+function(rawpage_preflight_vcpkg)
     # TO_CMAKE_PATH so the message does not come out as
     # "C:\Users\squirrel\vcpkg/bootstrap-vcpkg.bat", half one separator and half the other.
     file(TO_CMAKE_PATH "$ENV{VCPKG_ROOT}" _root)
@@ -118,14 +118,14 @@ endfunction()
 
 # Everything the pin can check before a compiler exists. Callers decide whether Qt applies:
 # the gate and portable configurations build without it.
-macro(recto_preflight)
-    cmake_parse_arguments(_RECTO_PF "QT;VCPKG" "" "" ${ARGN})
-    recto_preflight_mingw_root()
-    recto_preflight_compiler_runs()
-    if(_RECTO_PF_QT)
-        recto_preflight_qt_prefix()
+macro(rawpage_preflight)
+    cmake_parse_arguments(_RAWPAGE_PF "QT;VCPKG" "" "" ${ARGN})
+    rawpage_preflight_mingw_root()
+    rawpage_preflight_compiler_runs()
+    if(_RAWPAGE_PF_QT)
+        rawpage_preflight_qt_prefix()
     endif()
-    if(_RECTO_PF_VCPKG)
-        recto_preflight_vcpkg()
+    if(_RAWPAGE_PF_VCPKG)
+        rawpage_preflight_vcpkg()
     endif()
 endmacro()

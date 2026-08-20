@@ -1,5 +1,5 @@
-#ifndef RECTO_LAYER_LINT_LAYERLINT_H
-#define RECTO_LAYER_LINT_LAYERLINT_H
+#ifndef RAWPAGE_LAYER_LINT_LAYERLINT_H
+#define RAWPAGE_LAYER_LINT_LAYERLINT_H
 
 #include "tools/layer-lint/IncludeGraph.h"
 #include "tools/layer-lint/RuleSet.h"
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace recto::tools {
+namespace rawpage::tools {
 
 struct Violation {
     std::string file;
@@ -28,6 +28,6 @@ int run(const IncludeGraph& graph, const RuleSet& rules);
 // --explain: the include graph, the active rules, and every live escape.
 void explain(const IncludeGraph& graph, const RuleSet& rules, std::ostream& out, bool asDot);
 
-} // namespace recto::tools
+} // namespace rawpage::tools
 
-#endif // RECTO_LAYER_LINT_LAYERLINT_H
+#endif // RAWPAGE_LAYER_LINT_LAYERLINT_H

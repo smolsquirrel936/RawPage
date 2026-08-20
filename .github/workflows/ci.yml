@@ -1,4 +1,4 @@
-# Recto CI.
+# RawPage CI.
 #
 # THE ORDERING IS THE POINT. `gates` runs first, on a bare Linux runner with no Qt and no
 # vcpkg, and everything else `needs:` it. A layering or licence violation therefore fails in
@@ -6,7 +6,7 @@
 # Tech-Stack-Plan.md 9: "checks must pass before compilation".
 #
 # That is only possible because the gate executables link nothing but the C++ standard
-# library (decision D0-1) and the root CMakeLists has a RECTO_GATES_ONLY configuration that
+# library (decision D0-1) and the root CMakeLists has a RAWPAGE_GATES_ONLY configuration that
 # does not call find_package(Qt6). Measured locally: 3.8 s from configure to green.
 
 name: CI
@@ -86,13 +86,13 @@ jobs:
   #
   # This job is gated on a repository variable so the workflow stays green until a runner is
   # registered. That is deliberate: a job queued forever, or one marked continue-on-error,
-  # would claim coverage the project does not have. Set RECTO_HAS_WINDOWS_RUNNER=true once
+  # would claim coverage the project does not have. Set RAWPAGE_HAS_WINDOWS_RUNNER=true once
   # the runner exists.
   # -------------------------------------------------------------------------------------
   windows:
     name: Windows x64 (Qt 6.11.1, MinGW 13.1.0)
     needs: gates
-    if: vars.RECTO_HAS_WINDOWS_RUNNER == 'true'
+    if: vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'
     runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v4
@@ -111,8 +111,8 @@ jobs:
         run: |
           . .\scripts\env.ps1
           echo "$env:PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "RECTO_MINGW_ROOT=$env:RECTO_MINGW_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "RECTO_QT_PREFIX=$env:RECTO_QT_PREFIX"   | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "RAWPAGE_MINGW_ROOT=$env:RAWPAGE_MINGW_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "RAWPAGE_QT_PREFIX=$env:RAWPAGE_QT_PREFIX"   | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "VCPKG_ROOT=$env:VCPKG_ROOT"             | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify the toolchain is the pinned one
@@ -145,11 +145,11 @@ jobs:
       - name: Verify linkage
         shell: pwsh
         run: |
-          $imports = objdump -p build/x64-release/bin/recto.exe | Select-String 'DLL Name'
+          $imports = objdump -p build/x64-release/bin/rawpage.exe | Select-String 'DLL Name'
           $imports
-          if ($imports -match 'ucrtbase\.dll') { throw "recto.exe imports ucrtbase.dll -- the CRT no longer matches Qt's" }
-          if ($imports -match 'Qt6Charts')     { throw "recto.exe imports Qt6Charts -- GPL-3.0-only module linked (D4)" }
-          if (-not ($imports -match 'msvcrt\.dll')) { throw "recto.exe does not import msvcrt.dll" }
+          if ($imports -match 'ucrtbase\.dll') { throw "rawpage.exe imports ucrtbase.dll -- the CRT no longer matches Qt's" }
+          if ($imports -match 'Qt6Charts')     { throw "rawpage.exe imports Qt6Charts -- GPL-3.0-only module linked (D4)" }
+          if (-not ($imports -match 'msvcrt\.dll')) { throw "rawpage.exe does not import msvcrt.dll" }
 
   # =====================================================================================
   # 3. The sanitizer gate MinGW GCC cannot give us on Windows (risk R7).

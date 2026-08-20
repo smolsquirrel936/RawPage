@@ -1,13 +1,12 @@
-# Recto — Feature Specification (Capability Catalog)
+# RawPage — Feature Specification (Capability Catalog)
 
-**Recto** (working codename — rename freely; it is the front side of a printed leaf) is a desktop
-PDF editor for Windows whose purpose is to **view, edit, review, assemble, fill, secure and sign
-PDF documents in one application**, with a signature *dual-mode editing model*: a fixed-layout
-**Review mode** for object-level work on the PDF as-authored, and a reflowable **Write mode** that
-turns a PDF into a word-processor document and back. The platform posture is **Windows-first with a
-portable core** — the OS-specific surface is enumerated in §10 so it can sit behind a thin
-abstraction from day one. The product is modeled on **Right PDF Professional (Windows)**, whose
-published user manual is the primary requirements source.
+**RawPage** is a desktop PDF editor for Windows whose purpose is to **view, edit, review, assemble,
+fill, secure and sign PDF documents in one application**, with a signature *dual-mode editing
+model*: a fixed-layout **Review mode** for object-level work on the PDF as-authored, and a
+reflowable **Write mode** that turns a PDF into a word-processor document and back. The platform
+posture is **Windows-first with a portable core** — the OS-specific surface is enumerated in §10 so
+it can sit behind a thin abstraction from day one. The product is modeled on **Right PDF
+Professional (Windows)**, whose published user manual is the primary requirements source.
 
 > ## Reference catalog only
 >
@@ -33,17 +32,17 @@ published user manual is the primary requirements source.
 shortcut table; it documents shortcuts only incidentally (S3 confirms arrow-key paging and the
 page-number box). The §8 tables are therefore **specified for this product**, following
 Acrobat-family conventions in reading/review contexts and word-processor conventions in Write mode.
-They are authoritative *for Recto* — every downstream document treats §8 as the single source of
+They are authoritative *for RawPage* — every downstream document treats §8 as the single source of
 truth for chords — but they are **not** claimed to reproduce Right PDF's defaults. Where a chord is
 inherited from a well-known convention it is marked *(Acrobat)* or *(word-processor)*.
 
 > ### Legend
 >
-> - ⭐ = **signature feature** — something that defines what Recto *is*, not incidental surface.
+> - ⭐ = **signature feature** — something that defines what RawPage *is*, not incidental surface.
 > - *(Acrobat)* / *(word-processor)* = the convention a default key binding is inherited from.
 > - "destructive" on a page operation = it modifies the saved document, as opposed to a view-only change.
 
-Recto has **seven major functionalities**:
+RawPage has **seven major functionalities**:
 
 1. **View & Find** ⭐ — the workspace, page display, navigation, comparison, and search/indexing.
 2. **Create & Export** — every path into and out of PDF.
@@ -879,7 +878,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Apply to a page range, or to odd or even pages only.
 - Preview before applying.
 - Update an existing header/footer in place.
-- Remove a header/footer added by Recto.
+- Remove a header/footer added by RawPage.
 - Save a header/footer configuration as a named profile.
 - Load and delete profiles.
 - Bates numbering: prefix, suffix, digit count, and start number.
@@ -898,7 +897,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Show on screen but not when printing, or vice versa.
 - Preview before applying.
 - Update an existing watermark.
-- Remove a watermark added by Recto.
+- Remove a watermark added by RawPage.
 - Save, load, and delete watermark profiles.
 
 ### 5.9 Imposition
@@ -1543,7 +1542,7 @@ FDF, XFDF, XML, CSV form data · XFDF comment exchange.
 ### 9.4 Operating-system integration
 
 - Register as a PDF handler; set as the default PDF application; per-user and per-machine association.
-- Explorer context-menu verbs: Open with Recto, Combine to PDF, Convert to PDF, Print with Recto.
+- Explorer context-menu verbs: Open with RawPage, Combine to PDF, Convert to PDF, Print with RawPage.
 - Shell thumbnail provider for PDF files.
 - Shell preview-pane handler.
 - Content-indexing filter so the OS search index can read PDF text.

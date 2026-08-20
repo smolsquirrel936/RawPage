@@ -25,14 +25,14 @@
 # and no preflight -- but note that a FATAL_ERROR raised from this file lands mid-detection
 # and CMake prints two red herrings after it (I-12). The clean abort is the preflight call.
 #
-# Only the EXISTS checks are called here. recto_preflight_compiler_runs() starts a process and
+# Only the EXISTS checks are called here. rawpage_preflight_compiler_runs() starts a process and
 # would do so for every try_compile(), which this file's contract forbids.
 include("${CMAKE_CURRENT_LIST_DIR}/ToolchainPreflight.cmake")
 
 # try_compile() runs in a fresh cache, so without this the values above revert to
 # their defaults inside every probe -- and an overridden root would be silently
 # ignored exactly where it matters.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RECTO_MINGW_ROOT RECTO_QT_PREFIX)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RAWPAGE_MINGW_ROOT RAWPAGE_QT_PREFIX)
 
 # NOTE: CMAKE_SYSTEM_NAME is deliberately NOT set here.
 # We build Windows binaries on Windows. Setting CMAKE_SYSTEM_NAME in a toolchain file
@@ -41,8 +41,8 @@ list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RECTO_MINGW_ROOT RECTO_QT_PREFI
 # for no benefit on a native build. The plan sketched it; the implementation drops it
 # on purpose.
 
-recto_preflight_mingw_root()
-recto_preflight_qt_prefix()
+rawpage_preflight_mingw_root()
+rawpage_preflight_qt_prefix()
 
 # A -fplugin flag is checked HERE as well as in TA-9, and the duplication is deliberate.
 # TA-9 runs after project(), which is too late for one case: a plugin that fails to load
@@ -57,15 +57,15 @@ foreach(_flag_var CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
         message(FATAL_ERROR
             "\n${_flag_var} loads a GCC plugin: '${${_flag_var}}'\n\n"
             "A non-free compiler plugin voids the GCC Runtime Library Exception, which is "
-            "the only thing permitting Recto to ship proprietary binaries linked against "
-            "libstdc++. Losing it would relicense Recto's own source under GPL-3.0. "
+            "the only thing permitting RawPage to ship proprietary binaries linked against "
+            "libstdc++. Losing it would relicense RawPage's own source under GPL-3.0. "
             "See Tech-Stack-Plan.md 8.1.\n")
     endif()
 endforeach()
 
-set(CMAKE_C_COMPILER   "${RECTO_MINGW_ROOT}/bin/gcc.exe")
-set(CMAKE_CXX_COMPILER "${RECTO_MINGW_ROOT}/bin/g++.exe")
-set(CMAKE_RC_COMPILER  "${RECTO_MINGW_ROOT}/bin/windres.exe")
+set(CMAKE_C_COMPILER   "${RAWPAGE_MINGW_ROOT}/bin/gcc.exe")
+set(CMAKE_CXX_COMPILER "${RAWPAGE_MINGW_ROOT}/bin/g++.exe")
+set(CMAKE_RC_COMPILER  "${RAWPAGE_MINGW_ROOT}/bin/windres.exe")
 
 # Ninja ships with the Qt install too (Tech-Stack-Plan.md 6.3: the Qt installation IS
 # the build environment). Naming it here means a clean machine does not additionally
@@ -74,4 +74,4 @@ if(EXISTS "C:/Qt/Tools/Ninja/ninja.exe" AND NOT DEFINED CMAKE_MAKE_PROGRAM)
     set(CMAKE_MAKE_PROGRAM "C:/Qt/Tools/Ninja/ninja.exe" CACHE FILEPATH "")
 endif()
 
-list(APPEND CMAKE_PREFIX_PATH "${RECTO_QT_PREFIX}")
+list(APPEND CMAKE_PREFIX_PATH "${RAWPAGE_QT_PREFIX}")

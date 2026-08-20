@@ -5,14 +5,14 @@
 // what a layer may include should be a reviewable one-line diff with a reason attached,
 // not a recompile that nobody reads.
 
-#ifndef RECTO_LAYER_LINT_RULESET_H
-#define RECTO_LAYER_LINT_RULESET_H
+#ifndef RAWPAGE_LAYER_LINT_RULESET_H
+#define RAWPAGE_LAYER_LINT_RULESET_H
 
 #include <filesystem>
 #include <string>
 #include <vector>
 
-namespace recto::tools {
+namespace rawpage::tools {
 
 struct Layer {
     std::string name;
@@ -60,6 +60,6 @@ private:
     std::filesystem::path sourcePath_;
 };
 
-} // namespace recto::tools
+} // namespace rawpage::tools
 
-#endif // RECTO_LAYER_LINT_RULESET_H
+#endif // RAWPAGE_LAYER_LINT_RULESET_H

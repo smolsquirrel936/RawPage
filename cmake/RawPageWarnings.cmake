@@ -1,4 +1,4 @@
-# RectoWarnings.cmake -- the one place compiler and linker flags are decided.
+# RawPageWarnings.cmake -- the one place compiler and linker flags are decided.
 #
 # Flags are applied through these functions and NEVER pasted into a target's own
 # CMakeLists. A per-target flag list is how a codebase ends up with three different
@@ -15,7 +15,7 @@ include_guard(GLOBAL)
 # for the GCC runtime under its Runtime Library Exception. It is also an ABI hazard:
 # a statically linked libstdc++ beside a dynamically linked Qt built against the
 # shared one is a crash waiting for a release build. Checked here rather than trusted.
-function(_recto_assert_no_static_runtime)
+function(_rawpage_assert_no_static_runtime)
     foreach(var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_MINSIZEREL
@@ -23,7 +23,7 @@ function(_recto_assert_no_static_runtime)
         if(${var} MATCHES "(^| )-static(-libstdc\\+\\+|-libgcc)?( |$)")
             message(FATAL_ERROR
                 "${var} contains a -static* flag: '${${var}}'\n"
-                "Recto ships Qt and the GCC runtime as replaceable DLLs beside the "
+                "RawPage ships Qt and the GCC runtime as replaceable DLLs beside the "
                 "executable. Static linking breaches the LGPL obligation in "
                 "Tech-Stack-Plan.md 8.1 and is an ABI hazard against the dynamically "
                 "linked Qt. Remove the flag.")
@@ -31,12 +31,12 @@ function(_recto_assert_no_static_runtime)
     endforeach()
 endfunction()
 
-_recto_assert_no_static_runtime()
+_rawpage_assert_no_static_runtime()
 
 # --- The common flag set -----------------------------------------------------
-# Applied to every Recto target. Warnings are NOT errors here -- recto_strict() and
-# recto_ui_grace() decide that per layer.
-function(recto_common_flags target)
+# Applied to every RawPage target. Warnings are NOT errors here -- rawpage_strict() and
+# rawpage_ui_grace() decide that per layer.
+function(rawpage_common_flags target)
     set_target_properties(${target} PROPERTIES
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
@@ -108,8 +108,8 @@ endfunction()
 #
 # The same table row also names clang-tidy, which does work on C++ and is the real static
 # analysis route. Recorded as a Stage 0 finding against the owning document.
-function(recto_strict target)
-    recto_common_flags(${target})
+function(rawpage_strict target)
+    rawpage_common_flags(${target})
     target_compile_options(${target} PRIVATE -Werror)
 endfunction()
 
@@ -117,15 +117,15 @@ endfunction()
 # The list below is the entire negotiated exception surface for ui/. Every entry is
 # a debt with a reason. Adding one is a decision that shows up in a diff; removing
 # one is the goal. It must never grow.
-set(RECTO_UI_WARNING_GRACE
+set(RAWPAGE_UI_WARNING_GRACE
     # (empty -- ui/ has no code yet. Stage 1 adds entries here only with a reason.)
     CACHE STRING "Warnings tolerated in ui/. This list may only shrink.")
-mark_as_advanced(RECTO_UI_WARNING_GRACE)
+mark_as_advanced(RAWPAGE_UI_WARNING_GRACE)
 
-function(recto_ui_grace target)
-    recto_common_flags(${target})
+function(rawpage_ui_grace target)
+    rawpage_common_flags(${target})
     target_compile_options(${target} PRIVATE -Werror)
-    foreach(w IN LISTS RECTO_UI_WARNING_GRACE)
+    foreach(w IN LISTS RAWPAGE_UI_WARNING_GRACE)
         target_compile_options(${target} PRIVATE ${w})
     endforeach()
 endfunction()
@@ -142,7 +142,7 @@ endfunction()
 # implementation. Turning it on now would mean inventing a wWinMain stub whose only
 # purpose is to satisfy a flag -- which is how a codebase acquires code nobody can
 # explain.
-function(recto_app_flags target)
-    recto_common_flags(${target})
+function(rawpage_app_flags target)
+    rawpage_common_flags(${target})
     target_link_options(${target} PRIVATE -mwindows)
 endfunction()

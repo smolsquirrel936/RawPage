@@ -10,7 +10,7 @@
 # portable-asan preset builds exactly this on Linux, so a leak in the boundary shows
 # up as a build failure on a machine that has neither.
 
-add_library(recto_core STATIC
+add_library(rawpage_core STATIC
     CoreModule.cpp
     Result.h
     Log.h
@@ -18,7 +18,7 @@ add_library(recto_core STATIC
     Units.h
 )
 
-target_include_directories(recto_core PUBLIC "${CMAKE_SOURCE_DIR}")
+target_include_directories(rawpage_core PUBLIC "${CMAKE_SOURCE_DIR}")
 
-recto_link_qt(recto_core Core)
-recto_strict(recto_core)          # -Werror: no warning survives in core/
+rawpage_link_qt(rawpage_core Core)
+rawpage_strict(rawpage_core)          # -Werror: no warning survives in core/

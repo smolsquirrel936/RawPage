@@ -4,6 +4,6 @@
 //   #include "pdf/cos/CosDict.h"
 //   FPDF_InitLibrary();
 //   QIODevice::WriteOnly
-namespace recto::core {
+namespace rawpage::core {
 void documented() {}
 }

@@ -3,6 +3,6 @@
 // this shape.
 #include <fstream>
 
-namespace recto::ui {
+namespace rawpage::ui {
 void offend() { std::ofstream out("notes.txt"); }  // layer-lint: allow-nonsense(not a real rule)
 }

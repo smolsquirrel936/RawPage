@@ -19,7 +19,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "RECTO_GATES_ONLY": "ON",
+        "RAWPAGE_GATES_ONLY": "ON",
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
@@ -38,7 +38,7 @@
         "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchain-mingw.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
         "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic",
-        "RECTO_TARGET_ARCH": "x64"
+        "RAWPAGE_TARGET_ARCH": "x64"
       }
     },
     {
@@ -71,7 +71,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "RECTO_TARGET_ARCH": "arm64"
+        "RAWPAGE_TARGET_ARCH": "arm64"
       }
     },
     {
@@ -85,7 +85,7 @@
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "RECTO_PORTABLE_SUBSET": "ON",
+        "RAWPAGE_PORTABLE_SUBSET": "ON",
         "VCPKG_TARGET_TRIPLET": "x64-linux",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
@@ -110,7 +110,7 @@
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++",
-        "RECTO_BUILD_FUZZERS": "ON",
+        "RAWPAGE_BUILD_FUZZERS": "ON",
         "CMAKE_CXX_FLAGS": "-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer"
       }
     }

@@ -12,12 +12,12 @@
 #
 # In one line: we read through PDFium and write through our own code.
 
-add_library(recto_pdf STATIC
+add_library(rawpage_pdf STATIC
     PdfModule.cpp
 )
 
-target_include_directories(recto_pdf PUBLIC "${CMAKE_SOURCE_DIR}")
+target_include_directories(rawpage_pdf PUBLIC "${CMAKE_SOURCE_DIR}")
 
-target_link_libraries(recto_pdf PUBLIC recto_core)
+target_link_libraries(rawpage_pdf PUBLIC rawpage_core)
 
-recto_strict(recto_pdf)           # -Werror: no warning survives in pdf/ either
+rawpage_strict(rawpage_pdf)           # -Werror: no warning survives in pdf/ either

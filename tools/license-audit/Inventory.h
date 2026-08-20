@@ -14,8 +14,8 @@
 // no-GPL rule is enforced either way. Only the release gate (Stage 15) demands exact
 // versions for every row.
 
-#ifndef RECTO_LICENSE_AUDIT_INVENTORY_H
-#define RECTO_LICENSE_AUDIT_INVENTORY_H
+#ifndef RAWPAGE_LICENSE_AUDIT_INVENTORY_H
+#define RAWPAGE_LICENSE_AUDIT_INVENTORY_H
 
 #include "tools/license-audit/LicenseAudit.h"
 
@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-namespace recto::tools {
+namespace rawpage::tools {
 
 struct InventoryInputs {
     std::filesystem::path manifestPath;        // vcpkg.json                       (required)
@@ -39,6 +39,6 @@ struct InventoryInputs {
 VcpkgManifest loadManifest(const InventoryInputs& inputs);
 QtModuleList loadQtModules(const std::filesystem::path& qtModulesPath);
 
-} // namespace recto::tools
+} // namespace rawpage::tools
 
-#endif // RECTO_LICENSE_AUDIT_INVENTORY_H
+#endif // RAWPAGE_LICENSE_AUDIT_INVENTORY_H

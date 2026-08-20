@@ -12,7 +12,7 @@
 >
 > Walking the manual half produced **22 issue-log entries**, three of them **S1**, and took the suite
 > from 50 tests to **66 on Windows** (39 gate + 27 unit) and **52 on Linux**. CI run
-> [`32207889494`](https://github.com/smolsquirrel936/Recto/actions/runs/32207889494), 2026-08-19,
+> [`32207889494`](https://github.com/smolsquirrel936/RawPage/actions/runs/32207889494), 2026-08-19,
 > is green on all three jobs at exactly those figures: `gates` 25, `windows` 66, `portable-asan` 52.
 > **No open S1 or S2.** Everything found is in the [issue log](#8-issue-log).
 >
@@ -41,7 +41,7 @@ to "fix" them early.
 
 | Not present at Stage 0 | Arrives at |
 |---|---|
-| `recto.exe` does anything at all — it opens no window, prints nothing, returns 0 | Stage 1 |
+| `rawpage.exe` does anything at all — it opens no window, prints nothing, returns 0 | Stage 1 |
 | `mutation-lint` and `i18n-lint` — **only two of the four gates exist** | Stages 3 and 1 |
 | Any settings key, any `tr()` string, any ribbon, any document | Stages 1–2 |
 | Golden-image, round-trip, and bench suites | Stages 2–3 |
@@ -84,7 +84,7 @@ cmake --build --preset x64-release
 ctest --preset x64-debug --output-on-failure
 ```
 
-**What "launched" looks like at this stage:** `recto.exe` is a GUI-subsystem binary that creates no
+**What "launched" looks like at this stage:** `rawpage.exe` is a GUI-subsystem binary that creates no
 window and writes nothing. It has run correctly when it exits `0`. There is nothing to look at — that
 is expected, not a failure.
 
@@ -95,11 +95,11 @@ settings table.
 
 | Variable | Where set | Default | Effect | Cases that must change it |
 |---|---|---|---|---|
-| `RECTO_MINGW_ROOT` | CMake cache | `C:/Qt/Tools/mingw1310_64` | The pinned compiler ([plan §5.1](./Stage0-Toolchain-Plan.md#51-cmaketoolchain-mingwcmake--cmaketoolchainassertcmake)) | A-04, M-02 |
-| `RECTO_QT_PREFIX` | CMake cache | `C:/Qt/6.11.1/mingw_64` | Qt location; TA-8 | M-03 |
+| `RAWPAGE_MINGW_ROOT` | CMake cache | `C:/Qt/Tools/mingw1310_64` | The pinned compiler ([plan §5.1](./Stage0-Toolchain-Plan.md#51-cmaketoolchain-mingwcmake--cmaketoolchainassertcmake)) | A-04, M-02 |
+| `RAWPAGE_QT_PREFIX` | CMake cache | `C:/Qt/6.11.1/mingw_64` | Qt location; TA-8 | M-03 |
 | `VCPKG_ROOT` | environment | `C:\Users\squirrel\vcpkg` | Dependency resolution | A-60, M-04 |
 | `VCPKG_TARGET_TRIPLET` | preset | `x64-mingw-dynamic` | **The A5 question itself** — never change it to make a port resolve | A-60, A-61 |
-| `RECTO_PORTABLE_SUBSET` | preset | `ON` for `portable-*` | Restricts the build to `core/` + `pdf/cos/` | A-70 |
+| `RAWPAGE_PORTABLE_SUBSET` | preset | `ON` for `portable-*` | Restricts the build to `core/` + `pdf/cos/` | A-70 |
 
 ### Test rig
 
@@ -136,7 +136,7 @@ the green is the evidence.
 
 | [Exit criterion](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates) | Cases |
 |---|---|
-| Clean checkout → documented command → empty `recto.exe` builds | M-01, A-01, A-02, A-40 |
+| Clean checkout → documented command → empty `rawpage.exe` builds | M-01, A-01, A-02, A-40 |
 | `checks` passes on the real tree | A-10, A-11, A-12 |
 | `checks` fails on each bad fixture, **Qt Charts included** | A-20 … A-30 |
 | `THIRD-PARTY.md` generated, no non-allowlisted license, lists Qt 6.11.1 and the GCC runtime with its exception | A-12, A-13, M-07 |
@@ -173,7 +173,7 @@ implies arm64 works. **No build, no run.** **If it fails** S3 (S2 if the message
 > **Resolved during T4.** This case originally allowed *either* a successful configure or an explicit
 > failure. That ambiguity was a placeholder for a fact nobody had checked: arm64 cannot configure,
 > because the toolchain file pins an x86_64 triple and TA-3 rejects anything else. Rather than let it
-> fail three assertions deep, the root `CMakeLists.txt` now checks `RECTO_TARGET_ARCH` first and says
+> fail three assertions deep, the root `CMakeLists.txt` now checks `RAWPAGE_TARGET_ARCH` first and says
 > why. The case is no longer "either" — it has one expected outcome.
 
 **A-04 · A mismatched compiler version fails configure — the A7 guard**
@@ -272,12 +272,12 @@ a gate that fails for an unrelated reason has not been tested. Run as one suite:
 ### 5.4 Build shape and the layer boundary
 
 **A-40 · The empty executable builds and runs**
-☐ **Steps** `cmake --build --preset x64-release`; run `recto.exe`; `echo $LASTEXITCODE`
+☐ **Steps** `cmake --build --preset x64-release`; run `rawpage.exe`; `echo $LASTEXITCODE`
 **Expect** Builds with zero warnings in `core`/`pdf` (`-Werror`); exits **0**; no window, no output.
 **If it fails** S1.
 
 **A-41 · The CRT still matches Qt's**
-☐ **Steps** `objdump -p build/x64-release/bin/recto.exe | Select-String "DLL Name"`
+☐ **Steps** `objdump -p build/x64-release/bin/rawpage.exe | Select-String "DLL Name"`
 **Expect** `msvcrt.dll` present and **`ucrtbase.dll` absent** — the cheapest possible check that the
 CRT matches Qt's ([`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification)). **If it fails** S1.
 
@@ -285,7 +285,7 @@ CRT matches Qt's ([`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification
 > `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, and `libwinpthread-1.dll` among the imports. At Stage 0
 > that is wrong and the case would have failed for a legitimate reason: the placeholder translation
 > units use no C++ runtime facility and no Qt symbol, so the linker records no import for those DLLs
-> at all. Measured on the T2 build, `recto.exe` imports exactly `KERNEL32.dll` and `msvcrt.dll`.
+> at all. Measured on the T2 build, `rawpage.exe` imports exactly `KERNEL32.dll` and `msvcrt.dll`.
 > The runtime-DLL half of the check becomes meaningful once real code exists and moves to **Stage 1**;
 > what survives here is the msvcrt/ucrtbase discrimination, which is the part that actually guards
 > the A7 pin. An expectation that cannot hold yet is not a stricter test — it is a case that gets
@@ -298,11 +298,11 @@ CRT matches Qt's ([`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification
 
 **A-43 · The unit test binary links no UI and no platform**
 ☐ **Steps** Inspect the resolved link closure of the `tests/unit` target.
-**Expect** `recto_core` and `recto_pdf` only. **`recto_ui` and `recto_platform` absent.**
+**Expect** `rawpage_core` and `rawpage_pdf` only. **`rawpage_ui` and `rawpage_platform` absent.**
 **If it fails** S1 — "if it cannot, the boundary has already leaked".
 
 **A-44 · …and that is enforced, not observed**
-☐ **Steps** Add `recto_ui` to the test target's `target_link_libraries` and configure.
+☐ **Steps** Add `rawpage_ui` to the test target's `target_link_libraries` and configure.
 **Expect** **Configure fails** with a message naming the boundary rule. **If it fails** S2 — an
 unenforced invariant is one refactor from being false.
 
@@ -316,7 +316,7 @@ Run: `ctest --preset x64-debug --output-on-failure`.
 | ☐ **A-51** | `tst_geometry` | The **compile-time negatives** hold: `static_assert(!std::is_convertible_v<PdfPoint, DevicePoint>)` and siblings, both directions, points and rects. Conversion is possible **only** through an explicit `PageTransform` | **S1** — this is the assertion that prevents the "slightly wrong at 150% scaling" bug class |
 | ☐ **A-52** | `tst_log` | A `Redacted<QString>` renders as `<redacted>` at info/warning/error and as the real value at debug/trace; `trace` compiles out in release | S2 — [`Features.md` §9.5](./Features.md#95-logging-and-diagnostics) makes this a rule, and a rule enforced by a type is a rule |
 | ☐ **A-53** | `tst_units` | Exact ratios: 1 in = 72 pt, 1 pica = 12 pt, 1 mm = 72/25.4 pt; round-trip through all five units within a stated tolerance; parse and format | S2 |
-| ☐ **A-54** | `tst_result` | `Result<T>` and `Result<void>` carry code + catalog key + context; **nothing in the header throws**; `RECTO_TRY` propagates | S2 |
+| ☐ **A-54** | `tst_result` | `Result<T>` and `Result<void>` carry code + catalog key + context; **nothing in the header throws**; `RAWPAGE_TRY` propagates | S2 |
 
 ### 5.6 Dependencies and the two spikes
 
@@ -367,7 +367,7 @@ before anything is compiled**. **If it fails** S2.
 verified: GCC 13.1.0 x86_64-w64-mingw32, SEH/posix/msvcrt, no GCC plugin"*, 50/50 tests, and imports
 `msvcrt.dll` with no `ucrtbase.dll` and no `Qt6Charts`. `portable-asan` ran 43 tests clean.
 **Re-confirmed 2026-08-19** at the final counts, run
-[`32207889494`](https://github.com/smolsquirrel936/Recto/actions/runs/32207889494): `gates` **25**,
+[`32207889494`](https://github.com/smolsquirrel936/RawPage/actions/runs/32207889494): `gates` **25**,
 `windows` **66**, `portable-asan` **52**, all green, `gates` first and before anything is compiled.
 The intervening run `32205611580` failed on `outward_include_casemix` (I-19) — recorded because a
 green history that hides a red run is not a history.
@@ -380,10 +380,10 @@ green history that hides a red run is not a history.
 > consequence is an improvement: CI now builds with the **exact** toolchain bytes a release uses.
 
 **A-73 · The `gates` job needs no Qt**
-✅ **Passed 2026-08-18.** Verified twice: locally with `VCPKG_ROOT` cleared and `RECTO_QT_PREFIX`
+✅ **Passed 2026-08-18.** Verified twice: locally with `VCPKG_ROOT` cleared and `RAWPAGE_QT_PREFIX`
 pointed at a nonexistent path (3.8 s, 23/23), and in CI on `ubuntu-latest` with neither installed
 (~40 s). **This case found a real defect:** the root `CMakeLists.txt` called `find_package(Qt6
-REQUIRED)` unconditionally, so the job it describes could not have existed. `RECTO_GATES_ONLY` fixed it.
+REQUIRED)` unconditionally, so the job it describes could not have existed. `RAWPAGE_GATES_ONLY` fixed it.
 
 ☐ **Goal** [Plan D0-1](./Stage0-Toolchain-Plan.md#3-stage-0-local-decisions)'s payoff is real.
 **Steps** Confirm the `gates` job installs neither Qt nor vcpkg, and check its wall-clock time.
@@ -406,7 +406,7 @@ toolchain, or human judgement.
 - **Steps** 1. Clone into an empty directory. 2. Follow `README.md`'s build section **literally** —
   no improvising, no "obviously you also need X". 3. `. .\scripts\env.ps1` 4. `scripts\bootstrap.ps1`
   5. `cmake --preset x64-release` 6. `--target checks` 7. build 8. `ctest`.
-- **Expect** Every step succeeds with **no manual step that is not written down**. `recto.exe` exists
+- **Expect** Every step succeeds with **no manual step that is not written down**. `rawpage.exe` exists
   and exits 0.
 - **If it fails** **S1.** Note the *exact* step and the *exact* undocumented thing you had to do — that
   missing line is the finding, and this case is the only one that can find it.
@@ -422,20 +422,27 @@ toolchain, or human judgement.
     `README.md` LF, both per policy. Proves the *clone and tree* half.
   - **Both runs:** `bootstrap.ps1` clean · pin verified · `checks` at `[10/10]`, gate executables only
     · `layer-lint: clean -- 27 files, 93 includes` (identical on both trees) · **50/50 tests** ·
-    `recto.exe` exit **0**.
+    `rawpage.exe` exit **0**.
   - **Residual gap:** a `git clone` on an uncurated machine was never run. Accepted — `.gitattributes`
     overrides any fresh machine's `autocrlf`, which the host checkout demonstrated directly.
   - Signed off by the user, 2026-08-18.
+  - **Superseded 2026-08-20 by the O9 rename, not by a re-run.** The product was renamed to
+    **RawPage**, and `corpus/minimal.pdf` embeds the string `(RawPage corpus seed)` in its content
+    stream. A PDF's xref holds absolute byte offsets, so the file was **regenerated** by
+    `corpus/make-minimal.py` rather than edited: it is now **607 bytes** at
+    `44657791…aaf176df`. All five xref offsets were re-verified to resolve, `startxref` lands on
+    `xref`, and the file still ends `%%EOF`. **The hash above is the correct record of what M-01
+    actually verified on 2026-08-18** and is kept for that reason; the case was not re-walked.
 
 **M-02 · A real MSYS2 / UCRT64 GCC is refused** ✅ **2026-08-19**
 - **Goal** TA-6 — the assertion a stub compiler cannot exercise, and the realistic way the pin regresses:
   the next developer's MSYS2 install.
 - **Pre** A real MSYS2 UCRT64 (or any non-Qt MinGW) GCC installed.
-- **Steps** `cmake --preset x64-release -DRECTO_MINGW_ROOT=C:/msys64/ucrt64` (adjust path).
+- **Steps** `cmake --preset x64-release -DRAWPAGE_MINGW_ROOT=C:/msys64/ucrt64` (adjust path).
 - **Expect** **Configure fails**, the message names the pin as Qt's own bundled GCC 13.1.0/msvcrt, and
   it states the fix. It must not fail with a link error later, and it must not succeed.
   **Which assertion fires depends on the MSYS2 build, and TA-6 is usually not the one:**
-  `_recto_pin_error` is `FATAL_ERROR`, so the assertions stop at the first violation in numbered
+  `_rawpage_pin_error` is `FATAL_ERROR`, so the assertions stop at the first violation in numbered
   order, and a stock MSYS2 GCC is never version 13.1.0 - **TA-2 fires first**. Refusal at TA-2 with a
   complete, actionable message satisfies this case's Goal. TA-6's own logic stays covered by
   `wc2_ucrt_runtime` and `wc3_probe_self_check`, which inject `-D_UCRT` and `-U__MSVCRT__`; this case
@@ -446,11 +453,11 @@ toolchain, or human judgement.
   `toolchain-mingw.cmake` against the `wrong-compiler` fixture project. Configure **failed at
   `project()`-time assertion TA-2**: *found 15.2.0, expected 13.1.0*, followed by the whole fix
   sentence — *"Use C:/Qt/Tools/mingw1310_64. If Qt was upgraded, the compiler moves with it in the
-  same change -- update RECTO_MINGW_ROOT and this expected version together."* Message judged clear
+  same change -- update RAWPAGE_MINGW_ROOT and this expected version together."* Message judged clear
   enough by the user; **no separate S3 logged** for diagnostic quality.
   - This is the half the injected-macro cases cannot reach: `wc1`…`wc6` test each assertion's
     *logic*, this tests the *scenario* — a second real toolchain on a real machine.
-  - **TA-2 fires, not TA-6**, because `_recto_pin_error` is `FATAL_ERROR` and no MSYS2 build is
+  - **TA-2 fires, not TA-6**, because `_rawpage_pin_error` is `FATAL_ERROR` and no MSYS2 build is
     version 13.1.0. The Expect text was corrected to say so; TA-6's logic stays covered by
     `wc2_ucrt_runtime` and `wc3_probe_self_check`.
   - Two findings came out of the attempts rather than the result: **I-09** (six diagnostics were
@@ -461,7 +468,7 @@ toolchain, or human judgement.
 
 **M-03 · A moved Qt prefix fails clearly** ✅ **2026-08-19**
 - **Goal** TA-8's diagnostic is usable by someone who does not know the codebase.
-- **Steps** Configure with `-DRECTO_QT_PREFIX=C:/nope`.
+- **Steps** Configure with `-DRAWPAGE_QT_PREFIX=C:/nope`.
 - **Expect** Configure fails naming the missing prefix and the expected version 6.11.1. Not a CMake
   package-search wall of text.
 - **If it fails** S3.
@@ -588,7 +595,7 @@ toolchain, or human judgement.
   - **D0-1, D0-2, D0-5, D0-6, D0-7, D0-8** — accepted by the user as holding, each visible in what was
     built: gates link only the standard library; they are C++ built by CMake; the Qt module list comes
     from the real link closure; PDFium is the hash-pinned prebuilt DLL with a locally generated import
-    library; CI is the three GitHub Actions jobs; `recto.exe` is an empty `main()` linking all four
+    library; CI is the three GitHub Actions jobs; `rawpage.exe` is an empty `main()` linking all four
     layers.
   - **D0-3 — held, applied more broadly than written.** `office` and `media` features are correctly
     absent: neither has a vcpkg port (Office is COM automation, multimedia is `QtMultimedia` from the
@@ -609,7 +616,7 @@ toolchain, or human judgement.
 
 ## 7. Known caveats — verify, do not assume broken
 
-- **`recto.exe` does nothing.** Correct at Stage 0 (D0-8). Verify it exits 0; do not file "app does not
+- **`rawpage.exe` does nothing.** Correct at Stage 0 (D0-8). Verify it exits 0; do not file "app does not
   start".
 - **Only two gates run.** `mutation-lint` and `i18n-lint` do not exist yet. If `checks` claims four
   gates ran, *that* is the bug.
@@ -635,12 +642,12 @@ record.
 | I-05 | M-01 | `README.md`'s Build block ran `ctest --preset x64-debug` after configuring and building only `x64-release`. Each preset owns `build/<preset>`, so the debug tree does not exist and CTest fails. | The documented sequence ends in a green test run | S3 | M-01 VM, 2026-08-18. `CLAUDE.md`'s command list already used `x64-release`, so the README was the outlier | **Closed** - the block now uses `x64-release`, with a note that `x64-debug` needs its own configure and build; both trees re-run green |
 | I-06 | M-01 (rig) | The first M-01 attempt used a **folder copy** of the primary machine's working tree, not `git clone`. It carried a gitignored `build/x64-debug` whose CMake cache held the primary machine's absolute paths; `x64-debug` failed to configure while `x64-release`, which had no counterpart directory, succeeded. | M-01 runs from a clone into an empty directory | n/a - rig error, not a product defect | Recorded so the walk is not mistaken for a valid one. I-01, I-02, I-04 and I-05 concern installs and documentation, not the tree, and remain valid | **Closed** - re-walked from a real clone of `9c305ce`; M-01's Result records the two-run split |
 | I-07 | M-01 / A-10 | `layer-lint`'s exclude list omitted `third_party/`, so the scanned set depended on whether `fetch-pdfium.ps1` had been run: **51 files / 135 includes** on a machine with PDFium fetched, **27 / 93** on a clean clone. Nothing was actually checked there - third-party files match no layer, and `LayerLint.cpp:35` skips unlayered files before any rule runs - but a gate whose own report varies with machine state undercuts the point of having gates. | The gate reports the same figures on any machine at a given commit | S3 | Found by comparing the M-01 VM run against the primary machine; A-10 asserts no count, so the guide was not wrong | **Fixed** - `third_party/` added to `tools/layer-lint/rules.json`; this machine now reports 27 / 93, matching the clean clone. 23/23 gate cases and 50/50 unit tests re-run green |
-| I-08 | A-10 / A-12 | `checks` always passes `--emit THIRD-PARTY.md` into the **source tree** (`RectoChecks.cmake:26`), while `--qt-modules` and `--vcpkg-installed` are conditional on the configuration. Running `checks` from the `gates` preset therefore **rewrites a committed file with less information**: catch2's version became `*(not resolved)*` and the Qt module count dropped from 4 to 0. The emitted file also carries CRLF where the repository stores LF. | Running any gate configuration never degrades a committed artifact | S3 | Reproduced 2026-08-18 while verifying I-07: `cmake --build --preset gates --target checks` then `git diff THIRD-PARTY.md`. Restored with `git checkout`. Harmless in CI, where nothing commits the result, but silent on a developer machine | **Fixed** - `license-audit` now rewrites the file only with a real Qt link closure **and** an installed vcpkg tree, skipping with a named reason otherwise, and writes in binary mode so the file stays LF. Two new gate cases assert the file, not just the message; `RunGateCase.cmake` gained `EXPECT_FILE` / `EXPECT_ABSENT` for that. 25/25 gates, 52/52 on `x64-debug` |
-| I-09 | M-02 | `_recto_pin_error` took a named `fix` parameter, but six of the nine call sites write that text as **several adjacent quoted literals** - separate arguments in CMake, not concatenated as in C. Only the first fragment was printed and the rest went to `ARGN` and vanished. TA-7 ended at *"Do not 'fix' this by"*, TA-6 at *"the usual source. Qt"* - in every case the half that says what to do. The file's own header says a message that only names the problem "turns a five-second fix into an afternoon". | Each diagnostic prints its whole fix sentence | S3 | Surfaced by the first M-02 attempt, whose TA-7 output was visibly cut off. The seven `wrong_compiler` cases could not catch it: every `EXPECT_MATCH` asserted the label only | **Fixed** - the helper joins `ARGN`; `wc1`/`wc2` now assert a word from the **tail** of the sentence. Those patterns are single words on purpose: `message(FATAL_ERROR)` hard-wraps, so a phrase can be split across a line break and fail for an unrelated reason - which it did on the first attempt. 25/25 gates, 52/52 on `x64-debug` |
-| I-10 | M-02 | Pointing `RECTO_MINGW_ROOT` at a toolchain whose own `bin` is **not** on `PATH` fails at `project()` with CMake's generic *"the C++ compiler is not able to compile a simple test program"*, with no output from the compiler at all - the pin's diagnostic never runs. MSYS2's `g++` spawns `cc1plus.exe` from `lib/gcc/...`, which is not the driver's directory, so it needs `C:/msys64/ucrt64/bin` on `PATH` to find its own DLLs. | The pin explains itself before CMake's probe does | S3 | M-02, 2026-08-19. Adding `C:/msys64/ucrt64/bin` to `PATH` makes the same command reach **TA-2** correctly. Precedent: `toolchain-mingw.cmake` already duplicates the `-fplugin` scan for this exact reason, calling CMake's message *"true, useless, and nowhere near the actual reason"* | **Fixed** - `recto_preflight_compiler_runs()` in the new `cmake/ToolchainPreflight.cmake`, called from the top-level `CMakeLists` **before `project()`**, so it runs once per configure rather than once per `try_compile()` - which is what made the trade-off go away. The probe is `-fsyntax-only` on an empty file, **not** `-dumpversion`: the driver answers that one itself and reports success while the toolchain is unusable. Verified against the real MSYS2 install with its `bin` off `PATH`. Gate case `compiler_cannot_run` uses a `fake-root/bin/g++.exe` that is a text file |
-| I-11 | M-03 | With `RECTO_QT_PREFIX` pointing at a path that does not exist, configure failed at **TA-8 Qt prefix** saying *"A second Qt install won the search"*. There was no second install: the prefix was absent, nothing constrained the search, and the machine's only Qt was used. The message sends the reader hunting a rival Qt and pruning a `CMAKE_PREFIX_PATH` that is fine. `toolchain-mingw.cmake` guards `RECTO_MINGW_ROOT` with an `EXISTS` check but had no equivalent for the Qt prefix, and the closing paragraph about libstdc++ and the C runtime was appended to a Qt **location** failure where it does not apply. | The diagnostic is usable by someone who does not know the codebase | S3 | M-03, 2026-08-19, `cmake --preset x64-debug -DRECTO_QT_PREFIX=C:/nope` | **Fixed** - four changes: an `EXISTS` guard for `RECTO_QT_PREFIX` in the toolchain file, firing before Qt is searched; TA-8's prefix branch split by cause; the closing rationale chosen per assertion; and the pinned Qt version now stated in both TA-8 branches from one variable. Three gate cases added, each asserting a word from the sentence tail. 28/28 gates, 55/55 on `x64-debug` |
-| I-12 | M-03 | A `FATAL_ERROR` from inside the toolchain file is raised during CMake's compiler detection, and CMake does not stop there: it prints *"unable to find a build program corresponding to Ninja"* and *"CMAKE_CXX_COMPILER not set"* afterwards. The real message is first but two red herrings follow it. Pre-existing - the `RECTO_MINGW_ROOT` guard always behaved this way. | A failed pin check aborts with nothing after it | S4 | Seen on every M-03 run, and on WC-4 since T3 | **Fixed** - the cheap checks moved to `cmake/ToolchainPreflight.cmake`, called before `project()` by both the real root and the fixture project. The toolchain file still calls the same two functions as a fallback for anyone configuring with `-DCMAKE_TOOLCHAIN_FILE` and no preflight, so the wording has one home |
-| I-13 | M-04 | With `VCPKG_ROOT` unset, `CMakePresets.json:37` expands `$env{VCPKG_ROOT}` to the **empty string** rather than erroring, so `CMAKE_TOOLCHAIN_FILE` became `/scripts/buildsystems/vcpkg.cmake` and CMake reported *"Could not find toolchain file"* for a path that never existed - naming neither the variable nor the fix, and followed by the usual two red herrings. This is the outcome M-04's Expect calls out by name. | Configure carries the same information `bootstrap.ps1` gives | S3 | M-04, 2026-08-19, with `%USERPROFILE%\vcpkg` renamed aside and the variable removed from the process | **Fixed** - `recto_preflight_vcpkg()`, opted into by the root with `recto_preflight(QT VCPKG)`, before `project()`. Two branches: unset (names `setx`'s already-open-shell trap, `env.ps1`, `bootstrap.ps1`, README) and set-but-no-clone (names the path and the clone/bootstrap commands). Two gate cases via `cmake -E env --unset=` |
+| I-08 | A-10 / A-12 | `checks` always passes `--emit THIRD-PARTY.md` into the **source tree** (`RawPageChecks.cmake:26`), while `--qt-modules` and `--vcpkg-installed` are conditional on the configuration. Running `checks` from the `gates` preset therefore **rewrites a committed file with less information**: catch2's version became `*(not resolved)*` and the Qt module count dropped from 4 to 0. The emitted file also carries CRLF where the repository stores LF. | Running any gate configuration never degrades a committed artifact | S3 | Reproduced 2026-08-18 while verifying I-07: `cmake --build --preset gates --target checks` then `git diff THIRD-PARTY.md`. Restored with `git checkout`. Harmless in CI, where nothing commits the result, but silent on a developer machine | **Fixed** - `license-audit` now rewrites the file only with a real Qt link closure **and** an installed vcpkg tree, skipping with a named reason otherwise, and writes in binary mode so the file stays LF. Two new gate cases assert the file, not just the message; `RunGateCase.cmake` gained `EXPECT_FILE` / `EXPECT_ABSENT` for that. 25/25 gates, 52/52 on `x64-debug` |
+| I-09 | M-02 | `_rawpage_pin_error` took a named `fix` parameter, but six of the nine call sites write that text as **several adjacent quoted literals** - separate arguments in CMake, not concatenated as in C. Only the first fragment was printed and the rest went to `ARGN` and vanished. TA-7 ended at *"Do not 'fix' this by"*, TA-6 at *"the usual source. Qt"* - in every case the half that says what to do. The file's own header says a message that only names the problem "turns a five-second fix into an afternoon". | Each diagnostic prints its whole fix sentence | S3 | Surfaced by the first M-02 attempt, whose TA-7 output was visibly cut off. The seven `wrong_compiler` cases could not catch it: every `EXPECT_MATCH` asserted the label only | **Fixed** - the helper joins `ARGN`; `wc1`/`wc2` now assert a word from the **tail** of the sentence. Those patterns are single words on purpose: `message(FATAL_ERROR)` hard-wraps, so a phrase can be split across a line break and fail for an unrelated reason - which it did on the first attempt. 25/25 gates, 52/52 on `x64-debug` |
+| I-10 | M-02 | Pointing `RAWPAGE_MINGW_ROOT` at a toolchain whose own `bin` is **not** on `PATH` fails at `project()` with CMake's generic *"the C++ compiler is not able to compile a simple test program"*, with no output from the compiler at all - the pin's diagnostic never runs. MSYS2's `g++` spawns `cc1plus.exe` from `lib/gcc/...`, which is not the driver's directory, so it needs `C:/msys64/ucrt64/bin` on `PATH` to find its own DLLs. | The pin explains itself before CMake's probe does | S3 | M-02, 2026-08-19. Adding `C:/msys64/ucrt64/bin` to `PATH` makes the same command reach **TA-2** correctly. Precedent: `toolchain-mingw.cmake` already duplicates the `-fplugin` scan for this exact reason, calling CMake's message *"true, useless, and nowhere near the actual reason"* | **Fixed** - `rawpage_preflight_compiler_runs()` in the new `cmake/ToolchainPreflight.cmake`, called from the top-level `CMakeLists` **before `project()`**, so it runs once per configure rather than once per `try_compile()` - which is what made the trade-off go away. The probe is `-fsyntax-only` on an empty file, **not** `-dumpversion`: the driver answers that one itself and reports success while the toolchain is unusable. Verified against the real MSYS2 install with its `bin` off `PATH`. Gate case `compiler_cannot_run` uses a `fake-root/bin/g++.exe` that is a text file |
+| I-11 | M-03 | With `RAWPAGE_QT_PREFIX` pointing at a path that does not exist, configure failed at **TA-8 Qt prefix** saying *"A second Qt install won the search"*. There was no second install: the prefix was absent, nothing constrained the search, and the machine's only Qt was used. The message sends the reader hunting a rival Qt and pruning a `CMAKE_PREFIX_PATH` that is fine. `toolchain-mingw.cmake` guards `RAWPAGE_MINGW_ROOT` with an `EXISTS` check but had no equivalent for the Qt prefix, and the closing paragraph about libstdc++ and the C runtime was appended to a Qt **location** failure where it does not apply. | The diagnostic is usable by someone who does not know the codebase | S3 | M-03, 2026-08-19, `cmake --preset x64-debug -DRAWPAGE_QT_PREFIX=C:/nope` | **Fixed** - four changes: an `EXISTS` guard for `RAWPAGE_QT_PREFIX` in the toolchain file, firing before Qt is searched; TA-8's prefix branch split by cause; the closing rationale chosen per assertion; and the pinned Qt version now stated in both TA-8 branches from one variable. Three gate cases added, each asserting a word from the sentence tail. 28/28 gates, 55/55 on `x64-debug` |
+| I-12 | M-03 | A `FATAL_ERROR` from inside the toolchain file is raised during CMake's compiler detection, and CMake does not stop there: it prints *"unable to find a build program corresponding to Ninja"* and *"CMAKE_CXX_COMPILER not set"* afterwards. The real message is first but two red herrings follow it. Pre-existing - the `RAWPAGE_MINGW_ROOT` guard always behaved this way. | A failed pin check aborts with nothing after it | S4 | Seen on every M-03 run, and on WC-4 since T3 | **Fixed** - the cheap checks moved to `cmake/ToolchainPreflight.cmake`, called before `project()` by both the real root and the fixture project. The toolchain file still calls the same two functions as a fallback for anyone configuring with `-DCMAKE_TOOLCHAIN_FILE` and no preflight, so the wording has one home |
+| I-13 | M-04 | With `VCPKG_ROOT` unset, `CMakePresets.json:37` expands `$env{VCPKG_ROOT}` to the **empty string** rather than erroring, so `CMAKE_TOOLCHAIN_FILE` became `/scripts/buildsystems/vcpkg.cmake` and CMake reported *"Could not find toolchain file"* for a path that never existed - naming neither the variable nor the fix, and followed by the usual two red herrings. This is the outcome M-04's Expect calls out by name. | Configure carries the same information `bootstrap.ps1` gives | S3 | M-04, 2026-08-19, with `%USERPROFILE%\vcpkg` renamed aside and the variable removed from the process | **Fixed** - `rawpage_preflight_vcpkg()`, opted into by the root with `rawpage_preflight(QT VCPKG)`, before `project()`. Two branches: unset (names `setx`'s already-open-shell trap, `env.ps1`, `bootstrap.ps1`, README) and set-but-no-clone (names the path and the clone/bootstrap commands). Two gate cases via `cmake -E env --unset=` |
 | I-14 | M-04 | `bootstrap.ps1`'s baseline check ran even with no clone present, so `git rev-parse` returned nothing and it printed *"the clone is at ."* - an empty revision rendered as a bare full stop, dressed as a `[WARN]`, directly beneath three `[FAIL]`s that had already said the directory does not exist. | No warning about a comparison that cannot be made | S4 | Same run | **Fixed** - the baseline check is skipped with an `[INFO]` line when there is no clone to compare against |
 | I-15 | M-05 | **`layer-lint` missed real violations.** Every fixture used one spelling, so only that spelling was ever tested. Three that compile and passed clean: `#include "../../pdf/cos/CosDict.h"` from `core/doc/` (the sibling form resolved to `core/doc/../../pdf/...` un-normalised, and the layer lookup matches on **prefix**, so an outward include was filed under `core/`); `#include <pdf/cos/CosDict.h>` (dismissed as external "by convention", though every layer target puts the source root on its include path, so it compiles like the quoted form); and `QFile` + `QIODevice::WriteOnly` in `ui/` (the write list had `QSaveFile` but no Qt open-mode at all). | The gate fails on a violation however it is spelled | **S1** | M-05, 2026-08-19. Probe tree of the three, plus the canonical form as a positive control in the same tree: canonical caught, all three missed. Re-run after the fix: **all three caught** | **Fixed** - `resolveInclude` normalises `..` segments and resolves angled includes that exist under the root; the write list gains `QIODevice::WriteOnly/Append/Truncate`, `QTemporaryFile`, `QFile::remove/rename/copy`. Matching is on the **open mode**, not on `QFile`, which is equally the idiomatic way to READ and would have buried the rule in waivers. A fourth spelling found on the second pass: `#include "Pdf/Cos/CosDict.h"` resolved on a case-insensitive filesystem and came back spelled as written, while the layer lookup's prefix test was case-sensitive - `startsWith` in `RuleSet.cpp` now folds case, which is safe because the tree's own paths are lowercase by convention. Five gate cases, one per spelling, plus a negative control that prose naming the forbidden things stays legal. `tests/gates/fixtures/layer-lint/README.md` added, listing what is covered **and what is not** - block comments, string literals holding `FPDF_`, computed includes, a write behind a helper - because the absence of that list is why three spellings went untested. Real tree still clean. 36/36 gates, 63/63 on `x64-debug` |
 | I-16 | M-06 | `leptonica`'s upstream URL, `https://leptonica.sourceforge.io/`, does not serve the project: it **302s to SourceForge's project-hosting page**. An upstream link is the one thing a licence notice must get right, since it is how a recipient reaches the source and the licence text. Found by the user checking entries at random, which is exactly what M-06 asks for. | Every upstream URL reaches the project | S3 | M-06, 2026-08-19. A sweep of all 17 URLs afterwards: **only this one** is broken; the other 16 return 200 | **Fixed** - now `https://github.com/DanBloomberg/leptonica`, which upstream's own README names as the official repository and which carries `leptonica-license.txt`. `www.leptonica.org` is the documentation site but serves no valid TLS, so it is not a link to put in a licence document. `libpng` moved from `http://` to `https://` in the same pass; the map now contains no plain-HTTP URL |
@@ -663,7 +670,7 @@ made concrete for this stage:
       at the final counts (run `32207889494`: `gates` 25, `windows` 66, `portable-asan` 52).
 - [x] Every **manual** case M-01 … M-07 is ✅, walked by you on the rig in §2, and **signed off by you** —
       I do not mark these. Seven for seven, 2026-08-18/19.
-- [x] Every caveat in §7 has a human verdict, not an assumption. `recto.exe` doing nothing and `checks`
+- [x] Every caveat in §7 has a human verdict, not an assumption. `rawpage.exe` doing nothing and `checks`
       running **two** gates were both confirmed by you during M-01; `portable-fuzz` announcing zero
       targets is A-71; arm64 configuring-only is A-03, whose own note records that the original
       message was corrected after nobody had actually checked what arm64 does.

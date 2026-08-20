@@ -8,8 +8,8 @@
 // whether or not that branch is taken. For a rule that says "this layer may never name
 // that one", counting a disabled include as a violation is the right side to err on.
 
-#ifndef RECTO_LAYER_LINT_INCLUDEGRAPH_H
-#define RECTO_LAYER_LINT_INCLUDEGRAPH_H
+#ifndef RAWPAGE_LAYER_LINT_INCLUDEGRAPH_H
+#define RAWPAGE_LAYER_LINT_INCLUDEGRAPH_H
 
 #include "tools/layer-lint/RuleSet.h"
 
@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-namespace recto::tools {
+namespace rawpage::tools {
 
 struct Include {
     std::string target;        // exactly as written between the quotes or angle brackets
@@ -61,6 +61,6 @@ private:
     std::vector<SourceFile> files_;
 };
 
-} // namespace recto::tools
+} // namespace rawpage::tools
 
-#endif // RECTO_LAYER_LINT_INCLUDEGRAPH_H
+#endif // RAWPAGE_LAYER_LINT_INCLUDEGRAPH_H

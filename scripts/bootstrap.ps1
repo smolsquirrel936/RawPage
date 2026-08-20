@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Verifies that this machine can build Recto, and says exactly what to run if it cannot.
+    Verifies that this machine can build RawPage, and says exactly what to run if it cannot.
 
 .DESCRIPTION
     Run it normally (NOT dot-sourced):
@@ -49,11 +49,11 @@ function Test-Item {
     }
 }
 
-$qtPrefix  = if ($env:RECTO_QT_PREFIX)  { $env:RECTO_QT_PREFIX }  else { 'C:\Qt\6.11.1\mingw_64' }
-$mingwRoot = if ($env:RECTO_MINGW_ROOT) { $env:RECTO_MINGW_ROOT } else { 'C:\Qt\Tools\mingw1310_64' }
+$qtPrefix  = if ($env:RAWPAGE_QT_PREFIX)  { $env:RAWPAGE_QT_PREFIX }  else { 'C:\Qt\6.11.1\mingw_64' }
+$mingwRoot = if ($env:RAWPAGE_MINGW_ROOT) { $env:RAWPAGE_MINGW_ROOT } else { 'C:\Qt\Tools\mingw1310_64' }
 
 Write-Host ''
-Write-Host 'Recto build prerequisites' -ForegroundColor Cyan
+Write-Host 'RawPage build prerequisites' -ForegroundColor Cyan
 Write-Host '-------------------------'
 
 # --- Qt and the pinned toolchain -------------------------------------------
@@ -62,7 +62,7 @@ Write-Host 'Qt installation (IS the build environment -- Tech-Stack-Plan.md 6.3)
 Test-Item -Name 'Qt 6.11.1 for MinGW' `
     -Check { Test-Path (Join-Path $qtPrefix 'lib\cmake\Qt6') } `
     -Detail $qtPrefix `
-    -Fix "Not found at '$qtPrefix'. Install Qt 6.11.1 (MinGW 64-bit) with the Qt Maintenance Tool, or set RECTO_QT_PREFIX."
+    -Fix "Not found at '$qtPrefix'. Install Qt 6.11.1 (MinGW 64-bit) with the Qt Maintenance Tool, or set RAWPAGE_QT_PREFIX."
 
 Test-Item -Name 'MinGW GCC 13.1.0 (Qt''s own bundled compiler)' `
     -Check { Test-Path (Join-Path $mingwRoot 'bin\g++.exe') } `

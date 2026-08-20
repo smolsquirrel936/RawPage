@@ -3,6 +3,6 @@
 // include as external "by convention" and never looked (I-15).
 #include <pdf/cos/CosDict.h>
 
-namespace recto::core {
+namespace rawpage::core {
 void index() {}
 }

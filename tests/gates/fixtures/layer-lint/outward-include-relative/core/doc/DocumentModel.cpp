@@ -3,6 +3,6 @@
 // core/ by a prefix match, so it passed clean until I-15.
 #include "../../pdf/cos/CosDict.h"
 
-namespace recto::core {
+namespace rawpage::core {
 void loadPageCount() {}
 }

@@ -1,11 +1,11 @@
-# Recto
+# RawPage
 
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
 > **Status: Stage 0 built; no product features yet.**
 > The commands below work. What they build is *scaffolding* — a pinned toolchain, two enforcement
-> gates, and an empty `recto.exe` that opens no window. That is the intended state: Stage 0 exists to
+> gates, and an empty `rawpage.exe` that opens no window. That is the intended state: Stage 0 exists to
 > make the enforcement gates fail correctly before there is any code for them to fail on.
 > The design lives in [`claude-plan/`](./claude-plan/README.md).
 >
@@ -75,8 +75,8 @@ Nothing else is required. No Visual Studio, no MSYS2, no Python.
 ## Get the source
 
 ```powershell
-git clone https://github.com/smolsquirrel936/Recto.git
-cd Recto
+git clone https://github.com/smolsquirrel936/RawPage.git
+cd RawPage
 ```
 
 ---

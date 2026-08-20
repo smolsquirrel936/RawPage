@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this repository currently is
 
 **A design-document set plus Stage 0 build scaffolding — no product code yet.** The product is
-**Recto** (working codename, open decision O9), a Windows-first desktop PDF editor modeled on Right
-PDF Professional. The design lives under `claude-plan/`.
+**RawPage**, a Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives
+under `claude-plan/`.
 
 **Stage 0 is DONE — both halves of its verification are green and signed off (2026-08-19).** What
 exists is scaffolding, not product:
@@ -18,7 +18,7 @@ exists is scaffolding, not product:
 - the four `core/` vocabulary headers (`Result.h`, `Log.h`, `Geometry.h`, `Units.h`) and a Catch2
   suite; **66 tests on Windows, 52 on Linux under ASan+UBSan**;
 - CI on three jobs, the Windows one self-hosted;
-- `recto.exe`, which links all four layers and **opens no window**.
+- `rawpage.exe`, which links all four layers and **opens no window**.
 
 **No document code exists**: nothing in `core/doc/`, `core/cmd/`, `pdf/cos/`, `pdf/render/`,
 `pdf/ops/`, `ui/`, `platform/win/`, or `app/` beyond one placeholder TU per layer. Both Stage 0 risk
@@ -31,8 +31,12 @@ closed: **22 entries, none open.**
 
 **The next action is Stage 1** (app shell, action layer, settings, single instance) in
 `claude-plan/Implementation-Plan.md`, which carries the **A3** go/no-go — can Qt Widgets host a real
-ribbon. Per the workflow below, **`Stage1-AppShell-Testing-Guide.md` is written before any Stage 1
-code.** Do not skip ahead past it — the stage order is deliberate risk retirement, not a backlog.
+ribbon. **Both of its documents are written and no Stage 1 code exists yet:**
+`Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16) and
+`Stage1-AppShell-Testing-Guide.md` (67 automated cases, 12 manual, one issue already open). The next
+action is therefore **T1**, and per the workflow below nothing is implemented ahead of the plan's
+task order — in particular **T2, the timeboxed A3 ribbon spike, comes before any production UI**,
+because a no-go verdict reshapes the stage.
 
 **What Stage 0's manual pass should teach Stage 1's:** it produced 22 findings including three S1s,
 and *every* S1 came from a manual case that no automated run could have reached — two documentation
@@ -54,8 +58,8 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Tech-Stack-Plan.md` | Locked stack, license posture, directory layout, the inward-only dependency rule, mutation-through-commands, the first milestone. |
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
-| `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order and its stage-local design choices. **Only `Stage0-Toolchain-Plan.md` exists** (tasks T1–T15, decisions D0-1…D0-8, the §7 precondition checklist). It owns no product facts and no live status — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Only `Stage0-Toolchain-Testing-Guide.md` exists**, written from Stage 0's plan before its code; no case in it has been run. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order and its stage-local design choices. **Two exist:** `Stage0-Toolchain-Plan.md` (tasks T1–T15, decisions D0-1…D0-8, the §7 precondition checklist) and `Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16, the §7 precondition checklist P-1…P-4). It owns no product facts and no live status — those stay in the four documents above. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Two exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed) and `Stage1-AppShell-Testing-Guide.md`, written from Stage 1's plan before its code — **no case in it has been run**, and it already carries one open issue, I-01. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
@@ -84,7 +88,7 @@ definition of done. A folded-away file keeps its row as a ⤵ breadcrumb; rows a
   Nothing but buffers and callbacks crosses the PDFium boundary — no C++ object, exception, or heap
   ownership.
 - **No GPL or AGPL dependency may ever enter the tree** (rules out MuPDF, Poppler, Ghostscript,
-  Xpdf, Qt Charts/DataVisualization, Xapian). Recto's own source is proprietary. **One named
+  Xpdf, Qt Charts/DataVisualization, Xapian). RawPage's own source is proprietary. **One named
   exception:** the GCC runtime (`libstdc++`, `libgcc`) is `GPL-3.0-or-later WITH GCC-exception-3.1`,
   which permits proprietary distribution **only while we compile with stock GCC** — adding a
   non-free GCC plugin voids the exception and would relicense our own source. `license-audit` matches
@@ -100,8 +104,8 @@ definition of done. A folded-away file keeps its row as a ⤵ breadcrumb; rows a
 
 ## Architecture (once code exists)
 
-Layers are separate static libraries (`recto_core`, `recto_pdf`, `recto_platform`, `recto_ui`) linked
-by one `recto` executable, so the linker itself catches some violations. **Dependencies point inward
+Layers are separate static libraries (`rawpage_core`, `rawpage_pdf`, `rawpage_platform`, `rawpage_ui`) linked
+by one `rawpage` executable, so the linker itself catches some violations. **Dependencies point inward
 only:**
 
 - `app/` — composition root. The **only** translation units naming `pdf::createBackend()` or
@@ -127,7 +131,7 @@ Every document change is a `Command` (`name/scope/apply/revert/serialize`) run t
 highlight to Write-mode typing, has exactly that shape.
 
 Consequences that fall out of it: undo/redo, an fsync-per-command recovery journal
-(`%LOCALAPPDATA%\Recto\recovery\<docid>\`), precise `Scope`-keyed invalidation, and incremental save
+(`%LOCALAPPDATA%\RawPage\recovery\<docid>\`), precise `Scope`-keyed invalidation, and incremental save
 (append a new xref section; Save-As is the full-rewrite compaction path).
 
 ### The action layer

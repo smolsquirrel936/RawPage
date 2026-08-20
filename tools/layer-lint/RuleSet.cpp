@@ -8,7 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace recto::tools {
+namespace rawpage::tools {
 namespace {
 
 std::string readFile(const std::filesystem::path& path) {
@@ -124,4 +124,4 @@ bool RuleSet::isScannableExtension(const std::filesystem::path& path) const {
     return false;
 }
 
-} // namespace recto::tools
+} // namespace rawpage::tools

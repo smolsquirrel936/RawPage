@@ -1,8 +1,8 @@
-# Recto — Tech Stack, Architecture & Mutation Foundation Plan
+# RawPage — Tech Stack, Architecture & Mutation Foundation Plan
 
 ## 1. Context
 
-**Recto** is the Windows-first desktop PDF editor whose full capability surface is catalogued in
+**RawPage** is the Windows-first desktop PDF editor whose full capability surface is catalogued in
 [`Features.md`](./Features.md) — view/find, create/export, dual-mode editing, review & annotation,
 assembly, forms, and security & signing. This document locks the decisions that are **expensive to
 reverse** and must therefore be made before any code exists. It answers five specific questions:
@@ -30,7 +30,7 @@ It deliberately does **not** produce a file-by-file map (that is
 | D1 | **Language:** C++20, **MinGW-w64 GCC 13.1.0** — the compiler Qt ships in `C:\Qt\Tools\mingw1310_64`, `x86_64-w64-mingw32`, **SEH** exceptions, **posix** threads, **msvcrt**-based. `-std=c++20 -Wall -Wextra -Wpedantic -Wshadow -Wnon-virtual-dtor`, x64 first, arm64 as a second target (see R8). Pinned exactly, not "13.x or newer" — §6.3. | ✅ Confirmed |
 | D2 | **UI toolkit:** **Qt 6.11.1, Widgets** (not QML), **dynamically linked** under **LGPL-3.0**, from the official binary install at `C:\Qt\6.11.1\mingw_64`. | ✅ Confirmed |
 | D3 | **PDF engine:** **PDFium** (BSD-3-Clause), used for parsing, rasterization, text extraction, and form-field rendering — wrapped behind our own facade, **plus a first-party COS object/write layer** for the mutations PDFium does not expose. | ✅ Confirmed |
-| D4 | **License posture:** Recto's own source is **proprietary and closed**. This is compatible only because Qt is dynamically linked under LGPL-3.0 and every other dependency is permissive (BSD/MIT/Apache-2.0). **No GPL or AGPL dependency may ever enter the tree** — this specifically rules out MuPDF, Ghostscript, Poppler-with-GPL-linkage, and Xpdf. | ✅ Confirmed |
+| D4 | **License posture:** RawPage's own source is **proprietary and closed**. This is compatible only because Qt is dynamically linked under LGPL-3.0 and every other dependency is permissive (BSD/MIT/Apache-2.0). **No GPL or AGPL dependency may ever enter the tree** — this specifically rules out MuPDF, Ghostscript, Poppler-with-GPL-linkage, and Xpdf. | ✅ Confirmed |
 | D5 | **Headline cross-cutting design:** **mutation-through-commands** — every change to a document is a `Command` object applied to `core::Document` through `core::CommandJournal`; nothing else may mutate a document, and no `ui/` or `core/` code may call the PDF engine's write APIs. Persistence is by **incremental save** (append a new cross-reference section) with full-rewrite Save-As as the compaction path. | ✅ Confirmed |
 | D6 | **Secondary locked convention:** **strings-out-of-code** — no user-facing literal in source; all UI text goes through Qt's `tr()` into `.ts`/`.qm` catalogs, shipping `en`, `zh-TW`, `zh-CN`, and `ja` from the first release. Enforced by a CI lint, not by discipline. | ✅ Confirmed |
 | D7 | **Build:** CMake ≥ 3.25 with presets, **vcpkg in manifest mode** (triplet `x64-mingw-dynamic`) for third-party dependencies, Ninja generator. Qt itself comes from its **official Windows MinGW binary build**, not from vcpkg. The Qt installation supplies the whole toolchain — compiler, CMake 3.30.5, Ninja 1.12.1, `windeployqt` — so a build machine needs nothing else. | ✅ Confirmed |
@@ -61,7 +61,7 @@ implementation:
 | Candidate | License | Verdict |
 |---|---|---|
 | **PDFium** | BSD-3-Clause | **Chosen.** Permissive, so it imposes nothing on our source. It is the engine inside Chrome and Edge, which means its parser has absorbed more adversarial real-world input than any alternative — decisive for a product that must open damaged files without crashing. It gives us parsing, rasterization, text extraction with positions, and AcroForm rendering. |
-| MuPDF | AGPL-3.0 or commercial | **Rejected on license (D4).** Excellent engine and a cleaner API, but AGPL would force Recto's own source open. The commercial license is a viable alternative only if we ever revisit D4. |
+| MuPDF | AGPL-3.0 or commercial | **Rejected on license (D4).** Excellent engine and a cleaner API, but AGPL would force RawPage's own source open. The commercial license is a viable alternative only if we ever revisit D4. |
 | Poppler | GPL-2.0/3.0 | **Rejected on license (D4).** |
 | Foxit / Apryse SDK | Commercial, per-seat royalty | **Rejected for now.** Would deliver far more out of the box (OCR, conversion, signing) but binds the architecture to a vendor object model and adds a recurring per-seat cost to every copy sold. Kept as a documented fallback for a specific subsystem (see §9 open risk R3). |
 | Write our own parser | — | **Rejected as the primary engine.** Years before matching a browser engine's tolerance for malformed files. |
@@ -184,7 +184,7 @@ it, in the same change.
 ### 4.1 Directory layout
 
 ```
-recto/
+rawpage/
   app/                   # COMPOSITION ROOT — the only layer that knows concretes exist
                          #   main(), single-instance bus, CLI parsing, DI wiring, crash handler
   ui/                    # PRESENTATION — Qt Widgets only. No document mutation, no engine calls.
@@ -369,7 +369,7 @@ one. The original bytes are never rewritten. This is what makes signature preser
 that discards revision history. A document opened read-only or with insufficient permissions
 refuses `run()` before a command is constructed, not after.
 
-**The recovery journal.** `%LOCALAPPDATA%\Recto\recovery\<docid>\` holds `meta.json` (source path,
+**The recovery journal.** `%LOCALAPPDATA%\RawPage\recovery\<docid>\` holds `meta.json` (source path,
 size, mtime, hash, the revision last saved) and `journal.ndjson` — one serialized command per line,
 appended and `fsync`ed as each command runs. On launch, any journal whose `meta.json` still matches
 its source file is offered for replay; each command deserializes and re-applies in order. A journal
@@ -480,7 +480,7 @@ they were merely overlooked.
 ### 6.3 Build and dependency management
 
 - **CMake ≥ 3.25**, one `CMakeLists.txt` per layer, layers as separate static libraries
-  (`recto_core`, `recto_pdf`, `recto_platform`, `recto_ui`) linked by one `recto` executable.
+  (`rawpage_core`, `rawpage_pdf`, `rawpage_platform`, `rawpage_ui`) linked by one `rawpage` executable.
   Making them separate targets is what lets the linker itself catch some layering violations.
 - **Toolchain, pinned (D1, A7).** `cmake/toolchain-mingw.cmake` points at
   `C:\Qt\Tools\mingw1310_64` — **GCC 13.1.0, `x86_64-w64-mingw32`, SEH, posix threads, msvcrt** — and
@@ -524,7 +524,7 @@ they were merely overlooked.
   binaries in a build-ID-keyed symbol archive, and `app/CrashHandler`'s reports are symbolized from
   DWARF. Budget this at Stage 1 when the crash handler is written, not at Stage 15 when the first
   field crash arrives.
-- **Packaging**: `windeployqt` copies the Qt DLLs beside `recto.exe` (`--compiler-runtime` brings the
+- **Packaging**: `windeployqt` copies the Qt DLLs beside `rawpage.exe` (`--compiler-runtime` brings the
   GCC runtime DLLs with them); WiX packages that tree; a separate MSIX target wraps it for per-user
   install. The virtual printer driver and the shell extensions are separate MSI features,
   individually installable — see R8 for the parts of that surface a GCC toolchain does not reach.
@@ -557,7 +557,7 @@ Since this table puts it on `core/` and `pdf/cos/` — precisely the two layers 
 enabling it would fail the build on any file that touches `std::string`. Suppressing the noise with
 `-Wno-analyzer-*` would leave a flag that looks like static analysis and performs none, which is worse
 than not having it. **clang-tidy, already named in the same row, is the static-analysis route**; it is
-scheduled with the first real `core/` code. `cmake/RectoWarnings.cmake` records this at the point
+scheduled with the first real `core/` code. `cmake/RawPageWarnings.cmake` records this at the point
 where a reader would otherwise wonder why the flag is missing.
 
 ---
@@ -616,7 +616,7 @@ runtime's exception below, and the whole reason D8 exists:
 
 | Obligation | Concrete action |
 |---|---|
-| The library must be **replaceable** by the user with a modified version. | Ship Qt as **DLLs beside `recto.exe`**, deployed by `windeployqt`. **Never** `-static`. Never sign-lock, checksum-verify, or otherwise anti-tamper the Qt DLLs. A CI check asserts no Qt symbol is statically linked into `recto.exe`. |
+| The library must be **replaceable** by the user with a modified version. | Ship Qt as **DLLs beside `rawpage.exe`**, deployed by `windeployqt`. **Never** `-static`. Never sign-lock, checksum-verify, or otherwise anti-tamper the Qt DLLs. A CI check asserts no Qt symbol is statically linked into `rawpage.exe`. |
 | Convey the LGPL-3.0 and GPL-3.0 license texts. | `res/licenses/LGPL-3.0.txt` and `GPL-3.0.txt` installed to `<installdir>\licenses\`, listed in the MSI manifest. |
 | State that Qt is used and under which license. | Help → About → **Third-Party Notices**, generated at build time from `tools/license-audit`'s output — so a new dependency cannot ship without appearing there. |
 | Offer the corresponding source of the Qt version we ship, including any patch we apply. | Host the exact Qt source tarball and any patch series at a stable URL; the About dialog links it; the URL and the Qt commit hash are recorded in `THIRD-PARTY.md` per release. **If we ever patch Qt, that patch must be published.** |
@@ -643,7 +643,7 @@ discovered by an auditor:
 | Do not let the audit tool's no-GPL rule reject it — or, worse, let someone "fix" the rejection by dropping the entry. | The allowlist in §8.2 names the identifier **with its exception** explicitly. `tools/license-audit` must match whole SPDX expressions, **never a `GPL` substring**, or it will both false-positive here and false-negative on `LGPL-3.0`. |
 | Keep the runtime replaceable, as for Qt. | Ship `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, and `libwinpthread-1.dll` beside the executable. **Never `-static-libstdc++` or `-static-libgcc`**: besides the replaceability argument, a statically linked libstdc++ alongside a dynamically linked Qt built against the shared one is an ABI hazard in its own right. |
 
-**Recto's own source** — proprietary. No file in `core/`, `pdf/`, `ui/`, `app/`, or `platform/` may
+**RawPage's own source** — proprietary. No file in `core/`, `pdf/`, `ui/`, `app/`, or `platform/` may
 be copied from a copyleft project. Any code arriving from outside the team needs a recorded
 provenance line in `THIRD-PARTY.md` before it merges.
 
@@ -677,7 +677,7 @@ passing silently. Matching is on the whole expression — see §8.1's note on su
       runtime under its Runtime Library Exception (§8.1) being the one named, reasoned exception.
 - [ ] The build used stock GCC with **no non-free compiler plugin**, so the Runtime Library
       Exception holds. Recorded per release with the compiler version.
-- [ ] Qt is linked **dynamically**; `objdump -p recto.exe | grep "DLL Name"` shows `Qt6Core.dll` etc.
+- [ ] Qt is linked **dynamically**; `objdump -p rawpage.exe | grep "DLL Name"` shows `Qt6Core.dll` etc.
       as imports.
 - [ ] The GCC runtime DLLs are shipped beside the executable, not statically linked
       (`objdump -p` lists `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`).
@@ -714,7 +714,7 @@ ctest --preset x64-release --output-on-failure
 **Toolchain (D1, A7).** `cmake --preset x64-release` fails at configure time on anything but
 GCC 13.1.0 from `C:\Qt\Tools\mingw1310_64`. `g++ -v` output is recorded in the build log per release.
 
-**Stack (D2, D8).** `objdump -p build/recto.exe | grep "DLL Name"` lists `Qt6*.dll`,
+**Stack (D2, D8).** `objdump -p build/rawpage.exe | grep "DLL Name"` lists `Qt6*.dll`,
 `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`, and **`msvcrt.dll` — never
 `ucrtbase.dll`**, which is the cheapest possible check that the CRT still matches Qt's. No
 unexpected DLL, and no `Qt6Charts.dll` (D4). Replace `Qt6Widgets.dll` with an independently built
@@ -747,8 +747,8 @@ outward. Deliberately add `#include "pdf/cos/CosDict.h"` to a `core/` file → C
 **i18n (D6).** Launch with `--lang zh-TW` → the UI is translated; `tools/i18n-lint` reports zero
 untranslated user-facing literals and zero missing catalog keys.
 
-**Platform boundary.** Build `recto_core` and `recto_pdf` alone, link the test binary without
-`recto_platform` and without `recto_ui`, and run the full headless suite → it must pass. If it
+**Platform boundary.** Build `rawpage_core` and `rawpage_pdf` alone, link the test binary without
+`rawpage_platform` and without `rawpage_ui`, and run the full headless suite → it must pass. If it
 cannot, the boundary has already leaked.
 
 ---

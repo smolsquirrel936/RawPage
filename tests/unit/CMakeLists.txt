@@ -1,6 +1,6 @@
 # tests/unit -- the headless suite.
 #
-# THE STANDING PROOF: this target links recto_core and recto_pdf and NOTHING ELSE. If the
+# THE STANDING PROOF: this target links rawpage_core and rawpage_pdf and NOTHING ELSE. If the
 # full domain suite cannot pass without a display and without a PDF engine, the layer
 # boundary has already leaked -- and it will have leaked quietly, months before anyone
 # notices. Tech-Stack-Plan.md 9 names this as a verification step in its own right.
@@ -10,29 +10,29 @@
 
 find_package(Catch2 3 REQUIRED)
 
-add_executable(recto_tests
+add_executable(rawpage_tests
     tst_result.cpp
     tst_units.cpp
     tst_geometry.cpp
     tst_log.cpp
 )
 
-target_include_directories(recto_tests PRIVATE "${CMAKE_SOURCE_DIR}")
+target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
-target_link_libraries(recto_tests PRIVATE
-    recto_core
-    recto_pdf
+target_link_libraries(rawpage_tests PRIVATE
+    rawpage_core
+    rawpage_pdf
     Catch2::Catch2WithMain
 )
 
-recto_common_flags(recto_tests)
+rawpage_common_flags(rawpage_tests)
 
 # --- The boundary assertion ---------------------------------------------------------
 # Checks the RESOLVED link closure, not just what this file writes: a transitive edge
-# (recto_pdf gaining a dependency on recto_platform, say) is exactly the way this leaks
+# (rawpage_pdf gaining a dependency on rawpage_platform, say) is exactly the way this leaks
 # without anybody editing this file.
-function(recto_assert_headless target)
-    set(forbidden recto_ui recto_platform)
+function(rawpage_assert_headless target)
+    set(forbidden rawpage_ui rawpage_platform)
     set(pending ${target})
     set(seen "")
 
@@ -71,15 +71,15 @@ function(recto_assert_headless target)
     endwhile()
 endfunction()
 
-recto_assert_headless(recto_tests)
+rawpage_assert_headless(rawpage_tests)
 
 # catch_discover_tests registers each TEST_CASE with CTest by name, so `ctest -R tst_journal`
 # selects a suite exactly as CLAUDE.md and Tech-Stack-Plan.md 9 document it.
 include(Catch)
-catch_discover_tests(recto_tests
+catch_discover_tests(rawpage_tests
     TEST_PREFIX "unit."
     # The built binaries are dynamically linked against libstdc++ and libgcc, so the
     # toolchain bin directory has to be reachable or every test fails to LAUNCH with
     # 0xC0000135 -- a failure that looks nothing like a test failure.
-    DL_PATHS "${RECTO_MINGW_ROOT}/bin"
+    DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )

@@ -4,7 +4,7 @@
 
 Regenerate with `cmake --build --preset x64-release --target checks`. This file is committed and tagged per release (Tech-Stack-Plan.md 8.2), and the About -> Third-Party Notices dialog is built from the same data, so a dependency cannot ship without appearing in both.
 
-Project: recto 0.1.0
+Project: rawpage 0.1.0
 
 ## Components
 
@@ -53,4 +53,4 @@ Where a component is offered under more than one licence, the one we take is rec
 
 - Qt is linked **dynamically** and shipped as replaceable DLLs beside the executable. It is never statically linked, never signature-locked, and never anti-tampered: user-replaceability is an LGPL-3.0 obligation and is release-gate tested.
 - The GCC runtime (`libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`) is `GPL-3.0-or-later WITH GCC-exception-3.1`. The exception is what permits shipping proprietary binaries, and it holds only while the build uses stock GCC with no non-free plugin.
-- Recto's own source is proprietary. No file in `core/`, `pdf/`, `ui/`, `app/`, or `platform/` may be copied from a copyleft project.
+- RawPage's own source is proprietary. No file in `core/`, `pdf/`, `ui/`, `app/`, or `platform/` may be copied from a copyleft project.

@@ -5,7 +5,7 @@
 #include <cmath>
 #include <type_traits>
 
-using namespace recto::core;
+using namespace rawpage::core;
 
 // =======================================================================================
 // THE MOST IMPORTANT TESTS IN THIS FILE ARE THE COMPILE-TIME NEGATIVES.

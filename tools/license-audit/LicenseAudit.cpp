@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace recto::tools {
+namespace rawpage::tools {
 namespace {
 
 // Normalize for comparison only: trim, collapse internal runs of whitespace, and fold
@@ -63,7 +63,7 @@ const std::vector<std::string> kQtModuleAllowlist = {
 bool isGplOnlyQtModule(const std::string& module, std::string& why) {
     if (module == "Charts" || module == "DataVisualization" || module == "VirtualKeyboard") {
         why = "Qt " + module + "'s only open-source licence is GPL-3.0. Linking it would "
-              "relicense Recto's own proprietary source. This is decision D4; it is "
+              "relicense RawPage's own proprietary source. This is decision D4; it is "
               "release-gate tested, and Qt Charts is installed in this machine's Qt prefix, "
               "so the trap is one find_package() line away. There is no allowlist entry to add.";
         return true;
@@ -173,8 +173,8 @@ std::vector<Finding> checkCompilerPlugins(const std::string& pluginListPath) {
             "compiler",
             "a GCC plugin is in play: " + line,
             "A non-free compiler plugin voids the GCC Runtime Library Exception, which is the "
-            "only thing permitting Recto to ship proprietary binaries linked against libstdc++. "
-            "Losing it would relicense Recto's own source under GPL-3.0 (Tech-Stack-Plan.md 8.1)."});
+            "only thing permitting RawPage to ship proprietary binaries linked against libstdc++. "
+            "Losing it would relicense RawPage's own source under GPL-3.0 (Tech-Stack-Plan.md 8.1)."});
     }
     return findings;
 }
@@ -262,10 +262,10 @@ std::string renderThirdPartyMarkdown(const Report& report, const VcpkgManifest& 
            "`GPL-3.0-or-later WITH GCC-exception-3.1`. The exception is what permits shipping "
            "proprietary binaries, and it holds only while the build uses stock GCC with no "
            "non-free plugin.\n"
-        << "- Recto's own source is proprietary. No file in `core/`, `pdf/`, `ui/`, `app/`, or "
+        << "- RawPage's own source is proprietary. No file in `core/`, `pdf/`, `ui/`, `app/`, or "
            "`platform/` may be copied from a copyleft project.\n";
 
     return out.str();
 }
 
-} // namespace recto::tools
+} // namespace rawpage::tools

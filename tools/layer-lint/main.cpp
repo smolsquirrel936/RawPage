@@ -64,14 +64,14 @@ int main(int argc, char** argv) {
     }
 
     try {
-        const recto::tools::RuleSet rules = recto::tools::RuleSet::loadFromFile(rulesPath);
-        const recto::tools::IncludeGraph graph = recto::tools::IncludeGraph::scan(root, rules);
+        const rawpage::tools::RuleSet rules = rawpage::tools::RuleSet::loadFromFile(rulesPath);
+        const rawpage::tools::IncludeGraph graph = rawpage::tools::IncludeGraph::scan(root, rules);
 
         if (wantExplain) {
-            recto::tools::explain(graph, rules, std::cout, explainAsDot);
+            rawpage::tools::explain(graph, rules, std::cout, explainAsDot);
             return 0;
         }
-        return recto::tools::run(graph, rules);
+        return rawpage::tools::run(graph, rules);
     } catch (const std::exception& error) {
         // Exit 2, never 1: a gate that could not run is not a gate that passed, and CI
         // has to be able to tell those apart.

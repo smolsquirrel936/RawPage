@@ -5,7 +5,7 @@
 //   // layer-lint: allow-filesystem-write(reason)
 #include <fstream>
 
-namespace recto::ui {
+namespace rawpage::ui {
 // Code on this line, but the marker sits behind a second // -- it is being described, not
 // applied, so the write below must still be reported.
 void offend() { std::ofstream out("notes.txt"); }  // see // layer-lint: allow-filesystem-write(reason)

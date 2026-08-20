@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-namespace recto::tools {
+namespace rawpage::tools {
 namespace {
 
 bool startsWith(const std::string& text, const std::string& prefix) {
@@ -182,4 +182,4 @@ void explain(const IncludeGraph& graph, const RuleSet& rules, std::ostream& out,
         << escapeCount << " escapes\n";
 }
 
-} // namespace recto::tools
+} // namespace rawpage::tools

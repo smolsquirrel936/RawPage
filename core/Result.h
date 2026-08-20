@@ -1,4 +1,4 @@
-// Result<T> -- how failure crosses a layer boundary in Recto.
+// Result<T> -- how failure crosses a layer boundary in RawPage.
 //
 // THE RULE (Implementation-Plan.md 1.4): no exception crosses a layer. Every boundary
 // returns Result<T>, so a caller cannot ignore a failure by accident and no layer has to
@@ -12,8 +12,8 @@
 // a style issue: it is the difference between a product that can ship in zh-TW and one that
 // cannot.
 
-#ifndef RECTO_CORE_RESULT_H
-#define RECTO_CORE_RESULT_H
+#ifndef RAWPAGE_CORE_RESULT_H
+#define RAWPAGE_CORE_RESULT_H
 
 #include <QLatin1String>
 #include <QString>
@@ -23,7 +23,7 @@
 #include <utility>
 #include <variant>
 
-namespace recto::core {
+namespace rawpage::core {
 
 // Deliberately coarse. These are the categories a CALLER can act on differently; the
 // specific cause belongs in messageKey and context. A code per failure site would give
@@ -115,21 +115,21 @@ using Status = Result<void>;
 // without every frame restating it.
 //
 //     Result<Document> open(const QString& path) {
-//         RECTO_TRY(auto bytes, readAll(path));      // returns on failure
-//         RECTO_TRY_STATUS(validate(bytes));
+//         RAWPAGE_TRY(auto bytes, readAll(path));      // returns on failure
+//         RAWPAGE_TRY_STATUS(validate(bytes));
 //         return Document(std::move(bytes));
 //     }
-#define RECTO_TRY(declaration, expression)                                                 \
-    auto&& RECTO_TRY_tmp_##__LINE__ = (expression);                                        \
-    if (!RECTO_TRY_tmp_##__LINE__) return RECTO_TRY_tmp_##__LINE__.error();                \
-    declaration = std::move(RECTO_TRY_tmp_##__LINE__).value()
+#define RAWPAGE_TRY(declaration, expression)                                                 \
+    auto&& RAWPAGE_TRY_tmp_##__LINE__ = (expression);                                        \
+    if (!RAWPAGE_TRY_tmp_##__LINE__) return RAWPAGE_TRY_tmp_##__LINE__.error();                \
+    declaration = std::move(RAWPAGE_TRY_tmp_##__LINE__).value()
 
-#define RECTO_TRY_STATUS(expression)                                                       \
+#define RAWPAGE_TRY_STATUS(expression)                                                       \
     do {                                                                                   \
-        auto&& RECTO_TRY_status = (expression);                                            \
-        if (!RECTO_TRY_status) return RECTO_TRY_status.error();                            \
+        auto&& RAWPAGE_TRY_status = (expression);                                            \
+        if (!RAWPAGE_TRY_status) return RAWPAGE_TRY_status.error();                            \
     } while (false)
 
-} // namespace recto::core
+} // namespace rawpage::core
 
-#endif // RECTO_CORE_RESULT_H
+#endif // RAWPAGE_CORE_RESULT_H

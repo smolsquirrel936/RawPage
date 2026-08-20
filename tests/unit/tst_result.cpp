@@ -5,7 +5,7 @@
 #include <string>
 #include <type_traits>
 
-using namespace recto::core;
+using namespace rawpage::core;
 
 namespace {
 
@@ -20,13 +20,13 @@ Result<int> parsePositive(int raw)
 
 Result<int> doubled(int raw)
 {
-    RECTO_TRY(const int value, parsePositive(raw));
+    RAWPAGE_TRY(const int value, parsePositive(raw));
     return value * 2;
 }
 
 Status mustBePositive(int raw)
 {
-    RECTO_TRY_STATUS(parsePositive(raw));
+    RAWPAGE_TRY_STATUS(parsePositive(raw));
     return {};
 }
 
@@ -53,7 +53,7 @@ TEST_CASE("Result carries a structured error", "[tst_result]")
     CHECK(bad.error().context == QStringLiteral("-3"));
 }
 
-TEST_CASE("RECTO_TRY propagates the error outward unchanged", "[tst_result]")
+TEST_CASE("RAWPAGE_TRY propagates the error outward unchanged", "[tst_result]")
 {
     const Result<int> good = doubled(21);
     REQUIRE(good.hasValue());

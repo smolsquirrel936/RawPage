@@ -13,13 +13,13 @@
 // So the allowlist below holds complete expressions, and an entry passes only by being
 // equal to one of them.
 
-#ifndef RECTO_LICENSE_AUDIT_LICENSEAUDIT_H
-#define RECTO_LICENSE_AUDIT_LICENSEAUDIT_H
+#ifndef RAWPAGE_LICENSE_AUDIT_LICENSEAUDIT_H
+#define RAWPAGE_LICENSE_AUDIT_LICENSEAUDIT_H
 
 #include <string>
 #include <vector>
 
-namespace recto::tools {
+namespace rawpage::tools {
 
 // One shipped component: a vcpkg port, a Qt module, or something declared by hand in
 // spdx-map.json (the GCC runtime, the mingw-w64 runtime, PDFium, WiX).
@@ -59,7 +59,7 @@ struct VcpkgManifest {
 };
 
 struct QtModuleList {
-    std::vector<std::string> modules;   // as recorded by recto_link_qt() into qt-modules.txt
+    std::vector<std::string> modules;   // as recorded by rawpage_link_qt() into qt-modules.txt
 };
 
 struct Finding {
@@ -104,6 +104,6 @@ bool isAllowedSpdx(const std::string& expression);
 const std::vector<std::string>& spdxAllowlist();
 const std::vector<std::string>& qtModuleAllowlist();
 
-} // namespace recto::tools
+} // namespace rawpage::tools
 
-#endif // RECTO_LICENSE_AUDIT_LICENSEAUDIT_H
+#endif // RAWPAGE_LICENSE_AUDIT_LICENSEAUDIT_H

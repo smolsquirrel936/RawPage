@@ -44,7 +44,7 @@ referenced, not re-established. The rows below are the *new* measurements this p
 
 | Fact | Value | Consequence for the tasks |
 |---|---|---|
-| `C:\Qt\6.11.1\mingw_64` | present, the only Qt version installed | `RECTO_QT_PREFIX` default |
+| `C:\Qt\6.11.1\mingw_64` | present, the only Qt version installed | `RAWPAGE_QT_PREFIX` default |
 | `C:\Qt\Tools\` | `mingw1310_64`, `CMake_64`, `Ninja`, `QtCreator`, `QtDesignStudio`, `sdktool` | the build environment is complete without any separate install |
 | `cmake`, `ninja`, `g++` on `PATH` | **absent** | every documented command must either use absolute paths or a `scripts/env.ps1` that prepends `C:\Qt\Tools\*\bin`. **T1 owes that script** — "it works on my machine because my PATH is unusual" is precisely the clean-machine failure Stage 0 exists to catch |
 | `vcpkg` | **installed and verified 2026-08-17** at `C:\Users\squirrel\vcpkg` — tool `2026-07-27-98d7cb0…`, baseline `94a5411977…` (2026-08-15), community triplet `x64-mingw-dynamic` present. `VCPKG_ROOT` set at user scope; empty at machine scope; **stale in the running session's process scope** | **T5 unblocked.** The process-scope gap is V-5/V-6's residue, removed permanently once `scripts/env.ps1` (T1) sets the variable itself — see the **§7.1 checklist** |
@@ -66,10 +66,10 @@ listed here so a later stage can find and revisit it rather than rediscovering i
 | **D0-2** | **The gates are C++ built by CMake, not Python scripts.** | The signatures are already specified (`int run(const IncludeGraph&, const RuleSet&)`, `Report audit(const VcpkgManifest&, const QtModuleList&)`) in [`Implementation-Plan.md` § Stage 0](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates); and a gate written in the project's own language is a gate the project's own developers will maintain. Python exists on this machine but is not a build dependency. | Never, without changing those signatures |
 | **D0-3** | **`vcpkg.json` declares *every* §6.2 dependency, but later-stage ones sit behind vcpkg *features*** (`ocr`, `office`, `media`), off by default. | A5 asks whether the whole §6.2 list resolves on `x64-mingw-dynamic`. Putting Tesseract in the default set would block Stage 0's build on a Stage 16 dependency; leaving it out entirely would defer the A5 finding to Stage 16, which is exactly the "Stage 6 surprise" A5 exists to prevent. Features let the resolve be *tested* now and *required* later. | Per stage, as each feature is switched on |
 | **D0-4** | **The bad-fixture tree lives at `tests/gates/fixtures/` and is excluded from the real gate run by an explicit deny-path in the rule set, not by a filename convention.** | The fixtures are, by construction, violations. If the production `layer-lint` run scans them, `checks` fails on the real tree forever; if they are excluded by a fragile convention (`*_bad.cpp`), the first fixture that forgets the suffix silently stops being tested. An explicit path in `RuleSet` is greppable and appears in `--explain` output. | Never |
-| **D0-5** | **The Qt module list that `license-audit` inspects is generated at configure time from the actual link closure**, via a `recto_link_qt()` wrapper that records modules into a global property. | The requirement is "**a build that links `Qt6::Charts`** fails". A hand-maintained list cannot detect that; only the real link closure can. The `objdump -p` half of the check is the release gate's ([`Tech-Stack-Plan.md` §8.3](./Tech-Stack-Plan.md#83-release-gate-must-all-be-ticked)) and is Stage 15's, not Stage 0's. | Stage 15 adds the post-link half |
+| **D0-5** | **The Qt module list that `license-audit` inspects is generated at configure time from the actual link closure**, via a `rawpage_link_qt()` wrapper that records modules into a global property. | The requirement is "**a build that links `Qt6::Charts`** fails". A hand-maintained list cannot detect that; only the real link closure can. The `objdump -p` half of the check is the release gate's ([`Tech-Stack-Plan.md` §8.3](./Tech-Stack-Plan.md#83-release-gate-must-all-be-ticked)) and is Stage 15's, not Stage 0's. | Stage 15 adds the post-link half |
 | **D0-6** | **PDFium arrives as the pinned prebuilt `bblanchon/pdfium-binaries` Windows-x64 DLL release**, hash recorded, import library generated locally with `gendef` + `dlltool`. | Per your answer. It is the fastest route to an A6 verdict, and A6 is only a *linkability* question — [`Tech-Stack-Plan.md` §3.3 A6](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified) already names build-from-source as the fallback if a DLL cannot be obtained. | Stage 2, when the facade replaces the spike; source-build fallback if the A6 spike fails |
 | **D0-7** | **CI is GitHub Actions**, three jobs: `gates` (ubuntu, no Qt), `windows` (Qt + mingw + vcpkg), `portable-asan` (ubuntu). | Per your answer, and it is the only route the installed tooling (`gh`) already supports. | O6/arm64 at Stage 15 |
-| **D0-8** | **Stage 0's `recto.exe` is an empty `int main()` that returns 0**, linking all four layer libraries so the linker exercises the target graph. | The exit criterion is "an empty `recto.exe` builds", and an executable that links all four libraries proves the target graph is wired; one that links none proves nothing. | Stage 1 replaces `main()` |
+| **D0-8** | **Stage 0's `rawpage.exe` is an empty `int main()` that returns 0**, linking all four layer libraries so the linker exercises the target graph. | The exit criterion is "an empty `rawpage.exe` builds", and an executable that links all four libraries proves the target graph is wired; one that links none proves nothing. | Stage 1 replaces `main()` |
 
 **Not decided here, deliberately:** **O10** (which sanitizer route we settle on) stays open. Stage 0
 wires `portable-asan` and `portable-fuzz` per the plan of record and records what the Linux job costs
@@ -90,7 +90,7 @@ must flip **○ → ✅ in the same change**.
 | `vcpkg.json`, `vcpkg-configuration.json` | ⚠️ **no row** | T6 |
 | `cmake/toolchain-mingw.cmake` | §3.17 ✅ has a row | T3 |
 | `cmake/ToolchainAssert.cmake` | ⚠️ **no row** | T3 |
-| `cmake/RectoWarnings.cmake`, `cmake/RectoQt.cmake`, `cmake/RectoChecks.cmake` | ⚠️ **no row** | T2, T7, T9 |
+| `cmake/RawPageWarnings.cmake`, `cmake/RawPageQt.cmake`, `cmake/RawPageChecks.cmake` | ⚠️ **no row** | T2, T7, T9 |
 | `app/main.cpp` | §3.1, tagged **(S1)** — Stage 0 creates the ⚪ placeholder only; the row flips at Stage 1 | T2 |
 | `core/Result.h` | §3.8 (S0) | T10 |
 | `core/Log.h` | §3.8 (S0) | T10 |
@@ -119,10 +119,10 @@ the toolchain file therefore run many times and can fail a probe for the wrong r
 
 - **`toolchain-mingw.cmake`** (read pre-`project()`, repeatedly) does only the cheap, idempotent work:
   ```
-  set(RECTO_MINGW_ROOT "C:/Qt/Tools/mingw1310_64" CACHE PATH "...")   # cache variable, not a literal
-  set(RECTO_QT_PREFIX  "C:/Qt/6.11.1/mingw_64"    CACHE PATH "...")
+  set(RAWPAGE_MINGW_ROOT "C:/Qt/Tools/mingw1310_64" CACHE PATH "...")   # cache variable, not a literal
+  set(RAWPAGE_QT_PREFIX  "C:/Qt/6.11.1/mingw_64"    CACHE PATH "...")
   CMAKE_C_COMPILER / CMAKE_CXX_COMPILER / CMAKE_RC_COMPILER / CMAKE_SYSTEM_NAME
-  CMAKE_PREFIX_PATH += RECTO_QT_PREFIX
+  CMAKE_PREFIX_PATH += RAWPAGE_QT_PREFIX
   ```
 - **`ToolchainAssert.cmake`** (included **once**, immediately after `project()`) holds every assertion.
   Each failure message must name the offending value **and the fix**, because the person hitting it is
@@ -133,24 +133,24 @@ the toolchain file therefore run many times and can fail a probe for the wrong r
 | TA-1 | `CMAKE_CXX_COMPILER_ID` is `GNU` | CMake | [§6.3](./Tech-Stack-Plan.md#63-build-and-dependency-management) |
 | TA-2 | `CMAKE_CXX_COMPILER_VERSION` is exactly `13.1.0` | CMake | §3.3 A7 |
 | TA-3 | `g++ -dumpmachine` is `x86_64-w64-mingw32` | `execute_process` | §3.3 A7 |
-| TA-4 | Exception model is **SEH** | `libgcc_s_seh-1.dll` resolves in `${RECTO_MINGW_ROOT}/bin`; `libgcc_s_dw2-1.dll` does not | §3.3 A7 |
+| TA-4 | Exception model is **SEH** | `libgcc_s_seh-1.dll` resolves in `${RAWPAGE_MINGW_ROOT}/bin`; `libgcc_s_dw2-1.dll` does not | §3.3 A7 |
 | TA-5 | Thread model is **posix** | `g++ -v` banner contains `Thread model: posix` | §3.3 A7 |
 | TA-6 | CRT is **msvcrt, not UCRT** | `g++ -dM -E -` over an empty TU must **not** define `_UCRT`. This is the single most valuable assertion in the file — it is the one that catches an MSYS2 UCRT64 install, which passes TA-1..TA-3 and TA-5 | §3.3 A7 |
-| TA-7 | The compiler is *inside* `RECTO_MINGW_ROOT` | `get_filename_component(... REALPATH)` prefix match — stops a `PATH`-ordering accident where the pin says one thing and CMake found another | this plan |
-| TA-8 | `Qt6_VERSION` is `6.11.1` and its prefix is `RECTO_QT_PREFIX` | after `find_package(Qt6)` | §6.1 |
+| TA-7 | The compiler is *inside* `RAWPAGE_MINGW_ROOT` | `get_filename_component(... REALPATH)` prefix match — stops a `PATH`-ordering accident where the pin says one thing and CMake found another | this plan |
+| TA-8 | `Qt6_VERSION` is `6.11.1` and its prefix is `RAWPAGE_QT_PREFIX` | after `find_package(Qt6)` | §6.1 |
 | TA-9 | **No non-free GCC plugin.** `CMAKE_CXX_FLAGS` and `CMAKE_CXX_FLAGS_<CONFIG>` contain no `-fplugin`; the directory from `g++ -print-file-name=plugin` contains no third-party module. The list is written to `${CMAKE_BINARY_DIR}/compiler-plugins.txt` for `license-audit` to re-check | [§8.1](./Tech-Stack-Plan.md#81-obligation--concrete-action) — the Runtime Library Exception rests on this |
 
 Flags come from the translation table in [`Tech-Stack-Plan.md` §6.3](./Tech-Stack-Plan.md#63-build-and-dependency-management)
-and are applied through `cmake/RectoWarnings.cmake`, never pasted per target: `-std=c++20` (not
+and are applied through `cmake/RawPageWarnings.cmake`, never pasted per target: `-std=c++20` (not
 `gnu++20`), `-Wall -Wextra -Wpedantic -Wshadow -Wnon-virtual-dtor`, `-fno-ms-extensions`,
 `-finput-charset=UTF-8 -fexec-charset=UTF-8`, `-Wa,-mbig-obj` (debug), `-municode -mwindows` (the
 executable only), `-ffunction-sections -fdata-sections -Wl,--gc-sections` (release), `-g` (DWARF).
-`-Werror` on `recto_core` and `recto_pdf`; `recto_ui` carries a grace list that may only shrink —
-implemented as an explicit `RECTO_UI_WARNING_GRACE` list in `RectoWarnings.cmake` so shrinking it is a
+`-Werror` on `rawpage_core` and `rawpage_pdf`; `rawpage_ui` carries a grace list that may only shrink —
+implemented as an explicit `RAWPAGE_UI_WARNING_GRACE` list in `RawPageWarnings.cmake` so shrinking it is a
 visible diff.
 
 **Never** `-static`, `-static-libstdc++`, or `-static-libgcc` — [§8.1](./Tech-Stack-Plan.md#81-obligation--concrete-action)
-makes replaceability an LGPL obligation and an ABI hazard at once. `RectoWarnings.cmake` asserts none
+makes replaceability an LGPL obligation and an ABI hazard at once. `RawPageWarnings.cmake` asserts none
 of the three appears in any flag variable.
 
 ### 5.2 Targets and the `checks` graph
@@ -158,11 +158,11 @@ of the three appears in any flag variable.
 Four static libraries + one executable, per [§6.3](./Tech-Stack-Plan.md#63-build-and-dependency-management):
 
 ```
-recto_core      →  QtCore only        (+ the pure-computation allowlist, none linked yet at S0)
-recto_pdf       →  recto_core
-recto_platform  →  recto_core
-recto_ui        →  recto_core, QtWidgets/QtGui/QtSvg
-recto           →  all four                                          (D0-8: empty main, returns 0)
+rawpage_core      →  QtCore only        (+ the pure-computation allowlist, none linked yet at S0)
+rawpage_pdf       →  rawpage_core
+rawpage_platform  →  rawpage_core
+rawpage_ui        →  rawpage_core, QtWidgets/QtGui/QtSvg
+rawpage           →  all four                                          (D0-8: empty main, returns 0)
 
 layer-lint      →  (nothing)          ┐ D0-1: standard library only
 license-audit   →  (nothing)          ┘
@@ -173,7 +173,7 @@ checks          →  runs layer-lint, then license-audit
 libraries. That is the whole point: `cmake --build --target checks` compiles two small programs and
 runs them, so a layering violation fails in seconds ([§9](./Tech-Stack-Plan.md#9-verification)).
 
-At Stage 0 `recto_core` is the only library with real content (§5.5); the other three carry a single
+At Stage 0 `rawpage_core` is the only library with real content (§5.5); the other three carry a single
 placeholder TU each so the target graph and the link order are exercised from the start.
 
 ### 5.3 `tools/layer-lint/`
@@ -240,7 +240,7 @@ headless, and they are what `portable-asan` compiles on Linux from day one.
 
 - **`core/Result.h`** — `Result<T>` and `Result<void>`; `Error { ErrorCode code; QLatin1String
   messageKey; QString context; }`. `messageKey` is a **catalog key, not a message**: `core/` must not
-  hold user-facing English, and Stage 1's `i18n-lint` will start enforcing that. A `RECTO_TRY` macro
+  hold user-facing English, and Stage 1's `i18n-lint` will start enforcing that. A `RAWPAGE_TRY` macro
   for propagation. No `Result` constructor throws, and nothing in the header does — the whole point is
   that no exception crosses a layer ([§1.4](./Implementation-Plan.md#14-standing-policy-across-stages)).
 - **`core/Log.h`** — levels `error|warning|info|debug|trace` and subsystems
@@ -268,7 +268,7 @@ headless, and they are what `portable-asan` compiles on Linux from day one.
   `ctest -R <name>` selects by test name, matching the commands in
   [`CLAUDE.md`](../CLAUDE.md) and [`Tech-Stack-Plan.md` §9](./Tech-Stack-Plan.md#9-verification).
 - **The headless link proof is a build-time property, not a convention:** the unit test target links
-  `recto_core` and `recto_pdf` and **must not** link `recto_ui` or `recto_platform`. A CMake assertion
+  `rawpage_core` and `rawpage_pdf` and **must not** link `rawpage_ui` or `rawpage_platform`. A CMake assertion
   checks the resolved link closure and fails configure if either appears
   ([§9 *Platform boundary*](./Tech-Stack-Plan.md#9-verification)).
 - Stage 0 suites: `tst_result`, `tst_units`, `tst_geometry`, `tst_log`, `tst_gates`.
@@ -322,16 +322,16 @@ T1 ─▶ T2 ─▶ T3 ─▶ T4 ─┬─▶ T5 ─▶ T6 ───────
 | # | Task | Depends on | Deliverable | Done when |
 |---|---|---|---|---|
 | **T1** | Repository skeleton | — | `git init`; `.gitignore` (build trees, vcpkg installed tree, `THIRD-PARTY.md`? **no — it is committed per release**, §8.2); `.gitattributes` (text=auto, `corpus/**` and `golden/**` binary, `*.ps1` CRLF); `scripts/env.ps1` prepending `C:\Qt\Tools\{CMake_64,Ninja,mingw1310_64}\bin`; `scripts/bootstrap.ps1` (vcpkg presence check + baseline pin); `README.md` build section | `git status` clean on a fresh clone; `scripts\env.ps1; cmake --version` reports 3.30.5 |
-| **T2** | Root `CMakeLists.txt`, layer targets, `RectoWarnings.cmake` | T1 | Four static libs + `recto` (D0-8), each with a placeholder TU; the flag module | `cmake --build` produces `recto.exe` (once T3/T4 land) |
+| **T2** | Root `CMakeLists.txt`, layer targets, `RawPageWarnings.cmake` | T1 | Four static libs + `rawpage` (D0-8), each with a placeholder TU; the flag module | `cmake --build` produces `rawpage.exe` (once T3/T4 land) |
 | **T3** | `toolchain-mingw.cmake` + `ToolchainAssert.cmake` | T2 | §5.1 in full, TA-1..TA-9 | every assertion fires on a deliberately wrong input; the real toolchain passes |
 | **T4** | `CMakePresets.json` | T3 | `x64-debug`, `x64-release`, `arm64-release`, `portable-asan`, `portable-fuzz`. **Gotcha:** vcpkg's toolchain must be `CMAKE_TOOLCHAIN_FILE` with ours chainloaded via `VCPKG_CHAINLOAD_TOOLCHAIN_FILE` — not the other way round; `VCPKG_TARGET_TRIPLET=x64-mingw-dynamic` | all five configure (arm64 configure-only, O6) |
 | **T5** | **vcpkg bootstrap** — *blocking precondition, yours* | T1 | The **§7.1 checklist V-1 … V-6**: vcpkg at `C:\Users\squirrel\vcpkg`, `VCPKG_ROOT` visible to the running session, baseline commit pinned in `vcpkg-configuration.json` | **V-6 passes** — the process scope is non-empty and the directory exists; `vcpkg version` runs; the baseline is recorded in the repo |
 | **T6** | `vcpkg.json` + **A5 sweep** | T5, T4 | Every §6.2 dependency declared, later-stage ones behind features (D0-3); `vcpkg install --dry-run --triplet x64-mingw-dynamic` for the default set **and** each feature | **A5 verdict recorded** (§8). Any port that resolves only under MSVC becomes a `tools/ports/` overlay or a named finding with an owning stage |
 | **T7** | `tools/layer-lint/` | T2 | §5.3 | runs clean on the real tree; `--explain` prints the graph |
-| **T8** | `tools/license-audit/` + `recto_link_qt()` | T6, T2 | §5.4, §D0-5; `THIRD-PARTY.md` generated | output lists Qt 6.11.1 and the GCC runtime with its exception |
+| **T8** | `tools/license-audit/` + `rawpage_link_qt()` | T6, T2 | §5.4, §D0-5; `THIRD-PARTY.md` generated | output lists Qt 6.11.1 and the GCC runtime with its exception |
 | **T9** | `checks` target + `tests/gates/` | T7, T8 | §5.2, §5.6 fixture table | `--target checks` clean on the tree; every fixture fails with its named diagnostic; the two passing controls pass |
 | **T10** | `core/` vocabulary headers | T2 | §5.5 | compile clean under `-Werror`; the `static_assert` negatives hold |
-| **T11** | `tests/unit/` harness | T10, T6 | Catch2 wired, `catch_discover_tests`, the headless-link CMake assertion | `ctest --preset x64-debug` green; configure fails if `recto_ui` is added to the link closure |
+| **T11** | `tests/unit/` harness | T10, T6 | Catch2 wired, `catch_discover_tests`, the headless-link CMake assertion | `ctest --preset x64-debug` green; configure fails if `rawpage_ui` is added to the link closure |
 | **T12** | **PDFium spike — A6** | T6 | Pinned prebuilt DLL (D0-6) with recorded SHA-256; `gendef` + `dlltool` → `libpdfium.dll.a`; `tools/spike-pdfium/main.cpp` doing `FPDF_InitLibrary` → `FPDF_LoadDocument` on one corpus file → `FPDF_GetPageCount` → `FPDF_DestroyLibrary` | **A6 verdict recorded**; `objdump -p spike.exe` imports `pdfium.dll` and `msvcrt.dll`, never `ucrtbase.dll`. The spike is **throwaway** — the durable output is the verdict plus a documented acquisition step in `cmake/FindPdfium.cmake`, which Stage 2 inherits |
 | **T13** | CI — GitHub Actions | T9, T11, T12 | §9 | all three jobs green on a push |
 | **T14** | `portable-asan` proof on Linux | T13, T10 | the Linux job builds `core/` (+ `pdf/cos/`, empty at S0) and runs the unit suite under ASan+UBSan | green, and it proves `core/` builds with **no display and no PDF engine** from day one |
@@ -426,7 +426,7 @@ Three jobs, and the ordering is the point: **`checks` runs before anything is co
 
 | Job | Runner | Does | Why it is shaped this way |
 |---|---|---|---|
-| `gates` | `ubuntu-latest` | `cmake --preset gates` → build → `--target checks` → `ctest --preset gates` | D0-1's payoff: **no Qt, no vcpkg, no Windows**. Measured 2026-08-18 with Qt and vcpkg deliberately hidden: **3.8 s, 23/23**. Requires the `RECTO_GATES_ONLY` configuration — without it the root calls `find_package(Qt6 REQUIRED)` and this job cannot exist. `windows` and `portable-asan` both `needs:` it, so a violation stops everything before a runner installs a toolchain |
+| `gates` | `ubuntu-latest` | `cmake --preset gates` → build → `--target checks` → `ctest --preset gates` | D0-1's payoff: **no Qt, no vcpkg, no Windows**. Measured 2026-08-18 with Qt and vcpkg deliberately hidden: **3.8 s, 23/23**. Requires the `RAWPAGE_GATES_ONLY` configuration — without it the root calls `find_package(Qt6 REQUIRED)` and this job cannot exist. `windows` and `portable-asan` both `needs:` it, so a violation stops everything before a runner installs a toolchain |
 | `windows` | `windows-latest` + Qt install action, **or a self-hosted runner on this machine** | `cmake --preset x64-release` → `--target checks` → build → `ctest` | The A7 pin means CI must install *exactly* Qt 6.11.1 mingw_64 **and** `tools_mingw1310`. If the Qt install action cannot supply that tool package, the self-hosted route is the fallback — the pin is not negotiable to make CI easier |
 | `portable-asan` | `ubuntu-latest` | configures `portable-asan`, builds `core/` + `pdf/cos/` + unit tests, runs `ctest` under ASan+UBSan | Recovers the gate MinGW cannot give us (R7), and mechanically proves the portability the architecture claims |
 
@@ -482,7 +482,7 @@ Per [`Implementation-Plan.md` § Stage 0 *Deferrals*](./Implementation-Plan.md#s
 - **arm64** — configured, not validated on hardware; per R8 it may need LLVM-MinGW rather than GCC,
   which is **O6**'s problem at Stage 15.
 - **`portable-fuzz` targets** — Stage 2.
-- **Any product behaviour.** `recto.exe` opens no window and does nothing (D0-8). No settings key
+- **Any product behaviour.** `rawpage.exe` opens no window and does nothing (D0-8). No settings key
   exists — `SettingsSchema` is Stage 1.
 - **The real corpus, golden baselines, and benchmarks** — Stage 2.
 - **Signing, packaging, the release gate** — Stage 15.

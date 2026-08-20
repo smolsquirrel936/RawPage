@@ -34,7 +34,7 @@ int usage(const char* argv0) {
 } // namespace
 
 int main(int argc, char** argv) {
-    recto::tools::InventoryInputs inputs;
+    rawpage::tools::InventoryInputs inputs;
     std::filesystem::path pluginList;
     std::filesystem::path emitPath;
 
@@ -72,16 +72,16 @@ int main(int argc, char** argv) {
     }
 
     try {
-        const recto::tools::VcpkgManifest manifest = recto::tools::loadManifest(inputs);
-        const recto::tools::QtModuleList qtModules = recto::tools::loadQtModules(inputs.qtModulesPath);
+        const rawpage::tools::VcpkgManifest manifest = rawpage::tools::loadManifest(inputs);
+        const rawpage::tools::QtModuleList qtModules = rawpage::tools::loadQtModules(inputs.qtModulesPath);
 
-        recto::tools::Report report = recto::tools::audit(manifest, qtModules);
+        rawpage::tools::Report report = rawpage::tools::audit(manifest, qtModules);
 
         // The GCC plugin condition is checked here as well as by TA-9 at configure time.
         // Deliberate duplication: the licence claim should not rest on a single place, and
         // this tool is what a release audit actually runs.
         if (!pluginList.empty()) {
-            for (recto::tools::Finding& finding : recto::tools::checkCompilerPlugins(pluginList.string())) {
+            for (rawpage::tools::Finding& finding : rawpage::tools::checkCompilerPlugins(pluginList.string())) {
                 report.findings.push_back(std::move(finding));
             }
         }
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
                     std::cerr << "license-audit: cannot write " << emitPath.string() << "\n";
                     return 2;
                 }
-                out << recto::tools::renderThirdPartyMarkdown(report, manifest);
+                out << rawpage::tools::renderThirdPartyMarkdown(report, manifest);
             } else {
                 std::cout << "license-audit: " << emitPath.filename().string()
                           << " left unchanged -- incomplete inventory (" << missing << ")\n";
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
         // breach in something we ship -- and must never be silently dropped either, because
         // it is the early notice that a future stage has a problem waiting for it.
         auto printWarnings = [&report]() {
-            for (const recto::tools::Finding& finding : report.findings) {
+            for (const rawpage::tools::Finding& finding : report.findings) {
                 if (finding.blocking) continue;
                 std::cout << "warning   " << finding.subject << ": " << finding.detail
                           << "\n              [declared but not built by this configuration"
@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        for (const recto::tools::Finding& finding : report.findings) {
+        for (const rawpage::tools::Finding& finding : report.findings) {
             if (!finding.blocking) continue;
             std::cout << "BLOCKING  " << finding.subject << ": " << finding.detail << "\n";
             if (!finding.why.empty()) std::cout << "    why: " << finding.why << "\n";

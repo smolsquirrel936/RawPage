@@ -7,17 +7,17 @@
 #      review rejection, not a style preference.
 #
 # ui/ carries a warning grace list where core/ and pdf/ carry none -- see
-# RECTO_UI_WARNING_GRACE in cmake/RectoWarnings.cmake. It may only shrink.
+# RAWPAGE_UI_WARNING_GRACE in cmake/RawPageWarnings.cmake. It may only shrink.
 
-add_library(recto_ui STATIC
+add_library(rawpage_ui STATIC
     UiModule.cpp
 )
 
-target_include_directories(recto_ui PUBLIC "${CMAKE_SOURCE_DIR}")
+target_include_directories(rawpage_ui PUBLIC "${CMAKE_SOURCE_DIR}")
 
-# recto_core only. NOT recto_pdf, NOT recto_platform -- if this line ever grows one of
+# rawpage_core only. NOT rawpage_pdf, NOT rawpage_platform -- if this line ever grows one of
 # those, the boundary is gone regardless of what any lint says.
-target_link_libraries(recto_ui PUBLIC recto_core)
+target_link_libraries(rawpage_ui PUBLIC rawpage_core)
 
-recto_link_qt(recto_ui Widgets Gui Svg)
-recto_ui_grace(recto_ui)
+rawpage_link_qt(rawpage_ui Widgets Gui Svg)
+rawpage_ui_grace(rawpage_ui)

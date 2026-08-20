@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Puts Recto's pinned build environment on PATH for the current shell.
+    Puts RawPage's pinned build environment on PATH for the current shell.
 
 .DESCRIPTION
     DOT-SOURCE THIS SCRIPT -- it modifies the calling session:
@@ -44,31 +44,31 @@ $ErrorActionPreference = 'Stop'
 # Overridable, so a machine with Qt elsewhere can set these before dot-sourcing.
 # The values below are the pin asserted by cmake/toolchain-mingw.cmake; changing them
 # here does not loosen that assertion, it only tells the script where to look.
-if (-not $env:RECTO_QT_PREFIX)  { $env:RECTO_QT_PREFIX  = 'C:\Qt\6.11.1\mingw_64' }
-if (-not $env:RECTO_MINGW_ROOT) { $env:RECTO_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64' }
+if (-not $env:RAWPAGE_QT_PREFIX)  { $env:RAWPAGE_QT_PREFIX  = 'C:\Qt\6.11.1\mingw_64' }
+if (-not $env:RAWPAGE_MINGW_ROOT) { $env:RAWPAGE_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64' }
 
 $cmakeBin = 'C:\Qt\Tools\CMake_64\bin'
 $ninjaBin = 'C:\Qt\Tools\Ninja'
-$mingwBin = Join-Path $env:RECTO_MINGW_ROOT 'bin'
-$qtBin    = Join-Path $env:RECTO_QT_PREFIX  'bin'
+$mingwBin = Join-Path $env:RAWPAGE_MINGW_ROOT 'bin'
+$qtBin    = Join-Path $env:RAWPAGE_QT_PREFIX  'bin'
 
 # --- Verify before touching PATH -------------------------------------------
 $missing = @()
 foreach ($entry in @(
     @{ Path = $cmakeBin; What = 'CMake (C:\Qt\Tools\CMake_64)' },
     @{ Path = $ninjaBin; What = 'Ninja (C:\Qt\Tools\Ninja)' },
-    @{ Path = $mingwBin; What = "MinGW GCC (`$env:RECTO_MINGW_ROOT = $env:RECTO_MINGW_ROOT)" },
-    @{ Path = $qtBin;    What = "Qt (`$env:RECTO_QT_PREFIX = $env:RECTO_QT_PREFIX)" }
+    @{ Path = $mingwBin; What = "MinGW GCC (`$env:RAWPAGE_MINGW_ROOT = $env:RAWPAGE_MINGW_ROOT)" },
+    @{ Path = $qtBin;    What = "Qt (`$env:RAWPAGE_QT_PREFIX = $env:RAWPAGE_QT_PREFIX)" }
 )) {
     if (-not (Test-Path $entry.Path)) { $missing += $entry.What }
 }
 
 if ($missing.Count -gt 0) {
-    Write-Host 'Recto build environment NOT configured. Missing:' -ForegroundColor Red
+    Write-Host 'RawPage build environment NOT configured. Missing:' -ForegroundColor Red
     $missing | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
     Write-Host ''
     Write-Host 'Install Qt 6.11.1 for MinGW plus the mingw1310_64, CMake, and Ninja tool' -ForegroundColor Yellow
-    Write-Host 'packages, or point RECTO_QT_PREFIX / RECTO_MINGW_ROOT at an existing install' -ForegroundColor Yellow
+    Write-Host 'packages, or point RAWPAGE_QT_PREFIX / RAWPAGE_MINGW_ROOT at an existing install' -ForegroundColor Yellow
     Write-Host 'before dot-sourcing this script. See README.md -> Prerequisites.' -ForegroundColor Yellow
     return
 }
@@ -107,10 +107,10 @@ if (-not $Quiet) {
     $gccVersion   = (& g++ -dumpversion)
     $gccTriple    = (& g++ -dumpmachine)
 
-    Write-Host 'Recto build environment ready' -ForegroundColor Green
+    Write-Host 'RawPage build environment ready' -ForegroundColor Green
     Write-Host ("  cmake      {0}" -f $cmakeVersion)
     Write-Host ("  ninja      {0}" -f $ninjaVersion)
     Write-Host ("  g++        {0}  ({1})" -f $gccVersion, $gccTriple)
-    Write-Host ("  Qt prefix  {0}" -f $env:RECTO_QT_PREFIX)
+    Write-Host ("  Qt prefix  {0}" -f $env:RAWPAGE_QT_PREFIX)
     Write-Host ("  VCPKG_ROOT {0}" -f $env:VCPKG_ROOT)
 }

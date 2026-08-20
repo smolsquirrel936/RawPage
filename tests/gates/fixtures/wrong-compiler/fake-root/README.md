@@ -1,8 +1,8 @@
 # `fake-root/` — a compiler that exists but cannot run
 
 `bin/g++.exe` is a text file. That is the entire point: it satisfies the
-`EXISTS "${RECTO_MINGW_ROOT}/bin/g++.exe"` guard and then fails to start, which is the state
-`recto_preflight_compiler_runs()` was added to explain (**I-10**).
+`EXISTS "${RAWPAGE_MINGW_ROOT}/bin/g++.exe"` guard and then fails to start, which is the state
+`rawpage_preflight_compiler_runs()` was added to explain (**I-10**).
 
 The real-world shape of this is a mingw `g++` whose own `bin` directory is off `PATH`: the
 driver spawns `cc1plus.exe` from `lib/gcc/<triple>/<version>/`, which is not the driver's

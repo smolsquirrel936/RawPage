@@ -69,10 +69,10 @@ probe breaks is not a check. This case is what keeps that property honest.
 ### WC-4 · Toolchain root points nowhere
 
 ```powershell
-cmake -S . -B build/wc4 -G Ninja $tc "-DRECTO_MINGW_ROOT=C:/nonexistent-gcc"
+cmake -S . -B build/wc4 -G Ninja $tc "-DRAWPAGE_MINGW_ROOT=C:/nonexistent-gcc"
 ```
 
-**Expect** exit ≠ 0 · `No g++.exe under RECTO_MINGW_ROOT=` · and the Qt Maintenance Tool fix.
+**Expect** exit ≠ 0 · `No g++.exe under RAWPAGE_MINGW_ROOT=` · and the Qt Maintenance Tool fix.
 
 ### WC-5 · GCC plugin injected
 

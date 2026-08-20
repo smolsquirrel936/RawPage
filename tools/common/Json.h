@@ -13,8 +13,8 @@
 // It DOES report the line and column of a parse error, because a config file that fails
 // with "parse error" and no position is a config file people stop editing.
 
-#ifndef RECTO_TOOLS_JSON_H
-#define RECTO_TOOLS_JSON_H
+#ifndef RAWPAGE_TOOLS_JSON_H
+#define RAWPAGE_TOOLS_JSON_H
 
 #include <cstdint>
 #include <map>
@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace recto::tools {
+namespace rawpage::tools {
 
 class JsonValue;
 using JsonObject = std::map<std::string, JsonValue>;
@@ -289,6 +289,6 @@ inline JsonValue parseJson(const std::string& text) {
     return detail::JsonParser(text).parse();
 }
 
-} // namespace recto::tools
+} // namespace rawpage::tools
 
-#endif // RECTO_TOOLS_JSON_H
+#endif // RAWPAGE_TOOLS_JSON_H

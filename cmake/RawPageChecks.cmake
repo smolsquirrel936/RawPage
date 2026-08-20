@@ -6,12 +6,12 @@
 # layer libraries. The gates link nothing but the C++ standard library (D0-1), so `checks`
 # compiles two small programs and runs them. That is what lets CI run it BEFORE compiling
 # anything (Tech-Stack-Plan.md 9) and have a layering violation fail in seconds rather than
-# after a full Qt build. Adding a dependency on recto_core here would silently destroy that
+# after a full Qt build. Adding a dependency on rawpage_core here would silently destroy that
 # property while leaving every test passing.
 
 include_guard(GLOBAL)
 
-function(recto_add_checks_target)
+function(rawpage_add_checks_target)
     set(gate_commands)
 
     list(APPEND gate_commands

@@ -1,4 +1,4 @@
-# Recto — Architecture & File Map
+# RawPage — Architecture & File Map
 
 ## Context
 
@@ -414,12 +414,12 @@ because declaring their interface early is what keeps them from reshaping the co
 | `tools/i18n-lint/` | ○ (S1) | Fails on any user-facing literal not wrapped in `tr()`, and on catalog keys missing from a shipped locale. | `i18n/*.ts`, CI |
 | `tools/license-audit/` | ✅ (S0 · T8) | Walks the resolved vcpkg manifest plus the Qt module list and the GCC runtime, emits `THIRD-PARTY.md`, and fails on any SPDX **expression** outside the allowlist. Matching is whole-expression, never a `GPL` substring: `GPL-3.0-or-later WITH GCC-exception-3.1` must pass while bare `GPL-3.0-or-later` must fail. Also asserts no non-free GCC plugin was loaded, which is the condition the exception rests on. | `vcpkg.json`, `cmake/toolchain-mingw.cmake`, `ui/dialogs/ThirdPartyNoticesDialog`, CI |
 | `tools/golden-update/` | ○ (S2) | Regenerates `golden/` reference rasters, requiring an explicit reason so a rendering regression cannot be laundered into a new baseline. | `golden/`, `tests/golden/` |
-| `tests/unit/` | ✅ (S0 · T11) | Catch2 suites over `core/` and `pdf/`, linked **without** `recto_ui` and `recto_platform` — the standing proof that the boundary holds. | `core/*`, `pdf/*` |
+| `tests/unit/` | ✅ (S0 · T11) | Catch2 suites over `core/` and `pdf/`, linked **without** `rawpage_ui` and `rawpage_platform` — the standing proof that the boundary holds. | `core/*`, `pdf/*` |
 | `tests/golden/` | ○ (S2) | Renders corpus pages at fixed resolutions and compares against `golden/` with a perceptual threshold; writes a diff image on failure. | `pdf/render/PdfiumRasterizer`, `golden/` |
 | `tests/roundtrip/` | ○ (S3) | Open → command → incremental save → reopen: asserts the mutation landed, untouched objects are byte-identical, and pre-existing signatures still validate. | `pdf/cos/IncrementalWriter`, `corpus/` |
 | `tests/fuzz/` | ○ (S3) | libFuzzer targets over `pdf/cos/Lexer` and `pdf/cos/Parser`, seeded from `corpus/malformed/`. Built by the `portable-fuzz` preset, **not** by the Windows GCC build, which has no libFuzzer; findings are reproduced in `x64-debug` before they count as fixed. | `pdf/cos/*` |
 | `cmake/toolchain-mingw.cmake` | ✅ (S0 · T3) | The pinned toolchain: `C:\Qt\Tools\mingw1310_64` — GCC 13.1.0, `x86_64-w64-mingw32`, SEH, posix, msvcrt — as a cache-variable default, plus the shared warning/charset/subsystem flags. **Fails configure** on any other compiler, because that is Qt's own bundled GCC and a different libstdc++ or CRT against this Qt surfaces as an unexplained crash in Stage 6 rather than an error in Stage 0. | `CMakePresets.json`, `tools/license-audit`, CI |
-| `cmake/ToolchainPreflight.cmake` | ✅ (S0 · M-03 fix) | The pin's roots and the three checks that must run **before `project()`**: `RECTO_MINGW_ROOT` exists, `RECTO_QT_PREFIX` exists, the vcpkg toolchain file is reachable through `VCPKG_ROOT`, and the pinned compiler can actually **compile** (`-fsyntax-only`, not `-dumpversion` — the driver answers that one itself while the toolchain is unusable). Before it, a `FATAL_ERROR` from the toolchain file landed mid-detection and CMake printed two red herrings after the real message (I-12), and a compiler that could not start surfaced as *"not able to compile a simple test program"* with no compiler output (I-10). `toolchain-mingw.cmake` includes it too and calls the two cheap checks, so the wording has one home and still fires without a preflight. | `cmake/toolchain-mingw.cmake`, `CMakeLists.txt`, `tests/gates/fixtures/wrong-compiler/` |
+| `cmake/ToolchainPreflight.cmake` | ✅ (S0 · M-03 fix) | The pin's roots and the three checks that must run **before `project()`**: `RAWPAGE_MINGW_ROOT` exists, `RAWPAGE_QT_PREFIX` exists, the vcpkg toolchain file is reachable through `VCPKG_ROOT`, and the pinned compiler can actually **compile** (`-fsyntax-only`, not `-dumpversion` — the driver answers that one itself while the toolchain is unusable). Before it, a `FATAL_ERROR` from the toolchain file landed mid-detection and CMake printed two red herrings after the real message (I-12), and a compiler that could not start surfaced as *"not able to compile a simple test program"* with no compiler output (I-10). `toolchain-mingw.cmake` includes it too and calls the two cheap checks, so the wording has one home and still fires without a preflight. | `cmake/toolchain-mingw.cmake`, `CMakeLists.txt`, `tests/gates/fixtures/wrong-compiler/` |
 | `tools/common/Json.h` | ✅ (S0 · T7) | Minimal JSON reader shared by the gates. Exists because the gates link nothing but the standard library (D0-1), which rules out Qt's JSON and any vcpkg dependency; `layer-lint` reads `rules.json` with it and `license-audit` reads `vcpkg.json` and vcpkg's SPDX SBOM. A reader, not a library — no writing, no schema validation. | `tools/layer-lint/`, `tools/license-audit/` |
 | `tests/gates/` | ✅ (S0 · T9) | The gates tested against deliberately bad input: 39 CTest cases on Windows, 25 on Linux. `fixtures/layer-lint/README.md` records which spellings of a violation are covered and which are knowingly not. `RunGateCase.cmake` asserts **both** exit code and diagnostic, because CTest's `WILL_FAIL` cannot tell a correct finding (exit 1) from a crashed gate (exit 2), and `PASS_REGULAR_EXPRESSION` ignores the exit code entirely. Includes the negative controls without which every positive case is satisfied by a gate that rejects everything. | `tools/*`, `cmake/ToolchainAssert.cmake`, CI |
 | `tools/spike-pdfium/` | ✅ (S0 · T12) ⤵ | **Throwaway.** Answered risk A6 — a PDFium DLL links from `g++` and opens a document — and is deleted when `pdf/render/PdfiumInit` replaces it at Stage 2. The durable outputs are the recorded verdict and `scripts/fetch-pdfium.ps1`. | `third_party/pdfium/` |
@@ -435,12 +435,12 @@ from the tree.
 
 | File | Status | Role | Interacts with |
 |---|---|---|---|
-| `CMakeLists.txt` | ✅ (S0 · T2) | Root build definition. Declares the four layer libraries plus `recto`, so the **linker itself** catches a class of layering violation before `layer-lint` runs. Also holds the three build-shape switches: `RECTO_PORTABLE_SUBSET` (core/ + pdf/cos/ only, for the Linux sanitizer job), `RECTO_GATES_ONLY` (tools/ + tests/gates/ with **no Qt and no vcpkg** — what makes the CI gates job possible), and `RECTO_TARGET_ARCH` (arm64 fails here with an explanation rather than three assertions deep). | every layer, `cmake/*`, CI |
+| `CMakeLists.txt` | ✅ (S0 · T2) | Root build definition. Declares the four layer libraries plus `rawpage`, so the **linker itself** catches a class of layering violation before `layer-lint` runs. Also holds the three build-shape switches: `RAWPAGE_PORTABLE_SUBSET` (core/ + pdf/cos/ only, for the Linux sanitizer job), `RAWPAGE_GATES_ONLY` (tools/ + tests/gates/ with **no Qt and no vcpkg** — what makes the CI gates job possible), and `RAWPAGE_TARGET_ARCH` (arm64 fails here with an explanation rather than three assertions deep). | every layer, `cmake/*`, CI |
 | `CMakePresets.json` | ✅ (S0 · T4) | Six configure presets. vcpkg is the outer toolchain with the pin **chainloaded** via `VCPKG_CHAINLOAD_TOOLCHAIN_FILE` — not the reverse. `hostSystemName` conditions hide the Linux presets on Windows and vice versa. | `cmake/toolchain-mingw.cmake`, CI |
 | `cmake/ToolchainAssert.cmake` | ✅ (S0 · T3) | TA-1…TA-9: compiler vendor, exact version, triple, SEH, posix, **msvcrt-not-UCRT**, compiler-inside-the-pinned-root, Qt version/prefix, and no non-free GCC plugin. Separate from the toolchain file because CMake re-reads that file for every `try_compile()`. Each failure names the offending value **and the fix**. | `CMakeLists.txt`, `tests/gates/fixtures/wrong-compiler/` |
-| `cmake/RectoWarnings.cmake` | ✅ (S0 · T2) | The one place flags are decided. `-Werror` for `core/` and `pdf/`; a shrinking grace list for `ui/`; `-g` in **every** configuration because DWARF in the binary is the only symbolization story this toolchain has. Records why `-fanalyzer` is absent — it false-positives on `std::string` with this GCC. | every target |
-| `cmake/RectoQt.cmake` | ✅ (S0 · T2) | `recto_link_qt()` — no target links Qt directly. Records the real link closure into `qt-modules.txt` for `license-audit`, and refuses `Qt6::Charts`/`DataVisualization`/`VirtualKeyboard` at configure time with a named GPL-3.0 diagnostic. | `license-audit`, every Qt-using target |
-| `cmake/RectoChecks.cmake` | ✅ (S0 · T9) | The `checks` target. Depends **only** on the two gate executables, never the layer libraries — that is what lets CI run the gates before compiling anything. | `tools/*`, CI |
+| `cmake/RawPageWarnings.cmake` | ✅ (S0 · T2) | The one place flags are decided. `-Werror` for `core/` and `pdf/`; a shrinking grace list for `ui/`; `-g` in **every** configuration because DWARF in the binary is the only symbolization story this toolchain has. Records why `-fanalyzer` is absent — it false-positives on `std::string` with this GCC. | every target |
+| `cmake/RawPageQt.cmake` | ✅ (S0 · T2) | `rawpage_link_qt()` — no target links Qt directly. Records the real link closure into `qt-modules.txt` for `license-audit`, and refuses `Qt6::Charts`/`DataVisualization`/`VirtualKeyboard` at configure time with a named GPL-3.0 diagnostic. | `license-audit`, every Qt-using target |
+| `cmake/RawPageChecks.cmake` | ✅ (S0 · T9) | The `checks` target. Depends **only** on the two gate executables, never the layer libraries — that is what lets CI run the gates before compiling anything. | `tools/*`, CI |
 | `vcpkg.json` | ✅ (S0 · T6) | Every §6.2 dependency, grouped into features so resolution can be **tested now and required later** (D0-3). Only `tests` is built today. | `vcpkg-configuration.json`, `license-audit` |
 | `vcpkg-configuration.json` | ✅ (S0 · T5) | Pins the vcpkg baseline commit, so a `git pull` in the vcpkg clone changes nothing and a dependency update is an attributable diff. Registers `tools/ports/` as the overlay directory. | `vcpkg.json` |
 | `tools/ports/` | ✅ (S0 · T5) | Empty, deliberately. Where a port goes when vcpkg lacks a working `x64-mingw-dynamic` build — **never** a reason to change the triplet. A5 found no such port. | `vcpkg-configuration.json` |
@@ -478,7 +478,7 @@ main()
  ├─ SingleInstance::claim()
  │    └─ if secondary → ISingleInstanceBus.forward(files) ─▶ exit(0)
  └─ CompositionRoot::build()
-      ├─ Settings(SettingsSchema, %APPDATA%\Recto\settings.ini)
+      ├─ Settings(SettingsSchema, %APPDATA%\RawPage\settings.ini)
       ├─ PolicyOverlay(machine policy)          ─▶ layered under Settings
       ├─ platform = platform::createPlatform()  // ← the ONLY createPlatform() call
       ├─ backend  = pdf::createBackend()        // ← the ONLY createBackend() call
@@ -495,7 +495,7 @@ be constructed in a test against mocks with no PDFium and no Win32.
 
 ```
 Explorer double-click a .pdf
- └─ WinShellIntegration's registered verb launches recto.exe <path>
+ └─ WinShellIntegration's registered verb launches rawpage.exe <path>
      └─ SingleInstance::claim() → already running
          └─ WinSingleInstanceBus.forward([path])        // platform/win
              └─▶ (primary process) MainWindow::openFiles([path])
@@ -675,7 +675,7 @@ PreferencesDialog (built from SettingsSchema) ─▶ Settings.set("pageDisplay/l
 ### K. A batch run with no UI at all
 
 ```
-recto.exe --batch redact-and-secure.seq --input C:\in --output C:\out --quiet --json
+rawpage.exe --batch redact-and-secure.seq --input C:\in --output C:\out --quiet --json
  └─ CommandLine::parse ─▶ headless verb ─▶ NO MainWindow is ever constructed
      └─ BatchRunner.run(sequence, inputs)
           └─ per file: backend.open ─▶ for each action: ActionRegistry.dispatch(ActionId)
@@ -697,7 +697,7 @@ unreachable here — and that is exactly the regression this flow's test catches
   [`Tech-Stack-Plan.md` §4.3](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code),
   not invented.
 - **Testability** — `core/` links `QtCore` and nothing else. `tests/unit/` deliberately links
-  *without* `recto_ui` and `recto_platform`, so the boundary is verified by the build on every run
+  *without* `rawpage_ui` and `rawpage_platform`, so the boundary is verified by the build on every run
   rather than asserted in a document. Every page operation, form calculation, search, signature
   decision, reflow line break, and command inverse is a headless unit test.
 - **The mutation invariant holds by construction** — `ui/` has no vocabulary for changing a

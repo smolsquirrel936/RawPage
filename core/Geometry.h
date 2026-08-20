@@ -17,14 +17,14 @@
 // zoom, the rotation and the DPI -- the three things a wrong conversion silently assumes.
 // The friction is the feature: you cannot write the bug without noticing you wrote it.
 
-#ifndef RECTO_CORE_GEOMETRY_H
-#define RECTO_CORE_GEOMETRY_H
+#ifndef RAWPAGE_CORE_GEOMETRY_H
+#define RAWPAGE_CORE_GEOMETRY_H
 
 #include "core/Units.h"
 
 #include <cmath>
 
-namespace recto::core {
+namespace rawpage::core {
 
 // --- PDF space --------------------------------------------------------------------------
 struct PdfPoint {
@@ -195,6 +195,6 @@ constexpr PdfSize pdfSizeFrom(Length width, Length height) {
     return PdfSize{width.points(), height.points()};
 }
 
-} // namespace recto::core
+} // namespace rawpage::core
 
-#endif // RECTO_CORE_GEOMETRY_H
+#endif // RAWPAGE_CORE_GEOMETRY_H

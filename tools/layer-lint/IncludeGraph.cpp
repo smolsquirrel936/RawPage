@@ -6,7 +6,7 @@
 
 namespace fs = std::filesystem;
 
-namespace recto::tools {
+namespace rawpage::tools {
 namespace {
 
 std::string toRepoRelative(const fs::path& file, const fs::path& root) {
@@ -216,4 +216,4 @@ size_t IncludeGraph::includeCount() const {
     return total;
 }
 
-} // namespace recto::tools
+} // namespace rawpage::tools

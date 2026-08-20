@@ -8,14 +8,14 @@
 // exactly, by definition of the PDF user space. Every other unit here is an exact rational
 // multiple of it, so the conversions are exact up to floating point and round-trip cleanly.
 
-#ifndef RECTO_CORE_UNITS_H
-#define RECTO_CORE_UNITS_H
+#ifndef RAWPAGE_CORE_UNITS_H
+#define RAWPAGE_CORE_UNITS_H
 
 #include <QString>
 
 #include <cmath>
 
-namespace recto::core {
+namespace rawpage::core {
 
 enum class Unit {
     Points,
@@ -133,6 +133,6 @@ inline bool parseLength(const QString& text, Unit defaultUnit, Length& out) {
     return true;
 }
 
-} // namespace recto::core
+} // namespace rawpage::core
 
-#endif // RECTO_CORE_UNITS_H
+#endif // RAWPAGE_CORE_UNITS_H

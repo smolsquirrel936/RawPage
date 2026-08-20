@@ -2,7 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using namespace recto::core;
+using namespace rawpage::core;
 
 TEST_CASE("the defining ratios are exact", "[tst_units]")
 {

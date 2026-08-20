@@ -14,15 +14,15 @@
 // Stage 1. Until then the default sink drops everything, which is correct for a headless
 // unit test.
 
-#ifndef RECTO_CORE_LOG_H
-#define RECTO_CORE_LOG_H
+#ifndef RAWPAGE_CORE_LOG_H
+#define RAWPAGE_CORE_LOG_H
 
 #include <QString>
 #include <QStringList>
 
 #include <functional>
 
-namespace recto::core {
+namespace rawpage::core {
 
 enum class LogLevel { Error = 0, Warning = 1, Info = 2, Debug = 3, Trace = 4 };
 
@@ -152,28 +152,28 @@ private:
 // ---------------------------------------------------------------------------------------
 // Guarded by logEnabled() so the streamed arguments are not evaluated when the level is
 // filtered out -- formatting a page's text only to discard it is not free.
-#define RECTO_LOG(subsystem, level)                                                        \
-    if (!::recto::core::logEnabled(level)) {                                               \
+#define RAWPAGE_LOG(subsystem, level)                                                        \
+    if (!::rawpage::core::logEnabled(level)) {                                               \
     } else                                                                                 \
-        ::recto::core::LogRecord(level, subsystem)
+        ::rawpage::core::LogRecord(level, subsystem)
 
-#define RECTO_LOG_ERROR(sub)   RECTO_LOG(sub, ::recto::core::LogLevel::Error)
-#define RECTO_LOG_WARNING(sub) RECTO_LOG(sub, ::recto::core::LogLevel::Warning)
-#define RECTO_LOG_INFO(sub)    RECTO_LOG(sub, ::recto::core::LogLevel::Info)
-#define RECTO_LOG_DEBUG(sub)   RECTO_LOG(sub, ::recto::core::LogLevel::Debug)
+#define RAWPAGE_LOG_ERROR(sub)   RAWPAGE_LOG(sub, ::rawpage::core::LogLevel::Error)
+#define RAWPAGE_LOG_WARNING(sub) RAWPAGE_LOG(sub, ::rawpage::core::LogLevel::Warning)
+#define RAWPAGE_LOG_INFO(sub)    RAWPAGE_LOG(sub, ::rawpage::core::LogLevel::Info)
+#define RAWPAGE_LOG_DEBUG(sub)   RAWPAGE_LOG(sub, ::rawpage::core::LogLevel::Debug)
 
 // Trace compiles out entirely in release: the branch, the arguments, and the record. It is
 // the level used inside per-tile and per-glyph loops, where even a predictable branch is
 // worth removing.
 #ifdef NDEBUG
-#define RECTO_LOG_TRACE(sub)                                                               \
+#define RAWPAGE_LOG_TRACE(sub)                                                               \
     if constexpr (true) {                                                                  \
     } else                                                                                 \
-        ::recto::core::LogRecord(::recto::core::LogLevel::Trace, sub)
+        ::rawpage::core::LogRecord(::rawpage::core::LogLevel::Trace, sub)
 #else
-#define RECTO_LOG_TRACE(sub) RECTO_LOG(sub, ::recto::core::LogLevel::Trace)
+#define RAWPAGE_LOG_TRACE(sub) RAWPAGE_LOG(sub, ::rawpage::core::LogLevel::Trace)
 #endif
 
-} // namespace recto::core
+} // namespace rawpage::core
 
-#endif // RECTO_CORE_LOG_H
+#endif // RAWPAGE_CORE_LOG_H

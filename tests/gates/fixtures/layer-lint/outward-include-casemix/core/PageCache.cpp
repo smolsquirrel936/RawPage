@@ -4,6 +4,6 @@
 // the violation was filed as an external header (I-15).
 #include "Pdf/Cos/CosDict.h"
 
-namespace recto::core {
+namespace rawpage::core {
 void warm() {}
 }

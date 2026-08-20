@@ -10,12 +10,12 @@
 # satellite binaries talking across a C/COM boundary, rather than forcing a toolchain
 # change on the whole project.
 
-add_library(recto_platform STATIC
+add_library(rawpage_platform STATIC
     PlatformModule.cpp
 )
 
-target_include_directories(recto_platform PUBLIC "${CMAKE_SOURCE_DIR}")
+target_include_directories(rawpage_platform PUBLIC "${CMAKE_SOURCE_DIR}")
 
-target_link_libraries(recto_platform PUBLIC recto_core)
+target_link_libraries(rawpage_platform PUBLIC rawpage_core)
 
-recto_common_flags(recto_platform)
+rawpage_common_flags(rawpage_platform)

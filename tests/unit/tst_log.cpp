@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-using namespace recto::core;
+using namespace rawpage::core;
 
 namespace {
 
@@ -32,7 +32,7 @@ TEST_CASE("records reach the sink with subsystem and level", "[tst_log]")
     captured.install();
     setLogThreshold(LogLevel::Info);
 
-    RECTO_LOG_INFO(LogSubsystem::Render) << "tile" << 4 << "ready";
+    RAWPAGE_LOG_INFO(LogSubsystem::Render) << "tile" << 4 << "ready";
 
     REQUIRE(captured.records.size() == 1);
     CHECK(captured.records[0].level == LogLevel::Info);
@@ -48,10 +48,10 @@ TEST_CASE("the threshold filters lower levels out", "[tst_log]")
     captured.install();
     setLogThreshold(LogLevel::Warning);
 
-    RECTO_LOG_ERROR(LogSubsystem::Save) << "kept";
-    RECTO_LOG_WARNING(LogSubsystem::Save) << "kept";
-    RECTO_LOG_INFO(LogSubsystem::Save) << "dropped";
-    RECTO_LOG_DEBUG(LogSubsystem::Save) << "dropped";
+    RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "kept";
+    RAWPAGE_LOG_WARNING(LogSubsystem::Save) << "kept";
+    RAWPAGE_LOG_INFO(LogSubsystem::Save) << "dropped";
+    RAWPAGE_LOG_DEBUG(LogSubsystem::Save) << "dropped";
 
     CHECK(captured.records.size() == 2);
     captured.reset();
@@ -71,9 +71,9 @@ TEST_CASE("a redacted value is hidden at info and above", "[tst_log]")
 
     const QString path = QStringLiteral("C:/Users/someone/Taxes 2025.pdf");
 
-    RECTO_LOG_ERROR(LogSubsystem::Parse) << "cannot open" << redact(path);
-    RECTO_LOG_WARNING(LogSubsystem::Parse) << "retrying" << redact(path);
-    RECTO_LOG_INFO(LogSubsystem::Parse) << "opened" << redact(path);
+    RAWPAGE_LOG_ERROR(LogSubsystem::Parse) << "cannot open" << redact(path);
+    RAWPAGE_LOG_WARNING(LogSubsystem::Parse) << "retrying" << redact(path);
+    RAWPAGE_LOG_INFO(LogSubsystem::Parse) << "opened" << redact(path);
 
     REQUIRE(captured.records.size() == 3);
     for (const LogRecordData& record : captured.records) {
@@ -92,7 +92,7 @@ TEST_CASE("a redacted value is visible at debug and below", "[tst_log]")
     setLogThreshold(LogLevel::Trace);
 
     const QString text = QStringLiteral("paragraph one");
-    RECTO_LOG_DEBUG(LogSubsystem::Parse) << "extracted" << redact(text);
+    RAWPAGE_LOG_DEBUG(LogSubsystem::Parse) << "extracted" << redact(text);
 
     REQUIRE(captured.records.size() == 1);
     CHECK(captured.records[0].message.contains(text));
@@ -112,7 +112,7 @@ TEST_CASE("filtered records evaluate none of their arguments", "[tst_log]")
         return QStringLiteral("x");
     };
 
-    RECTO_LOG_DEBUG(LogSubsystem::Render) << expensive();
+    RAWPAGE_LOG_DEBUG(LogSubsystem::Render) << expensive();
 
     // Formatting a page worth of text and then discarding it is not free; the macro guards
     // before the streamed arguments are touched at all.

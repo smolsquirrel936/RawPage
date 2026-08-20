@@ -3,7 +3,7 @@
 #include <QFile>
 #include <QIODevice>
 
-namespace recto::ui {
+namespace rawpage::ui {
 void exportNotes() {
     QFile out("notes.txt");
     out.open(QIODevice::WriteOnly);

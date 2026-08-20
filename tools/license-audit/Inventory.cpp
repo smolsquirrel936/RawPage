@@ -10,7 +10,7 @@
 
 namespace fs = std::filesystem;
 
-namespace recto::tools {
+namespace rawpage::tools {
 namespace {
 
 std::string readFile(const fs::path& path) {
@@ -191,4 +191,4 @@ QtModuleList loadQtModules(const fs::path& qtModulesPath) {
     return list;
 }
 
-} // namespace recto::tools
+} // namespace rawpage::tools
