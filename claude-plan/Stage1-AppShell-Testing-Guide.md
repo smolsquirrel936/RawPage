@@ -9,8 +9,10 @@
 > **Status:** ⚪ **Written 2026-08-19 · not yet run.** No case below has a result. **67 automated**
 > cases (A-01 … A-85) and **12 manual** (M-01 … M-12).
 >
-> **One issue is already open before a line of code exists** — **I-01**, a documentation
-> discrepancy found while writing case A-31. See the [issue log](#8-issue-log).
+> **One issue was raised and closed before a line of code existed** — **I-01**, found while writing
+> case A-31 by parsing `Features.md` §8 rather than reading it. The "twelve deliberate collisions"
+> figure turned out to be **correct but unscoped**; the scope is now stated in the owning document.
+> See the [issue log](#8-issue-log). **No open issue.**
 >
 > Two halves, per [`CLAUDE.md`](../CLAUDE.md): **[§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -357,22 +359,31 @@ must name **the row it could not parse**, not just fail.
 **If it fails** S2 if the store is wrong; **S3 if the parser is wrong** — and the distinction matters,
 so the failure output must make it obvious which.
 
-**A-31 · The collision census, class 1 — shadows a Global chord**
-☐ **Goal** Plan §5.5. **Expect** The census reports exactly **6**: `Ctrl+D`, `Ctrl+K`, `F11`,
-`Ctrl+Shift+L`, `Ctrl+Shift+A`, `Ctrl+Shift+G`, each with the contexts that claim it.
-**If it fails** S2 if the census is wrong; **if the census is right and a document says otherwise,
-that is I-01 and it is a documentation defect, not a code one.**
+**A-31 · The twelve Write-mode collisions — the figure the document set quotes**
+☐ **Goal** [`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts) scopes
+"twelve" to Write mode. **Stage 13's exit criteria depend on this number**, so it is asserted here,
+at the stage that builds the binding store, rather than discovered eleven stages later.
+**Expect** The census reports exactly **12**: **8** overriding Viewer — `Ctrl+B` `Ctrl+E` `Ctrl+L`
+`Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N` — and **4** overriding Global — `Ctrl+D`
+`Ctrl+K` `Ctrl+Shift+A` `Ctrl+Shift+L`. Zero overriding Common.
+**If it fails** S2, and the failure must say **which side moved** — a §8 edit, or the census.
 
-**A-32 · The collision census, class 2 — overrides a Common chord**
-☐ **Expect** Exactly **9**: `Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Ctrl+A`, `Delete`, `Backspace`, `Esc`,
-`F2`, `Ctrl+F`. §8's Common heading permits these explicitly, so they are **not** shadows and
-`shadows()` must not report them. **If it fails** S2 — conflating the two classes makes the shadow
-report useless noise, and a useless report gets ignored.
+**A-32 · The wider census — the two numbers that are *not* "twelve"**
+☐ **Goal** Keep the three counts distinct. Conflating them is exactly what made the documented
+figure look wrong before I-01 was resolved.
+**Expect** **Class 1** — any context redefining a `Global` chord — exactly **6**: `Ctrl+D`, `Ctrl+K`,
+`F11`, `Ctrl+Shift+L`, `Ctrl+Shift+A`, `Ctrl+Shift+G`. **Class 2** — a context overriding a `Common`
+chord — exactly **9**: `Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Ctrl+A`, `Delete`, `Backspace`, `Esc`, `F2`,
+`Ctrl+F`. §8's Common heading permits class 2 explicitly, so those are **not** shadows and
+`shadows()` must not report them.
+**If it fails** S2 — a shadow report that includes the permitted overrides is noise, and a noisy
+report gets ignored.
 
 **A-33 · Each class-1 collision resolves to the right id per context**
 ☐ **Goal** The one thing the whole `KeyContext` model exists for.
 **Expect** `Ctrl+K` → Preferences in `Viewer`, → Insert-hyperlink in `WriteMode`. `F11` → enter in
-`Global`, → leave in `FullScreen`. And so on for all six. **If it fails** **S1** — this is the model.
+`Global`, → leave in `FullScreen`. And so on for all six **class-1** chords (A-32) **and all twelve
+Write-mode chords** (A-31). **If it fails** **S1** — this is the model.
 
 **A-34 · Resolution order is innermost, then Common, then Global**
 ☐ **Expect** A chord defined in all three resolves to the innermost.
@@ -688,7 +699,12 @@ without per-criterion results nobody can tell which work was named.
   wrong; *two processes* is the mutex. Three different bugs with one symptom, so please say which.
 
 **M-08 · Keyboard-only, and a reduced screen-reader pass (R-8)** ☐
-- **Pre** P-2 — Narrator or equivalent.
+- **Pre** P-2 — **Narrator, built into Windows; nothing to install.** `Win+Ctrl+Enter` starts and
+  stops it. A screen reader is what a blind user drives the app with: it reads the focused control
+  aloud, asking Windows' UI Automation layer what that control *is*. That makes it the only honest
+  test of whether our ribbon controls exist to anything but the eye — a custom-painted widget can
+  look perfect and report nothing at all, which is one of the two realistic routes to an **A3**
+  no-go. Turn the volume down before you start; it begins talking immediately.
 - **Steps** Unplug or ignore the mouse. Reach: every ribbon tab and control, the QAT, the tool finder
   (`Ctrl+Shift+U`), the sidebar (`F4`), the ribbon toggle (`F9`), each pane, both Preferences pages,
   and back out with `Esc`. Then repeat the ribbon walk with the screen reader on.
@@ -763,7 +779,7 @@ record.
 
 | # | Case / area | What happens | Expected | Sev | Repro / notes | State |
 |---|---|---|---|---|---|---|
-| I-01 | A-31 / A-32 · `Features.md` §8 | **The "twelve deliberate collisions" figure does not reconcile with §8.** A census of all twelve tables gives **6** chords where a context redefines a **Global** chord (`Ctrl+D`, `Ctrl+K`, `F11`, `Ctrl+Shift+L`, `Ctrl+Shift+A`, `Ctrl+Shift+G`), **9** where a context overrides a **Common** chord (`Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Ctrl+A`, `Delete`, `Backspace`, `Esc`, `F2`, `Ctrl+F`), **15** for the two together, and **52** chords that appear in more than one table at all. None of those is twelve. | The figure quoted in `CLAUDE.md` and `Implementation-Plan.md` § Stage 1 matches a census of the tables it refers to, under a stated definition of "collision" | **S3** | Found 2026-08-19 while writing this guide, **before any Stage 1 code** — by parsing §8 rather than by reading it. Pre-existing: the figure predates this stage. `Features.md` owns key bindings, so this is **yours to resolve**, not mine to re-decide | **Open.** Either the figure or the definition needs correcting in the owning document. A-31 and A-32 assert 6 and 9; if you settle on a different definition, those Expects change with it |
+| I-01 | A-31 / A-32 · `Features.md` §8 | The **"twelve deliberate collisions"** figure could not be reconciled with §8. A tree-wide census gives **6** chords where any context redefines a `Global` chord, **9** where a context overrides a `Common` one, **15** for the two together, and **52** chords appearing in more than one table — none of them twelve. | The quoted figure matches a census of the tables it refers to, under a stated definition | **S3** | Found 2026-08-19 while writing this guide, **before any Stage 1 code**, by parsing §8 rather than reading it. Pre-existing — the figure predates this stage | **Closed 2026-08-20. The figure was right; it was never *scoped*.** Twelve counts **Write mode's** collisions specifically: **8** overriding Viewer (`Ctrl+B` `Ctrl+E` `Ctrl+L` `Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N`) and **4** overriding Global (`Ctrl+D` `Ctrl+K` `Ctrl+Shift+A` `Ctrl+Shift+L`), 0 overriding Common. The clue was Stage 13's own wording, *"the twelve deliberate collisions with the Viewer context"* — right that Write mode is the scope, wrong that Viewer is the only counterpart. Scope now stated in [`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts); Stage 13's sentence and `CLAUDE.md`'s corrected; A-31 asserts the 12, A-32 the 6 and 9 separately |
 
 ---
 
@@ -778,9 +794,8 @@ made concrete for this stage:
 - [ ] Every **manual** case M-01 … M-12 is ✅, walked by you on the §2 rig, and **signed off by you**.
       I do not mark these.
 - [ ] Every caveat in §7 has a human verdict, not an assumption.
-- [ ] No open **S1** or **S2** in the issue log. **I-01 is open now** and is S3 — it does not block
-      sign-off by severity, but A-31 and A-32 cannot be scored until the definition is settled, so in
-      practice it must close first.
+- [ ] No open **S1** or **S2** in the issue log. **I-01 is closed** (S3, resolved 2026-08-20), so
+      A-31 and A-32 now have defined figures to assert.
 - [ ] **The A3 verdict is recorded** in `Tech-Stack-Plan.md` §3.3, on the three-point scale, with a
       **per-criterion result for R-1 … R-9** rather than one overall impression.
 - [ ] **The `-municode` question is answered** either way, in the Stage 1 status block, closing Stage

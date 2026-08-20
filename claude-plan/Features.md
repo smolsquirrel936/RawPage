@@ -1218,6 +1218,26 @@ The contexts are: **Global**, **Viewer (Review mode)**, **Write mode**, **Annota
 **Page Thumbnails pane**, **Bookmarks pane**, **Comments pane**, **Forms — Design**,
 **Forms — Fill**, **Find / Search**, and **Full Screen & Presentation**.
 
+### What "the twelve deliberate collisions" counts
+
+The figure quoted throughout the document set means one specific thing: **chords that mean something
+different in Write mode than in the context they would otherwise resolve to.** It is the set that
+makes `KeyContext` load-bearing, because Write mode is where a reader's chord and a word-processor's
+chord disagree most.
+
+| Write mode overrides… | Count | Chords |
+|---|---|---|
+| **Viewer** | **8** | `Ctrl+B` `Ctrl+E` `Ctrl+L` `Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N` |
+| **Global** | **4** | `Ctrl+D` `Ctrl+K` `Ctrl+Shift+A` `Ctrl+Shift+L` |
+| **Common** | 0 | — |
+| | **12** | |
+
+Other, wider counts exist over these tables and are **not** what "twelve" refers to — a census of
+every context gives **6** chords where any context redefines a `Global` chord, **9** where a context
+overrides a `Common` one, and **52** chords appearing in more than one table at all (mostly the
+ordinary per-context meanings of `Enter`, `Delete` and the arrow keys). Stating the scope here so
+that downstream documents cite a defined number rather than an ambiguous one.
+
 ### Global (active in every context)
 
 | Key | Command |

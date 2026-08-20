@@ -33,7 +33,7 @@ closed: **22 entries, none open.**
 `claude-plan/Implementation-Plan.md`, which carries the **A3** go/no-go — can Qt Widgets host a real
 ribbon. **Both of its documents are written and no Stage 1 code exists yet:**
 `Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16) and
-`Stage1-AppShell-Testing-Guide.md` (67 automated cases, 12 manual, one issue already open). The next
+`Stage1-AppShell-Testing-Guide.md` (67 automated cases, 12 manual). The next
 action is therefore **T1**, and per the workflow below nothing is implemented ahead of the plan's
 task order — in particular **T2, the timeboxed A3 ribbon spike, comes before any production UI**,
 because a no-go verdict reshapes the stage.
@@ -59,13 +59,55 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
 | `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order and its stage-local design choices. **Two exist:** `Stage0-Toolchain-Plan.md` (tasks T1–T15, decisions D0-1…D0-8, the §7 precondition checklist) and `Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16, the §7 precondition checklist P-1…P-4). It owns no product facts and no live status — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Two exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed) and `Stage1-AppShell-Testing-Guide.md`, written from Stage 1's plan before its code — **no case in it has been run**, and it already carries one open issue, I-01. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Two exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed) and `Stage1-AppShell-Testing-Guide.md`, written from Stage 1's plan before its code — **no case in it has been run**; its one issue, I-01, was raised and closed before any code. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
 **Both `Architecture-FileMap.md` and `Implementation-Plan.md` carry live status and must be updated
 in the same change as the code they describe** — a file's ○ → ✅ row flip is part of that file's
 definition of done. A folded-away file keeps its row as a ⤵ breadcrumb; rows are never deleted.
+
+### Citing a label — always name the file it lives in
+
+This document set identifies almost everything by a short label — `O7`, `D1-16`, `TA-2`, `A-31`,
+`M-05`, `P-1`, `R1`, `I-01`. They are compact and unambiguous *inside* their own document and
+completely opaque outside it.
+
+**Whenever you write one of these labels in a reply, in a commit message, or in a document, give its
+home on first use in that reply:** the file, and the section when the file is large.
+
+> `O7` (`Implementation-Plan.md` §8) · `D1-16` (`Stage1-AppShell-Plan.md` §3) ·
+> `A-31` (`Stage1-AppShell-Testing-Guide.md` §5.4) · `TA-2` (`cmake/ToolchainAssert.cmake`)
+
+Repeating the label later in the same reply needs no repeat citation. A bare label with no home is a
+defect in the reply, not something for the reader to go and look up.
+
+| Label | Means | Lives in |
+|---|---|---|
+| `D1`…`D9` | Locked stack decisions | `Tech-Stack-Plan.md` §2 |
+| `A1`…`A7` | Assumptions / go-no-go verdicts | `Tech-Stack-Plan.md` §3.3 |
+| `R1`…`R8` | Open risks carried forward | `Tech-Stack-Plan.md` §10 |
+| `O1`…`O10` | Open decisions carried forward | `Implementation-Plan.md` §8 |
+| Flows `A`…`K` | Call traces | `Architecture-FileMap.md` §5 |
+| `D0-n` / `D1-n` | Stage-local design decisions | that stage's `Stage<N>-*-Plan.md` §3 |
+| `T1`…`T15` | Stage tasks | that stage's `Stage<N>-*-Plan.md` §6 |
+| `V-n` (S0) / `P-n` (S1) | Blocking preconditions, yours | that stage's `Stage<N>-*-Plan.md` §7 |
+| `R-1`…`R-9` | The A3 ribbon acceptance criteria | `Stage1-AppShell-Plan.md` §5.3 |
+| `A-nn` | Automated test cases | that stage's `Stage<N>-*-Testing-Guide.md` §5 |
+| `M-nn` | Manual test cases | that stage's `Stage<N>-*-Testing-Guide.md` §6 |
+| `I-nn` | Issue-log entries | that stage's `Stage<N>-*-Testing-Guide.md` §8 |
+| `S1`…`S4` | Severities | that stage's `Stage<N>-*-Testing-Guide.md` §1 |
+| `TA-1`…`TA-9` | Toolchain pin assertions | `cmake/ToolchainAssert.cmake`; described in `Stage0-Toolchain-Plan.md` §5.1 |
+| `WC-1`…`WC-6` | Wrong-compiler fixtures | `tests/gates/fixtures/wrong-compiler/` |
+
+**Three namespaces genuinely collide and must always carry their scope, never just the file:**
+
+- **`T1`…`T15` exist in *both* stage plans** and mean different tasks. Always "Stage 1 T2", never "T2".
+- **`R-1`…`R-9`** (ribbon criteria) versus **`R1`…`R8`** (project risks) — one hyphen apart.
+- **`A-nn`** (test cases) versus **`A1`…`A7`** (assumptions) — likewise. `A-31` and `A3` are unrelated.
+
+The same applies to stage-scoped labels generally: `M-05`, `I-01` and `D1-2` only mean something once
+the reader knows which stage's document they belong to.
 
 ## Locked decisions (expensive to reverse — do not relitigate in passing)
 
@@ -139,7 +181,7 @@ Consequences that fall out of it: undo/redo, an fsync-per-command recovery journ
 Every user action is a named `ActionId`. Ribbon, QAT, context menus, chords, tool finder, CLI, and
 batch all resolve to one and call `ActionRegistry::dispatch(ActionId, KeyContext)`. **Nothing is wired
 directly to a widget slot.** `KeyContext` is computed from the focus chain by `ui/shell/ShortcutBinder`.
-This is what makes the same chord mean different things per context (twelve deliberate collisions are
+This is what makes the same chord mean different things per context (twelve deliberate Write-mode collisions are
 specified in `Features.md` §8) and what makes the headless batch runner and CLI possible without a
 second implementation.
 

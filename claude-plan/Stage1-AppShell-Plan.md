@@ -300,13 +300,15 @@ conflated:
 | 1 — shadows a Global chord | **6** | `Ctrl+D`, `Ctrl+K`, `F11`, `Ctrl+Shift+L`, `Ctrl+Shift+A`, `Ctrl+Shift+G` |
 | 2 — overrides a Common chord | **9** | `Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Ctrl+A`, `Delete`, `Backspace`, `Esc`, `F2`, `Ctrl+F` |
 
-Neither number, nor their sum (15), nor the 52 chords that merely appear in more than one table, is
-the **"twelve deliberate collisions"** that both `CLAUDE.md` and `Implementation-Plan.md` § Stage 1
-state. That discrepancy is recorded as a pre-existing documentation defect in the testing guide's
-issue log (**I-01**) and is deliberately **not** resolved here: `Features.md` owns key bindings, and a
-stage plan quietly picking a number would be precisely the local re-decision this document set
-forbids. `tst_keybindings` computes and asserts both class counts; the guide's case stays red until
-the owning document and the census agree.
+Neither of those is the **"twelve deliberate collisions"** the document set quotes, and chasing that
+discrepancy (issue **I-01**, now closed) turned out to be worthwhile: the figure is **correct but was
+never scoped**. Twelve counts **Write mode's** collisions specifically — **8** chords overriding
+Viewer and **4** overriding Global, 0 overriding Common — and that scope is now stated in
+[`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts), which owns it.
+
+So `tst_keybindings` asserts **three independent numbers**, and conflating them is what made the
+figure look wrong in the first place: **12** (the Write-mode set, which Stage 13's exit criteria
+depend on), **6** (class 1), and **9** (class 2).
 
 ### 5.6 `tools/i18n-lint`
 
@@ -373,10 +375,10 @@ Owner: **you**, before T2 can be judged and before the guide's manual half can b
 
 | # | Precondition | Why | State |
 |---|---|---|---|
-| **P-1** | **Two monitors at different scale factors** (e.g. 100 % and 150 %), at least one able to change scale while the app runs | R-6 and guide case M-02. The mid-session per-monitor DPI change is the one that finds real bugs, and it cannot be faked offscreen | ⚪ |
-| **P-2** | A screen reader installed — Narrator is sufficient at this stage | R-8's reduced pass. Stage 14 owns the full accessibility pass and a fuller rig | ⚪ |
-| **P-3** | Your judgement available for the **zh-TW** review in guide case M-06 | Per your answer of 2026-08-19, Stage 1 ships real Traditional Chinese, reviewed by you rather than by a lint that can only count keys | ⚪ |
-| **P-4** | A reference for what "a real ribbon" means — Right PDF Professional or Office on the same machine | R-1 and R-4 are judged against a reference, and "looks fine" is not a result | ⚪ |
+| **P-1** | **Two monitors at different scale factors** (e.g. 100 % and 150 %), at least one able to change scale while the app runs | R-6 and guide case M-02. The mid-session per-monitor DPI change is the one that finds real bugs, and it cannot be faked offscreen | 🟡 **Hardware ready** — two 2560×1440 displays confirmed 2026-08-20. You set the differing scale factors when M-02 is walked |
+| **P-2** | A screen reader — **Narrator, which ships with Windows; nothing to install** | R-8's reduced pass. Stage 14 owns the full accessibility pass and a fuller rig | ✅ **Satisfied 2026-08-20.** `C:\Windows\System32\Narrator.exe` 10.0.26100.8972 present; Qt 6 links the UI Automation bridge into `Qt6Gui`, so neither side needs an install. Toggle with **`Win+Ctrl+Enter`** |
+| **P-3** | Your judgement available for the **zh-TW** review in guide case M-06 | Per your answer of 2026-08-19, Stage 1 ships real Traditional Chinese, reviewed by you rather than by a lint that can only count keys | ✅ **Confirmed 2026-08-20** |
+| **P-4** | A reference for what "a real ribbon" means — Right PDF Professional or Office on the same machine | R-1 and R-4 are judged against a reference, and "looks fine" is not a result | ✅ **Confirmed 2026-08-20** |
 
 None of these blocks T1, T3, T5, T6, T7 or T8, so implementation starts regardless. They gate the
 **verdict**, not the work.
@@ -389,7 +391,7 @@ None of these blocks T1, T3, T5, T6, T7 or T8, so implementation starts regardle
 |---|---|---|
 | **A3** — can Qt Widgets host a real ribbon? | T2, plus guide cases M-01 (R-1…R-5, R-7), M-02 (R-6), M-08 (R-8), and the `tests/bench` figure for R-9 | `Tech-Stack-Plan.md` §3.3, beside A5 and A6; summarized in the Stage 1 status block |
 | **`-municode`** — needed or not (D1-3) | T1 | `Implementation-Plan.md` Stage 1 status, as the resolution of Stage 0's deviation (a) |
-| **§8 collision census** — the real class-1 and class-2 counts | T4 | Guide issue **I-01**, resolved into `Features.md` §8 and/or `Implementation-Plan.md` **by you**, since `Features.md` owns bindings |
+| ~~**§8 collision census**~~ | ~~T4~~ | ✅ **Settled 2026-08-20 before implementation** — `Features.md` §8 now scopes "twelve" to Write mode (8 over Viewer + 4 over Global). T4 asserts it rather than discovering it |
 
 A stage that is green but has no verdicts is not signed off.
 

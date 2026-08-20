@@ -1179,13 +1179,14 @@ editing); `pdf/cos/ContentStreamBuilder` (page composition); `ui/write/{WriteCan
 `ui/panes/DocumentMapPane`; `ui/dialogs/{TableDialog,TocDialog,CaptionDialog,FootnoteDialog,ChartDialog}`.
 
 Key signatures: `FixedToReflowConverter::convert(const Document&) -> Result<ReflowDocument, FidelityReport>`;
-`ReflowToFixedComposer::compose(const ReflowDocument&, MutationSink&)`;
+`ReflowToFixedComposer::compose(const ReflowDocument&, MutationSink&)` — **emits both page content and a structure tree (O2)**;
 `LineBreaker::breakParagraph(const Paragraph&, const Constraints&) -> Lines`;
 `TableModel::evaluate(CellRef) -> Value`; `ChangeTracker::accept(RevisionId)`.
 
 **Key bindings handled** — the **whole** [Write mode](./Features.md#write-mode) table
-(`KeyContext::WriteMode`), which is where the twelve deliberate collisions with the Viewer context
-become real and testable: `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+D`, `Ctrl+E`, `Ctrl+K`, `Ctrl+L`,
+(`KeyContext::WriteMode`), which is where the twelve deliberate collisions become real and testable
+— **eight overriding Viewer and four overriding Global**, per
+[`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts): `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+D`, `Ctrl+E`, `Ctrl+K`, `Ctrl+L`,
 `Ctrl+R`, `Ctrl+J`, `Ctrl+=`, `Ctrl+Shift+A`, `Ctrl+Shift+L`, `Ctrl+Shift+N`, `Ctrl+Shift+>`/`<`,
 `Ctrl+Shift+=`, `Ctrl+Space`, `Ctrl+Alt+1`/`2`/`3`, `Ctrl+Shift+7`, `Tab`/`Shift+Tab`, `Ctrl+H`,
 `Ctrl+Enter`, `Ctrl+Shift+Enter`, `Ctrl+Shift+Space`, `Ctrl+Shift+8`, `Ctrl+Shift+R`, `Ctrl+Alt+M`,
@@ -1225,14 +1226,21 @@ Typing commands **coalesce**, so a burst of keystrokes is one undo step. i18n: `
 `tst_table` (structure ops, sizing, sort, formulas), `tst_changetracking` (accept/reject one, all,
 by reviewer), `tst_spell`, `tst_convert_fidelity` (a labelled corpus scored on paragraph, column, and
 table detection — **tracked as a number over time, not a pass/fail**), `tst_roundtrip_reflow`
-(fixed → reflow → fixed renders within the golden threshold of the original), plus reversibility for
-all 23 commands including coalesced typing.
+(fixed → reflow → fixed renders within the golden threshold of the original);
+**`tst_reflow_convergence`** — **the measurement decision O2 rests on**: convert → compose → convert
+*again with no edits in between*, and diff model₂ against model₁ across the corpus. Since the model
+is **not** persisted, a converter that does not converge means a user's document silently restructures
+every time they reopen it; and because compose now emits a structure tree, round 2 reads those tags
+rather than re-inferring from glyphs, which is precisely what this case has to prove works. Plus
+reversibility for all 23 commands including coalesced typing.
 *Manual:* → queued **`Stage13-WriteMode-Testing-Guide.md`**. Emphasis: convert real-world documents
 of every kind — a tagged Word export, an untagged scan-derived file, a multi-column journal article,
 a spreadsheet-heavy report — and score each conversion by hand; the twelve chord collisions verified
 by switching modes with the same key; IME input for CJK.
 
 **Exit criteria.** Convert to Writable produces an editable document with an honest fidelity report;
+**compose emits a structure tree derived from the reflow model, and `tst_reflow_convergence` is green
+over the corpus (O2)**;
 text, paragraph, style, and page-layout editing all work; tables including formulas work; TOC
 generates and updates; change tracking records and accepts/rejects; Prevent Further Edits produces a
 fixed PDF that renders within the golden threshold of the composed layout; **every one of the twelve
@@ -1299,7 +1307,8 @@ whole application is operable by keyboard alone; a screen reader reads documents
 order; the diagnostics bundle contains what support needs and no document content.
 
 **Deferrals.** Scheduled sequences (needs a service; Stage 15's installer work). PDF/UA authoring
-guidance beyond the checker.
+guidance beyond the checker — note that **Write-mode output is already tagged** as of decision O2, so
+what remains here is authoring *guidance* and the alt-text/conformance surface, not structure emission.
 
 ---
 
@@ -1425,7 +1434,7 @@ guide.**
 | Stage | Guide | State |
 |---|---|---|
 | 0 — Toolchain & gates | [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) | ✅ **Written 2026-08-17** from [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md), before any Stage 0 code · **not yet run** — no case has a result. 40 automated cases (A-01…A-73), 7 manual (M-01…M-07): the clean-machine bootstrap and the **real** UCRT64 wrong-compiler configure. Carries the **A5/A6** verdicts and keeps **A7** settled |
-| 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · **not yet run** — no case has a result. 67 automated (A-01…A-85), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go. **One issue already open (I-01)** — the §8 collision census does not reconcile with the "twelve" figure |
+| 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · **not yet run** — no case has a result. 67 automated (A-01…A-85), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go. **I-01 raised and closed before any code**: the "twelve" figure was correct but unscoped — it counts Write mode's collisions (8 over Viewer + 4 over Global), now stated in `Features.md` §8 |
 | 2 — Rendering | `Stage2-Rendering-Testing-Guide.md` | ⚪ Queued — **needs two monitors at different scaling**; carries the **A2** verdict |
 | 3 — Mutation & save | `Stage3-Mutation-Testing-Guide.md` | ⚪ Queued — **needs a hex editor and a way to kill the process mid-edit**; carries the **A4** verdict |
 | 4 — Viewing surface | `Stage4-ViewingSurface-Testing-Guide.md` | ⚪ Queued |
@@ -1517,7 +1526,7 @@ guide.**
 | # | Decision | Owner stage | Why it is not decided now |
 |---|---|---|---|
 | O1 | Office export/import engine: first-party writers, `IOfficeBridge` through the installed suite, or a commercial component for that subsystem only. (Risk R3.) | 8, confirmed in 12 | Should be decided on **measured** fidelity against a labelled corpus, not on preference. |
-| O2 | Whether the Write-mode reflow model is persisted between sessions, or reconstructed on each *Convert to Writable*. (Risk R1.) | 13a | Depends on measured conversion cost and on how stable the model turns out to be. |
+| ~~O2~~ | ~~Whether the Write-mode reflow model is persisted between sessions.~~ **Resolved: reconstruct on each *Convert to Writable*, and make `ReflowToFixedComposer` emit a structure tree** so the model's *structure* persists as **standard PDF tags** rather than as a private stream. | ✅ **Resolved 2026-08-20** | Persisting the model **inside** the PDF was rejected on security grounds: it would carry deleted text and reviewer identity in a container that Stage 10's sanitize/redaction path — which ships **three stages earlier** — knows nothing about, so *redact → save* would leave the redacted text recoverable. A **local cache** was rejected because the same file would then reconstruct differently depending on whether an invisible cache survived, and inconsistent results are harder to support than consistent slowness. Tag emission recovers most of the benefit interoperably: [flow H](./Architecture-FileMap.md#h-convert-to-writable--crossing-into-the-second-document-model) already consults `TagTree` for *"much better fidelity"*, so a second conversion reads our tags instead of re-guessing from glyphs — and it advances PDF/UA, currently a Stage 14 deferral. **Accepted cost:** tracked changes have no PDF representation, so they cannot survive a close or be shared. If shareable Write-mode review is ever required, that is a **new** decision, not a reopening of O2. **13a still owes the convergence measurement** — see its status block. |
 | O3 | Whether dynamic XFA gets more than honest reporting. (Risk R4.) | post-13 | Effectively a second document format; needs demand evidence before the investment. |
 | O4 | AI assistant provider and whether an on-device model is offered. | 16 | Product and privacy decision; the interface keeps it open. |
 | O5 | Collaboration transport (server product, third-party sync, or shared-folder only). | 16 | Needs a business decision that does not exist yet. |

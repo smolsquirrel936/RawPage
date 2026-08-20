@@ -128,7 +128,7 @@ cell names the members. Everything else is one row per file, with `{.h,.cpp}` co
 | `core/doc/Outline.{h,cpp}` | ○ (S3 read, S7 edit) | The bookmark tree: nodes with title, style, destination-or-action, and children; promote/demote/reorder as model ops; generators from headings, font size, or a text pattern. Pure → `tst_outline`. | `core/cmd/commands/BookmarkCommands`, `ui/panes/BookmarksPane` |
 | `core/doc/Destinations.{h,cpp}` | ○ (S7) | Named destinations: create, rename, delete, list, and repair after pages move. | `core/doc/PageTree`, `ui/panes/DestinationsPane` |
 | `core/doc/LayerTree.{h,cpp}` | ○ (S7) | Optional-content groups: nesting, visibility state per usage (view/print/export), radio groups, lock flags. Pure → `tst_layers`. | `core/cmd/commands/LayerCommands`, `ui/panes/LayersPane`, `core/render/RenderRequest` |
-| `core/doc/TagTree.{h,cpp}` | ○ (S7) | The logical structure tree: tag types, reading order, alt text, table header scope, language attributes, artifact marking. Pure → `tst_tags`. | `ui/panes/TagsPane`, `core/text/LayoutAnalyzer`, `platform::ISpeech` consumers |
+| `core/doc/TagTree.{h,cpp}` | ○ (S7) | The logical structure tree: tag types, reading order, alt text, table header scope, language attributes, artifact marking. Pure → `tst_tags`. **Also the durable home of Write mode's structure (O2)** — `ReflowToFixedComposer` writes it on compose, and `FixedToReflowConverter` reads it back. | `ui/panes/TagsPane`, `core/text/LayoutAnalyzer`, `core/reflow/{ReflowToFixedComposer,FixedToReflowConverter}`, `platform::ISpeech` consumers |
 | `core/doc/Attachments.{h,cpp}` | ○ (S6) | Document-level and annotation-level embedded files: add, extract, delete, and the dangerous-type policy hook. | `core/security/TrustPolicy`, `ui/panes/AttachmentsPane` |
 | `core/doc/Metadata.{h,cpp}` | ○ (S3) | Info dictionary and XMP as one editable model, with round-trip preservation of XMP we do not understand. | `core/cmd/commands/MetadataCommands`, `ui/dialogs/DocumentPropertiesDialog` |
 | `core/doc/Permissions.{h,cpp}` | ○ (S10) | The decoded permission set and the **single** `may(Operation)` predicate every command asks before it is allowed to run. Pure → `tst_permissions`. | `core/cmd/CommandJournal` (pre-flight), `core/security/EncryptionPolicy` |
@@ -192,7 +192,7 @@ cell names the members. Everything else is one row per file, with `{.h,.cpp}` co
 | `core/reflow/LineBreaker.{h,cpp}` | ○ (S13) | Line breaking, justification, hyphenation, widow/orphan and keep-with-next, and column/page break placement. Pure → `tst_linebreak`. | HarfBuzz + ICU via `core/reflow/Shaper`, `core/reflow/ReflowToFixedComposer` |
 | `core/reflow/Shaper.{h,cpp}` | ○ (S13) | Complex-script shaping and font fallback for document text, resolving missing fonts through `IFontResolver`. | HarfBuzz, `platform::IFontResolver` |
 | `core/reflow/FixedToReflowConverter.{h,cpp}` | ○ (S13) | *Convert to Writable*: turns positioned glyphs plus the tag tree into a semantic `ReflowDocument`, and records every element it could not reconstruct. | `core/text/LayoutAnalyzer`, `core/doc/TagTree`, `core/reflow/FidelityReport` |
-| `core/reflow/ReflowToFixedComposer.{h,cpp}` | ○ (S13) | The way back: lays a `ReflowDocument` out onto pages and emits the page-content **intent** through `MutationSink`. Also the *Prevent Further Edits* finalization path. | `core/reflow/LineBreaker`, `MutationSink` (realized by `pdf/cos/ContentStreamBuilder` on the far side) |
+| `core/reflow/ReflowToFixedComposer.{h,cpp}` | ○ (S13) | The way back: lays a `ReflowDocument` out onto pages and emits the page-content **intent** through `MutationSink`. **Also emits a structure tree derived from the reflow model (decision O2)** — headings, paragraphs, lists, tables and reading order — so the semantic model persists in *standard* PDF rather than in a private stream, and a later re-conversion reads tags instead of re-inferring from glyphs. Also the *Prevent Further Edits* finalization path. | `core/reflow/LineBreaker`, `core/doc/TagTree` (**written**, not just read), `MutationSink` (realized by `pdf/cos/ContentStreamBuilder` on the far side) |
 | `core/reflow/FidelityReport.{h,cpp}` | ○ (S13) | Per-element list of what the conversion lost or approximated, with page references — shown before the user commits to Write mode. | `ui/dialogs/ConversionFidelityDialog` |
 | `core/reflow/ChangeTracker.{h,cpp}` | ○ (S13) | Tracked insertions, deletions, format changes, and moves with per-reviewer identity; accept/reject one, all, or all-by-reviewer. Pure → `tst_changetracking`. | `core/reflow/ReflowDocument`, `ui/write/TrackChangesBar` |
 | `core/reflow/SpellChecker.{h,cpp}` | ○ (S13) | Per-language dictionaries, as-you-type checking, custom dictionaries, and the suggestion ranking. Pure → `tst_spell`. | Hunspell, ICU (word boundaries), `core/reflow/ReflowDocument`, `core/doc/AnnotationStore` (comment spell check); **driven by** `ui/write/SpellCheckPane` |
@@ -632,8 +632,12 @@ ActionId::ConvertToWritable
 
 ActionId::PreventFurtherEdits
  └─ ReflowToFixedComposer.compose(ReflowDocument&)
-     └─ LineBreaker + Shaper ─▶ page layout ─▶ sink.replacePageContent(...)
-         └─ ContentStreamBuilder ─▶ new content streams ; the reflow model is dropped
+     └─ LineBreaker + Shaper ─▶ page layout
+         ├─ sink.replacePageContent(...)  ─▶ ContentStreamBuilder ─▶ new content streams
+         └─ sink.replaceStructureTree(...) ─▶ TagTree built FROM the reflow model      // O2
+             // The reflow model is dropped, but its STRUCTURE survives as standard PDF
+             // tags -- so the next Convert to Writable reads tags instead of re-guessing
+             // from glyphs, and the output is closer to PDF/UA for free.
 ```
 **Direction shown:** the same journal, the same sink, the same `Ctrl+Z`. Write mode is a second
 *model*, not a second mutation mechanism — which is exactly why it does not double the architecture.
