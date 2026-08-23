@@ -649,9 +649,17 @@ installed underneath every locale, for the day a key is added to `en` and not ye
 
 ### 5.9 CI, portable, and the one benchmark
 
-**A-80 · CI green on all three jobs**
+**A-80 · CI green on all three jobs** — 🟡 **two of three, 2026-08-23**
 ☐ **Expect** `gates`, `windows`, `portable-asan` all green; the new counts recorded here and in the
 status block. **If it fails** S1.
+**Result so far** ✅ `gates` **45/45** and ✅ `portable-asan` **177/177** on run 32649932954, the first
+CI run to reach Stage 1's code at T9's counts. (The Linux `gates` job runs 45 of the preset's 59 —
+the `wrong_compiler` fixtures are Windows-only, Stage 0's I-19.) **The `windows` job did not run and
+never has:** the workflow gates it on `vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'`, which is unset, so
+it is *skipped* rather than failing. Everything it would run is green **locally** at 226/226 on both
+presets — but locally-green is not CI-green, and A-80 asks for CI. **This case stays open**, and
+T15's job is to either register the self-hosted runner or record the deliberate absence here rather
+than let a skipped job read as a passing one.
 
 **A-81 · `checks` still runs before any compile in CI**
 ☐ **Steps** Read the workflow log ordering. **Expect** The gate step precedes the build step in every
