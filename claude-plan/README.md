@@ -60,7 +60,7 @@ three jobs, verdicts **A5** and **A6** recorded in ②.
 | Gates | `layer-lint` 100 files / 509 includes, `license-audit` clean, `i18n-lint` 45 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3 |
 | Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion) · **`-municode` = not adopted** |
 | Manual | **M-01 ✅, M-02 🟡** signed off by the user. The rest are not walkable yet |
-| Issues | I-01…I-16 in ⑥. **None open** |
+| Issues | I-01…I-17 in ⑥. **None open** |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3

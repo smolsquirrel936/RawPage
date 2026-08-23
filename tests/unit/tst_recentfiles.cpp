@@ -68,7 +68,22 @@ TEST_CASE("the same document reached two ways is one entry", "[recentfiles]")
     recent.note(QStringLiteral("C:\\docs\\a.pdf"));
     recent.note(QStringLiteral("C:/docs/./a.pdf"));
 
-    CHECK(recent.entries().size() == 1);
+    // The count alone would be satisfied by a collapse onto the WRONG spelling -- and the stored
+    // spelling is the one that gets displayed and re-opened, so it is the half worth pinning.
+    const QStringList paths = pathsOf(recent);
+    REQUIRE(paths.size() == 1);
+    CHECK(paths.at(0) == QStringLiteral("C:/docs/a.pdf"));
+
+    // ISSUE I-17. This case ran green on Windows from T5 and had never run on Linux until T9's CI
+    // reached it, where it failed 2 == 1: QDir::cleanPath converts PLATFORM-NATIVE separators, so a
+    // backslash is a separator on Windows and an ordinary filename character under POSIX. The fix is
+    // in RecentFiles' own canonical(), which now normalizes by hand rather than leaving the question
+    // to the platform, so the two builds share one dedup rule.
+    //
+    // This case is deliberately NOT #ifdef'd to Windows. Making it Windows-only would have been the
+    // smaller diff and would have left the portable-asan job exercising a different rule from the
+    // shipping build -- and a sanitizer finding there has to be reproducible in x64-debug before it
+    // counts as fixed, which a divergent rule quietly makes impossible.
 }
 
 TEST_CASE("the history is bounded by documents/recentCount", "[recentfiles]")

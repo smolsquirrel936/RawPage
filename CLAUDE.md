@@ -19,7 +19,7 @@ that block is the authority, and this section is its summary.
 | **Tests** | **226/226** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 59/59 with no Qt |
 | **Gates** | `layer-lint` clean at 100 files / 509 includes; `license-audit` clean; `i18n-lint` clean at 45 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**; **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
-| **Issue log** | I-01…I-16 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 were raised and closed at T8/T9. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Issue log** | I-01…I-17 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
 | **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** M-03…M-12 are not walkable yet — the code they test does not exist |
 
 **Next action: T10** — `Ribbon`, `RibbonTabBuilder`, `ActionFactory`, `RawPageAction`,
@@ -130,6 +130,14 @@ composes every service, loads both catalogs and exits 0 without creating a windo
    destructor.** `~QWidget` closes the window, which hides children, which emits — into an object
    whose derived part is gone. Qt drops the connection only when the *QObject* part goes, and that is
    last. (Issue **I-12**; found by `tests/ui` on its first run.)
+11. **`core/` may not let the *host* decide a domain rule.** `RecentFiles` deduped paths through
+   `QDir::cleanPath`, which converts *platform-native* separators — so `C:\x\a.pdf` collapsed onto
+   `C:/x/a.pdf` on Windows and stayed a separate document on Linux. Every path this product sees is a
+   Windows path; `core/` builds on Linux only so the sanitizers can run, and a rule that differs
+   between the two builds means the sanitized build is not exercising the shipping build's logic —
+   which makes *"reproduce it in `x64-debug` before it counts as fixed"* impossible to satisfy.
+   Normalize by hand, not by platform. (Issue **I-17**; and note the corollary — a Windows-green
+   `core/` test proves nothing about `portable-asan` until that job has actually run.)
 
 ### Accessibility is OUT OF SCOPE (2026-08-23)
 

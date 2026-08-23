@@ -9,11 +9,26 @@ namespace {
 
 // Compared -- and stored -- in one canonical spelling, because the same document reached through
 // "C:/x/a.pdf", "C:\x\a.pdf" and a relative path is one entry in a recent list and three in a naive
-// one. QDir::cleanPath normalizes the separators and collapses . and ..; case is deliberately NOT
-// folded, since the path is also what gets DISPLAYED and a user's capitals are theirs.
+// one. Case is deliberately NOT folded, since the path is also what gets DISPLAYED and a user's
+// capitals are theirs.
+//
+// THE BACKSLASH REPLACEMENT IS DELIBERATE AND MUST NOT BE FOLDED BACK INTO cleanPath. QDir::cleanPath
+// converts *platform-native* separators, so on Windows it already does this and on Linux it does
+// nothing at all -- a backslash is an ordinary filename character under POSIX. That difference is
+// invisible until core/ is run on Linux, which is the `portable-asan` job, and it made "C:\docs\a.pdf"
+// a second entry there while collapsing correctly on Windows (issue I-17, found by the first CI run
+// that reached this test on Linux).
+//
+// Normalizing by hand rather than by platform is the right way round for this layer. Every path
+// RawPage ever sees is a Windows path -- there is no Linux product, and core/ builds there only so
+// the sanitizers can run. A dedup rule that differs between the two builds means the sanitized build
+// is not exercising the shipping build's logic, and a finding in it could not be reproduced in
+// x64-debug, which is the standing condition for a portable finding counting as fixed.
 QString canonical(const QString& path)
 {
-    return QDir::cleanPath(path);
+    QString normalized = path;
+    normalized.replace(QLatin1Char('\\'), QLatin1Char('/'));
+    return QDir::cleanPath(normalized);
 }
 
 void eraseValue(std::vector<QString>& list, const QString& value)
