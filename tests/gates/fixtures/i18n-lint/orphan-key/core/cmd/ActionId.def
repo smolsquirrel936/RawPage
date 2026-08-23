@@ -1,0 +1,7 @@
+#ifndef RAWPAGE_ACTION
+#define RAWPAGE_ACTION(Enumerator, StringId, DefaultContext, LabelKey)
+#endif
+
+RAWPAGE_ACTION(FileOpen, "file.open", Global, "action.file.open")
+
+#undef RAWPAGE_ACTION

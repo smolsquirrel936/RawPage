@@ -1,0 +1,118 @@
+// -*- C++ -*-  THE SETTINGS TABLE. One file, three artifacts -- the same shape as ActionId.def (D1-6).
+//
+// The constexpr `Key<T>` objects, the runtime descriptor table, and the group census are ALL
+// generated from the rows below. The alternative -- constexpr keys in the header and a hand-written
+// descriptor list in the .cpp -- is two lists that agree until the first Friday, and the second one
+// is the one a Preferences page is built from, so the drift shows up as a missing row in the UI
+// rather than as a compile error.
+//
+// This file is #included repeatedly with different macro definitions. No include guard, on purpose.
+//
+//   RAWPAGE_SETTING(Namespace, Name, Type, "path", Default, Group, PolicyLockable)
+//   RAWPAGE_SETTING_RANGED(Namespace, Name, Type, "path", Default, Group, PolicyLockable, Min, Max)
+//
+// ---------------------------------------------------------------------------------------------
+// FOUR RULES, none of them stylistic:
+//
+// 1. THE PATH IS A PERMANENT PUBLIC NAME, exactly as an ActionId string is. It is written into a
+//    user's settings.ini and read back by a later version. Changing one without a migration step in
+//    SettingsSchema.cpp silently resets that preference (D1-16).
+//
+// 2. THE DEFAULT LIVES HERE AND NOWHERE ELSE. A default repeated at a call site is a default that
+//    disagrees with this table the first time one of them changes -- and `Settings::get` never asks
+//    a caller for one, which is what makes that impossible rather than discouraged.
+//
+// 3. A RANGE IS ENFORCED BY CLAMPING, NOT BY REFUSAL. A hand-edited INI or a downgraded install
+//    must not prevent startup (guide case A-43); the clamp is logged so it is diagnosable.
+//
+// 4. `Internal` GROUP MEANS "NOT A USER SETTING". It lives in the same file and is versioned with
+//    everything else, but it gets no Preferences row. `meta/schemaVersion` and the recent-files
+//    list are internal state, not preferences, and the guide says so of the first one already.
+// ---------------------------------------------------------------------------------------------
+
+#ifndef RAWPAGE_SETTING
+#define RAWPAGE_SETTING(Namespace, Name, Type, Path, Default, Group, PolicyLockable)
+#endif
+
+// A ranged key is a separate macro rather than two more columns on every row, so that the 9 keys
+// with no meaningful ordering (a theme, a locale, a list of paths) cannot be given a nonsense range
+// by copy-paste.
+#ifndef RAWPAGE_SETTING_RANGED
+#define RAWPAGE_SETTING_RANGED(Namespace, Name, Type, Path, Default, Group, PolicyLockable, Min, Max) \
+    RAWPAGE_SETTING(Namespace, Name, Type, Path, Default, Group, PolicyLockable)
+#endif
+
+// =============================================================================================
+// The twelve Stage 1 keys -- Implementation-Plan.md, Stage 1 "Data / settings keys".
+//
+// Eleven of the twelve are here. The twelfth, `shortcuts/<context>/<action>`, is a KEY FAMILY and
+// deliberately not a row: it is generated over KeyContext x ActionId by SettingsSchema.h, because a
+// row per (context, action) pair would be 12 x 358 rows that no human maintains. D1-10 requires the
+// family to be declared once with a validator, not to be an open string API -- see ShortcutKey.
+// =============================================================================================
+
+// --- General ---------------------------------------------------------------------------------
+RAWPAGE_SETTING(general, theme, Theme,
+                "general/theme", Theme::FollowSystem, General, true)
+
+// 0.75 is the smallest scale at which the 9 px ribbon key tips stay legible; 2.0 is where a
+// maximised ribbon stops fitting three groups on a 1920-wide monitor. Both are judged at T10 and
+// may move; they may not quietly become unbounded.
+RAWPAGE_SETTING_RANGED(general, uiFontScale, double,
+                       "general/uiFontScale", 1.0, General, true, 0.75, 2.0)
+
+RAWPAGE_SETTING(general, touchMode, bool,
+                "general/touchMode", false, General, true)
+
+RAWPAGE_SETTING(general, restoreSession, bool,
+                "general/restoreSession", true, General, true)
+
+RAWPAGE_SETTING(general, singleInstance, bool,
+                "general/singleInstance", true, General, true)
+
+// --- Language --------------------------------------------------------------------------------
+// Empty means "follow the system locale". A sentinel string such as "system" would be a value the
+// locale space could one day legitimately contain; empty cannot be a locale name.
+RAWPAGE_SETTING(language, uiLocale, QString,
+                "language/uiLocale", "", Language, true)
+
+// --- Logging ---------------------------------------------------------------------------------
+RAWPAGE_SETTING(logging, level, LogLevel,
+                "logging/level", LogLevel::Info, Logging, true)
+
+// A mask over core/Log.h's seven subsystems. Default is all of them: a log that omits a subsystem
+// by default is a log that omits exactly the subsystem the support case is about.
+RAWPAGE_SETTING(logging, subsystems, LogSubsystemMask,
+                "logging/subsystems", LogSubsystemMask::all(), Logging, true)
+
+// 1 keeps the current file only. 100 is roughly a year of daily use and is where the rotation
+// scan stops being free.
+RAWPAGE_SETTING_RANGED(logging, retainFiles, int,
+                       "logging/retainFiles", 5, Logging, true, 1, 100)
+
+// --- Documents -------------------------------------------------------------------------------
+// 0 is a legitimate value and means "keep no history", which is a privacy setting rather than a
+// degenerate one -- so the range starts there rather than at 1.
+RAWPAGE_SETTING_RANGED(documents, recentCount, int,
+                       "documents/recentCount", 10, Documents, true, 0, 50)
+
+RAWPAGE_SETTING(documents, recentPinned, QStringList,
+                "documents/recentPinned", "", Documents, false)
+
+// =============================================================================================
+// Internal state -- same file, same versioning, no Preferences row (rule 4).
+// =============================================================================================
+
+// D1-16. Written from the first save of a fresh file, so that a file this build wrote can always be
+// told from a file a later build wrote. Read by Settings' constructor before any other key.
+RAWPAGE_SETTING(meta, schemaVersion, int,
+                "meta/schemaVersion", 1, Internal, false)
+
+// The recent-files list itself. `documents/recentCount` bounds it and `documents/recentPinned`
+// says which of its entries survive eviction; the ordered list has to live somewhere, and an
+// undeclared key is exactly what D1-10 exists to make impossible.
+RAWPAGE_SETTING(documents, recentList, QStringList,
+                "documents/recentList", "", Internal, false)
+
+#undef RAWPAGE_SETTING
+#undef RAWPAGE_SETTING_RANGED

@@ -1,0 +1,11 @@
+// A three-row action table. The third row's catalog key is absent from every catalog, which is
+// exactly the state that renders as a button with no label.
+#ifndef RAWPAGE_ACTION
+#define RAWPAGE_ACTION(Enumerator, StringId, DefaultContext, LabelKey)
+#endif
+
+RAWPAGE_ACTION(FileOpen,   "file.open",   Global, "action.file.open")
+RAWPAGE_ACTION(FileSave,   "file.save",   Global, "action.file.save")
+RAWPAGE_ACTION(FileUnnamed, "file.unnamed", Global, "action.file.unnamed")
+
+#undef RAWPAGE_ACTION

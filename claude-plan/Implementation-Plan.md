@@ -70,7 +70,9 @@ machine-wide administrative defaults and locks on top. Conventions:
 
 Per [`Tech-Stack-Plan.md` §5](./Tech-Stack-Plan.md#5-the-headline-cross-cutting-concern-designed-end-to-end-mutation-through-commands):
 **every document change is a `Command` run through `CommandJournal`, and no `ui/` or `core/` code
-writes PDF bytes.** Four gates hold it, and all four run in CI on every push:
+writes PDF bytes.** Four gates hold it, and every gate that exists runs in CI on every push.
+**Three are live today** — `layer-lint`, `license-audit` and `i18n-lint` (Stage 1 T6);
+`mutation-lint` arrives at Stage 3, with the stage that gives it something to check:
 
 | Gate | Fails the build when… |
 |---|---|
@@ -116,7 +118,8 @@ each DPI over the corpus, settling risk A2.
 ### Definition of Done — every stage, no exceptions
 
 1. Code complete for the stage's Objectives.
-2. `cmake --build --target checks` clean — all four gates.
+2. `cmake --build --target checks` clean — every gate that exists at that stage. `checks` reports
+   how many it ran; if it ever *claims* four before Stage 3, that is the bug.
 3. `ctest` green: the stage's new unit tests **and** every prior stage's.
 4. Golden-image and round-trip suites green (from Stage 2 and Stage 3 respectively).
 5. The stage's `Stage<N>-<Area>-Testing-Guide.md` was **written from the stage plan before the code**
@@ -292,7 +295,7 @@ contains no non-allowlisted license, and lists Qt 6.11.1 and the GCC runtime wit
 **A5 and A6 have recorded verdicts** — the vcpkg manifest resolves on `x64-mingw-dynamic` and the
 PDFium DLL spike opens a file — and **A7 stays settled**: a mismatched compiler fails configure.
 
-**Deferrals.** `mutation-lint` (needs `Command`, Stage 3); `i18n-lint` (needs `tr()` sites, Stage 1);
+**Deferrals.** `mutation-lint` (needs `Command`, Stage 3); `i18n-lint` (needs `tr()` sites, Stage 1 — **delivered at T6**);
 arm64 is configured but not validated on hardware, and per R8 may need LLVM-MinGW rather than GCC —
 that is O6's problem, not Stage 0's. `portable-fuzz` is wired but has no targets until Stage 2 gives
 it a lexer.
@@ -303,9 +306,73 @@ it a lexer.
 
 *Part 1 of the [first milestone](./Tech-Stack-Plan.md#7-recommended-first-milestone-foundation-vertical-slice).*
 
-**Status:** ⚪ **Not started.** Carries risk **A3** (can Qt Widgets host a real ribbon, tear-off
-tabs, and auto-hiding panes without a commercial control library?) as an explicit **go/no-go**. If
-it cannot, the fallback is a first-party ribbon widget — *not* a change of toolkit.
+**Status:** 🟡 **In progress since 2026-08-23. T1–T9 complete: the A3 verdict is recorded, the §8 collision census is asserted, `checks` runs three gates, the OS boundary is declared in full, flow A runs end to end, and `rawpage.exe` opens a window. T10–T15 outstanding.** Risk **A3** —
+can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
+library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,
+*not* a change of toolkit) is not needed.
+
+Both planning artifacts were written first, in the §5 order:
+[`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md) (tasks T1–T15, decisions D1-1…D1-16, the §7
+precondition checklist P-1…P-4) and
+[`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) (written **from** that plan,
+**before** any code). Preconditions: **P-3 and P-4 satisfied**; **P-1 satisfied** when M-02 was walked
+on 2026-08-23. **P-2 (Narrator) was withdrawn** with the accessibility removal — see
+[`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23).
+
+| Task | State | Outcome and deviations |
+|---|---|---|
+| **T1** entry point, DPI, crash handler, `-municode` verdict | ✅ 2026-08-23 | `app/main.cpp` rewritten; `app/CrashHandler.{h,cpp}`; `-Wl,--build-id` on every target via `rawpage_common_flags`; `scripts/symbolize.ps1`. Both presets build clean, `ctest` **66/66 on `x64-release` and `x64-debug`**, `checks` clean at **29 files / 109 includes / 3 escapes**. Guide cases run: **A-03 ✅** (`--version` under `offscreen`, exit 0, no window), **A-04 ✅** (`msvcrt.dll` present, `ucrtbase.dll` absent), **A-05 ✅** (see the verdict below), **A-06 ✅** (`PerMonitorAwareV2`, set before the first Qt object), **A-07 ✅ with a correction** (see I-02), **A-08 ✅**, **A-65 ✅** (forced crash → dump → `symbolize.ps1` resolved `rawpage::app::CrashHandler::forceCrashForTesting()` at `app/CrashHandler.cpp:290`, with the build ids of dump and binary agreeing), **A-66 ✅** (the last-rites hook is invoked and its no-op state is written to the dump sidecar *and* logged at install). **Deviations:** (a) three `layer-lint` `filesystem-write` waivers were added in `app/CrashHandler.cpp` — the crash directory, the minidump, and the sidecar — each with a named reason and visible in `--explain`; this is the first use of the escape hatch in product code and takes the standing census from 0 to 3. (b) The `--print-args` diagnostic originally probed `_UNICODE` and reported `municode=yes` with `-municode` nowhere in the build: Qt6::Core defines `UNICODE`/`_UNICODE` in its INTERFACE compile definitions, so the probe was measuring Qt. It now reads `RAWPAGE_MUNICODE`, set in `cmake/RawPageWarnings.cmake` beside the link option it describes, so the diagnostic cannot drift from the flag. (c) The last-rites hook is deliberately **not** wrapped in `__try`/`__except` — GCC on Windows x64 does not implement SEH in C++, so the wrapper would have been a comment pretending to be a guard. |
+| **T2** A3 ribbon spike | ✅ 2026-08-23 — **A3 verdict recorded: `go, with named custom work`** | `tools/spike-ribbon/` (throwaway, deleted at T10): a ribbon of plain `QWidget` composition plus **one custom `QLayout`**, with a `--self-test` mode. **Measured: R-2 ✅, R-4 ✅ (height), R-7 ✅, R-9 ✅ at p95 0.29 ms against a 16 ms budget.** **Walked and signed off by the user: M-01 ✅ and M-02 🟡**, carrying R-1, R-3, R-4's flicker, R-5, R-6 and R-7. **R-8 was withdrawn** the same day when accessibility left the product, so the verdict rests on **eight criteria, not nine** — recorded plainly in `Tech-Stack-Plan.md` §3.3 rather than smoothed over. **Named custom work:** a collapse layout (~60 lines), a chevron overflow (~30), and a tab-order pass (~15). **Your M-01 walk produced I-05 and I-06:** `Tab` visited the ribbon groups in collapse-priority order rather than visual order, because collapse is implemented by re-parenting and re-parenting appends to the end of the focus chain — a durable constraint on T10, and retained as **keyboard operability** after the accessibility removal. **Deviations:** (a) the plan's 3-working-day timebox is a calendar budget that does not map onto how this was executed; the criteria, not the clock, bounded it. (b) M-02 is 🟡: its non-ribbon half names a sidebar, a floating pane and Preferences, none of which exist before T9/T14, so it is re-walked then. |
+| **T3** `ActionId.def`, `ActionRegistry`, `KeyContext` | ✅ 2026-08-23 | `core/cmd/{ActionId.def,ActionId.h,KeyContext.h,ActionRegistry.h,ActionRegistry.cpp}` and `tests/unit/tst_actionregistry.cpp`. **`ctest` 88/88 on both presets** (was 66); `checks` clean at **37 files / 171 includes**. All three §5.1 properties asserted: an unregistered id returns `NotFound`, a disabled one returns the **distinct** `Unavailable`, and a second registration is an error with the first handler surviving. **Two negative controls run, both inside the table region after the first pair mistakenly landed after the `#undef` and proved nothing:** a duplicate enumerator fails the build with *`ActionId.def:52: error: redeclaration of 'FileOpen'`* — the typo's own line, which is D1-6's whole claim — and a catalog key that disagrees with its string id fails `tst_actionregistry`. **Deviations:** (a) **327 ids declared, not the plan's ~200.** The id space was derived section by section from `Features.md` §1–§7 and §9 rather than estimated; under-declaring would be worse, since every string id is a permanent public name that owes an alias row if it ever changes. Guide case **A-25**'s "~200" should read ~327. (b) **`ErrorCode::Unavailable` was added to `core/Result.h`** — a Stage 0 vocabulary header. A-22 requires unregistered and disabled to be *distinct codes*, and none of the existing nine expressed "exists, but not applicable right now": `PermissionDenied` means a document or OS refusal, which a disabled action usually is not. (c) A test name containing `§` failed — see the deviation note below. |
+| **T4** `KeyBindingStore` + §8 defaults + census | ✅ 2026-08-23 | `core/cmd/{Chord.h,Chord.cpp,KeyBindingDefaults.def,KeyBindingStore.h,KeyBindingStore.cpp}` and `tests/unit/tst_keybindings.cpp`. **`ctest` 110/110 on both presets** (was 88); `checks` clean at **42 files / 199 includes**. **All three census numbers assert separately and all three hold: 12 Write-mode (8 over Viewer + 4 over Global + 0 over Common), 6 class 1, 9 class 2** — computed from the live document before a line of C++ was written, and unchanged by the accessibility removal. `shadows()` reports class 1 only. **D1-9 verified by negative control in both directions:** adding a §8 row the store lacks fails with *"context Global, chord Ctrl+Alt+Y, documented as: Some new command nobody implemented"*, and deleting a row the store has fails with *"stored binding Global / Ctrl+Shift+O is not in the document"* — each naming the row, which is what A-30 demands so that "the store is wrong" and "the parser is wrong" can be told apart. **Deviations:** (a) **`Chord` is a first-party type, not `QKeySequence`.** This document's Stage 1 component list sketches `lookup(QKeySequence, KeyContext)`, but `QKeySequence` lives in **QtGui**, which `core/` may not include — `layer-lint` denies it and `core/` links only `Qt6::Core`. `ui/shell/ShortcutBinder` will convert at the boundary. (b) **A second binding kind, `WidgetNative`.** Fifteen §8 rows (`↑ ↓ ← →` in the item panes, `Tab` in the Forms contexts) move focus or selection inside the focused widget; giving them `ActionId`s would mint permanent public names for behaviours nothing dispatches. They are *recorded* rather than dropped, so "the store matches §8 row for row" stays true of every row and not just the convenient ones. Remapping **onto** such a chord is the one refusal the store makes. (c) **31 further `ActionId`s** were needed to cover §8 — presentation controls, form-fill verbs, find toggles — taking the declared total from 327 to **358**. |
+| **T5** `SettingsSchema`, `Settings`, `RecentFiles` | ✅ 2026-08-23 | `core/settings/{SettingsKeys.def,SettingsSchema.h,SettingsSchema.cpp,Settings.h,Settings.cpp,RecentFiles.h,RecentFiles.cpp}`, `tests/unit/{tst_settings.cpp,tst_recentfiles.cpp}`, and four compile fixtures under `tests/unit/compile/`. **`ctest` 159/159 on both presets** (was 110); `checks` clean at 54 files / 265 includes, waiver census still **3**. All eleven scalar Stage 1 keys plus the `shortcuts/` family; D1-16 live in both directions. **A-41 is asserted three ways plus a control** (`tests/unit/RunCompileCase.cmake`): a misspelled key, a key named by string, and a right key with a wrong-typed value each fail to compile, and `declared-key.cpp` must still compile — without that control the case is equally satisfied by a header nobody can include. **Deviations:** (a) **`SettingsKeys.def`, an X-macro table, was added** — the plan's §4 manifest lists only `SettingsSchema.{h,cpp}`, but the constexpr `Key<T>` objects and the runtime descriptor table a Preferences page iterates are two lists that must agree forever, and D1-6's lesson is one table. (b) **Two keys beyond the plan's twelve are declared, both in a new `Internal` group**: `meta/schemaVersion` (which the guide already treats as internal state) and `documents/recentList`. The MRU list has to live somewhere, and "an undeclared key does not compile" is only true if there is no undeclared key — declaring it is what keeps the guarantee rather than what weakens it. (c) **`RecentFiles` is keyed on the path, not `DocumentId`** — that type arrives with `core/doc/` at Stage 2, and a recent list is a list of paths by nature. (d) **`changed` is a subscription list, not a `Signal<Key>`** — there is no `Signal` type in `core/` and inventing a core-wide one for a single user would be speculative infrastructure. (e) **Two QSettings dialect defects were found by running the tests, not by reading** — see I-08 and I-09; both are fixed, and each has a test that fails if the fix is removed. |
+| **T6** `tools/i18n-lint` + catalogs + the third gate | ✅ 2026-08-23 | `tools/i18n-lint/{main.cpp,I18nLint.{h,cpp},I18nRules.{h,cpp},Catalog.{h,cpp},SourceScan.{h,cpp},rules.json}`, `tools/common/LineScan.h`, `i18n/{locales.json,rawpage_en.ts,rawpage_zh_TW.ts}`, and 14 gate cases over 10 fixture trees. **`checks` runs three gates and says three.** **`ctest` 173/173 on both presets** (was 159); the bare `gates` preset — no Qt, no vcpkg — is **53/53**, which is A-11. Guide cases run: **A-10 ✅**, **A-11 ✅**, **A-13 ✅** (five spellings in one tree, and the case asserts the *count*, so finding four of five would not pass), **A-14 ✅**, **A-15 ✅**, **A-16 ✅**, **A-17 ✅** (the applied waiver waives; a quoted marker, an unknown kind, and a marker on a codeless line each waive nothing), **A-70 ✅**, **A-71 ✅**. **A-72 is not yet runnable** — it needs `--lang` and a UI, which arrive at T8 and T9. **Deviations:** (a) **The catalog key is the `<source>` and `en` is a real catalog, not the identity.** Qt's convention makes the English sentence the key; `core/Result.h` forbids user-facing English in `core/` and `ActionId.def` already carries one `action.*` key per action, so there is no English in the sources for `lupdate` to extract. The consequence is that a missing key in `en` is a detectable defect rather than a button rendering `action.file.open`. (b) **The `unwrapped-literal` rule is sink-driven, not literal-driven.** "Every literal" would fire on object names, settings paths, catalog keys and format specifiers, and this stage's own risk register says a gate people waive everywhere is a gate that gets switched off. The sink list is data in `rules.json` and grows with `ui/`; the honest cost is a false negative for a literal handed to a user through a helper it does not name. (c) **`shell.*`, `ribbon.*` and `prefs.*` are NOT seeded.** The plan lists them as Stage 1 catalog groups; they arrive with the code that references them at T9 and T14, because adding them now would be a hundred `orphan-key` notes and a catalog nobody could review. The three `error.*` keys `core/settings/` actually references *are* present. (d) **28 of the 361 zh-TW entries are marked `type="unfinished"`** — the domain-heavy terms (Bates numbering, imposition, redaction, tag artifacts, rights management) where the Taiwanese convention is genuinely uncertain. `--explain` counts them, `missing-key` does not fail on them, and **M-06 is the review** (precondition P-3). Reporting them as finished would be claiming a review that has not happened. (e) **`tools/common/LineScan.h` was extracted** so `layer-lint` and `i18n-lint` share one copy of the code/comment split and the applied-versus-quoted waiver test — both of Stage 0's gate findings, I-15 and I-20, live in that logic, and a second gate re-deriving it would re-derive them. `layer-lint` keeps its own copy for now; the extraction is the shared home, not yet the single one. |
+| **T7** `platform/platform.h` + Windows factory | ✅ 2026-08-23 | `platform/platform.h`, `platform/win/{PlatformFactory,WinSingleInstanceBus,WinShellIntegration}.{h,cpp}`, and a new `tests/platform/` target. **`ctest` 194/194 on both presets** (was 173); `checks` clean at **72 files / 363 includes** (the Stage 0 placeholder TU `platform/PlatformModule.cpp` was deleted, as its own comment instructed once the layer had real content); the bare `gates` preset 55/55. **All seventeen interfaces declared**, two implemented, and `unimplementedInterfaces()` names the other fifteen rather than leaving a caller to dereference null. **Deviations:** (a) **The interface count is seventeen, not the plan's fifteen** — see I-10. The figure was a count of §4.3's table ROWS, one of which declares two interfaces, and `IPrinting` had never been written down at all even though `platform/win/WinPrinting` has had a FileMap row since the map was written. `Tech-Stack-Plan.md` §4.3 owns the corrected figure and now carries the `IPrinting` row; `tests/platform` asserts the count against the header. (b) **A third test target, `tests/platform/`.** `tests/unit`'s `rawpage_assert_headless()` forbids linking `rawpage_platform`, deliberately — the first platform test is exactly the pressure D1-4 met from `ui/` by adding a target rather than weakening the existing one. It is Windows-only and never runs on `portable-asan`. The handoff round trip runs **single-process**, which is a real handoff: `CreateMutexW` returns `ERROR_ALREADY_EXISTS` for a name the same process holds, so the second bus takes the genuine secondary branch. What it cannot cover is cross-process foreground activation — that stays manual case M-07. (c) **`platform.h`'s freedom from OS headers is now a gate rule, not a convention** — a `layer-lint` layer entry for that one file, with a fixture proving it fires and a control proving `platform/win/` may still include the OS. A header comment saying "no Win32 here" is review discipline; this is the gate. (d) **The pipe name carries the session id**, because `Local\` scopes mutexes and NOT pipes — the two halves of D1-11 look symmetric and are not. (e) **The fourth `filesystem-write` waiver**, on the named-pipe `CreateFileW` in the bus, taking the standing census from 3 to 4. Waived rather than narrowing the pattern: `CreateFileW` really is how a file gets written on Windows. (f) **A real race was found and fixed by the tests** — see I-11. **A-60, A-61 and M-07 remain outstanding**: they are end-to-end through `rawpage.exe`, which needs T8. |
+| **T8** `app/` composition root | ✅ 2026-08-23 — **I-04 closed** | `app/{Services.h,CommandLine,CompositionRoot,Application,SingleInstance}.{h,cpp}`, `app/main.cpp` rewritten to flow A, `i18n/CMakeLists.txt` (the `.ts` → `.qm` step), `tests/unit/tst_commandline.cpp`, and two negative-compile fixtures. **`ctest` 226/226 on both presets** (was 194); the bare `gates` preset **59/59** (was 55); `checks` clean at **100 files / 509 includes**, i18n-lint **45 files / 2 catalogs / 0 waivers**. Flow A verified end to end against the real executable: a second launch forwarded `測試-📄.pdf` to the first over the named pipe and the primary logged the path **byte for byte**, which is I-04's rule proven across three process boundaries rather than asserted. Guide cases run: **A-60 ✅**, **A-63 ✅**, **A-64 ✅**, **A-72 ✅** (380 strings dumped per locale, 377 differ, **0 render a raw key**; the 3 identical are the product name twice and the em dash). **I-04 is closed by three mechanisms, not one:** there is no `argc/argv` overload to call and a compile fixture proves it; `tools/layer-lint` gained a **non-escapable `argv-path-read` rule** allowed only in `app/main.cpp`, with a fixture and an entry-point control; and `tst_commandline` asserts an emoji path survives the parser byte for byte. **Deviations:** (a) **`SingleInstance::claim()` runs AFTER `CompositionRoot::build()`, not before it as flow A draws.** The claim is governed by `general/singleInstance`, so `Settings` has to exist first. A secondary therefore constructs `Settings` before exiting, which reads the file and never writes it. (b) **Two `layer-lint` gaps were found by needing them** — see I-15 and I-16. `ui/` had no permitted path to `platform/platform.h`, whose own header comment has always said it is included by `core/`, `ui/` and `app/`; and no gate scanned `.def` files, though four X-macro tables are `#include`d straight into layers that have deny lists. Both fixed with fixtures and controls. (c) **`app/Services.h` is now `ui/`'s second permitted look outward**, with its own layer entry constraining it to `core/` plus `platform/platform.h` — the `platform.h` treatment, for the reason that a `pdf/` include added there at Stage 2 would otherwise reach every widget. (d) **Two real defects found by running the flow** rather than by reading it: settings were never written to disk (I-14), and they were being written to `%APPDATA%\RawPage\RawPage\` (I-13). (e) The `.qm` catalogs are built beside the executable rather than into a Qt resource, so Stage 15 can ship them replaceable; `LinguistTools` is used as a build tool and deliberately not registered with `rawpage_link_qt`, because `qt-modules.txt` is the LINK closure `license-audit` audits. |
+| **T9** `MainWindow`, `StatusBar`, `SidebarDock`, `ThemeManager` | ✅ 2026-08-23 | `ui/shell/{Catalog,ThemeManager,StatusBar,SidebarDock,MainWindow}` plus `ui/shell/ShellKeys.def`, 22 new `shell.*` catalog entries in both shipped locales, and a new `tests/ui/` target. **`rawpage.exe` opens a window.** `ctest` 226/226 on both presets; `checks` clean; **`--dump-ui-strings` under `offscreen` composes every service, loads both catalogs and exits 0 without a window**, which is what keeps a headless smoke test meaningful now that an ordinary launch runs an event loop. **Deviations:** (a) **`tests/ui/` arrives here rather than at the plan's T15**, on the precedent T7 set with `tests/platform`: four widget files shipping with no suite until six tasks later would make "code complete AND `ctest` green" vacuous for all six. T15 still owns adding it to the CI `windows` job. (b) **Auto-hide is first-party.** §4.3 lists docking among what Qt gives us and is right — dock, float and re-dock are `QDockWidget` and are not reimplemented — but Qt has no notion of a pane collapsing to an edge strip, so that part is ours. It is a second piece of named custom work in the same family as A3's collapse layout. (c) **A crash found by `tests/ui` on its first run** (I-12), of exactly the shape T7's pipe race had: a lambda bound to a child's signal outliving the derived object. Fixed, and **verified by negative control** — with the `disconnect` commented out, that one case segfaults and no other. (d) **Chord input is not wired**, by plan: `ShortcutBinder` is T13. The three registered actions are reachable through the registry — and therefore through a test and the batch runner — and through the pane chrome, but not yet from the keyboard. (e) **Three actions registered, not the plan's 60–80.** That figure is Stage 1's total across T9–T14; registering a stub handler for an id this window cannot service would make every one of them look available, which is precisely the state §5.1 says to avoid. |
+| **T10**…**T15** | ⚪ Not started | **T10** (`Ribbon`, `RibbonTabBuilder`, `ActionFactory`, `res/ribbon.json`, **delete `tools/spike-ribbon/`**) is next. It inherits three pieces of named work from the A3 verdict — a collapse `QLayout`, a chevron tab overflow, and a tab-order pass on every change of the collapsed set — plus **I-05's fix and its case**, which any collapse built on re-parenting needs |
+
+> **A convention T9 adds to it: a Catch2 test name may not contain a comma either.** Catch2 splits a filter on commas, so a case named *"…round trip, and peeking…"* cannot be selected by hand even though CTest escapes it correctly when it runs the suite. The same family as I-07 and I-04 — a name crossing a narrow, punctuation-sensitive process boundary — and the same remedy: keep the name plain and put the detail in a comment.
+>
+> **A convention T3 established the hard way: Catch2 test names are ASCII.** The `KeyContext` case was
+> first named *"…matches Features.md §8"* and failed — not in its body, but because
+> `catch_discover_tests` registers the name with CTest, CTest passes it back as a command-line filter,
+> and `§` does not survive that round trip (it returned as `Features.md ??8`). Catch2 then matched no
+> test and CTest reported a failure that looked like a broken assertion. This is **I-04's root cause in
+> a second place** — a narrow, code-page-bound process boundary — and the machine's ACP of 950 is again
+> what made it visible. Section references belong in comments, not in test names.
+
+#### Verdict: `-municode` — **not adopted** (resolves Stage 0 deviation (a), decision **D1-3**)
+
+Measured 2026-08-23 with `rawpage.exe --print-args`, from PowerShell **and** `cmd.exe`, against a path
+containing CJK characters and one containing an emoji. The machine's **system ANSI code page is 950**
+(Big5), which is what makes the result decisive rather than vacuous — a UTF-8 ACP would have hidden it:
+
+| List | CJK path | Emoji path |
+|---|---|---|
+| `argv` (narrow, from the CRT) | survives — Big5 can represent it | **`report-?????.pdf`** — lost, lossily and irreversibly |
+| `QCoreApplication::arguments()` | byte-for-byte correct | **byte-for-byte correct** |
+
+Both shells give the same answer. Qt sources `arguments()` from `GetCommandLineW()`, not from `argv`,
+so the problem `-municode` exists to solve is already solved for our only consumer, and the flag is
+**not adopted** — no `wWinMain`, no `Qt6::EntryPointPrivate`, a plain `int main(int, char**)`.
+
+**The standing rule this creates, which is the real deliverable:** *nothing in RawPage may read a path
+out of `argv`.* `main()` hands `argv` to `QApplication` (which ignores it for `arguments()`) and reads
+nothing else from it. `app/CommandLine` at **T8** must parse `QCoreApplication::arguments()` and
+nothing else — the emoji row above is what a violation costs, and it is silent.
+
+#### Verdict: **A3** — ✅ `go, with named custom work`
+
+**Recorded 2026-08-23.** Qt Widgets host a real ribbon. The middle rung of the
+`Stage1-AppShell-Plan.md` §5.3 scale is a **pass**, and the fallback — a first-party ribbon widget —
+is not in play. The named work is a collapse `QLayout` (~60 lines), a chevron tab overflow (~30), and
+a tab-order pass (~15); all three are ordinary Qt.
+
+**Stated plainly because it would be easy to hide:** the verdict rests on **eight of the nine
+criteria**. R-8 was **withdrawn, not cleared**, when accessibility was removed from the product the
+same day — so the ninth rung was deleted rather than met. Full per-criterion table in
+[`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified).
 
 **Objectives.** A window with a working ribbon, document tabs, a sidebar, and a status bar, where
 every command already flows through the action layer, one typed settings store exists, the UI is
@@ -321,8 +388,11 @@ translatable, and a second launch hands its file to the first instance.
 - `core/cmd/ActionId.h`, `core/cmd/ActionRegistry` — `void register(ActionId, Handler, Enable, Label)`,
   `bool dispatch(ActionId, KeyContext)`, `bool isEnabled(ActionId) const`.
 - `core/cmd/KeyContext.h`, `core/cmd/KeyBindingStore` —
-  `std::optional<ActionId> lookup(QKeySequence, KeyContext) const`,
-  `void rebind(QKeySequence, KeyContext, ActionId)`, `QList<Shadow> shadows() const`.
+  `std::optional<ActionId> lookup(const Chord&, KeyContext) const`,
+  `Result<void> rebind(const Chord&, KeyContext, ActionId)`, `std::vector<Shadow> shadows() const`.
+  **Corrected at T4:** this list originally said `QKeySequence`, which lives in QtGui and `core/`
+  may not include. `core/cmd/Chord` is the first-party equivalent; `ui/shell/ShortcutBinder`
+  converts at the boundary.
 - `core/settings/Settings`, `SettingsSchema` — `template<class T> T get(Key) const`,
   `void set(Key, T)`, `Signal<Key> changed`.
 - `core/settings/RecentFiles` — `void note(DocumentId)`, `void pin(DocumentId)`, `void clear()`.
@@ -330,7 +400,8 @@ translatable, and a second launch hands its file to the first instance.
   `QuickAccessToolbar`, `UiCustomization`, `ShortcutBinder` (`KeyContext activeContext() const`),
   `DocumentTabBar`, `DocumentWindow`, `SidebarDock`, `StatusBar`, `ToolFinder`, `ThemeManager`.
 - `ui/panes/LogPane`, `ui/dialogs/PreferencesDialog` (shell + General + Shortcuts pages).
-- `platform/platform.h` (all sixteen interfaces **declared**), `platform/win/PlatformFactory`,
+- `platform/platform.h` (all **seventeen** interfaces **declared** — the count was written as
+  fifteen and corrected by measurement at T7), `platform/win/PlatformFactory`,
   `WinSingleInstanceBus`, `WinShellIntegration` (file association only).
 - `tools/i18n-lint/`, `i18n/rawpage_en.ts`, `rawpage_zh_TW.ts`.
 
@@ -618,7 +689,7 @@ behave identically at 50% and 400% zoom; full-screen and presentation work on a 
 window arrangement and session restore survive a monitor topology change.
 
 **Deferrals.** Comparison view (Stage 5, needs text). Pane *editing* — bookmark edit is Stage 7,
-comments Stage 6, fields Stage 9, layers/tags Stage 7. AI assistant (Stage 16). Read Aloud (Stage 14).
+comments Stage 6, fields Stage 9, layers/tags Stage 7. AI assistant (Stage 16).
 
 ---
 
@@ -780,7 +851,7 @@ merge, bookmark editing, tags, layers, headers/footers/Bates, watermarks, imposi
   `ImpositionOps` — `Result<Document> impose(const Document&, const ImpositionSpec&)`.
 - `ui/panes/{BookmarksPane (editing),LayersPane,TagsPane,DestinationsPane}`.
 - `ui/viewer/tools/{CropTool,LinkTool}`.
-- `ui/dialogs/{PageOpsDialogs,MergeDialog,WatermarkDialog,HeaderFooterDialog,BatesDialog,ImpositionDialog,LinkPropertiesDialog,AccessibilityReportDialog}`.
+- `ui/dialogs/{PageOpsDialogs,MergeDialog,WatermarkDialog,HeaderFooterDialog,BatesDialog,ImpositionDialog,LinkPropertiesDialog}`.
 
 **Key bindings handled** — the rest of [Page Thumbnails](./Features.md#page-thumbnails-pane):
 `Delete`, `Ctrl+X`/`Ctrl+C`/`Ctrl+V`, `Ctrl+A`, `Alt+↑`/`Alt+↓`, `Ctrl+Shift+X`, `Ctrl+Shift+D`.
@@ -798,7 +869,7 @@ The rest of [Bookmarks](./Features.md#bookmarks-pane): `F2`, `Delete`, `Ctrl+B`,
 `ExtractPages`, `ReplacePages`, `CropPages`, `ResizePages`, `RenumberPages`, `MergeDocuments`,
 `CreateBookmark`, `RenameBookmark`, `DeleteBookmark`, `ReparentBookmark`, `SetBookmarkTarget`,
 `GenerateBookmarks`, `CreateLayer`, `DeleteLayer`, `MergeLayers`, `FlattenLayers`, `SetLayerUsage`,
-`RetagElement`, `SetAltText`, `AutoTag`, `ApplyWatermark`, `RemoveWatermark`, `ApplyHeaderFooter`,
+`RetagElement`, `AutoTag`, `ApplyWatermark`, `RemoveWatermark`, `ApplyHeaderFooter`,
 `RemoveHeaderFooter`, `ApplyBates`, `RemoveBates`, `CreateLink`, `EditLink`, `DeleteLink`,
 `CreateDestination`, `RenameDestination`, `DeleteDestination`. i18n: `pages.*`, `bookmarks.*`,
 `layers.*`, `tags.*`, `decorate.*`, `links.*`.
@@ -829,8 +900,8 @@ documents; a 30-way merge; booklet imposition printed duplex on paper and physic
 
 **Exit criteria.** Every §5.1 page operation works and repairs all references; merge preserves
 bookmarks/links/fields/layers; bookmark hierarchy editing works by drag and by chord; watermarks and
-headers/footers apply, update, and remove cleanly; imposition output is correct on paper;
-accessibility check reports and fixes real issues.
+headers/footers apply, update, and remove cleanly; imposition output is correct on paper; the tag
+tree can be viewed, retyped and reordered.
 
 **Deferrals.** Batch (Stage 14). Scanner-sourced page insert (Stage 16). Flatten (Stage 8).
 Portfolios (Stage 16).
@@ -889,7 +960,7 @@ stated here. i18n: `export.*`, `optimize.*`, `conformance.*`, `print.*`.
 semantically), `tst_linearize` (structure validated by an external checker), `tst_optimize` (each
 profile reduces size without visual change — verified by golden compare), `tst_flatten` (flattened
 output renders identically to the unflattened original), `tst_export_raster` (DPI and colour space),
-`tst_conformance` (known-good and known-bad PDF/A and PDF/UA files), `tst_export_office` (fidelity
+`tst_conformance` (known-good and known-bad PDF/A and PDF/X files), `tst_export_office` (fidelity
 score against a labelled corpus, tracked as a number over time).
 *Manual:* → queued **`Stage8-SaveExport-Testing-Guide.md`**. Emphasis: export to Word and open in
 real Word; print to a physical printer; validate PDF/A output in an external validator; optimize a
@@ -1251,26 +1322,28 @@ generation. Merging revisions from two writable documents.
 
 ---
 
-### Stage 14 — Batch, CLI, accessibility, and preferences completion
+### Stage 14 — Batch, CLI, and preferences completion
 
 **Status:** ⚪ **Not started.**
 
 **Objectives.** [`Features.md` §5.11, §9.5–§9.7](./Features.md#511-batch-processing): batch
-sequences, the full command line, Read Aloud, accessibility completion, logging and diagnostics, and
-the complete Preferences set.
+sequences, the full command line, logging and diagnostics, and the complete Preferences set.
+
+> ⤵ **Read Aloud and the accessibility pass were removed from this stage on 2026-08-23** — see
+> [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23).
+> **Full keyboard operability stays here**: it is retained product behaviour, and it is the one part
+> of the old accessibility bullet that was never an accessibility feature.
 
 **Components & responsibilities.**
 - `core/batch/{Action,ActionSequence,SequenceStore,BatchRunner,BatchReport,WatchedFolder}` —
   `BatchRunner::run(const ActionSequence&, const Inputs&, ProgressSink&) -> BatchReport`.
 - `app/CommandLine` (full verb set, JSON report, exit codes).
-- `platform/win/WinSpeech`, `ui/shell/ReadAloudBar`.
 - `ui/dialogs/{BatchEditorDialog,BatchReportDialog,DiagnosticsDialog}`, all remaining
   Preferences pages, `ui/panes/LogPane` (complete).
-- Accessibility pass across `ui/`: UI Automation names, roles, and values on every control; full
-  keyboard operability; focus visibility; high-contrast; reduced motion.
+- Keyboard pass across `ui/`: full keyboard operability and visible focus on every control.
 
-**Key bindings handled** — [Viewer](./Features.md#viewer-review-mode): `Ctrl+Shift+Y` (Read Aloud).
-No new chords otherwise: **every batch action reuses an existing `ActionId`**, which is the point.
+**Key bindings handled** — none. **Every batch action reuses an existing `ActionId`**, which is the
+point. *(`Ctrl+Shift+Y` for Read Aloud was removed 2026-08-23.)*
 
 **Data / settings keys.** `batch/defaultSequence`, `batch/continueOnError`, `batch/outputPattern`,
 `batch/collisionPolicy`, `batch/watchedFolders`, `batch/maxParallel`,
@@ -1287,28 +1360,23 @@ every mutating `ActionId` is reachable from a sequence. i18n: `batch.*`, `cli.*`
 **Algorithms & notes.** The batch runner drives the **same** `ActionRegistry` and `CommandJournal`
 as the UI, with no window constructed — flow K in the file map. Watched folders debounce on file
 settling (size stable across two polls) to avoid grabbing a half-copied file. Dry-run runs every
-command's `apply` against a scratch copy and reports the diff without saving. The reading order for
-Read Aloud comes from the tag tree when present and from `LayoutAnalyzer` when not — the same
-fallback as everywhere else.
+command's `apply` against a scratch copy and reports the diff without saving.
 
 **Testing.**
 *Automated:* `tst_sequence` (serialize/deserialize, parameter prompting), `tst_batchrunner`
 (continue-on-error, dry-run, cancellation, parallelism), `tst_batch_coverage` (**every mutating
 `ActionId` is reachable from a sequence — the standing proof that the action layer is real**),
-`tst_cli` (every verb, exit codes, JSON schema), `tst_watchedfolder` (debounce), and an accessibility
-audit test asserting every interactive widget has an automation name.
+`tst_cli` (every verb, exit codes, JSON schema), `tst_watchedfolder` (debounce), and a keyboard audit
+test asserting every interactive widget is reachable by `Tab` in visual order.
 *Manual:* → queued **`Stage14-BatchCli-Testing-Guide.md`**. Emphasis: a full keyboard-only pass
-through the entire application; a screen reader reading a tagged and an untagged document; a
-1,000-file batch run; a watched folder fed by a slow network copy.
+through the entire application; a 1,000-file batch run; a watched folder fed by a slow network copy.
 
 **Exit criteria.** Sequences build, save, share, and run over files, folders, trees, watched folders,
 and open documents; **every mutating action is reachable from both a sequence and the CLI**; the
-whole application is operable by keyboard alone; a screen reader reads documents in the correct
-order; the diagnostics bundle contains what support needs and no document content.
+whole application is operable by keyboard alone; the diagnostics bundle contains what support needs
+and no document content.
 
-**Deferrals.** Scheduled sequences (needs a service; Stage 15's installer work). PDF/UA authoring
-guidance beyond the checker — note that **Write-mode output is already tagged** as of decision O2, so
-what remains here is authoring *guidance* and the alt-text/conformance surface, not structure emission.
+**Deferrals.** Scheduled sequences (needs a service; Stage 15's installer work).
 
 ---
 
@@ -1391,7 +1459,7 @@ exit criteria; they are grouped here because none of them reshapes the core.
 | **AIP / rights management** | [§7.8](./Features.md#78-secure-delivery) | `platform/win/WinRightsManagement` | Enterprise labels, tracking, revocation. |
 | **AI assistant** | [§1.7](./Features.md#17-ai-assistant) | `core/ai/*` behind a provider interface | Must be disableable with a *provable* no-transmission guarantee and a per-document opt-out. |
 | **Convert to Writable Excel** | [§3.1](./Features.md#31-the-dual-mode-model-) | `core/reflow/TableExtractor` | Depends on Stage 13's converter quality. |
-| **Read Aloud enhancements, PDF/X profiles, EPUB export** | various | — | Small, independent. |
+| **PDF/X profiles, EPUB export** | various | — | Small, independent. |
 
 **Testing.** Each item carries its own unit suite and, where it touches hardware or the OS, its own
 manual guide. The scanner, virtual printer, and Office add-ins **cannot** be verified without real
@@ -1434,7 +1502,7 @@ guide.**
 | Stage | Guide | State |
 |---|---|---|
 | 0 — Toolchain & gates | [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) | ✅ **Written 2026-08-17** from [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md), before any Stage 0 code · **not yet run** — no case has a result. 40 automated cases (A-01…A-73), 7 manual (M-01…M-07): the clean-machine bootstrap and the **real** UCRT64 wrong-compiler configure. Carries the **A5/A6** verdicts and keeps **A7** settled |
-| 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · **not yet run** — no case has a result. 67 automated (A-01…A-85), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go. **I-01 raised and closed before any code**: the "twelve" figure was correct but unscoped — it counts Write mode's collisions (8 over Viewer + 4 over Global), now stated in `Features.md` §8 |
+| 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · 🟡 **partly run — T1…T9 verified 2026-08-23**. 68 automated (A-01…A-85, plus **A-67** added at T7), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go, **recorded**. Sixteen issues, **none open** (I-04 closed at T8; I-12…I-16 raised and closed at T8/T9); **eleven of the sixteen were found by running something rather than by reading it**, including both S1s |
 | 2 — Rendering | `Stage2-Rendering-Testing-Guide.md` | ⚪ Queued — **needs two monitors at different scaling**; carries the **A2** verdict |
 | 3 — Mutation & save | `Stage3-Mutation-Testing-Guide.md` | ⚪ Queued — **needs a hex editor and a way to kill the process mid-edit**; carries the **A4** verdict |
 | 4 — Viewing surface | `Stage4-ViewingSurface-Testing-Guide.md` | ⚪ Queued |
@@ -1447,7 +1515,7 @@ guide.**
 | 11 — Signatures | `Stage11-Signatures-Testing-Guide.md` | ⚪ Queued — **needs a physical smart card or USB token** |
 | 12 — Creation & conversion | `Stage12-Creation-Testing-Guide.md` | ⚪ Queued — near-entirely automated; the manual section is fidelity spot-checks against source documents |
 | 13 — Write mode | `Stage13-WriteMode-Testing-Guide.md` | ⚪ Queued — the largest guide; hand-scored conversion fidelity |
-| 14 — Batch, CLI, a11y | `Stage14-BatchCli-Testing-Guide.md` | ⚪ Queued — **needs a screen reader** |
+| 14 — Batch, CLI | `Stage14-BatchCli-Testing-Guide.md` | ⚪ Queued — a full keyboard-only pass over the whole application |
 | 15 — Packaging | `Stage15-Packaging-Testing-Guide.md` | ⚪ Queued — **needs a clean VM**; walks the compliance gate |
 | 16 | per item | One per item, written when that item is scheduled |
 
@@ -1462,7 +1530,7 @@ guide.**
 | **M2 — Reviewer** | 6–8 | Annotate, assemble, and get output back out: full markup and comment management, all page and document assembly, Save-As, export, optimize. *Private beta.* |
 | **M3 — Professional** | 9–11 | Forms, encryption, permissions, redaction, sanitize, digital signatures. *Feature-complete for the professional use case.* |
 | **M4 — Author** | 12–13 | Create PDFs from other sources; dual-mode Write/Review editing. *The signature capability lands.* |
-| **M5 — Release** | 14–15 | Batch, CLI, accessibility, installers, activation, updates, policy, compliance gate. **→ v1.0** |
+| **M5 — Release** | 14–15 | Batch, CLI, installers, activation, updates, policy, compliance gate. **→ v1.0** |
 | **M6 — Beyond** | 16 | OCR, scanner, virtual printer, Office add-ins, browser extensions, portfolios, catalog index, multimedia and 3D, collaboration, AIP, AI assistant. |
 
 ---
@@ -1476,7 +1544,7 @@ guide.**
 | §1.3 Rulers, grid, guides | 4 |
 | §1.4 Navigation | 2 (page controls, zoom, view history), 4 (thumbnails, bookmarks, destinations), 5 (comment/field/result/difference navigation) |
 | §1.5 Document comparison | 5 |
-| §1.6 Read Aloud | 14 |
+| ~~§1.6 Read Aloud~~ | ⤵ **withdrawn 2026-08-23** — see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23) |
 | §1.7 AI assistant | 16 |
 | §1.8 Search and find | 5 (find, advanced search, per-document index), 16 (catalog index) |
 | §2.1 Create a PDF | 12 (blank, files, clipboard, region), 16 (scanner, OCR, web capture, virtual printer) |
@@ -1494,7 +1562,7 @@ guide.**
 | §5.1–5.2 Pages & thumbnails | 3 (rotate), 4 (thumbnail navigation), 7 (everything else) |
 | §5.3 Merge | 7 |
 | §5.4 Bookmarks | 4 (navigate), 7 (edit, generate, TOC page) |
-| §5.5 Tags & accessibility | 7 (tag tree, autotag, checker), 14 (UI accessibility, reading order) |
+| §5.5 Tags & document structure | 7 (tag tree, autotag), 13 (Write mode's structure, decision O2). *Accessibility removed 2026-08-23; the structure it sat on is retained for Write mode.* |
 | §5.6 Layers | 7 |
 | §5.7 Headers, footers, Bates | 7 |
 | §5.8 Watermarks | 7 |
@@ -1514,10 +1582,10 @@ guide.**
 | §9.4 OS integration | 1 (association, single instance), 8 (printing), 15 (shell handlers, jump list), 16 (printer driver, Office, browsers, scanner) |
 | §9.5 Logging & diagnostics | 0 (`Log.h`), 1 (log pane), 14 (diagnostics bundle, safe mode) |
 | §9.6 Command line | 1 (open-with-file), 14 (full verb set) |
-| §9.7 Display, input, accessibility | 2 (DPI, monitors), 4 (touch/pen), 14 (keyboard operability, screen readers, high contrast) |
+| §9.7 Display & input | 2 (DPI, monitors), 4 (touch/pen), 14 (keyboard operability, focus visibility) |
 | §9.8 Licensing & updates | 15 |
 | §9.9 Telemetry | 15 |
-| §10 Portability note | 1 (all sixteen interfaces declared), then each stage implements the Windows backend it needs |
+| §10 Portability note | 1 (all **seventeen** interfaces declared — the figure was carried as fifteen until Stage 1 T7 measured it), then each stage implements the Windows backend it needs |
 
 ---
 
@@ -1526,7 +1594,7 @@ guide.**
 | # | Decision | Owner stage | Why it is not decided now |
 |---|---|---|---|
 | O1 | Office export/import engine: first-party writers, `IOfficeBridge` through the installed suite, or a commercial component for that subsystem only. (Risk R3.) | 8, confirmed in 12 | Should be decided on **measured** fidelity against a labelled corpus, not on preference. |
-| ~~O2~~ | ~~Whether the Write-mode reflow model is persisted between sessions.~~ **Resolved: reconstruct on each *Convert to Writable*, and make `ReflowToFixedComposer` emit a structure tree** so the model's *structure* persists as **standard PDF tags** rather than as a private stream. | ✅ **Resolved 2026-08-20** | Persisting the model **inside** the PDF was rejected on security grounds: it would carry deleted text and reviewer identity in a container that Stage 10's sanitize/redaction path — which ships **three stages earlier** — knows nothing about, so *redact → save* would leave the redacted text recoverable. A **local cache** was rejected because the same file would then reconstruct differently depending on whether an invisible cache survived, and inconsistent results are harder to support than consistent slowness. Tag emission recovers most of the benefit interoperably: [flow H](./Architecture-FileMap.md#h-convert-to-writable--crossing-into-the-second-document-model) already consults `TagTree` for *"much better fidelity"*, so a second conversion reads our tags instead of re-guessing from glyphs — and it advances PDF/UA, currently a Stage 14 deferral. **Accepted cost:** tracked changes have no PDF representation, so they cannot survive a close or be shared. If shareable Write-mode review is ever required, that is a **new** decision, not a reopening of O2. **13a still owes the convergence measurement** — see its status block. |
+| ~~O2~~ | ~~Whether the Write-mode reflow model is persisted between sessions.~~ **Resolved: reconstruct on each *Convert to Writable*, and make `ReflowToFixedComposer` emit a structure tree** so the model's *structure* persists as **standard PDF tags** rather than as a private stream. | ✅ **Resolved 2026-08-20** | Persisting the model **inside** the PDF was rejected on security grounds: it would carry deleted text and reviewer identity in a container that Stage 10's sanitize/redaction path — which ships **three stages earlier** — knows nothing about, so *redact → save* would leave the redacted text recoverable. A **local cache** was rejected because the same file would then reconstruct differently depending on whether an invisible cache survived, and inconsistent results are harder to support than consistent slowness. Tag emission recovers most of the benefit interoperably: [flow H](./Architecture-FileMap.md#h-convert-to-writable--crossing-into-the-second-document-model) already consults `TagTree` for *"much better fidelity"*, so a second conversion reads our tags instead of re-guessing from glyphs. *(It also used to advance PDF/UA; that benefit lapsed with the 2026-08-23 accessibility removal, and the round-trip fidelity argument — always the primary one — is unaffected.)* **Accepted cost:** tracked changes have no PDF representation, so they cannot survive a close or be shared. If shareable Write-mode review is ever required, that is a **new** decision, not a reopening of O2. **13a still owes the convergence measurement** — see its status block. |
 | O3 | Whether dynamic XFA gets more than honest reporting. (Risk R4.) | post-13 | Effectively a second document format; needs demand evidence before the investment. |
 | O4 | AI assistant provider and whether an on-device model is offered. | 16 | Product and privacy decision; the interface keeps it open. |
 | O5 | Collaboration transport (server product, third-party sync, or shared-folder only). | 16 | Needs a business decision that does not exist yet. |

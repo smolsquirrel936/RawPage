@@ -15,7 +15,30 @@ add_executable(rawpage_tests
     tst_units.cpp
     tst_geometry.cpp
     tst_log.cpp
+    tst_actionregistry.cpp        # Stage 1 T3
+    tst_keybindings.cpp           # Stage 1 T4
+    tst_settings.cpp              # Stage 1 T5
+    tst_recentfiles.cpp           # Stage 1 T5
+    tst_commandline.cpp           # Stage 1 T8
+
+    # THE PARSER ITSELF, compiled in rather than linked from the executable.
+    #
+    # app/CommandLine is a pure function from a QStringList to an intent -- no filesystem, no Qt
+    # GUI type, no side effect -- which is the whole reason Stage1-AppShell-Plan.md 5.7 puts its
+    # test in the HEADLESS suite even though the file lives in app/. Note what this does NOT do:
+    # it adds no target_link_libraries entry, so rawpage_assert_headless() below still resolves to
+    # rawpage_core + rawpage_pdf and guide case A-64 still holds. The day this file needs
+    # rawpage_ui or rawpage_platform to compile, configure fails -- and the finding is about the
+    # parser, not about the test.
+    ../../app/CommandLine.cpp
 )
+
+# D1-9: tst_keybindings PARSES Features.md 8 and asserts the store matches it row for row, so the
+# document stays the single source of truth and a doc edit the code has not absorbed breaks the
+# build. The path is a compile definition rather than a runtime lookup because a test that silently
+# skips when it cannot find its input is a test that passes for the wrong reason.
+target_compile_definitions(rawpage_tests PRIVATE
+    RAWPAGE_FEATURES_MD="${CMAKE_SOURCE_DIR}/claude-plan/Features.md")
 
 target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -83,3 +106,53 @@ catch_discover_tests(rawpage_tests
     # 0xC0000135 -- a failure that looks nothing like a test failure.
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )
+
+# --- A-41: an undeclared settings key does not compile --------------------------------
+# D1-10's guarantee is a COMPILE-TIME one, so it cannot be asserted from inside a binary that by
+# definition compiled. Each case drives the compiler at the fixture directly and checks the exit
+# code AND the diagnostic -- a rejection for an unrelated reason is not the rejection we claim.
+#
+# Four fixtures, three spellings of the mistake plus a positive control, because I-15's finding was
+# that a rule tested against one spelling catches one spelling.
+set(COMPILE_RUNNER "${CMAKE_CURRENT_SOURCE_DIR}/RunCompileCase.cmake")
+set(COMPILE_FIXTURES "${CMAKE_CURRENT_SOURCE_DIR}/compile")
+
+# Qt's own include directories, from the variable find_package set rather than from a target
+# property: a property would arrive as a generator expression that `cmake -P` cannot evaluate.
+list(JOIN Qt6Core_INCLUDE_DIRS "|" RAWPAGE_QTCORE_INCLUDES)
+
+function(rawpage_add_compile_case)
+    cmake_parse_arguments(ARG "" "NAME;SOURCE;EXPECT_FAIL;EXPECT_MATCH" "" ${ARGN})
+    add_test(NAME ${ARG_NAME}
+        COMMAND ${CMAKE_COMMAND}
+                "-DCXX=${CMAKE_CXX_COMPILER}"
+                "-DSOURCE=${COMPILE_FIXTURES}/${ARG_SOURCE}"
+                "-DROOT=${CMAKE_SOURCE_DIR}"
+                "-DINCLUDES=${RAWPAGE_QTCORE_INCLUDES}"
+                "-DEXPECT_FAIL=${ARG_EXPECT_FAIL}"
+                "-DEXPECT_MATCH=${ARG_EXPECT_MATCH}"
+                -P "${COMPILE_RUNNER}")
+endfunction()
+
+rawpage_add_compile_case(NAME unit.settings.compile.undeclared_key
+    SOURCE undeclared-key.cpp EXPECT_FAIL 1 EXPECT_MATCH "uiFontScal")
+
+rawpage_add_compile_case(NAME unit.settings.compile.string_key
+    SOURCE string-key.cpp EXPECT_FAIL 1 EXPECT_MATCH "get")
+
+rawpage_add_compile_case(NAME unit.settings.compile.wrong_type
+    SOURCE wrong-type.cpp EXPECT_FAIL 1 EXPECT_MATCH "set")
+
+# THE CONTROL. Without it every case above is satisfied by a header nobody can include.
+rawpage_add_compile_case(NAME unit.settings.compile.declared_key_control
+    SOURCE declared-key.cpp EXPECT_FAIL 0)
+
+# --- I-04: the command-line parser cannot be handed argv ------------------------------------
+# Structural, because the runtime failure -- a path silently transcoded through the ANSI code page
+# -- produces a perfectly valid QString that no assertion can tell from a correct one. The other
+# half of the rule is tools/layer-lint's non-escapable `argv-path-read` token rule.
+rawpage_add_compile_case(NAME unit.commandline.compile.argv_overload
+    SOURCE argv-overload.cpp EXPECT_FAIL 1 EXPECT_MATCH "parse")
+
+rawpage_add_compile_case(NAME unit.commandline.compile.arguments_list_control
+    SOURCE arguments-list.cpp EXPECT_FAIL 0)

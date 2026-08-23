@@ -3,11 +3,18 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stage 0 built; no product features yet.**
-> The commands below work. What they build is *scaffolding* — a pinned toolchain, two enforcement
-> gates, and an empty `rawpage.exe` that opens no window. That is the intended state: Stage 0 exists to
-> make the enforcement gates fail correctly before there is any code for them to fail on.
-> The design lives in [`claude-plan/`](./claude-plan/README.md).
+> **Status: Stage 0 complete; Stage 1 in progress — tasks T1–T9 of 15 done (2026-08-23).**
+> The commands below work. What they build is still mostly *scaffolding*: a pinned toolchain, three
+> enforcement gates, the domain vocabulary, the entry point with its crash handler, the action layer
+> (`ActionId`, `ActionRegistry`, `KeyBindingStore`), the typed settings store, the `en`/`zh-TW`
+> string catalogs, the OS boundary with its single-instance bus, and the composition root that wires
+> all of it together. **`rawpage.exe` now opens a window** — a frame with a sidebar, a status bar and
+> a live theme, whose central surface says in as many words which capability arrives when. There is
+> **no ribbon yet** (task T10) and **no PDF can be opened** until Stage 2.
+> Risk **A3** (can Qt Widgets host a real ribbon without a commercial control library?) is settled:
+> **go, with named custom work.**
+> The design lives in [`claude-plan/`](./claude-plan/README.md); live status is the Stage 1 block in
+> [`Implementation-Plan.md`](./claude-plan/Implementation-Plan.md).
 >
 > This section is walked literally by testing-guide case **M-01** on a clean machine, so a step that
 > is missing here is a defect in the project, not in the tester.
@@ -92,7 +99,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned   # once pe
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks            # the gates -- always first
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure                # 66 tests
+ctest --preset x64-release --output-on-failure                # 226 tests
 ```
 
 A stock Windows install runs no scripts at all: without the first line, both `.ps1` files fail with
@@ -126,10 +133,17 @@ PDF engine linked, and those jobs are what prove it mechanically rather than by 
 
 ### Running a single suite
 
+Catch2 registers each case with CTest **by its name**, prefixed `unit.`, not by its tag — so `-R`
+matches the sentence, not the file. Test names are ASCII by convention: a non-ASCII character does not
+survive CTest's filter round trip and the case then "fails" with a passing body.
+
 ```powershell
-ctest --preset x64-debug -R tst_journal --output-on-failure
-ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash
-ctest --preset x64-release -R roundtrip         # incremental save keeps untouched bytes identical
+ctest --preset x64-debug -R "distinct error codes" --output-on-failure
+ctest --preset x64-debug -R "twelve Write-mode collisions" --output-on-failure
+
+# Suites that do not exist yet, named here so the shape is on record:
+ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash (Stage 3)
+ctest --preset x64-release -R roundtrip         # incremental save keeps untouched bytes (Stage 3)
 ```
 
 ---
@@ -143,7 +157,8 @@ core/       the domain. Builds and tests headless: no display, no PDF engine
 pdf/        the only layer that may emit PDF bytes or call FPDF_*
 platform/   platform.h interfaces + win/, the only OS-specific code
 cmake/      the pinned toolchain and shared build modules
-tools/      layer-lint, license-audit, i18n-lint, mutation-lint -- the four gates
+tools/      layer-lint + license-audit + i18n-lint (live); mutation-lint (Stage 3)
+            spike-ribbon -- throwaway, deleted at Stage 1 T10
 tests/      unit, gates, golden, roundtrip, fuzz, bench
 corpus/     test PDFs (data)          golden/  reference rasters (data)
 i18n/       string catalogs (data)    res/     icons and templates (data)

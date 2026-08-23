@@ -107,6 +107,47 @@ rawpage_add_gate_test(NAME gates.layer_lint.mention_in_comment_is_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/mention-in-comment --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")
 
+# Stage 1 T7. platform/platform.h is declared as its OWN layer with an OS-header deny list,
+# because it is included by core/, ui/ and app/: a windows.h reaching it would give all three a
+# platform-SDK dependency, and the failure would surface not here but as the Linux portable-asan
+# job no longer being able to build core/ -- which is the mechanical proof that core/ is portable.
+rawpage_add_gate_test(NAME gates.layer_lint.platform_header_includes_windows
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/platform-header-includes-windows --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "external-include")
+
+# Stage 1 T8. Issue I-04's rule made mechanical: nothing may read a path out of argv. The fixture is
+# the exact shape of the mistake -- a command-line parser building a QStringList from argv -- because
+# that is the one place it would ever be written, and on a machine whose code page cannot represent
+# the path it compiles, runs, and opens the wrong file.
+rawpage_add_gate_test(NAME gates.layer_lint.argv_path_read
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/argv-path-read --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "argv-path-read")
+
+# THE CONTROL. app/main.cpp holds argv legitimately: it hands it to QApplication and prints it for
+# the --print-args measurement that PRODUCED this rule. A gate that forbade argv everywhere would
+# have made its own evidence unwritable.
+rawpage_add_gate_test(NAME gates.layer_lint.argv_in_entry_point_is_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/argv-path-read-entry-point --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# Stage 1 T9. ui/ is granted exactly two single-file looks outward -- platform/platform.h and
+# app/Services.h -- and the whole value of that is that it is two files rather than two layers.
+rawpage_add_gate_test(NAME gates.layer_lint.ui_includes_app_internals
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/ui-includes-app-internals --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+
+# THE CONTROL for the pair, exercised together: without it, "ui/ may include core/ and nothing else"
+# reads the positive case above just as well, and the shell could not be built at all.
+rawpage_add_gate_test(NAME gates.layer_lint.ui_may_include_the_two_interface_headers
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/ui-may-include-services --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# THE CONTROL. platform/win/ is the one place in the project that MAY include the OS, and a rule
+# that forbade windows.h anywhere under platform/ would make the layer unable to do its only job.
+rawpage_add_gate_test(NAME gates.layer_lint.platform_impl_may_include_windows
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/platform-impl-may-include-windows --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
 # A gate that could not run must not look like a gate that passed.
 rawpage_add_gate_test(NAME gates.layer_lint.missing_rules_is_exit_2
     COMMAND ${LL} --root ${CMAKE_SOURCE_DIR} --rules ${FIXTURES}/does-not-exist.json
@@ -209,6 +250,93 @@ rawpage_add_gate_test(NAME gates.license_audit.emit_writes_when_complete
             --emit ${LA_EMIT_WRITE}
     EXPECT_EXIT 0 EXPECT_MATCH "clean"
     EXPECT_FILE ${LA_EMIT_WRITE})
+
+# --------------------------------------------------------------------------------------
+# i18n-lint (Stage 1 T6) -- guide cases A-13 .. A-17
+#
+# The literal rule is a HEURISTIC, so it gets the same treatment layer-lint's write rule got after
+# I-15: one fixture per SPELLING of the same defect, and a control file that must stay clean. A rule
+# proved against one spelling catches one spelling; a rule with no control is equally satisfied by a
+# tool that rejects everything.
+# --------------------------------------------------------------------------------------
+set(IL $<TARGET_FILE:i18n-lint>)
+set(IL_RULES "${CMAKE_SOURCE_DIR}/tools/i18n-lint/rules.json")
+set(IL_FIX "${FIXTURES}/i18n-lint")
+
+# A-71: the real tree, with every input named explicitly so a missing one is exit 2.
+rawpage_add_gate_test(NAME gates.i18n_lint.clean_tree
+    COMMAND ${IL} --root ${CMAKE_SOURCE_DIR} --rules ${IL_RULES}
+            --locales ${CMAKE_SOURCE_DIR}/i18n/locales.json
+            --actions ${CMAKE_SOURCE_DIR}/core/cmd/ActionId.def
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# A-13. Five spellings of one defect, in one tree, so the count itself is asserted: a tool that
+# found four of the five would otherwise pass this case.
+rawpage_add_gate_test(NAME gates.i18n_lint.literal_spellings
+    COMMAND ${IL} --root ${IL_FIX}/literal-spellings --rules ${IL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "5 finding")
+
+# THE CONTROL for A-13: a wrapped literal, an object name, a catalog key, punctuation, and a
+# mention in a comment must all stay legal.
+rawpage_add_gate_test(NAME gates.i18n_lint.literal_controls_are_clean
+    COMMAND ${IL} --root ${IL_FIX}/literal-controls --rules ${IL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# A-14.
+rawpage_add_gate_test(NAME gates.i18n_lint.missing_key
+    COMMAND ${IL} --root ${IL_FIX}/missing-key --rules ${IL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "missing-key: locale zh_TW has no entry for action.file.save")
+
+# A-16.
+rawpage_add_gate_test(NAME gates.i18n_lint.action_label
+    COMMAND ${IL} --root ${IL_FIX}/action-label --rules ${IL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "action-label: no catalog entry for action.file.unnamed")
+
+# orphan-key is S3: REPORTED and never blocking. The exit code is the whole assertion -- a key that
+# leads its use by a commit must not fail a build.
+rawpage_add_gate_test(NAME gates.i18n_lint.orphan_key_is_a_note_not_a_failure
+    COMMAND ${IL} --root ${IL_FIX}/orphan-key --rules ${IL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "note: orphan-key: action.file.longGone")
+
+# A-17, transplanted from Stage 0's I-20. The waiver must waive...
+rawpage_add_gate_test(NAME gates.i18n_lint.waiver_applies
+    COMMAND ${IL} --root ${IL_FIX}/waiver-applied --rules ${IL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# ...and the three shapes that are NOT applied waivers must not.
+rawpage_add_gate_test(NAME gates.i18n_lint.quoted_waiver_does_not_waive
+    COMMAND ${IL} --root ${IL_FIX}/waiver-quoted --rules ${IL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "unwrapped-literal")
+
+rawpage_add_gate_test(NAME gates.i18n_lint.unknown_waiver_kind_does_not_waive
+    COMMAND ${IL} --root ${IL_FIX}/waiver-unknown-kind --rules ${IL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "unwrapped-literal")
+
+rawpage_add_gate_test(NAME gates.i18n_lint.waiver_without_code_does_not_waive
+    COMMAND ${IL} --root ${IL_FIX}/waiver-no-code --rules ${IL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "unwrapped-literal")
+
+# A-15 (D1-14). The unshipped locales must be listed WITH their reason: a silent skip is
+# indistinguishable from a locale somebody forgot, which is the distinction D1-14 exists to keep.
+rawpage_add_gate_test(NAME gates.i18n_lint.explain_names_unshipped_locales
+    COMMAND ${IL} --root ${CMAKE_SOURCE_DIR} --rules ${IL_RULES} --explain
+    EXPECT_EXIT 0 EXPECT_MATCH "zh_CN  declared, NOT shipped -- Stage 15")
+
+# A gate that could not run must not look like a gate that passed -- for each of its three inputs.
+rawpage_add_gate_test(NAME gates.i18n_lint.missing_rules_is_exit_2
+    COMMAND ${IL} --root ${CMAKE_SOURCE_DIR} --rules ${FIXTURES}/does-not-exist.json
+    EXPECT_EXIT 2 EXPECT_MATCH "cannot open")
+
+rawpage_add_gate_test(NAME gates.i18n_lint.missing_locales_is_exit_2
+    COMMAND ${IL} --root ${CMAKE_SOURCE_DIR} --rules ${IL_RULES}
+            --locales ${FIXTURES}/does-not-exist.json
+    EXPECT_EXIT 2 EXPECT_MATCH "cannot open")
+
+# A locale declared SHIPPED whose catalog is absent is exit 2, not a warning: it is the state
+# missing-key exists to prevent, arrived at by a route that would otherwise report zero keys missing.
+rawpage_add_gate_test(NAME gates.i18n_lint.shipped_locale_without_catalog_is_exit_2
+    COMMAND ${IL} --root ${IL_FIX}/shipped-catalog-missing --rules ${IL_RULES}
+    EXPECT_EXIT 2 EXPECT_MATCH "declared shipped but its catalog is missing")
 
 # --------------------------------------------------------------------------------------
 # The toolchain pin (TA-1 .. TA-9), against a minimal fixture project.

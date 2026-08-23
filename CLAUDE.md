@@ -4,45 +4,156 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository currently is
 
-**A design-document set plus Stage 0 build scaffolding — no product code yet.** The product is
-**RawPage**, a Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives
-under `claude-plan/`.
+**Stage 0 scaffolding plus the first nine tasks of Stage 1.** The product is **RawPage**, a
+Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives under
+`claude-plan/`.
 
-**Stage 0 is DONE — both halves of its verification are green and signed off (2026-08-19).** What
-exists is scaffolding, not product:
+### Where the work is right now — read this first
 
-- the build system and six CMake presets, with the toolchain pin (TA-1…TA-9) refusing any compiler
-  but Qt's own GCC 13.1.0/msvcrt;
-- **two live gates** — `tools/layer-lint` and `tools/license-audit` — plus 39 CTest fixtures that
-  prove they fail correctly, negative controls included;
-- the four `core/` vocabulary headers (`Result.h`, `Log.h`, `Geometry.h`, `Units.h`) and a Catch2
-  suite; **66 tests on Windows, 52 on Linux under ASan+UBSan**;
-- CI on three jobs, the Windows one self-hosted;
-- `rawpage.exe`, which links all four layers and **opens no window**.
+**Stage 1 is IN PROGRESS. T1–T9 are complete; T10 is next.** Live status, task by task
+and deviation by deviation, is the Stage 1 status block in `claude-plan/Implementation-Plan.md` —
+that block is the authority, and this section is its summary.
 
-**No document code exists**: nothing in `core/doc/`, `core/cmd/`, `pdf/cos/`, `pdf/render/`,
-`pdf/ops/`, `ui/`, `platform/win/`, or `app/` beyond one placeholder TU per layer. Both Stage 0 risk
-verdicts are recorded in `Tech-Stack-Plan.md` §3.3: **A5** and **A6**.
+| | |
+|---|---|
+| **Tests** | **226/226** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 59/59 with no Qt |
+| **Gates** | `layer-lint` clean at 100 files / 509 includes; `license-audit` clean; `i18n-lint` clean at 45 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below |
+| **Verdicts recorded** | **A3 = `go, with named custom work`**; **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
+| **Issue log** | I-01…I-16 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 were raised and closed at T8/T9. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** M-03…M-12 are not walkable yet — the code they test does not exist |
 
-**Stage 0 is complete.** All fifteen tasks (T1–T15), every automated case A-01…A-73, and all seven
-manual cases M-01…M-07 — walked on real hardware and signed off by the user — are green, with CI run
-`32207889494` green on all three jobs at 25/66/52. Its Definition of Done is met and its issue log is
-closed: **22 entries, none open.**
+**Next action: T10** — `Ribbon`, `RibbonTabBuilder`, `ActionFactory`, `RawPageAction`,
+`res/ribbon.json` with its build-time validation, the D1-7 lint rule, and **deleting
+`tools/spike-ribbon/`**. It inherits A3's three pieces of named custom work and **I-05's fix plus its
+case**, which any collapse built on re-parenting needs. Nothing is implemented ahead of the plan's
+task order.
 
-**The next action is Stage 1** (app shell, action layer, settings, single instance) in
-`claude-plan/Implementation-Plan.md`, which carries the **A3** go/no-go — can Qt Widgets host a real
-ribbon. **Both of its documents are written and no Stage 1 code exists yet:**
-`Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16) and
-`Stage1-AppShell-Testing-Guide.md` (67 automated cases, 12 manual). The next
-action is therefore **T1**, and per the workflow below nothing is implemented ahead of the plan's
-task order — in particular **T2, the timeboxed A3 ribbon spike, comes before any production UI**,
-because a no-go verdict reshapes the stage.
+### What now exists as code
 
-**What Stage 0's manual pass should teach Stage 1's:** it produced 22 findings including three S1s,
-and *every* S1 came from a manual case that no automated run could have reached — two documentation
-gaps that made a clean-machine build unreproducible, and a gate that did not fail on real violations
-because every fixture used the same spelling. Write the manual half to look for what the harness
-structurally cannot see, not for what is merely convenient to check by hand.
+- Stage 0's build system, six presets, and the toolchain pin (TA-1…TA-9) refusing any compiler but
+  Qt's own GCC 13.1.0/msvcrt; the live gates plus the CTest fixtures proving they fail correctly.
+- The four `core/` vocabulary headers (`Result.h`, `Log.h`, `Geometry.h`, `Units.h`).
+- **`app/main.cpp` and `app/CrashHandler.{h,cpp}` (T1)** — per-monitor-v2 DPI awareness and the
+  unhandled-exception filter both installed *before any Qt object exists*; minidumps to
+  `%LOCALAPPDATA%\RawPage\crashes\` with a plain-text sidecar; `scripts/symbolize.ps1` resolves a
+  dump to a function name and **refuses a binary whose build id does not match**.
+- **`tools/spike-ribbon/` (T2)** — the throwaway A3 spike. **Delete it at T10**, as
+  `tools/spike-pdfium/` is deleted at Stage 2. `--self-test` runs the machine-decidable criteria;
+  `--print-tab-order` dumps the focus chain.
+- **`core/cmd/` (T3, T4)** — `ActionId.def` (**358** declared actions), `ActionId.h`, `KeyContext.h`,
+  `ActionRegistry`, `Chord`, `KeyBindingDefaults.def` (**240** bindings), `KeyBindingStore`.
+- **`core/settings/` (T5)** — `SettingsKeys.def`, `SettingsSchema`, `Settings`, `RecentFiles`. Typed
+  keys only: there is no string overload anywhere, and three negative-compile fixtures prove a
+  misspelled key, a string key and a wrong-typed value each fail to compile. D1-16's versioning is
+  live in both directions — an older file migrates and is restamped, a **newer** file is read for
+  what we understand and left byte-identical.
+- **`tools/i18n-lint/` + `i18n/` (T6, extended T8/T9)** — the third gate, and `rawpage_en.ts` /
+  `rawpage_zh_TW.ts` at **389 keys each** (358 `action.*` + 22 `shell.*` + 9 `error.*`), declared in
+  `i18n/locales.json` with `zh_CN` and `ja` marked `"shipped": false`. The `.ts` files are compiled
+  to `.qm` **beside the executable** rather than into a Qt resource, so Stage 15 can ship them
+  replaceable; `LinguistTools` is a build tool and is deliberately not registered with
+  `rawpage_link_qt`, because `qt-modules.txt` is the LINK closure `license-audit` audits.
+- **`platform/` (T7)** — `platform.h` declaring all **seventeen** OS interfaces (the figure was
+  carried as fifteen until T7 measured it), `PlatformFactory`, and two implementations:
+  `WinSingleInstanceBus` (D1-11 — `Local\` mutex, a named pipe whose name carries the session id,
+  and `AllowSetForegroundWindow` from the secondary) and `WinShellIntegration` (per-user PDF
+  association only). An unimplemented interface is a **null member**, never a silent stub.
+  `tests/platform/` is a third test target, for the reason D1-4 gives about `ui/`.
+- **`app/` (T8)** — `CommandLine` (a pure `QStringList` → intent parse, with **no `argc/argv`
+  overload and a compile fixture proving it**), `Services.h`, `CompositionRoot` (the only caller of
+  `platform::createPlatform()`; also owns the logging settings and the `Settings::sync()` on
+  teardown), `Application` (the translator stack — `en` installed **underneath** the active locale,
+  because the catalog key is the source string), and `SingleInstance` (policy only; scope is a hash
+  of the executable's directory). `main.cpp` now runs flow A end to end.
+- **`ui/shell/` (T9)** — `Catalog` + `ShellKeys.def`, `ThemeManager` (eleven closed colour tokens,
+  completeness enforced by a `default`-less switch under `-Werror`), `StatusBar` (built and
+  **disabled**, because there is no document), `SidebarDock` (Qt gives dock/float; **auto-hide is
+  ours**), and `MainWindow`. `ui/UiModule.cpp` was deleted, as its own comment instructed.
+
+**Still no document code**: nothing in `core/doc/`, `pdf/cos/`, `pdf/render/`, `pdf/ops/`, or
+`ui/viewer/`. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window as of
+T9** — a frame with a sidebar, a status bar and a live theme, and a central surface that names what
+arrives when. There is no ribbon (T10), no document tab (T12) and no chord input (T13). Because an
+ordinary launch now runs an event loop, **the headless smoke test is `--dump-ui-strings`**: it
+composes every service, loads both catalogs and exits 0 without creating a window.
+
+### Conventions established mid-stage — these bind all later work
+
+1. **Nothing may read a path out of `argv`.** Measured at T1: this machine's ANSI code page is
+   **950**, and the CRT replaces anything it cannot represent with `?` — an emoji path came back as
+   `report-?????.pdf` in `argv` while `QCoreApplication::arguments()` was byte-perfect. Parse
+   `QCoreApplication::arguments()` and nothing else. **Closed at T8 by three mechanisms** (issue
+   **I-04**): there is no `argc/argv` overload and a compile fixture proves it; `layer-lint` carries a
+   **non-escapable `argv-path-read` rule** permitting `argv` only in `app/main.cpp`; and
+   `tst_commandline` asserts an emoji path survives byte for byte. Proven end to end when a forwarded
+   `測試-📄.pdf` crossed three process boundaries unchanged.
+2. **Catch2 test names are ASCII — and contain no comma.** Catch2 splits a filter on commas, so a
+   name with one cannot be selected by hand even though CTest escapes it when running the suite (T9).
+   The ASCII half: `catch_discover_tests` hands the name back to CTest as a
+   command-line filter and a `§` does not survive the round trip — the test then "fails" with a
+   passing body. Section references go in comments. (Issue **I-07**.)
+3. **`core/` may not name a Qt GUI type.** `QKeySequence` is QtGui, so `core/cmd/Chord` is
+   first-party and `ui/shell/ShortcutBinder` converts at the boundary.
+4. **`settings.ini` is read through our own codecs, never through `QVariant`'s conversions.**
+   Measured at T5: QSettings' INI reader turns any comma-containing value into a `QStringList` and
+   `QVariant::toString()` on one returns an *empty string*, so `logging/subsystems=render,parse` read
+   back as unset; a one-element list comes back as a bare `QString`, so pinning exactly one file lost
+   it on restart; and a section named `[general]` is QSettings' own reserved fallback section, so the
+   hand edit the testing guide asks for was silently ignored. All three are handled and each has a
+   test that fails if the handling is removed. (Issues **I-08** and **I-09**.)
+5. **The catalog key is the `<source>`, and `en` is a real catalog rather than the identity.**
+   `core/Result.h` forbids user-facing English in `core/` and `ActionId.def` carries one `action.*`
+   key per action, so there is no English in the sources for `lupdate` to extract. Every locale,
+   `en` included, supplies the text. Consequences: a key missing from `en` is a detectable defect
+   rather than a button rendering `action.file.open`; the catalogs are hand-maintained data, not
+   generated; and `ui/` resolves through the catalog rather than relying on a fallback. (T6.)
+6. **An unimplemented `platform/` interface is a null member, never a stub.** A stub that silently
+   succeeds lets a caller believe a signature was created or a scan happened, and that surfaces
+   stages later as data nobody produced. `unimplementedInterfaces()` names the gaps so "not built
+   yet" is printable. Equally: **`platform/platform.h` may not include an OS header** — it is its
+   own `layer-lint` layer entry with a fixture and a control, because `core/`, `ui/` and `app/` all
+   include it. (T7.)
+7. **Every negative control must actually exercise the thing.** Two of T3's first probes appended
+   rows *after* an `#undef` and proved nothing; a control that does not fail for the right reason is
+   worse than none. T9 applied it to a crash: the `~MainWindow` disconnect was verified by commenting
+   it out and watching exactly one case segfault.
+8. **A gate reads the files the compiler reads, `.def` tables included.** Four X-macro tables are
+   `#include`d straight into layers that have deny lists, and until T9 neither gate scanned them —
+   so `i18n-lint` called 22 referenced keys orphans, and an `#include` written inside a table would
+   have been invisible to `layer-lint`. Whether a file is *compiled* is a fact about the build; it
+   says nothing about whether a gate should read it. (Issue **I-16**.)
+9. **`ui/` looks outward to exactly two files, and each is constrained by its own layer entry.**
+   `platform/platform.h` and `app/Services.h`. Both are interface headers naming only `core/` types;
+   both have a `layer-lint` entry saying so, with a fixture and a control in each direction. Widening
+   that list is an architectural decision, not a diff. (Issue **I-15**.)
+10. **A widget that connects a child's signal to a lambda holding `this` must disconnect in its
+   destructor.** `~QWidget` closes the window, which hides children, which emits — into an object
+   whose derived part is gone. Qt drops the connection only when the *QObject* part goes, and that is
+   last. (Issue **I-12**; found by `tests/ui` on its first run.)
+
+### Accessibility is OUT OF SCOPE (2026-08-23)
+
+Removed from the product entirely on the user's instruction — **not deferred**. The single record is
+[`Features.md` → *Removed from scope*](claude-plan/Features.md); every other document cross-references
+it. Gone: screen-reader names/roles, high-contrast deference (**D1-15** withdrawn), Read Aloud with
+`platform::ISpeech` (**the platform interface count is seventeen — see the T7 correction below**), the accessibility
+checker, alt text, and **PDF/UA**. Criterion **R-8**, manual case **M-08** and precondition **P-2**
+were withdrawn with it.
+
+**Deliberately kept, and not to be removed as collateral:** full keyboard operability and focus
+visibility (core architecture, and a power-user feature); `core/doc/TagTree` and
+`core/text/LayoutAnalyzer` (Write mode's structure under decision **O2** — Stage 13 infrastructure
+that also happened to serve accessibility, not the reverse); Reflow view; and the ISO 32000
+accessibility *permission bit*, which any conforming reader must round-trip.
+
+### What Stage 0's manual pass taught, and Stage 1 has now confirmed twice
+
+Stage 0's three S1s all came from manual cases no automated run could reach. Stage 1 has repeated the
+lesson from both directions: the user's **M-01** walk found that `Tab` visited the ribbon groups in
+collapse-priority order rather than visual order (**I-05**) — invisible to a green offscreen run —
+and that finding was then *automated*, moving half of a manual criterion into the self-test
+(**I-06**). Write the manual half for what the harness structurally cannot see; when a manual finding
+turns out to be measurable, move it.
 
 `claude-plan/skills-specs-generation/` is a **vendored third-party skill set** (its own nested git
 repo, MIT-ish LICENSE) that generated these docs. Don't edit it as part of product work.
@@ -160,7 +271,7 @@ only:**
 - `pdf/` — the only layer that may emit PDF bytes or call `FPDF_*`. `pdf/cos/` is first-party
   (lexer, object model, xref, filters, crypt, incremental writer); `pdf/render/` is the PDFium
   facade; `pdf/ops/` realizes each mutation.
-- `platform/win/` — the only OS-specific code; implements the 16 `platform/platform.h` interfaces
+- `platform/win/` — the only OS-specific code; implements the 17 `platform/platform.h` interfaces
   and makes no policy decisions.
 - `i18n/`, `res/`, `corpus/`, `golden/` are **data, not code**.
 
@@ -187,14 +298,21 @@ second implementation.
 
 ## Non-negotiable rules when writing code
 
-These are machine-enforced by four CI gates, not by review discipline:
+These are machine-enforced by CI gates, not by review discipline. **Four are specified; THREE are
+live.** `checks` runs the three that exist and says three — if it ever *claims* four, that is the bug.
 
-| Gate | Fails on |
-|---|---|
-| `tools/layer-lint` | an outward include; `FPDF_` outside `pdf/`; a filesystem write outside `pdf/` and `core/settings/` |
-| `tools/mutation-lint` | a `Command` subclass missing from `CommandRegistry`, or lacking a serialize round-trip test or a revert test |
-| `tools/i18n-lint` | a user-facing literal not wrapped in `tr()`; a catalog key missing from a shipped locale (`en`, `zh-TW`, `zh-CN`, `ja`) |
-| `tools/license-audit` | any dependency SPDX identifier outside the allowlist |
+| Gate | State | Fails on |
+|---|---|---|
+| `tools/layer-lint` | ✅ **live** | an outward include; `FPDF_` outside `pdf/`; a filesystem write outside `pdf/` and `core/settings/`; **an OS header in `platform/platform.h`**, which is its own layer entry because that file is included by `core/`, `ui/` and `app/` |
+| `tools/license-audit` | ✅ **live** | any dependency SPDX identifier outside the allowlist |
+| `tools/i18n-lint` | ✅ **live** | a literal reaching a user-facing sink and not wrapped in `tr()` (escapable, `// i18n-lint: allow-literal(reason)`); a key missing from a shipped locale; an `ActionId` with no `action.*` catalog entry. `orphan-key` is S3 — reported, never blocking. Stage 1 ships `en` and `zh-TW` only; `zh-CN` and `ja` are declared `"shipped": false` (D1-14) |
+| `tools/mutation-lint` | ○ **Stage 3** | a `Command` subclass missing from `CommandRegistry`, or lacking a serialize round-trip test or a revert test |
+
+Two rules are escapable, both with an inline marker **on the same line as the match** — not the line
+above — and both censused by that gate's `--explain`: `// layer-lint: allow-filesystem-write(reason)`
+(**four** waivers exist — three in `app/CrashHandler.cpp`, one on the named-pipe `CreateFileW` in
+`platform/win/WinSingleInstanceBus.cpp`) and `// i18n-lint: allow-literal(reason)` (none yet). `--explain` distinguishes a waiver that **silenced something** from one that did not, which is
+Stage 0's I-20 written into the tool rather than remembered.
 
 Plus the standing conventions:
 
@@ -209,24 +327,69 @@ Plus the standing conventions:
 - Partial application is a bug: `apply()` returning false must leave the document untouched.
 - A repaired (reconstructed-xref) document's first save is forced to Save-As.
 
-## Commands (as specified — nothing builds yet)
+## Commands
 
-```
+**`cmake`, `ninja` and `g++` are not on this machine's `PATH`.** Dot-source the environment first;
+a command that works only *without* it is itself a finding.
+
+```powershell
+. .\scripts\env.ps1
 cmake --preset x64-release
-cmake --build --preset x64-release --target checks    # the four gates; CI runs this BEFORE compiling
+cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure
+ctest --preset x64-release --output-on-failure        # 226/226 as of Stage 1 T9
 ```
 
-Presets: `x64-debug`, `x64-release`, `arm64-release`, plus the two non-Windows ones —
-`portable-asan`, `portable-fuzz`.
+Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offscreen`:
+
+```powershell
+.\build\x64-release\bin\rawpage.exe --version              # name, build id, Qt version
+.\build\x64-release\bin\rawpage.exe --print-dpi-awareness  # expect PerMonitorAwareV2
+.\build\x64-release\bin\rawpage.exe --print-args <paths>   # the D1-3 argv-vs-Qt measurement
+.\build\x64-debug\bin\rawpage.exe   --crash-test           # debug only; writes a minidump
+.\scripts\symbolize.ps1 -Dump <path.dmp>                   # resolves the faulting frame
+.\build\x64-release\bin\spike-ribbon.exe --self-test       # the A3 spike (deleted at T10)
+.\build\x64-release\bin\rawpage.exe --dump-ui-strings     # every shell key + action label, resolved
+.\build\x64-release\bin\rawpage.exe --lang zh-TW --dump-ui-strings   # guide case A-72
+.\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error
+```
+
+The three gates can also be run one at a time, and each has an `--explain` that prints its rules and
+its live waivers — that census is how anyone notices waivers creeping from a handful to a hundred:
+
+```powershell
+.\build\x64-release\bin\layer-lint.exe    --root . --explain   # includes, rules, 4 live waivers
+.\build\x64-release\bin\i18n-lint.exe     --root . --explain   # locales, shipped flags, unfinished count
+.\build\x64-release\bin\license-audit.exe --help
+```
+
+**Two notes on running `rawpage.exe` from PowerShell**, both of which cost time to rediscover.
+PowerShell does **not wait** on a GUI-subsystem binary, so `$LASTEXITCODE` after `& .\rawpage.exe`
+reads the *previous* command's — use `Start-Process -Wait -PassThru` and read `.ExitCode`. And an
+ordinary launch now runs an event loop and does not return; `--dump-ui-strings` is the switch that
+composes everything and exits.
+
+Presets: `gates` (tools + gate fixtures only, **no Qt and no vcpkg** — what CI runs first),
+`x64-debug`, `x64-release`, `arm64-release`, plus the two non-Windows ones — `portable-asan`,
+`portable-fuzz`.
+
+**Three test targets, and the split is load-bearing rather than organizational:**
+
+| Target | Links | CTest prefix | Runs where |
+|---|---|---|---|
+| `rawpage_tests` | `rawpage_core`, `rawpage_pdf` | `unit.` | Windows + `portable-asan`. It also compiles `app/CommandLine.cpp` **in** — the parser is a pure `QStringList` → intent function, and compiling it rather than linking the executable is what keeps the assertion below true. `rawpage_assert_headless()` **fails configure** if this ever links `rawpage_ui` or `rawpage_platform`, directly or transitively — that assertion is the standing proof that `core/` needs no display and no engine |
+| `rawpage_platform_tests` | `rawpage_core`, `rawpage_platform` | `platform.` | **Windows only** (S1 · T7) |
+| `rawpage_ui_tests` | `rawpage_core`, `rawpage_ui` | `ui.` | **Windows only**, `QT_QPA_PLATFORM=offscreen` (D1-4). **Arrived at T9**, not the plan's T15, on the precedent `tests/platform` set at T7. It installs `rawpage_en.qm` so the widgets are exercised against real text rather than their own catalog keys |
 
 Single test / suite — Catch2 v3 binaries registered with CTest, selected by name regex:
 
 ```
-ctest --preset x64-debug -R tst_journal --output-on-failure
-ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash
-ctest --preset x64-release -R roundtrip         # incremental save keeps untouched bytes identical
+ctest --preset x64-debug   -R tst_settings --output-on-failure
+ctest --preset x64-release -R "^platform\."      # the OS layer's suite (19 cases)
+ctest --preset x64-release -R "^gates\."         # the gates against deliberately bad input
+ctest --preset x64-release -R "unit.settings.compile"   # the negative-COMPILE fixtures (A-41)
+ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash (S3)
+ctest --preset x64-release -R roundtrip         # incremental save keeps untouched bytes identical (S3)
 ```
 
 Verification specifics live in `Tech-Stack-Plan.md` §9; the five-layer test strategy (unit, golden
@@ -265,12 +428,17 @@ block updated to reality, deviations included.
 
 ## Open risks and decisions to respect
 
-Go/no-go gates ride on Stages 1–3: **A3** (can Qt Widgets host a real ribbon — fallback is a
-first-party ribbon widget, *not* a toolkit change), **A2** (p95 per-tile render latency under ~16 ms),
-**A4** (does a signature survive a later unrelated incremental save). Stage 0 additionally owes three
-toolchain verdicts: **A5** (vcpkg resolves on `x64-mingw-dynamic`) and **A6** (a PDFium DLL links
-from `g++`); **A7** (our GCC matches Qt's) is already settled — we build with Qt's own bundled
-GCC 13.1.0, and `toolchain-mingw.cmake` keeps it that way. Larger unknowns carried forward: the Write-mode reflow engine
+**A3 is SETTLED** (2026-08-23, Stage 1 T2): **`go, with named custom work`** — Qt Widgets host a real
+ribbon, and the fallback (a first-party ribbon widget, *not* a toolkit change) is not in play. The
+named work T10 inherits is a collapse `QLayout` (~60 lines, because stock layouts distribute *space*
+whereas collapse changes what a child *is*), a chevron tab overflow over `QTabBar` (~30), and an
+explicit tab-order pass on every change of the collapsed set (~15, and the only one that was not
+predicted). Recorded per criterion in `Tech-Stack-Plan.md` §3.3 — **including that the verdict rests
+on eight criteria, not nine, because R-8 was withdrawn rather than cleared.**
+
+Still open: **A2** (p95 per-tile render latency under ~16 ms, Stage 2) and **A4** (does a signature
+survive a later unrelated incremental save, Stage 3). **A5**, **A6** and **A7** were settled in
+Stage 0 — we build with Qt's own bundled GCC 13.1.0 and `toolchain-mingw.cmake` keeps it that way. Larger unknowns carried forward: the Write-mode reflow engine
 (R1), a first-party full-text index since Xapian is GPL (R2), Office export fidelity (R3), the
 sanitizer/PDB capability loss from the GCC toolchain (R7), and the MSVC-shaped corners of the Windows
 integration surface — print driver, Office add-ins, arm64 (R8). Open decisions O1–O10 are listed in

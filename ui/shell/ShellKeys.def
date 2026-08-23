@@ -1,0 +1,68 @@
+// -*- C++ -*-  THE SHELL'S CATALOG KEYS. One table, two artifacts -- the same shape as
+// ActionId.def, SettingsKeys.def and KeyBindingDefaults.def, and for the same reason (D1-6).
+//
+// The `constexpr` key constants the widgets use, and the list `--dump-ui-strings` prints, both come
+// from the rows below. That matters more than it looks: guide case A-72 compares an `en` run
+// against a `--lang zh-TW` run, and the case is only worth anything if the dump covers every string
+// the shell can put on screen. Two lists would let a key be added to the UI and not to the dump,
+// and the case would keep passing while covering less.
+//
+// This file is #included repeatedly with different macro definitions. No include guard, on purpose.
+//
+//   RAWPAGE_SHELL_STRING(Enumerator, "shell.key.path")
+//
+// THE KEY IS A PERMANENT PUBLIC NAME, exactly as an ActionId string or a settings path is: it is
+// what the two shipped catalogs are keyed on. Renaming one without renaming it in
+// i18n/rawpage_en.ts and i18n/rawpage_zh_TW.ts is caught by tools/i18n-lint -- the old key becomes
+// an orphan (S3, reported) and the new one becomes a miss.
+
+#ifndef RAWPAGE_SHELL_STRING
+#define RAWPAGE_SHELL_STRING(Enumerator, Key)
+#endif
+
+// --- The window --------------------------------------------------------------------------------
+// `shell.window.titleWithDocument` is deliberately NOT here. There is no document to name until
+// T12, and a key that leads its use is an `orphan-key` note on every gate run -- reported rather
+// than failed (S3), but a report nobody can act on is a report people learn to skip.
+RAWPAGE_SHELL_STRING(WindowTitle,            "shell.window.title")
+
+// --- The central surface -------------------------------------------------------------------------
+// Stage 2 replaces this whole widget with `ui/viewer/PageView`. The keys are named for what they
+// are -- a placeholder -- so that nobody mistakes them for the start page Features.md describes.
+RAWPAGE_SHELL_STRING(PlaceholderHeading,     "shell.placeholder.heading")
+RAWPAGE_SHELL_STRING(PlaceholderBody,        "shell.placeholder.body")
+RAWPAGE_SHELL_STRING(PlaceholderInterfaces,  "shell.placeholder.interfaces")
+
+// --- The sidebar -------------------------------------------------------------------------------
+RAWPAGE_SHELL_STRING(SidebarTitle,           "shell.sidebar.title")
+RAWPAGE_SHELL_STRING(SidebarEmpty,           "shell.sidebar.empty")
+RAWPAGE_SHELL_STRING(SidebarShow,            "shell.sidebar.show")
+RAWPAGE_SHELL_STRING(SidebarHide,            "shell.sidebar.hide")
+RAWPAGE_SHELL_STRING(SidebarAutoHide,        "shell.sidebar.autoHide")
+RAWPAGE_SHELL_STRING(SidebarPinOpen,         "shell.sidebar.pinOpen")
+RAWPAGE_SHELL_STRING(SidebarFloat,           "shell.sidebar.float")
+RAWPAGE_SHELL_STRING(SidebarDockLeft,        "shell.sidebar.dockLeft")
+RAWPAGE_SHELL_STRING(SidebarDockRight,       "shell.sidebar.dockRight")
+
+// --- The status bar ----------------------------------------------------------------------------
+RAWPAGE_SHELL_STRING(StatusReady,            "shell.status.ready")
+RAWPAGE_SHELL_STRING(StatusNoDocument,       "shell.status.noDocument")
+RAWPAGE_SHELL_STRING(StatusPage,             "shell.status.page")
+
+// The em dash shown for a page count that does not exist. A catalog entry rather than a literal,
+// and rather than an i18n-lint waiver, because it genuinely is translatable: CJK typography sets a
+// dash differently from Latin typography, and "it is only punctuation" is how a product ends up
+// with a Latin em dash in the middle of a Chinese status bar. The gate caught this one at T9.
+RAWPAGE_SHELL_STRING(StatusPageCountUnknown, "shell.status.pageCountUnknown")
+RAWPAGE_SHELL_STRING(StatusZoom,             "shell.status.zoom")
+RAWPAGE_SHELL_STRING(StatusTasksIdle,        "shell.status.tasksIdle")
+
+// --- Theme names -------------------------------------------------------------------------------
+// Named here rather than in the Preferences pages (T14) because the status of the current theme is
+// reported by the shell itself, and a theme name that read one way in Preferences and another in
+// the status bar would be the first localization bug anyone filed.
+RAWPAGE_SHELL_STRING(ThemeLight,             "shell.theme.light")
+RAWPAGE_SHELL_STRING(ThemeDark,              "shell.theme.dark")
+RAWPAGE_SHELL_STRING(ThemeFollowSystem,      "shell.theme.followSystem")
+
+#undef RAWPAGE_SHELL_STRING

@@ -1,0 +1,503 @@
+// -*- C++ -*-  THE ACTION TABLE. One file, four artifacts -- decision D1-6.
+//
+// The enum, the string<->id maps, the default-context map, and the `action.*` catalog key list are
+// ALL generated from the rows below. Three things must agree forever -- the enum, `res/ribbon.json`,
+// and the translation catalog -- and three hand-maintained lists agree until the first Friday. One
+// table makes a typo a build error at the point of the typo.
+//
+// This file is #included repeatedly with different macro definitions. It has no include guard on
+// purpose. Define what you need before including; the defaults below cover the rest.
+//
+//   RAWPAGE_ACTION(Enumerator, "string.id", DefaultContext, "action.catalog.key")
+//   RAWPAGE_ACTION_ALIAS("old.string.id", NewEnumerator)
+//
+// DefaultContext is a bare KeyContext enumerator -- `Global`, `Viewer`, `Write` -- and the expansion
+// site qualifies it.
+//
+// ---------------------------------------------------------------------------------------------
+// FOUR RULES, none of them stylistic:
+//
+// 1. THE STRING ID IS A PERMANENT PUBLIC NAME. It is written into a user's saved shortcuts and QAT
+//    customization, and read back by a later version. Renaming one without an alias row silently
+//    destroys that customization (D1-16).
+//
+// 2. ALIAS ROWS ARE APPENDED AND NEVER DELETED. An alias is how a renamed id keeps resolving. There
+//    is no expiry: the user who customized in Stage 7 still has that file in Stage 15.
+//
+// 3. THE CATALOG KEY IS "action." + THE STRING ID. `tst_actionregistry` asserts it row by row, so a
+//    typo in either column fails the build rather than yielding a button with no label. The column is
+//    written out rather than derived because `tools/i18n-lint` reads this file as text.
+//
+// 4. DECLARING IS NOT REGISTERING. ~200 ids are declared here so the ribbon can place them and the
+//    catalog can name them; Stage 1 registers only the 60-80 it implements. The rest render as
+//    visible, DISABLED buttons -- the honest state -- and `RibbonTabBuilder` distinguishes
+//    "arrives in Stage 7" from "not available for this document" in the tooltip.
+// ---------------------------------------------------------------------------------------------
+
+#ifndef RAWPAGE_ACTION
+#define RAWPAGE_ACTION(Enumerator, StringId, DefaultContext, LabelKey)
+#endif
+
+#ifndef RAWPAGE_ACTION_ALIAS
+#define RAWPAGE_ACTION_ALIAS(OldStringId, Enumerator)
+#endif
+
+// =============================================================================================
+// Features.md §1 -- View & Find
+// =============================================================================================
+
+// --- File lifecycle (§1.1, §2.5) -------------------------------------------------------------
+RAWPAGE_ACTION(FileNew,                "file.new",                Global, "action.file.new")
+RAWPAGE_ACTION(FileOpen,               "file.open",               Global, "action.file.open")
+RAWPAGE_ACTION(FileOpenRecent,         "file.openRecent",         Global, "action.file.openRecent")
+RAWPAGE_ACTION(FileClearRecent,        "file.clearRecent",        Global, "action.file.clearRecent")
+RAWPAGE_ACTION(FileClose,              "file.close",              Global, "action.file.close")
+RAWPAGE_ACTION(FileCloseAll,           "file.closeAll",           Global, "action.file.closeAll")
+RAWPAGE_ACTION(FileSave,               "file.save",               Global, "action.file.save")
+RAWPAGE_ACTION(FileSaveAs,             "file.saveAs",             Global, "action.file.saveAs")
+RAWPAGE_ACTION(FileSaveACopy,          "file.saveACopy",          Global, "action.file.saveACopy")
+RAWPAGE_ACTION(FileRevert,             "file.revert",             Global, "action.file.revert")
+RAWPAGE_ACTION(FilePrint,              "file.print",              Global, "action.file.print")
+RAWPAGE_ACTION(FileDocumentProperties, "file.documentProperties", Global, "action.file.documentProperties")
+RAWPAGE_ACTION(FilePreferences,        "file.preferences",        Global, "action.file.preferences")
+RAWPAGE_ACTION(FileQuit,               "file.quit",               Global, "action.file.quit")
+
+// --- Windows and tabs (§1.1) ------------------------------------------------------------------
+RAWPAGE_ACTION(WindowNextTab,          "window.nextTab",          Global, "action.window.nextTab")
+RAWPAGE_ACTION(WindowPrevTab,          "window.prevTab",          Global, "action.window.prevTab")
+RAWPAGE_ACTION(WindowNext,             "window.next",             Global, "action.window.next")
+RAWPAGE_ACTION(WindowPrev,             "window.prev",             Global, "action.window.prev")
+RAWPAGE_ACTION(WindowNew,              "window.new",              Global, "action.window.new")
+RAWPAGE_ACTION(WindowSplit,            "window.split",            Global, "action.window.split")
+RAWPAGE_ACTION(WindowTileHorizontal,   "window.tileHorizontal",   Global, "action.window.tileHorizontal")
+RAWPAGE_ACTION(WindowTileVertical,     "window.tileVertical",     Global, "action.window.tileVertical")
+RAWPAGE_ACTION(WindowCascade,          "window.cascade",          Global, "action.window.cascade")
+
+// --- Shell chrome (§1.1) ------------------------------------------------------------------------
+RAWPAGE_ACTION(ViewToggleSidebar,      "view.toggleSidebar",      Global, "action.view.toggleSidebar")
+RAWPAGE_ACTION(ViewToggleRibbon,       "view.toggleRibbon",       Global, "action.view.toggleRibbon")
+RAWPAGE_ACTION(ViewFullScreen,         "view.fullScreen",         Global, "action.view.fullScreen")
+RAWPAGE_ACTION(ViewReadingMode,        "view.readingMode",        Viewer, "action.view.readingMode")
+RAWPAGE_ACTION(ViewTogglePropertiesBar,"view.togglePropertiesBar",Viewer, "action.view.togglePropertiesBar")
+RAWPAGE_ACTION(AppToolFinder,          "app.toolFinder",          Global, "action.app.toolFinder")
+RAWPAGE_ACTION(AppRibbonKeyTips,       "app.ribbonKeyTips",       Global, "action.app.ribbonKeyTips")
+
+// --- Panes (§1.1) -------------------------------------------------------------------------------
+RAWPAGE_ACTION(PaneThumbnails,         "pane.thumbnails",         Global, "action.pane.thumbnails")
+RAWPAGE_ACTION(PaneBookmarks,          "pane.bookmarks",          Global, "action.pane.bookmarks")
+RAWPAGE_ACTION(PaneComments,           "pane.comments",           Global, "action.pane.comments")
+RAWPAGE_ACTION(PaneFields,             "pane.fields",             Global, "action.pane.fields")
+RAWPAGE_ACTION(PaneLayers,             "pane.layers",             Global, "action.pane.layers")
+RAWPAGE_ACTION(PaneTags,               "pane.tags",               Global, "action.pane.tags")
+RAWPAGE_ACTION(PaneAttachments,        "pane.attachments",        Global, "action.pane.attachments")
+RAWPAGE_ACTION(PaneSignatures,         "pane.signatures",         Global, "action.pane.signatures")
+RAWPAGE_ACTION(PaneDocumentMap,        "pane.documentMap",        Global, "action.pane.documentMap")
+RAWPAGE_ACTION(PaneDestinations,       "pane.destinations",       Global, "action.pane.destinations")
+RAWPAGE_ACTION(PaneLog,                "pane.log",                Global, "action.pane.log")
+
+// --- Zoom and page display (§1.2) ---------------------------------------------------------------
+RAWPAGE_ACTION(ViewZoomIn,             "view.zoomIn",             Viewer, "action.view.zoomIn")
+RAWPAGE_ACTION(ViewZoomOut,            "view.zoomOut",            Viewer, "action.view.zoomOut")
+RAWPAGE_ACTION(ViewZoomTo,             "view.zoomTo",             Viewer, "action.view.zoomTo")
+RAWPAGE_ACTION(ViewFitPage,            "view.fitPage",            Viewer, "action.view.fitPage")
+RAWPAGE_ACTION(ViewActualSize,         "view.actualSize",         Viewer, "action.view.actualSize")
+RAWPAGE_ACTION(ViewFitWidth,           "view.fitWidth",           Viewer, "action.view.fitWidth")
+RAWPAGE_ACTION(ViewFitVisible,         "view.fitVisible",         Viewer, "action.view.fitVisible")
+RAWPAGE_ACTION(ViewReflow,             "view.reflow",             Viewer, "action.view.reflow")
+RAWPAGE_ACTION(ViewSinglePage,         "view.singlePage",         Viewer, "action.view.singlePage")
+RAWPAGE_ACTION(ViewContinuous,         "view.continuous",         Viewer, "action.view.continuous")
+RAWPAGE_ACTION(ViewTwoUp,              "view.twoUp",              Viewer, "action.view.twoUp")
+RAWPAGE_ACTION(ViewTogglePageMode,     "view.togglePageMode",     Viewer, "action.view.togglePageMode")
+RAWPAGE_ACTION(ViewRotateViewCw,       "view.rotateViewCw",       Viewer, "action.view.rotateViewCw")
+RAWPAGE_ACTION(ViewRotateViewCcw,      "view.rotateViewCcw",      Viewer, "action.view.rotateViewCcw")
+RAWPAGE_ACTION(ViewResetRotation,      "view.resetRotation",      Viewer, "action.view.resetRotation")
+RAWPAGE_ACTION(ViewInvertColors,       "view.invertColors",       Viewer, "action.view.invertColors")
+RAWPAGE_ACTION(ViewPageBackground,     "view.pageBackground",     Viewer, "action.view.pageBackground")
+
+// --- Rulers, grid, guides (§1.3) ----------------------------------------------------------------
+RAWPAGE_ACTION(ViewToggleRulers,       "view.toggleRulers",       Viewer, "action.view.toggleRulers")
+RAWPAGE_ACTION(ViewToggleGrid,         "view.toggleGrid",         Viewer, "action.view.toggleGrid")
+RAWPAGE_ACTION(ViewToggleSnapToGrid,   "view.toggleSnapToGrid",   Viewer, "action.view.toggleSnapToGrid")
+RAWPAGE_ACTION(ViewToggleGuides,       "view.toggleGuides",       Viewer, "action.view.toggleGuides")
+
+// --- Navigation (§1.4) --------------------------------------------------------------------------
+RAWPAGE_ACTION(NavGoToPage,            "nav.goToPage",            Viewer, "action.nav.goToPage")
+RAWPAGE_ACTION(NavFirstPage,           "nav.firstPage",           Viewer, "action.nav.firstPage")
+RAWPAGE_ACTION(NavLastPage,            "nav.lastPage",            Viewer, "action.nav.lastPage")
+RAWPAGE_ACTION(NavNextPage,            "nav.nextPage",            Viewer, "action.nav.nextPage")
+RAWPAGE_ACTION(NavPrevPage,            "nav.prevPage",            Viewer, "action.nav.prevPage")
+RAWPAGE_ACTION(NavNextScreen,          "nav.nextScreen",          Viewer, "action.nav.nextScreen")
+RAWPAGE_ACTION(NavPrevScreen,          "nav.prevScreen",          Viewer, "action.nav.prevScreen")
+RAWPAGE_ACTION(NavPrevView,            "nav.prevView",            Viewer, "action.nav.prevView")
+RAWPAGE_ACTION(NavNextView,            "nav.nextView",            Viewer, "action.nav.nextView")
+RAWPAGE_ACTION(NavNextComment,         "nav.nextComment",         Viewer, "action.nav.nextComment")
+RAWPAGE_ACTION(NavPrevComment,         "nav.prevComment",         Viewer, "action.nav.prevComment")
+RAWPAGE_ACTION(NavNextDifference,      "nav.nextDifference",      Viewer, "action.nav.nextDifference")
+RAWPAGE_ACTION(NavPrevDifference,      "nav.prevDifference",      Viewer, "action.nav.prevDifference")
+
+// --- Viewer tools (§1.2) ------------------------------------------------------------------------
+RAWPAGE_ACTION(ToolHand,               "tool.hand",               Viewer, "action.tool.hand")
+RAWPAGE_ACTION(ToolSelect,             "tool.select",             Viewer, "action.tool.select")
+RAWPAGE_ACTION(ToolMarqueeZoom,        "tool.marqueeZoom",        Viewer, "action.tool.marqueeZoom")
+RAWPAGE_ACTION(ToolSnapshot,           "tool.snapshot",           Viewer, "action.tool.snapshot")
+
+// --- Full Screen and Presentation (§1.2, §8's Full Screen table) --------------------------------
+RAWPAGE_ACTION(PresentExit,            "present.exit",            FullScreen, "action.present.exit")
+RAWPAGE_ACTION(PresentBlankBlack,      "present.blankBlack",      FullScreen, "action.present.blankBlack")
+RAWPAGE_ACTION(PresentBlankWhite,      "present.blankWhite",      FullScreen, "action.present.blankWhite")
+RAWPAGE_ACTION(PresentLaserPointer,    "present.laserPointer",    FullScreen, "action.present.laserPointer")
+RAWPAGE_ACTION(PresentToggleCursor,    "present.toggleCursor",    FullScreen, "action.present.toggleCursor")
+RAWPAGE_ACTION(PresentAutoAdvance,     "present.autoAdvance",     FullScreen, "action.present.autoAdvance")
+RAWPAGE_ACTION(PresentNextMonitor,     "present.nextMonitor",     FullScreen, "action.present.nextMonitor")
+
+// --- Comparison (§1.5) --------------------------------------------------------------------------
+RAWPAGE_ACTION(CompareDocuments,       "compare.documents",       Global, "action.compare.documents")
+RAWPAGE_ACTION(CompareShowReport,      "compare.showReport",      Global, "action.compare.showReport")
+
+// --- Search and find (§1.8) ---------------------------------------------------------------------
+RAWPAGE_ACTION(FindFind,               "find.find",               Global,     "action.find.find")
+RAWPAGE_ACTION(FindNext,               "find.next",               FindSearch, "action.find.next")
+RAWPAGE_ACTION(FindPrevious,           "find.previous",           FindSearch, "action.find.previous")
+RAWPAGE_ACTION(FindAdvancedSearch,     "find.advancedSearch",     Global,     "action.find.advancedSearch")
+RAWPAGE_ACTION(FindInComments,         "find.inComments",         Comments,   "action.find.inComments")
+RAWPAGE_ACTION(FindClose,              "find.close",              FindSearch, "action.find.close")
+RAWPAGE_ACTION(FindJumpToResult,       "find.jumpToResult",       FindSearch, "action.find.jumpToResult")
+RAWPAGE_ACTION(FindToggleRegex,        "find.toggleRegex",        FindSearch, "action.find.toggleRegex")
+RAWPAGE_ACTION(FindToggleWholeWords,   "find.toggleWholeWords",   FindSearch, "action.find.toggleWholeWords")
+RAWPAGE_ACTION(FindToggleCaseSensitive,"find.toggleCaseSensitive",FindSearch, "action.find.toggleCaseSensitive")
+
+// --- Help (§9) ----------------------------------------------------------------------------------
+RAWPAGE_ACTION(HelpContents,           "help.contents",           Global, "action.help.contents")
+RAWPAGE_ACTION(HelpAbout,              "help.about",              Global, "action.help.about")
+RAWPAGE_ACTION(HelpCheckForUpdates,    "help.checkForUpdates",    Global, "action.help.checkForUpdates")
+
+// =============================================================================================
+// Features.md §2 -- Create & Export
+// =============================================================================================
+RAWPAGE_ACTION(CreateBlank,            "create.blank",            Global, "action.create.blank")
+RAWPAGE_ACTION(CreateFromFile,         "create.fromFile",         Global, "action.create.fromFile")
+RAWPAGE_ACTION(CreateFromScanner,      "create.fromScanner",      Global, "action.create.fromScanner")
+RAWPAGE_ACTION(CreateFromClipboard,    "create.fromClipboard",    Global, "action.create.fromClipboard")
+RAWPAGE_ACTION(CreateFromWebPage,      "create.fromWebPage",      Global, "action.create.fromWebPage")
+RAWPAGE_ACTION(CreateCombineFiles,     "create.combineFiles",     Global, "action.create.combineFiles")
+RAWPAGE_ACTION(CreatePortfolio,        "create.portfolio",        Global, "action.create.portfolio")
+
+RAWPAGE_ACTION(ExportWord,             "export.word",             Global, "action.export.word")
+RAWPAGE_ACTION(ExportExcel,            "export.excel",            Global, "action.export.excel")
+RAWPAGE_ACTION(ExportPowerPoint,       "export.powerPoint",       Global, "action.export.powerPoint")
+RAWPAGE_ACTION(ExportHtml,             "export.html",             Global, "action.export.html")
+RAWPAGE_ACTION(ExportText,             "export.text",             Global, "action.export.text")
+RAWPAGE_ACTION(ExportImage,            "export.image",            Global, "action.export.image")
+RAWPAGE_ACTION(ExportEpub,             "export.epub",             Global, "action.export.epub")
+RAWPAGE_ACTION(ExportXml,              "export.xml",              Global, "action.export.xml")
+
+RAWPAGE_ACTION(ConvertBatch,           "convert.batch",           Global, "action.convert.batch")
+RAWPAGE_ACTION(ConvertProfiles,        "convert.profiles",        Global, "action.convert.profiles")
+
+RAWPAGE_ACTION(SaveOptimize,           "save.optimize",           Global, "action.save.optimize")
+RAWPAGE_ACTION(SaveReduceSize,         "save.reduceSize",         Global, "action.save.reduceSize")
+RAWPAGE_ACTION(SaveConformance,        "save.conformance",        Global, "action.save.conformance")
+RAWPAGE_ACTION(SaveFlatten,            "save.flatten",            Global, "action.save.flatten")
+
+// =============================================================================================
+// Features.md §3 -- Edit
+// =============================================================================================
+
+// --- The universal editing verbs. Common, so any context may override them (§8 Common) --------
+RAWPAGE_ACTION(EditUndo,               "edit.undo",               Common, "action.edit.undo")
+RAWPAGE_ACTION(EditRedo,               "edit.redo",               Common, "action.edit.redo")
+RAWPAGE_ACTION(EditCut,                "edit.cut",                Common, "action.edit.cut")
+RAWPAGE_ACTION(EditCopy,               "edit.copy",               Common, "action.edit.copy")
+RAWPAGE_ACTION(EditPaste,              "edit.paste",              Common, "action.edit.paste")
+RAWPAGE_ACTION(EditPasteSpecial,       "edit.pasteSpecial",       Common, "action.edit.pasteSpecial")
+RAWPAGE_ACTION(EditDelete,             "edit.delete",             Common, "action.edit.delete")
+RAWPAGE_ACTION(EditSelectAll,          "edit.selectAll",          Common, "action.edit.selectAll")
+RAWPAGE_ACTION(EditDeselectAll,        "edit.deselectAll",        Common, "action.edit.deselectAll")
+RAWPAGE_ACTION(EditRename,             "edit.rename",             Common, "action.edit.rename")
+RAWPAGE_ACTION(EditCancel,             "edit.cancel",             Common, "action.edit.cancel")
+RAWPAGE_ACTION(EditProperties,         "edit.properties",         Common, "action.edit.properties")
+
+// --- Review-mode object editing (§3.2) ----------------------------------------------------------
+RAWPAGE_ACTION(EditEditText,           "edit.editText",           Viewer, "action.edit.editText")
+RAWPAGE_ACTION(EditEditObject,         "edit.editObject",         Viewer, "action.edit.editObject")
+RAWPAGE_ACTION(EditAddText,            "edit.addText",            Viewer, "action.edit.addText")
+RAWPAGE_ACTION(EditAddImage,           "edit.addImage",           Viewer, "action.edit.addImage")
+RAWPAGE_ACTION(EditCropImage,          "edit.cropImage",          Viewer, "action.edit.cropImage")
+RAWPAGE_ACTION(EditReplaceImage,       "edit.replaceImage",       Viewer, "action.edit.replaceImage")
+
+// --- The dual-mode lifecycle (§3.1) -------------------------------------------------------------
+RAWPAGE_ACTION(EditConvertToWritable,  "edit.convertToWritable",  Viewer, "action.edit.convertToWritable")
+RAWPAGE_ACTION(EditPreventFurtherEdits,"edit.preventFurtherEdits",Write,  "action.edit.preventFurtherEdits")
+
+// --- Write mode: character formatting (§3.3) ----------------------------------------------------
+RAWPAGE_ACTION(WriteBold,              "write.bold",              Write, "action.write.bold")
+RAWPAGE_ACTION(WriteItalic,            "write.italic",            Write, "action.write.italic")
+RAWPAGE_ACTION(WriteUnderline,         "write.underline",         Write, "action.write.underline")
+RAWPAGE_ACTION(WriteFontDialog,        "write.fontDialog",        Write, "action.write.fontDialog")
+RAWPAGE_ACTION(WriteIncreaseFontSize,  "write.increaseFontSize",  Write, "action.write.increaseFontSize")
+RAWPAGE_ACTION(WriteDecreaseFontSize,  "write.decreaseFontSize",  Write, "action.write.decreaseFontSize")
+RAWPAGE_ACTION(WriteSuperscript,       "write.superscript",       Write, "action.write.superscript")
+RAWPAGE_ACTION(WriteSubscript,         "write.subscript",         Write, "action.write.subscript")
+RAWPAGE_ACTION(WriteAllCaps,           "write.allCaps",           Write, "action.write.allCaps")
+RAWPAGE_ACTION(WriteClearFormatting,   "write.clearFormatting",   Write, "action.write.clearFormatting")
+
+// --- Write mode: paragraph and style (§3.3) -----------------------------------------------------
+RAWPAGE_ACTION(WriteAlignLeft,         "write.alignLeft",         Write, "action.write.alignLeft")
+RAWPAGE_ACTION(WriteAlignCenter,       "write.alignCenter",       Write, "action.write.alignCenter")
+RAWPAGE_ACTION(WriteAlignRight,        "write.alignRight",        Write, "action.write.alignRight")
+RAWPAGE_ACTION(WriteJustify,           "write.justify",           Write, "action.write.justify")
+RAWPAGE_ACTION(WriteStyleNormal,       "write.styleNormal",       Write, "action.write.styleNormal")
+RAWPAGE_ACTION(WriteStyleHeading1,     "write.styleHeading1",     Write, "action.write.styleHeading1")
+RAWPAGE_ACTION(WriteStyleHeading2,     "write.styleHeading2",     Write, "action.write.styleHeading2")
+RAWPAGE_ACTION(WriteStyleHeading3,     "write.styleHeading3",     Write, "action.write.styleHeading3")
+RAWPAGE_ACTION(WriteBulletedList,      "write.bulletedList",      Write, "action.write.bulletedList")
+RAWPAGE_ACTION(WriteNumberedList,      "write.numberedList",      Write, "action.write.numberedList")
+RAWPAGE_ACTION(WriteIndent,            "write.indent",            Write, "action.write.indent")
+RAWPAGE_ACTION(WriteOutdent,           "write.outdent",           Write, "action.write.outdent")
+RAWPAGE_ACTION(WriteParagraphDialog,   "write.paragraphDialog",   Write, "action.write.paragraphDialog")
+RAWPAGE_ACTION(WriteTabStops,          "write.tabStops",          Write, "action.write.tabStops")
+RAWPAGE_ACTION(WritePageSetup,         "write.pageSetup",         Write, "action.write.pageSetup")
+
+// --- Write mode: insertion and structure (§3.3) -------------------------------------------------
+RAWPAGE_ACTION(WriteInsertHyperlink,   "write.insertHyperlink",   Write, "action.write.insertHyperlink")
+RAWPAGE_ACTION(WriteFindReplace,       "write.findReplace",       Write, "action.write.findReplace")
+RAWPAGE_ACTION(WritePageBreak,         "write.pageBreak",         Write, "action.write.pageBreak")
+RAWPAGE_ACTION(WriteColumnBreak,       "write.columnBreak",       Write, "action.write.columnBreak")
+RAWPAGE_ACTION(WriteNonBreakingSpace,  "write.nonBreakingSpace",  Write, "action.write.nonBreakingSpace")
+RAWPAGE_ACTION(WriteInsertTable,       "write.insertTable",       Write, "action.write.insertTable")
+RAWPAGE_ACTION(WriteInsertToc,         "write.insertToc",         Write, "action.write.insertToc")
+RAWPAGE_ACTION(WriteInsertCaption,     "write.insertCaption",     Write, "action.write.insertCaption")
+RAWPAGE_ACTION(WriteInsertFootnote,    "write.insertFootnote",    Write, "action.write.insertFootnote")
+RAWPAGE_ACTION(WriteInsertChart,       "write.insertChart",       Write, "action.write.insertChart")
+RAWPAGE_ACTION(WriteAutoSum,           "write.autoSum",           Write, "action.write.autoSum")
+
+// --- Write mode: revision and proofing (§3.3) ---------------------------------------------------
+RAWPAGE_ACTION(WriteToggleFormattingMarks, "write.toggleFormattingMarks", Write, "action.write.toggleFormattingMarks")
+RAWPAGE_ACTION(WriteToggleChangeTracking,  "write.toggleChangeTracking",  Write, "action.write.toggleChangeTracking")
+RAWPAGE_ACTION(WriteInsertMarginComment,   "write.insertMarginComment",   Write, "action.write.insertMarginComment")
+RAWPAGE_ACTION(WriteSpellCheck,            "write.spellCheck",            Write, "action.write.spellCheck")
+RAWPAGE_ACTION(WriteSetLanguage,           "write.setLanguage",           Write, "action.write.setLanguage")
+RAWPAGE_ACTION(WriteWordCount,             "write.wordCount",             Write, "action.write.wordCount")
+
+// =============================================================================================
+// Features.md §4 -- Review & Annotate
+// =============================================================================================
+RAWPAGE_ACTION(AnnotStickyNote,        "annot.stickyNote",        Viewer, "action.annot.stickyNote")
+RAWPAGE_ACTION(AnnotHighlight,         "annot.highlight",         Viewer, "action.annot.highlight")
+RAWPAGE_ACTION(AnnotUnderline,         "annot.underline",         Viewer, "action.annot.underline")
+RAWPAGE_ACTION(AnnotStrikeout,         "annot.strikeout",         Viewer, "action.annot.strikeout")
+RAWPAGE_ACTION(AnnotSquiggly,          "annot.squiggly",          Viewer, "action.annot.squiggly")
+RAWPAGE_ACTION(AnnotTextBox,           "annot.textBox",           Viewer, "action.annot.textBox")
+RAWPAGE_ACTION(AnnotCallout,           "annot.callout",           Viewer, "action.annot.callout")
+RAWPAGE_ACTION(AnnotLine,              "annot.line",              Viewer, "action.annot.line")
+RAWPAGE_ACTION(AnnotArrow,             "annot.arrow",             Viewer, "action.annot.arrow")
+RAWPAGE_ACTION(AnnotRectangle,         "annot.rectangle",         Viewer, "action.annot.rectangle")
+RAWPAGE_ACTION(AnnotOval,              "annot.oval",              Viewer, "action.annot.oval")
+RAWPAGE_ACTION(AnnotPolygon,           "annot.polygon",           Viewer, "action.annot.polygon")
+RAWPAGE_ACTION(AnnotPolyline,          "annot.polyline",          Viewer, "action.annot.polyline")
+RAWPAGE_ACTION(AnnotPencil,            "annot.pencil",            Viewer, "action.annot.pencil")
+RAWPAGE_ACTION(AnnotEraser,            "annot.eraser",            Viewer, "action.annot.eraser")
+RAWPAGE_ACTION(AnnotStamp,             "annot.stamp",             Viewer, "action.annot.stamp")
+RAWPAGE_ACTION(AnnotCustomStamp,       "annot.customStamp",       Viewer, "action.annot.customStamp")
+RAWPAGE_ACTION(AnnotAttachFile,        "annot.attachFile",        Viewer, "action.annot.attachFile")
+RAWPAGE_ACTION(AnnotLinkTool,          "annot.linkTool",          Viewer, "action.annot.linkTool")
+
+RAWPAGE_ACTION(AnnotMeasureDistance,   "annot.measureDistance",   Viewer, "action.annot.measureDistance")
+RAWPAGE_ACTION(AnnotMeasurePerimeter,  "annot.measurePerimeter",  Viewer, "action.annot.measurePerimeter")
+RAWPAGE_ACTION(AnnotMeasureArea,       "annot.measureArea",       Viewer, "action.annot.measureArea")
+RAWPAGE_ACTION(AnnotMeasurementScale,  "annot.measurementScale",  Viewer, "action.annot.measurementScale")
+
+RAWPAGE_ACTION(AnnotKeepToolSelected,  "annot.keepToolSelected",  AnnotationTools, "action.annot.keepToolSelected")
+RAWPAGE_ACTION(AnnotProperties,        "annot.properties",        AnnotationTools, "action.annot.properties")
+RAWPAGE_ACTION(AnnotSetToolDefault,    "annot.setToolDefault",    AnnotationTools, "action.annot.setToolDefault")
+RAWPAGE_ACTION(AnnotFinishShape,       "annot.finishShape",       AnnotationTools, "action.annot.finishShape")
+RAWPAGE_ACTION(AnnotDuplicate,         "annot.duplicate",         AnnotationTools, "action.annot.duplicate")
+RAWPAGE_ACTION(AnnotNudge,             "annot.nudge",             AnnotationTools, "action.annot.nudge")
+RAWPAGE_ACTION(AnnotDeleteSelected,    "annot.deleteSelected",    AnnotationTools, "action.annot.deleteSelected")
+
+RAWPAGE_ACTION(CommentReply,           "comment.reply",           Comments, "action.comment.reply")
+RAWPAGE_ACTION(CommentSetStatus,       "comment.setStatus",       Comments, "action.comment.setStatus")
+RAWPAGE_ACTION(CommentToggleCheckmark, "comment.toggleCheckmark", Comments, "action.comment.toggleCheckmark")
+RAWPAGE_ACTION(CommentOpenEditor,      "comment.openEditor",      Comments, "action.comment.openEditor")
+RAWPAGE_ACTION(CommentSummarize,       "comment.summarize",       Global,   "action.comment.summarize")
+RAWPAGE_ACTION(CommentImport,          "comment.import",          Global,   "action.comment.import")
+RAWPAGE_ACTION(CommentExport,          "comment.export",          Global,   "action.comment.export")
+RAWPAGE_ACTION(CommentDeleteAll,       "comment.deleteAll",       Global,   "action.comment.deleteAll")
+RAWPAGE_ACTION(CommentFilter,          "comment.filter",          Comments, "action.comment.filter")
+RAWPAGE_ACTION(CommentSort,            "comment.sort",            Comments, "action.comment.sort")
+RAWPAGE_ACTION(CommentDelete,          "comment.delete",          Comments, "action.comment.delete")
+RAWPAGE_ACTION(CommentEditInPlace,     "comment.editInPlace",     Comments, "action.comment.editInPlace")
+
+// =============================================================================================
+// Features.md §5 -- Assemble
+// =============================================================================================
+RAWPAGE_ACTION(PageRotate,             "page.rotate",             PageThumbnails, "action.page.rotate")
+RAWPAGE_ACTION(PageInsert,             "page.insert",             PageThumbnails, "action.page.insert")
+RAWPAGE_ACTION(PageDelete,             "page.delete",             PageThumbnails, "action.page.delete")
+RAWPAGE_ACTION(PageExtract,            "page.extract",            PageThumbnails, "action.page.extract")
+RAWPAGE_ACTION(PageReplace,            "page.replace",            PageThumbnails, "action.page.replace")
+RAWPAGE_ACTION(PageSplit,              "page.split",              Global,         "action.page.split")
+RAWPAGE_ACTION(PageCrop,               "page.crop",               Viewer,         "action.page.crop")
+RAWPAGE_ACTION(PageResize,             "page.resize",             Global,         "action.page.resize")
+RAWPAGE_ACTION(PageRenumber,           "page.renumber",           Global,         "action.page.renumber")
+RAWPAGE_ACTION(PageDuplicate,          "page.duplicate",          PageThumbnails, "action.page.duplicate")
+RAWPAGE_ACTION(PageMoveEarlier,        "page.moveEarlier",        PageThumbnails, "action.page.moveEarlier")
+RAWPAGE_ACTION(PageMoveLater,          "page.moveLater",          PageThumbnails, "action.page.moveLater")
+RAWPAGE_ACTION(PageGoToSelected,       "page.goToSelected",       PageThumbnails, "action.page.goToSelected")
+RAWPAGE_ACTION(PageThumbnailsLarger,   "page.thumbnailsLarger",   PageThumbnails, "action.page.thumbnailsLarger")
+RAWPAGE_ACTION(PageThumbnailsSmaller,  "page.thumbnailsSmaller",  PageThumbnails, "action.page.thumbnailsSmaller")
+RAWPAGE_ACTION(PageSelectAll,          "page.selectAll",          PageThumbnails, "action.page.selectAll")
+RAWPAGE_ACTION(PageCut,                "page.cut",                PageThumbnails, "action.page.cut")
+RAWPAGE_ACTION(PageCopy,               "page.copy",               PageThumbnails, "action.page.copy")
+RAWPAGE_ACTION(PagePaste,              "page.paste",              PageThumbnails, "action.page.paste")
+RAWPAGE_ACTION(MergeDocuments,         "merge.documents",         Global,         "action.merge.documents")
+
+RAWPAGE_ACTION(BookmarkNew,            "bookmark.new",            Viewer,    "action.bookmark.new")
+RAWPAGE_ACTION(BookmarkGoTo,           "bookmark.goTo",           Bookmarks, "action.bookmark.goTo")
+RAWPAGE_ACTION(BookmarkDemote,         "bookmark.demote",         Bookmarks, "action.bookmark.demote")
+RAWPAGE_ACTION(BookmarkPromote,        "bookmark.promote",        Bookmarks, "action.bookmark.promote")
+RAWPAGE_ACTION(BookmarkMoveUp,         "bookmark.moveUp",         Bookmarks, "action.bookmark.moveUp")
+RAWPAGE_ACTION(BookmarkMoveDown,       "bookmark.moveDown",       Bookmarks, "action.bookmark.moveDown")
+RAWPAGE_ACTION(BookmarkExpand,         "bookmark.expand",         Bookmarks, "action.bookmark.expand")
+RAWPAGE_ACTION(BookmarkCollapse,       "bookmark.collapse",       Bookmarks, "action.bookmark.collapse")
+RAWPAGE_ACTION(BookmarkExpandAll,      "bookmark.expandAll",      Bookmarks, "action.bookmark.expandAll")
+RAWPAGE_ACTION(BookmarkCollapseAll,    "bookmark.collapseAll",    Bookmarks, "action.bookmark.collapseAll")
+RAWPAGE_ACTION(BookmarkSetDestination, "bookmark.setDestination", Bookmarks, "action.bookmark.setDestination")
+RAWPAGE_ACTION(BookmarkGenerate,       "bookmark.generate",       Global,    "action.bookmark.generate")
+RAWPAGE_ACTION(BookmarkRename,         "bookmark.rename",         Bookmarks, "action.bookmark.rename")
+RAWPAGE_ACTION(BookmarkDelete,         "bookmark.delete",         Bookmarks, "action.bookmark.delete")
+
+RAWPAGE_ACTION(TagRetype,              "tag.retype",              Global, "action.tag.retype")
+RAWPAGE_ACTION(TagMove,                "tag.move",                Global, "action.tag.move")
+RAWPAGE_ACTION(TagAutoTag,             "tag.autoTag",             Global, "action.tag.autoTag")
+RAWPAGE_ACTION(TagSetLanguage,         "tag.setLanguage",         Global, "action.tag.setLanguage")
+RAWPAGE_ACTION(TagMarkArtifact,        "tag.markArtifact",        Global, "action.tag.markArtifact")
+RAWPAGE_ACTION(TagOrderOverlay,        "tag.orderOverlay",        Global, "action.tag.orderOverlay")
+
+RAWPAGE_ACTION(LayerShow,              "layer.show",              Global, "action.layer.show")
+RAWPAGE_ACTION(LayerHide,              "layer.hide",              Global, "action.layer.hide")
+RAWPAGE_ACTION(LayerLock,              "layer.lock",              Global, "action.layer.lock")
+RAWPAGE_ACTION(LayerMerge,             "layer.merge",             Global, "action.layer.merge")
+RAWPAGE_ACTION(LayerFlatten,           "layer.flatten",           Global, "action.layer.flatten")
+RAWPAGE_ACTION(LayerProperties,        "layer.properties",        Global, "action.layer.properties")
+
+RAWPAGE_ACTION(HeaderFooterAdd,        "headerFooter.add",        Global, "action.headerFooter.add")
+RAWPAGE_ACTION(HeaderFooterUpdate,     "headerFooter.update",     Global, "action.headerFooter.update")
+RAWPAGE_ACTION(HeaderFooterRemove,     "headerFooter.remove",     Global, "action.headerFooter.remove")
+RAWPAGE_ACTION(BatesAdd,               "bates.add",               Global, "action.bates.add")
+RAWPAGE_ACTION(BatesRemove,            "bates.remove",            Global, "action.bates.remove")
+RAWPAGE_ACTION(WatermarkAdd,           "watermark.add",           Global, "action.watermark.add")
+RAWPAGE_ACTION(WatermarkUpdate,        "watermark.update",        Global, "action.watermark.update")
+RAWPAGE_ACTION(WatermarkRemove,        "watermark.remove",        Global, "action.watermark.remove")
+RAWPAGE_ACTION(ImpositionBooklet,      "imposition.booklet",      Global, "action.imposition.booklet")
+RAWPAGE_ACTION(ImpositionNUp,          "imposition.nUp",          Global, "action.imposition.nUp")
+
+RAWPAGE_ACTION(LinkCreate,             "link.create",             Viewer, "action.link.create")
+RAWPAGE_ACTION(LinkEdit,               "link.edit",               Viewer, "action.link.edit")
+RAWPAGE_ACTION(LinkDelete,             "link.delete",             Viewer, "action.link.delete")
+RAWPAGE_ACTION(LinkAutoDetect,         "link.autoDetect",         Global, "action.link.autoDetect")
+RAWPAGE_ACTION(DestinationCreate,      "destination.create",      Global, "action.destination.create")
+RAWPAGE_ACTION(DestinationRename,      "destination.rename",      Global, "action.destination.rename")
+RAWPAGE_ACTION(DestinationDelete,      "destination.delete",      Global, "action.destination.delete")
+
+RAWPAGE_ACTION(BatchRunSequence,       "batch.runSequence",       Global, "action.batch.runSequence")
+RAWPAGE_ACTION(BatchEditSequences,     "batch.editSequences",     Global, "action.batch.editSequences")
+RAWPAGE_ACTION(BatchWatchedFolders,    "batch.watchedFolders",    Global, "action.batch.watchedFolders")
+RAWPAGE_ACTION(BatchReport,            "batch.report",            Global, "action.batch.report")
+
+// =============================================================================================
+// Features.md §6 -- Forms
+// =============================================================================================
+RAWPAGE_ACTION(FormDesignMode,         "form.designMode",         Global,      "action.form.designMode")
+RAWPAGE_ACTION(FormTextField,          "form.textField",          FormsDesign, "action.form.textField")
+RAWPAGE_ACTION(FormCheckBox,           "form.checkBox",           FormsDesign, "action.form.checkBox")
+RAWPAGE_ACTION(FormRadioButton,        "form.radioButton",        FormsDesign, "action.form.radioButton")
+RAWPAGE_ACTION(FormDropDown,           "form.dropDown",           FormsDesign, "action.form.dropDown")
+RAWPAGE_ACTION(FormListBox,            "form.listBox",            FormsDesign, "action.form.listBox")
+RAWPAGE_ACTION(FormPushButton,         "form.pushButton",         FormsDesign, "action.form.pushButton")
+RAWPAGE_ACTION(FormSignatureField,     "form.signatureField",     FormsDesign, "action.form.signatureField")
+RAWPAGE_ACTION(FormBarcodeField,       "form.barcodeField",       FormsDesign, "action.form.barcodeField")
+RAWPAGE_ACTION(FormFieldProperties,    "form.fieldProperties",    FormsDesign, "action.form.fieldProperties")
+RAWPAGE_ACTION(FormTabOrder,           "form.tabOrder",           FormsDesign, "action.form.tabOrder")
+RAWPAGE_ACTION(FormCalculationOrder,   "form.calculationOrder",   FormsDesign, "action.form.calculationOrder")
+RAWPAGE_ACTION(FormDuplicateField,     "form.duplicateField",     FormsDesign, "action.form.duplicateField")
+RAWPAGE_ACTION(FormAlignFields,        "form.alignFields",        FormsDesign, "action.form.alignFields")
+RAWPAGE_ACTION(FormDistributeFields,   "form.distributeFields",   FormsDesign, "action.form.distributeFields")
+RAWPAGE_ACTION(FormRecognizeFields,    "form.recognizeFields",    Global,      "action.form.recognizeFields")
+RAWPAGE_ACTION(FormHighlightFields,    "form.highlightFields",    FormsFill,   "action.form.highlightFields")
+RAWPAGE_ACTION(FormImportData,         "form.importData",         FormsFill,   "action.form.importData")
+RAWPAGE_ACTION(FormExportData,         "form.exportData",         FormsFill,   "action.form.exportData")
+RAWPAGE_ACTION(FormReset,              "form.reset",              FormsFill,   "action.form.reset")
+RAWPAGE_ACTION(FormFlatten,            "form.flatten",            Global,      "action.form.flatten")
+RAWPAGE_ACTION(FormDeleteField,        "form.deleteField",        FormsDesign, "action.form.deleteField")
+RAWPAGE_ACTION(FormSelectAllFields,    "form.selectAllFields",    FormsDesign, "action.form.selectAllFields")
+RAWPAGE_ACTION(FormToggleTabOrderBadges,"form.toggleTabOrderBadges",FormsDesign,"action.form.toggleTabOrderBadges")
+RAWPAGE_ACTION(FormCommitField,        "form.commitField",        FormsFill,   "action.form.commitField")
+RAWPAGE_ACTION(FormRevertField,        "form.revertField",        FormsFill,   "action.form.revertField")
+RAWPAGE_ACTION(FormBeginEdit,          "form.beginEdit",          FormsFill,   "action.form.beginEdit")
+RAWPAGE_ACTION(FormInsertNewLine,      "form.insertNewLine",      FormsFill,   "action.form.insertNewLine")
+RAWPAGE_ACTION(FormToggleFocused,      "form.toggleFocused",      FormsFill,   "action.form.toggleFocused")
+RAWPAGE_ACTION(FormShowFieldTooltip,   "form.showFieldTooltip",   FormsFill,   "action.form.showFieldTooltip")
+
+// =============================================================================================
+// Features.md §7 -- Secure & Sign
+// =============================================================================================
+RAWPAGE_ACTION(SecurityPassword,       "security.password",       Global, "action.security.password")
+RAWPAGE_ACTION(SecurityCertificate,    "security.certificate",    Global, "action.security.certificate")
+RAWPAGE_ACTION(SecuritySchemes,        "security.schemes",        Global, "action.security.schemes")
+RAWPAGE_ACTION(SecurityRemove,         "security.remove",         Global, "action.security.remove")
+RAWPAGE_ACTION(SecurityProperties,     "security.properties",     Global, "action.security.properties")
+
+RAWPAGE_ACTION(SignDocument,           "sign.document",           Global, "action.sign.document")
+RAWPAGE_ACTION(SignCertify,            "sign.certify",            Global, "action.sign.certify")
+RAWPAGE_ACTION(SignAppearance,         "sign.appearance",         Global, "action.sign.appearance")
+RAWPAGE_ACTION(SignDigitalIds,         "sign.digitalIds",         Global, "action.sign.digitalIds")
+RAWPAGE_ACTION(SignTrustedIdentities,  "sign.trustedIdentities",  Global, "action.sign.trustedIdentities")
+RAWPAGE_ACTION(SignValidate,           "sign.validate",           Global, "action.sign.validate")
+RAWPAGE_ACTION(SignValidateAll,        "sign.validateAll",        Global, "action.sign.validateAll")
+RAWPAGE_ACTION(SignViewSignedVersion,  "sign.viewSignedVersion",  Global, "action.sign.viewSignedVersion")
+RAWPAGE_ACTION(SignCompareVersions,    "sign.compareVersions",    Global, "action.sign.compareVersions")
+RAWPAGE_ACTION(SignTimestamp,          "sign.timestamp",          Global, "action.sign.timestamp")
+RAWPAGE_ACTION(SignClear,              "sign.clear",              Global, "action.sign.clear")
+
+RAWPAGE_ACTION(RedactMark,             "redact.mark",             Viewer, "action.redact.mark")
+RAWPAGE_ACTION(RedactMarkSearch,       "redact.markSearch",       Global, "action.redact.markSearch")
+RAWPAGE_ACTION(RedactMarkPage,         "redact.markPage",         Global, "action.redact.markPage")
+RAWPAGE_ACTION(RedactApply,            "redact.apply",            Global, "action.redact.apply")
+RAWPAGE_ACTION(RedactProperties,       "redact.properties",       Global, "action.redact.properties")
+RAWPAGE_ACTION(SanitizeDocument,       "sanitize.document",       Global, "action.sanitize.document")
+RAWPAGE_ACTION(SanitizeRemoveHidden,   "sanitize.removeHidden",   Global, "action.sanitize.removeHidden")
+RAWPAGE_ACTION(ProtectEnvelope,        "protect.envelope",        Global, "action.protect.envelope")
+RAWPAGE_ACTION(ProtectRightsManagement,"protect.rightsManagement",Global, "action.protect.rightsManagement")
+
+// =============================================================================================
+// Features.md §9 -- System & Infrastructure
+// =============================================================================================
+RAWPAGE_ACTION(LogSetLevel,            "log.setLevel",            Global, "action.log.setLevel")
+RAWPAGE_ACTION(LogOpenFolder,          "log.openFolder",          Global, "action.log.openFolder")
+RAWPAGE_ACTION(DiagnosticsBundle,      "diagnostics.bundle",      Global, "action.diagnostics.bundle")
+RAWPAGE_ACTION(LicenseActivate,        "license.activate",        Global, "action.license.activate")
+RAWPAGE_ACTION(LicenseDeactivate,      "license.deactivate",      Global, "action.license.deactivate")
+RAWPAGE_ACTION(UiCustomize,            "ui.customize",            Global, "action.ui.customize")
+RAWPAGE_ACTION(UiResetCustomization,   "ui.resetCustomization",   Global, "action.ui.resetCustomization")
+RAWPAGE_ACTION(UiQatAdd,               "ui.qatAdd",               Global, "action.ui.qatAdd")
+RAWPAGE_ACTION(UiQatRemove,            "ui.qatRemove",            Global, "action.ui.qatRemove")
+RAWPAGE_ACTION(UiQatPlacement,         "ui.qatPlacement",         Global, "action.ui.qatPlacement")
+
+// =============================================================================================
+// ALIASES -- append only, never delete (rule 2 above, decision D1-16)
+// =============================================================================================
+// Each row keeps a renamed id resolving from a saved shortcut or QAT entry written by an older
+// build. There are none yet: nothing has been renamed, because nothing has shipped. The first
+// rename in a later stage adds the first row here IN THE SAME CHANGE as the rename -- that is the
+// point at which this section stops being empty and starts being load-bearing.
+//
+// The `tst_actionregistry` alias fixture exercises the mechanism against a synthetic table rather
+// than against this list, so the machinery is tested before the first real rename needs it, not
+// after. A mechanism whose first use is also its first test is a mechanism nobody knows works.
+
+// Both macros are undefined unconditionally, so an includer defines exactly the one it cares about
+// and never has to clean up. The alternative -- leaving them defined -- makes the second include in
+// a translation unit silently reuse the first one's expansion, which is the classic X-macro bug.
+#undef RAWPAGE_ACTION
+#undef RAWPAGE_ACTION_ALIAS

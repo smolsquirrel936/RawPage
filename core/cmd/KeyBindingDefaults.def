@@ -1,0 +1,331 @@
+// -*- C++ -*-  THE DEFAULT KEY BINDINGS. Seeded from `Features.md` §8, row for row.
+//
+// §8 is the SINGLE SOURCE OF TRUTH for key bindings; this file is its executable form and must not
+// drift from it. `tst_keybindings` parses §8 out of the Markdown and asserts that every row here has
+// a row there and vice versa (decision D1-9), so a documentation edit the code has not absorbed
+// breaks the build. That strictness is the point: the alternative -- a hand-copied list nobody
+// checks -- fails *silently*, which is strictly worse.
+//
+//   RAWPAGE_BINDING(Context, "Chord", ActionEnumerator)
+//   RAWPAGE_BINDING_NATIVE(Context, "Chord", "why the focused widget owns this")
+//
+// ---------------------------------------------------------------------------------------------
+// WHY THERE ARE TWO MACROS -- and the rule that decides which one a row gets.
+//
+// Some §8 rows are not commands. `↑ / ↓ / ← / →` in the Page Thumbnails pane means "move the
+// selection", which is what a `QListView` already does; `Tab` in Forms — Fill means "next field",
+// which is the focus chain. Giving those an `ActionId` would mint permanent public names for
+// behaviours nothing will ever dispatch -- and every `ActionId` string is permanent, because a
+// user's saved shortcuts key off it (D1-16).
+//
+// THE TEST: a row is widget-native if it moves focus, selection, or scroll INSIDE the focused
+// widget and has no meaning outside an interactive session. Everything else is dispatched. That
+// line is drawn from `CLAUDE.md`'s standing rule -- *no feature the headless batch path cannot
+// reach* -- read in the other direction: arrow-key list navigation is an interaction, not a
+// feature, and a batch run would never invoke it. "Delete the selected pages" is a feature.
+//
+// A native row is still RECORDED, so §8 stays accounted for row by row and the test can hold both
+// halves to the same standard. Silently dropping these rows would make "the store matches §8" true
+// only of the rows I found convenient.
+// ---------------------------------------------------------------------------------------------
+
+#ifndef RAWPAGE_BINDING
+#define RAWPAGE_BINDING(Context, Chord, Enumerator)
+#endif
+
+#ifndef RAWPAGE_BINDING_NATIVE
+#define RAWPAGE_BINDING_NATIVE(Context, Chord, Reason)
+#endif
+
+// =============================================================================================
+// Global (active in every context)
+// =============================================================================================
+RAWPAGE_BINDING(Global, "Ctrl+N",        FileNew)
+RAWPAGE_BINDING(Global, "Ctrl+O",        FileOpen)
+RAWPAGE_BINDING(Global, "Ctrl+W",        FileClose)
+RAWPAGE_BINDING(Global, "Ctrl+S",        FileSave)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+S",  FileSaveAs)
+RAWPAGE_BINDING(Global, "Ctrl+P",        FilePrint)
+RAWPAGE_BINDING(Global, "Ctrl+D",        FileDocumentProperties)
+RAWPAGE_BINDING(Global, "Ctrl+K",        FilePreferences)
+RAWPAGE_BINDING(Global, "Ctrl+Q",        FileQuit)
+RAWPAGE_BINDING(Global, "Ctrl+Tab",      WindowNextTab)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+Tab", WindowPrevTab)
+RAWPAGE_BINDING(Global, "Ctrl+F6",       WindowNext)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+F6", WindowPrev)
+RAWPAGE_BINDING(Global, "F4",            ViewToggleSidebar)
+RAWPAGE_BINDING(Global, "F9",            ViewToggleRibbon)
+RAWPAGE_BINDING(Global, "F11",           ViewFullScreen)
+RAWPAGE_BINDING(Global, "Alt",           AppRibbonKeyTips)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+U",  AppToolFinder)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+P",  PaneThumbnails)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+B",  PaneBookmarks)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+C",  PaneComments)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+I",  PaneFields)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+L",  PaneLayers)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+E",  PaneTags)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+A",  PaneAttachments)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+G",  PaneSignatures)
+RAWPAGE_BINDING(Global, "Ctrl+Shift+O",  PaneDocumentMap)
+RAWPAGE_BINDING(Global, "F1",            HelpContents)
+
+// =============================================================================================
+// Viewer (Review mode)
+// =============================================================================================
+RAWPAGE_BINDING(Viewer, "Ctrl+=",        ViewZoomIn)
+RAWPAGE_BINDING(Viewer, "Ctrl+-",        ViewZoomOut)
+RAWPAGE_BINDING(Viewer, "Ctrl+0",        ViewFitPage)
+RAWPAGE_BINDING(Viewer, "Ctrl+1",        ViewActualSize)
+RAWPAGE_BINDING(Viewer, "Ctrl+2",        ViewFitWidth)
+RAWPAGE_BINDING(Viewer, "Ctrl+3",        ViewFitVisible)
+RAWPAGE_BINDING(Viewer, "Ctrl+4",        ViewReflow)
+RAWPAGE_BINDING(Viewer, "Ctrl+M",        ViewZoomTo)
+RAWPAGE_BINDING(Viewer, "Ctrl+Shift+N",  NavGoToPage)
+RAWPAGE_BINDING_NATIVE(Viewer, "Up",     "scrolls the page surface; QScrollArea already does it")
+RAWPAGE_BINDING_NATIVE(Viewer, "Down",   "scrolls the page surface; QScrollArea already does it")
+RAWPAGE_BINDING_NATIVE(Viewer, "Left",   "scrolls the page surface; QScrollArea already does it")
+RAWPAGE_BINDING_NATIVE(Viewer, "Right",  "scrolls the page surface; QScrollArea already does it")
+RAWPAGE_BINDING(Viewer, "Page Down",     NavNextScreen)
+RAWPAGE_BINDING(Viewer, "Page Up",       NavPrevScreen)
+RAWPAGE_BINDING(Viewer, "Space",         NavNextScreen)
+RAWPAGE_BINDING(Viewer, "Shift+Space",   NavPrevScreen)
+RAWPAGE_BINDING(Viewer, "Ctrl+Page Down", NavNextPage)
+RAWPAGE_BINDING(Viewer, "Ctrl+Page Up",  NavPrevPage)
+RAWPAGE_BINDING(Viewer, "Home",          NavFirstPage)
+RAWPAGE_BINDING(Viewer, "End",           NavLastPage)
+RAWPAGE_BINDING(Viewer, "Alt+Left",      NavPrevView)
+RAWPAGE_BINDING(Viewer, "Alt+Right",     NavNextView)
+RAWPAGE_BINDING(Viewer, "Ctrl+Shift+=",  ViewRotateViewCw)
+RAWPAGE_BINDING(Viewer, "Ctrl+Shift+-",  ViewRotateViewCcw)
+RAWPAGE_BINDING(Viewer, "Ctrl+R",        PageRotate)
+RAWPAGE_BINDING(Viewer, "H",             ToolHand)
+RAWPAGE_BINDING(Viewer, "V",             ToolSelect)
+RAWPAGE_BINDING(Viewer, "Z",             ToolMarqueeZoom)
+RAWPAGE_BINDING(Viewer, "S",             ToolSnapshot)
+RAWPAGE_BINDING(Viewer, "Ctrl+B",        BookmarkNew)
+RAWPAGE_BINDING(Viewer, "Ctrl+E",        ViewTogglePropertiesBar)
+RAWPAGE_BINDING(Viewer, "Ctrl+L",        ViewReadingMode)
+RAWPAGE_BINDING(Viewer, "Ctrl+U",        ViewToggleRulers)
+RAWPAGE_BINDING(Viewer, "Ctrl+'",        ViewToggleGrid)
+RAWPAGE_BINDING(Viewer, "Ctrl+;",        ViewToggleSnapToGrid)
+RAWPAGE_BINDING(Viewer, "Ctrl+Shift+H",  ViewTogglePageMode)
+RAWPAGE_BINDING(Viewer, "Ctrl+Shift+T",  ViewTwoUp)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+C",    CompareDocuments)
+RAWPAGE_BINDING(Viewer, "Ctrl+.",        NavNextComment)
+RAWPAGE_BINDING(Viewer, "Ctrl+,",        NavPrevComment)
+RAWPAGE_BINDING(Viewer, "Ctrl+]",        NavNextDifference)
+RAWPAGE_BINDING(Viewer, "Ctrl+[",        NavPrevDifference)
+
+// =============================================================================================
+// Write mode -- the context the "twelve deliberate collisions" figure is scoped to
+// =============================================================================================
+RAWPAGE_BINDING(Write, "Ctrl+B",         WriteBold)
+RAWPAGE_BINDING(Write, "Ctrl+I",         WriteItalic)
+RAWPAGE_BINDING(Write, "Ctrl+U",         WriteUnderline)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+>",   WriteIncreaseFontSize)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+<",   WriteDecreaseFontSize)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+=",   WriteSuperscript)
+RAWPAGE_BINDING(Write, "Ctrl+=",         WriteSubscript)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+A",   WriteAllCaps)
+RAWPAGE_BINDING(Write, "Ctrl+Space",     WriteClearFormatting)
+RAWPAGE_BINDING(Write, "Ctrl+D",         WriteFontDialog)
+RAWPAGE_BINDING(Write, "Ctrl+L",         WriteAlignLeft)
+RAWPAGE_BINDING(Write, "Ctrl+E",         WriteAlignCenter)
+RAWPAGE_BINDING(Write, "Ctrl+R",         WriteAlignRight)
+RAWPAGE_BINDING(Write, "Ctrl+J",         WriteJustify)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+N",   WriteStyleNormal)
+RAWPAGE_BINDING(Write, "Ctrl+Alt+1",     WriteStyleHeading1)
+RAWPAGE_BINDING(Write, "Ctrl+Alt+2",     WriteStyleHeading2)
+RAWPAGE_BINDING(Write, "Ctrl+Alt+3",     WriteStyleHeading3)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+L",   WriteBulletedList)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+7",   WriteNumberedList)
+RAWPAGE_BINDING(Write, "Tab",            WriteIndent)
+RAWPAGE_BINDING(Write, "Shift+Tab",      WriteOutdent)
+RAWPAGE_BINDING(Write, "Ctrl+K",         WriteInsertHyperlink)
+RAWPAGE_BINDING(Write, "Ctrl+H",         WriteFindReplace)
+RAWPAGE_BINDING(Write, "Ctrl+Enter",     WritePageBreak)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+Enter", WriteColumnBreak)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+Space", WriteNonBreakingSpace)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+8",   WriteToggleFormattingMarks)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+R",   WriteToggleChangeTracking)
+RAWPAGE_BINDING(Write, "Ctrl+Alt+M",     WriteInsertMarginComment)
+RAWPAGE_BINDING(Write, "Alt+=",          WriteAutoSum)
+RAWPAGE_BINDING(Write, "F7",             WriteSpellCheck)
+RAWPAGE_BINDING(Write, "Shift+F7",       WriteSetLanguage)
+RAWPAGE_BINDING(Write, "Ctrl+Alt+F",     EditPreventFurtherEdits)
+RAWPAGE_BINDING(Write, "Ctrl+Shift+W",   WriteWordCount)
+
+// =============================================================================================
+// Annotation tools
+// =============================================================================================
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+M", AnnotStickyNote)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+H", AnnotHighlight)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+U", AnnotUnderline)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+X", AnnotStrikeout)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+T", AnnotTextBox)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+L", AnnotLine)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+R", AnnotRectangle)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+O", AnnotOval)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+N", AnnotPolygon)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+P", AnnotPencil)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+S", AnnotStamp)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+D", AnnotMeasureDistance)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+A", AnnotMeasureArea)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+K", RedactMark)
+RAWPAGE_BINDING(AnnotationTools, "K",          AnnotKeepToolSelected)
+RAWPAGE_BINDING(AnnotationTools, "Enter",      AnnotFinishShape)
+RAWPAGE_BINDING(AnnotationTools, "Esc",        EditCancel)
+RAWPAGE_BINDING(AnnotationTools, "Delete",     AnnotDeleteSelected)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+E",     AnnotProperties)
+RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+Enter", AnnotSetToolDefault)
+
+// =============================================================================================
+// Page Thumbnails pane
+// =============================================================================================
+RAWPAGE_BINDING(PageThumbnails, "Enter",       PageGoToSelected)
+RAWPAGE_BINDING_NATIVE(PageThumbnails, "Up",    "moves the selection; the item view owns it")
+RAWPAGE_BINDING_NATIVE(PageThumbnails, "Down",  "moves the selection; the item view owns it")
+RAWPAGE_BINDING_NATIVE(PageThumbnails, "Left",  "moves the selection; the item view owns it")
+RAWPAGE_BINDING_NATIVE(PageThumbnails, "Right", "moves the selection; the item view owns it")
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+A",      PageSelectAll)
+RAWPAGE_BINDING(PageThumbnails, "Delete",      PageDelete)
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+X",      PageCut)
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+C",      PageCopy)
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+V",      PagePaste)
+RAWPAGE_BINDING(PageThumbnails, "Alt+Up",      PageMoveEarlier)
+RAWPAGE_BINDING(PageThumbnails, "Alt+Down",    PageMoveLater)
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+R",      PageRotate)
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+Shift+X", PageExtract)
+RAWPAGE_BINDING(PageThumbnails, "Ctrl+Shift+D", PageDuplicate)
+RAWPAGE_BINDING(PageThumbnails, "+",           PageThumbnailsLarger)
+RAWPAGE_BINDING(PageThumbnails, "-",           PageThumbnailsSmaller)
+
+// =============================================================================================
+// Bookmarks pane
+// =============================================================================================
+RAWPAGE_BINDING(Bookmarks, "Enter",            BookmarkGoTo)
+RAWPAGE_BINDING(Bookmarks, "F2",               BookmarkRename)
+RAWPAGE_BINDING(Bookmarks, "Delete",           BookmarkDelete)
+RAWPAGE_BINDING(Bookmarks, "Ctrl+B",           BookmarkNew)
+RAWPAGE_BINDING(Bookmarks, "Tab",              BookmarkDemote)
+RAWPAGE_BINDING(Bookmarks, "Shift+Tab",        BookmarkPromote)
+RAWPAGE_BINDING(Bookmarks, "Alt+Up",           BookmarkMoveUp)
+RAWPAGE_BINDING(Bookmarks, "Alt+Down",         BookmarkMoveDown)
+RAWPAGE_BINDING(Bookmarks, "Right",            BookmarkExpand)
+RAWPAGE_BINDING(Bookmarks, "Left",             BookmarkCollapse)
+RAWPAGE_BINDING(Bookmarks, "*",                BookmarkExpandAll)
+RAWPAGE_BINDING(Bookmarks, "/",                BookmarkCollapseAll)
+RAWPAGE_BINDING(Bookmarks, "Ctrl+Shift+D",     BookmarkSetDestination)
+
+// =============================================================================================
+// Comments pane
+// =============================================================================================
+RAWPAGE_BINDING_NATIVE(Comments, "Up",   "moves through the comment list; the item view owns it")
+RAWPAGE_BINDING_NATIVE(Comments, "Down", "moves through the comment list; the item view owns it")
+RAWPAGE_BINDING(Comments, "Enter",             CommentOpenEditor)
+RAWPAGE_BINDING(Comments, "F2",                CommentEditInPlace)
+RAWPAGE_BINDING(Comments, "Ctrl+Enter",        CommentReply)
+RAWPAGE_BINDING(Comments, "Delete",            CommentDelete)
+RAWPAGE_BINDING(Comments, "Space",             CommentToggleCheckmark)
+RAWPAGE_BINDING(Comments, "Ctrl+Shift+K",      CommentSetStatus)
+RAWPAGE_BINDING(Comments, "Ctrl+F",            FindInComments)
+RAWPAGE_BINDING(Comments, "Ctrl+.",            NavNextComment)
+RAWPAGE_BINDING(Comments, "Ctrl+,",            NavPrevComment)
+
+// =============================================================================================
+// Forms -- Design
+// =============================================================================================
+RAWPAGE_BINDING(FormsDesign, "Ctrl+Alt+F",     FormDesignMode)
+RAWPAGE_BINDING(FormsDesign, "T",              FormTextField)
+RAWPAGE_BINDING(FormsDesign, "K",              FormCheckBox)
+RAWPAGE_BINDING(FormsDesign, "B",              FormRadioButton)
+RAWPAGE_BINDING(FormsDesign, "D",              FormDropDown)
+RAWPAGE_BINDING(FormsDesign, "L",              FormListBox)
+RAWPAGE_BINDING(FormsDesign, "U",              FormPushButton)
+RAWPAGE_BINDING(FormsDesign, "G",              FormSignatureField)
+RAWPAGE_BINDING(FormsDesign, "X",              FormBarcodeField)
+RAWPAGE_BINDING_NATIVE(FormsDesign, "Tab",       "moves the field selection along the tab order")
+RAWPAGE_BINDING_NATIVE(FormsDesign, "Shift+Tab", "moves the field selection along the tab order")
+RAWPAGE_BINDING(FormsDesign, "Enter",          FormFieldProperties)
+RAWPAGE_BINDING(FormsDesign, "Delete",         FormDeleteField)
+RAWPAGE_BINDING(FormsDesign, "Ctrl+A",         FormSelectAllFields)
+RAWPAGE_BINDING(FormsDesign, "Ctrl+D",         FormDuplicateField)
+RAWPAGE_BINDING(FormsDesign, "Ctrl+Shift+T",   FormToggleTabOrderBadges)
+RAWPAGE_BINDING(FormsDesign, "Ctrl+Alt+G",     FormHighlightFields)
+
+// =============================================================================================
+// Forms -- Fill
+// =============================================================================================
+RAWPAGE_BINDING_NATIVE(FormsFill, "Tab",       "moves focus to the next field; the focus chain owns it")
+RAWPAGE_BINDING_NATIVE(FormsFill, "Shift+Tab", "moves focus to the previous field; the focus chain owns it")
+RAWPAGE_BINDING(FormsFill, "Space",            FormToggleFocused)
+RAWPAGE_BINDING_NATIVE(FormsFill, "Up",        "changes the combo/list selection inside the focused field")
+RAWPAGE_BINDING_NATIVE(FormsFill, "Down",      "changes the combo/list selection inside the focused field")
+RAWPAGE_BINDING(FormsFill, "Enter",            FormCommitField)
+RAWPAGE_BINDING(FormsFill, "Ctrl+Enter",       FormInsertNewLine)
+RAWPAGE_BINDING(FormsFill, "Esc",              FormRevertField)
+RAWPAGE_BINDING(FormsFill, "F2",               FormBeginEdit)
+RAWPAGE_BINDING(FormsFill, "Ctrl+Alt+G",       FormHighlightFields)
+RAWPAGE_BINDING(FormsFill, "Ctrl+Shift+K",     FormShowFieldTooltip)
+
+// =============================================================================================
+// Find / Search
+// =============================================================================================
+RAWPAGE_BINDING(FindSearch, "Ctrl+F",          FindFind)
+RAWPAGE_BINDING(FindSearch, "F3",              FindNext)
+RAWPAGE_BINDING(FindSearch, "Shift+F3",        FindPrevious)
+RAWPAGE_BINDING(FindSearch, "Ctrl+G",          FindNext)
+RAWPAGE_BINDING(FindSearch, "Ctrl+Shift+G",    FindPrevious)
+RAWPAGE_BINDING(FindSearch, "Ctrl+Shift+F",    FindAdvancedSearch)
+RAWPAGE_BINDING(FindSearch, "Enter",           FindJumpToResult)
+RAWPAGE_BINDING_NATIVE(FindSearch, "Up",   "moves through the result list; the item view owns it")
+RAWPAGE_BINDING_NATIVE(FindSearch, "Down", "moves through the result list; the item view owns it")
+RAWPAGE_BINDING(FindSearch, "Alt+R",           FindToggleRegex)
+RAWPAGE_BINDING(FindSearch, "Alt+W",           FindToggleWholeWords)
+RAWPAGE_BINDING(FindSearch, "Alt+C",           FindToggleCaseSensitive)
+RAWPAGE_BINDING(FindSearch, "Esc",             FindClose)
+
+// =============================================================================================
+// Full Screen & Presentation
+// =============================================================================================
+RAWPAGE_BINDING(FullScreen, "F11",             PresentExit)
+RAWPAGE_BINDING(FullScreen, "Esc",             PresentExit)
+RAWPAGE_BINDING(FullScreen, "Space",           NavNextPage)
+RAWPAGE_BINDING(FullScreen, "Enter",           NavNextPage)
+RAWPAGE_BINDING(FullScreen, "Right",           NavNextPage)
+RAWPAGE_BINDING(FullScreen, "Page Down",       NavNextPage)
+RAWPAGE_BINDING(FullScreen, "Shift+Space",     NavPrevPage)
+RAWPAGE_BINDING(FullScreen, "Backspace",       NavPrevPage)
+RAWPAGE_BINDING(FullScreen, "Left",            NavPrevPage)
+RAWPAGE_BINDING(FullScreen, "Page Up",         NavPrevPage)
+RAWPAGE_BINDING(FullScreen, "Home",            NavFirstPage)
+RAWPAGE_BINDING(FullScreen, "End",             NavLastPage)
+RAWPAGE_BINDING(FullScreen, "B",               PresentBlankBlack)
+RAWPAGE_BINDING(FullScreen, "W",               PresentBlankWhite)
+RAWPAGE_BINDING(FullScreen, "P",               PresentLaserPointer)
+RAWPAGE_BINDING(FullScreen, "Ctrl+L",          PresentToggleCursor)
+RAWPAGE_BINDING(FullScreen, "Ctrl+Shift+H",    PresentAutoAdvance)
+RAWPAGE_BINDING(FullScreen, "Ctrl+Shift+M",    PresentNextMonitor)
+
+// =============================================================================================
+// Common -- applies everywhere unless a context above overrides the chord.
+// §8's own heading says contexts MAY override these, which is why the nine class-2 overrides are
+// not shadows and `shadows()` must not report them.
+// =============================================================================================
+RAWPAGE_BINDING(Common, "Ctrl+Z",              EditUndo)
+RAWPAGE_BINDING(Common, "Ctrl+Y",              EditRedo)
+RAWPAGE_BINDING(Common, "Ctrl+Shift+Z",        EditRedo)
+RAWPAGE_BINDING(Common, "Ctrl+X",              EditCut)
+RAWPAGE_BINDING(Common, "Ctrl+C",              EditCopy)
+RAWPAGE_BINDING(Common, "Ctrl+V",              EditPaste)
+RAWPAGE_BINDING(Common, "Ctrl+Shift+V",        EditPasteSpecial)
+RAWPAGE_BINDING(Common, "Ctrl+A",              EditSelectAll)
+RAWPAGE_BINDING(Common, "Delete",              EditDelete)
+RAWPAGE_BINDING(Common, "Backspace",           EditDelete)
+RAWPAGE_BINDING(Common, "Esc",                 EditCancel)
+RAWPAGE_BINDING(Common, "F2",                  EditRename)
+RAWPAGE_BINDING(Common, "Alt+Enter",           EditProperties)
+RAWPAGE_BINDING(Common, "Ctrl+F",              FindFind)
+
+#undef RAWPAGE_BINDING
+#undef RAWPAGE_BINDING_NATIVE

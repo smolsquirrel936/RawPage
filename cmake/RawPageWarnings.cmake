@@ -83,6 +83,23 @@ function(rawpage_common_flags target)
 
     target_link_options(${target} PRIVATE
         $<$<CONFIG:Release,MinSizeRel>:-Wl,--gc-sections>
+
+        # A build id on EVERY linked target, in every configuration -- decision D1-13 in
+        # Stage1-AppShell-Plan.md 3. This toolchain emits DWARF and never a .pdb, so a field
+        # minidump is symbolized against an archived unstripped binary rather than by a symbol
+        # server, and the build id is what matches the two.
+        #
+        # --build-id is an ELF spelling and this is PE. GNU ld honours it anyway, by emitting a
+        # CodeView RSDS record -- a 16-byte GUID plus an age -- into a `.buildid` section.
+        # Measured on the pinned toolchain 2026-08-23: there is NO .note.gnu.build-id in the
+        # output, and MiniDumpWriteDump copies that same RSDS record into the dump's module
+        # list, so a dump identifies its own binary with no side table. scripts/symbolize.ps1
+        # reads both ends.
+        #
+        # Inert on the static layer libraries, which are archived rather than linked. It is set
+        # here rather than only on the executable so that the property holds for every future
+        # linked target -- the satellite DLLs of risk R8 included -- without anyone remembering.
+        -Wl,--build-id
     )
 endfunction()
 
@@ -133,16 +150,27 @@ endfunction()
 # --- The application executable ---------------------------------------------
 # -mwindows sets the Windows GUI subsystem, so no console window appears.
 #
-# -municode (the translation of /ENTRY:wWinMainCRTStartup) is deliberately NOT set
-# yet. Verified on the pinned toolchain 2026-08-17: with -mwindows -municode and a
-# plain main(), the link fails with
-#     undefined reference to `wWinMain'
-# because -municode selects the wide entry point, which does not exist until there
-# is a real GUI entry point. Stage 1 turns it on together with Qt's entry-point
-# implementation. Turning it on now would mean inventing a wWinMain stub whose only
-# purpose is to satisfy a flag -- which is how a codebase acquires code nobody can
-# explain.
+# -municode (the translation of /ENTRY:wWinMainCRTStartup) is deliberately NOT set,
+# and that is now a MEASURED result rather than a deferral -- decision D1-3 in
+# Stage1-AppShell-Plan.md 3, resolving Stage 0 deviation (a).
+#
+# Stage 0 recorded only that -mwindows -municode against a plain main() fails to link
+# (undefined reference to `wWinMain'). Stage 1 asked the question that actually matters:
+# does anything we consume lose a non-ASCII argument without it? Qt on Windows sources
+# QCoreApplication::arguments() from GetCommandLineW(), not from argv, and
+# `rawpage.exe --print-args` prints both lists side by side so the claim is checked
+# rather than believed. See app/main.cpp and testing guide case A-05 for the figures.
+#
+# The fallback, had the measurement gone the other way, was Qt6::EntryPointPrivate --
+# NOT a hand-rolled wWinMain stub written to satisfy a flag.
 function(rawpage_app_flags target)
     rawpage_common_flags(${target})
     target_link_options(${target} PRIVATE -mwindows)
+
+    # The flag's state, exported to the code that reports it (rawpage.exe --print-args).
+    # Set HERE, beside the link option it describes, so the diagnostic cannot claim one thing
+    # while the link does another. The first draft of that diagnostic probed _UNICODE instead
+    # and read "yes" with -municode nowhere in the build -- Qt6::Core defines UNICODE and
+    # _UNICODE in its INTERFACE compile definitions, so the probe was measuring Qt.
+    target_compile_definitions(${target} PRIVATE RAWPAGE_MUNICODE=0)
 endfunction()

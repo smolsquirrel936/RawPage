@@ -28,6 +28,15 @@ namespace rawpage::core {
 // Deliberately coarse. These are the categories a CALLER can act on differently; the
 // specific cause belongs in messageKey and context. A code per failure site would give
 // hundreds of values that every switch has to ignore.
+//
+// `Unavailable` was added at Stage 1 T3 against exactly that test. `ActionRegistry::dispatch`
+// must distinguish "no such action" from "that action is not available right now"
+// (Stage1-AppShell-Testing-Guide.md A-22), and a CLI or batch caller genuinely acts differently on
+// the two: the first is a typo in the user's sequence file and is fatal to it, the second is
+// document state and may be worth skipping and continuing. `NotFound` covers the first;
+// `PermissionDenied` does not cover the second, since a disabled action usually reflects selection
+// or mode rather than a permission. Distinguishing them by messageKey alone would have left the
+// code -- the thing callers switch on -- unable to express the difference.
 enum class ErrorCode {
     Unknown,
     InvalidArgument,   // the caller passed something impossible
@@ -36,6 +45,7 @@ enum class ErrorCode {
     IoFailure,         // the disk, the network, or a handle failed
     ParseFailure,      // malformed input; for PDFs this is the repair path's trigger
     Unsupported,       // well-formed, but a feature we do not implement
+    Unavailable,       // exists and is implemented, but not applicable in the current state
     Cancelled,         // the user or a scheduler stopped the operation
     Corrupted,         // internal invariant broken -- a bug, not bad input
 };

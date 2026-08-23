@@ -17,6 +17,42 @@ Professional (Windows)**, whose published user manual is the primary requirement
 > find yourself wanting to write "we'll use library X" or "v1 drops Y", it belongs in one of those
 > two documents, not this one.
 
+> ## Removed from scope — accessibility (2026-08-23)
+>
+> **On the user's instruction, accessibility is out of the product entirely.** This catalog no longer
+> enumerates it, and no stage builds it. This block is the single record of that decision; every other
+> document cross-references here rather than restating it.
+>
+> **Removed — the product's own interface:** accessible names, roles and values for screen readers;
+> screen-reader reading order; high-contrast themes and deference to the OS high-contrast setting
+> (Stage 1 decision **D1-15**, withdrawn); the "reduce motion" setting; Stage 14's UI accessibility
+> pass and its automation-name audit test; the **A3** acceptance criterion **R-8** and its manual case
+> **M-08**; Stage 1 precondition **P-2** (Narrator).
+>
+> **Removed — document accessibility as a feature:** §1.6 Read Aloud with `platform::ISpeech`,
+> `WinSpeech` and `ReadAloudBar` (taking the platform interface count down by one — **corrected at
+> Stage 1 T7**: that was a count of §4.3's table *rows*, and the interface count is **seventeen**,
+> because `ICertificateStore` and `ICryptoProvider` share a row and `IPrinting` had never been
+> written down at all. `Tech-Stack-Plan.md` §4.3 owns the figure);
+> the accessibility checker and its report dialog; alternate text, table-header scope and artifact
+> marking; **PDF/UA** (ISO 14289) as a conformance target. PDF/A and PDF/X are unaffected.
+>
+> **Deliberately KEPT, and not to be removed as collateral:**
+> - **Full keyboard operability.** Every command reachable without a mouse is core architecture —
+>   `ActionRegistry`, `ShortcutBinder` and the §8 tables exist for it — and a power-user feature, not
+>   an accessibility one. Visible keyboard focus stays with it.
+> - **The tag tree and document structure** (`core/doc/TagTree`, `core/text/LayoutAnalyzer`,
+>   §5.5 below). It is the durable home of Write mode's structure under decision **O2**: the composer
+>   *writes* it and the converter reads it back. Removing it would gut Stage 13 for reasons that have
+>   nothing to do with accessibility. The a11y framing is gone; the structure is not.
+> - **Reflow view** and **invert/substitute page colors**, which are reading conveniences under §1.2's
+>   non-destructive view transforms rather than parts of the accessibility surface.
+>
+> **What this costs, recorded once so it is not rediscovered as a surprise:** the EU Accessibility Act
+> has applied since June 2025, and EN 301 549 / Section 508 gate most public-sector and large-
+> enterprise procurement. This decision closes those channels and drops a feature the reference
+> product ships. It was taken knowingly.
+
 ### Sources
 
 | # | Source | Used for |
@@ -25,7 +61,7 @@ Professional (Windows)**, whose published user manual is the primary requirement
 | S2 | [Editing PDFs — Write mode vs Review mode](https://www.rightpdf.com/en/helpcontent/Right-PDF-Pro/10368-Editing-PDFs) | §3's dual-mode model, the *Convert to Writable* / *Prevent Further Edits* lifecycle, and the per-mode capability split |
 | S3 | [Page through a document](https://www.rightpdf.com/en/helpcontent/Right-PDF-Pro/10127-Page-through-a-document) | §1 page-control surface (first/prev/next/last, page-number box, arrow-key paging) |
 | S4 | [Right PDF Pro (Windows) User Manual, full PDF, rev. 2025-05-05](https://cms.rightpdf.com/Backend/Export/EN/Right_PDF_Pro_(Windows)_UserManual_en.pdf) | Cross-check of chapter contents |
-| S5 | ISO 32000-1 / 32000-2 (PDF 1.7 / PDF 2.0), ISO 19005 (PDF/A), ISO 14289 (PDF/UA), ISO 15930 (PDF/X) | §9 format-support list and conformance targets |
+| S5 | ISO 32000-1 / 32000-2 (PDF 1.7 / PDF 2.0), ISO 19005 (PDF/A), ISO 15930 (PDF/X) | §9 format-support list and conformance targets. *(ISO 14289 (PDF/UA) was dropped 2026-08-23 with the accessibility removal.)* |
 | S6 | Acrobat-family and word-processor keyboard conventions | §8 key-binding defaults — **see the §8 provenance note** |
 
 **Honesty note on §8.** The reference manual (S1–S4) does *not* publish a consolidated keyboard
@@ -210,15 +246,11 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Choose a comparison sensitivity (text-only, text and layout, appearance).
 - Export the comparison as an annotated PDF report.
 
-### 1.6 Read Aloud
+### ~~1.6 Read Aloud~~ ⤵ withdrawn
 
-- Read the current page aloud.
-- Read from the cursor to the end of the document.
-- Read only the current selection.
-- Pause, resume, and stop playback.
-- Select the voice, speaking rate, and volume.
-- Follow the tag tree's reading order when the document is tagged, and a heuristic order when it is not.
-- Highlight the word or sentence currently being spoken.
+⤵ **Removed 2026-08-23** — see *Removed from scope* at the top of this document. The heading is kept
+as a breadcrumb so that §1.7 and §1.8 keep their numbers and every existing cross-reference to them
+still resolves. `platform::ISpeech`, `platform/win/WinSpeech` and `ui/shell/ReadAloudBar` go with it.
 
 ### 1.7 AI assistant
 
@@ -343,7 +375,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Image handling per profile: colour downsampling, compression method, quality.
 - Font handling per profile: embed, subset, or substitute.
 - Target PDF version per profile.
-- PDF/A, PDF/X, and PDF/UA conformance targets per profile.
+- PDF/A and PDF/X conformance targets per profile.
 - Generate bookmarks from source-document headings.
 - Preserve source hyperlinks and cross-references as PDF links.
 - Convert source comments into PDF comments.
@@ -366,7 +398,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Word: convert cross-references and the TOC into working links.
 - Word: convert comments into PDF comments.
 - Word: include or exclude tracked changes.
-- Word: produce a tagged, accessible PDF.
+- Word: produce a tagged PDF.
 - Excel: choose which sheets convert.
 - Excel: fit-to-page and print-area handling.
 - PowerPoint: include speaker notes.
@@ -389,7 +421,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Save a Copy without switching the open document to the new path.
 - Save As Optimized, applying a size-reduction profile.
 - Save As with a target PDF version.
-- Save As a conformance target: PDF/A-1b, PDF/A-2b, PDF/A-3b, PDF/X-1a, PDF/X-4, PDF/UA.
+- Save As a conformance target: PDF/A-1b, PDF/A-2b, PDF/A-3b, PDF/X-1a, PDF/X-4.
 - Validate conformance and report every violation with its page and object.
 - Revert to the last saved state.
 - Automatic recovery of unsaved work after a crash.
@@ -836,21 +868,24 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Generate a table of contents *page* from the bookmark tree, with working links.
 - Import and export the bookmark tree as an indented text or XML file.
 
-### 5.5 Tags, structure, and accessibility
+### 5.5 Tags and document structure
+
+Retained after the 2026-08-23 accessibility removal, deliberately: this is the logical structure of
+the document, and it is where Write mode persists its own model under decision **O2** — the composer
+writes the tag tree and the converter reads it back. The accessibility surface that used to sit on
+top of it is gone; the structure is not.
 
 - View the document's tag tree.
 - Add, delete, and retype tags.
 - Move tags to fix the logical structure.
 - Auto-tag an untagged document.
-- Touch up the reading order with a visual order overlay.
-- Set alternate text on figures.
-- Set table header cells and their scope.
+- Touch up the logical order with a visual order overlay.
 - Set a language on the document, a section, or a run.
 - Mark decorative content as an artifact.
-- Run an accessibility check and get a per-rule report.
-- Fix a reported issue directly from the report.
-- Verify PDF/UA conformance.
-- Set the tab order of a page to follow the document structure.
+
+⤵ **Removed 2026-08-23:** alternate text on figures; table header cells and their scope; the
+accessibility check, its per-rule report and fix-from-report; PDF/UA verification; page tab order
+derived from structure.
 
 ### 5.6 Layers (optional content)
 
@@ -1083,7 +1118,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Printing permission: not allowed, low-resolution only, high-resolution.
 - Changing permission: none, page assembly only, form-fill and signing, commenting plus form-fill, anything except extraction.
 - Allow or forbid copying text, images, and other content.
-- Allow or forbid content extraction for accessibility tools.
+- Allow or forbid content extraction under the ISO 32000 accessibility permission bit. **Kept deliberately** after the 2026-08-23 removal: this is a flag in the PDF encryption dictionary that any conforming reader must round-trip, so `Permissions` has to model it whether or not we ship accessibility features of our own. Not doing so would silently drop a bit from every protected document we save.
 - Enforce a minimum password strength and warn on weak passwords.
 - Change or remove passwords on an already-protected document.
 
@@ -1301,7 +1336,6 @@ that downstream documents cite a defined number rather than an ambiguous one.
 | `Ctrl+;` | Toggle Snap to Grid |
 | `Ctrl+Shift+H` | Toggle single-page ↔ continuous scrolling |
 | `Ctrl+Shift+T` | Toggle Two-Up |
-| `Ctrl+Shift+Y` | Read Aloud — start / stop |
 | `Ctrl+Alt+C` | Compare documents… |
 | `Ctrl+.` / `Ctrl+,` | Next / previous comment |
 | `Ctrl+]` / `Ctrl+[` | Next / previous difference (during a comparison) |
@@ -1518,7 +1552,7 @@ that downstream documents cite a defined number rather than an ambiguous one.
 ### 9.1 Preferences groups
 
 One settings surface, grouped into pages: **General**, **Documents**, **Page Display**,
-**Full Screen**, **Commenting**, **Forms**, **Identity**, **Measuring**, **Reading & Accessibility**,
+**Full Screen**, **Commenting**, **Forms**, **Identity**, **Measuring**, **Reading**,
 **Search**, **Security**, **Signatures**, **Trust Manager**, **Units & Guides**, **Spelling**,
 **Multimedia & 3D**, **Convert to PDF**, **Convert from PDF**, **Batch**, **JavaScript**,
 **Performance & Cache**, **Language**, **Shortcuts**, **Updates**, **AI Assistant**, **Logging**.
@@ -1545,13 +1579,13 @@ One settings surface, grouped into pages: **General**, **Documents**, **Page Dis
 ### 9.3 File formats
 
 **Read:** PDF 1.0 through 2.0 · encrypted PDF (RC4 40/128, AES-128, AES-256) ·
-linearized PDF · tagged PDF · PDF/A, PDF/X, PDF/UA · PDF collections and portfolios ·
+linearized PDF · tagged PDF · PDF/A, PDF/X · PDF collections and portfolios ·
 static XFA, and dynamic XFA to the extent it can be normalized · FDF, XFDF, XML, CSV/TSV form data ·
 U3D and PRC 3D models · common raster formats for import (PNG, JPEG, JPEG 2000, TIFF, BMP, GIF, WebP) ·
 Office formats for conversion (DOCX, DOC, XLSX, XLS, PPTX, PPT, VSDX, RTF) · plain text, HTML, Markdown.
 
 **Write:** PDF 1.4 through 2.0 · linearized (fast-web-view) PDF ·
-PDF/A-1b, PDF/A-2b, PDF/A-3b · PDF/X-1a, PDF/X-4 · PDF/UA ·
+PDF/A-1b, PDF/A-2b, PDF/A-3b · PDF/X-1a, PDF/X-4 ·
 DOCX, XLSX, PPTX, RTF, TXT, HTML · PNG, JPEG, BMP, TIFF (including multi-page) ·
 FDF, XFDF, XML, CSV form data · XFDF comment exchange.
 
@@ -1575,7 +1609,6 @@ FDF, XFDF, XML, CSV form data · XFDF comment exchange.
 - Scanner acquisition through the OS imaging stack.
 - Read digital IDs and root certificates from the OS certificate store.
 - Store secrets (signing-ID passwords, service tokens) in the OS credential store, never in plain text.
-- OS text-to-speech engine for Read Aloud.
 - OS font enumeration and font fallback for missing embedded fonts.
 - GPU-accelerated presentation of rendered pages, with a software fallback.
 - Rich clipboard exchange: text, HTML, bitmap, and vector metafile flavours.
@@ -1607,7 +1640,7 @@ FDF, XFDF, XML, CSV form data · XFDF comment exchange.
 - Quiet mode; a machine-readable (JSON) report on stdout; documented exit codes.
 - `--help` listing every verb and flag.
 
-### 9.7 Display, input, and accessibility
+### 9.7 Display and input
 
 - Per-monitor DPI awareness, including fractional scaling.
 - Correct raster resolution per monitor, re-rendered when a window moves between monitors.
@@ -1616,12 +1649,13 @@ FDF, XFDF, XML, CSV form data · XFDF comment exchange.
 - Pen and touch input: pan, pinch-zoom, and inking with pressure.
 - High-precision and inverted mouse-wheel handling.
 - Full keyboard operability: every command reachable without a mouse.
-- Accessible names, roles, and values on every control for screen readers.
-- Screen-reader reading order taken from the document's tag tree.
-- High-contrast themes and respect for the OS high-contrast setting.
 - Visible keyboard focus at all times.
-- Respect the OS "reduce motion" setting.
 - Configurable UI font scale independent of the OS scale.
+
+⤵ **Removed 2026-08-23:** accessible names, roles and values for screen readers; screen-reader
+reading order from the tag tree; high-contrast themes and deference to the OS high-contrast setting;
+respect for the OS "reduce motion" setting. **Keyboard operability and focus visibility above are
+retained on purpose** — they are core architecture and a power-user feature, not an accessibility one.
 
 ### 9.8 Licensing, activation, and updates
 

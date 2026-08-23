@@ -1,0 +1,45 @@
+{
+  "$comment": [
+    "Which locales exist, and which of them SHIP -- decision D1-14.",
+    "",
+    "The `shipped` flag is what makes i18n-lint's missing-key rule able to fail at all. With every",
+    "locale unshipped the rule would be vacuous; with every locale shipped, zh_CN and ja would fail",
+    "from the day they were declared. Declaring them as not-yet-shipped makes their absence DATA THE",
+    "GATE READS rather than a case nobody wrote -- which is the whole difference between a planned",
+    "gap and a forgotten one. `i18n-lint --explain` lists them with the reason, so a silent skip",
+    "cannot be mistaken for a locale someone forgot.",
+    "",
+    "THE KEY IS THE SOURCE STRING. Every locale, `en` included, is a real catalog: the sources hold",
+    "catalog keys (core/Result.h forbids user-facing English in core/, and ActionId.def carries one",
+    "`action.*` key per action), so there is no English in the code for lupdate to extract and no",
+    "identity locale. A missing key in `en` is therefore a detectable defect rather than an invisible",
+    "fallback that renders `action.file.open` on a button."
+  ],
+
+  "sourceLocale": "en",
+
+  "locales": [
+    {
+      "code": "en",
+      "catalog": "i18n/rawpage_en.ts",
+      "shipped": true
+    },
+    {
+      "code": "zh_TW",
+      "catalog": "i18n/rawpage_zh_TW.ts",
+      "shipped": true
+    },
+    {
+      "code": "zh_CN",
+      "catalog": "i18n/rawpage_zh_CN.ts",
+      "shipped": false,
+      "plannedFor": "Stage 15's localization pass (D1-14). Not a Traditional-to-Simplified conversion of zh_TW: the terminology differs, not just the glyphs."
+    },
+    {
+      "code": "ja",
+      "catalog": "i18n/rawpage_ja.ts",
+      "shipped": false,
+      "plannedFor": "Stage 15's localization pass (D1-14)."
+    }
+  ]
+}

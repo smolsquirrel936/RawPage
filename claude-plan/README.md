@@ -27,8 +27,8 @@ confirms whatever got built, including the parts built wrong. The schedule is
 [the roadmap's §5](./Implementation-Plan.md#5-per-stage-testing-guides), and both of ⑥'s sections
 passing is part of that stage's Definition of Done.
 
-**Stage 0 has both.** Every later stage has neither yet, and that absence is the correct state rather
-than a gap — those files are written when their stage comes up, not in advance.
+**Stages 0 and 1 have both.** Every later stage has neither yet, and that absence is the correct state
+rather than a gap — those files are written when their stage comes up, not in advance.
 
 ## Where to look for a given question
 
@@ -44,28 +44,43 @@ than a gap — those files are written when their stage comes up, not in advance
 | Which stage implements catalog section §N? | ④ §7 |
 | What is still undecided? | ② §10 (risks) and ④ §8 (open decisions) |
 | What are the concrete tasks for the stage we are on? | ⑤ where it exists; ④'s *Components* otherwise |
-| What must I set up before work can start? | ⑤ §7 for Stage 0 — the precondition checklist |
+| What must I set up before work can start? | ⑤ §7 — the precondition checklist (Stage 1's is P-1…P-4) |
 | How do I verify stage N by hand? | ④'s *Testing → Manual* line now; ⑥ once stage N is under way |
 
 ## Current state
 
-**Stage 0 is complete — both halves of its verification are green and signed off (2026-08-19).** All fifteen tasks are done and CI is
-green on three jobs — `gates` (bare Linux, no Qt or vcpkg), `windows` (self-hosted, the exact pinned
-toolchain, 66 tests), and `portable-asan` (52 tests under ASan+UBSan). Both Stage 0 risk verdicts are
-recorded in ②: **A5** (the dependency set resolves on `x64-mingw-dynamic`) and **A6** (a PDFium DLL
-links from `g++`).
+**Stage 0 is complete** — both halves of its verification green and signed off 2026-08-19, CI green on
+three jobs, verdicts **A5** and **A6** recorded in ②.
 
-What exists is *scaffolding*: a pinned toolchain that refuses anything else, two live enforcement
-gates with 23 fixtures, the build and CI, and the four `core/` vocabulary headers. **No document code
-exists** — nothing in `core/doc/`, `core/cmd/`, `pdf/cos/`, `pdf/render/`, `ui/`, `platform/win/` or
-`app/`, and `rawpage.exe` opens no window. Stages 1–16 are `⚪ not started`.
+**Stage 1 is IN PROGRESS: tasks T1 … T9 of 15 are complete (2026-08-23); T10 is next.**
 
-**Stage 0 is not done.** Its Definition of Done requires ⑥'s manual section — M-01 through M-07 —
-walked and signed off by a person, and no manual case has been walked. "Automated green, manual not
-yet walked" is a reportable state, not a finished one.
+| | |
+|---|---|
+| Tests | **226/226** on `x64-debug` and `x64-release`; the bare `gates` preset **59/59** with no Qt |
+| Gates | `layer-lint` 100 files / 509 includes, `license-audit` clean, `i18n-lint` 45 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3 |
+| Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion) · **`-municode` = not adopted** |
+| Manual | **M-01 ✅, M-02 🟡** signed off by the user. The rest are not walkable yet |
+| Issues | I-01…I-16 in ⑥. **None open** |
+
+What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
+point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
+ribbon spike (`tools/spike-ribbon/`, **deleted at T10**); the action layer — `ActionId` (358 declared
+actions), `ActionRegistry`, `Chord`, `KeyBindingStore` (240 bindings seeded from ① §8); the typed
+settings store (`core/settings/`, where an undeclared key does not compile); the third gate
+(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at 389 keys each; the OS boundary
+(`platform/platform.h`, seventeen interfaces declared, two implemented); the composition root that
+wires all of it together (`app/`); and the application frame (`ui/shell/`).
+
+**No document code exists** — nothing in `core/doc/`, `pdf/` or `ui/viewer/` — but **`rawpage.exe`
+now opens a window**: a frame with a sidebar, a status bar and a live theme, whose central surface
+says which capability arrives when. No ribbon until T10, no document tab until T12, no chord input
+until T13, and no PDF until Stage 2. Stages 2–16 are `⚪ not started`.
+
+**Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
+record is ① → *Removed from scope*; every other document cross-references it.
 
 Live task-by-task status, deviations included, is in
-[④'s Stage 0 block](./Implementation-Plan.md#stage-0--toolchain-skeleton-and-the-four-gates).
+[④'s Stage 1 block](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance).
 
 ## Keeping the set in lockstep
 

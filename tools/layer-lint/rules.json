@@ -9,7 +9,16 @@
     "permissions from core/ without depending on JSON key order."
   ],
 
-  "extensions": [".h", ".hpp", ".cpp", ".cc"],
+  "extensions": [".h", ".hpp", ".cpp", ".cc", ".def"],
+
+  "$comment-extensions": [
+    "`.def` was added at T9, closing a hole that had been open since T3. An X-macro table is",
+    "#included straight into a translation unit, so an #include inside one lands in the including",
+    "layer exactly as if it had been written there -- and until this line, layer-lint could not see",
+    "it. Four such tables exist (ActionId.def, KeyBindingDefaults.def, SettingsKeys.def,",
+    "ShellKeys.def) and every one of them is included by a layer with a deny list. Whether a file",
+    "is COMPILED is a fact about the build; whether it is part of a layer is what this gate is for."
+  ],
 
   "exclude": [
     "build/",
@@ -42,9 +51,23 @@
 
     "ui": {
       "paths": ["ui/"],
-      "mayInclude": ["ui/", "core/"],
+      "mayInclude": ["ui/", "core/", "platform/platform.h", "app/Services.h"],
       "denyExternal": ["fpdfview.h", "fpdf_", "windows.h", "Windows.h"],
-      "note": "ui/ may never include pdf/ or platform/win/, and may never mutate a Document: its entire mutation vocabulary is to construct a Command and hand it to CommandJournal."
+      "note": "ui/ may never include pdf/ or platform/win/, and may never mutate a Document: its entire mutation vocabulary is to construct a Command and hand it to CommandJournal. TWO SINGLE-FILE EXCEPTIONS, each of which is an INTERFACE header with its own layer entry constraining what it may contain: platform/platform.h, whose own header comment has always said it is included by core/, ui/ and app/ (the omission here was a gap found at T9, not a widening); and app/Services.h, the aggregate of injected interfaces that Architecture-FileMap.md 3.1 names ui/shell/MainWindow and ui/shell/DocumentWindow as the consumers of."
+    },
+
+    "app-services": {
+      "paths": ["app/Services.h"],
+      "mayInclude": ["core/", "platform/platform.h"],
+      "denyExternal": ["QtWidgets", "QWidget", "fpdfview.h", "fpdf_", "windows.h", "Windows.h"],
+      "note": "app/Services.h is the composition root's INTERFACE header, and it is ui/'s one permitted look outward. So it is constrained the way platform/platform.h is: it may name core/ types and platform::Platform and nothing else. Without this entry, a pdf/ include added to Services.h at Stage 2 would silently give every widget that consumes it a dependency on the PDF engine -- which is the exact coupling the layer split exists to prevent, arriving through the one file allowed to cross."
+    },
+
+    "platform-interface": {
+      "paths": ["platform/platform.h"],
+      "mayInclude": ["core/"],
+      "denyExternal": ["windows.h", "Windows.h", "shellapi.h", "shlobj.h", "objbase.h", "combaseapi.h", "wincrypt.h", "winreg.h", "QtWidgets", "QtGui", "QWidget", "QGuiApplication", "fpdfview.h", "fpdf_"],
+      "note": "platform/platform.h is INTERFACES ONLY and is included by core/, ui/ and app/. An OS header reaching it gives all three a platform-SDK dependency -- min/max macros, `interface`, GetMessage renaming itself -- and the failure would not show up here: it would show up as the Linux portable-asan job no longer being able to build core/, which is the mechanical proof that the domain layer is portable. A Win32 handle crosses this boundary as an opaque integer, and nothing else does."
     },
 
     "core-settings": {
@@ -93,6 +116,13 @@
       "allowedPaths": ["pdf/"],
       "escapable": false,
       "message": "Only pdf/ may name the PDFium C API. Everything else reaches the engine through core/backend.h, which is what keeps the engine replaceable and core/ testable with no engine linked."
+    },
+    {
+      "kind": "argv-path-read",
+      "patterns": ["argv[", "__argv", "__wargv", "GetCommandLineA(", "CommandLineToArgvA("],
+      "allowedPaths": ["app/main.cpp"],
+      "escapable": false,
+      "message": "Nothing in RawPage may read a path out of argv (issue I-04). argv is NARROW: the CRT transcodes the wide command line through the process ANSI code page, and anything the code page cannot represent becomes '?' -- lossily and irreversibly. Measured at T1 on this machine (ACP 950): an emoji path arrived as report-?????.pdf in argv while QCoreApplication::arguments(), which Qt sources from GetCommandLineW(), was byte-perfect. Parse QCoreApplication::arguments() instead. app/main.cpp is the one exception: it hands argv to QApplication and prints it for the --print-args measurement, which is the case that established the rule."
     },
     {
       "kind": "filesystem-write",

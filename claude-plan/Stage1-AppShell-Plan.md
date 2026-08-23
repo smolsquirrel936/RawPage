@@ -10,12 +10,21 @@
 > | The Stage 1 objectives, components, key bindings handled, settings keys, and exit criteria | [`Implementation-Plan.md` § Stage 1](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance) |
 > | The authoritative key-binding tables and the Preferences group list | [`Features.md` §8](./Features.md#8-key-bindings-authoritative-reference), [§9.1](./Features.md#91-preferences-groups) |
 > | What each file is for, and flows A, B, J | [`Architecture-FileMap.md` §3.1, §3.3, §3.8, §3.12, §3.13, §5](./Architecture-FileMap.md#31-app--composition-root) |
-> | The locked toolchain, the sixteen platform interfaces, the inward-only rule | [`Tech-Stack-Plan.md` §4.2, §4.3, §6](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code) |
+> | The locked toolchain, the seventeen platform interfaces, the inward-only rule | [`Tech-Stack-Plan.md` §4.2, §4.3, §6](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code) |
 > | How Stage 1 is verified | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** ⚪ **Not started.** Written 2026-08-19, immediately after Stage 0 signed off and before
-> any Stage 1 code exists. This file is a plan, not a progress log — Stage 1's live status, task by
-> task and deviation by deviation, belongs in `Implementation-Plan.md`'s Stage 1 status block.
+> **Status:** 🟡 **In progress — T1 … T9 complete as of 2026-08-23; T10 is next.** Written
+> 2026-08-19, immediately after Stage 0 signed off and before any Stage 1 code existed. This file is a
+> plan, not a progress log — Stage 1's live status, task by task and deviation by deviation, is the
+> Stage 1 status block in `Implementation-Plan.md`, and that block is the authority.
+>
+> **Amended since it was written, and each amendment is marked in place rather than silently applied:**
+> **D1-15** (high contrast) and precondition **P-2** (a screen reader) are **withdrawn**, along with
+> A3 criterion **R-8**, because accessibility was removed from the product on 2026-08-23 — see
+> [`Features.md` → *Removed from scope*](./Features.md). **A3 is settled: `go, with named custom
+> work`.** T7's interface count was written here as **fifteen** and is **seventeen** — see the T7
+> row in §6 and `Tech-Stack-Plan.md` §4.3, which owns the figure. The original counted table rows,
+> and one row declares two interfaces.
 
 ---
 
@@ -94,7 +103,7 @@ here so a later stage can find and revisit it rather than rediscovering it.
 | **D1-12** | **`RAWPAGE_UI_WARNING_GRACE` starts empty, and an entry may be added only with a named reason and an owning issue number.** | The rule is that the grace list may only shrink. A list that starts populated has no baseline to shrink from, and "warnings are errors except over there" becomes permanent on day one of `ui/` existing. | Never |
 | **D1-13** | **Crash dumps are symbolized through an archived-binary path built now, not at Stage 15.** `-Wl,--build-id` on every target; the hex build id and the unstripped binaries archived per build; `scripts/symbolize.ps1` takes a minidump plus a build id and drives `addr2line`. | The GCC toolchain emits DWARF, not PDB, so there is no symbol server to lean on — [`Architecture-FileMap.md` §3.1](./Architecture-FileMap.md#31-app--composition-root) says decide this here. A crash-handling path that has never symbolized a real dump is not a crash-handling path, and the first real dump arrives during Stage 2's rendering work, not after packaging. | Stage 15 wires the archive into the release artifacts |
 | **D1-14** | **Stage 1 ships `en` and `zh-TW` only. `zh-CN` and `ja` are declared in `i18n/locales.json` with `"shipped": false` and named to Stage 15.** | `i18n-lint`'s "missing key in a shipped locale" rule needs a real, non-vacuous set or it is a gate that cannot fail. Declaring the other two as *not yet shipped* makes their absence **data the gate reads** rather than a case nobody wrote — the difference between a planned gap and a forgotten one. | Stage 15's localization pass flips both flags |
-| **D1-15** | **The high-contrast path disables our theming rather than re-implementing it.** When the OS reports high contrast, `ThemeManager` yields to the system palette and `general/theme` is shown as **overridden**, not silently ignored. | Overriding a user's accessibility setting with our own idea of contrast is a defect with a compliance dimension, not a styling choice. Showing the key as overridden rather than disabling it keeps the Preferences page honest about who won. | Stage 14's accessibility pass audits it |
+| ~~**D1-15**~~ | ⤵ **Withdrawn 2026-08-23.** *The high-contrast path disables our theming rather than re-implementing it.* Removed with the rest of the accessibility surface — see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23). `ThemeManager` now ships light, dark and follow-system only, and no longer consults the OS high-contrast setting. | The row is kept as a breadcrumb so every existing citation of D1-15 still resolves, and so that a later reader can see the behaviour was *removed by decision* rather than never considered. | If accessibility is ever restored, this is the decision to reinstate first — it is one line of code and the largest single accessibility win in the shell |
 | **D1-16** | **Every persisted vocabulary this stage creates carries a version from its first write.** `settings.ini` gains a `meta/schemaVersion`; the UI-customization blob and the saved shortcut set carry the same stamp. On load, an **older** version runs an ordered migration chain. A **newer** version is read for what we understand and otherwise **preserved untouched** rather than rewritten. And `ActionId.def` gains an optional `RAWPAGE_ACTION_ALIAS("old.string.id", NewEnumerator)` row, so a renamed id keeps resolving saved shortcuts and QAT entries; **alias rows are appended and never deleted.** | Stage 1 creates three vocabularies that are written to disk and read back by later versions — settings keys, `ActionId` strings, and UI-customization blobs — and without this, the first key whose type changes in Stage 9 and the first id renamed in Stage 7 both destroy a user's customizations silently. A version field costs one line now. The **downgrade** rule is the half people forget: an older build that rewrites a newer build's settings file is data loss during a rollback, which is exactly when a user is least able to tolerate it. This was raised as a candidate open decision against [`Implementation-Plan.md` §8](./Implementation-Plan.md#8-open-decisions-carried-forward) and settled here instead, so it never becomes a cross-stage question nobody owns. | Stage 14 when the preferences surface is complete; Stage 15's `PolicyOverlay` layers on top of the same versioning |
 
 ---
@@ -239,17 +248,17 @@ is deleted at Stage 2. Its durable outputs are the verdict and whichever widget 
 | **R-5** | `Alt` key tips, two levels deep, dismissable with `Esc` | Keyboard-only walk |
 | **R-6** | Correct at 100 / 150 / 200 % scaling, **including a per-monitor DPI change while running** | Manual, two monitors — guide case M-02 |
 | **R-7** | `F9` collapses to tab-strip-only and restores, preserving the active tab | Keyboard |
-| **R-8** | Every control reachable by `Tab` / arrows and reported to the accessibility layer with a name and a role | Manual with a screen reader — a *reduced* pass here; Stage 14 owns the full one |
+| ~~**R-8**~~ | ⤵ **Withdrawn 2026-08-23** — *every control reachable by `Tab`/arrows and reported to the accessibility layer with a name and a role*. Removed with the rest of the accessibility surface ([`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23)), together with its manual case **M-08** and precondition **P-2**. **The `Tab`-reachability half survives as keyboard operability**, which is retained and is asserted mechanically by the spike's focus-order self-test. | ⤵ n/a |
 | **R-9** | A tab switch completes within one 60 Hz frame on the reference machine | `tests/bench`, measured, not judged |
 
 **Verdict scale** — recorded in `Tech-Stack-Plan.md` §3.3 beside A5 and A6:
 
 - **Go** — all nine hold with plain `QWidget` composition. `Ribbon` productionizes the spike.
-- **Go, with named custom work** — R-1…R-8 hold but a named subset (most likely R-2's collapse
+- **Go, with named custom work** — R-1…R-7 hold but a named subset (most likely R-2's collapse
   behaviour) needs a custom `QLayout` or custom painting. **This is still a go**: a custom layout
   inside Qt Widgets is not a fallback, it is ordinary Qt.
-- **No-go** — a criterion cannot be met by the widget system at all (realistically only R-6 or R-8
-  could produce this). The fallback is a first-party ribbon widget, **still Qt Widgets** and *not* a
+- **No-go** — a criterion cannot be met by the widget system at all (realistically only R-6 could
+  produce this, now that R-8 is withdrawn). The fallback is a first-party ribbon widget, **still Qt Widgets** and *not* a
   toolkit change, and it costs T10 roughly triple.
 
 Writing the scale down before the spike is what stops "we made something that looks like a ribbon"
@@ -335,7 +344,8 @@ waivers only. And I-15's: the fixtures must cover more than one spelling — a r
 |---|---|---|---|
 | `rawpage_tests` (existing) | `rawpage_core`, `rawpage_pdf` | `tst_actionregistry`, `tst_keybindings`, `tst_settings`, `tst_recentfiles`, `tst_commandline` | Windows + `portable-asan` |
 | `rawpage_ui_tests` (new, D1-4) | `rawpage_core`, `rawpage_ui` | `tst_context`, `tst_ribbonbuild`, `tst_qat`, `tst_toolfinder`, `tst_theme`, `tst_actionwiring` | **Windows only**, `QT_QPA_PLATFORM=offscreen` |
-| gate fixtures (existing) | — | `i18n-lint` cases join the `layer-lint` / `license-audit` ones | Windows + Linux |
+| `rawpage_platform_tests` (new, T7) | `rawpage_core`, `rawpage_platform` | `tst_platform` — the interface census, the OS object names, and a real claim/forward/deliver round trip | **Windows only**. Same reasoning as D1-4 from the other side: `tests/unit`'s headless assertion forbids linking `rawpage_platform`, and the first platform test is exactly the pressure that would otherwise weaken it |
+| gate fixtures (existing) | — | `i18n-lint` and the `platform/platform.h` cases join the `layer-lint` / `license-audit` ones | Windows + Linux |
 
 `tst_commandline` lives in the headless suite even though `CommandLine` sits in `app/`: it is a pure
 parse of a `QStringList` into an intent, and the parser header is includable without linking the
@@ -352,14 +362,14 @@ triples T10 and reshapes T9's layout assumptions, and learning that after T9 is 
 | # | Task | Depends on | Content | Done when |
 |---|---|---|---|---|
 | **T1** | Entry point, DPI awareness, crash handler, `-municode` verdict | — | `main.cpp`: per-monitor-v2 DPI awareness **before any Qt object exists**; `CrashHandler::install()` (`SetUnhandledExceptionFilter` + lazily-loaded `dbghelp` `MiniDumpWriteDump` → `%LOCALAPPDATA%\RawPage\crashes\`); `-Wl,--build-id` on all targets; `scripts/symbolize.ps1`; the D1-3 measurement | A forced crash writes a dump; `symbolize.ps1` resolves the faulting frame to a function name; the `-municode` finding is written down either way |
-| **T2** | **A3 ribbon spike — the go/no-go** | T1 | `tools/spike-ribbon/`, criteria R-1…R-9, three days | **A3 verdict recorded** in `Tech-Stack-Plan.md` §3.3 with per-criterion results; R-6 and R-8 handed to the guide's manual cases and marked outstanding until walked |
+| **T2** | **A3 ribbon spike — the go/no-go** | T1 | `tools/spike-ribbon/`, criteria R-1…R-9 (R-8 withdrawn 2026-08-23), three days | **A3 verdict recorded** in `Tech-Stack-Plan.md` §3.3 with per-criterion results; R-6 and R-8 handed to the guide's manual cases and marked outstanding until walked |
 | **T3** | `ActionId.def`, `ActionRegistry`, `KeyContext` | — | §5.1; ~200 ids declared across the eight `Features.md` sections | `tst_actionregistry` green including the three §5.1 properties |
 | **T4** | `KeyBindingStore` + §8 defaults + census | T3 | §5.5; `shadows()`; per-user override and persistence | `tst_keybindings` green; the census computed and reported; **I-01 open until the count is reconciled** |
 | **T5** | `SettingsSchema`, `Settings`, `RecentFiles` | — | §5.2; the twelve Stage 1 keys from the plan's *Data / settings keys* list | `tst_settings`, `tst_recentfiles` green; an undeclared key does not compile, proven by a negative-compile fixture |
 | **T6** | `tools/i18n-lint` + catalogs + third gate | T3 | §5.6; `i18n/locales.json`; `rawpage_en.ts`, `rawpage_zh_TW.ts`; wired into `RawPageChecks.cmake` | `checks` runs **three** gates and *says* three; every i18n fixture fails with its named diagnostic; both positive controls pass |
-| **T7** | `platform/platform.h` + Windows factory | — | All **sixteen** interfaces declared, nothing else implemented; `PlatformFactory`; `WinSingleInstanceBus` (D1-11); `WinShellIntegration` file-association only | `platform.h` includes no Win32 header; `layer-lint` clean; a second launch forwards and the first raises |
+| **T7** | `platform/platform.h` + Windows factory | — | All **seventeen** interfaces declared (written here as fifteen; corrected by measurement at T7 — see `Tech-Stack-Plan.md` §4.3), nothing else implemented; `PlatformFactory`; `WinSingleInstanceBus` (D1-11); `WinShellIntegration` file-association only | `platform.h` includes no Win32 header, **enforced by a `layer-lint` layer entry for that one file**; `layer-lint` clean; a second launch forwards and the first raises |
 | **T8** | `app/` composition root | T3, T5, T7 | `CompositionRoot`, `Services.h`, `Application`, `CommandLine` (open-with-file + `--lang`), `SingleInstance` | Flow A runs end to end; `MainWindow` receives only interfaces; `tst_commandline` green |
-| **T9** | `MainWindow`, `StatusBar`, `SidebarDock`, `ThemeManager` | T8, T2 | The frame; pane hosting with dock / float / auto-hide / width memory; theme tokens, follow-system, and D1-15 high contrast | Window opens; panes dock, float and auto-hide; theme switches live |
+| **T9** | `MainWindow`, `StatusBar`, `SidebarDock`, `ThemeManager` | T8, T2 | The frame; pane hosting with dock / float / auto-hide / width memory; theme tokens and follow-system (D1-15's high-contrast path was withdrawn 2026-08-23) | Window opens; panes dock, float and auto-hide; theme switches live |
 | **T10** | `Ribbon`, `RibbonTabBuilder`, `ActionFactory`, `res/ribbon.json` | T2, T3, T9 | Productionize the spike per its verdict; full tab/group skeleton with representative actions; build-time JSON validation (D1-8); `RawPageAction` + the lint rule (D1-7); **spike deleted** | Ribbon builds entirely from JSON; an unknown id fails the build; `tst_ribbonbuild` green |
 | **T11** | `QuickAccessToolbar`, `UiCustomization`, `ToolFinder` | T10 | Add / remove / reorder / placement / reset; serialize customizations; fuzzy search over the registry showing each match's chord | A QAT customization survives restart; the tool finder finds and runs a command |
 | **T12** | `DocumentTabBar`, stub `DocumentWindow` | T9 | D1-2; tabs, reorder, tear-off to a new window, re-dock, middle-click close, overflow | Tear a tab out and re-dock it; `Ctrl+Tab` and `Ctrl+F6` work |
@@ -376,7 +386,7 @@ Owner: **you**, before T2 can be judged and before the guide's manual half can b
 | # | Precondition | Why | State |
 |---|---|---|---|
 | **P-1** | **Two monitors at different scale factors** (e.g. 100 % and 150 %), at least one able to change scale while the app runs | R-6 and guide case M-02. The mid-session per-monitor DPI change is the one that finds real bugs, and it cannot be faked offscreen | 🟡 **Hardware ready** — two 2560×1440 displays confirmed 2026-08-20. You set the differing scale factors when M-02 is walked |
-| **P-2** | A screen reader — **Narrator, which ships with Windows; nothing to install** | R-8's reduced pass. Stage 14 owns the full accessibility pass and a fuller rig | ✅ **Satisfied 2026-08-20.** `C:\Windows\System32\Narrator.exe` 10.0.26100.8972 present; Qt 6 links the UI Automation bridge into `Qt6Gui`, so neither side needs an install. Toggle with **`Win+Ctrl+Enter`** |
+| ~~**P-2**~~ | ⤵ **Withdrawn 2026-08-23** — *a screen reader (Narrator)*. Removed with R-8 and M-08 when accessibility left the product; see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23). | — | ⤵ No longer required |
 | **P-3** | Your judgement available for the **zh-TW** review in guide case M-06 | Per your answer of 2026-08-19, Stage 1 ships real Traditional Chinese, reviewed by you rather than by a lint that can only count keys | ✅ **Confirmed 2026-08-20** |
 | **P-4** | A reference for what "a real ribbon" means — Right PDF Professional or Office on the same machine | R-1 and R-4 are judged against a reference, and "looks fine" is not a result | ✅ **Confirmed 2026-08-20** |
 
@@ -389,7 +399,7 @@ None of these blocks T1, T3, T5, T6, T7 or T8, so implementation starts regardle
 
 | Verdict | Produced by | Recorded in |
 |---|---|---|
-| **A3** — can Qt Widgets host a real ribbon? | T2, plus guide cases M-01 (R-1…R-5, R-7), M-02 (R-6), M-08 (R-8), and the `tests/bench` figure for R-9 | `Tech-Stack-Plan.md` §3.3, beside A5 and A6; summarized in the Stage 1 status block |
+| **A3** — can Qt Widgets host a real ribbon? | T2, plus guide cases M-01 (R-1…R-5, R-7), M-02 (R-6), and the `tests/bench` figure for R-9. *(M-08/R-8 withdrawn 2026-08-23.)* | `Tech-Stack-Plan.md` §3.3, beside A5 and A6; summarized in the Stage 1 status block |
 | **`-municode`** — needed or not (D1-3) | T1 | `Implementation-Plan.md` Stage 1 status, as the resolution of Stage 0's deviation (a) |
 | ~~**§8 collision census**~~ | ~~T4~~ | ✅ **Settled 2026-08-20 before implementation** — `Features.md` §8 now scopes "twelve" to Write mode (8 over Viewer + 4 over Global). T4 asserts it rather than discovering it |
 
@@ -401,9 +411,9 @@ A stage that is green but has no verdicts is not signed off.
 
 | Job | Before | After |
 |---|---|---|
-| `gates` (ubuntu, no Qt) | 25 cases, two gates | **Three** gates; plus the `i18n-lint` fixture cases. Still no Qt, still runs before any compile |
-| `windows` (self-hosted) | 66 tests | Plus the `rawpage_tests` additions, plus the new **`rawpage_ui_tests`** target under `QT_QPA_PLATFORM=offscreen`, plus the `tests/bench` R-9 figure |
-| `portable-asan` (ubuntu) | 52 tests | Plus the `core/` additions **only**. `rawpage_ui_tests` never runs here — the portable subset is `core/` + `pdf/cos/` by rule, and adding Qt Widgets to a Linux job to chase coverage would quietly redefine what that job proves |
+| `gates` (ubuntu, no Qt) | 25 cases, two gates | **Three** gates; plus the `i18n-lint` fixture cases and the `platform/platform.h` ones. Still no Qt, still runs before any compile. **At T9 the preset stands at 59 cases locally** (55 at T7; T8 and T9 added the `argv-path-read` rule with its entry-point control, and `ui/`'s two permitted interface headers with a control for each), of which the Linux job runs all but the `wrong_compiler` set |
+| `windows` (self-hosted) | 66 tests | Plus the `rawpage_tests` additions, plus **`rawpage_platform_tests`** (new at T7, Windows only), plus the new **`rawpage_ui_tests`** target under `QT_QPA_PLATFORM=offscreen`, plus the `tests/bench` R-9 figure |
+| `portable-asan` (ubuntu) | 52 tests | Plus the `core/` additions **only**. Neither `rawpage_ui_tests` nor `rawpage_platform_tests` runs here — the portable subset is `core/` + `pdf/cos/` by rule, and adding Qt Widgets or Win32 to a Linux job to chase coverage would quietly redefine what that job proves |
 
 One new CI property worth asserting outright: **`rawpage.exe` must start and exit cleanly under
 `offscreen`**, because that is what makes every later stage's headless smoke test possible.
@@ -417,11 +427,37 @@ Owed by **T15**, in the same change as the code:
 - `Architecture-FileMap.md` §3.13 has no rows for `ui/shell/ActionFactory` or `RawPageAction.h`; §3.15
   has none for the Shortcuts and General preference pages as separate files. Add them, or fold them
   into an existing row with a ⤵ breadcrumb.
-- `i18n/`, `res/`, `tests/ui/`, and `scripts/symbolize.ps1` have no rows. `i18n/` and `res/` are
-  *data, not code* per `CLAUDE.md`, so one row each is likely right rather than one per file.
-- `CLAUDE.md`'s gate table lists four gates as though all four exist; after T6 three do. Its
-  "Commands" section needs no change, but the Stage-0-era summary paragraph does.
-- `README.md`'s *Current state* section still describes a window-less executable.
+- ~~`i18n/` has no row~~ — ✅ **done 2026-08-23 at T6**: `Architecture-FileMap.md` §3.18 gained a row
+  for `i18n/locales.json` and one for the two catalogs together, plus `tools/common/LineScan.h` in
+  §3.17. **`tests/platform/` got its row at T7**, in the same change as the target. `res/`,
+  `tests/ui/` and `scripts/symbolize.ps1` still have none; `res/` is *data, not code* per
+  `CLAUDE.md`, so one row is likely right rather than one per file.
+- **New at T7, and already paid:** `Tech-Stack-Plan.md` §4.3 was missing `IPrinting` entirely and
+  stated its count in table rows rather than interfaces (issue **I-10**). Both fixed in the same
+  change as `platform/platform.h`, since the header is what made the gap visible.
+  `platform/PlatformModule.cpp`, Stage 0's placeholder TU, was **deleted** in the same change — its
+  own comment said to delete it once the layer had real content, and nothing had called its anchor
+  since T1 rewrote `main.cpp`.
+- **New at T7, partly paid at T9:** `core/CoreModule.cpp` is still in exactly that state — `core/`
+  has had real translation units since T3 and nothing calls `coreModuleAnchor()`; T15's sweep deletes
+  it. **`ui/UiModule.cpp` was deleted at T9**, as its own comment instructed, because `ui/shell/` is
+  now real content and the archive is no longer empty without it. `pdf/PdfModule.cpp` is **not** dead:
+  its layer still has no other TU, and Stage 2 deletes it.
+
+- **New at T8/T9, and already paid:** `Architecture-FileMap.md` gained rows for
+  `ui/shell/Catalog.{h,cpp}` + `ShellKeys.def` and for `tests/ui/`, in the same change as the code.
+  Two `tools/layer-lint/rules.json` gaps were found by needing them and closed with fixtures and
+  controls — see **I-15** and **I-16** in the testing guide's §8. Still unpaid from the list above:
+  rows for `res/`, `scripts/symbolize.ps1`, and `ui/shell/ActionFactory` / `RawPageAction.h`, the last
+  of which T10 creates.
+- ~~`CLAUDE.md`'s gate table lists four gates as though all four exist~~ — ✅ **done 2026-08-23**: the
+  table carries a *State* column, and the Stage-0-era summary was replaced with a live status block.
+  ~~It still says two; T6 must change it to three.~~ ✅ **done 2026-08-23 at T6** — it says three, and
+  `checks` says three.
+- ~~`README.md`'s *Current state* section~~ — ✅ **done 2026-08-23**, and ✅ **again at T9**: the
+  sentence saying the executable opens no window was T9's to remove, and T9 removed it. Both
+  `README.md` and `claude-plan/README.md` now describe the window and name what is still missing
+  from it.
 - `Implementation-Plan.md` §5's guide-table row for Stage 1 flips from ⚪ Queued to ✅ Written **when
   the guide is written**, not at T15 — that one is part of this change, not of T15.
 
@@ -442,7 +478,7 @@ early — which is how a stage's risk retirement gets scrambled.
 | `WinShellIntegration` beyond file association — thumbnails, preview, index filter, jump list | Stage 15 |
 | `PolicyOverlay` — the schema carries the lock flag, nothing reads it yet | Stage 15 |
 | `zh-CN` and `ja` catalogs (D1-14) | Stage 15 |
-| The full accessibility pass and a screen-reader rig | Stage 14 |
+| ~~The full accessibility pass and a screen-reader rig~~ | ⤵ **Withdrawn 2026-08-23** — accessibility is out of the product, not deferred. See [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23) |
 | Batch and the CLI beyond open-with-file and `--lang` | Stage 14 |
 
 ---
@@ -455,7 +491,7 @@ early — which is how a stage's risk retirement gets scrambled.
 | **The stub `DocumentWindow` calcifies** | Stage 2 inherits a shape built for a placeholder | D1-2 names the two things Stage 2 replaces. The stub holds **no** state a real document would own |
 | **`i18n-lint`'s literal heuristic is too noisy** | People waive everything and the gate dies | It is the only escapable rule, `--explain` censuses waivers, and §5.6 fixes the fixture spellings up front. If the waiver count exceeds a handful the rule is wrong and gets narrowed — the same judgement `layer-lint`'s write rule already carries |
 | **The §8-parsing test is brittle** | A harmless doc edit breaks the build | Deliberate (D1-9); the failure names the row it could not parse. The alternative — a hand-copied table — fails *silently*, which is strictly worse |
-| **`offscreen` hides real bugs** | A green `rawpage_ui_tests` over a visually broken ribbon | Precisely why R-1…R-8 are manual. The guide's manual half is the residue offscreen structurally cannot see, per `CLAUDE.md` |
+| **`offscreen` hides real bugs** | A green `rawpage_ui_tests` over a visually broken ribbon | Precisely why R-1…R-7 are manual. The guide's manual half is the residue offscreen structurally cannot see, per `CLAUDE.md` |
 | **~200 `ActionId`s is a naming exercise that churns** | Later stages rename ids, breaking saved shortcuts and QAT customizations | Ids are strings in `ActionId.def`, and both `UiCustomization` and the shortcuts family key off them. **D1-16's alias rows are the migration path** — a renamed id keeps resolving its old string forever. That bounds the damage; it does not remove the incentive to get the names right the first time, since every alias is permanent |
 
 ---

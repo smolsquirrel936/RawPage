@@ -1,0 +1,111 @@
+{
+  "$comment": [
+    "i18n-lint's configuration. Stage1-AppShell-Plan.md 5.6 owns the rule set; this file is its",
+    "executable form. Adding a sink as ui/ grows should be a one-line diff with a reason in the",
+    "commit message, not a recompile of a gate.",
+    "",
+    "THE SINK LIST IS THE RULE. 'A string literal that reaches a user' cannot be decided from the",
+    "literal alone -- object names, settings paths, catalog keys, format specifiers and log text are",
+    "all literals, and a rule that fires on those is a rule that gets waived everywhere and then",
+    "switched off. So the gate looks for the calls that put text in front of a person, and reports a",
+    "literal that reaches one of them unwrapped. The cost is a false negative for a literal handed",
+    "to a user through a helper this list does not name -- which is why the list is data and why it",
+    "is the first thing to check when a stray English string shows up in a zh-TW screenshot."
+  ],
+
+  "extensions": [".h", ".hpp", ".cpp", ".cc", ".def"],
+
+  "$comment-extensions": [
+    "`.def` was added at T9 and is not a stylistic inclusion. This project keeps its permanent",
+    "public names in X-macro tables -- ActionId.def, SettingsKeys.def, KeyBindingDefaults.def and",
+    "now ui/shell/ShellKeys.def -- so the catalog key for a shell string is written in a .def and",
+    "nowhere else. Without this line every one of those keys is an `orphan-key` note on every run:",
+    "reported rather than failed (S3), and therefore a report that would slowly train people to",
+    "skip the whole orphan section. A .def is source; it is #included, not compiled, which is a",
+    "fact about the BUILD and not about whether a gate should read it."
+  ],
+
+  "scannedPaths": ["ui/", "app/", "core/"],
+
+  "$comment-scanned": [
+    "core/ is scanned even though it has no tr() and no QObject. That is the point: core/ must hold",
+    "no user-facing English at all (core/Result.h says so in its own header comment), so ANY sink",
+    "call appearing there is itself the finding rather than a candidate for a tr() wrap.",
+    "",
+    "pdf/ and platform/ are NOT scanned. Neither may put text in front of a user -- pdf/ emits bytes",
+    "and platform/ makes no policy decisions -- so a sink call there is a layering violation, which",
+    "is layer-lint's job and not a second, weaker copy of it here.",
+    "",
+    "CONSOLE DIAGNOSTICS ARE DELIBERATELY OUT OF SCOPE. app/main.cpp's --version and",
+    "--print-dpi-awareness output is developer-facing diagnostic text with a stable, greppable",
+    "spelling; translating it would make a support transcript untranslatable back. The CLI's",
+    "user-facing surface arrives at Stage 14 and brings its own sinks with it."
+  ],
+
+  "exclude": [
+    "build/",
+    "vcpkg_installed/",
+    "third_party/",
+    "claude-plan/",
+    "tests/",
+    "tools/"
+  ],
+
+  "sinks": [
+    "setText(",
+    "setPlainText(",
+    "setWindowTitle(",
+    "setTitle(",
+    "setToolTip(",
+    "setStatusTip(",
+    "setWhatsThis(",
+    "setPlaceholderText(",
+    "setLabelText(",
+    "setItemText(",
+    "setTabText(",
+    "setHtml(",
+    "addItem(",
+    "addTab(",
+    "addAction(",
+    "insertItem(",
+    "showMessage(",
+    "warning(",
+    "critical(",
+    "information(",
+    "question("
+  ],
+
+  "$comment-sinks": [
+    "Each is written with its opening parenthesis so that a MENTION of the name in prose or in an",
+    "identifier does not match. setObjectName is deliberately ABSENT: an object name is an internal",
+    "identifier that must never be translated, and it is the negative control guide case A-13",
+    "requires.",
+    "",
+    "warning/critical/information/question are QMessageBox's statics. They are matched bare rather",
+    "than as QMessageBox::warning because the idiomatic call sites spell them both ways, and the",
+    "cost of the looser match is a literal in some other warning() being reported -- a false",
+    "positive, which is visible and waivable, rather than a missed translation."
+  ],
+
+  "wrappers": [
+    "tr(",
+    "translate(",
+    "QT_TR_NOOP(",
+    "QT_TRANSLATE_NOOP(",
+    "qsTr("
+  ],
+
+  "escapableKinds": ["literal"],
+
+  "$comment-escape": [
+    "unwrapped-literal is a HEURISTIC and is therefore the only escapable rule, using the same",
+    "inline shape layer-lint already uses:",
+    "",
+    "    button->setText(\"OK\");   // i18n-lint: allow-literal(reason)",
+    "",
+    "--explain censuses every waiver and says which ones actually SILENCED something. That",
+    "distinction is Stage 0's I-20 transplanted before it can happen again: layer-lint once counted",
+    "its own documentation as three live waivers, and a census that includes prose cannot do the one",
+    "job a census has, which is to show waivers creeping from a handful to a hundred."
+  ]
+}

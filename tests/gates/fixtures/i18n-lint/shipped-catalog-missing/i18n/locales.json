@@ -1,0 +1,7 @@
+{
+  "sourceLocale": "en",
+  "locales": [
+    { "code": "en", "catalog": "i18n/en.ts", "shipped": true },
+    { "code": "zh_TW", "catalog": "i18n/zh_TW.ts", "shipped": true }
+  ]
+}

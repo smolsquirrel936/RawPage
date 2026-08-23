@@ -44,14 +44,22 @@ function(rawpage_add_checks_target)
 
     list(APPEND gate_commands COMMAND $<TARGET_FILE:license-audit> ${license_args})
 
+    # i18n-lint (Stage 1 T6). All three inputs are passed EXPLICITLY, which is what makes an
+    # absent one exit 2 rather than a skipped rule: a fixture tree legitimately has no catalogs,
+    # and the real tree never does. A gate that could not run must not look like one that passed.
+    list(APPEND gate_commands
+        COMMAND $<TARGET_FILE:i18n-lint> --root "${CMAKE_SOURCE_DIR}"
+                --rules "${CMAKE_SOURCE_DIR}/tools/i18n-lint/rules.json"
+                --locales "${CMAKE_SOURCE_DIR}/i18n/locales.json"
+                --actions "${CMAKE_SOURCE_DIR}/core/cmd/ActionId.def")
+
     add_custom_target(checks
         ${gate_commands}
-        DEPENDS layer-lint license-audit
+        DEPENDS layer-lint license-audit i18n-lint
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        COMMENT "Running enforcement gates (layer-lint, license-audit)"
+        COMMENT "Running enforcement gates (layer-lint, license-audit, i18n-lint)"
         VERBATIM)
 
-    # mutation-lint -> Stage 3 (needs Command); i18n-lint -> Stage 1 (needs tr() sites).
-    # Two of the four gates do not exist yet, and `checks` runs the two that do. If this
-    # target ever claims to have run four, that is the bug.
+    # mutation-lint -> Stage 3 (needs Command). THREE of the four gates exist, and `checks` runs
+    # the three that do. If this target ever claims to have run four, that is the bug.
 endfunction()

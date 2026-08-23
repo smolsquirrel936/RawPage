@@ -91,11 +91,87 @@ mistaken for evidence, and each has a concrete way to settle it. **Stage 0 owes 
 |---|---|---|
 | A1 | Right PDF's Write mode is a first-party reflow engine rather than an embedded third-party word processor. | Inspect an installed copy's binaries and dependency list; check for a known word-processing engine's DLLs. |
 | A2 | PDFium's `FPDF_RenderPageBitmap` throughput is sufficient for smooth 60 Hz scrolling of a text-heavy A4 page at 200% on a 150 %-scaled 4K monitor with an 8-worker pool. | Build the Stage 2 spike and measure: per-tile milliseconds at the target DPI, p50/p95, over a 20-file corpus. **This is a go/no-go for D3's render half.** |
-| A3 | Qt Widgets can deliver a ribbon, tear-off document tabs, and dockable auto-hiding panes without a commercial ribbon library. | Prototype the shell in Stage 1. If it cannot, the fallback is a first-party ribbon widget — not a switch away from Qt. |
+| ~~A3~~ | **Qt Widgets can deliver a ribbon, tear-off document tabs, and dockable auto-hiding panes without a commercial ribbon library.** | ✅ **Settled 2026-08-23 — `go, with named custom work`. See below.** Every remaining criterion is met: R-1…R-7 and R-9. R-8 was **withdrawn**, not failed, when accessibility was removed from the product. The fallback (a first-party ribbon widget) is not in play. |
 | A4 | Incremental save can preserve the original bytes closely enough that a signature applied before an unrelated later edit still validates. | Corpus round-trip harness in Stage 3: sign, then add an annotation incrementally, then validate. |
 | ~~A5~~ | vcpkg has serviceable ports for every dependency in §6 at the versions we want, **on the `x64-mingw-dynamic` triplet**. | ✅ **Resolution settled 2026-08-18 — see below.** Build fidelity remains partly open. |
 | ~~A6~~ | **PDFium can be consumed from a GCC-built binary.** ✅ **Settled 2026-08-18 — see below.** ~~ The `FPDF_*` surface is a **C** API and x64 Windows has a single calling convention, so a PDFium **DLL** — however it was compiled — is linkable from `g++`; only C++ objects, exceptions, and CRT handles crossing the boundary would break, and the facade in `pdf/render/` passes none of them.~~ | Stage 0: link a trivial `FPDF_InitLibrary`/`FPDF_LoadDocument` program against a prebuilt `pdfium.dll` (generating a `.dll.a` with `gendef` + `dlltool` if no import library is shipped) and open a corpus file. **If a DLL build cannot be obtained or built, the fallback is to build PDFium from source with its own clang toolchain and emit a DLL — not to switch the engine.** A static MSVC `pdfium.lib` is *not* an option. |
 | ~~A7~~ | **Our GCC and Qt's GCC are ABI-compatible.** | ✅ **Settled 2026-08-17 — see below.** |
+
+**A3, measured and walked 2026-08-23, Stage 1 task T2 — EIGHT AND A HALF OF NINE.** The throwaway
+`tools/spike-ribbon/` builds a ribbon out of plain `QWidget` composition plus **one custom `QLayout`**
+and runs the four criteria that have a defined right answer. The verdict scale is
+[`Stage1-AppShell-Plan.md` §5.3](./Stage1-AppShell-Plan.md#53-the-a3-spike--criteria-fixed-before-it-starts):
+*go* · *go with named custom work* · *no-go*.
+
+| # | Criterion | Judged by | Result |
+|---|---|---|---|
+| **R-1** | Large / split / small-button-rows / gallery / combo on one baseline grid | Person, vs. a reference (P-4) | ✅ **Met.** Signed off by the user 2026-08-23 against the P-4 reference (M-01) |
+| **R-2** | A group collapses to a popup button and re-expands, 20 crossings, no thrash | Machine | ✅ **Met, with named custom work.** 20 identical sweeps; collapse count 0 → 4, monotone in each direction; ribbon height constant at 122 px |
+| **R-3** | Tabs overflow to a chevron | Person | ✅ **Met, with named custom work.** Signed off 2026-08-23 (M-01) |
+| **R-4** | A contextual tab appears and disappears without changing ribbon height or flickering the strip | Machine (height), person (flicker) | ✅ **Met.** Machine: 60 show/hide cycles, constant 122 px, active tab kept. Flicker at 60 Hz signed off by the user 2026-08-23 (M-01) |
+| **R-5** | `Alt` key tips two levels deep, `Esc` dismisses | Person, keyboard-only | ✅ **Met.** Signed off 2026-08-23 (M-01) |
+| **R-6** | Correct at 100 / 150 / 200 %, **including a per-monitor change while running** | Person, two monitors | ✅ **Met for the ribbon.** Signed off 2026-08-23 (M-02), including the live per-monitor scale change. M-02's panes-and-dialogs half cannot be walked until T9/T14 exist and is re-walked then — a scope note, not a qualification |
+| **R-7** | `F9` collapses to the tab strip and restores, preserving the active tab | Machine, confirmed by hand | ✅ **Met.** 122 px → 26 px → 122 px, active tab preserved; also walked 2026-08-23 (M-01) |
+| ~~**R-8**~~ | ~~Every control `Tab`/arrow reachable and announced with a name and a role~~ | — | ⤵ **Withdrawn 2026-08-23** when accessibility was removed from the product (see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23)). The *announced with a name and a role* half is gone with it. The `Tab`-reachability half survives as **keyboard operability**, which is retained and is asserted by the spike's focus-order self-test — see the third item under *named custom work* below |
+| **R-9** | A tab switch inside one 60 Hz frame | Machine, measured | ✅ **Met with room to spare.** p50 **0.13 ms** · p95 **0.28 ms** · max **0.63 ms** over 100 switches, against a 16 ms budget — **57× headroom** |
+
+**The named custom work, so the eventual verdict is not a surprise.** Two of the nine need code Qt
+does not ship, and both are *ordinary Qt* rather than a fallback:
+
+1. **R-2 needs a custom `QLayout`** (`RibbonPageLayout`). No stock Qt layout can do this, and the
+   reason is structural rather than a gap: `QHBoxLayout` distributes *space* among children, whereas
+   collapse changes *what a child is*, decided from the space available. A stock layout has no way to
+   ask a child to become smaller **in kind** rather than in degree. Roughly 60 lines.
+2. **R-3 needs a custom overflow.** `QTabBar`'s own overflow is a pair of scroll arrows; a ribbon
+   uses a chevron with a menu of the hidden tabs. Roughly 30 lines over `QTabBar`.
+3. **Keyboard operability needs an explicit tab-order pass**, because (1) is implemented by
+   re-parenting. Roughly 15 lines, and it must run on every change of the collapsed set. See the
+   finding below — this one was not predicted, and it is the kind of cost that only shows up once
+   something is running. *(Originally found under R-8. R-8 was withdrawn with the accessibility
+   removal, but this cost was never an accessibility cost: a ribbon whose `Tab` order is scrambled is
+   broken for every keyboard user, and keyboard operability is retained.)*
+
+**The finding that came the other way — from the user's eyes, not the harness.** Walking M-01 on
+2026-08-23 the user reported that `Tab` ran **Clipboard → View → Tools**, skipping Tools and Styles
+until last, while the groups read Clipboard, Tools, Styles, View. Measured rather than guessed at, via
+a new `--print-tab-order` dump: the focus order was **exactly the groups' collapse priority**. Collapse
+is implemented by re-parenting the content between the group body and a popup; re-parenting appends
+the moved subtree to the **end** of the window's focus chain; every group collapses during the first
+layout, before the window has its real width, and re-expands in priority order. So Tab order was a
+fossil of the order the groups happened to change in.
+
+**This is a durable constraint on T10, not a spike bug.** *Any* collapse mechanism built on
+re-parenting has it. It is silent, it only manifests under the collapse sequence that actually
+occurred, and no amount of looking at a static window reveals it. The fix is a `setTabOrder` pass over
+the groups in visual order whenever the collapsed set changes (`RibbonPageLayout::restoreTabOrder()`),
+verified by negative control. It does **not** change the A3 verdict — it is one more piece of named
+custom work, and it is the third.
+
+**One finding the self-test caught that eye-judgement would have missed**, and it is the reason R-2
+and R-7 were automated rather than left to M-01: hysteresis is not a polish detail. Without a band
+between the width at which a group collapses and the width at which it re-expands, those are the same
+width, so a slow drag across the threshold oscillates once per frame. The first implementation had no
+band and the 20-sweep check failed by disagreeing with itself — the collapse state depended on resize
+*history*. A person dragging a window would have called that "a bit flickery" and moved on.
+
+**THE VERDICT: `go, with named custom work`** — the middle rung of the
+[§5.3 scale](./Stage1-AppShell-Plan.md#53-the-a3-spike--criteria-fixed-before-it-starts), which is a
+**pass**. Qt Widgets host a real ribbon. A custom `QLayout` inside Qt Widgets is ordinary Qt, not a
+fallback, and the fallback — a first-party ribbon widget — is not in play. The named work is the three
+items above: a collapse layout (~60 lines), a chevron overflow (~30), and a tab-order pass (~15).
+
+**How it was reached, and the one thing to be honest about.** R-2, R-7 and R-9 were machine-measured;
+the user walked **M-01** and **M-02** on 2026-08-23 and signed off **R-1, R-3, R-4's flicker, R-5, R-6
+and R-7**. The ninth criterion, **R-8, was never walked** — it was *withdrawn* on the same day when
+accessibility was removed from the product ([`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23)), so the verdict rests on eight criteria rather than
+nine. That is a smaller evidence base than the criteria list was designed to demand, and a reader
+comparing this verdict to §5.3 should know which rung was removed rather than cleared.
+
+**One scope note that must not be lost.** M-02 was walked against the spike, which has a ribbon and
+nothing else. Its non-ribbon half — *"the sidebar, a floating pane, and Preferences"* at mixed DPI —
+has **not** been tested, because `SidebarDock`/`ThemeManager` arrive at T9 and `LogPane`/
+`PreferencesDialog` at T14. R-6 is settled *for the ribbon*, which is what A3 asks about; the rest is
+re-walked after T14, recorded in the guide so it stays a scheduled item rather than an assumption.
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
@@ -285,7 +361,6 @@ process launching · SVG icon rendering · high-precision timers.
 | `IScanner` | Qt has no imaging-device API. |
 | `ICertificateStore` / `ICryptoProvider` | Signing must use the OS store, smart cards, and HSMs through the platform's crypto provider; Qt exposes no such surface. |
 | `ISecretStore` | Qt has no OS-key-protected secret storage. |
-| `ISpeech` | Qt has no TTS in the modules we take. |
 | `IFontResolver` | Resolving a *fallback for a missing embedded document font* requires the platform's font-matching engine; Qt's font DB serves UI text, not document glyph substitution. |
 | `IAcceleratedSurface` | Presenting rendered tiles through the platform's accelerated 2D API, with a software fallback. |
 | `IRichClipboard` | Vector-metafile and HTML clipboard flavours beyond `QClipboard`'s text/image. |
@@ -296,11 +371,19 @@ process launching · SVG icon rendering · high-precision timers.
 | `IProcessSandbox` | Launching a restricted child process for protected view uses OS job/token APIs. |
 | `IPowerSession` | Sleep/resume, battery-saver render throttling, and session lock notifications. |
 | `IDisplayTopology` | Monitor enumeration with per-monitor DPI and topology-change notification, beyond what `QScreen` reports. |
+| `IPrinting` | Tray selection by name, the printer's real duplex and colour capabilities, and submitting a job with a page range the driver understands. **Added 2026-08-23 at Stage 1 T7** — `platform/win/WinPrinting` has had a row in [`Architecture-FileMap.md` §3.12](./Architecture-FileMap.md#312-platform--the-os-abstraction) since the map was written, and `platform/win/` may hold nothing that does not implement a declared interface, so this row was missing rather than the file being wrong. *Ordinary* printing stays with `QPrinter` and is **not** behind it. |
 
-Sixteen interfaces sounds like a lot until you notice the shape: it is **wide and shallow**. Most
-are three to six methods and none of them is in the document-editing path. That is the correct
-trade for this product — the OS surface is broad because the *feature set* is broad, but the
-document engine stays entirely platform-free and therefore entirely unit-testable.
+**Seventeen interfaces, in sixteen rows** — `ICertificateStore` and `ICryptoProvider` share one.
+The count is stated as interfaces rather than rows because it was previously counted as rows and
+came out one short: the accessibility removal recorded the figure going "sixteen to fifteen" when
+what actually changed was sixteen rows to fifteen, and `IPrinting` had never been written down at
+all. Measured at Stage 1 T7 against `platform/platform.h` and `Architecture-FileMap.md` §3.12,
+which now agree at seventeen; `tests/platform/` asserts the count against the header.
+
+Seventeen sounds like a lot until you notice the shape: it is **wide and shallow**. Most are three
+to six methods and none of them is in the document-editing path. That is the correct trade for this
+product — the OS surface is broad because the *feature set* is broad, but the document engine stays
+entirely platform-free and therefore entirely unit-testable.
 
 ---
 

@@ -117,7 +117,11 @@ if(RAWPAGE_GATES_ONLY)
 elseif(RAWPAGE_PORTABLE_SUBSET)
     find_package(Qt6 REQUIRED COMPONENTS Core)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
+    # LinguistTools supplies `lrelease`, which i18n/ runs to compile the .ts catalogs. It is a
+    # build tool rather than a linked module, so it is deliberately NOT passed through
+    # rawpage_link_qt(): qt-modules.txt is the LINK closure tools/license-audit audits, and adding
+    # a tool we only execute would make that list mean something else.
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg LinguistTools)
     # TA-8 can only run once Qt6_VERSION and Qt6_DIR exist. Skipped for the gate builds for
     # the same reason the rest of the pin is: a Linux gate build uses whatever QtCore the
     # distro ships, and must.
@@ -139,6 +143,10 @@ if(NOT RAWPAGE_GATES_ONLY)
         add_subdirectory(platform)
         add_subdirectory(ui)
         add_subdirectory(app)
+
+        # Data, not code -- but data the running program loads by path, so it is built like
+        # anything else and lands beside the executable. See i18n/CMakeLists.txt.
+        add_subdirectory(i18n)
     endif()
 endif()
 
@@ -147,6 +155,18 @@ add_subdirectory(tests/gates)
 
 if(NOT RAWPAGE_GATES_ONLY)
     add_subdirectory(tests/unit)   # needs Catch2 from vcpkg, and core/ to test
+
+    # The platform suite is Windows-only and deliberately a SEPARATE target: tests/unit must keep
+    # linking core/ and pdf/ and nothing else, which is what portable-asan proves on a machine with
+    # no display and no engine. See tests/platform/CMakeLists.txt.
+    if(NOT RAWPAGE_PORTABLE_SUBSET)
+        add_subdirectory(tests/platform)
+
+        # The widget suite, for the reason D1-4 gives and tests/platform repeats from the other
+        # side: tests/unit links core/ and pdf/ and nothing else, and the first widget test is
+        # exactly the pressure that would otherwise weaken that. Windows only, offscreen.
+        add_subdirectory(tests/ui)
+    endif()
 endif()
 
 # --- Gate inputs -------------------------------------------------------------
