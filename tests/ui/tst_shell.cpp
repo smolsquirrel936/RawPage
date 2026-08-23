@@ -16,6 +16,9 @@
 #include "platform/platform.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
+#include "ui/shell/ActionFactory.h"
+#include "ui/shell/RawPageAction.h"
+#include "ui/shell/RibbonModel.h"
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/StatusBar.h"
 
@@ -68,13 +71,18 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // Three, and named. Stage 1 declares 358 ids; an id that is declared and UNREGISTERED renders
-    // as a visible, disabled control naming the stage it arrives in, which is the honest state.
-    // Registering a stub handler for the other 355 would make every one of them look available.
-    CHECK(fixture.actions.registeredCount() == 3);
+    // Four, and named. Stage 1 declares 358 ids; an id that is declared and UNREGISTERED renders as
+    // a visible, disabled control saying it is not built yet, which is the honest state. Registering
+    // a stub handler for the other 354 would make every one of them look available.
+    //
+    // The count is asserted as well as the names on purpose: a name-only check stays green when a
+    // fifth registration is added by accident, and "the window registers exactly what it can
+    // service" is a claim about the whole set rather than about four members of it.
+    CHECK(fixture.actions.registeredCount() == 4);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleRibbon));   // T10
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op.
@@ -82,6 +90,31 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
         fixture.actions.dispatch(core::ActionId::FileOpen, core::KeyContext::Global);
     REQUIRE_FALSE(notYet);
     CHECK(notYet.error().code == core::ErrorCode::NotFound);
+}
+
+TEST_CASE("the real window, shown, has no action that bypasses the registry", "[shell]")
+{
+    // D1-7(b) against the ACTUAL subject rather than a fixture. tst_actionwiring plants violations
+    // to prove the check can fail; this proves the product passes it -- and the two together are
+    // the pair, because either alone is satisfiable by a check that always answers the same way.
+    //
+    // show() matters. The self-check runs from MainWindow::showEvent, so a suite that never showed
+    // the window would leave the assertion in the product untested no matter how many actions it
+    // built. In a debug build the Q_ASSERT_X inside that handler fires here first; this CHECK is
+    // what makes the release build report it too.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    const QList<QString> complaints = ui::ActionFactory::wiringComplaints(&window);
+    for (const QString& complaint : complaints) UNSCOPED_INFO(complaint.toStdString());
+    CHECK(complaints.isEmpty());
+
+    // And the ribbon really is on the window rather than merely constructed -- 192 controls, every
+    // one of them a RawPageAction, which is what makes the check above a meaningful sample.
+    REQUIRE(window.ribbon() != nullptr);
+    CHECK(window.findChildren<ui::RawPageAction*>().size()
+          == ui::ribbon::shipped().spec.controlCount());
 }
 
 TEST_CASE("toggling the sidebar goes through the registry and keeps its width", "[shell]")
@@ -250,7 +283,20 @@ TEST_CASE("the string dump covers every shell key and every action label", "[she
         CHECK(keys.count(key) == 1);
     }
 
-    CHECK(keys.size() == shellKeyCount + core::kActionCount);
+    // And every ribbon tab and group title, which live in res/ribbon.json rather than in a .def --
+    // 58 names, a fifth of the shell's visible text. Read from the shipped spec here for the same
+    // reason dumpStrings() reads it there: a second hand-maintained list of the same names is the
+    // drift D1-6 exists to prevent.
+    const ui::ribbon::Spec& spec = ui::ribbon::shipped().spec;
+    const QStringList ribbonKeys = spec.catalogKeys();
+    REQUIRE_FALSE(ribbonKeys.isEmpty());
+    for (const QString& key : ribbonKeys) {
+        INFO("ribbon key " << key.toStdString());
+        CHECK(keys.count(key) == 1);
+    }
+
+    CHECK(keys.size() == shellKeyCount + core::kActionCount
+                             + static_cast<std::size_t>(ribbonKeys.size()));
 }
 
 TEST_CASE("a well-formed key resolves through the catalog and a bare word does not", "[shell]")

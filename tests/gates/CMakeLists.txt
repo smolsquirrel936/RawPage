@@ -130,6 +130,42 @@ rawpage_add_gate_test(NAME gates.layer_lint.argv_in_entry_point_is_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/argv-path-read-entry-point --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")
 
+# Stage 1 T10 -- decision D1-7(a), guide case A-12. FOUR SPELLINGS AND TWO CONTROLS.
+#
+# The four are the ways a QAction actually gets built: on the heap, on the stack, and through the
+# two addAction() conveniences -- QMenu's and QToolBar's -- that construct one without the word
+# `new` appearing anywhere. Stage 0's third S1 was a gate that passed real violations because every
+# fixture used the same spelling, and this is that lesson spent rather than remembered.
+rawpage_add_gate_test(NAME gates.layer_lint.qaction_new
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qaction-new --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "bare-qaction")
+
+rawpage_add_gate_test(NAME gates.layer_lint.qaction_stack
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qaction-stack --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "bare-qaction")
+
+rawpage_add_gate_test(NAME gates.layer_lint.qaction_menu_literal
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qaction-menu-literal --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "bare-qaction")
+
+rawpage_add_gate_test(NAME gates.layer_lint.qaction_toolbar_literal
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qaction-toolbar-literal --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "bare-qaction")
+
+# CONTROL ONE. ui/shell/ActionFactory.cpp is the one file allowed to construct an action, and it
+# must pass -- otherwise "fires on every spelling" is equally satisfied by a rule that rejects
+# everything and makes the mechanism it protects impossible to write.
+rawpage_add_gate_test(NAME gates.layer_lint.qaction_in_factory_is_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qaction-factory-allowed --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# CONTROL TWO. A file that discusses QAction in prose and constructs none. The gates read the part
+# of a line the compiler sees; a rule that also matched comments would make its own documentation
+# unwritable, which is Stage 0's I-20 wearing a different hat.
+rawpage_add_gate_test(NAME gates.layer_lint.qaction_mention_in_comment_is_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/qaction-mention-in-comment --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
 # Stage 1 T9. ui/ is granted exactly two single-file looks outward -- platform/platform.h and
 # app/Services.h -- and the whole value of that is that it is two files rather than two layers.
 rawpage_add_gate_test(NAME gates.layer_lint.ui_includes_app_internals

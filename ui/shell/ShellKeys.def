@@ -65,4 +65,18 @@ RAWPAGE_SHELL_STRING(ThemeLight,             "shell.theme.light")
 RAWPAGE_SHELL_STRING(ThemeDark,              "shell.theme.dark")
 RAWPAGE_SHELL_STRING(ThemeFollowSystem,      "shell.theme.followSystem")
 
+// --- The ribbon (T10) --------------------------------------------------------------------------
+// ONLY the keys the ribbon's CODE names. Every tab and group title lives in `res/ribbon.json` and
+// is resolved from there -- putting them here as well would be two lists of the same names, which
+// is the exact drift D1-6 exists to prevent. `Catalog::dumpStrings()` reads the shipped spec so
+// that guide case A-72 still covers all of them; see that function.
+RAWPAGE_SHELL_STRING(RibbonOverflowGlyph,    "ribbon.overflow.glyph")
+RAWPAGE_SHELL_STRING(RibbonOverflowTooltip,  "ribbon.overflow.tooltip")
+
+// The tooltip on a DECLARED but UNREGISTERED command -- most of the ribbon at Stage 1, and a
+// shrinking share of it through Stage 13. `%1` is the command's own label. It deliberately does not
+// name a stage number: `ActionId.def` does not carry one, and a hand-maintained "arrives in Stage 7"
+// per action would be 358 facts nobody updates when a plan moves.
+RAWPAGE_SHELL_STRING(RibbonTooltipUnregistered, "ribbon.tooltip.unregistered")
+
 #undef RAWPAGE_SHELL_STRING

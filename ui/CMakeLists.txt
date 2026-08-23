@@ -14,8 +14,8 @@
 # has real translation units, so the archive is no longer empty without it, and nothing had called
 # its anchor since T1 rewrote main.cpp.
 add_library(rawpage_ui STATIC
-    # shell/ -- the application frame (Stage 1 T9). Ribbon, QAT, tabs and the shortcut binder are
-    # T10 through T13 and are not here yet.
+    # shell/ -- the application frame (T9) and the ribbon (T10). The QAT, document tabs and the
+    # shortcut binder are T11 through T13 and are not here yet.
     shell/ShellKeys.def
     shell/Catalog.h
     shell/Catalog.cpp
@@ -27,7 +27,25 @@ add_library(rawpage_ui STATIC
     shell/SidebarDock.cpp
     shell/MainWindow.h
     shell/MainWindow.cpp
+
+    # The ribbon -- T10. RibbonModel is the declarative layout's parser and is deliberately
+    # WIDGET-FREE: tools/ribbon-validate compiles that one file in so the build-time check and the
+    # runtime build share a parser rather than agreeing by hand. See its header.
+    shell/RibbonModel.h
+    shell/RibbonModel.cpp
+    shell/RawPageAction.h
+    shell/ActionFactory.h
+    shell/ActionFactory.cpp
+    shell/Ribbon.h
+    shell/Ribbon.cpp
+    shell/RibbonTabBuilder.h
+    shell/RibbonTabBuilder.cpp
 )
+
+# ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before
+# it is copied beside the executable. Depending on it here means an invalid resource fails the build
+# of the layer that consumes it, rather than at whatever later point somebody happens to run.
+add_dependencies(rawpage_ui rawpage_resources)
 
 # A header-shaped include, not a translation unit -- same treatment as core/'s three .def tables.
 set_source_files_properties(shell/ShellKeys.def PROPERTIES HEADER_FILE_ONLY ON)

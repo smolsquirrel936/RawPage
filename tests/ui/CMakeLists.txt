@@ -22,6 +22,8 @@ add_executable(rawpage_ui_tests
     main.cpp
     tst_theme.cpp
     tst_shell.cpp
+    tst_ribbonbuild.cpp
+    tst_actionwiring.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")
@@ -37,8 +39,11 @@ target_link_libraries(rawpage_ui_tests PRIVATE
 set_target_properties(rawpage_ui_tests PROPERTIES AUTOMOC ON)
 
 # The suite installs rawpage_en.qm so the widgets are exercised against real text rather than
-# against their own catalog keys. See the comment in main.cpp.
-add_dependencies(rawpage_ui_tests rawpage_translations)
+# against their own catalog keys. See the comment in main.cpp. It also needs res/ribbon.json beside
+# the binary, for the same reason and with a second one on top: the ribbon cases assert that the
+# SHIPPED resource is the one that loads, so depending on the validated copy is what makes them
+# about the product rather than about a fixture.
+add_dependencies(rawpage_ui_tests rawpage_translations rawpage_resources)
 
 rawpage_common_flags(rawpage_ui_tests)
 

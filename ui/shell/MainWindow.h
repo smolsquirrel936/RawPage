@@ -11,7 +11,7 @@
 // WHAT IT DOES NOT HAVE YET, and where each arrives. Saying so here is cheaper than a reader
 // searching for a ribbon that is not missing so much as not yet built:
 //
-//   * the ribbon and the Quick Access Toolbar -- T10 and T11;
+//   * the Quick Access Toolbar -- T11;
 //   * document tabs and the stub `DocumentWindow` -- T12, which is when `openFiles()` stops
 //     reporting a path and starts opening a tab for it (decision D1-2);
 //   * chord input, which is `ui/shell/ShortcutBinder` at T13 -- until then the actions registered
@@ -37,6 +37,8 @@ class QToolButton;
 
 namespace rawpage::ui {
 
+class ActionFactory;
+class Ribbon;
 class SidebarDock;
 class StatusBar;
 class ThemeManager;
@@ -62,11 +64,19 @@ public:
     // to choose WHICH window to raise.
     void raiseToForeground();
 
+    Ribbon*       ribbon() const { return ribbon_; }
     SidebarDock*  sidebar() const { return sidebar_; }
     StatusBar*    statusBar() const { return status_; }
     ThemeManager* theme() const { return theme_.get(); }
 
+protected:
+    // The debug half of D1-7. Runs at SHOW time rather than at construction because an action can
+    // be added to the window after the constructor -- a dialog's, a pane's -- and the check is worth
+    // having on the tree as the user actually sees it.
+    void showEvent(QShowEvent* event) override;
+
 private:
+    void buildRibbon();
     void buildCentralSurface();
     void buildAutoHideStrips();
     void registerActions();
@@ -74,6 +84,11 @@ private:
 
     app::Services services_;
 
+    // Constructed before the ribbon and destroyed after it: every RawPageAction the ribbon shows
+    // was made here, and the lambda each one carries holds this factory by reference.
+    std::unique_ptr<ActionFactory> actionFactory_;
+
+    Ribbon*      ribbon_ = nullptr;
     SidebarDock* sidebar_ = nullptr;
     StatusBar*   status_ = nullptr;
     std::unique_ptr<ThemeManager> theme_;

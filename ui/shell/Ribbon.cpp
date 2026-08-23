@@ -1,19 +1,23 @@
-#include "SpikeRibbon.h"
+#include "ui/shell/Ribbon.h"
 
-#include <QApplication>
+#include "ui/shell/ActionFactory.h"
+#include "ui/shell/Catalog.h"
+
+#include <QColor>
+#include <QFont>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
-#include <QPainter>
 #include <QResizeEvent>
 #include <QStackedWidget>
-#include <QStyle>
 #include <QTabBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 
-namespace spike {
+#include <algorithm>
+
+namespace rawpage::ui {
 
 // =======================================================================================
 // RibbonGroup
@@ -22,10 +26,10 @@ namespace spike {
 RibbonGroup::RibbonGroup(QString title, QWidget* parent)
     : QWidget(parent), title_(std::move(title))
 {
-    setFixedHeight(kBodyHeight);
+    setFixedHeight(kRibbonBodyHeight);
 
     auto* column = new QVBoxLayout(this);
-    column->setContentsMargins(kGroupMargin, kGroupMargin, kGroupMargin, 2);
+    column->setContentsMargins(kRibbonGroupMargin, kRibbonGroupMargin, kRibbonGroupMargin, 2);
     column->setSpacing(2);
 
     body_ = new QWidget(this);
@@ -39,17 +43,17 @@ RibbonGroup::RibbonGroup(QString title, QWidget* parent)
     button_->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     button_->setPopupMode(QToolButton::InstantPopup);
     button_->setAutoRaise(true);
-    button_->setFixedHeight(kBodyHeight - kTitleHeight - kGroupMargin - 2);
+    button_->setFixedHeight(kRibbonBodyHeight - kRibbonTitleHeight - kRibbonGroupMargin - 2);
     button_->hide();
-    // objectName, NOT accessibleName: accessibility was removed from the product on 2026-08-23
-    // (Features.md -> Removed from scope). This is Qt's ordinary widget-identification mechanism,
-    // used here so the focus-order self-test and --print-tab-order can name what they found.
+    // objectName, NOT accessibleName: accessibility left the product on 2026-08-23 (Features.md ->
+    // Removed from scope). This is Qt's ordinary widget-identification mechanism, used so the
+    // widget suite can name what it found.
     button_->setObjectName(title_);
     column->addWidget(button_, 1);
 
     caption_ = new QLabel(title_, this);
     caption_->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    caption_->setFixedHeight(kTitleHeight);
+    caption_->setFixedHeight(kRibbonTitleHeight);
     QFont small = caption_->font();
     small.setPointSizeF(small.pointSizeF() * 0.85);
     caption_->setFont(small);
@@ -71,22 +75,22 @@ int RibbonGroup::expandedWidth() const
 {
     const int content = content_ ? content_->sizeHint().width() : 0;
     const int caption = caption_->fontMetrics().horizontalAdvance(title_) + 12;
-    return qMax(content, caption) + 2 * kGroupMargin;
+    return qMax(content, caption) + 2 * kRibbonGroupMargin;
 }
 
 int RibbonGroup::collapsedWidth() const
 {
-    return button_->fontMetrics().horizontalAdvance(title_) + 24 + 2 * kGroupMargin;
+    return button_->fontMetrics().horizontalAdvance(title_) + 24 + 2 * kRibbonGroupMargin;
 }
 
 QSize RibbonGroup::sizeHint() const
 {
-    return {collapsed_ ? collapsedWidth() : expandedWidth(), kBodyHeight};
+    return {collapsed_ ? collapsedWidth() : expandedWidth(), kRibbonBodyHeight};
 }
 
 QSize RibbonGroup::minimumSizeHint() const
 {
-    return {collapsedWidth(), kBodyHeight};
+    return {collapsedWidth(), kRibbonBodyHeight};
 }
 
 void RibbonGroup::setCollapsed(bool collapsed)
@@ -95,10 +99,8 @@ void RibbonGroup::setCollapsed(bool collapsed)
     collapsed_ = collapsed;
 
     if (collapsed) {
-        // Re-parent the SAME content into a frameless popup. The alternative -- building a
-        // second copy of the content for the popup -- is what makes the two drift apart by
-        // Stage 9, and it is why this is done by re-parenting even though re-parenting is
-        // the fiddlier of the two.
+        // Re-parent the SAME content into a frameless popup -- see the header for why this rather
+        // than a second copy, and for the tab-order cost it incurs (I-05).
         if (!popup_) {
             popup_ = new QWidget(this, Qt::Popup);
             auto* popupLayout = new QHBoxLayout(popup_);
@@ -112,7 +114,7 @@ void RibbonGroup::setCollapsed(bool collapsed)
         button_->show();
     } else {
         if (popup_) popup_->hide();
-        if (content_) {
+        if (content_ && popup_) {
             qobject_cast<QHBoxLayout*>(popup_->layout())->removeWidget(content_);
             content_->setParent(body_);
             qobject_cast<QHBoxLayout*>(body_->layout())->addWidget(content_);
@@ -163,23 +165,44 @@ QLayoutItem* RibbonPageLayout::takeAt(int index)
 QSize RibbonPageLayout::sizeHint() const
 {
     int width = 0;
-    for (QLayoutItem* item : items_) {
+    for (QLayoutItem* item : items_)
         if (auto* group = qobject_cast<RibbonGroup*>(item->widget()))
             width += group->expandedWidth() + spacing();
-    }
-    const QMargins m = contentsMargins();
-    return {width + m.left() + m.right(), kBodyHeight + m.top() + m.bottom()};
+
+    const QMargins margins = contentsMargins();
+    return {width + margins.left() + margins.right(),
+            kRibbonBodyHeight + margins.top() + margins.bottom()};
 }
 
 QSize RibbonPageLayout::minimumSize() const
 {
-    int width = 0;
-    for (QLayoutItem* item : items_) {
+    // THE WIDEST SINGLE COLLAPSED GROUP -- deliberately NOT the sum of them all.
+    //
+    // Summing is the obvious answer and it is wrong, and it took a real ribbon to show why. This
+    // layout's minimum propagates all the way up to the main window, so with the resource as
+    // shipped -- 49 groups, the widest tab holding eight -- the sum made the whole application
+    // un-narrowable below about 1044 logical pixels. On a 1366-wide laptop at 150 % scaling that is
+    // wider than the screen, and the user cannot resize their way out of it because nothing on
+    // screen explains what is holding the window open.
+    //
+    // Two things went unnoticed behind it, which is what makes this worth the paragraph. Snapping
+    // back to 1044 on a resize to 240 also meant the tab strip could never run out of room, so the
+    // chevron overflow -- one of the three pieces of named custom work the A3 verdict rests on --
+    // was unreachable in the shipped configuration while its code looked perfectly correct. The
+    // spike never saw either: it had four groups.
+    //
+    // So the floor is one group. Collapse absorbs the first shortfall; past that the row is clipped
+    // at the window edge, which is what a narrow ribbon does in the reference (P-4). A horizontal
+    // scroll for the body is the better answer and it is a real feature rather than a line here --
+    // it belongs with the QAT work at T11. Issue I-19.
+    int widest = 0;
+    for (QLayoutItem* item : items_)
         if (auto* group = qobject_cast<RibbonGroup*>(item->widget()))
-            width += group->collapsedWidth() + spacing();
-    }
-    const QMargins m = contentsMargins();
-    return {width + m.left() + m.right(), kBodyHeight + m.top() + m.bottom()};
+            widest = qMax(widest, group->collapsedWidth() + spacing());
+
+    const QMargins margins = contentsMargins();
+    return {widest + margins.left() + margins.right(),
+            kRibbonBodyHeight + margins.top() + margins.bottom()};
 }
 
 int RibbonPageLayout::collapsedCount() const
@@ -196,23 +219,25 @@ void RibbonPageLayout::setGeometry(const QRect& rect)
     QLayout::setGeometry(rect);
     ++relayouts_;
 
-    const QMargins m = contentsMargins();
-    const int available = rect.width() - m.left() - m.right();
+    const QMargins margins   = contentsMargins();
+    const int      available = rect.width() - margins.left() - margins.right();
 
     QList<RibbonGroup*> groups;
     for (QLayoutItem* item : items_)
         if (auto* group = qobject_cast<RibbonGroup*>(item->widget())) groups.append(group);
     if (groups.isEmpty()) return;
 
-    // Collapse the highest-priority group first, one at a time, until the row fits. Compared
+    // Collapse the highest-priority group first, one at a time, until the row fits -- compared
     // against the width each candidate state WOULD need, so the decision is a function of the
-    // available width alone and not of the order the resizes happened to arrive in -- which is
-    // the other half of not thrashing.
+    // available width alone and not of the order the resizes happened to arrive in. That is the
+    // other half of not thrashing.
     QList<RibbonGroup*> byPriority = groups;
     std::stable_sort(byPriority.begin(), byPriority.end(),
-                     [](RibbonGroup* a, RibbonGroup* b) { return a->priority() > b->priority(); });
+                     [](RibbonGroup* a, RibbonGroup* b) {
+                         return a->collapsePriority() > b->collapsePriority();
+                     });
 
-    auto widthWith = [&](int collapseCount) {
+    const auto widthWith = [&](int collapseCount) {
         int width = 0;
         for (int i = 0; i < byPriority.size(); ++i)
             width += (i < collapseCount ? byPriority[i]->collapsedWidth()
@@ -223,27 +248,25 @@ void RibbonPageLayout::setGeometry(const QRect& rect)
     int wanted = 0;
     while (wanted < byPriority.size() && widthWith(wanted) > available) ++wanted;
 
-    // The hysteresis band, applied only in the direction that would UN-collapse a group.
-    // Collapsing promptly is correct -- the alternative is content overhanging the window --
-    // but expanding must wait until there is comfortably room, or the two decisions share a
-    // boundary and oscillate. See the header.
+    // The hysteresis band, applied ONLY in the direction that would un-collapse a group. Collapsing
+    // promptly is correct -- the alternative is content overhanging the window -- but expanding must
+    // wait until there is comfortably room, or the two decisions share a boundary and oscillate.
     const int current = collapsedCount();
-    if (wanted < current && widthWith(wanted) > available - kHysteresis)
-        wanted = current;
+    if (wanted < current && widthWith(wanted) > available - kHysteresis) wanted = current;
 
-    for (int i = 0; i < byPriority.size(); ++i)
-        byPriority[i]->setCollapsed(i < wanted);
+    for (int i = 0; i < byPriority.size(); ++i) byPriority[i]->setCollapsed(i < wanted);
 
-    int x = rect.x() + m.left();
-    const int y = rect.y() + m.top();
+    int       x = rect.x() + margins.left();
+    const int y = rect.y() + margins.top();
     for (RibbonGroup* group : groups) {
         const int width = group->isCollapsed() ? group->collapsedWidth() : group->expandedWidth();
-        group->setGeometry(x, y, width, kBodyHeight);
+        group->setGeometry(x, y, width, kRibbonBodyHeight);
         x += width + spacing();
     }
 
-    // Re-chain Tab whenever the set of collapsed groups changed. Only then: setTabOrder over
-    // every control on every relayout would run on each frame of a drag for no benefit.
+    // Re-chain Tab whenever the set of collapsed groups changed -- and only then. Running
+    // setTabOrder over every control on every relayout would run on each frame of a drag for no
+    // benefit, and a fix that costs a frame is a fix somebody eventually removes.
     int mask = 0;
     for (int i = 0; i < groups.size() && i < 31; ++i)
         if (groups[i]->isCollapsed()) mask |= (1 << i);
@@ -257,18 +280,18 @@ void RibbonPageLayout::restoreTabOrder()
 {
     QWidget* previous = nullptr;
 
-    // Groups in VISUAL order -- which is items_ order, the order they were added, and the order
-    // they are placed above. Deliberately not byPriority: priority decides what collapses, and
-    // letting it also decide Tab order is the bug this function exists to undo.
+    // Groups in VISUAL order -- which is items_ order, the order they were added, and the order they
+    // are placed above. Deliberately NOT byPriority: priority decides what collapses, and letting it
+    // also decide Tab order is the bug this function exists to undo (I-05).
     for (QLayoutItem* item : items_) {
         auto* group = qobject_cast<RibbonGroup*>(item->widget());
         if (!group) continue;
 
-        // findChildren walks in child order, so within a group this is creation order, which is
-        // left-to-right for every group here. A collapsed group's content lives in a Qt::Popup
-        // -- a separate window -- so the window() check drops it and leaves the group's own
-        // button in the chain instead, which is exactly right: you cannot Tab into a closed
-        // popup, and you should be able to Tab onto the button that opens it.
+        // findChildren walks in child order, which here is creation order, which is left-to-right.
+        // A collapsed group's content lives in a Qt::Popup -- a separate window -- so the window()
+        // check drops it and leaves the group's own button in the chain instead. That is exactly
+        // right: you cannot Tab into a closed popup, and you should be able to Tab onto the button
+        // that opens it.
         for (QWidget* child : group->findChildren<QWidget*>()) {
             if (!(child->focusPolicy() & Qt::TabFocus)) continue;
             if (child->window() != group->window()) continue;
@@ -284,11 +307,14 @@ void RibbonPageLayout::restoreTabOrder()
 
 Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
 {
+    setObjectName(QStringLiteral("ribbon"));
+
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
 
     auto* strip = new QWidget(this);
+    strip->setObjectName(QStringLiteral("ribbonTabStrip"));
     auto* stripLayout = new QHBoxLayout(strip);
     stripLayout->setContentsMargins(4, 2, 4, 0);
     stripLayout->setSpacing(2);
@@ -297,16 +323,31 @@ Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
     tabs_->setExpanding(false);
     tabs_->setDrawBase(false);
     tabs_->setUsesScrollButtons(false);      // R-3 uses a chevron, not arrows
+
+    // AND THEREFORE ITS WIDTH PREFERENCE IS MEANINGLESS TO THE LAYOUT. With scroll buttons off,
+    // QTabBar's minimumSizeHint is the width of ALL its tabs -- it has no other way to stay usable
+    // -- and that minimum propagates up to the main window. With nine tabs that alone held the
+    // window open at 714 logical pixels and, worse, meant the tab strip could never actually run
+    // out of room, so the chevron this line exists to enable was unreachable.
+    //
+    // Ignored, not a hand-set minimum: this widget's preferred width is not a smaller number, it is
+    // not a number at all. Overflow is decided by relayoutTabs() from the width the ribbon actually
+    // got. Part of issue I-19, and found the same way -- by asking a real ribbon to be narrow.
+    tabs_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     tabs_->setFocusPolicy(Qt::TabFocus);     // keyboard operability, retained
-    tabs_->setObjectName(QStringLiteral("Ribbon tabs"));
+    tabs_->setObjectName(QStringLiteral("ribbonTabs"));
     stripLayout->addWidget(tabs_, 0);
     stripLayout->addStretch(1);
 
     chevron_ = new QToolButton(strip);
-    chevron_->setText(QStringLiteral("»"));
+    // Through the catalog, not as a literal. A chevron looks like punctuation rather than text, and
+    // that is exactly the reasoning that put an em dash in front of a CJK reader at T9: the glyph a
+    // locale uses for "there is more this way" is an editorial decision, not a constant.
+    chevron_->setText(catalog::translate(catalog::key::RibbonOverflowGlyph));
+    chevron_->setToolTip(catalog::translate(catalog::key::RibbonOverflowTooltip));
     chevron_->setPopupMode(QToolButton::InstantPopup);
     chevron_->setAutoRaise(true);
-    chevron_->setObjectName(QStringLiteral("More tabs"));
+    chevron_->setObjectName(QStringLiteral("ribbonOverflow"));
     chevron_->setMenu(new QMenu(chevron_));
     chevron_->hide();
     stripLayout->addWidget(chevron_, 0);
@@ -314,7 +355,8 @@ Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
     column->addWidget(strip, 0);
 
     stack_ = new QStackedWidget(this);
-    stack_->setFixedHeight(kBodyHeight + 4);
+    stack_->setObjectName(QStringLiteral("ribbonPages"));
+    stack_->setFixedHeight(kRibbonBodyHeight + 4);
     column->addWidget(stack_, 0);
 
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) {
@@ -329,8 +371,8 @@ int Ribbon::addPage(const QString& title, QWidget* page, bool contextual)
     stack_->addWidget(page);
     if (contextual) {
         contextualIndex_ = index;
-        // R-4: the contextual tab is REMOVED from the strip rather than merely disabled, and
-        // the body height is fixed, so appearing and disappearing cannot move the ribbon.
+        // R-4: the contextual tab is REMOVED from the strip rather than merely disabled, and the
+        // body height is fixed, so appearing and disappearing cannot move the ribbon.
         tabs_->setTabVisible(index, false);
         tabs_->setTabTextColor(index, QColor(0x8A, 0x2B, 0xE2));
     }
@@ -346,22 +388,28 @@ void Ribbon::setContextualVisible(bool visible)
     relayoutTabs();
 }
 
-int  Ribbon::currentPage() const { return tabs_->currentIndex(); }
+int Ribbon::pageCount() const { return tabs_->count(); }
+
+int Ribbon::currentPage() const { return tabs_->currentIndex(); }
 
 void Ribbon::setCurrentPage(int index) { tabs_->setCurrentIndex(index); }
+
+QString Ribbon::pageTitle(int index) const { return tabs_->tabText(index); }
+
+bool Ribbon::hasOverflow() const { return !chevron_->isHidden(); }
 
 void Ribbon::setBodyCollapsed(bool collapsed)
 {
     if (bodyCollapsed_ == collapsed) return;
     bodyCollapsed_ = collapsed;
-    // R-7: the STACK is hidden, not the pages, and the tab bar's current index is untouched,
-    // which is what makes the active tab survive a collapse/restore cycle for free.
+    // R-7: the STACK is hidden, not the pages, and the tab bar's current index is untouched -- which
+    // is what makes the active tab survive a collapse/restore cycle for free.
     stack_->setVisible(!collapsed);
 
     // Hiding a child invalidates this widget's own size hint, but nothing re-runs the PARENT's
     // layout until something asks it to. Without these two lines the ribbon keeps its expanded
-    // height with an empty gap where the body was -- which is what the self-test caught, and
-    // is a real finding rather than an offscreen artefact: the same gap appears on screen.
+    // height with an empty gap where the body was -- caught by the spike's self-test, and a real
+    // finding rather than an offscreen artefact: the same gap appears on screen.
     updateGeometry();
     if (QWidget* owner = parentWidget(); owner && owner->layout()) owner->layout()->activate();
 }
@@ -380,17 +428,16 @@ void Ribbon::resizeEvent(QResizeEvent* event)
 
 void Ribbon::relayoutTabs()
 {
-    // R-3: hide the tabs that do not fit and offer them from a chevron menu. QTabBar's own
-    // overflow is a pair of scroll arrows, which is not what a ribbon does -- so this is a
-    // named piece of custom work rather than a stock behaviour.
+    // R-3, named custom work #2. QTabBar's own overflow is a pair of scroll arrows, which is not
+    // what a ribbon does -- so hidden tabs are offered from a chevron menu instead.
     const int budget = width() - chevron_->sizeHint().width() - 16;
 
-    int used = 0;
+    int  used      = 0;
     bool anyHidden = false;
     for (int i = 0; i < tabs_->count(); ++i) {
         if (i == contextualIndex_ && !contextualVisible_) continue;
-        const int tabWidth = tabs_->tabRect(i).width();
-        const bool fits = (used + tabWidth) <= budget || i == tabs_->currentIndex();
+        const int  tabWidth = tabs_->tabRect(i).width();
+        const bool fits     = (used + tabWidth) <= budget || i == tabs_->currentIndex();
         tabs_->setTabVisible(i, fits);
         if (fits) used += tabWidth; else anyHidden = true;
     }
@@ -406,15 +453,20 @@ void Ribbon::rebuildOverflowMenu()
     for (int i = 0; i < tabs_->count(); ++i) {
         if (tabs_->isTabVisible(i)) continue;
         if (i == contextualIndex_ && !contextualVisible_) continue;
-        QAction* action = menu->addAction(tabs_->tabText(i));
+
+        // Through ActionFactory, even though a ribbon tab is NOT a command. `addAction(QString)`
+        // builds a QAction internally, and layer-lint's `bare-qaction` rule allows that in exactly
+        // one file -- so the construction happens there and comes back stamped as non-command,
+        // rather than this file being carved out of the rule. See ActionFactory.h.
+        QAction* action = ActionFactory::addNonCommandMenuItem(menu, tabs_->tabText(i));
         connect(action, &QAction::triggered, this, [this, i] { setCurrentPage(i); });
     }
 }
 
 // --- R-5: key tips ---------------------------------------------------------------------
-// Two levels, dismissable with Esc. Drawn as child QLabels rather than painted into the tab
-// bar, because a key tip has to overlay a control it does not own -- and a real ribbon's tips
-// sit over buttons inside a group, which the tab bar cannot paint into at all.
+// Two levels, dismissable with Esc. Drawn as child QLabels rather than painted into the tab bar,
+// because a key tip has to overlay a control it does not own -- and a real ribbon's tips sit over
+// buttons inside a group, which the tab bar cannot paint into at all.
 void Ribbon::showKeyTips()
 {
     hideKeyTips();
@@ -429,6 +481,7 @@ void Ribbon::showKeyTips()
         tipTargets_.insert(key, i);
 
         auto* tip = new QLabel(QString(QChar(key)), this);
+        tip->setObjectName(QStringLiteral("ribbonKeyTip"));
         tip->setFrameShape(QFrame::Box);
         tip->setAlignment(Qt::AlignCenter);
         tip->setAutoFillBackground(true);
@@ -471,6 +524,7 @@ bool Ribbon::handleKeyTip(int key)
         const QList<RibbonGroup*> groups = page->findChildren<RibbonGroup*>();
         for (int i = 0; i < groups.size(); ++i) {
             auto* tip = new QLabel(QString::number(i + 1), this);
+            tip->setObjectName(QStringLiteral("ribbonKeyTip"));
             tip->setFrameShape(QFrame::Box);
             tip->setAlignment(Qt::AlignCenter);
             tip->setAutoFillBackground(true);
@@ -486,4 +540,4 @@ bool Ribbon::handleKeyTip(int key)
     return true;
 }
 
-} // namespace spike
+} // namespace rawpage::ui

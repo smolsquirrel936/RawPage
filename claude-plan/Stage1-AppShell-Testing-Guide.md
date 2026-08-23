@@ -6,20 +6,21 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **In progress — Stage 1 T1…T9 verified as of 2026-08-23.** **68 automated** cases
+> **Status:** 🟡 **In progress — Stage 1 T1…T10 verified as of 2026-08-24.** **68 automated** cases
 > (A-01 … A-85, plus **A-67** added at T7) and **12 manual** (M-01 … M-12), of which **M-08 is
 > withdrawn** with the accessibility removal.
 >
 > | | |
 > |---|---|
-> | **Automated, green** | A-03…A-08, A-10…A-11, A-13…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-52**, **A-60**, **A-63**, **A-64**, A-62, A-65…A-67, A-70…A-72. `ctest` **226/226** on both presets; the bare `gates` preset **59/59** with no Qt; `checks` clean on **three** gates at 100 files / 509 includes, i18n-lint 45 files / 0 waivers |
+> | **Automated, green** | A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50**, **A-51**, **A-52**, **A-54**, **A-60**, **A-62**, **A-63**, **A-64**, A-65…A-67, A-70…A-72. `ctest` **250/250** on both presets; the bare `gates` preset **65/65** with no Qt; `checks` clean on **three** gates at 109 files / 569 includes, i18n-lint 55 files / 0 waivers |
 > | **Automated, half run** | **A-58** — the acceptance half is green (a `.pdf` full of plain text is accepted, and nothing reads it); the `Ctrl+O` half needs T13's chords and T12's stub tab, and is not being claimed |
-> | **Automated, not yet reachable** | A-12, A-50…A-51, A-53…A-57, A-61, A-80…A-85 — everything needing the ribbon, chord input, document tabs, or a CI run at the final counts. They arrive with T10…T15 |
+> | **Automated, not yet reachable** | A-53, A-55…A-57, A-61, A-81…A-85 — everything needing chord input, the QAT, the tool finder, document tabs, or a CI run at the final counts. They arrive with T11…T15. **A-80 is open rather than unreachable**: two of three CI jobs are green and the `windows` job has never run |
 > | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. M-03…M-07, M-09…M-12 are **not walkable yet** — the code they test does not exist |
 >
-> **Issue log: I-01 … I-17. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, and **I-17 by the
-> first `portable-asan` run to reach Stage 1's code**. **Twelve of the seventeen were found by running
-> something rather than by reading it**,
+> **Issue log: I-01 … I-20. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
+> first `portable-asan` run to reach Stage 1's code, and **I-18 … I-20 by T10's first run against a
+> real, shown window**. **Fifteen of the twenty were found by running something rather than by
+> reading it**,
 > which is by now less a pattern than a method: **I-05** and **I-06** by the user's manual walk,
 > **I-03** by reading output rather than an exit code, **I-08** and **I-09** by settings fixtures
 > written the way a person would hand-edit the file, **I-11** — an S2 race in the single-instance
@@ -279,8 +280,8 @@ rests on.
 **Steps** `cmake --preset gates` then `--target checks` on a machine with no Qt.
 **Expect** Green. **If it fails** S2 — a gate needing the build environment is a gate that runs last.
 
-**A-12 · A bare `QAction` outside `ActionFactory` fails the gate — D1-7(a)**
-☐ **Goal** The static half of "nothing is wired directly to a widget slot".
+**A-12 · A bare `QAction` outside `ActionFactory` fails the gate — D1-7(a)** — ✅ **2026-08-24 at T10**
+☑ **Goal** The static half of "nothing is wired directly to a widget slot".
 **Pre** Fixtures under `tests/gates/fixtures/layer-lint/qaction-*/`, **one per spelling**:
 `new QAction(...)`, a stack `QAction a(...)`, `menu->addAction("Literal", ...)`,
 `toolbar->addAction(icon, "Literal", ...)`, and — as a **negative control** — the legitimate
@@ -289,6 +290,14 @@ construction inside `ui/shell/ActionFactory.cpp` plus a comment mentioning `QAct
 **Expect** Every offending spelling fails with the named diagnostic; both controls pass.
 **If it fails** **S1.** This is I-15 restated: a rule tested against one spelling is a rule that only
 catches one spelling, and that finding cost Stage 0 its third S1.
+**Result** Green. **Four spellings, not five** — the plan's list named a stack `QAction a(...)`, a
+`new QAction`, `menu->addAction("…")` and `toolbar->addAction(icon, "…")`, and those are the four
+distinct constructions that exist; the fifth entry in the sketch was the control. Both controls pass:
+the legitimate construction in `ui/shell/ActionFactory.cpp`, and a file that discusses `QAction` in
+prose at length and constructs none. The rule is `escapable: false` and has **two** allowed paths, the
+second being `ui/shell/RawPageAction.h` — the subclass definition is the one other place that must
+name `QAction`, and pretending otherwise would have meant a waiver on the rule that is supposed not to
+have any. The `gates` preset went 59 → **65**.
 
 **A-13 · `i18n-lint` fails on an unwrapped literal, in every spelling**
 ☐ **Pre** Fixtures covering: a raw `"…"` passed to `setText`, a `QStringLiteral("…")`, a `u"…"`, a
@@ -475,16 +484,39 @@ least afford it.
 All of §5.6 runs with `QT_QPA_PLATFORM=offscreen` (D1-4). **None of it can judge appearance** — that
 is §6's job, and a case here that claims to have checked a *look* is a defect in this guide.
 
-**A-50 · The ribbon builds entirely from `res/ribbon.json`**
-☐ **Steps** `ctest --preset x64-release -R ui.tst_ribbonbuild`
+**A-50 · The ribbon builds entirely from `res/ribbon.json`** — ✅ **2026-08-24 at T10**
+☑ **Steps** `ctest --preset x64-release -R "^ui\." --output-on-failure`
 **Expect** Every tab, group, and control in the JSON is present in the widget tree, and **no control
 exists that the JSON did not declare**. **If it fails** S2.
+**Result** Green over **9 tabs, 49 groups, 192 controls**. Both directions are asserted, and the
+second is the one that actually protects D1-8: "everything in the JSON is on screen" is equally
+satisfied by a builder that *also* hard-codes three buttons of its own, and the moment one exists,
+adding a command stops being a JSON line while the test stays green. The count of `RawPageAction`
+children of the ribbon is compared against the spec's own control count, and every one of them is
+checked to be an id the spec named.
 
-**A-51 · An unknown action id in `ribbon.json` fails the build**
-☐ **Goal** D1-8. **Steps** Build with a deliberately misspelled id.
+**A-51 · An unknown action id in `ribbon.json` fails the build** — ✅ **2026-08-24 at T10**
+☑ **Goal** D1-8. **Steps** Build with a deliberately misspelled id.
 **Expect** **The build fails**, naming the id and the JSON line. Not a warning; not a missing button.
 **If it fails** S2 — the moment a typo yields a silently missing button, the next person writes widget
 code and the declarative ribbon is dead weight.
+**Result** Verified by planting `"file.saevAs"` for `"file.saveAs"` and building. Actual output:
+
+```
+[1/1] ribbon-validate res/ribbon.json
+FAILED: bin/res/ribbon.json
+res/ribbon.json:44: unknown action id "file.saevAs" in group "home.file"
+                    -- it is not declared in core/cmd/ActionId.def
+ribbon-validate: 1 problem(s) in ribbon.json -- the ribbon is built entirely from this
+                 file, so a bad row here is a missing button with no other symptom
+ninja: build stopped: subcommand failed.
+```
+
+The id, the group and the line, and **the resource is not copied** — so there is no stale valid copy
+beside the executable to mask it. The duplicate-placement and empty-group halves of D1-8, plus the
+line-number resolution, are additionally pinned as unit cases against the same parser, which is the
+point of `RibbonModel` being one parser rather than two: the build-time verdict and the runtime one
+cannot disagree.
 
 **A-52 · Theme tokens resolve for light, dark, and follow-system** — ✅ **2026-08-23 at T9**
 ☑ **Steps** `ctest --preset x64-release -R "^ui\.(every|light|the requested|the UI)"`
@@ -506,13 +538,25 @@ a chain declaring none falls back to `Global`.
 and a detached-widget case. **If it fails** **S1** — this function is what makes one chord mean two
 things, and every collision case above is downstream of it.
 
-**A-54 · The no-direct-connection self-check catches a planted violation**
-☐ **Goal** D1-7(b). A self-check nobody has seen fail is a self-check nobody knows works.
-**Steps** `ctest --preset x64-release -R ui.tst_actionwiring`
+**A-54 · The no-direct-connection self-check catches a planted violation** — ✅ **2026-08-24 at T10**
+☑ **Goal** D1-7(b). A self-check nobody has seen fail is a self-check nobody knows works.
+**Steps** `ctest --preset x64-release -R "^ui\." --output-on-failure`
 **Expect** Two cases: the real window passes; a fixture window with one bare `QAction` and one
 `RawPageAction` carrying a second `connect` **fails, naming both**.
 **If it fails** **S1** — and note the lint (A-12) cannot catch the second one, which is exactly why
 there are two mechanisms.
+**Result** Green, as seven cases rather than two, and the extra five are all things the first run
+taught. The planted bare `QAction` and the planted second `connect` are each named separately, and a
+third case asserts both are reported **together** rather than the first one only. The real
+`MainWindow` is `show()`n — without that the check in `showEvent` would never run and the product
+half of the case would be untested no matter how many actions the fixtures built.
+
+**And showing it is what produced I-18 and I-20.** The first run against the real window reported the
+sidebar as a bare `QAction` called "Panes" and every one of the 192 ribbon actions as having two
+receivers where one was expected. Both were the check being wrong rather than the product: Qt
+manufactures intrinsic actions nobody asked for, and placing an action on a widget legitimately adds
+a receiver. The invariant is now *every receiver accounted for* — one from the factory plus at most
+one per widget the action sits on — with the residual gap written down rather than smoothed over.
 
 **A-55 · QAT customization round-trips**
 ☐ **Expect** Add, reorder, move above/below, reset; serialize and reload identically.
@@ -915,6 +959,9 @@ record.
 | I-15 | §5.2 · `layer-lint` rules | **`ui/` had no permitted path to `platform/platform.h`.** That header's own comment has said since T7 that it is *"included by `core/`, `ui/` and `app/`"*, and `core` and `core-settings` both carry it in `mayInclude` — `ui` never got the entry, because until T9 no `ui/` file existed to need it. The first shell widget that asks the OS bundle what it cannot do would have failed the gate. | The rules file matches the architecture the documents describe | **S3** | Found 2026-08-23 at T9 by writing the first `ui/` file that needs the OS boundary. Same shape as **I-10**: a gap between two documents that only a line of code can expose. Note this is a **widening**, which is a licensing-grade decision — recorded here rather than made quietly in a diff | **Closed 2026-08-23.** `ui`'s `mayInclude` gains `platform/platform.h` and `app/Services.h`, and **each is one file, not a layer**. `app/Services.h` additionally gets its own layer entry constraining it to `core/` plus `platform/platform.h`, so a `pdf/` include added there at Stage 2 cannot reach every widget through the one open door. Four gate cases: the violation and the control for each direction |
 | I-16 | §5.2 · gate file coverage | **Neither gate scanned `.def` files.** This project keeps its permanent public names in X-macro tables — `ActionId.def`, `KeyBindingDefaults.def`, `SettingsKeys.def`, and now `ShellKeys.def` — which are `#include`d straight into translation units. `i18n-lint` therefore reported all 22 new `shell.*` keys as orphans on a tree that references every one of them; and `layer-lint` could not have seen an `#include` written inside a table that lands in a layer with a deny list. | A gate reads the files the compiler reads | **S3** | Found 2026-08-23 at T9 by the orphan report, which was right that it could not find the references and wrong about what that meant. The `layer-lint` half is the more interesting one: it had been open since T3 and nothing had exercised it | **Closed 2026-08-23.** `.def` added to both gates' `extensions`, with the reasoning in each rules file. Whether a file is COMPILED is a fact about the build; whether it is part of a layer, or holds a user-facing key, is what the gates are for. `layer-lint` now scans 100 files where it scanned 96, still clean; `i18n-lint` 45 files, 0 orphans, 0 waivers |
 | I-17 | §5.5 · A-46 · `tst_recentfiles` | **`unit.the same document reached two ways is one entry` fails on Linux, and only on Linux** — `2 == 1`. `RecentFiles::canonical()` deduped through `QDir::cleanPath`, which converts **platform-native** separators: on Windows a backslash is one, under POSIX it is an ordinary filename character, so `C:\docs\a.pdf` stayed a second entry. Written at **T5**, green on Windows ever since, and never once run on Linux until the CI push after T9. | One dedup rule, the same on both builds | **S2** | Found 2026-08-23 by the **first `portable-asan` run to reach Stage 1's code** (run 32649389697, 176/177). The interesting half is the eleven-task gap: the `portable-asan` job had not run since before T3, so every `core/` test T3–T9 added was Windows-verified only. Not reproducible locally in either direction — on Windows the fix is unobservable, which is the whole shape of the bug | **Closed 2026-08-23.** `canonical()` normalizes separators **by hand** and then calls `cleanPath`, so the rule no longer depends on the host. Fixing the *test* instead — `#ifdef Q_OS_WIN` — was the smaller diff and the wrong one: it would leave the sanitized build exercising a different dedup rule from the shipping build, and a finding there has to be reproducible in `x64-debug` before it counts as fixed. The case also now asserts **which** spelling survives, since a count of 1 is satisfied by collapsing onto the wrong one |
+| I-18 | §5.6 · A-54 · `tst_actionwiring` | **The wiring self-check called the sidebar a bare `QAction`.** Its first run against a real, shown `MainWindow` reported `bare QAction "Panes"` — which is `QDockWidget::toggleViewAction()`, an action Qt creates the moment a dock exists. The ribbon's overflow chevron has the same shape through `QMenu::menuAction()`. Neither was written by anyone and neither can be prevented. | The check reports actions somebody wired, not actions Qt manufactures | **S3** | Found 2026-08-24 at T10 the only way it could be: by running the check against the product rather than against a fixture. Two tasks running, two self-checks taught something by their first real subject — the other was **I-12** | **Closed 2026-08-24.** `wiringComplaints()` skips an action that is its own parent widget's intrinsic action, recognised **by identity** (`menu->menuAction() == action`) rather than by type or name, so an ordinary action that merely sits on a menu is not excused. The residual gap is stated in the code: passing one of these to a command surface would go unreported, because its parent does not change when it is used |
+| I-19 | §5.6 · A-50 · the shipped ribbon | **The ribbon held the entire main window open at 1044 logical pixels, and hid a second defect behind it.** `RibbonPageLayout::minimumSize()` summed every group's collapsed width, and that minimum propagates to the window — on a 1366-wide laptop at 150 % scaling the window could not be made to fit the screen, with nothing on screen to explain why. Behind it: because the widget snapped back to 1044 on any narrower request, **the tab strip could never run out of room**, so the chevron overflow — one of the three pieces of named custom work the A3 verdict rests on — was unreachable in the shipped configuration while its code looked correct. `QTabBar` with `setUsesScrollButtons(false)` was independently demanding the full width of all nine tabs. | A ribbon narrows, then collapses, then clips — it does not veto the window size | **S2** | Found 2026-08-24 at T10 by a case that asked the ribbon to be 240 px wide and then **checked what width it actually got**. The spike never saw it: four groups, not forty-nine. An assertion that had trusted `resize()` would have reported overflow-not-triggered as a plain failure and taught nothing | **Closed 2026-08-24.** The page layout's minimum is the **widest single collapsed group**, and the tab bar's horizontal size policy is `Ignored` — its preferred width is not a smaller number, it is not a number at all, since overflow is decided by `relayoutTabs()` from the width the ribbon actually got. The case now asserts the achieved width *before* asserting overflow, so the two failures can never again be confused. A horizontal scroll for a ribbon narrower than one group is the better answer and is real work: **carried to T11** |
+| I-20 | §5.6 · A-54 · `RawPageAction` | **"Exactly one receiver on `triggered`" was the wrong invariant**, and all 192 ribbon actions said so at once. `QToolButton::setDefaultAction` adds the action to the button and Qt connects the button to `triggered` itself. Placing an action on a widget is the ordinary, correct thing to do with one — an invariant that forbids it forbids the ribbon. | The check bounds what is legitimate rather than asserting a number that was never true | **S3** | Found 2026-08-24 at T10, in the same run as I-18. The plan wrote the invariant as `directConnectionCount() == 1` (§5.4) and it was never exercised against an action on a button until the ribbon existed | **Closed 2026-08-24.** The invariant is *every receiver accounted for*: one from `ActionFactory`, plus at most one per widget in `associatedObjects()`. **The residual gap is recorded in `RawPageAction.h` rather than glossed** — an action on two widgets where only one connects could hide a single direct connection. It is a bound, not a proof, and it is still the only mechanism that can see a second `connect()` at all, which the lint structurally cannot |
 
 ---
 

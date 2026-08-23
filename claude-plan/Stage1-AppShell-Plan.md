@@ -13,7 +13,7 @@
 > | The locked toolchain, the seventeen platform interfaces, the inward-only rule | [`Tech-Stack-Plan.md` §4.2, §4.3, §6](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code) |
 > | How Stage 1 is verified | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **In progress — T1 … T9 complete as of 2026-08-23; T10 is next.** Written
+> **Status:** 🟡 **In progress — T1 … T10 complete as of 2026-08-24; T11 is next.** Written
 > 2026-08-19, immediately after Stage 0 signed off and before any Stage 1 code existed. This file is a
 > plan, not a progress log — Stage 1's live status, task by task and deviation by deviation, is the
 > Stage 1 status block in `Implementation-Plan.md`, and that block is the authority.
@@ -238,6 +238,8 @@ implementation without anyone deciding it should.
 
 The spike is a **throwaway** `tools/spike-ribbon/`, deleted at T10 exactly as `tools/spike-pdfium/`
 is deleted at Stage 2. Its durable outputs are the verdict and whichever widget techniques survive.
+*(**Deleted 2026-08-24 at T10.** All three surviving techniques are now `ui/shell/Ribbon.{h,cpp}`, with
+`tests/ui/tst_ribbonbuild.cpp` carrying the checks its `--self-test` used to run.)*
 
 | # | Criterion | How it is judged |
 |---|---|---|
@@ -411,7 +413,7 @@ A stage that is green but has no verdicts is not signed off.
 
 | Job | Before | After |
 |---|---|---|
-| `gates` (ubuntu, no Qt) | 25 cases, two gates | **Three** gates; plus the `i18n-lint` fixture cases and the `platform/platform.h` ones. Still no Qt, still runs before any compile. **At T9 the preset stands at 59 cases locally** (55 at T7; T8 and T9 added the `argv-path-read` rule with its entry-point control, and `ui/`'s two permitted interface headers with a control for each), of which the Linux job runs all but the `wrong_compiler` set |
+| `gates` (ubuntu, no Qt) | 25 cases, two gates | **Three** gates; plus the `i18n-lint` fixture cases and the `platform/platform.h` ones. Still no Qt, still runs before any compile. **At T10 the preset stands at 65 cases locally** (55 at T7; T8 and T9 added the `argv-path-read` rule with its entry-point control and `ui/`'s two permitted interface headers with a control for each; T10 added the `bare-qaction` rule across **four spellings with two controls**), of which the Linux job runs all but the `wrong_compiler` set |
 | `windows` (self-hosted) | 66 tests | Plus the `rawpage_tests` additions, plus **`rawpage_platform_tests`** (new at T7, Windows only), plus the new **`rawpage_ui_tests`** target under `QT_QPA_PLATFORM=offscreen`, plus the `tests/bench` R-9 figure |
 | `portable-asan` (ubuntu) | 52 tests | Plus the `core/` additions **only**. Neither `rawpage_ui_tests` nor `rawpage_platform_tests` runs here — the portable subset is `core/` + `pdf/cos/` by rule, and adding Qt Widgets or Win32 to a Linux job to chase coverage would quietly redefine what that job proves |
 
@@ -447,9 +449,21 @@ Owed by **T15**, in the same change as the code:
 - **New at T8/T9, and already paid:** `Architecture-FileMap.md` gained rows for
   `ui/shell/Catalog.{h,cpp}` + `ShellKeys.def` and for `tests/ui/`, in the same change as the code.
   Two `tools/layer-lint/rules.json` gaps were found by needing them and closed with fixtures and
-  controls — see **I-15** and **I-16** in the testing guide's §8. Still unpaid from the list above:
-  rows for `res/`, `scripts/symbolize.ps1`, and `ui/shell/ActionFactory` / `RawPageAction.h`, the last
-  of which T10 creates.
+  controls — see **I-15** and **I-16** in the testing guide's §8.
+
+- **T10 paid three of the four rows this section had been carrying**, in the same change as the code:
+  `ui/shell/ActionFactory.{h,cpp}` + `RawPageAction.h` (one row, since neither is meaningful without
+  the other), `res/ribbon.json` — **one row for the file rather than one for `res/`**, because the
+  directory is data by rule and the ribbon resource is the only thing in it that anyone can get wrong
+  — and `tools/ribbon-validate/`. It also added a row for `ui/shell/RibbonModel.{h,cpp}`, which the §4
+  manifest does not list at all; see T10's deviation (a) for why that file exists.
+  **Still unpaid: `scripts/symbolize.ps1`**, which has had no row since T1.
+
+- **New at T10, and carried rather than paid:** a ribbon narrower than one collapsed group **clips**.
+  Collapse absorbs the first shortfall and the row is cut off at the window edge, which is what the
+  reference (P-4) does — but the better answer is a horizontal scroll for the ribbon body, and that is
+  a real feature rather than a line in a layout. **Carried to T11** with the QAT work, and recorded as
+  the open half of issue **I-19**.
 - ~~`CLAUDE.md`'s gate table lists four gates as though all four exist~~ — ✅ **done 2026-08-23**: the
   table carries a *State* column, and the Stage-0-era summary was replaced with a live status block.
   ~~It still says two; T6 must change it to three.~~ ✅ **done 2026-08-23 at T6** — it says three, and

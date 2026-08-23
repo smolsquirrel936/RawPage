@@ -98,7 +98,7 @@ mistaken for evidence, and each has a concrete way to settle it. **Stage 0 owes 
 | ~~A7~~ | **Our GCC and Qt's GCC are ABI-compatible.** | ✅ **Settled 2026-08-17 — see below.** |
 
 **A3, measured and walked 2026-08-23, Stage 1 task T2 — EIGHT AND A HALF OF NINE.** The throwaway
-`tools/spike-ribbon/` builds a ribbon out of plain `QWidget` composition plus **one custom `QLayout`**
+`tools/spike-ribbon/` (**deleted at T10**, its techniques now `ui/shell/Ribbon`) builds a ribbon out of plain `QWidget` composition plus **one custom `QLayout`**
 and runs the four criteria that have a defined right answer. The verdict scale is
 [`Stage1-AppShell-Plan.md` §5.3](./Stage1-AppShell-Plan.md#53-the-a3-spike--criteria-fixed-before-it-starts):
 *go* · *go with named custom work* · *no-go*.

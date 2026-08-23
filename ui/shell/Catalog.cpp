@@ -1,5 +1,7 @@
 #include "ui/shell/Catalog.h"
 
+#include "ui/shell/RibbonModel.h"
+
 #include <QCoreApplication>
 
 #include <algorithm>
@@ -61,6 +63,15 @@ QStringList dumpStrings()
             QString::fromUtf8(descriptor.labelKey.data(), static_cast<qsizetype>(descriptor.labelKey.size()));
         lines << key + QLatin1Char('\t') + translate(key);
     }
+
+    // Every ribbon tab and group title, read from the SHIPPED spec rather than from a second list.
+    // A-72 compares an `en` run against a `--lang zh-TW` run, and the case is worth exactly as much
+    // as the dump's coverage: 58 tab and group names that never appeared in it would keep the case
+    // green while a fifth of the visible shell went unchecked. This is the same reasoning that put
+    // the shell's own keys in a .def rather than at their call sites (T9), applied to keys whose
+    // single source of truth happens to be a resource instead of a table.
+    for (const QString& key : ribbon::shipped().spec.catalogKeys())
+        lines << key + QLatin1Char('	') + translate(key);
 
     std::sort(lines.begin(), lines.end());
     return lines;

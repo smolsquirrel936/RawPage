@@ -5,7 +5,11 @@
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
+#include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
+#include "ui/shell/Ribbon.h"
+#include "ui/shell/RibbonModel.h"
+#include "ui/shell/RibbonTabBuilder.h"
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/StatusBar.h"
 #include "ui/shell/ThemeManager.h"
@@ -15,6 +19,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QShowEvent>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -67,9 +72,15 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     addDockWidget(Qt::LeftDockWidgetArea, sidebar_);
     resizeDocks({sidebar_}, {sidebar_->rememberedWidth()}, Qt::Horizontal);
 
+    // ORDER MATTERS, and not for a cosmetic reason. `ActionFactory` reads each action's
+    // registration state at the moment it builds the button, so anything this window registers has
+    // to be registered BEFORE the ribbon is built -- otherwise the shell's own commands render as
+    // permanently disabled "not built yet" buttons, which is the honest state for the other ~355
+    // ids and a lie about these three.
+    registerActions();
+    buildRibbon();
     buildCentralSurface();
     buildAutoHideStrips();
-    registerActions();
 
     connect(sidebar_, &SidebarDock::autoHiddenChanged, this, [this]() { updateAutoHideStrips(); });
     connect(sidebar_, &QDockWidget::dockLocationChanged, this, [this]() { updateAutoHideStrips(); });
@@ -91,6 +102,48 @@ MainWindow::~MainWindow()
     // Found by tests/ui on its first run (issue I-12), which is the same way T7 found its pipe
     // race: by running the thing, not by reading it.
     disconnect(sidebar_, nullptr, this, nullptr);
+}
+
+void MainWindow::buildRibbon()
+{
+    actionFactory_ = std::make_unique<ActionFactory>(
+        services_.actions,
+        // The context every ribbon dispatch is attributed to. A constant until T13, when
+        // `ShortcutBinder::activeContext()` computes it from the focus chain -- which is why this is
+        // a callback and not a parameter: T13 replaces this lambda and touches nothing else.
+        [] { return KeyContext::Global; });
+
+    ribbon_ = new Ribbon(this);
+
+    // setMenuWidget, not a QToolBar in the top dock area. A ribbon REPLACES the menu bar rather than
+    // sitting under one, and the menu-widget slot is the only place QMainWindow puts a widget above
+    // the dock areas -- so a docked pane cannot end up above the ribbon, which it can if the ribbon
+    // is a toolbar.
+    setMenuWidget(ribbon_);
+
+    RibbonTabBuilder builder(*ribbon_, *actionFactory_);
+    const QStringList problems = builder.build(ribbon::shipped());
+    for (const QString& problem : problems)
+        RAWPAGE_LOG_ERROR(LogSubsystem::Ui) << "ribbon:" << problem;
+
+    ribbon_->setCurrentPage(0);
+}
+
+void MainWindow::showEvent(QShowEvent* event)
+{
+    QMainWindow::showEvent(event);
+
+    // D1-7(b), guide case A-54. Every action on this window must be a RawPageAction with exactly one
+    // receiver on `triggered`, and that receiver dispatches through ActionRegistry.
+    //
+    // The two severities are deliberate. In a debug build a developer is present and an assert is
+    // the fastest possible feedback; in a release build, killing a user's session over a wiring
+    // mistake would be a worse failure than the mistake. Neither is silence.
+    const QList<QString> complaints = ActionFactory::wiringComplaints(this);
+    for (const QString& complaint : complaints)
+        RAWPAGE_LOG_ERROR(LogSubsystem::Ui) << "action wiring:" << complaint;
+    Q_ASSERT_X(complaints.isEmpty(), "MainWindow::showEvent",
+               "an action on this window bypasses ActionRegistry -- see the log lines above");
 }
 
 void MainWindow::buildCentralSurface()
@@ -213,6 +266,14 @@ void MainWindow::registerActions()
     });
 
     registerAction(ActionId::FileQuit, [this](KeyContext) { close(); });
+
+    // R-7 of the A3 criteria, reached as a command rather than as a keypress. F9 is its default
+    // chord in Features.md 8 and it starts working at T13, when ShortcutBinder exists -- but the
+    // BEHAVIOUR is registered now, which is what makes it reachable from the ribbon, from a test
+    // and from the Stage 14 batch runner without a second implementation.
+    registerAction(ActionId::ViewToggleRibbon, [this](KeyContext) {
+        if (ribbon_) ribbon_->setBodyCollapsed(!ribbon_->isBodyCollapsed());
+    });
 }
 
 void MainWindow::openFiles(const QStringList& paths)

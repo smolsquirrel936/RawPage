@@ -4,29 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository currently is
 
-**Stage 0 scaffolding plus the first nine tasks of Stage 1.** The product is **RawPage**, a
+**Stage 0 scaffolding plus the first ten tasks of Stage 1.** The product is **RawPage**, a
 Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives under
 `claude-plan/`.
 
 ### Where the work is right now — read this first
 
-**Stage 1 is IN PROGRESS. T1–T9 are complete; T10 is next.** Live status, task by task
+**Stage 1 is IN PROGRESS. T1–T10 are complete; T11 is next.** Live status, task by task
 and deviation by deviation, is the Stage 1 status block in `claude-plan/Implementation-Plan.md` —
 that block is the authority, and this section is its summary.
 
 | | |
 |---|---|
-| **Tests** | **226/226** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 59/59 with no Qt |
-| **Gates** | `layer-lint` clean at 100 files / 509 includes; `license-audit` clean; `i18n-lint` clean at 45 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below |
+| **Tests** | **250/250** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 65/65 with no Qt |
+| **Gates** | `layer-lint` clean at 109 files / 569 includes; `license-audit` clean; `i18n-lint` clean at 55 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**; **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
-| **Issue log** | I-01…I-17 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Issue log** | I-01…I-20 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
 | **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** M-03…M-12 are not walkable yet — the code they test does not exist |
 
-**Next action: T10** — `Ribbon`, `RibbonTabBuilder`, `ActionFactory`, `RawPageAction`,
-`res/ribbon.json` with its build-time validation, the D1-7 lint rule, and **deleting
-`tools/spike-ribbon/`**. It inherits A3's three pieces of named custom work and **I-05's fix plus its
-case**, which any collapse built on re-parenting needs. Nothing is implemented ahead of the plan's
-task order.
+**Next action: T11** — `QuickAccessToolbar`, `UiCustomization`, `ToolFinder`. It carries one item
+forward from T10: a **horizontal scroll for a ribbon narrower than one collapsed group** (issue
+**I-19**), which today clips. Nothing is implemented ahead of the plan's task order.
 
 ### What now exists as code
 
@@ -37,9 +35,6 @@ task order.
   unhandled-exception filter both installed *before any Qt object exists*; minidumps to
   `%LOCALAPPDATA%\RawPage\crashes\` with a plain-text sidecar; `scripts/symbolize.ps1` resolves a
   dump to a function name and **refuses a binary whose build id does not match**.
-- **`tools/spike-ribbon/` (T2)** — the throwaway A3 spike. **Delete it at T10**, as
-  `tools/spike-pdfium/` is deleted at Stage 2. `--self-test` runs the machine-decidable criteria;
-  `--print-tab-order` dumps the focus chain.
 - **`core/cmd/` (T3, T4)** — `ActionId.def` (**358** declared actions), `ActionId.h`, `KeyContext.h`,
   `ActionRegistry`, `Chord`, `KeyBindingDefaults.def` (**240** bindings), `KeyBindingStore`.
 - **`core/settings/` (T5)** — `SettingsKeys.def`, `SettingsSchema`, `Settings`, `RecentFiles`. Typed
@@ -69,13 +64,22 @@ task order.
   completeness enforced by a `default`-less switch under `-Werror`), `StatusBar` (built and
   **disabled**, because there is no document), `SidebarDock` (Qt gives dock/float; **auto-hide is
   ours**), and `MainWindow`. `ui/UiModule.cpp` was deleted, as its own comment instructed.
+- **The ribbon (T10)** — `res/ribbon.json` (9 tabs, 49 groups, **192 controls**, all of it data),
+  `RibbonModel` (its one parser — widget-free, so `tools/ribbon-validate` can compile it in rather
+  than reimplement the schema), `Ribbon` with the A3 verdict's three pieces of named custom work,
+  `RibbonTabBuilder`, and `ActionFactory` + `RawPageAction` — **the only place a `QAction` is
+  constructed**, enforced by a non-escapable `layer-lint` rule across four spellings and by a
+  show-time self-check. `tools/spike-ribbon/` was **deleted**, exactly as D1-1 said it would be.
+  There are **no icons**: a large button is a tall text button until there are assets to put on it.
 
 **Still no document code**: nothing in `core/doc/`, `pdf/cos/`, `pdf/render/`, `pdf/ops/`, or
-`ui/viewer/`. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window as of
-T9** — a frame with a sidebar, a status bar and a live theme, and a central surface that names what
-arrives when. There is no ribbon (T10), no document tab (T12) and no chord input (T13). Because an
-ordinary launch now runs an event loop, **the headless smoke test is `--dump-ui-strings`**: it
-composes every service, loads both catalogs and exits 0 without creating a window.
+`ui/viewer/`. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window with a
+working ribbon as of T10** — 9 tabs above a sidebar, a status bar and a live theme, with a central
+surface that names what arrives when. Most ribbon buttons are **disabled and say why**: 358 commands
+are declared and **four** are registered, which is the honest state rather than a shortcut. There is
+no QAT (T11), no document tab (T12) and no chord input (T13). Because an ordinary launch runs an
+event loop, **the headless smoke test is `--dump-ui-strings`**: it composes every service, loads both
+catalogs and exits 0 without creating a window.
 
 ### Conventions established mid-stage — these bind all later work
 
@@ -138,6 +142,20 @@ composes every service, loads both catalogs and exits 0 without creating a windo
    which makes *"reproduce it in `x64-debug` before it counts as fixed"* impossible to satisfy.
    Normalize by hand, not by platform. (Issue **I-17**; and note the corollary — a Windows-green
    `core/` test proves nothing about `portable-asan` until that job has actually run.)
+12. **A widget test must drive layout itself, and `resize()` alone is not driving it.** Offscreen
+   there is no event loop, so a bare `resize()` marks layouts dirty and returns; the geometry a real
+   window gets on its next paint never arrives. A ribbon suite that trusted `resize()` reported six
+   collapsed groups at every width from 1600 down to 400 — monotone, reproducible, and meaningless.
+   `show()` the widget (offscreen is what the platform is for), then `activate()` **every** layout
+   level involved. And when a case asserts a consequence of a size, assert the size it actually got
+   first: `resize(240)` returning a 1044-pixel widget is a finding, not a failed assertion. (T10;
+   issue **I-19** was found exactly this way.)
+13. **A self-check meets its real subject once, and that is when it gets corrected.** Two of T10's
+   three findings were the *check* being wrong, not the product: Qt manufactures actions nobody asked
+   for (`QMenu::menuAction`, `QDockWidget::toggleViewAction`), and `QToolButton::setDefaultAction`
+   adds a receiver, so "exactly one receiver on `triggered`" — the invariant the plan wrote — was
+   false for all 192 ribbon buttons at once. Run a self-check against the *product*, not only against
+   fixtures that prove it can fail. (Issues **I-18** and **I-20**.)
 
 ### Accessibility is OUT OF SCOPE (2026-08-23)
 
@@ -311,7 +329,7 @@ live.** `checks` runs the three that exist and says three — if it ever *claims
 
 | Gate | State | Fails on |
 |---|---|---|
-| `tools/layer-lint` | ✅ **live** | an outward include; `FPDF_` outside `pdf/`; a filesystem write outside `pdf/` and `core/settings/`; **an OS header in `platform/platform.h`**, which is its own layer entry because that file is included by `core/`, `ui/` and `app/` |
+| `tools/layer-lint` | ✅ **live** | an outward include; `FPDF_` outside `pdf/`; a filesystem write outside `pdf/` and `core/settings/`; a path read out of `argv` outside `app/main.cpp`; **a `QAction` constructed outside `ui/shell/ActionFactory.cpp`** (D1-7, four spellings, non-escapable); **an OS header in `platform/platform.h`**, which is its own layer entry because that file is included by `core/`, `ui/` and `app/` |
 | `tools/license-audit` | ✅ **live** | any dependency SPDX identifier outside the allowlist |
 | `tools/i18n-lint` | ✅ **live** | a literal reaching a user-facing sink and not wrapped in `tr()` (escapable, `// i18n-lint: allow-literal(reason)`); a key missing from a shipped locale; an `ActionId` with no `action.*` catalog entry. `orphan-key` is S3 — reported, never blocking. Stage 1 ships `en` and `zh-TW` only; `zh-CN` and `ja` are declared `"shipped": false` (D1-14) |
 | `tools/mutation-lint` | ○ **Stage 3** | a `Command` subclass missing from `CommandRegistry`, or lacking a serialize round-trip test or a revert test |
@@ -345,7 +363,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 226/226 as of Stage 1 T9
+ctest --preset x64-release --output-on-failure        # 250/250 as of Stage 1 T10
 ```
 
 Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offscreen`:
@@ -356,7 +374,6 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 .\build\x64-release\bin\rawpage.exe --print-args <paths>   # the D1-3 argv-vs-Qt measurement
 .\build\x64-debug\bin\rawpage.exe   --crash-test           # debug only; writes a minidump
 .\scripts\symbolize.ps1 -Dump <path.dmp>                   # resolves the faulting frame
-.\build\x64-release\bin\spike-ribbon.exe --self-test       # the A3 spike (deleted at T10)
 .\build\x64-release\bin\rawpage.exe --dump-ui-strings     # every shell key + action label, resolved
 .\build\x64-release\bin\rawpage.exe --lang zh-TW --dump-ui-strings   # guide case A-72
 .\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error
@@ -369,6 +386,7 @@ its live waivers — that census is how anyone notices waivers creeping from a h
 .\build\x64-release\bin\layer-lint.exe    --root . --explain   # includes, rules, 4 live waivers
 .\build\x64-release\bin\i18n-lint.exe     --root . --explain   # locales, shipped flags, unfinished count
 .\build\x64-release\bin\license-audit.exe --help
+.\build\x64-release\bin\ribbon-validate.exe --explain   # NOT a gate -- a build step (D1-8)
 ```
 
 **Two notes on running `rawpage.exe` from PowerShell**, both of which cost time to rediscover.

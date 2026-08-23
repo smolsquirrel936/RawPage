@@ -13,7 +13,7 @@
     "is the first thing to check when a stray English string shows up in a zh-TW screenshot."
   ],
 
-  "extensions": [".h", ".hpp", ".cpp", ".cc", ".def"],
+  "extensions": [".h", ".hpp", ".cpp", ".cc", ".def", ".json"],
 
   "$comment-extensions": [
     "`.def` was added at T9 and is not a stylistic inclusion. This project keeps its permanent",
@@ -23,9 +23,15 @@
     "reported rather than failed (S3), and therefore a report that would slowly train people to",
     "skip the whole orphan section. A .def is source; it is #included, not compiled, which is a",
     "fact about the BUILD and not about whether a gate should read it."
-  ],
+  ,
+    "",
+    "`.json` was added at T10, and it is the same rule applied one step further out. res/ribbon.json",
+    "names 58 `ribbon.*` catalog keys -- every tab and group title in the product -- and it is the",
+    "single source of truth for them, because putting them in a .def as well would be two lists of",
+    "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
+    "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "scannedPaths": ["ui/", "app/", "core/"],
+  "scannedPaths": ["ui/", "app/", "core/", "res/"],
 
   "$comment-scanned": [
     "core/ is scanned even though it has no tr() and no QObject. That is the point: core/ must hold",

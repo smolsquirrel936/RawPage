@@ -144,9 +144,11 @@ if(NOT RAWPAGE_GATES_ONLY)
         add_subdirectory(ui)
         add_subdirectory(app)
 
-        # Data, not code -- but data the running program loads by path, so it is built like
-        # anything else and lands beside the executable. See i18n/CMakeLists.txt.
+        # Data, not code -- but data the running program loads by path, so both are built like
+        # anything else and land beside the executable. See i18n/CMakeLists.txt, and res/'s own file
+        # for why the ribbon resource is VALIDATED before it is copied (D1-8).
         add_subdirectory(i18n)
+        add_subdirectory(res)
     endif()
 endif()
 

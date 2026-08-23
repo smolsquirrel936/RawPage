@@ -125,6 +125,52 @@
       "message": "Nothing in RawPage may read a path out of argv (issue I-04). argv is NARROW: the CRT transcodes the wide command line through the process ANSI code page, and anything the code page cannot represent becomes '?' -- lossily and irreversibly. Measured at T1 on this machine (ACP 950): an emoji path arrived as report-?????.pdf in argv while QCoreApplication::arguments(), which Qt sources from GetCommandLineW(), was byte-perfect. Parse QCoreApplication::arguments() instead. app/main.cpp is the one exception: it hands argv to QApplication and prints it for the --print-args measurement, which is the case that established the rule."
     },
     {
+      "kind": "bare-qaction",
+      "$comment": [
+        "DECISION D1-7(a) -- the STATIC half of `nothing is wired directly to a widget slot`.",
+        "",
+        "Every user action in RawPage is a named ActionId, and ribbon, QAT, context menus, chords,",
+        "the tool finder, the CLI and the batch runner all resolve to one and call",
+        "ActionRegistry::dispatch. That is what makes the headless batch runner (flow K, Stage 14)",
+        "able to reach every feature without a second implementation of any of them -- and it is",
+        "why a feature reachable only from a widget is unfinished rather than done.",
+        "",
+        "A bare QAction is how that rule is broken, and it is broken invisibly: the button works.",
+        "So construction is confined to ui/shell/ActionFactory.cpp, which routes every action",
+        "through the registry, and to ui/shell/RawPageAction.h, which is the subclass definition",
+        "and therefore the one place that must name QAction as a base.",
+        "",
+        "FIVE SPELLINGS, not one. Stage 0's third S1 (its own I-15) was a gate that passed real",
+        "violations because every fixture used the same spelling, so this rule carries the stack",
+        "declaration, the heap construction, the base-class initialiser and BOTH addAction()",
+        "conveniences that build an action for you -- QMenu's and QToolBar's -- and there is a",
+        "fixture for each.",
+        "",
+        "NOT ESCAPABLE. There is no inline waiver marker, because there is no second legitimate",
+        "place: a file that needs an action asks ActionFactory for one. The one genuine exception --",
+        "a QMenu item that is navigation rather than a command, which Qt makes a QAction whether we",
+        "like it or not -- is served by ActionFactory::addNonCommandMenuItem, so it lives inside the",
+        "allowed path and is stamped for the runtime check rather than carved out here.",
+        "",
+        "AND IT IS ONLY HALF THE MECHANISM. The lint catches the construction at the moment it is",
+        "written; it structurally cannot see a SECOND connect() added later to a legitimately",
+        "created action. That is what ActionFactory::wiringComplaints checks at show time (D1-7(b)),",
+        "and neither half alone suffices."
+      ],
+      "patterns": [
+        "new QAction",
+        "QAction(",
+        "QAction ",
+        "addAction("
+      ],
+      "allowedPaths": [
+        "ui/shell/ActionFactory.cpp",
+        "ui/shell/RawPageAction.h"
+      ],
+      "escapable": false,
+      "message": "Only ui/shell/ActionFactory.cpp may construct a QAction (D1-7). Every action must be a RawPageAction carrying its ActionId, with exactly one receiver on triggered, dispatching through ActionRegistry -- that is what makes the command reachable from the CLI and the Stage 14 batch runner as well as from the button. Ask ActionFactory::create(). A menu item that is genuinely NOT a command goes through ActionFactory::addNonCommandMenuItem()."
+    },
+    {
       "kind": "filesystem-write",
       "patterns": [
         "std::ofstream",

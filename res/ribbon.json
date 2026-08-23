@@ -1,0 +1,642 @@
+{
+  "$comment": [
+    "THE RIBBON, AS DATA -- decision D1-8 (Stage1-AppShell-Plan.md 3).",
+    "",
+    "This file is the whole ribbon. ui/shell/RibbonTabBuilder builds every tab, group and button",
+    "from it and from core/cmd/ActionRegistry, and there is no widget code anywhere that places a",
+    "command. That is the property worth protecting: adding a command in Stage 9 must be a registry",
+    "row plus a line here, because the instant a typo yields a silently missing button instead of an",
+    "error, the next person writes widget code and this mechanism becomes dead weight that still has",
+    "to be maintained.",
+    "",
+    "So it is VALIDATED AT BUILD TIME by tools/ribbon-validate, which fails the build on an unknown",
+    "action id, a duplicate placement, or an empty group, naming the id and the line. The validator",
+    "and the runtime builder share one parser (ui/shell/RibbonModel) -- see that header for why two",
+    "would be worse than none.",
+    "",
+    "FIELDS. tab.title and group.title are CATALOG KEYS, not text: this project's catalog key IS the",
+    "source string (T6), so English lives in i18n/rawpage_en.ts like every other locale.",
+    "collapsePriority is HIGHER-COLLAPSES-FIRST, and it is deliberately not the same axis as visual",
+    "order -- the least important group folds into a popup button first, while Tab still has to visit",
+    "the groups left to right. Conflating the two is issue I-05, found by walking the spike.",
+    "",
+    "SCOPE AT STAGE 1. Every id below is DECLARED in ActionId.def; almost none is REGISTERED yet, and",
+    "an unregistered id renders as a visible, disabled button whose tooltip names the stage it",
+    "arrives in. That is the honest state and it is the point of placing them now: the ribbon's",
+    "shape, sizing and collapse behaviour are exercised at their real width from Stage 1 rather than",
+    "growing under us for thirteen stages."
+  ],
+
+  "schemaVersion": 1,
+
+  "tabs": [
+    {
+      "id": "home",
+      "title": "ribbon.tab.home",
+      "groups": [
+        {
+          "id": "home.file",
+          "title": "ribbon.group.file",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "file.open", "size": "large" },
+            { "action": "file.save", "size": "small" },
+            { "action": "file.saveAs", "size": "small" },
+            { "action": "file.print", "size": "small" }
+          ]
+        },
+        {
+          "id": "home.clipboard",
+          "title": "ribbon.group.clipboard",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "edit.paste", "size": "large" },
+            { "action": "edit.cut", "size": "small" },
+            { "action": "edit.copy", "size": "small" },
+            { "action": "edit.undo", "size": "small" }
+          ]
+        },
+        {
+          "id": "home.tools",
+          "title": "ribbon.group.tools",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "tool.hand", "size": "large" },
+            { "action": "tool.select", "size": "small" },
+            { "action": "tool.marqueeZoom", "size": "small" },
+            { "action": "tool.snapshot", "size": "small" }
+          ]
+        },
+        {
+          "id": "home.navigate",
+          "title": "ribbon.group.navigate",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "nav.goToPage", "size": "large" },
+            { "action": "nav.prevPage", "size": "small" },
+            { "action": "nav.nextPage", "size": "small" },
+            { "action": "nav.prevView", "size": "small" }
+          ]
+        },
+        {
+          "id": "home.find",
+          "title": "ribbon.group.find",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "find.find", "size": "large" },
+            { "action": "find.advancedSearch", "size": "small" },
+            { "action": "find.next", "size": "small" },
+            { "action": "find.previous", "size": "small" }
+          ]
+        },
+        {
+          "id": "home.help",
+          "title": "ribbon.group.help",
+          "collapsePriority": 6,
+          "controls": [
+            { "action": "app.toolFinder", "size": "large" },
+            { "action": "help.contents", "size": "small" },
+            { "action": "help.about", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "create",
+      "title": "ribbon.tab.create",
+      "groups": [
+        {
+          "id": "create.new",
+          "title": "ribbon.group.createFrom",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "create.fromFile", "size": "large" },
+            { "action": "create.blank", "size": "small" },
+            { "action": "create.fromScanner", "size": "small" },
+            { "action": "create.fromClipboard", "size": "small" }
+          ]
+        },
+        {
+          "id": "create.combine",
+          "title": "ribbon.group.combine",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "create.combineFiles", "size": "large" },
+            { "action": "create.fromWebPage", "size": "small" },
+            { "action": "create.portfolio", "size": "small" }
+          ]
+        },
+        {
+          "id": "create.export",
+          "title": "ribbon.group.export",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "export.word", "size": "large" },
+            { "action": "export.excel", "size": "small" },
+            { "action": "export.powerPoint", "size": "small" },
+            { "action": "export.image", "size": "small" }
+          ]
+        },
+        {
+          "id": "create.exportMore",
+          "title": "ribbon.group.exportMore",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "export.html", "size": "small" },
+            { "action": "export.text", "size": "small" },
+            { "action": "export.epub", "size": "small" },
+            { "action": "export.xml", "size": "small" }
+          ]
+        },
+        {
+          "id": "create.optimize",
+          "title": "ribbon.group.optimize",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "save.optimize", "size": "large" },
+            { "action": "save.reduceSize", "size": "small" },
+            { "action": "save.conformance", "size": "small" },
+            { "action": "save.flatten", "size": "small" }
+          ]
+        },
+        {
+          "id": "create.batch",
+          "title": "ribbon.group.batch",
+          "collapsePriority": 6,
+          "controls": [
+            { "action": "convert.batch", "size": "large" },
+            { "action": "convert.profiles", "size": "small" },
+            { "action": "batch.runSequence", "size": "small" },
+            { "action": "batch.watchedFolders", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "edit",
+      "title": "ribbon.tab.edit",
+      "groups": [
+        {
+          "id": "edit.mode",
+          "title": "ribbon.group.mode",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "edit.convertToWritable", "size": "large" },
+            { "action": "edit.preventFurtherEdits", "size": "small" },
+            { "action": "write.toggleChangeTracking", "size": "small" },
+            { "action": "write.toggleFormattingMarks", "size": "small" }
+          ]
+        },
+        {
+          "id": "edit.content",
+          "title": "ribbon.group.content",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "edit.editText", "size": "large" },
+            { "action": "edit.editObject", "size": "small" },
+            { "action": "edit.addText", "size": "small" },
+            { "action": "edit.addImage", "size": "small" }
+          ]
+        },
+        {
+          "id": "edit.font",
+          "title": "ribbon.group.font",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "write.fontDialog", "size": "large" },
+            { "action": "write.bold", "size": "small" },
+            { "action": "write.italic", "size": "small" },
+            { "action": "write.underline", "size": "small" }
+          ]
+        },
+        {
+          "id": "edit.paragraph",
+          "title": "ribbon.group.paragraph",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "write.paragraphDialog", "size": "large" },
+            { "action": "write.alignLeft", "size": "small" },
+            { "action": "write.alignCenter", "size": "small" },
+            { "action": "write.bulletedList", "size": "small" }
+          ]
+        },
+        {
+          "id": "edit.styles",
+          "title": "ribbon.group.styles",
+          "collapsePriority": 6,
+          "controls": [
+            { "action": "write.styleNormal", "size": "small" },
+            { "action": "write.styleHeading1", "size": "small" },
+            { "action": "write.styleHeading2", "size": "small" },
+            { "action": "write.styleHeading3", "size": "small" }
+          ]
+        },
+        {
+          "id": "edit.insert",
+          "title": "ribbon.group.insert",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "write.insertHyperlink", "size": "large" },
+            { "action": "write.pageBreak", "size": "small" },
+            { "action": "write.insertFootnote", "size": "small" },
+            { "action": "write.insertToc", "size": "small" }
+          ]
+        },
+        {
+          "id": "edit.proof",
+          "title": "ribbon.group.proof",
+          "collapsePriority": 7,
+          "controls": [
+            { "action": "write.spellCheck", "size": "large" },
+            { "action": "write.wordCount", "size": "small" },
+            { "action": "write.setLanguage", "size": "small" },
+            { "action": "write.findReplace", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "comment",
+      "title": "ribbon.tab.comment",
+      "groups": [
+        {
+          "id": "comment.markup",
+          "title": "ribbon.group.textMarkup",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "annot.stickyNote", "size": "large" },
+            { "action": "annot.highlight", "size": "small" },
+            { "action": "annot.underline", "size": "small" },
+            { "action": "annot.strikeout", "size": "small" }
+          ]
+        },
+        {
+          "id": "comment.drawing",
+          "title": "ribbon.group.drawing",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "annot.pencil", "size": "large" },
+            { "action": "annot.line", "size": "small" },
+            { "action": "annot.rectangle", "size": "small" },
+            { "action": "annot.oval", "size": "small" }
+          ]
+        },
+        {
+          "id": "comment.text",
+          "title": "ribbon.group.calloutBoxes",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "annot.textBox", "size": "large" },
+            { "action": "annot.callout", "size": "small" },
+            { "action": "annot.stamp", "size": "small" },
+            { "action": "annot.attachFile", "size": "small" }
+          ]
+        },
+        {
+          "id": "comment.measure",
+          "title": "ribbon.group.measure",
+          "collapsePriority": 6,
+          "controls": [
+            { "action": "annot.measureDistance", "size": "small" },
+            { "action": "annot.measureArea", "size": "small" },
+            { "action": "annot.measurePerimeter", "size": "small" },
+            { "action": "annot.measurementScale", "size": "small" }
+          ]
+        },
+        {
+          "id": "comment.manage",
+          "title": "ribbon.group.manageComments",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "pane.comments", "size": "large" },
+            { "action": "comment.filter", "size": "small" },
+            { "action": "comment.summarize", "size": "small" },
+            { "action": "comment.deleteAll", "size": "small" }
+          ]
+        },
+        {
+          "id": "comment.exchange",
+          "title": "ribbon.group.exchange",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "comment.import", "size": "small" },
+            { "action": "comment.export", "size": "small" },
+            { "action": "nav.nextComment", "size": "small" },
+            { "action": "nav.prevComment", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "organize",
+      "title": "ribbon.tab.organize",
+      "groups": [
+        {
+          "id": "organize.pages",
+          "title": "ribbon.group.pages",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "page.insert", "size": "large" },
+            { "action": "page.delete", "size": "small" },
+            { "action": "page.extract", "size": "small" },
+            { "action": "page.replace", "size": "small" }
+          ]
+        },
+        {
+          "id": "organize.arrange",
+          "title": "ribbon.group.arrange",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "page.rotate", "size": "large" },
+            { "action": "page.moveEarlier", "size": "small" },
+            { "action": "page.moveLater", "size": "small" },
+            { "action": "page.duplicate", "size": "small" }
+          ]
+        },
+        {
+          "id": "organize.size",
+          "title": "ribbon.group.pageSize",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "page.crop", "size": "small" },
+            { "action": "page.resize", "size": "small" },
+            { "action": "page.split", "size": "small" },
+            { "action": "page.renumber", "size": "small" }
+          ]
+        },
+        {
+          "id": "organize.marks",
+          "title": "ribbon.group.pageMarks",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "headerFooter.add", "size": "large" },
+            { "action": "watermark.add", "size": "small" },
+            { "action": "bates.add", "size": "small" },
+            { "action": "imposition.booklet", "size": "small" }
+          ]
+        },
+        {
+          "id": "organize.navigation",
+          "title": "ribbon.group.documentNavigation",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "bookmark.new", "size": "large" },
+            { "action": "bookmark.generate", "size": "small" },
+            { "action": "link.create", "size": "small" },
+            { "action": "destination.create", "size": "small" }
+          ]
+        },
+        {
+          "id": "organize.merge",
+          "title": "ribbon.group.merge",
+          "collapsePriority": 6,
+          "controls": [
+            { "action": "merge.documents", "size": "large" },
+            { "action": "compare.documents", "size": "small" },
+            { "action": "layer.properties", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "forms",
+      "title": "ribbon.tab.forms",
+      "groups": [
+        {
+          "id": "forms.design",
+          "title": "ribbon.group.formDesign",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "form.designMode", "size": "large" },
+            { "action": "form.recognizeFields", "size": "small" },
+            { "action": "form.highlightFields", "size": "small" },
+            { "action": "form.fieldProperties", "size": "small" }
+          ]
+        },
+        {
+          "id": "forms.fields",
+          "title": "ribbon.group.fields",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "form.textField", "size": "large" },
+            { "action": "form.checkBox", "size": "small" },
+            { "action": "form.radioButton", "size": "small" },
+            { "action": "form.dropDown", "size": "small" }
+          ]
+        },
+        {
+          "id": "forms.moreFields",
+          "title": "ribbon.group.moreFields",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "form.listBox", "size": "small" },
+            { "action": "form.pushButton", "size": "small" },
+            { "action": "form.signatureField", "size": "small" },
+            { "action": "form.barcodeField", "size": "small" }
+          ]
+        },
+        {
+          "id": "forms.layout",
+          "title": "ribbon.group.fieldLayout",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "form.alignFields", "size": "small" },
+            { "action": "form.distributeFields", "size": "small" },
+            { "action": "form.tabOrder", "size": "small" },
+            { "action": "form.calculationOrder", "size": "small" }
+          ]
+        },
+        {
+          "id": "forms.data",
+          "title": "ribbon.group.formData",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "form.importData", "size": "large" },
+            { "action": "form.exportData", "size": "small" },
+            { "action": "form.reset", "size": "small" },
+            { "action": "form.flatten", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "protect",
+      "title": "ribbon.tab.protect",
+      "groups": [
+        {
+          "id": "protect.security",
+          "title": "ribbon.group.security",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "security.password", "size": "large" },
+            { "action": "security.certificate", "size": "small" },
+            { "action": "security.properties", "size": "small" },
+            { "action": "security.remove", "size": "small" }
+          ]
+        },
+        {
+          "id": "protect.sign",
+          "title": "ribbon.group.sign",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "sign.document", "size": "large" },
+            { "action": "sign.certify", "size": "small" },
+            { "action": "sign.validateAll", "size": "small" },
+            { "action": "sign.digitalIds", "size": "small" }
+          ]
+        },
+        {
+          "id": "protect.redact",
+          "title": "ribbon.group.redact",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "redact.mark", "size": "large" },
+            { "action": "redact.markSearch", "size": "small" },
+            { "action": "redact.markPage", "size": "small" },
+            { "action": "redact.apply", "size": "small" }
+          ]
+        },
+        {
+          "id": "protect.sanitize",
+          "title": "ribbon.group.sanitize",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "sanitize.document", "size": "large" },
+            { "action": "sanitize.removeHidden", "size": "small" },
+            { "action": "protect.envelope", "size": "small" },
+            { "action": "protect.rightsManagement", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "view",
+      "title": "ribbon.tab.view",
+      "groups": [
+        {
+          "id": "view.zoom",
+          "title": "ribbon.group.zoom",
+          "collapsePriority": 2,
+          "controls": [
+            { "action": "view.zoomTo", "size": "large" },
+            { "action": "view.zoomIn", "size": "small" },
+            { "action": "view.zoomOut", "size": "small" },
+            { "action": "view.actualSize", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.fit",
+          "title": "ribbon.group.fit",
+          "collapsePriority": 5,
+          "controls": [
+            { "action": "view.fitPage", "size": "small" },
+            { "action": "view.fitWidth", "size": "small" },
+            { "action": "view.fitVisible", "size": "small" },
+            { "action": "view.reflow", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.layout",
+          "title": "ribbon.group.pageLayout",
+          "collapsePriority": 4,
+          "controls": [
+            { "action": "view.singlePage", "size": "small" },
+            { "action": "view.continuous", "size": "small" },
+            { "action": "view.twoUp", "size": "small" },
+            { "action": "view.rotateViewCw", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.panes",
+          "title": "ribbon.group.panes",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "view.toggleSidebar", "size": "large" },
+            { "action": "pane.thumbnails", "size": "small" },
+            { "action": "pane.bookmarks", "size": "small" },
+            { "action": "pane.log", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.chrome",
+          "title": "ribbon.group.screenMode",
+          "collapsePriority": 3,
+          "controls": [
+            { "action": "view.fullScreen", "size": "large" },
+            { "action": "view.readingMode", "size": "small" },
+            { "action": "view.toggleRibbon", "size": "small" },
+            { "action": "view.invertColors", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.rulers",
+          "title": "ribbon.group.rulersGrid",
+          "collapsePriority": 7,
+          "controls": [
+            { "action": "view.toggleRulers", "size": "small" },
+            { "action": "view.toggleGrid", "size": "small" },
+            { "action": "view.toggleSnapToGrid", "size": "small" },
+            { "action": "view.toggleGuides", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.window",
+          "title": "ribbon.group.window",
+          "collapsePriority": 6,
+          "controls": [
+            { "action": "window.new", "size": "small" },
+            { "action": "window.split", "size": "small" },
+            { "action": "window.tileVertical", "size": "small" },
+            { "action": "window.cascade", "size": "small" }
+          ]
+        },
+        {
+          "id": "view.customize",
+          "title": "ribbon.group.customize",
+          "collapsePriority": 8,
+          "controls": [
+            { "action": "ui.customize", "size": "small" },
+            { "action": "ui.resetCustomization", "size": "small" },
+            { "action": "file.preferences", "size": "small" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "$comment": [
+        "THE CONTEXTUAL TAB. Criterion R-4 of the A3 verdict: it must appear and disappear without",
+        "changing the ribbon's height or flickering the tab strip. Stage 1 proves the MECHANISM with",
+        "one real tab; the other contextual tabs Features.md 1.1 names -- Picture Tools, Field Tools",
+        "-- are per-feature content and belong to the stages that build those features.",
+        "",
+        "It is declared here rather than constructed in code so that it goes through exactly the same",
+        "build path as every other tab. A contextual tab assembled by hand would be the one tab whose",
+        "buttons were not validated against ActionId.def."
+      ],
+      "id": "tableTools",
+      "title": "ribbon.tab.tableTools",
+      "contextual": true,
+      "groups": [
+        {
+          "id": "tableTools.table",
+          "title": "ribbon.group.table",
+          "collapsePriority": 1,
+          "controls": [
+            { "action": "write.insertTable", "size": "large" },
+            { "action": "write.autoSum", "size": "small" },
+            { "action": "write.insertCaption", "size": "small" },
+            { "action": "write.insertChart", "size": "small" }
+          ]
+        }
+      ]
+    }
+  ]
+}

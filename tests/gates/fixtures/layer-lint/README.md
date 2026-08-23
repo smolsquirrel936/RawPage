@@ -32,6 +32,10 @@ normalisation and needs no fixture — verified by hand, not by a case.
 | `qtwidgets-in-core/` | a QtWidgets include in `core/`, which must build with no display |
 | `write-outside-allowed/` | `std::ofstream` in `ui/` |
 | `qt-write/` | `QFile` + `QIODevice::WriteOnly` — matched on the **open mode**, because `QFile` alone is equally the idiomatic way to read |
+| `qaction-new/` | `new QAction(parent)` — heap construction, the spelling everyone thinks of |
+| `qaction-stack/` | `QAction placeholder(parent);` — the same mistake with a different lifetime, and invisible to a pattern that only looks for `new` |
+| `qaction-menu-literal/` | `menu->addAction("Rotate Clockwise")` — QMenu builds the action for you, so the construction does not appear in the source at all |
+| `qaction-toolbar-literal/` | `bar->addAction(icon, "Delete Page")` — the same hidden construction through QToolBar. Catching one convenience and not the other is a rule that half works |
 
 ### Negative controls — without these, a gate that rejected everything would pass
 
@@ -39,6 +43,8 @@ normalisation and needs no fixture — verified by hand, not by a case.
 |---|---|
 | `write-escaped/` | the same write, waived inline with `allow-filesystem-write(reason)` |
 | `mention-in-comment/` | prose naming an outward include, `FPDF_InitLibrary()` and `QIODevice::WriteOnly` |
+| `qaction-factory-allowed/` | the legitimate construction in `ui/shell/ActionFactory.cpp`, both spellings — without this, "fires on every spelling" is equally satisfied by a rule that makes D1-7's mechanism impossible to write |
+| `qaction-mention-in-comment/` | a file that discusses `QAction`, `new QAction(this)` and `menu->addAction(...)` at length in prose and constructs none |
 
 ## Known **not** covered
 
@@ -48,6 +54,8 @@ Recorded deliberately. Each is a decision, not an oversight.
 |---|---|---|
 | `/* */` block comments are not tracked | **false positive** — a commented-out include inside one is still reported | Tracking them correctly means tracking string literals and raw strings too, which is a tokenizer, and a tokenizer is the compiler's job. `IncludeGraph.cpp` says so at the `splitLine` definition |
 | A string literal containing `FPDF_` | **false positive** | Token matching runs over the code half of the line, string literals included. Visible and fixable when it happens |
+| `QAction *ptr` written with the star against the name | **false positive** on the `bare-qaction` rule | The pattern `QAction ` catches the stack declaration, and the project writes `QAction* ptr`. A pointer declared the other way reads as a construction. Noise, and noise is the direction this rule is allowed to fail in |
+| `addAction(someVariable)` used to build a *command* | **miss** on the lint | The pattern is `addAction(` and it fires — but only outside `ui/shell/ActionFactory.cpp`, which is where the one legitimate non-command use lives. A command-shaped action smuggled through that file is caught instead by `ActionFactory::wiringComplaints()` at show time, which is why D1-7 has two mechanisms rather than one |
 | Computed includes — `#include SOME_MACRO` | **miss** | Unresolvable without a preprocessor. `parseInclude` returns false and says so |
 | A write reached through a helper — `writeFile(path, bytes)` | **miss** | The filesystem-write rule is a substring heuristic, which is exactly why it is the only escapable one |
 | A generated file that is never scanned | **miss** | `build/`, `vcpkg_installed/`, `third_party/`, `claude-plan/` and this fixture tree are excluded by path in `rules.json` |
