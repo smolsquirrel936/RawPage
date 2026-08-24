@@ -26,6 +26,7 @@
 #include "app/CommandLine.h"
 #include "app/CompositionRoot.h"
 #include "app/CrashHandler.h"
+#include "app/LogFile.h"
 #include "app/SingleInstance.h"
 
 #include "core/Log.h"
@@ -93,13 +94,15 @@ QString dpiAwarenessName()
 
 // --- The log sink ------------------------------------------------------------
 // core/ defines no sink because core/ may not write files (tools/layer-lint enforces it), so
-// app/ supplies one. This is the minimal version: the debugger channel plus stderr. The
-// rolling file under %LOCALAPPDATA% and the logging/retainFiles key arrive at T14 -- what
-// matters here is that CrashHandler::install()'s lines are not swallowed.
+// app/ supplies one. This is the console half: the debugger channel plus stderr, installed before
+// anything else so that CrashHandler::install()'s lines are not swallowed. The rolling file under
+// %LOCALAPPDATA% and its `logging/retainFiles` reader arrived at T14 and are `app/LogFile`; they
+// are composed later, because the retention count is a setting and Settings does not exist yet.
 //
-// Returned rather than only installed, because app/CompositionRoot wraps it in the subsystem
-// filter from `logging/subsystems` once Settings exists (T5's key, applied at T8) and has to
-// be able to put this one back on the way out.
+// Returned rather than only installed, because app/CompositionRoot fans it out -- the subsystem
+// filter from `logging/subsystems` (T5's key, applied at T8), then this, then the rolling file and
+// the in-memory buffer the log pane reads (both T14) -- and has to be able to put this one back on
+// the way out.
 rawpage::core::LogSink makeConsoleLogSink()
 {
     return [](const rawpage::core::LogRecordData& record) {
@@ -266,6 +269,11 @@ int main(int argc, char** argv)
     // --- Compose -----------------------------------------------------------------------------
     app::CompositionRoot::Options options;
     options.baseSink = consoleSink;
+
+    // The rolling file half of the sink, promised to T14 by the comment on `makeConsoleLogSink`
+    // above since T1. Only this call site asks for one: an empty directory means no file, so a
+    // test or a diagnostic tool that builds a CompositionRoot does not write into a profile.
+    options.logDirectory = app::LogFile::defaultDirectory();
     app::CompositionRoot root(std::move(options));
 
     // --- One instance, or two? ---------------------------------------------------------------

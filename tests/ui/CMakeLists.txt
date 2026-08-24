@@ -28,6 +28,8 @@ add_executable(rawpage_ui_tests
     tst_toolfinder.cpp
     tst_documenttabs.cpp
     tst_context.cpp
+    tst_preferences.cpp   # T14
+    tst_logpane.cpp       # T14
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

@@ -57,6 +57,8 @@ namespace rawpage::ui {
 class ActionFactory;
 class DocumentTabBar;
 class DocumentWindow;
+class LogPane;
+class PreferencesDialog;
 class QuickAccessToolbar;
 class Ribbon;
 class ShortcutBinder;
@@ -143,6 +145,16 @@ public:
     QuickAccessToolbar* quickAccessToolbar() const { return qat_; }
     ToolFinder*         toolFinder() const { return toolFinder_; }
     SidebarDock*        sidebar() const { return sidebar_; }
+
+    // The log pane -- T14. Built with the window and HIDDEN, because a shell that opens with a
+    // log pane showing is a shell that looks like it is in trouble. `pane.log` toggles it.
+    LogPane*            logPane() const { return logPane_; }
+
+    // The Preferences dialog, built on first use and kept. Null until `file.preferences` has been
+    // dispatched once. Modeless, so this is not a blocking call's return value -- see
+    // `ui/dialogs/PreferencesDialog.h` for why modeless is the load-bearing choice.
+    PreferencesDialog*  preferences() const { return preferences_; }
+    PreferencesDialog*  showPreferences();
     StatusBar*          statusBar() const { return status_; }
     ThemeManager*       theme() const { return theme_.get(); }
 
@@ -226,7 +238,13 @@ private:
     QWidget*        placeholder_ = nullptr;
 
     SidebarDock* sidebar_ = nullptr;
+    LogPane*     logPane_ = nullptr;
     StatusBar*   status_ = nullptr;
+
+    // Created on first use rather than with the window: three quarters of sessions never open it,
+    // and building three pages and a 248-row table for every window that might be torn off is a
+    // cost nobody asked for. Parented to this window, so it dies with it.
+    PreferencesDialog* preferences_ = nullptr;
     std::unique_ptr<ThemeManager> theme_;
 
     // The edge strip an auto-hidden pane collapses into. It belongs to the WINDOW rather than to

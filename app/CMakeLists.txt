@@ -22,6 +22,12 @@ add_executable(rawpage
     Application.cpp
     SingleInstance.h
     SingleInstance.cpp
+
+    # T14 -- the rolling log file. It lives here for the reason core/Log.h states in its own
+    # header: core/ may not write files, so the sink is app/'s. It carries two of the seven live
+    # layer-lint filesystem-write waivers, both named and both visible in --explain.
+    LogFile.h
+    LogFile.cpp
 )
 
 # Application is a QObject (QApplication subclass), so this target needs moc. Set per target

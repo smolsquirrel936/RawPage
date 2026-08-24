@@ -13,7 +13,8 @@
 > | The locked toolchain, the seventeen platform interfaces, the inward-only rule | [`Tech-Stack-Plan.md` §4.2, §4.3, §6](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code) |
 > | How Stage 1 is verified | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **In progress — T1 … T13 complete as of 2026-08-24; T14 is next.** Written
+> **Status:** 🟡 **T1 … T15 all complete as of 2026-08-25. The stage is open on one CI run (guide
+> case A-80) and the manual walk, and nothing else.** Written
 > 2026-08-19, immediately after Stage 0 signed off and before any Stage 1 code existed. This file is a
 > plan, not a progress log — Stage 1's live status, task by task and deviation by deviation, is the
 > Stage 1 status block in `Implementation-Plan.md`, and that block is the authority.
@@ -384,7 +385,7 @@ triples T10 and reshapes T9's layout assumptions, and learning that after T9 is 
 | **T12** | `DocumentTabBar`, stub `DocumentWindow` | T9 | D1-2; tabs, reorder, tear-off to a new window, re-dock, middle-click close, overflow | Tear a tab out and re-dock it; `Ctrl+Tab` and `Ctrl+F6` work |
 | **T13** | `ShortcutBinder` + full chord wiring | T4, T10, T12 | `activeContext()` over the focus chain; resolve and dispatch; the debug self-check | Every §8 Global default resolves correctly; `tst_context` green over synthetic chains |
 | **T14** | `LogPane`, `PreferencesDialog` (shell + General + Shortcuts) | T5, T11, T13 | Every page built **from `SettingsSchema`**, not hand-laid-out; the Shortcuts page edits `KeyBindingStore` and shows shadows | Changing a setting propagates (flow J); a remap persists and takes effect |
-| **T15** | Test target, CI, verdicts, doc lockstep | all | `tests/ui/` (D1-4) into the `windows` CI job; `Architecture-FileMap.md` rows ○ → ✅; `Implementation-Plan.md` Stage 1 status; the A3 verdict; §10's debt | CI green on three jobs at the new counts; every §4 row flipped; every §8 verdict filled in |
+| **T15** | Test target, CI, verdicts, doc lockstep | all | `tests/ui/` (D1-4) into the `windows` CI job; `Architecture-FileMap.md` rows ○ → ✅; `Implementation-Plan.md` Stage 1 status; the A3 verdict; §10's debt | ✅ **2026-08-25**, except CI. Every §4 row flipped and every §10 entry paid; **A-85's R-9 figure re-measured against the SHIPPED ribbon** at p95 0.471 ms against a 16.667 ms budget — T2 had measured 0.28 ms over the throwaway spike, and a spike's ribbon is as small as its author made it, so this is the first R-9 number that is a claim about the product; A-61 closed in two halves. **CI green on three jobs is guide case A-80 and is still open** — not for want of a runner (**I-30**: one had been online since 2026-08-17 behind a variable-name mismatch), but for want of a run |
 
 ---
 
@@ -421,11 +422,19 @@ A stage that is green but has no verdicts is not signed off.
 | Job | Before | After |
 |---|---|---|
 | `gates` (ubuntu, no Qt) | 25 cases, two gates | **Three** gates; plus the `i18n-lint` fixture cases and the `platform/platform.h` ones. Still no Qt, still runs before any compile. **At T10 the preset stands at 65 cases locally** (55 at T7; T8 and T9 added the `argv-path-read` rule with its entry-point control and `ui/`'s two permitted interface headers with a control for each; T10 added the `bare-qaction` rule across **four spellings with two controls**), of which the Linux job runs all but the `wrong_compiler` set |
-| `windows` (self-hosted) | 66 tests | Plus the `rawpage_tests` additions, plus **`rawpage_platform_tests`** (new at T7, Windows only), plus the new **`rawpage_ui_tests`** target under `QT_QPA_PLATFORM=offscreen`, plus the `tests/bench` R-9 figure |
+| `windows` (self-hosted) | 66 tests | **334** at T15: the `rawpage_tests` additions, **`rawpage_platform_tests`** (new at T7, Windows only), **`rawpage_ui_tests`** under `QT_QPA_PLATFORM=offscreen`, and `tests/bench`'s R-9 figure. T15 added two assertions rather than a step, because `ctest --preset x64-release` already **ran** all of it — what no job could do was notice its **absence**, since a target that failed to build subtracts cases from a run still reporting *"100% tests passed"*. The job now fails if any of `unit.`/`ui.`/`platform.`/`bench.` is empty, and prints the R-9 figure. **It had never actually run** — see **I-30** |
 | `portable-asan` (ubuntu) | 52 tests | Plus the `core/` additions **only**. Neither `rawpage_ui_tests` nor `rawpage_platform_tests` runs here — the portable subset is `core/` + `pdf/cos/` by rule, and adding Qt Widgets or Win32 to a Linux job to chase coverage would quietly redefine what that job proves |
 
 One new CI property worth asserting outright: **`rawpage.exe` must start and exit cleanly under
 `offscreen`**, because that is what makes every later stage's headless smoke test possible.
+
+**A fourth job arrived at T15, and it exists because of what T15 found.** `coverage-report` runs on
+every push whatever the others do, and states in the run summary which jobs ran — enumerating, when
+the Windows one did not, exactly what went unexercised. It does not fail: keeping CI green without a
+runner is the recorded decision, and a job that goes red for missing infrastructure teaches everyone
+to ignore a red build. The reason it is needed is **I-30**: for a week the `windows` job had been
+skipped while a runner sat online, because two systems had to agree on a variable name and nothing
+checked that they did — and a skipped job renders as a grey tick beside two green ones.
 
 ---
 
@@ -435,12 +444,16 @@ Owed by **T15**, in the same change as the code:
 
 - `Architecture-FileMap.md` §3.13 has no rows for `ui/shell/ActionFactory` or `RawPageAction.h`; §3.15
   has none for the Shortcuts and General preference pages as separate files. Add them, or fold them
-  into an existing row with a ⤵ breadcrumb.
+  into an existing row with a ⤵ breadcrumb. ✅ **Both settled** — the first at T10, the second at T14
+  (a row each rather than a fold, because `ui/dialogs/SettingsPage` is the generated-page mechanism
+  and is the load-bearing one of the three).
 - ~~`i18n/` has no row~~ — ✅ **done 2026-08-23 at T6**: `Architecture-FileMap.md` §3.18 gained a row
   for `i18n/locales.json` and one for the two catalogs together, plus `tools/common/LineScan.h` in
-  §3.17. **`tests/platform/` got its row at T7**, in the same change as the target. `res/`,
-  `tests/ui/` and `scripts/symbolize.ps1` still have none; `res/` is *data, not code* per
-  `CLAUDE.md`, so one row is likely right rather than one per file.
+  §3.17. **`tests/platform/` got its row at T7**, in the same change as the target. ~~`res/`,
+  `tests/ui/` and `scripts/symbolize.ps1` still have none~~ — ✅ **all paid**: `res/ribbon.json` at
+  T10 (one row for the file rather than one for `res/`, since the directory is data by rule and the
+  ribbon resource is the only thing in it anyone can get wrong), `tests/ui/` at T9 with the target,
+  and **`scripts/symbolize.ps1` at T15** — the oldest entry this section carried, owed since T1.
 - **New at T7, and already paid:** `Tech-Stack-Plan.md` §4.3 was missing `IPrinting` entirely and
   stated its count in table rows rather than interfaces (issue **I-10**). Both fixed in the same
   change as `platform/platform.h`, since the header is what made the gap visible.
@@ -471,6 +484,26 @@ Owed by **T15**, in the same change as the code:
   `RibbonPageLayout::minimumSize()` went back to the honest content minimum (the sum of the collapsed
   groups) without that number reaching the main window, and the row scrolls instead of being cut off
   at the window edge. Collapse is still exhausted first. Issue **I-19** is fully closed.
+- **T14 paid its own rows in the same change as the code, and added four the §4 manifest does not list.**
+  Paid: `ui/panes/LogPane` and `ui/dialogs/PreferencesDialog` flipped ○ → 🟡, and §10's oldest entry —
+  *"§3.15 has no rows for the Shortcuts and General preference pages as separate files"* — is settled
+  by giving `ui/dialogs/SettingsPage` and `ui/dialogs/ShortcutsPage` a row each rather than folding
+  them in, because the first is the generated-page mechanism and is the more load-bearing file of the
+  three. Added: **`core/LogBuffer`**, **`app/LogFile`**, and corrections to the `core/Log.h`,
+  `app/CompositionRoot`, `app/Services.h`, `core/cmd/KeyBindingStore`, `core/settings/SettingsSchema`,
+  `tests/unit/` and `tests/ui/` rows. **Flow J was rewritten rather than annotated:** it drew
+  `Settings.set("pageDisplay/lineWeight", true)` — a *string* key, which D1-10 makes impossible and
+  which is the exact API a schema-driven page must not need. ~~**Still unpaid: `scripts/symbolize.ps1`**,
+  which has had no row since T1, and `tests/gates/fixtures/`.~~ ✅ **Both paid at T15**, along with
+  `scripts/check-single-instance.ps1` and `tests/bench/`. **Every file in the tree now has a row**, and
+  the note at the top of `Architecture-FileMap.md` saying otherwise was removed in the same change.
+
+- **New at T15, and paid in the same change: `core/CoreModule.cpp` is deleted.** This section has
+  carried it since T7 and its own comment had asked for it since Stage 0 — `core/` has had real
+  translation units since T3 and nothing had called `coreModuleAnchor()` since T1 rewrote `main.cpp`.
+  A placeholder that outlives its purpose becomes a mystery. `pdf/PdfModule.cpp` is **not** dead and
+  stays: its layer still has no other translation unit, and Stage 2 deletes it.
+
 - **New at T11/T12, and already paid:** `Architecture-FileMap.md` rows for
   `ui/shell/{QuickAccessToolbar,UiCustomization,ToolFinder,DocumentTabBar,DocumentWindow}` were
   flipped in the same change as the code, and the `MainWindow`, `Ribbon`, `StatusBar`,

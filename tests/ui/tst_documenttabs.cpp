@@ -11,6 +11,7 @@
 
 #include "app/Services.h"
 #include "core/cmd/ActionRegistry.h"
+#include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
@@ -41,11 +42,12 @@ struct Fixture {
     core::RecentFiles     recentFiles{settings};
     core::ActionRegistry  actions;
     core::KeyBindingStore keyBindings;
+    core::LogBuffer       logBuffer;
     platform::Platform    platform;
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
     }
 
     // A file that IS named `.pdf` and is NOT a PDF. D1-2 says the shell checks the name and never
@@ -301,8 +303,8 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     second.openFiles({fixture.writePdf(QStringLiteral("c.pdf"))});
 
     // Registration happened once -- the second window found the commands already there and did not
-    // try to register them again, which would have been seventeen "duplicate registration" errors.
-    CHECK(fixture.actions.registeredCount() == 17);
+    // try to register them again, which would have been nineteen "duplicate registration" errors.
+    CHECK(fixture.actions.registeredCount() == 19);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

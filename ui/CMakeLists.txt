@@ -64,6 +64,21 @@ add_library(rawpage_ui STATIC
     # which is why the binding model is first-party and the conversion happens at this boundary.
     shell/ShortcutBinder.h
     shell/ShortcutBinder.cpp
+
+    # panes/ and dialogs/ -- T14. The first two files in each directory, and the first widgets in
+    # this layer that are not the shell frame itself.
+    #
+    # SettingsPage is the load-bearing one: it #includes core/settings/SettingsKeys.def and builds
+    # a row per declared key from the same table the schema is generated from, so adding a
+    # preference in a later stage is a row in that .def and no widget code at all. See its header.
+    panes/LogPane.h
+    panes/LogPane.cpp
+    dialogs/SettingsPage.h
+    dialogs/SettingsPage.cpp
+    dialogs/ShortcutsPage.h
+    dialogs/ShortcutsPage.cpp
+    dialogs/PreferencesDialog.h
+    dialogs/PreferencesDialog.cpp
 )
 
 # ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before

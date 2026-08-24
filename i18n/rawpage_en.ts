@@ -1865,4 +1865,255 @@
         <translation>%1 is declared but not implemented in this build.</translation>
     </message>
 </context>
+<context>
+    <name>prefs</name>
+    <message>
+        <source>prefs.window.title</source>
+        <translation>Preferences</translation>
+    </message>
+    <message>
+        <source>prefs.button.restoreDefaults</source>
+        <translation>Restore Defaults</translation>
+    </message>
+    <message>
+        <source>prefs.button.close</source>
+        <translation>Close</translation>
+    </message>
+    <message>
+        <source>prefs.group.general</source>
+        <translation>General</translation>
+    </message>
+    <message>
+        <source>prefs.group.logging</source>
+        <translation>Logging</translation>
+    </message>
+    <message>
+        <source>prefs.group.shortcuts</source>
+        <translation>Shortcuts</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.theme</source>
+        <translation>Theme</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.uiFontScale</source>
+        <translation>Interface font scale</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.touchMode</source>
+        <translation>Touch mode — larger targets for pen and finger</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.restoreSession</source>
+        <translation>Reopen the previous session at startup</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.singleInstance</source>
+        <translation>Open files in the running instance</translation>
+    </message>
+    <message>
+        <source>prefs.setting.language.uiLocale</source>
+        <translation>Interface language (leave empty to follow the system)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.logging.level</source>
+        <translation>Log level</translation>
+    </message>
+    <message>
+        <source>prefs.setting.logging.subsystems</source>
+        <translation>Record these subsystems</translation>
+    </message>
+    <message>
+        <source>prefs.setting.logging.retainFiles</source>
+        <translation>Log files to keep</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.recentCount</source>
+        <translation>Recent documents to remember</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.recentPinned</source>
+        <translation>Pinned documents</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logLevel.error</source>
+        <translation>Error</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logLevel.warning</source>
+        <translation>Warning</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logLevel.info</source>
+        <translation>Info</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logLevel.debug</source>
+        <translation>Debug</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logLevel.trace</source>
+        <translation>Trace</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.render</source>
+        <translation>Render</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.parse</source>
+        <translation>Parse</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.save</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.sign</source>
+        <translation>Sign</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.ocr</source>
+        <translation>OCR</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.batch</source>
+        <translation>Batch</translation>
+    </message>
+    <message>
+        <source>prefs.choice.logSubsystem.ui</source>
+        <translation>Interface</translation>
+    </message>
+    <message>
+        <source>prefs.context.Global</source>
+        <translation>Global</translation>
+    </message>
+    <message>
+        <source>prefs.context.Common</source>
+        <translation>Common</translation>
+    </message>
+    <message>
+        <source>prefs.context.Viewer</source>
+        <translation>Viewer (Review mode)</translation>
+    </message>
+    <message>
+        <source>prefs.context.Write</source>
+        <translation>Write mode</translation>
+    </message>
+    <message>
+        <source>prefs.context.AnnotationTools</source>
+        <translation>Annotation tools</translation>
+    </message>
+    <message>
+        <source>prefs.context.PageThumbnails</source>
+        <translation>Page Thumbnails pane</translation>
+    </message>
+    <message>
+        <source>prefs.context.Bookmarks</source>
+        <translation>Bookmarks pane</translation>
+    </message>
+    <message>
+        <source>prefs.context.Comments</source>
+        <translation>Comments pane</translation>
+    </message>
+    <message>
+        <source>prefs.context.FormsDesign</source>
+        <translation>Form Design</translation>
+    </message>
+    <message>
+        <source>prefs.context.FormsFill</source>
+        <translation>Form Filling</translation>
+    </message>
+    <message>
+        <source>prefs.context.FindSearch</source>
+        <translation>Find and Search</translation>
+    </message>
+    <message>
+        <source>prefs.context.FullScreen</source>
+        <translation>Full Screen</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.context</source>
+        <translation>Context</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.columnCommand</source>
+        <translation>Command</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.columnChord</source>
+        <translation>Shortcut</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.columnSource</source>
+        <translation>Source</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.sourceDefault</source>
+        <translation>Default</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.sourceCustom</source>
+        <translation>Customized</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.sourceWidget</source>
+        <translation>Handled by the focused control</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.capture</source>
+        <translation>New shortcut</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.assign</source>
+        <translation>Assign</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.reset</source>
+        <translation>Reset</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.noShadows</source>
+        <translation>No shortcut in this context takes a key away from a global command.</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.shadowsHeading</source>
+        <translation>In this context these keys mean something other than they do globally:</translation>
+    </message>
+    <message>
+        <source>prefs.shortcuts.shadowLine</source>
+        <translation>%1 — %2 here, %3 elsewhere</translation>
+    </message>
+    <message>
+        <source>prefs.log.title</source>
+        <translation>Log</translation>
+    </message>
+    <message>
+        <source>prefs.log.level</source>
+        <translation>Level</translation>
+    </message>
+    <message>
+        <source>prefs.log.subsystem</source>
+        <translation>Subsystem</translation>
+    </message>
+    <message>
+        <source>prefs.log.allSubsystems</source>
+        <translation>All subsystems</translation>
+    </message>
+    <message>
+        <source>prefs.log.copy</source>
+        <translation>Copy</translation>
+    </message>
+    <message>
+        <source>prefs.log.clear</source>
+        <translation>Clear</translation>
+    </message>
+    <message>
+        <source>prefs.log.threshold</source>
+        <translation>Recording at %1 and above. This filter can only narrow what was recorded — widen it on the Logging page.</translation>
+    </message>
+    <message>
+        <source>prefs.log.discarded</source>
+        <translation>%1 earlier records were discarded.</translation>
+    </message>
+</context>
 </TS>

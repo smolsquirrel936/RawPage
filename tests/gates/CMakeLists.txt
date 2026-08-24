@@ -11,7 +11,7 @@ set(FIXTURES "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set(RUNNER "${CMAKE_CURRENT_SOURCE_DIR}/RunGateCase.cmake")
 
 function(rawpage_add_gate_test)
-    cmake_parse_arguments(ARG "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXPECT_FILE;EXPECT_ABSENT" "COMMAND;EXPECT_FILE_MATCH" ${ARGN})
+    cmake_parse_arguments(ARG "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXPECT_NOT_MATCH;EXPECT_FILE;EXPECT_ABSENT" "COMMAND;EXPECT_FILE_MATCH" ${ARGN})
     # Patterns travel joined by @@, because | is already the argument separator below.
     string(REPLACE ";" "@@" file_match_str "${ARG_EXPECT_FILE_MATCH}")
     # '|' rather than ' ' as the separator: a toolchain case passes an argument that itself
@@ -22,6 +22,7 @@ function(rawpage_add_gate_test)
                 "-DCOMMAND_STR=${command_str}"
                 "-DEXPECT_EXIT=${ARG_EXPECT_EXIT}"
                 "-DEXPECT_MATCH=${ARG_EXPECT_MATCH}"
+                "-DEXPECT_NOT_MATCH=${ARG_EXPECT_NOT_MATCH}"
                 "-DEXPECT_FILE=${ARG_EXPECT_FILE}"
                 "-DEXPECT_ABSENT=${ARG_EXPECT_ABSENT}"
                 "-DEXPECT_FILE_MATCH=${file_match_str}"
@@ -333,6 +334,17 @@ rawpage_add_gate_test(NAME gates.i18n_lint.action_label
 rawpage_add_gate_test(NAME gates.i18n_lint.orphan_key_is_a_note_not_a_failure
     COMMAND ${IL} --root ${IL_FIX}/orphan-key --rules ${IL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "note: orphan-key: action.file.longGone")
+
+# T14. A quoted reference ENDING IN A DOT is a namespace reference and covers every key beneath it,
+# because several catalog keys in this product are built at runtime from a table and never appear
+# whole in any source. Both halves are asserted in one fixture: the generated key under the
+# referenced namespace is NOT reported, and a key outside it still is -- without the second half the
+# rule is equally satisfied by an orphan check that stopped checking.
+rawpage_add_gate_test(NAME gates.i18n_lint.namespace_reference_covers_generated_keys
+    COMMAND ${IL} --root ${IL_FIX}/orphan-key-namespace --rules ${IL_RULES}
+    EXPECT_EXIT 0
+    EXPECT_MATCH "note: orphan-key: prefs.window.title"
+    EXPECT_NOT_MATCH "orphan-key: prefs.context.Viewer")
 
 # A-17, transplanted from Stage 0's I-20. The waiver must waive...
 rawpage_add_gate_test(NAME gates.i18n_lint.waiver_applies

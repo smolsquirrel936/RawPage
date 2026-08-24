@@ -55,8 +55,19 @@ std::optional<KeyBinding> KeyBindingStore::resolveExact(const Chord& chord, KeyC
     if (const auto found = overrides_.find(key); found != overrides_.end())
         return KeyBinding{context, chord, found->second, BindingKind::Dispatched};
 
-    if (const auto found = defaults_.find(key); found != defaults_.end())
+    if (const auto found = defaults_.find(key); found != defaults_.end()) {
+        // SUPERSEDED? A default row whose action the user has bound to a DIFFERENT chord in this
+        // context no longer resolves -- see the header. A widget-native row has no action and is
+        // never superseded, which is right: those chords belong to the focused widget, not to a
+        // command anybody can remap.
+        if (found->second.action) {
+            if (const std::optional<Chord> chosen = overrideChordFor(*found->second.action, context);
+                chosen && !(*chosen == chord)) {
+                return std::nullopt;
+            }
+        }
         return found->second;
+    }
 
     return std::nullopt;
 }
@@ -99,6 +110,17 @@ Result<void> KeyBindingStore::rebind(const Chord& chord, KeyContext context, Act
         return Error{ErrorCode::InvalidArgument, kNativeChordKey, toQString(chord.toString())};
     }
 
+    // REPLACE, NOT ADD. The persisted family holds one chord per (context, action), so an action
+    // carrying two override chords is a state that cannot survive a restart -- the second write to
+    // `shortcuts/<context>/<action>` would simply win, and which one it was would depend on map
+    // order. Dropping the previous one here is what makes the in-memory store and the file agree.
+    for (auto it = overrides_.begin(); it != overrides_.end();) {
+        if (it->first.context == context && it->second == action && !(it->first.chord == chord))
+            it = overrides_.erase(it);
+        else
+            ++it;
+    }
+
     overrides_.insert_or_assign(key, action);
 
     // Reported, never refused: §8 ships six class-1 collisions by design, so forbidding a shadowing
@@ -112,6 +134,16 @@ Result<void> KeyBindingStore::rebind(const Chord& chord, KeyContext context, Act
         }
     }
     return {};
+}
+
+std::optional<Chord> KeyBindingStore::overrideChordFor(ActionId action, KeyContext context) const
+{
+    // A linear scan over the USER's overrides, which is a handful of entries rather than the 248
+    // defaults. A second index would have to be kept in step with every rebind and every clear for
+    // a lookup nobody performs in a loop.
+    for (const auto& [key, bound] : overrides_)
+        if (key.context == context && bound == action) return key.chord;
+    return std::nullopt;
 }
 
 void KeyBindingStore::clearOverride(const Chord& chord, KeyContext context)
@@ -140,6 +172,18 @@ std::vector<KeyBinding> KeyBindingStore::bindingsFor(KeyContext context) const
         if (const auto over = overrides_.find(key); over != overrides_.end()) {
             merged.action = over->second;
             merged.kind = BindingKind::Dispatched;
+            out.push_back(merged);
+            continue;
+        }
+
+        // The same supersession `resolveExact` applies, applied to the LIST -- otherwise a
+        // Preferences page and the keyboard would disagree about which chords exist, and the page
+        // is where a user goes to find out.
+        if (binding.action) {
+            if (const std::optional<Chord> chosen = overrideChordFor(*binding.action, context);
+                chosen && !(*chosen == key.chord)) {
+                continue;
+            }
         }
         out.push_back(merged);
     }

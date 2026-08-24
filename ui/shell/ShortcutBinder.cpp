@@ -231,31 +231,34 @@ KeyContext ShortcutBinder::activeContext() const
 std::optional<Chord> ShortcutBinder::chordFor(const QKeyEvent* event)
 {
     if (!event) return std::nullopt;
+    return chordFor(static_cast<Qt::Key>(event->key()), event->modifiers());
+}
 
+std::optional<Chord> ShortcutBinder::chordFor(Qt::Key key, Qt::KeyboardModifiers keyModifiers)
+{
     // The Windows key is the OS's. §8 binds nothing with it, and treating `Meta+O` as `O` would
     // fire a command while the user was talking to the shell.
-    if (event->modifiers() & Qt::MetaModifier) return std::nullopt;
+    if (keyModifiers & Qt::MetaModifier) return std::nullopt;
 
-    const std::optional<std::string> name = nameForKey(event->key());
+    const std::optional<std::string> name = nameForKey(key);
     if (!name) return std::nullopt;
 
-    std::uint8_t modifiers = modifiersFor(event->modifiers());
+    std::uint8_t modifiers = modifiersFor(keyModifiers);
 
     // Shift+Tab arrives as Backtab with the Shift modifier ALREADY set, so nothing to add here --
     // but Backtab with Shift somehow stripped is still a Shift+Tab, and saying so costs one line.
-    if (event->key() == Qt::Key_Backtab)
+    if (key == Qt::Key_Backtab)
         modifiers |= static_cast<std::uint8_t>(core::ChordModifier::Shift);
 
     // A BARE MODIFIER IS ITS OWN CHORD, and it carries no modifier set -- `Chord::parse` does the
     // same with §8's `Alt` row, and the two have to agree or the row would never match. Pressing
     // Alt reports AltModifier on some platforms and not others; dropping it here makes the answer
     // the same on both.
-    if (event->key() == Qt::Key_Alt) {
+    if (key == Qt::Key_Alt) {
         if (modifiers & ~static_cast<std::uint8_t>(core::ChordModifier::Alt)) return std::nullopt;
         return Chord{0, *name};
     }
-    if (event->key() == Qt::Key_Control || event->key() == Qt::Key_Shift
-        || event->key() == Qt::Key_Meta)
+    if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Meta)
         return std::nullopt;
 
     return Chord{modifiers, *name};

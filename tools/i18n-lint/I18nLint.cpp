@@ -21,7 +21,11 @@ const char* kWhyMissingKey =
 
 const char* kWhyOrphanKey =
     "A catalog key nothing references is usually a key whose call site was removed. Reported and "
-    "never blocking, because a key may legitimately lead its use by a commit.";
+    "never blocking, because a key may legitimately lead its use by a commit. A quoted reference "
+    "ENDING IN A DOT is a namespace reference and covers every key beneath it: a generated key "
+    "(prefs.context.Viewer, built from a KeyContext name) never appears whole in any source, and "
+    "reporting forty of those every run is how a note nobody can act on teaches people to skip the "
+    "whole rule.";
 
 const char* kWhyActionLabel =
     "An ActionId with no action.* catalog entry renders as a button with no label. ActionId.def "
@@ -121,14 +125,34 @@ std::vector<Finding> check(const Inputs& inputs)
 
         // --- orphan-key (S3: reported, never blocking) -----------------------------------------
         std::set<std::string> referenced;
+
+        // A reference ending in a dot names a NAMESPACE rather than a key. Several catalog keys in
+        // this product are built at runtime from a table -- one per KeyContext, one per settings
+        // path, one per log subsystem -- so the whole key is never a literal anywhere and only the
+        // prefix is. See kWhyOrphanKey.
+        std::set<std::string> referencedNamespaces;
+
         for (const KeyReference& reference : inputs.sources.keyReferences) {
             referenced.insert(reference.key);
+            if (!reference.key.empty() && reference.key.back() == '.') {
+                referencedNamespaces.insert(reference.key);
+            }
         }
+
+        const auto coveredByNamespace = [&referencedNamespaces](const std::string& key) {
+            for (const std::string& prefix : referencedNamespaces) {
+                if (key.size() > prefix.size() && key.compare(0, prefix.size(), prefix) == 0) {
+                    return true;
+                }
+            }
+            return false;
+        };
         if (inputs.actionDefPresent) {
             for (const std::string& key : actionLabelKeys(inputs.actionDefPath)) referenced.insert(key);
         }
         for (const CatalogEntry& entry : source->entries()) {
             if (referenced.count(entry.key) != 0) continue;
+            if (coveredByNamespace(entry.key)) continue;
             findings.push_back(Finding{source->path().generic_string(), entry.line, "orphan-key",
                                        entry.key + " is referenced by no source file", kWhyOrphanKey,
                                        false});

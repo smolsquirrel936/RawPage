@@ -4,30 +4,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository currently is
 
-**Stage 0 scaffolding plus the first thirteen tasks of Stage 1.** The product is **RawPage**, a
+**Stage 0 scaffolding plus all fifteen tasks of Stage 1.** The product is **RawPage**, a
 Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives under
 `claude-plan/`.
 
 ### Where the work is right now — read this first
 
-**Stage 1 is IN PROGRESS. T1–T13 are complete; T14 is next.** Live status, task by task
-and deviation by deviation, is the Stage 1 status block in `claude-plan/Implementation-Plan.md` —
-that block is the authority, and this section is its summary.
+**Stage 1's CODE IS COMPLETE — T1–T15 all done.** What is left is not a task: it is one CI run
+(guide case **A-80**) and **your manual walk**. Live status, task by task and deviation by deviation,
+is the Stage 1 status block in `claude-plan/Implementation-Plan.md` — that block is the authority,
+and this section is its summary.
 
 | | |
 |---|---|
-| **Tests** | **297/297** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 65/65 with no Qt |
-| **Gates** | `layer-lint` clean at 125 files / 735 includes; `license-audit` clean; `i18n-lint` clean at 67 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
-| **Verdicts recorded** | **A3 = `go, with named custom work`**; **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
-| **Issue log** | I-01…I-25 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
-| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** **M-03 (document tabs: tear off, re-dock) became walkable at T12, and M-12 (the stage's honest emptiness) fully at T13** — the keyboard works, so that walk can be taken as written. M-04…M-07, M-09 and M-10 are not walkable yet, and M-11 is walkable except for its Preferences step |
+| **Tests** | **334/334** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is **66/66** with no Qt. Plus **one benchmark**, `bench.ribbon.tab_switch` — a bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
+| **Gates** | `layer-lint` clean at **141 files / 930 includes**, **6** live filesystem-write waivers; `license-audit` clean; `i18n-lint` clean at **78 files / 2 catalogs, 0 waivers**. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Verdicts recorded** | **A3 = `go, with named custom work`**. T15 **re-measured R-9 against the shipped ribbon** rather than against T2's throwaway spike — p95 **0.471 ms** against a 16.667 ms budget, over 192 real controls, with a control proving the instrument was live. Both figures stand in `Tech-Stack-Plan.md` §3.3; the second is the one that is a claim about the product. **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
+| **Issue log** | I-01…I-30 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and all three now exist, so that case can be re-walked as written. **M-04 is partly walkable**: the log pane is real, but auto-hide and width memory are `SidebarDock`'s and are walked against the sidebar. M-05…M-07, M-09 and M-10 are still not walkable |
 
-**Next action: T14** — `LogPane` and `PreferencesDialog` (the shell plus the General and Shortcuts
-pages), every page built **from `SettingsSchema`** rather than hand-laid-out, with the Shortcuts page
-editing `KeyBindingStore` and showing `shadows()`. T13 hands it two things it needs: a remap now takes
-effect with nothing rebuilt, and `ShortcutBinder::qtKeyFor()` is the conversion a shortcut editor needs
-to show a chord as a key and read one back. Nothing is carried forward: I-19 was paid off at T11, A-58
-closed at T12 and A-53 at T13. Nothing is implemented ahead of the plan's task order.
+**Next action: not a task — Stage 1's Definition of Done, which is two things and neither is code.**
+
+1. **One CI run** — guide case **A-80**, the last automated case. Everything it asserts is green
+   locally, and locally-green is not CI-green. T15 found that the `windows` job's long absence was
+   never the missing runner every document had assumed: one has been online since 2026-08-17, and the
+   block was a variable **name** mismatch (`RECTO_HAS_WINDOWS_RUNNER` set, `RAWPAGE_HAS_WINDOWS_RUNNER`
+   read). That is fixed, and a fourth CI job now names in every run summary what went unexercised when
+   the Windows job does not run, so a skipped job cannot be misread as a passing one.
+2. **Your manual walk.** M-01 and M-02 are signed off; M-03, M-11 and M-12 are walkable and M-04 partly
+   so; M-05…M-07, M-09 and M-10 test code that does not exist yet. **I do not mark a manual case.**
+
+**Nothing is carried forward**: I-19 was paid off at T11, A-58 closed at T12, A-53 at T13, I-26…I-28
+each in the same change as the code that found them, and I-29 and I-30 the same way at T15.
+`core/CoreModule.cpp` — the last Stage 0 placeholder in `core/` — was deleted at T15, and **every file
+in the tree now has an `Architecture-FileMap.md` row**. Nothing is implemented ahead of the plan's task
+order.
 
 ### What now exists as code
 
@@ -46,7 +57,8 @@ closed at T12 and A-53 at T13. Nothing is implemented ahead of the plan's task o
   live in both directions — an older file migrates and is restamped, a **newer** file is read for
   what we understand and left byte-identical.
 - **`tools/i18n-lint/` + `i18n/` (T6, extended T8/T9/T10/T11/T12)** — the third gate, and `rawpage_en.ts` /
-  `rawpage_zh_TW.ts` at **463 keys each** (358 `action.*` + 34 `shell.*` + 61 `ribbon.*` + 10 `error.*`), declared in
+  `rawpage_zh_TW.ts` at **525 keys each** (358 `action.*` + 58 `shell.*` + 61 `ribbon.*` + 10 `error.*`
+  + 38 generated `prefs.*`), declared in
   `i18n/locales.json` with `zh_CN` and `ja` marked `"shipped": false`. The `.ts` files are compiled
   to `.qm` **beside the executable** rather than into a Qt resource, so Stage 15 can ship them
   replaceable; `LinguistTools` is a build tool and is deliberately not registered with
@@ -96,15 +108,37 @@ closed at T12 and A-53 at T13. Nothing is implemented ahead of the plan's task o
   answers `Global` throughout — which is the honest state, and is what every §8 Global default is
   resolved against.
 
+- **Preferences, the log, and the rolling log file (T14)** — `ui/dialogs/PreferencesDialog`
+  (**modeless**, applying immediately, Close and Restore Defaults and no OK/Cancel: a `Cancel` that
+  must un-apply needs a transaction `Settings` deliberately does not have), `ui/dialogs/SettingsPage`
+  — which **`#include`s `SettingsKeys.def` itself** and builds one typed editor per row, so adding a
+  preference in a later stage is a `.def` row and no widget code — `ui/dialogs/ShortcutsPage`, which
+  writes a remap to **both** `KeyBindingStore` and `Settings` and lists the class-1 shadows, and
+  `ui/panes/LogPane` over the new `core/LogBuffer` and `app/LogFile`. Three of the 26 preference
+  groups ship: **General, Logging, Shortcuts**. `SettingsSchema` gained a fourth artifact — an editor
+  kind, a choice set and a `prefs.setting.*` label key, all **derived** from each row's type and path.
+
+- **The measurement, the two-process check, and the CI that runs them (T15)** — `tests/bench/`
+  (`bench_ribbon`, A3's R-9: **p95 0.471 ms** against a 16.667 ms frame budget, reported in three
+  phases and carrying **its own control**, because the `layout` phase reads 0.000 ms and a zero has
+  two explanations — a cheap switch, or a dead instrument. Twenty resizes across the collapse
+  threshold answer it at 0.714 ms); `tests/unit/tst_singleinstance.cpp` plus
+  `scripts/check-single-instance.ps1` for A-61's two halves; and four CI changes that turn coverage
+  claims into assertions. **T15 builds no product surface** — no new catalog key, settings key or
+  registered command — and that is what the task is. `core/CoreModule.cpp` was deleted, as its own
+  comment had asked since Stage 0.
+
 **Still no document code**: nothing in `core/doc/`, `pdf/cos/`, `pdf/render/`, `pdf/ops/`, or
 `ui/viewer/`. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window with a
-working ribbon, a customizable toolbar, a tool finder, document tabs and — since T13 — a keyboard** —
+working ribbon, a customizable toolbar, a tool finder, document tabs, a keyboard, a Preferences dialog
+and a log pane** —
 9 tabs above a sidebar, a status bar and a live theme, and a tab per opened file whose surface names
 what Stage 2 brings. Most ribbon buttons are **disabled and say why**: 358 commands are declared and
-**seventeen** are registered, which is the honest state rather than a shortcut. Each of those
-seventeen is reachable from the ribbon, the toolbar, the tool finder, a test, the future batch runner
-**and now its §8 chord**; the other ~341 chords resolve, are refused as `NotFound`, and deliberately
-leave the key unconsumed. Because an ordinary launch runs an
+**nineteen** are registered, which is the honest state rather than a shortcut. Each of those
+nineteen is reachable from the ribbon, the toolbar, the tool finder, a test, the future batch runner
+and its §8 chord; the other ~339 chords resolve, are refused as `NotFound`, and deliberately
+leave the key unconsumed. `log.openFolder` is deliberately **not** registered: the folder belongs to
+`app/LogFile`, and `ui/` looks outward to exactly two files (convention 9). Because an ordinary launch runs an
 event loop, **the headless smoke test is `--dump-ui-strings`**: it composes every service, loads both
 catalogs and exits 0 without creating a window.
 
@@ -209,6 +243,24 @@ catalogs and exits 0 without creating a window.
    `Unavailable` — distinct from `NotFound`, which is exactly what those two codes are for. Every
    such command needs a parameterized twin that needs no user (`openFiles()` is `file.open`'s), and
    the general answer is **O11**. (Issue **I-23**.)
+
+17. **A surface generated from a declarative table reads the TABLE, not a runtime description of
+   it.** `ui/dialogs/SettingsPage` builds one row per key by `#include`ing `core/settings/SettingsKeys.def`
+   with a macro that instantiates a template, so every editor holds the real `constexpr Key<T>` and calls
+   the typed `get`/`set`. Iterating `SettingsSchema::allKeys()` would have been the obvious loop and is
+   the trap: a descriptor carries a *path*, so a page built from descriptors needs a string-keyed
+   `Settings::get`, and adding one for a dialog's convenience makes D1-10's *"an undeclared key does not
+   compile"* decorative for the entire product. The runtime table still owns *which widget* and *what to
+   call it*. (T14.)
+
+18. **`core/Log.h` has ONE sink and `setLogSink` REPLACES it — so nothing chains it.** Anything that
+   wants records is fanned out from the single sink `app/CompositionRoot` installs: the console, the
+   rolling file, the in-memory buffer the log pane reads. A widget that captured the installed sink and
+   installed a wrapper would be dropped the next time the logging settings changed — which is exactly
+   what the Preferences page it shipped alongside does — and two windows doing it would nest in
+   construction order and unwind in closing order. It is also I-12's bug in a new disguise: a lambda
+   installed by a widget outlives the widget unless something removes it. (T14; the reasoning lives in
+   `core/LogBuffer.h`.)
 
 ### Accessibility is OUT OF SCOPE (2026-08-23)
 
@@ -385,12 +437,12 @@ live.** `checks` runs the three that exist and says three — if it ever *claims
 |---|---|---|
 | `tools/layer-lint` | ✅ **live** | an outward include; `FPDF_` outside `pdf/`; a filesystem write outside `pdf/` and `core/settings/`; a path read out of `argv` outside `app/main.cpp`; **a `QAction` constructed outside `ui/shell/ActionFactory.cpp`** (D1-7, four spellings, non-escapable); **an OS header in `platform/platform.h`**, which is its own layer entry because that file is included by `core/`, `ui/` and `app/` |
 | `tools/license-audit` | ✅ **live** | any dependency SPDX identifier outside the allowlist |
-| `tools/i18n-lint` | ✅ **live** | a literal reaching a user-facing sink and not wrapped in `tr()` (escapable, `// i18n-lint: allow-literal(reason)`); a key missing from a shipped locale; an `ActionId` with no `action.*` catalog entry. `orphan-key` is S3 — reported, never blocking. Stage 1 ships `en` and `zh-TW` only; `zh-CN` and `ja` are declared `"shipped": false` (D1-14) |
+| `tools/i18n-lint` | ✅ **live** | a literal reaching a user-facing sink and not wrapped in `tr()` (escapable, `// i18n-lint: allow-literal(reason)`); a key missing from a shipped locale; an `ActionId` with no `action.*` catalog entry. `orphan-key` is S3 — reported, never blocking, and a quoted key reference **ending in a dot** is a namespace reference covering every key beneath it, because several catalog families are built from a table at runtime and appear whole in no source (T14, issue I-27). Stage 1 ships `en` and `zh-TW` only; `zh-CN` and `ja` are declared `"shipped": false` (D1-14) |
 | `tools/mutation-lint` | ○ **Stage 3** | a `Command` subclass missing from `CommandRegistry`, or lacking a serialize round-trip test or a revert test |
 
 Two rules are escapable, both with an inline marker **on the same line as the match** — not the line
 above — and both censused by that gate's `--explain`: `// layer-lint: allow-filesystem-write(reason)`
-(**four** waivers exist — three in `app/CrashHandler.cpp`, one on the named-pipe `CreateFileW` in
+(**six** waivers exist — three in `app/CrashHandler.cpp`, two in `app/LogFile.cpp` for the rolling log file and its retention, one on the named-pipe `CreateFileW` in
 `platform/win/WinSingleInstanceBus.cpp`) and `// i18n-lint: allow-literal(reason)` (none yet). `--explain` distinguishes a waiver that **silenced something** from one that did not, which is
 Stage 0's I-20 written into the tool rather than remembered.
 
@@ -417,7 +469,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 275/275 as of Stage 1 T12
+ctest --preset x64-release --output-on-failure        # 334/334 as of Stage 1 T15
 ```
 
 Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offscreen`:
@@ -435,6 +487,19 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 
 The three gates can also be run one at a time, and each has an `--explain` that prints its rules and
 its live waivers — that census is how anyone notices waivers creeping from a handful to a hundred:
+
+Two checks that are neither a `ctest` case nor a gate, and each has a recorded reason for not being one:
+
+```powershell
+.\build\x64-release\bin\rawpage_bench_ribbon.exe   # A-85 / R-9, the one A3 criterion that is a number
+.\scripts\check-single-instance.ps1                 # A-61's two-process half, with its `true` control
+```
+
+`check-single-instance.ps1` **edits `%APPDATA%\RawPage\settings.ini` and restores it in a `finally`**,
+which is exactly why it is not a CTest case: a suite that rewrote the settings of whoever ran it would
+be a worse defect than the one it checks. It has to, because Qt resolves `AppDataLocation` through
+`SHGetKnownFolderPath` — measured at T15 — so overriding `APPDATA` for a child process does *not*
+redirect the file.
 
 ```powershell
 .\build\x64-release\bin\layer-lint.exe    --root . --explain   # includes, rules, 4 live waivers
@@ -457,9 +522,10 @@ Presets: `gates` (tools + gate fixtures only, **no Qt and no vcpkg** — what CI
 
 | Target | Links | CTest prefix | Runs where |
 |---|---|---|---|
-| `rawpage_tests` | `rawpage_core`, `rawpage_pdf` | `unit.` | Windows + `portable-asan`. It also compiles `app/CommandLine.cpp` **in** — the parser is a pure `QStringList` → intent function, and compiling it rather than linking the executable is what keeps the assertion below true. `rawpage_assert_headless()` **fails configure** if this ever links `rawpage_ui` or `rawpage_platform`, directly or transitively — that assertion is the standing proof that `core/` needs no display and no engine |
+| `rawpage_tests` | `rawpage_core`, `rawpage_pdf` | `unit.` | Windows + `portable-asan`. It also compiles **three** `app/` translation units **in** rather than linking them — `CommandLine.cpp` (a pure `QStringList` → intent parse), `LogFile.cpp` (QtCore and nothing else) and `SingleInstance.cpp` (T15; names only `core/` and the interface header `platform/platform.h`) — and compiling rather than linking is what keeps the assertion below true. `rawpage_assert_headless()` **fails configure** if this ever links `rawpage_ui` or `rawpage_platform`, directly or transitively — that assertion is the standing proof that `core/` needs no display and no engine |
 | `rawpage_platform_tests` | `rawpage_core`, `rawpage_platform` | `platform.` | **Windows only** (S1 · T7) |
 | `rawpage_ui_tests` | `rawpage_core`, `rawpage_ui` | `ui.` | **Windows only**, `QT_QPA_PLATFORM=offscreen` (D1-4). **Arrived at T9**, not the plan's T15, on the precedent `tests/platform` set at T7. It installs `rawpage_en.qm` so the widgets are exercised against real text rather than their own catalog keys |
+| `rawpage_bench_ribbon` | `rawpage_core`, `rawpage_ui` | `bench.` | **Windows only**, offscreen (T15). Not a test target and the difference is load-bearing: a test asserts and fails, **a benchmark reports, and its exit code is about whether the measurement was *possible*** — never about whether the machine was fast, or a loaded runner turns a green build red for a reason unrelated to the change. It is registered with CTest anyway, because a benchmark nobody runs is one that has stopped compiling by the time its number matters |
 
 Single test / suite — Catch2 v3 binaries registered with CTest, selected by name regex:
 

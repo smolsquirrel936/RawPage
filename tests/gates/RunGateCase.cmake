@@ -11,6 +11,10 @@
 #
 # Required: -DCOMMAND_STR=... -DEXPECT_EXIT=...
 # Optional: -DEXPECT_MATCH=<regex>   the diagnostic must mention this
+#           -DEXPECT_NOT_MATCH=<regex>  the diagnostic must NOT mention this. The negative half
+#                                    of a rule that SUPPRESSES a finding: a suppression asserted
+#                                    only by the absence of a failure is equally satisfied by a
+#                                    gate that stopped reporting everything.
 #           -DEXPECT_FILE=<path>     the gate must have written this file
 #           -DEXPECT_ABSENT=<path>   the gate must NOT have written this file
 #           -DEXPECT_FILE_MATCH=<patterns>  every pattern must match some LINE of EXPECT_FILE,
@@ -60,6 +64,16 @@ if(DEFINED EXPECT_MATCH AND NOT EXPECT_MATCH STREQUAL "")
             "exit code ${actual_exit} was correct, but the diagnostic did not mention: ${EXPECT_MATCH}\n"
             "A gate that fails for the wrong reason has not been tested.\n"
             "--- output ---\n${combined}")
+    endif()
+endif()
+
+if(DEFINED EXPECT_NOT_MATCH AND NOT EXPECT_NOT_MATCH STREQUAL "")
+    if(combined MATCHES "${EXPECT_NOT_MATCH}")
+        message(FATAL_ERROR
+            "exit code ${actual_exit} was correct, but the diagnostic mentioned what it must not: ${EXPECT_NOT_MATCH}
+"
+            "--- output ---
+${combined}")
     endif()
 endif()
 

@@ -360,6 +360,129 @@ template <> struct SettingsCodec<LogSubsystemMask> {
 };
 
 // ---------------------------------------------------------------------------------------
+// What kind of editor a key wants, and what to call it -- T14
+// ---------------------------------------------------------------------------------------
+// A Preferences page is required to be built FROM this schema rather than hand-laid-out
+// (Stage1-AppShell-Plan.md 6, T14), and a page cannot do that from a path, a group and a default
+// alone: it has to know which widget a value wants and what word to put beside it. Both answers
+// are derived from the key's TYPE and its PATH -- neither is a new column in SettingsKeys.def, and
+// that is deliberate. A fifth column saying "checkbox" would be a second opinion about what `bool`
+// means, and it would be wrong the first time somebody filled it in by hand.
+//
+// The value of putting this in core/ rather than in ui/: it is what makes the mapping testable
+// with no display, and it is what Stage 15's PolicyOverlay reads when it has to say "this control
+// is locked" for a control it does not own.
+
+enum class SettingsEditor {
+    Toggle,    // bool
+    Integer,   // int, with the declared range as the spin box's bounds
+    Decimal,   // double, likewise
+    Text,      // QString
+    List,      // QStringList
+    Choice,    // one of a closed, named set -- Theme, LogLevel
+    Flags,     // a subset of a closed, named set -- LogSubsystemMask
+};
+
+// One member of a Choice or Flags set. The token is EXACTLY what the codec writes into the INI, so
+// a page can round-trip a value through `SettingsCodec<T>` rather than carrying its own idea of
+// what "dark" means; the label key is what the user reads.
+struct SettingsChoice {
+    std::string token;
+    std::string labelKey;
+};
+
+// The catalog key naming a setting: "general/uiFontScale" -> "prefs.setting.general.uiFontScale".
+//
+// DERIVED, exactly as `ActionId.def`'s rule 3 derives an action's catalog key from its string id,
+// and for the same reason: a hand-written key column is a second list, and the day it disagrees
+// with the path the symptom is a Preferences row labelled `prefs.setting.general.uiFontSacle`. The
+// catalogs are hand-maintained data, so a key missing from `en` is a defect this convention makes
+// mechanically checkable -- guide case A-91 walks every declared key and asserts each resolves.
+//
+// `prefs.setting.` rather than a bare `prefs.` and not for tidiness: `tools/i18n-lint` treats a
+// quoted key reference ending in a dot as a NAMESPACE reference covering every key beneath it,
+// which is how these generated keys avoid being reported as orphans. A prefix of `prefs.` would
+// have covered the whole Preferences namespace and switched the orphan check off for all of it.
+inline std::string settingsLabelKey(std::string_view path)
+{
+    std::string key = "prefs.setting.";
+    for (const char c : path) key.push_back(c == '/' ? '.' : c);
+    return key;
+}
+
+// The per-type answer. Specialized rather than switched, so that a key whose type has no editor is
+// a COMPILE error at the point the key is declared rather than a blank row on a page.
+template <class T> struct SettingsEditorTraits;
+
+template <> struct SettingsEditorTraits<bool> {
+    static constexpr SettingsEditor editor = SettingsEditor::Toggle;
+    static std::vector<SettingsChoice> choices() { return {}; }
+};
+template <> struct SettingsEditorTraits<int> {
+    static constexpr SettingsEditor editor = SettingsEditor::Integer;
+    static std::vector<SettingsChoice> choices() { return {}; }
+};
+template <> struct SettingsEditorTraits<double> {
+    static constexpr SettingsEditor editor = SettingsEditor::Decimal;
+    static std::vector<SettingsChoice> choices() { return {}; }
+};
+template <> struct SettingsEditorTraits<QString> {
+    static constexpr SettingsEditor editor = SettingsEditor::Text;
+    static std::vector<SettingsChoice> choices() { return {}; }
+};
+template <> struct SettingsEditorTraits<QStringList> {
+    static constexpr SettingsEditor editor = SettingsEditor::List;
+    static std::vector<SettingsChoice> choices() { return {}; }
+};
+
+template <> struct SettingsEditorTraits<Theme> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+
+    // The tokens come from `themeName`, which is also what the codec writes -- so the combo box
+    // cannot offer a value the file cannot hold. The LABELS are the shell's own theme keys rather
+    // than new `prefs.*` ones: `ui/shell/ShellKeys.def` says in its own comment that a theme name
+    // reading one way in Preferences and another in the status bar is the first localization bug
+    // anyone files, and two keys for one word is how that happens.
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const Theme theme : {Theme::Light, Theme::Dark, Theme::FollowSystem}) {
+            const std::string_view token = themeName(theme);
+            out.push_back(SettingsChoice{std::string(token),
+                                         "shell.theme." + std::string(token)});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<LogLevel> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const LogLevel level : {LogLevel::Error, LogLevel::Warning, LogLevel::Info,
+                                     LogLevel::Debug, LogLevel::Trace}) {
+            const std::string token = logLevelName(level);
+            out.push_back(SettingsChoice{token, "prefs.choice.logLevel." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<LogSubsystemMask> {
+    static constexpr SettingsEditor editor = SettingsEditor::Flags;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (std::size_t i = 0; i < kLogSubsystemCount; ++i) {
+            const std::string token = logSubsystemName(static_cast<LogSubsystem>(i));
+            out.push_back(SettingsChoice{token, "prefs.choice.logSubsystem." + token});
+        }
+        return out;
+    }
+};
+
+// ---------------------------------------------------------------------------------------
 // The keys themselves -- generated, never hand-written
 // ---------------------------------------------------------------------------------------
 // Each row reopens its namespace. That is legal, and it is what lets one flat table produce
@@ -424,6 +547,13 @@ struct SettingsKeyInfo {
     QVariant         defaultValue;
     QVariant         minimum;
     QVariant         maximum;
+
+    // T14. What a generated Preferences row needs on top of the above: which widget, what to call
+    // it, and -- for a closed set -- what the members are. All three are derived from the row's
+    // TYPE and PATH by the traits above; none is a new column anybody maintains.
+    SettingsEditor              editor = SettingsEditor::Text;
+    std::string                 labelKey;
+    std::vector<SettingsChoice> choices;
 };
 
 namespace SettingsSchema {

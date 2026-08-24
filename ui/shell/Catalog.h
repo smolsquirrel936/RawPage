@@ -25,6 +25,8 @@
 #define RAWPAGE_UI_SHELL_CATALOG_H
 
 #include "core/cmd/ActionId.h"
+#include "core/cmd/KeyContext.h"
+#include "core/settings/SettingsSchema.h"
 
 #include <QString>
 #include <QStringList>
@@ -43,6 +45,20 @@ QString translateAction(core::ActionId id);
 // catalog entry provides. This is the boundary Result.h describes: core/ carries a key plus a file
 // name, ui/ turns the pair into a sentence in the user's language.
 QString translateError(const QString& messageKey, const QString& context);
+
+// ---------------------------------------------------------------------------------------
+// Keys that are BUILT from a table rather than written down -- T14
+// ---------------------------------------------------------------------------------------
+// A Preferences page names a settings group, and the Shortcuts page names a KeyContext. Neither
+// has a catalog key of its own anywhere: the key is derived from the enum's name, so that adding a
+// context or a group does not need a second list of names to be updated in step (D1-6, again).
+//
+// They live here rather than at their two call sites for the reason `ShellKeys.def` gives about
+// spelling a key by hand: `dumpStrings()` below has to emit every key the shell can show, and a
+// derivation written twice is a derivation that can differ -- at which point A-72 would compare a
+// key nothing renders against a rendered key nothing dumps.
+QString settingsGroupKey(core::SettingsGroup group);
+QString keyContextKey(core::KeyContext context);
 
 // Every key the shell can put on screen -- `ui/shell/ShellKeys.def` plus every `action.*` label --
 // as "key<TAB>text", sorted. Printed by `rawpage.exe --dump-ui-strings` (guide case A-72), which

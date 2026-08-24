@@ -119,4 +119,39 @@ RAWPAGE_SHELL_STRING(TabStripHint,            "shell.tab.stripHint")
 RAWPAGE_SHELL_STRING(DialogOpenTitle,         "shell.dialog.openTitle")
 RAWPAGE_SHELL_STRING(DialogPdfFilter,         "shell.dialog.pdfFilter")
 
+// --- The Preferences dialog and the log pane (T14) ----------------------------------------------
+// ONLY the keys this code spells out. The three families that are BUILT from a table are not here
+// and must not be: one label per declared settings key (`core::settingsLabelKey`), one per member
+// of a closed choice set, one per preference group and one per `KeyContext`. Listing them would be
+// a second copy of `SettingsKeys.def`, `SettingsGroup` and `KeyContext` -- exactly the drift D1-6
+// exists to prevent -- so `Catalog::dumpStrings()` walks those tables instead and A-72 still covers
+// every one of them.
+//
+// `tools/i18n-lint` treats a quoted reference ending in a dot as a NAMESPACE reference, which is
+// what keeps the generated keys from being reported as orphans on every run.
+RAWPAGE_SHELL_STRING(PrefsWindowTitle,            "prefs.window.title")
+RAWPAGE_SHELL_STRING(PrefsButtonRestoreDefaults,  "prefs.button.restoreDefaults")
+RAWPAGE_SHELL_STRING(PrefsButtonClose,            "prefs.button.close")
+RAWPAGE_SHELL_STRING(PrefsShortcutsContext,       "prefs.shortcuts.context")
+RAWPAGE_SHELL_STRING(PrefsShortcutsColumnCommand, "prefs.shortcuts.columnCommand")
+RAWPAGE_SHELL_STRING(PrefsShortcutsColumnChord,   "prefs.shortcuts.columnChord")
+RAWPAGE_SHELL_STRING(PrefsShortcutsColumnSource,  "prefs.shortcuts.columnSource")
+RAWPAGE_SHELL_STRING(PrefsShortcutsSourceDefault, "prefs.shortcuts.sourceDefault")
+RAWPAGE_SHELL_STRING(PrefsShortcutsSourceCustom,  "prefs.shortcuts.sourceCustom")
+RAWPAGE_SHELL_STRING(PrefsShortcutsSourceWidget,  "prefs.shortcuts.sourceWidget")
+RAWPAGE_SHELL_STRING(PrefsShortcutsCapture,       "prefs.shortcuts.capture")
+RAWPAGE_SHELL_STRING(PrefsShortcutsAssign,        "prefs.shortcuts.assign")
+RAWPAGE_SHELL_STRING(PrefsShortcutsReset,         "prefs.shortcuts.reset")
+RAWPAGE_SHELL_STRING(PrefsShortcutsNoShadows,     "prefs.shortcuts.noShadows")
+RAWPAGE_SHELL_STRING(PrefsShortcutsShadowsHeading, "prefs.shortcuts.shadowsHeading")
+RAWPAGE_SHELL_STRING(PrefsShortcutsShadowLine,    "prefs.shortcuts.shadowLine")
+RAWPAGE_SHELL_STRING(PrefsLogTitle,               "prefs.log.title")
+RAWPAGE_SHELL_STRING(PrefsLogLevel,               "prefs.log.level")
+RAWPAGE_SHELL_STRING(PrefsLogSubsystem,           "prefs.log.subsystem")
+RAWPAGE_SHELL_STRING(PrefsLogAllSubsystems,       "prefs.log.allSubsystems")
+RAWPAGE_SHELL_STRING(PrefsLogCopy,                "prefs.log.copy")
+RAWPAGE_SHELL_STRING(PrefsLogClear,               "prefs.log.clear")
+RAWPAGE_SHELL_STRING(PrefsLogThreshold,           "prefs.log.threshold")
+RAWPAGE_SHELL_STRING(PrefsLogDiscarded,           "prefs.log.discarded")
+
 #undef RAWPAGE_SHELL_STRING

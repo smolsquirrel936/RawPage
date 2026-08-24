@@ -168,6 +168,12 @@ if(NOT RAWPAGE_GATES_ONLY)
         # side: tests/unit links core/ and pdf/ and nothing else, and the first widget test is
         # exactly the pressure that would otherwise weaken that. Windows only, offscreen.
         add_subdirectory(tests/ui)
+
+        # The measurements. One benchmark today -- A3's criterion R-9, the only one of the eight
+        # that is a number rather than a judgement -- and Stage 2's per-tile render latency joins
+        # it. Windows only, because it links rawpage_ui; and a bench under ASan would be a
+        # measurement of ASan.
+        add_subdirectory(tests/bench)
     endif()
 endif()
 

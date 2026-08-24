@@ -52,24 +52,27 @@ rather than a gap — those files are written when their stage comes up, not in 
 **Stage 0 is complete** — both halves of its verification green and signed off 2026-08-19, CI green on
 three jobs, verdicts **A5** and **A6** recorded in ②.
 
-**Stage 1 is IN PROGRESS: tasks T1 … T12 of 15 are complete (2026-08-24); T13 is next.**
+**Stage 1's code is complete: all fifteen tasks done (2026-08-25).** What remains is not a task —
+one CI run (case **A-80**) and the manual walk in ⑥.
 
 | | |
 |---|---|
-| Tests | **275/275** on `x64-debug` and `x64-release`; the bare `gates` preset **65/65** with no Qt |
-| Gates | `layer-lint` 122 files / 697 includes, `license-audit` clean, `i18n-lint` 65 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
-| Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion) · **`-municode` = not adopted** |
-| Manual | **M-01 ✅, M-02 🟡** signed off by the user. **M-03 became walkable at T12**; the rest are not walkable yet |
-| Issues | I-01…I-23 in ⑥. **None open** |
+| Tests | **334/334** on `x64-debug` and `x64-release`; the bare `gates` preset **66/66** with no Qt; plus one benchmark, whose exit code is about whether the measurement was possible rather than whether the machine was fast |
+| Gates | `layer-lint` 141 files / 930 includes, `license-audit` clean, `i18n-lint` 78 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
+| Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion). T15 re-measured **R-9 against the shipped 192-control ribbon** rather than T2's spike: p95 **0.471 ms** against a 16.667 ms budget · **`-municode` = not adopted** |
+| Manual | **M-01 ✅, M-02 🟡** signed off by the user. **M-03 walkable since T12, M-12 since T13, and M-02's non-ribbon half and M-11 in full since T14**; M-04 is partly walkable; the rest are not walkable yet |
+| Issues | I-01…I-30 in ⑥. **None open.** T15's two were the harness and its infrastructure again: a benchmark whose every printed figure was its own argument-evaluation bug, and an S2 — a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
 ribbon spike (`tools/spike-ribbon/`, **deleted at T10, as planned**); the action layer — `ActionId` (358 declared
 actions), `ActionRegistry`, `Chord`, `KeyBindingStore` (240 bindings seeded from ① §8); the typed
 settings store (`core/settings/`, where an undeclared key does not compile); the third gate
-(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at 463 keys each; the OS boundary
+(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **525 keys each**; the OS boundary
 (`platform/platform.h`, seventeen interfaces declared, two implemented); the composition root that
-wires all of it together (`app/`); and the application frame (`ui/shell/`).
+wires all of it together (`app/`); the application frame (`ui/shell/`); since T14, the Preferences
+surface and the log (`ui/dialogs/`, `ui/panes/`, `core/LogBuffer`, `app/LogFile`); and since T15
+`tests/bench/`, which holds the one A3 criterion that is a number rather than a judgement.
 
 **No document code exists** — nothing in `core/doc/`, `pdf/` or `ui/viewer/` — but **`rawpage.exe`
 now opens a window with a working ribbon**: 9 tabs, 49 groups and 192 controls, every one of them
@@ -78,8 +81,13 @@ and a live theme. T11 added a **customizable Quick Access Toolbar** whose every 
 command, and a **tool finder** whose ranking is a widget-free function so its result order can be
 asserted without a window; T12 added **document tabs** over a stub `DocumentWindow` that holds a path
 and nothing else (decision D1-2), with reorder, middle-click close, tear-off to a new window and
-re-dock. Most controls are **disabled and say why** — Stage 1 declares 358 commands and registers the
-seventeen this window can service. **No chord input until T13**, and no PDF is read until Stage 2.
+re-dock. **T13 added the keyboard** — one `ShortcutBinder` per window, resolving innermost context then
+`Common` then `Global`, with no chord ever becoming a `QAction` shortcut. **T14 added Preferences and
+the log**: three pages whose every row is generated from `SettingsKeys.def` (so a preference added in a
+later stage is a table row and no widget code), a Shortcuts page that writes a remap to both the
+binding store and the settings file, and a log pane over an in-memory buffer and a rolling file under
+`%LOCALAPPDATA%`. Most controls are **disabled and say why** — Stage 1 declares 358 commands and
+registers the **nineteen** this window can service, and no PDF is read until Stage 2.
 Stages 2–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single

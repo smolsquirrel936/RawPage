@@ -10,10 +10,13 @@
 
 #include "app/Services.h"
 #include "core/cmd/ActionRegistry.h"
+#include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
+#include "core/settings/SettingsSchema.h"
+#include "ui/dialogs/PreferencesDialog.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -47,11 +50,12 @@ struct Fixture {
     core::RecentFiles       recentFiles{settings};
     core::ActionRegistry    actions;
     core::KeyBindingStore   keyBindings;
+    core::LogBuffer         logBuffer;
     platform::Platform      platform;   // every interface null: the honest state of a test bundle
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
     }
 };
 
@@ -72,14 +76,14 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // Four, and named. Stage 1 declares 358 ids; an id that is declared and UNREGISTERED renders as
+    // Nineteen, and named. Stage 1 declares 358 ids; an id that is declared and UNREGISTERED renders as
     // a visible, disabled control saying it is not built yet, which is the honest state. Registering
     // a stub handler for the other 354 would make every one of them look available.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // fifth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 17);
+    CHECK(fixture.actions.registeredCount() == 19);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -104,6 +108,14 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowNext));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowPrev));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowNew));
+
+    // T14's two: the Preferences dialog and the log pane. `log.openFolder` is deliberately NOT
+    // among them -- the folder belongs to `app/LogFile` and `ui/` looks outward to exactly two
+    // files, so opening it would have widened that list for a convenience. Checking the count as
+    // well as the names is what makes that absence an assertion rather than a comment.
+    CHECK(fixture.actions.isRegistered(core::ActionId::FilePreferences));
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneLog));
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::LogOpenFolder));
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op. `file.save` is one of the ~340 that are declared and
@@ -332,8 +344,44 @@ TEST_CASE("the string dump covers every shell key and every action label", "[she
         CHECK(keys.count(key) == 1);
     }
 
-    CHECK(keys.size() == shellKeyCount + core::kActionCount
-                             + static_cast<std::size_t>(ribbonKeys.size()));
+    // T14's three generated families, which appear whole in no source at all: one label per
+    // declared settings key plus one per member of its choice set, one name per shipped preference
+    // group, one per KeyContext. They are checked against the SCHEMA rather than against a list
+    // here, for the same reason the ribbon keys are read from the shipped spec -- a second copy of
+    // `SettingsKeys.def` in a test is the drift D1-6 exists to prevent.
+    std::set<QString> generated;
+    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {
+        if (info.group == core::SettingsGroup::Internal) continue;
+        generated.insert(QString::fromStdString(info.labelKey));
+        for (const core::SettingsChoice& choice : info.choices)
+            generated.insert(QString::fromStdString(choice.labelKey));
+    }
+    for (const core::SettingsGroup group : ui::PreferencesDialog::shippedPages())
+        generated.insert(ui::catalog::settingsGroupKey(group));
+    for (std::size_t i = 0; i < core::kKeyContextCount; ++i)
+        generated.insert(ui::catalog::keyContextKey(static_cast<core::KeyContext>(i)));
+
+    for (const QString& key : generated) {
+        INFO("generated key " << key.toStdString());
+        CHECK(keys.count(key) == 1);
+    }
+
+    // A SET rather than a sum, because the two families OVERLAP: `general/theme`'s choice labels
+    // are the shell's own `shell.theme.*` keys, which `ShellKeys.def` already counted. Adding the
+    // sizes would have produced a number three too large and sent the next reader looking for three
+    // missing keys.
+    std::set<QString> expected;
+    for (const QString& key : generated) expected.insert(key);
+#define RAWPAGE_SHELL_STRING(Enumerator, Key) expected.insert(QStringLiteral(Key));
+#include "ui/shell/ShellKeys.def"
+    for (const core::ActionDescriptor& descriptor : core::kActions) {
+        expected.insert(QString::fromUtf8(descriptor.labelKey.data(),
+                                          static_cast<qsizetype>(descriptor.labelKey.size())));
+    }
+    for (const QString& key : ribbonKeys) expected.insert(key);
+
+    CHECK(shellKeyCount > 0);
+    CHECK(keys.size() == expected.size());
 }
 
 TEST_CASE("a well-formed key resolves through the catalog and a bare word does not", "[shell]")

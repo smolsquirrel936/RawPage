@@ -8,6 +8,7 @@
 
 #include "app/Services.h"
 #include "core/cmd/ActionRegistry.h"
+#include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
@@ -36,11 +37,12 @@ struct Fixture {
     core::RecentFiles     recentFiles{settings};
     core::ActionRegistry  actions;
     core::KeyBindingStore keyBindings;
+    core::LogBuffer       logBuffer;
     platform::Platform    platform;
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
     }
 
     std::vector<Match> rank(const QString& query, int limit = 20)
@@ -126,13 +128,23 @@ TEST_CASE("each result carries the chord that would actually fire", "[toolfinder
     CHECK(after.front().id == ActionId::FileClose);
     CHECK(after.front().chord.isEmpty());
 
-    // And the action that took it keeps its own primary chord, because it now has two. Which of two
-    // is shown is the store's decision and is stable across runs -- a tooltip that named a different
-    // chord each launch would be worse than either answer.
+    // AND THE ACTION THAT TOOK IT NOW SHOWS `Ctrl+W`, NOT `F4` -- which is a change of behaviour
+    // made at T14 and asserted here because this is the case that would otherwise have hidden it.
+    // Until T14 an override ADDED a chord, so `view.toggleSidebar` answered to both `Ctrl+W` and
+    // its §8 default `F4`, and this case asserted `F4`. That state cannot survive a restart: D1-10
+    // persists `shortcuts/<context>/<action>` = ONE chord, so which of the two came back depended
+    // on nothing the user could see. An override now REPLACES the action's default chords in its
+    // context -- see `core/cmd/KeyBindingStore.h`, which owns the rule.
     const std::vector<Match> sidebar = fixture.rank(QStringLiteral("Toggle Sidebar"), 0);
     REQUIRE_FALSE(sidebar.empty());
     CHECK(sidebar.front().id == ActionId::ViewToggleSidebar);
-    CHECK(sidebar.front().chord == QStringLiteral("F4"));
+    CHECK(sidebar.front().chord == QStringLiteral("Ctrl+W"));
+
+    // And `F4` now resolves to nothing at all, which is the half a chord-shaped assertion would
+    // miss: the superseded row is still in the defaults table and must stop answering.
+    const std::optional<core::Chord> f4 = core::Chord::parse("F4");
+    REQUIRE(f4);
+    CHECK_FALSE(fixture.keyBindings.lookup(*f4, core::KeyContext::Global).has_value());
 }
 
 TEST_CASE("a command that is declared but not built yet is shown disabled rather than hidden",

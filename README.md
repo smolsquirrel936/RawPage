@@ -3,7 +3,7 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stage 0 complete; Stage 1 in progress — tasks T1–T12 of 15 done (2026-08-24).**
+> **Status: Stage 0 complete; Stage 1's code complete — all fifteen tasks done (2026-08-25).**
 > The commands below work. What they build is still mostly *scaffolding*: a pinned toolchain, three
 > enforcement gates, the domain vocabulary, the entry point with its crash handler, the action layer
 > (`ActionId`, `ActionRegistry`, `KeyBindingStore`), the typed settings store, the `en`/`zh-TW`
@@ -12,12 +12,19 @@ first-party COS layer for every write.
 > and 192 controls, every one built from `res/ribbon.json` and dispatched through the action registry,
 > above a sidebar, a status bar and a live theme — plus a **customizable Quick Access Toolbar**, a
 > **tool finder** that searches every declared command, and **document tabs** that open a stub per
-> file and can be reordered, torn off into a new window and re-docked. Most of those controls are
-> **disabled and say why**: Stage 1 declares 358 commands and registers the seventeen this window can
-> actually service, and none of them is reachable from the keyboard until T13 wires the chords.
+> file and can be reordered, torn off into a new window and re-docked. **The keyboard works**: every
+> one of the key bindings in the design's §8 resolves through `KeyBindingStore` and dispatches through
+> the same registry call the ribbon makes. **Preferences opens** — three pages, every row of them
+> generated from the settings schema rather than laid out by hand, including a Shortcuts page that
+> remaps a chord with nothing rebuilt — and there is a **log pane** over a rolling log file. Most of
+> those ribbon controls are **disabled and say why**: Stage 1 declares 358 commands and registers the
+> nineteen this window can actually service.
 > **No PDF is parsed or rendered** until Stage 2 — a document tab is a stub that names its file.
 > Risk **A3** (can Qt Widgets host a real ribbon without a commercial control library?) is settled:
 > **go, with named custom work.**
+> What is left of Stage 1 is not code: one CI run, and a manual walk on real hardware for the things
+> an offscreen test cannot judge — how the ribbon looks, and how it behaves across two monitors at
+> different scale factors.
 > The design lives in [`claude-plan/`](./claude-plan/README.md); live status is the Stage 1 block in
 > [`Implementation-Plan.md`](./claude-plan/Implementation-Plan.md).
 >
@@ -165,7 +172,9 @@ cmake/      the pinned toolchain and shared build modules
 tools/      layer-lint + license-audit + i18n-lint (live); mutation-lint (Stage 3)
             ribbon-validate -- res/ribbon.json's build-time check. NOT a gate: `checks`
             runs three and says three; this one is a build step ui/ depends on
-tests/      unit, gates, ui, platform, golden, roundtrip, fuzz, bench
+tests/      unit, gates, ui, platform, bench (live); golden, roundtrip, fuzz (later stages)
+            a bench REPORTS a figure -- its exit code says whether the measurement was
+            possible, never whether the machine was fast
 corpus/     test PDFs (data)          golden/  reference rasters (data)
 i18n/       string catalogs (data)    res/     ribbon.json (data); icons when they exist
 ```

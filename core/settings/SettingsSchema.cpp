@@ -35,6 +35,12 @@ SettingsKeyInfo describe(const Key<T>& key)
         info.minimum = SettingsCodec<T>::toVariant(SettingsCodec<T>::fromDefault(key.minimum));
         info.maximum = SettingsCodec<T>::toVariant(SettingsCodec<T>::fromDefault(key.maximum));
     }
+
+    // T14's three. Derived from the same `Key<T>` the rest of the descriptor comes from, so a row
+    // that exists cannot be missing an editor, a label or its choices.
+    info.editor   = SettingsEditorTraits<T>::editor;
+    info.labelKey = settingsLabelKey(key.path);
+    info.choices  = SettingsEditorTraits<T>::choices();
     return info;
 }
 

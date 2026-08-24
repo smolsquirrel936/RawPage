@@ -22,6 +22,27 @@
 //              text that contexts may override it, so by construction these are NOT shadows.
 //              Reporting them would make `shadows()` noisy, and a noisy report gets ignored.
 //
+// ---------------------------------------------------------------------------------------------
+// AN OVERRIDE REPLACES AN ACTION'S CHORDS IN ITS CONTEXT -- IT DOES NOT ADD ONE. (T14.)
+//
+// D1-10's persisted family is `shortcuts/<context>/<action>` = one chord. That shape is the whole
+// statement: an action has ONE chord per context, and a user override says what it is. So binding
+// `file.open` to `Ctrl+J` SUPERSEDES its §8 default `Ctrl+O` in that context -- the default row is
+// still in the table, and it no longer resolves. Two consequences worth stating because neither is
+// obvious:
+//
+//   * A chord freed this way falls through the resolution order like any unbound chord. `Ctrl+O`
+//     released inside `Viewer` reaches Common, then Global, and means whatever they say.
+//   * An action with TWO §8 defaults loses both. `Ctrl+Y` and `Ctrl+Shift+Z` are both redo; a user
+//     who moves redo to `Ctrl+R` has said what redo's chord is, and leaving two other keys firing
+//     it would make the setting a lie.
+//
+// The rule is DERIVED from the overrides rather than stored, so nothing new is persisted and a
+// settings file written before T14 means exactly what it meant. It was found by building the
+// Shortcuts page: until something remapped a chord for a user rather than for a test, "rebind"
+// adding a second working key looked indistinguishable from replacing the first.
+//
+// ---------------------------------------------------------------------------------------------
 // Neither number is the **12** the document set quotes. Twelve counts *Write mode's* collisions
 // specifically -- 8 overriding Viewer and 4 overriding Global, 0 overriding Common -- and Stage 13's
 // exit criteria depend on that figure. Conflating the three is exactly what made the documented
@@ -98,7 +119,16 @@ public:
     // Per-user override. Deliberately permissive: §8 ships six class-1 collisions by design, so
     // forbidding a shadowing remap would make the specified defaults illegal. A shadow is
     // REPORTED, never refused.
+    //
+    // REPLACES rather than adds -- see the header. Any previous override chord for this action in
+    // this context is dropped first, so an action never holds two, which is the only shape the
+    // `shortcuts/<context>/<action>` family can persist.
     Result<void> rebind(const Chord& chord, KeyContext context, ActionId action);
+
+    // The user's chord for an action in a context, or nothing when they have not set one. The
+    // question `bindingsFor` cannot answer, and what makes a Preferences row able to say whether
+    // it is showing a default or a choice.
+    std::optional<Chord> overrideChordFor(ActionId action, KeyContext context) const;
 
     // Removes a user override, restoring whatever §8 specifies. Not an error if none was set.
     void clearOverride(const Chord& chord, KeyContext context);

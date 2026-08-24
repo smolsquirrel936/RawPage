@@ -11,11 +11,22 @@
 # up as a build failure on a machine that has neither.
 
 add_library(rawpage_core STATIC
-    CoreModule.cpp
+    # CoreModule.cpp -- Stage 0's placeholder translation unit -- was DELETED at Stage 1 T15, as
+    # its own comment instructed and as Stage1-AppShell-Plan.md 10 had been carrying since T7. It
+    # existed so this archive was non-empty and the link order was exercised from the first commit;
+    # core/ has had real translation units since T3 and nothing has called its anchor since T1
+    # rewrote main.cpp. A placeholder that outlives its purpose becomes a mystery.
     Result.h
     Log.h
     Geometry.h
     Units.h
+
+    # The in-memory tail of the log, so that ui/panes/LogPane has something to show (Stage 1 T14).
+    # It is here rather than in ui/ because core/Log.h has ONE sink and setLogSink replaces it: a
+    # pane that chained the installed sink would be dropped the next time app/CompositionRoot
+    # re-applies the logging settings, which is the very thing T14's Preferences page does.
+    LogBuffer.h
+    LogBuffer.cpp
 
     # cmd/ -- the action layer (Stage 1 T3). ActionId.def is listed so it appears in an IDE's
     # project tree and so that editing it re-runs the build; it is #included, never compiled.

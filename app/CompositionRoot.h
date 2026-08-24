@@ -23,6 +23,8 @@
 
 #include "app/Services.h"
 #include "core/Log.h"
+#include "app/LogFile.h"
+#include "core/LogBuffer.h"
 #include "core/Result.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
@@ -48,6 +50,12 @@ public:
         // Stage 14 the rolling file). Empty leaves whatever sink is already installed alone.
         core::LogSink baseSink;
 
+        // Where the rolling log file goes. EMPTY MEANS NO FILE, and that is the default on
+        // purpose: `main.cpp` passes `LogFile::defaultDirectory()`, and every other caller --
+        // a test, a diagnostic run -- gets no file rather than writing into the profile of
+        // whoever happened to run it. The same call `Options::settingsPath` makes.
+        QString logDirectory;
+
         // False assembles every service EXCEPT the OS bundle, and `platform()` then returns an
         // empty `Platform` whose members are all null. Used by a headless or diagnostic run that
         // has no business creating a named mutex.
@@ -68,6 +76,11 @@ public:
     core::RecentFiles&     recentFiles() { return *recentFiles_; }
     core::ActionRegistry&  actions() { return *actions_; }
     core::KeyBindingStore& keyBindings() { return *keyBindings_; }
+    core::LogBuffer&       logBuffer() { return *logBuffer_; }
+
+    // Null when `Options::logDirectory` was empty, or when the directory could not be written.
+    // Both are legitimate states rather than failures -- see `app/LogFile.h`.
+    LogFile*               logFile() { return logFile_.get(); }
     platform::Platform&    platform() { return *platform_; }
 
     // How many per-user shortcut overrides were read out of settings.ini and accepted. A key naming
@@ -85,6 +98,12 @@ private:
     std::unique_ptr<core::RecentFiles>     recentFiles_;
     std::unique_ptr<core::ActionRegistry>  actions_;
     std::unique_ptr<core::KeyBindingStore> keyBindings_;
+
+    // Built FIRST of all the services and destroyed last, because it is what every other one logs
+    // into: a buffer that arrived after `Settings` would miss the migration and version lines that
+    // are exactly what someone opens the log pane to read.
+    std::unique_ptr<core::LogBuffer>       logBuffer_;
+    std::unique_ptr<LogFile>               logFile_;
     std::unique_ptr<platform::Platform>    platform_;
 
     int         settingsSubscription_ = 0;

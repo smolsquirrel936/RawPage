@@ -6,23 +6,28 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **In progress — Stage 1 T1…T13 verified as of 2026-08-24.** **68 automated** cases
-> (A-01 … A-85, plus **A-67** added at T7) and **12 manual** (M-01 … M-12), of which **M-08 is
-> withdrawn** with the accessibility removal.
+> **Status:** 🟡 **Automated half COMPLETE — Stage 1 T1…T15 verified as of 2026-08-25.** **73 automated** cases
+> (A-01 … A-94, plus **A-67** added at T7 and **A-90 … A-94** added at T14 in a new §5.10) and **12
+> manual** (M-01 … M-12), of which **M-08 is withdrawn** with the accessibility removal.
 >
 > | | |
 > |---|---|
-> | **Automated, green** | A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50**, **A-51**, **A-52**, **A-54**, **A-55**, **A-56**, **A-53**, **A-57**, **A-58**, **A-60**, **A-62**, **A-63**, **A-64**, A-65…A-67, A-70…A-72. `ctest` **297/297** on both presets; the bare `gates` preset **65/65** with no Qt; `checks` clean on **three** gates at 125 files / 735 includes, i18n-lint 67 files / 0 waivers |
-> | **Automated, not yet reachable** | A-61, A-81…A-85 — a second-instance setting and the CI run at the final counts. They arrive with T14…T15. **A-53 closed at T13**, and with it the last case that needed chord input. **A-80 is open rather than unreachable**: two of three CI jobs are green and the `windows` job has never run |
-> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 is walkable except for its Preferences step (T14)**: the toolbar customization, the theme, the pane, the stub tab, the disabled buttons and now a chord remap are all there. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
+> | **Automated, green** | **Every case but one.** A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50 … A-58**, **A-60 … A-67**, A-70…A-72, **A-90 … A-94** at T14, and at T15 the last six: **A-61** (both halves, each with its own control), **A-81**, **A-82**, **A-83**, **A-84** and **A-85**. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live |
+> | **Automated, still open** | **A-80 alone**, and it is now waiting on a CI *run* rather than on infrastructure. T15 found that the `windows` job's absence was never a missing runner — one has been online since 2026-08-17 — but a variable **name** mismatch (**I-30**). The variable is set; the case is green when a run exists. The skip can no longer be misread either way: a new `coverage-report` job states in every run summary exactly what went unexercised |
+> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and Preferences is now a real window with three pages, so that case can be re-walked as written rather than partially. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
 >
-> **Issue log: I-01 … I-25. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
+> **Issue log: I-01 … I-30. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
 > first `portable-asan` run to reach Stage 1's code, **I-18 … I-20 by T10's first run against a
 > real, shown window**, **I-21 … I-23 at T11 and T12 — every one of the three by running
 > something new against the product rather than by reading it** — and **I-24 and I-25 at T13, both
 > of them the harness rather than the product**: a case that asserted the opposite of what it meant,
-> and a gate that flagged a diagnostic string. **Twenty of the twenty-five were
-> found by running something rather than by reading it**,
+> and a gate that flagged a diagnostic string — and **I-26 … I-28 at T14**, every one of them found the
+> same way: a remap that *added* a chord instead of replacing one, a gate about to report forty notes
+> nobody could act on, and a log file that could not name the binary that wrote it — and **I-29 and
+> I-30 at T15**, both of them again the harness and its infrastructure rather than the product: a
+> benchmark whose every figure was its own argument-evaluation bug, and a CI job that had never run
+> because two systems had to agree on a variable name and nothing checked that they did. **Twenty-five
+> of the thirty were found by running something rather than by reading it**,
 > which is by now less a pattern than a method: **I-05** and **I-06** by the user's manual walk,
 > **I-03** by reading output rather than an exit code, **I-08** and **I-09** by settings fixtures
 > written the way a person would hand-edit the file, **I-11** — an S2 race in the single-instance
@@ -190,10 +195,10 @@ A stage that is green but has no verdicts is **not** signed off.
 | [Exit criterion](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance) | Cases |
 |---|---|
 | The window opens with a functional ribbon | A-50, A-51, M-01. 🟡 **The window opens as of T9**; the ribbon is T10, so this stays 🟡 and A-50/A-51 stay unrun |
-| **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. ✅ **True of everything that exists as of T13, chords included** — the ribbon's 192 controls, the Quick Access Toolbar's buttons and its whole context menu, the tool finder's results, every tab and window operation, and now every §8 chord, which resolves through `KeyBindingStore` and calls the same `dispatch(ActionId, KeyContext)`. **Enforced twice, statically and dynamically, in both of its forms:** no bare `QAction` (A-12's lint rule, A-54's self-check) and no action that resolves its own key — a `QAction` shortcut or a free-standing `QShortcut` would work perfectly while bypassing the context stack and the user's remap, so `showEvent` reports both and A-53 plants one of each. *(Historic note, kept because it dates the claim:)* **True of everything that existed at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
+| **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. ✅ **True of everything that exists as of T14, chords included** — the ribbon's 192 controls, the Quick Access Toolbar's buttons and its whole context menu, the tool finder's results, every tab and window operation, every §8 chord, which resolves through `KeyBindingStore` and calls the same `dispatch(ActionId, KeyContext)`, and T14's two — `file.preferences` and `pane.log`, the latter the second toggle in the product. **`file.preferences` needed no enablement guard**, which is the difference between a modeless dialog and `file.open`'s modal picker (issue I-23) and is why it dispatches under `offscreen` in a test. **Enforced twice, statically and dynamically, in both of its forms:** no bare `QAction` (A-12's lint rule, A-54's self-check) and no action that resolves its own key — a `QAction` shortcut or a free-standing `QShortcut` would work perfectly while bypassing the context stack and the user's remap, so `showEvent` reports both and A-53 plants one of each. *(Historic note, kept because it dates the claim:)* **True of everything that existed at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
 | A debug assertion catches a directly-connected `QAction` | A-12, A-54 |
 | The §8 Global defaults all resolve correctly | A-30, A-33, A-34. ✅ **All green 2026-08-23 at T4**, with D1-9's document parse negative-controlled in both directions |
-| Settings round-trip | A-40 … A-47, M-11. ✅ **A-40 … A-47 green 2026-08-23 at T5**, and the round trip closed at **T8**: nothing had ever called `Settings::sync()` (**I-14**), so every preference was correct for the life of the process and gone at the end of it — found by running flow B and then reading the file. **M-11's QAT half became walkable at T11** — customize the toolbar, move it below the ribbon, quit and relaunch — **and its chord-remap step at T13**, since a remap now takes effect with nothing rebuilt (asserted in `tst_context`) and is read back from `settings.ini` at composition. Only its Preferences step still needs T14. A-41 is asserted three ways plus a positive control |
+| Settings round-trip | A-40 … A-47, M-11. ✅ **A-40 … A-47 green 2026-08-23 at T5**, and the round trip closed at **T8**: nothing had ever called `Settings::sync()` (**I-14**), so every preference was correct for the life of the process and gone at the end of it — found by running flow B and then reading the file. **M-11's QAT half became walkable at T11** — customize the toolbar, move it below the ribbon, quit and relaunch — **its chord-remap step at T13**, and **its Preferences step at T14**, so that case is now walkable end to end. **A-90 … A-92 join this row**: the Preferences surface is generated from the schema, a change made through a control reaches the file, and a remap reaches both the store and the file. A-41 is asserted three ways plus a positive control |
 | `--lang zh-TW` shows a translated UI | A-70, A-71, A-72, M-06. 🟡 **A-70, A-71 and A-72 all green 2026-08-23** — A-70/A-71 at T6, re-run at T9 (zh-TW key-complete at **389** keys; no unwrapped literal, 0 waivers) and again at **T10**, where `i18n-lint` was clean over 55 files with both catalogs at **450** keys after the 61 `ribbon.*` entries, **A-72 at T8/T9**: 380 strings dumped per locale, 377 differ, 0 render a raw key. **The automated half is complete; M-06 is not** — it is the editorial review of the 28 entries marked unfinished, which `lrelease` was measured at T9 to *keep* rather than drop, so they do reach a reviewer's screen |
 | A second launch reuses the first instance | A-60, A-61, A-67, M-07. 🟡 **A-67 green at T7 and A-60 green at T8** — a second launch forwarded `測試-📄.pdf` and exited 0, and the primary logged the path byte for byte across three process boundaries. **A-61** (`general/singleInstance=false` gives two windows) is not yet run and **M-07** (foreground activation) has no offscreen equivalent, so this criterion is **not** complete |
 | **Risk A3 has a recorded verdict** | M-01, M-02, A-85. ✅ **Recorded 2026-08-23: `go, with named custom work`** *(M-08 withdrawn with R-8)* |
@@ -672,8 +677,35 @@ across three process boundaries rather than asserted at one. **A stub tab is T12
 reports the accepted path in the status bar and the log instead; the case is re-run at T12 for that
 half.
 
-**A-61 · `general/singleInstance=false` gives two windows**
-☐ **Expect** Two processes, two windows, neither forwarding. **If it fails** S3.
+**A-61 · `general/singleInstance=false` gives two windows** — ✅ **2026-08-25 at T15**
+☑ **Steps** Two halves, and the split is forced by a measurement rather than chosen.
+`ctest --preset x64-release -R "A-61"` for the policy; `.\scripts\check-single-instance.ps1` for the
+two processes.
+**Expect** Two processes, two windows, neither forwarding. **If it fails** S3.
+**Result** Green, both halves, and each was written so that it could fail.
+
+*The policy half* is `tests/unit/tst_singleinstance.cpp`, five cases in the **headless** suite —
+`app/SingleInstance.cpp` is compiled in the way `CommandLine.cpp` and `LogFile.cpp` already are, so
+A-83 is untouched. Against a bus that records every call, `claim(false)` leaves `claims == 0`: not
+"we decided not to forward" but *no OS object was created at all*, which is the assertion that
+matters, because a claim that happens and is then discarded still leaves a `Local\` mutex for the
+next launch to find. It runs on every push, on Windows and under `portable-asan`.
+
+*The two-process half* is a script, and **why** it is a script is itself a T15 measurement: Qt
+resolves `QStandardPaths::AppDataLocation` through `SHGetKnownFolderPath`, so setting `APPDATA` for
+a child process does **not** move the settings file — verified by pointing it at a scratch directory
+and watching `rawpage.exe` log `C:/Users/…/AppData/Roaming/RawPage/settings.ini` anyway.
+`CompositionRoot::Options::settingsPath` exists but `main.cpp` exposes no switch for it, and adding
+a CLI verb at T15 would extend the vocabulary `Features.md` §9.6 owns for Stage 14. So the harness
+edits the real file and restores it in a `finally` — which is exactly why it must not be a CTest
+case that rewrites the settings of whoever ran the suite.
+
+With `singleInstance=false`: **both processes were still alive** after the second launched, both
+logged *"disabled by general/singleInstance"*, and neither called itself a secondary.
+**With the control at `true`**: the first stayed and logged *"-- primary"*, the second logged
+*"-- secondary"* and **exited 0**. The control is not decoration — without it, every assertion in
+the `false` case is equally satisfied by a build whose single-instance code had been deleted
+outright, which is convention 7 applied to a harness rather than to a fixture.
 
 **A-62 · The mutex is `Local\`, not `Global\`** — ✅ **automated at T7**
 ☐ **Goal** D1-11's per-session scope. **Steps** `ctest --preset x64-release -R platform.the_mutex`
@@ -764,41 +796,234 @@ installed underneath every locale, for the day a key is added to `en` and not ye
 
 ### 5.9 CI, portable, and the one benchmark
 
-**A-80 · CI green on all three jobs** — 🟡 **two of three, 2026-08-23**
+**A-80 · CI green on all three jobs** — 🟡 **awaiting the first `windows` run, 2026-08-25 at T15**
 ☐ **Expect** `gates`, `windows`, `portable-asan` all green; the new counts recorded here and in the
 status block. **If it fails** S1.
-**Result so far** ✅ `gates` **45/45** and ✅ `portable-asan` **177/177** on run 32649932954, the first
-CI run to reach Stage 1's code at T9's counts. (The Linux `gates` job runs 45 of the preset's 59 —
-the `wrong_compiler` fixtures are Windows-only, Stage 0's I-19.) **The `windows` job did not run and
-never has:** the workflow gates it on `vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'`, which is unset, so
-it is *skipped* rather than failing. Everything it would run is green **locally** at 275/275 on both
-presets (226/226 when this was first written at T9) — but locally-green is not CI-green, and A-80 asks for CI. **This case stays open**, and
-T15's job is to either register the self-hosted runner or record the deliberate absence here rather
-than let a skipped job read as a passing one.
 
-**A-81 · `checks` still runs before any compile in CI**
-☐ **Steps** Read the workflow log ordering. **Expect** The gate step precedes the build step in every
+**History.** ✅ `gates` **45/45** and ✅ `portable-asan` **177/177** on run 32649932954, the first CI run
+to reach Stage 1's code at T9's counts. (The Linux `gates` job runs 45 of the preset's 66 — the
+`wrong_compiler` fixtures are Windows-only, Stage 0's I-19.) The `windows` job had **never run**: the
+workflow gates it on `vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'`, so it was *skipped* rather than
+failing, and a skipped job renders as a grey tick beside two green ones.
+
+**T15 found out why, and it was not the reason everyone assumed.** The plan and this guide both read
+the unset variable as *"no self-hosted runner has been registered yet"*, and that had been false for a
+week: the repository has had a runner named `recto-dev-win`, labelled `self-hosted / Windows / X64 /
+qt6111`, **online since 2026-08-17**. What was missing was a name. The one repository variable that
+existed was `RECTO_HAS_WINDOWS_RUNNER=true` — a different product's spelling — and the workflow reads
+`RAWPAGE_HAS_WINDOWS_RUNNER`. Two artefacts that had to agree, in different systems, with nothing
+checking that they did. Logged as **I-30**.
+
+`RAWPAGE_HAS_WINDOWS_RUNNER=true` was set on 2026-08-25 with the user's authorization. **This case is
+green only when a run exists**, so it stays 🟡 until then; every count it will assert is green locally
+at 334/334 on both Windows presets and 66/66 on the bare `gates` preset, and locally-green is still not
+CI-green.
+
+**And the skip no longer reads as a pass.** A fourth job, `coverage-report`, runs on every push
+whatever the others do, and when `RAWPAGE_HAS_WINDOWS_RUNNER` is not `true` it writes into the run
+summary exactly what had no coverage — `ui.*`, `platform.*`, `bench.*`, the `wrong_compiler` fixtures,
+the real-configuration gate run (the only place `qt-modules.txt` and `compiler-plugins.txt` exist, so
+the Qt Charts and GCC-plugin checks have teeth nowhere else) and the `msvcrt`/`ucrtbase` linkage check
+— and raises a workflow warning. It deliberately does **not** fail: keeping CI green without a runner
+is the recorded decision, and a job that went red for missing infrastructure teaches everyone to
+ignore a red build. This is the guide's own instruction to T15 — *record the deliberate absence rather
+than let a skipped job read as a passing one* — discharged by the machine on every run instead of by a
+sentence in a document that ages.
+
+**A-81 · `checks` still runs before any compile in CI** — ✅ **2026-08-25 at T15**
+☑ **Steps** Read the workflow log ordering. **Expect** The gate step precedes the build step in every
 job that has both. **If it fails** S2.
+**Result** Green, and it holds structurally rather than by step order alone. The `gates` job compiles
+only the gate executables — which link nothing but the standard library (D0-1) — and both other jobs
+declare `needs: gates`, so a layering or licence violation stops everything before a runner installs a
+toolchain. Inside the `windows` job the order is *Configure → Gates against the real configuration →
+Build*, and that second gate run is not redundant: `qt-modules.txt` and `compiler-plugins.txt` are
+written at configure time from the actual link closure and the actual compiler, so the Qt Charts check
+and the GCC-plugin check have teeth in that job and nowhere else.
 
-**A-82 · `rawpage_ui_tests` runs on Windows and *only* on Windows**
-☐ **Goal** D1-4. **Expect** Present in the `windows` job, absent from `gates` and `portable-asan`.
+**A-82 · `rawpage_ui_tests` runs on Windows and *only* on Windows** — ✅ **2026-08-25 at T15**
+☑ **Goal** D1-4. **Expect** Present in the `windows` job, absent from `gates` and `portable-asan`.
 **If it fails** S2 — adding Qt Widgets to a Linux job to chase coverage quietly redefines what
 `portable-asan` proves, and nobody would notice.
+**Result** Green, and **asserted in all three jobs rather than described in a CMake comment**, which
+is what T15's *"`tests/ui/` into the CI `windows` job"* actually amounts to. `ctest --preset
+x64-release` already ran the widget suite; what it could not do was notice its **absence**, because a
+target that failed to build or a discovery that yielded nothing subtracts cases from a run that still
+reports *"100% tests passed"*. So each job now counts what it registered: the `windows` job fails if
+any of `unit.`, `ui.`, `platform.` or `bench.` is **empty** (locally 144 / 104 / 19 / 1), and `gates`
+and `portable-asan` each fail if any `ui.`/`platform.`/`bench.` case exists at all.
 
-**A-83 · The headless assertion still holds**
-☐ **Goal** The pressure D1-4 exists to resist. **Expect** `rawpage_tests` links neither `rawpage_ui` nor
+**The absence check was written wrong first, and how it was caught is the part worth recording.** Run
+against a listing that genuinely contains 124 such cases, the first version of the pattern returned
+**0** — it would have passed on a Linux runner with the entire widget suite leaked onto it. The cause
+was mundane, but the lesson is convention 7's: a negative control has to be shown failing against real
+positive input before it is trusted. It was, and it now reports 124.
+
+**A-83 · The headless assertion still holds** — ✅ **2026-08-25 at T15**
+☑ **Goal** The pressure D1-4 exists to resist. **Expect** `rawpage_tests` links neither `rawpage_ui` nor
 `rawpage_platform`, directly or transitively. **If it fails** **S1.**
+**Result** Green, and T15 applied the pressure rather than merely re-reading the assertion: A-61 needed
+`app/SingleInstance` in the headless suite, and `SingleInstance` names `platform/platform.h`. The
+tempting repair is one `target_link_libraries` line. Instead the translation unit is **compiled in**,
+the way `CommandLine.cpp` and `LogFile.cpp` already are, because `platform.h` is an *interface* header
+that includes no OS header — its own `layer-lint` layer entry says so. `rawpage_assert_headless()`
+still resolves to `rawpage_core` + `rawpage_pdf` over the whole closure, and `portable-asan` runs those
+five new cases on a machine where neither forbidden library exists at all.
 
-**A-84 · Every prior stage's cases still pass**
-☐ **Steps** The whole Stage 0 gate suite. **Expect** Green at its Stage 0 counts plus the new i18n
+**A-84 · Every prior stage's cases still pass** — ✅ **2026-08-25 at T15**
+☑ **Steps** The whole Stage 0 gate suite. **Expect** Green at its Stage 0 counts plus the new i18n
 cases. **If it fails** S1.
+**Result** Green. The bare `gates` preset — **no Qt, no vcpkg** — is **66/66**, against Stage 0's 26.
+Both Windows presets are **334/334** (328 at T14): +5 from A-61's policy cases, +1 from the benchmark.
+`checks` is clean on three gates at **141 files / 930 includes**, `i18n-lint` at 78 files / 2 catalogs
+/ **0 waivers**, `license-audit` clean at 17 components / 4 Qt modules.
 
-**A-85 · R-9 — a ribbon tab switch fits in one frame**
-☐ **Goal** The one A3 criterion that is measured rather than judged.
-**Steps** `tests/bench` tab-switch benchmark, 100 iterations, on the reference machine.
+**A-85 · R-9 — a ribbon tab switch fits in one frame** — ✅ **2026-08-25 at T15**
+☑ **Goal** The one A3 criterion that is measured rather than judged.
+**Steps** `ctest --preset x64-release -R bench.ribbon`, or the binary directly for the figures.
 **Expect** p95 ≤ 16 ms. Report the actual figure, not a verdict.
 **If it fails** S3 and it feeds A3's verdict as *go with named custom work* — a slow tab switch is a
 painting problem with known fixes, not evidence that Qt Widgets cannot host a ribbon.
+
+**Result — p95 = 0.471 ms against a 16.667 ms budget**, over the **shipped** 9-tab ribbon (49 groups,
+192 controls) at 1600×200, 100 iterations round-robin across all nine tabs after 10 warmup.
+
+**This is the second R-9 measurement, not the first, and the difference is the point.** T2's spike
+reported p95 **0.28 ms** and that figure already sits in `Tech-Stack-Plan.md` §3.3 — but a spike's
+ribbon is exactly as large as the spike's author made it, and R-9 is a claim about the *product*. This
+run is the first over the shipped resource. It is **slower** than the spike's, by 0.19 ms, which is
+what 192 real controls cost and is the number worth carrying forward:
+
+| Phase | p50 | p95 | max |
+|---|---|---|---|
+| switch (page swap) | 0.321 ms | 0.330 ms | 0.360 ms |
+| layout (collapse decision) | 0.000 ms | 0.000 ms | 0.000 ms |
+| paint (raster, no compositor) | 0.121 ms | 0.143 ms | 0.144 ms |
+| **TOTAL** | **0.442 ms** | **0.471 ms** | **0.504 ms** |
+
+Three phases rather than one total, because a single opaque number cannot be acted on — and the
+`layout` row reading 0.000 ms everywhere is exactly why the benchmark carries **its own control**. A
+zero there has two explanations: collapse genuinely costs nothing on a tab switch, or `activate()` is
+a no-op on a layout nothing marked dirty and the column is a dead instrument reading zero. So the run
+ends with 20 resizes across the collapse threshold (900 ↔ 1600), which is what dirties it: **0.714 ms
+p50, 0.783 ms p95.** The instrument works, so the zero is a *fact about the ribbon* — the collapse
+decision belongs to resize, not to tab switch, which is precisely what makes a switch cheap.
+
+**Caveat, printed with the figure rather than left for a reader to remember:** measured under the
+offscreen platform, so this is layout and raster painting with no compositor and no swap chain. It is
+a floor, not a ceiling. R-9's *"on the reference machine"* half is therefore still owed by a walk on a
+real display, and it is the only part of A3 this number does not close.
+
+**The first run of this benchmark reported 0.000 ms for every phase, and that was the benchmark's own
+bug** — the three percentile calls were arguments to one `printf`, argument evaluation order is
+unspecified, and the `std::move` on the last one ran first, leaving p50 and p95 reading a moved-from
+vector. It was caught because a 192-control ribbon cannot repaint in under a microsecond, not because
+anything failed. Logged as **I-29**.
+
+### 5.10 The Preferences surface and the log pane — T14
+
+Written when T14's code was, and the numbering jumps to A-90 on purpose: §5.6's block runs to A-58
+and §5.7 starts at A-60, so a new subject gets a new block rather than renumbering cases that other
+documents already cite. All of it runs under `QT_QPA_PLATFORM=offscreen` except A-93, which is
+`core/` plus one `app/` translation unit and needs no display at all.
+
+**A-90 · Every Preferences page is GENERATED from `SettingsSchema`** — ✅ **2026-08-25 at T14**
+☑ **Goal** The T14 row's own requirement — *every page built from `SettingsSchema`, not
+hand-laid-out*. This is the case the whole design turns on, and it is worth saying why it needs to
+exist: a hand-written form for today's five General keys looks **exactly** like a generated one, and
+the difference only shows up in Stage 9 when somebody adds a key and no control appears.
+**Steps** `ctest --preset x64-release -R "^ui\." --output-on-failure`
+**Expect** For every shipped page, the set of rows equals the set of declared keys in that group —
+**both directions** — and each row's editor is the one its type asks for.
+**If it fails** **S2.**
+**Result** Green. The row set is compared against `SettingsSchema::allKeys()` filtered by group, so
+a key added to `SettingsKeys.def` in a later stage either appears on its page or fails this case;
+and the *reverse* direction is the half that actually protects the design, exactly as it is for the
+ribbon at A-50 — "every declared key has a row" is equally satisfied by a page that also hard-codes
+three rows of its own, and the moment one exists, adding a preference stops being a `.def` row while
+the case stays green. The editor mapping is asserted per kind: a **combo** carrying the codec's own
+tokens for `general/theme`, a **double spin box bounded by the schema's own range** (0.75–2.0) for
+`general/uiFontScale`, a **check box** for a bool, a **spin box** bounded 1–100 for
+`logging/retainFiles`, and **seven check boxes** for the `logging/subsystems` flag set. A separate
+case asserts the `Internal` group has no page and that `meta/schemaVersion` and `ui/qatCommands`
+appear on none — `SettingsKeys.def` rule 4, checked rather than trusted.
+
+**A-91 · A change propagates, persists, and comes back the other way** — ✅ **2026-08-25 at T14**
+☑ **Goal** Flow J, and the T14 row's *"changing a setting propagates"*.
+**Steps** Same command.
+**Expect** Driving the **widget** writes the setting; the setting reaches `settings.ini`; and a
+change made elsewhere updates the widget. **If it fails** S2.
+**Result** Green, in three parts, and the first part is deliberately driven through the control
+rather than through `Settings::set` — a case that called the setter would assert that the settings
+store works, which T5 already proved, while leaving *"is the control wired to it at all"* untested.
+The round trip syncs and reloads from the same file, because a preference correct in memory and
+absent from disk is a failure this stage has already had once (**I-14**). The reverse direction — a
+value changed by something else refreshing the page — is the half nobody builds, and it carries a
+second assertion on top: setting `general/uiFontScale` to 9.0 makes the control show **2.0**, so the
+clamp of A-43 is visible on the one screen built to explain it rather than being a silent
+disagreement between what the page says and what the product uses. `restoreDefaults()` resets its
+own page's keys and provably leaves another page's alone.
+
+**Every key on a shipped page has a label the catalog can resolve** is asserted in the same suite,
+over the schema rather than over a list: the label key is derived from the path
+(`prefs.setting.<group>.<key>`), so a key with no catalog entry renders as itself, and that is a
+defect nobody would notice reviewing an English screenshot three stages later. The page names and
+all twelve `KeyContext` names are checked the same way.
+
+**A-92 · The Shortcuts page edits `KeyBindingStore` and shows shadows** — ✅ **2026-08-25 at T14**
+☑ **Goal** The T14 row's *"a remap persists and takes effect"*, and the page half of D1-9's subject.
+**Steps** Same command.
+**Expect** A remap reaches the store **and** the settings file; the old chord stops working; a reset
+gives it back; the store's one refusal is reported rather than swallowed; the class-1 shadows are
+listed. **If it fails** S2.
+**Result** Green. A remap of `file.preferences` from `Ctrl+K` to `Ctrl+Alt+P` is asserted three
+ways — the live store answers to the new chord, a **second store built from the reloaded settings
+file** answers to it too, and `Ctrl+K` resolves to nothing in either. That last assertion is the one
+that found **I-26**: until T14 an override *added* a chord, so both keys fired and only one of them
+could be persisted. Resetting the row is asserted through the surface rather than the store, which
+is what exercises the awkward part — after a rebind, the row on screen is the *new* chord, so a
+reset keyed on "whatever this row shows" would work here and silently fail on the freed default row.
+The refusal case drives the `FormsFill` context, where §8's widget-native rows live: such a row is
+**shown** (hiding it would make the page disagree with the document it is a view of) and cannot be
+rebound, and remapping a real command *onto* its chord is refused.
+**What this case learned by getting it wrong.** It first asserted the shadow report totalled **6**
+and got **7**. Both numbers are right about different things: §8's class-1 census is six *chords*,
+one of which is redefined in two different contexts, so the store returns seven *entries*. That is
+the same conflation that made the documented figure look wrong at **I-01**, so the case now asserts
+both — every entry the store reports reaches a page, and the distinct chords number six.
+
+**A-93 · The log buffer and the rolling log file** — ✅ **2026-08-25 at T14**
+☑ **Goal** `Features.md` §9.5's first bullet, and the reader `logging/retainFiles` has been waiting
+for since T5 declared it.
+**Steps** `ctest --preset x64-release -R "tst_logbuffer" --output-on-failure`
+**Expect** The ring keeps the newest N and counts what fell off; a subscriber hears every record
+until it unsubscribes; the file writes, rotates and retains; a directory that cannot be created is
+**not fatal**. **If it fails** S3, except the last, which is **S2** — a full or read-only profile
+must never prevent the application from starting.
+**Result** Green. Two of the cases exist because of hazards rather than requirements: a handler that
+**logs from inside a notification** must not deadlock the buffer it is logging into (a log pane
+failing to do something is exactly the sort of thing that logs), and the clear operation
+deliberately does **not** reset the discard count — that count answers *"how much of this session did
+I never see"*, and a user who cleared the pane has not un-discarded anything. The unwritable case
+points the directory at an existing **file**, which `mkpath` cannot turn into a directory on any
+platform — a permissions path would have passed on the wrong machine.
+**Verified against the real executable as well**, which is where **I-28** came from: the file is
+written to `%LOCALAPPDATA%\RawPage\logs\`, retention holds, and the first line now names the build
+id.
+
+**A-94 · The log pane shows what was recorded, and only that** — ✅ **2026-08-25 at T14**
+☑ **Goal** `Features.md` §9.5's in-app viewer with filtering and copy.
+**Steps** `ctest --preset x64-release -R "^ui\." --output-on-failure`
+**Expect** Records already in the buffer are there when the pane opens; a record logged afterwards
+arrives; both filters narrow; the pane is built **hidden** and `pane.log` toggles it as a checkable
+command. **If it fails** S3.
+**Result** Green. The filter is asserted on **both** code paths — the rebuild and the live append —
+because one rule implemented twice is a rule that gets forgotten once, and the symptom there is a
+pane that respects the filter until the next log line lands. The level ordering is asserted by
+direction rather than by count: `Error` is the *narrowest* setting, and a filter that read the
+enum the other way would show everything at every setting and look like it worked. A last case
+destroys a pane with a queued notification **still in flight** — the fifth door I-12's lesson has
+come through, and the one where `~QObject` dropping its own posted events is what makes it safe.
 
 ---
 
@@ -851,6 +1076,12 @@ than left for someone to notice.
 > and `ThemeManager` arrive at **T9**, `LogPane` and `PreferencesDialog` at **T14**. **This case must be
 > re-walked after T14** for its non-ribbon half. That is a scoping fact about what was on screen, not a
 > qualification of the user's verdict: what could be tested passed.
+>
+> ✅ **Walkable in full since 2026-08-25 (T14).** Every widget step 2 names now exists — the sidebar
+> and a floating pane since T9, Preferences and the log pane since T14 — so the re-walk can be taken
+> exactly as written. What it is looking for is unchanged, and step 3 is still the one that finds
+> bugs: a dialog and a dock built on one monitor and dragged to another at a different scale are
+> where per-monitor DPI goes wrong, and neither existed when R-6 was first judged.
 - **Goal** The case a single-monitor machine and an offscreen run both structurally cannot reach.
 - **Pre** P-1 — two monitors, different scale factors, one changeable while the app runs.
 - **Steps**
@@ -878,9 +1109,18 @@ than left for someone to notice.
   window arrangement, and a defect there is not this stage's to fix.
 
 **M-04 · Panes dock, float, auto-hide, and remember** ☐
+> 🟡 **Partly walkable as of T14, and the split is worth stating rather than discovering mid-walk.**
+> The **Log pane** is real (T14): show it with `pane.log` from the View tab, and dock, float, move
+> and re-dock it in any of the four areas. **Auto-hide and width memory are `SidebarDock`'s**, not
+> the log pane's — walk those against the **sidebar**, which has had both since T9. Neither pane
+> survives a restart yet: per-pane state is `core/settings/SessionState` at **Stage 4**, so the
+> close-and-reopen step below is expected to forget, and reporting that as a defect would be filing
+> a planned absence. The **touch-mode and font-scale** steps are fully walkable — both keys are on
+> the General page now, and changing them applies immediately with the window still open.
 - **Steps** Dock the Log pane left, then right. Float it; move it to the second monitor; re-dock it.
-  Auto-hide it and bring it back from the tab strip. Resize it, close the app, reopen. Then set
-  `general/touchMode` true and `general/uiFontScale` to 1.5 and repeat the resize.
+  Auto-hide **the sidebar** and bring it back from the edge strip. Resize it, close the app, reopen.
+  Then set `general/touchMode` true and `general/uiFontScale` to 1.5 **in Preferences** and repeat
+  the resize.
 - **Expect** Width is remembered; auto-hide reveals on hover and hides on focus loss; touch mode gives
   visibly larger targets; the font scale does not clip labels.
 - **If it fails** S3, unless a pane cannot be re-docked at all — S2.
@@ -959,12 +1199,16 @@ whole-application keyboard pass. What is gone is the screen reader, the roles, a
 - **If it fails** S3 if the message is unclear; **S2 if you cannot find or symbolize it** — a dump path
   only I know is not a crash-reporting path.
 
-**M-11 · Everything survives a restart** ☐ — 🟡 **partly walkable as of T13**
-- **What is walkable now:** the QAT customization and its placement, the pane, the theme, the font
-  scale, three open tabs, a pinned recent file — and, since T13, *remap a chord*, though at this
-  stage the remap has to be made by hand in `settings.ini` under `shortcuts/<context>/<action>`
-  because the Shortcuts **page** is T14. **What is not:** Preferences itself, so walk the rest and
-  leave that step unticked rather than treating the case as blocked.
+**M-11 · Everything survives a restart** ☐ — ✅ **fully walkable as of T14**
+- **What T14 changed:** every step now has a surface. The theme and the font scale are set on the
+  **General** page instead of by hand in `settings.ini`, and the chord remap is made on the
+  **Shortcuts** page instead of by editing `shortcuts/<context>/<action>` with a text editor. Walk
+  it as written; nothing is left unticked.
+- **One thing to look for that a test cannot.** The Preferences dialog applies immediately and has
+  **no OK or Cancel** — that is deliberate (a `Cancel` that must un-apply needs a transaction
+  `core::Settings` does not have), but it is exactly the sort of decision that is right in a header
+  and wrong in front of a person. If closing the window felt like it should have discarded
+  something, say so: that is a finding this stage would rather have now than at Stage 14.
 - **Steps** Customize the QAT; move it below the ribbon; resize and auto-hide a pane; set a theme; set
   a font scale; remap a chord; open three tabs; pin one recent file. Quit properly. Relaunch. Then
   quit by **killing the process** and relaunch again.
@@ -1050,6 +1294,11 @@ record.
 | I-23 | §5.5 · A-58 · `file.open` | **A ten-minute CI hang.** T12 registered `file.open` with a modal `QFileDialog`, and `tst_shell`'s long-standing case *"the window registers exactly the actions it can service"* dispatches that id to assert it is `NotFound`. Under `offscreen` the dialog is built, shown to nobody, and never returns — the suite stopped dead at 274 of 275 tests with no failure and no output | A command a headless caller dispatches either runs or is **refused**; it never blocks | **S2** — a hang is worse than a failure, because a failure names itself | Before the fix: `ctest -R "the window registers exactly"` under `QT_QPA_PLATFORM=offscreen` never returns | **Closed 2026-08-24 at T12.** `file.open` carries an **enablement predicate** that is false when there is no user to show a dialog to (`platformName() == "offscreen"`), so a headless dispatch is refused with `Unavailable` — distinct from the `NotFound` of a command that does not exist, which is precisely the distinction T3 built those two codes for. The predicate is the fix rather than a check inside the handler because the registry already has the vocabulary, and a batch runner needs the answer, not the silence. **The parameterized form of "open this file" already exists** and needs no user: `MainWindow::openFiles()`, which is what flow B and the CLI use. The case that hung now asserts both codes — `NotFound` for `file.save`, `Unavailable` for `file.open` — so the hang has become an assertion |
 | I-24 | §5.6 · A-53 · `ShortcutBinder` | **The first version of the text-field case asserted the opposite of what it meant.** It pressed `Ctrl+A` in a `QLineEdit` on a shown window and required the key event to come back **unaccepted** as proof that the shortcut layer had stood aside. The field accepts it — that is what a text widget does with `Ctrl+A` — so the case failed against a product that was behaving exactly as designed. Worse, it was **vacuous** either way: `edit.selectAll` is one of the ~341 ids Stage 1 declares and does not register, so no dispatch could have happened whether the handshake worked or not. | A case about a collision uses a chord that actually collides, and asserts the SHELL did not act rather than that nobody did | **S4** — a defect in the case, never shipped | Found 2026-08-24 at T13 on the suite's first run: 296 of 297 green, this one red for the right behaviour | **Closed 2026-08-24.** The case now registers `edit.selectAll` itself — which is what Stage 3 will do for real, and the moment that would otherwise have broken every line edit in the product — then asserts the handler did **not** run and the field **did** select its text. **I-18 and I-20's lesson in a fourth form:** a check meets its real subject once, and that is when it gets corrected; here the subject was a `QLineEdit` doing its job |
 | I-25 | §5.6 · A-12 · `layer-lint` | **The `bare-qaction` rule flagged a diagnostic string.** T13's self-check produces the message *"… bypasses …"*, and the rule's patterns include `QAction` followed by a space — matched inside the message text, in a file that is not an allowed path. `checks` failed on prose. | A blunt, non-escapable substring rule is allowed to be blunt; the tree works around it | **S4** | Found 2026-08-24 at T13 by `gates.layer_lint.clean_tree` — which is the fixture that exists for exactly this: it asserts the real tree is clean rather than only that bad input fails | **Closed 2026-08-24 by rewording the MESSAGE, not the rule.** Narrowing a non-escapable rule to ignore string literals would weaken the one gate that stands between the product and an unroutable action, and would do it for a cosmetic reason; the reworded diagnostic costs nothing and carries a comment saying not to "fix" it back. **Recorded because the next person to write such a message will hit it too**, and because a gate that catches its own documentation is the failure mode Stage 0's I-20 named — here it is the harmless direction of it |
+| I-26 | §5.10 · A-92 · `core/cmd/KeyBindingStore` | **A remap ADDED a chord instead of replacing one.** `rebind(chord, context, action)` inserted an override and left the action's §8 default binding resolving, so after moving `file.preferences` from `Ctrl+K` to `Ctrl+Alt+P` **both** keys opened Preferences. Worse than a cosmetic surplus: D1-10's persisted family is `shortcuts/<context>/<action>` = **one** chord, so only one of the two could ever be written, and a second rebind of the same action put two entries in `exportOverrides()` whose survivor depended on map order. The user's setting and the product's behaviour disagreed, and a restart resolved the disagreement arbitrarily. | An override says what an action's chord **is**, and a restart reproduces it exactly | **S3** | Found 2026-08-25 at T14 by building the Shortcuts page — **the first caller that ever remapped a chord for a user rather than for a test**. Every prior test rebound a chord and then asked what that chord did; none asked what happened to the *old* one. Invisible to `tst_keybindings` for exactly that reason | **Closed 2026-08-25.** An override now **supersedes** that action's default chords in the same context, in `resolveExact` and in `bindingsFor` alike so the keyboard and the Preferences page cannot disagree about which chords exist; `rebind` drops any previous override chord for the action first. The rule is **derived** from the overrides rather than stored, so nothing new is persisted and a `settings.ini` written before T14 means exactly what it meant. Two consequences are written into `KeyBindingStore.h` because neither is obvious: a chord freed this way falls through the resolution order like any unbound chord, and an action with two §8 defaults (`Ctrl+Y` and `Ctrl+Shift+Z` are both redo) loses **both**. `tst_toolfinder`'s A-56 case asserted the old behaviour in as many words and was rewritten to assert the new one, plus the half a chord-shaped assertion misses: that the superseded row stops answering |
+| I-27 | §5.2 · `tools/i18n-lint` | **`orphan-key` was about to report forty keys nobody could act on.** T14's Preferences surface builds catalog keys from tables at runtime — one per settings path, one per choice-set member, one per `KeyContext`, one per page — so the whole key appears in no source and only the prefix does. Every one of them would have been reported as an orphan on every run, forever. | A note nobody can act on does not get written every run | **S3** | Found 2026-08-25 at T14 before the keys were added, by asking what the gate would say about a key that is never spelled out. It would not have failed a build — `orphan-key` is S3 by design — which is precisely the danger: forty non-blocking notes per run is how people learn to skip the whole rule | **Closed 2026-08-25.** A quoted key reference **ending in a dot** is now a *namespace* reference and covers every key beneath it. Two things kept it from being an escape hatch: the prefix has to be narrow, so `settingsLabelKey` produces `prefs.setting.<path>` rather than a bare `prefs.<path>` that would have switched the check off for the whole Preferences namespace; and the gate case asserts **both halves** — the generated key under the namespace is not reported **and** a key outside it still is. That second half needed a new `EXPECT_NOT_MATCH` in `tests/gates/RunGateCase.cmake`, because a suppression asserted only by the absence of a failure is equally satisfied by a gate that stopped reporting anything. The bare preset went 65 → **66** |
+| I-28 | §5.10 · A-93 · `app/LogFile` | **The rolling log file could not name the binary that wrote it.** Everything logged before composition reached the console and not the file — including `CrashHandler::install()`'s build id, which is the one line a support bundle needs in order to symbolize a dump against an archived binary (D1-13). The file cannot exist any earlier: its retention count is `logging/retainFiles`, and `Settings` does not exist until `CompositionRoot` runs. | A log a user mails in can be matched to the build that produced it | **S3** | Found 2026-08-25 at T14 by **reading the file the executable actually wrote**, rather than by testing `LogFile` — which passes either way, because the omission is in the ordering of the process and not in the class | **Closed 2026-08-25** with a session banner: the first line of every log file names the version, the build id and the Qt version. Restating the build id was the right fix rather than deferring the crash handler's own line — the handler must be installed before anything else can go wrong, and a log whose first line is a session header is what every rolling log has anyway |
+| I-29 | §5.9 · A-85 · `tests/bench/bench_ribbon.cpp` | **Every figure the new benchmark printed on its first run was 0.000 ms, and the bug was the benchmark's.** The three percentile calls were arguments to a single `printf`, and C++ leaves argument evaluation order unspecified — so the `std::move` on the last of them ran first and p50 and p95 read a moved-from vector. A benchmark reporting zero is not a benchmark failing; it is one agreeing with you. | A measured criterion is measured, rather than reporting a number that flatters it | **S3** (the harness, not the product) | Found 2026-08-25 at T15 by **disbelieving the result**: a 192-control ribbon cannot repaint in under a microsecond, and the printed p95 disagreed with a p95 computed one line above it. Nothing failed, and nothing would have | **Closed 2026-08-25.** The three percentiles go into locals before the `printf`. Two things were added in the same change so the class of error is visible rather than remembered: the run now prints **the size the ribbon actually got** alongside the size requested (T10's lesson as an instrument reading), and the `layout` column — still 0.000 ms, but now known to be a fact — carries **a control**, twenty resizes across the collapse threshold, which reports 0.714 ms and proves the instrument can be non-zero |
+| I-30 | §5.9 · A-80 · `.github/workflows/ci.yml` | **The `windows` CI job had never run, and the cause was a variable NAME, not a missing runner.** A self-hosted runner (`recto-dev-win`, labelled `self-hosted / Windows / X64 / qt6111`) had been online since 2026-08-17. The repository variable that existed was `RECTO_HAS_WINDOWS_RUNNER`; the workflow reads `RAWPAGE_HAS_WINDOWS_RUNNER`. Every document in the set had read the unset variable as *"no runner yet"* and recorded a hardware absence that was not real. | The one job that covers Windows, the widget suite, the OS layer and the real-configuration gates actually runs | **S2** — for a week, three-quarters of the product's test surface had no CI at all, and the run page said nothing was wrong | Found 2026-08-25 at T15 by **querying the GitHub API for the runner instead of believing the comment in the workflow that explained why there wasn't one**. The comment was accurate when written and had simply stopped being true | **Closed 2026-08-25.** `RAWPAGE_HAS_WINDOWS_RUNNER=true` set with the user's authorization. The deeper defect is that two artefacts in different systems had to agree and nothing checked they did — so the fix is not only the variable: the new `coverage-report` job states in every run summary which jobs actually ran and, when the Windows one did not, enumerates precisely what went unexercised. A skipped job can no longer be read as a passing one. `RECTO_HAS_WINDOWS_RUNNER` is left in place rather than deleted; it belongs to whoever set it |
 
 ---
 
@@ -1059,8 +1308,11 @@ Stage 1 is signed off when **all** of the following hold — this is
 [`Implementation-Plan.md` §2's Definition of Done](./Implementation-Plan.md#definition-of-done--every-stage-no-exceptions)
 made concrete for this stage:
 
-- [ ] Every **automated** case A-01 … A-85 — plus **A-67**, added at T7 — is ✅, run by me, with
-      actual output reported, and re-run in CI at the final counts on all three jobs.
+- [x] Every **automated** case A-01 … A-85 — plus **A-67**, added at T7, and **A-90 … A-94**, added
+      at T14 — is ✅, run by me, with actual output reported. ✅ **2026-08-25 at T15**, 334/334 on both
+      Windows presets and 66/66 on the bare `gates` preset.
+- [ ] …**and re-run in CI at the final counts on all three jobs.** This is **A-80**, and it is the one
+      automated line still open. It is no longer blocked on infrastructure (**I-30**) — only on a run.
 - [ ] Every **manual** case M-01 … M-12 is ✅, walked by you on the §2 rig, and **signed off by you**.
       I do not mark these.
 - [ ] Every caveat in §7 has a human verdict, not an assumption.

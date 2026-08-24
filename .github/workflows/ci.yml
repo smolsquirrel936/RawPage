@@ -52,6 +52,20 @@ jobs:
       - name: Gate fixtures
         run: ctest --preset gates
 
+      # Guide case A-82, the half that can only be checked HERE. D1-4 says rawpage_ui_tests runs on
+      # Windows and only on Windows, and the usual way that stops being true is not malice -- it is
+      # somebody adding Qt Widgets to a Linux job to chase a coverage number, which quietly
+      # redefines what this job and portable-asan prove. Asserted rather than trusted to the
+      # if(WIN32) in the root CMakeLists, because that guard is one line and this is the property.
+      - name: A-82 -- no widget or platform suite on Linux
+        run: |
+          leaked=$(ctest --preset gates -N | grep -cE '^ *Test +#[0-9]+: +(ui|platform|bench)\.' || true)
+          if [ "$leaked" -ne 0 ]; then
+            echo "::error::$leaked ui./platform./bench. case(s) registered on a Linux runner -- D1-4 is broken"
+            exit 1
+          fi
+          echo "A-82: no ui., platform. or bench. cases on this runner, as D1-4 requires."
+
       - name: Upload THIRD-PARTY.md
         uses: actions/upload-artifact@v4
         with:
@@ -138,8 +152,35 @@ jobs:
       - name: Build
         run: cmake --build --preset x64-release
 
+      # Guide case A-82, the positive half. `ctest --preset x64-release` below runs everything
+      # catch_discover_tests registered, so the widget suite needs no step of its own to RUN -- but
+      # that also means it would vanish silently. A target that failed to build, or a discovery that
+      # yielded nothing, subtracts cases from a run that still reports "100% tests passed", and the
+      # number nobody was watching is the one that dropped. So the coverage claim is made
+      # mechanically, before the run rather than after it.
+      #
+      # This is what Stage1-AppShell-Plan.md's T15 means by "tests/ui/ into the CI windows job".
+      - name: A-82 -- the Windows-only suites are present
+        shell: pwsh
+        run: |
+          $listed = ctest --preset x64-release -N
+          foreach ($prefix in 'unit', 'ui', 'platform', 'bench') {
+            $count = ($listed | Select-String -Pattern "^\s*Test\s+#\d+:\s+$prefix\." ).Count
+            if ($count -eq 0) { throw "no '$prefix.' cases are registered -- the suite is missing, not passing" }
+            Write-Host "$prefix. : $count case(s)"
+          }
+
       - name: Test
         run: ctest --preset x64-release
+
+      # A-85 / R-9, the one A3 criterion that is a number rather than a judgement. It ran as part of
+      # the suite above; this step surfaces the figure in the log, because a benchmark whose output
+      # is buried in a passing ctest line is a benchmark nobody reads.
+      - name: A-85 -- the R-9 tab-switch figure
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: .\build\x64-release\bin\rawpage_bench_ribbon.exe
 
       # The cheapest possible check that the CRT still matches Qt's (Tech-Stack-Plan.md 9).
       - name: Verify linkage
@@ -192,5 +233,79 @@ jobs:
       # -fno-sanitize-recover=all is set in the preset, so any finding aborts rather than
       # printing and continuing. A sanitizer report that does not fail the build is a
       # sanitizer report nobody reads.
+      # Guide cases A-82 and A-83, and this job is where both have teeth. A-83 -- rawpage_tests
+      # links neither rawpage_ui nor rawpage_platform -- is enforced at CONFIGURE time by
+      # rawpage_assert_headless() over the resolved link closure, so the configure step above having
+      # succeeded is that assertion passing. What is checked here is the visible consequence: on a
+      # machine with no Qt Widgets and no Win32 at all, no widget or platform case can exist.
+      - name: A-82 / A-83 -- no widget or platform suite in the portable subset
+        run: |
+          leaked=$(ctest --preset portable-asan -N | grep -cE '^ *Test +#[0-9]+: +(ui|platform|bench)\.' || true)
+          if [ "$leaked" -ne 0 ]; then
+            echo "::error::$leaked ui./platform./bench. case(s) in the portable subset -- it is core/ + pdf/cos/ by rule"
+            exit 1
+          fi
+          echo "A-82/A-83: the portable subset is core/ + pdf/cos/, with no display and no engine."
+
       - name: Run the headless suite under ASan+UBSan
         run: ctest --preset portable-asan
+
+  # =====================================================================================
+  # 4. The coverage this run did NOT have.
+  #
+  # The `windows` job is gated on a repository variable, and an ungated job is skipped rather
+  # than failed -- which GitHub renders as a grey tick beside two green ones. Read quickly, a
+  # run with no Windows coverage at all looks exactly like a run with full coverage.
+  #
+  # Stage1-AppShell-Testing-Guide.md's case A-80 says T15 must "either register the self-hosted
+  # runner or record the deliberate absence rather than let a skipped job read as a passing one."
+  # This job is that record, made by the machine on every run instead of by a sentence in a
+  # document that ages. It does not fail: keeping CI green without a runner is deliberate (see
+  # the long comment on the `windows` job), and a job that failed for missing infrastructure
+  # would train everyone to ignore a red build.
+  # =====================================================================================
+  coverage-report:
+    name: Coverage actually obtained
+    needs: [gates, portable-asan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say what ran and what did not
+        shell: bash
+        run: |
+          {
+            echo "### Coverage obtained by this run"
+            echo ""
+            echo "| Job | State |"
+            echo "|---|---|"
+            echo "| \`gates\` | ${{ needs.gates.result }} |"
+            echo "| \`portable-asan\` | ${{ needs['portable-asan'].result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ vars.RAWPAGE_HAS_WINDOWS_RUNNER }}" = "true" ]; then
+            echo "| \`windows\` | ran |" >> "$GITHUB_STEP_SUMMARY"
+            echo "Windows coverage was obtained."
+            exit 0
+          fi
+
+          {
+            echo "| \`windows\` | **SKIPPED -- no coverage** |"
+            echo ""
+            echo "**\`RAWPAGE_HAS_WINDOWS_RUNNER\` is not \`true\`, so the \`windows\` job did not run.**"
+            echo "Nothing below has been exercised by this run:"
+            echo ""
+            echo "- \`ui.*\` — the widget suite (D1-4)"
+            echo "- \`platform.*\` — the Win32 layer"
+            echo "- \`bench.*\` — the A-85 / R-9 figure"
+            echo "- \`gates.wrong_compiler.*\` — the toolchain pin (Windows-only by design)"
+            echo "- the real-configuration gate run, which is the only place \`qt-modules.txt\`"
+            echo "  and \`compiler-plugins.txt\` exist, so the Qt Charts and GCC-plugin checks"
+            echo "  have teeth nowhere else"
+            echo "- the \`msvcrt.dll\` / \`ucrtbase.dll\` linkage check"
+            echo ""
+            echo "Set the repository variable \`RAWPAGE_HAS_WINDOWS_RUNNER\` to \`true\` once a"
+            echo "self-hosted Windows runner carrying the pinned Qt 6.11.1 / MinGW 13.1.0 toolchain"
+            echo "is registered. Guide case **A-80** stays open until it has run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::warning title=No Windows coverage::RAWPAGE_HAS_WINDOWS_RUNNER is unset, so the windows job was skipped. ui.*, platform.*, bench.* and the wrong-compiler fixtures did not run. Guide case A-80 stays open."

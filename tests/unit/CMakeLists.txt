@@ -20,6 +20,8 @@ add_executable(rawpage_tests
     tst_settings.cpp              # Stage 1 T5
     tst_recentfiles.cpp           # Stage 1 T5
     tst_commandline.cpp           # Stage 1 T8
+    tst_logbuffer.cpp             # Stage 1 T14
+    tst_singleinstance.cpp        # Stage 1 T15 -- guide case A-61
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -31,6 +33,20 @@ add_executable(rawpage_tests
     # rawpage_ui or rawpage_platform to compile, configure fails -- and the finding is about the
     # parser, not about the test.
     ../../app/CommandLine.cpp
+
+    # And app/LogFile, compiled in for exactly the same reason and under the same constraint: it
+    # names QtCore and nothing else -- no widget, no Win32 -- so the rolling log file is testable
+    # without the executable, and the day it needs more than QtCore, configure fails below and the
+    # finding is about the log file rather than about the test.
+    ../../app/LogFile.cpp
+
+    # And app/SingleInstance, on the same terms and for guide case A-61 (T15). It names core/ and
+    # platform/platform.h -- an INTERFACE header that includes no OS header, which is its own
+    # layer-lint layer entry -- so the policy half of "does a second launch forward?" is testable
+    # against a recording bus with no Win32 object created anywhere. It adds no
+    # target_link_libraries entry, so rawpage_assert_headless() below still resolves to
+    # rawpage_core + rawpage_pdf and guide case A-83 is untouched.
+    ../../app/SingleInstance.cpp
 )
 
 # D1-9: tst_keybindings PARSES Features.md 8 and asserts the store matches it row for row, so the

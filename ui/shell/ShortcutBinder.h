@@ -140,6 +140,13 @@ public:
     // chord, for the same reason `Chord::parse` returns nothing for `Ctrl+`arrows``.
     static std::optional<core::Chord> chordFor(const QKeyEvent* event);
 
+    // The same conversion from a key and its modifiers rather than from an event. T14's Shortcuts
+    // page reads a chord out of a `QKeySequenceEdit`, which reports a `QKeyCombination` and never
+    // a `QKeyEvent`; synthesizing an event to feed the overload above would be manufacturing the
+    // very thing this function exists to interpret. The event overload delegates here, so there is
+    // one implementation and the two cannot disagree.
+    static std::optional<core::Chord> chordFor(Qt::Key key, Qt::KeyboardModifiers modifiers);
+
     // THE INVERSE, over the same table. Two callers, and neither of them is decoration: the census
     // below, and T14's Shortcuts page, which has to SHOW a chord as a key and read one back.
     // Returns nothing for a chord no keyboard can produce.

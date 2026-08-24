@@ -5,6 +5,8 @@
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
+#include "ui/dialogs/PreferencesDialog.h"
+#include "ui/panes/LogPane.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentTabBar.h"
@@ -147,6 +149,13 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     sidebar_ = new SidebarDock(services_.actions, this);
     addDockWidget(Qt::LeftDockWidgetArea, sidebar_);
     resizeDocks({sidebar_}, {sidebar_->rememberedWidth()}, Qt::Horizontal);
+
+    // THE LOG PANE -- T14. Its own dock along the bottom rather than a pane in the sidebar: the
+    // sidebar's subject is the document and the log's is the application. Hidden, because a shell
+    // that opens with its log showing looks like a shell in trouble.
+    logPane_ = new LogPane(services_.logBuffer, this);
+    addDockWidget(Qt::BottomDockWidgetArea, logPane_);
+    logPane_->hide();
 
     // ORDER MATTERS, and not for a cosmetic reason. `ActionFactory` reads each action's
     // registration state at the moment it builds the button, so anything this window registers has
@@ -742,6 +751,40 @@ void MainWindow::registerActions()
         if (QuickAccessToolbar* qat = activeQat()) qat->resetToDefaults();
     });
 
+    // --- Preferences and the log pane (T14) -------------------------------------------------
+    // `file.preferences` needs NO enablement predicate, and that is the difference between this
+    // dialog and `file.open`'s. A modeless dialog blocks nothing, so there is no headless hazard
+    // to guard against -- issue I-23's `canPromptTheUser` exists for a modal `exec()` that never
+    // returns when there is nobody to answer it. See ui/dialogs/PreferencesDialog.h.
+    // Not through `onActiveShell`: that helper takes a `void ()` member and `showPreferences`
+    // returns the dialog, which is what makes it usable from a test without reaching for
+    // `findChild`. One lambda is cheaper than a second overload of the helper.
+    registerAction(ActionId::FilePreferences, [](KeyContext) {
+        if (MainWindow* window = activeShell()) window->showPreferences();
+    });
+
+    core::ActionRegistry::Registration logPane;
+    logPane.handler = [](KeyContext) {
+        MainWindow* window = activeShell();
+        if (!window || !window->logPane()) return;
+        window->logPane()->setVisible(!window->logPane()->isVisible());
+    };
+    // A toggle, so the ribbon renders it checkable and the check mark says whether the pane is up.
+    // `ActionFactory` reads `checked` to decide that -- see I-21.
+    logPane.checked = [] {
+        MainWindow* window = activeShell();
+        return window && window->logPane() && window->logPane()->isVisible();
+    };
+    registerRegistration(ActionId::PaneLog, std::move(logPane));
+
+    // `log.openFolder` is DECLARED AND NOT REGISTERED, and the reason is a layer boundary rather
+    // than an oversight. The folder belongs to `app/LogFile`, and `ui/` looks outward to exactly
+    // two files -- `platform/platform.h` and `app/Services.h` -- each constrained by its own
+    // `layer-lint` entry (issue I-15). Including a third to open a directory would widen that list
+    // for a convenience, and widening it is an architectural decision rather than a diff. The
+    // command stays a visible, disabled button saying it is not built yet, which is the same
+    // honest state the other ~340 ids are in.
+
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a
     // name and a suffix and reads not one byte (D1-2, guide case A-58). It is registered here
@@ -800,6 +843,19 @@ void MainWindow::registerActions()
         window->show();
         window->raiseToForeground();
     });
+}
+
+PreferencesDialog* MainWindow::showPreferences()
+{
+    // Built on first use and KEPT, so that reopening it returns to the page the user was last on.
+    // Parented to this window, so a torn-off window gets its own -- which is right: the pages read
+    // one `Settings`, and two dialogs showing the same values is not a conflict, it is two views.
+    if (!preferences_) preferences_ = new PreferencesDialog(services_, this);
+
+    preferences_->show();
+    preferences_->raise();
+    preferences_->activateWindow();
+    return preferences_;
 }
 
 void MainWindow::toggleSidebar()

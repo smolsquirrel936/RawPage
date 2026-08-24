@@ -23,6 +23,7 @@
 
 #include "app/Services.h"
 #include "core/cmd/ActionRegistry.h"
+#include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
@@ -53,11 +54,12 @@ struct Fixture {
     core::RecentFiles     recentFiles{settings};
     core::ActionRegistry  actions;
     core::KeyBindingStore keyBindings;
+    core::LogBuffer       logBuffer;
     platform::Platform    platform;
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
     }
 };
 

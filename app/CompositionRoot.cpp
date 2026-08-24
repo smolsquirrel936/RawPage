@@ -1,6 +1,10 @@
 #include "app/CompositionRoot.h"
 
+#include "app/CrashHandler.h"
+
 #include "core/settings/SettingsSchema.h"
+
+#include <QtGlobal>
 
 #include <string>
 #include <utility>
@@ -15,12 +19,46 @@ using core::LogSubsystem;
 CompositionRoot::CompositionRoot(Options options)
     : options_(std::move(options))
 {
+    // BEFORE Settings, and that ordering is the whole reason this line is first. The settings load
+    // emits the D1-16 version note and any clamp or migration line, and those are precisely what a
+    // user opens the log pane to read; a buffer built after them would start at the line that says
+    // everything is fine.
+    logBuffer_ = std::make_unique<core::LogBuffer>();
+    applyLoggingSettings();
+
     settings_ = std::make_unique<core::Settings>(
         options_.settingsPath.isEmpty() ? core::Settings::defaultFilePath() : options_.settingsPath);
 
-    // Before anything else logs: the level and subsystem mask the user asked for should apply to
-    // this startup, not to the next one.
+    // THE ROLLING FILE, before the version note below rather than after it. `logging/retainFiles`
+    // has been a declared key with no reader since T5; this is the reader. It is created here
+    // rather than in main.cpp because the retention count is a setting, and `Settings` is the
+    // first thing this constructor builds.
+    if (!options_.logDirectory.isEmpty()) {
+        LogFile::Options fileOptions;
+        fileOptions.directory   = options_.logDirectory;
+        fileOptions.retainFiles = settings_->get(core::keys::logging::retainFiles);
+        logFile_ = std::make_unique<LogFile>(std::move(fileOptions));
+    }
+
+    // Again, now that `Settings` and the file exist: the first call above could only install the
+    // fan-out over the buffer, since the level, the subsystem mask and the retention count had not
+    // been read yet. Calling it twice is cheaper than a second function that installs half of the
+    // same sink.
     applyLoggingSettings();
+
+    // Braced: RAWPAGE_LOG expands to an if/else, so an unbraced `if` above it is a dangling else
+    // that -Wall reports and -Werror would refuse in core/.
+    if (logFile_ && logFile_->isOpen()) {
+        // A SESSION BANNER, and it is not decoration. Everything logged before this point -- most
+        // importantly `CrashHandler::install()`'s build id -- reached the console and could not
+        // reach the file, because the retention count is a setting and `Settings` did not exist
+        // yet. A support bundle whose log cannot say which binary produced it is a bundle nobody
+        // can symbolize a dump against, so the build id is restated here, where the file starts.
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+            << "session: RawPage" << QLatin1String(RAWPAGE_VERSION) << "buildId"
+            << CrashHandler::buildId() << "Qt" << QLatin1String(qVersion());
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "log file:" << logFile_->filePath();
+    }
     settingsSubscription_ = settings_->subscribe([this](const core::Settings::Change& change) {
         if (change.group == core::SettingsGroup::Logging) applyLoggingSettings();
     });
@@ -80,31 +118,43 @@ CompositionRoot::~CompositionRoot()
 
     if (settingsSubscription_ != 0) settings_->unsubscribe(settingsSubscription_);
 
-    // Put the unfiltered sink back. The filtering lambda captures only copies, so leaving it
-    // installed would not dangle -- it would do something subtler and worse: silently drop records
-    // according to a settings snapshot from a session that has ended, exactly while shutdown and
-    // last-rites logging are the only things left to read.
-    if (options_.baseSink) core::setLogSink(options_.baseSink);
+    // Put the unfiltered sink back. This is no longer only about a stale mask: the fan-out lambda
+    // holds RAW POINTERS to the buffer and the log file, both of which are members about to be
+    // destroyed, so leaving it installed would be a use-after-free on the next line that logs --
+    // and the next line that logs during teardown is the one that says why teardown failed.
+    core::setLogSink(options_.baseSink ? options_.baseSink : core::LogSink{});
 }
 
 Services CompositionRoot::services()
 {
-    return Services{*settings_, *recentFiles_, *actions_, *keyBindings_, *platform_};
+    return Services{*settings_, *recentFiles_, *actions_, *keyBindings_, *logBuffer_, *platform_};
 }
 
 void CompositionRoot::applyLoggingSettings()
 {
-    core::setLogThreshold(settings_->get(core::keys::logging::level));
+    // Called once before `Settings` exists (to install the fan-out) and again after it does, and
+    // whenever a `logging/` key changes. Both halves have to survive being run with no settings.
+    core::LogSubsystemMask mask = core::LogSubsystemMask::all();
+    if (settings_) {
+        core::setLogThreshold(settings_->get(core::keys::logging::level));
 
-    // core/Log.h filters by LEVEL only; the subsystem mask is applied here, in the sink, because
-    // core/ has no configuration of its own by design. The mask is captured BY VALUE so a record
-    // emitted from a worker thread reads a consistent snapshot rather than racing a settings edit.
-    const core::LogSubsystemMask mask = settings_->get(core::keys::logging::subsystems);
-    if (!options_.baseSink) return;
+        // core/Log.h filters by LEVEL only; the subsystem mask is applied here, in the sink,
+        // because core/ has no configuration of its own by design. The mask is captured BY VALUE
+        // so a record emitted from a worker thread reads a consistent snapshot rather than racing
+        // a settings edit.
+        mask = settings_->get(core::keys::logging::subsystems);
+    }
 
-    core::setLogSink([mask, sink = options_.baseSink](const core::LogRecordData& record) {
+    // ONE SINK, FANNING OUT. Everything that wants records is fed from here rather than by
+    // chaining `setLogSink`, because chaining does not survive this function being called again --
+    // which it is, on every logging settings change. `core/LogBuffer.h` states that reasoning at
+    // length; this is the line that depends on it.
+    core::setLogSink([mask, sink = options_.baseSink, buffer = logBuffer_.get(),
+                      file = logFile_.get()](const core::LogRecordData& record) {
         if (!mask.contains(record.subsystem)) return;
-        sink(record);
+        if (sink) sink(record);
+        if (file) file->append(record);
+        if (buffer) buffer->append(record);
     });
 }
 

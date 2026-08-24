@@ -23,6 +23,7 @@
 namespace rawpage::core {
 class ActionRegistry;
 class KeyBindingStore;
+class LogBuffer;
 class RecentFiles;
 class Settings;
 }
@@ -38,6 +39,12 @@ struct Services {
     core::RecentFiles&     recentFiles;
     core::ActionRegistry&  actions;
     core::KeyBindingStore& keyBindings;
+
+    // The in-memory tail of the log, fed from inside the one sink `CompositionRoot` installs.
+    // `ui/panes/LogPane` subscribes to it. It is a service rather than something the pane reaches
+    // for because `core::setLogSink` REPLACES rather than chains -- see `core/LogBuffer.h`, which
+    // owns that reasoning.
+    core::LogBuffer&       logBuffer;
 
     // The OS bundle, whose own members are null wherever an interface is not implemented yet.
     // `unimplementedInterfaces()` names them, so a Stage 1 window can print what it cannot do
