@@ -52,31 +52,35 @@ rather than a gap — those files are written when their stage comes up, not in 
 **Stage 0 is complete** — both halves of its verification green and signed off 2026-08-19, CI green on
 three jobs, verdicts **A5** and **A6** recorded in ②.
 
-**Stage 1 is IN PROGRESS: tasks T1 … T10 of 15 are complete (2026-08-24); T11 is next.**
+**Stage 1 is IN PROGRESS: tasks T1 … T12 of 15 are complete (2026-08-24); T13 is next.**
 
 | | |
 |---|---|
-| Tests | **250/250** on `x64-debug` and `x64-release`; the bare `gates` preset **65/65** with no Qt |
-| Gates | `layer-lint` 109 files / 569 includes, `license-audit` clean, `i18n-lint` 55 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
+| Tests | **275/275** on `x64-debug` and `x64-release`; the bare `gates` preset **65/65** with no Qt |
+| Gates | `layer-lint` 122 files / 697 includes, `license-audit` clean, `i18n-lint` 65 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
 | Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion) · **`-municode` = not adopted** |
-| Manual | **M-01 ✅, M-02 🟡** signed off by the user. The rest are not walkable yet |
-| Issues | I-01…I-20 in ⑥. **None open** |
+| Manual | **M-01 ✅, M-02 🟡** signed off by the user. **M-03 became walkable at T12**; the rest are not walkable yet |
+| Issues | I-01…I-23 in ⑥. **None open** |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
 ribbon spike (`tools/spike-ribbon/`, **deleted at T10, as planned**); the action layer — `ActionId` (358 declared
 actions), `ActionRegistry`, `Chord`, `KeyBindingStore` (240 bindings seeded from ① §8); the typed
 settings store (`core/settings/`, where an undeclared key does not compile); the third gate
-(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at 450 keys each; the OS boundary
+(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at 463 keys each; the OS boundary
 (`platform/platform.h`, seventeen interfaces declared, two implemented); the composition root that
 wires all of it together (`app/`); and the application frame (`ui/shell/`).
 
 **No document code exists** — nothing in `core/doc/`, `pdf/` or `ui/viewer/` — but **`rawpage.exe`
 now opens a window with a working ribbon**: 9 tabs, 49 groups and 192 controls, every one of them
 built from `res/ribbon.json` and dispatching through `ActionRegistry`, above a sidebar, a status bar
-and a live theme. Most of those controls are **disabled and say why** — Stage 1 declares 358 commands
-and registers the four this window can service. No QAT until T11, no document tab until T12, no chord
-input until T13, and no PDF until Stage 2. Stages 2–16 are `⚪ not started`.
+and a live theme. T11 added a **customizable Quick Access Toolbar** whose every operation is itself a
+command, and a **tool finder** whose ranking is a widget-free function so its result order can be
+asserted without a window; T12 added **document tabs** over a stub `DocumentWindow` that holds a path
+and nothing else (decision D1-2), with reorder, middle-click close, tear-off to a new window and
+re-dock. Most controls are **disabled and say why** — Stage 1 declares 358 commands and registers the
+seventeen this window can service. **No chord input until T13**, and no PDF is read until Stage 2.
+Stages 2–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
 record is ① → *Removed from scope*; every other document cross-references it.

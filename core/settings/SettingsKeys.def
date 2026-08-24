@@ -108,6 +108,23 @@ RAWPAGE_SETTING(documents, recentPinned, QStringList,
 RAWPAGE_SETTING(meta, schemaVersion, int,
                 "meta/schemaVersion", 1, Internal, false)
 
+// --- The UI customization (T11) ---------------------------------------------------------------
+// Internal by rule 4, and the reason is worth stating because these ARE user choices: the surface
+// that makes them is the Quick Access Toolbar's own context menu and the tool finder, not a
+// Preferences row. A key gets a Preferences row when the Preferences page is where you change it;
+// putting these in `General` would give T14 two widgets for one setting, and the second one would
+// be the one nobody keeps in sync with the toolbar.
+//
+// The commands are stored as ACTION STRING IDS, never as enum values. The enum is a build-time
+// artifact whose numbering changes every time a row is inserted into ActionId.def; the string id is
+// the permanent public name, and `actionFromStringId` resolves a retired one through D1-16's alias
+// table -- which is what makes a QAT customization survive a rename in Stage 7.
+RAWPAGE_SETTING(ui, qatCommands, QStringList,
+                "ui/qatCommands", "", Internal, false)
+
+RAWPAGE_SETTING(ui, qatBelowRibbon, bool,
+                "ui/qatBelowRibbon", false, Internal, false)
+
 // The recent-files list itself. `documents/recentCount` bounds it and `documents/recentPinned`
 // says which of its entries survive eviction; the ordered list has to live somewhere, and an
 // undeclared key is exactly what D1-10 exists to make impossible.

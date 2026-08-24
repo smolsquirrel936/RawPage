@@ -1526,9 +1526,61 @@
         <source>shell.theme.followSystem</source>
         <translation>Follow system</translation>
     </message>
+    <message>
+        <source>shell.window.titleWithDocument</source>
+        <translation>%1 — RawPage</translation>
+    </message>
+    <message>
+        <source>shell.document.placeholderBody</source>
+        <translation>%1 is open as a stub. Nothing has been read from it: the PDF engine and the page surface arrive with Stage 2.</translation>
+    </message>
+    <message>
+        <source>shell.document.untitled</source>
+        <translation>Untitled</translation>
+    </message>
+    <message>
+        <source>shell.tab.stripHint</source>
+        <translation>Drag to reorder; drag away to open in a new window; middle-click to close</translation>
+    </message>
+    <message>
+        <source>shell.dialog.openTitle</source>
+        <translation>Open PDF</translation>
+    </message>
+    <message>
+        <source>shell.dialog.pdfFilter</source>
+        <translation>PDF documents (*.pdf)</translation>
+    </message>
+    <message>
+        <source>shell.qat.title</source>
+        <translation>Quick Access Toolbar</translation>
+    </message>
+    <message>
+        <source>shell.qat.empty</source>
+        <translation>The Quick Access Toolbar is empty</translation>
+    </message>
+    <message>
+        <source>shell.qat.placementHint</source>
+        <translation>Checked shows the Quick Access Toolbar below the ribbon</translation>
+    </message>
+    <message>
+        <source>shell.toolFinder.placeholder</source>
+        <translation>Find a command</translation>
+    </message>
+    <message>
+        <source>shell.toolFinder.noResults</source>
+        <translation>No command matches “%1”</translation>
+    </message>
+    <message>
+        <source>shell.toolFinder.unavailable</source>
+        <translation>%1 — not built yet</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
+    <message>
+        <source>error.customization.malformed</source>
+        <translation>That file is not a RawPage customization (%1)</translation>
+    </message>
     <message>
         <source>error.settings.directory</source>
         <translation>The settings folder could not be created: %1</translation>

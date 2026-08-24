@@ -13,7 +13,7 @@
 > | The locked toolchain, the seventeen platform interfaces, the inward-only rule | [`Tech-Stack-Plan.md` §4.2, §4.3, §6](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code) |
 > | How Stage 1 is verified | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **In progress — T1 … T10 complete as of 2026-08-24; T11 is next.** Written
+> **Status:** 🟡 **In progress — T1 … T12 complete as of 2026-08-24; T13 is next.** Written
 > 2026-08-19, immediately after Stage 0 signed off and before any Stage 1 code existed. This file is a
 > plan, not a progress log — Stage 1's live status, task by task and deviation by deviation, is the
 > Stage 1 status block in `Implementation-Plan.md`, and that block is the authority.
@@ -459,11 +459,17 @@ Owed by **T15**, in the same change as the code:
   manifest does not list at all; see T10's deviation (a) for why that file exists.
   **Still unpaid: `scripts/symbolize.ps1`**, which has had no row since T1.
 
-- **New at T10, and carried rather than paid:** a ribbon narrower than one collapsed group **clips**.
-  Collapse absorbs the first shortfall and the row is cut off at the window edge, which is what the
-  reference (P-4) does — but the better answer is a horizontal scroll for the ribbon body, and that is
-  a real feature rather than a line in a layout. **Carried to T11** with the QAT work, and recorded as
-  the open half of issue **I-19**.
+- ~~**New at T10, and carried rather than paid:** a ribbon narrower than one collapsed group
+  **clips**~~ — ✅ **paid at T11.** The ribbon body sits in a `QScrollArea`, so
+  `RibbonPageLayout::minimumSize()` went back to the honest content minimum (the sum of the collapsed
+  groups) without that number reaching the main window, and the row scrolls instead of being cut off
+  at the window edge. Collapse is still exhausted first. Issue **I-19** is fully closed.
+- **New at T11/T12, and already paid:** `Architecture-FileMap.md` rows for
+  `ui/shell/{QuickAccessToolbar,UiCustomization,ToolFinder,DocumentTabBar,DocumentWindow}` were
+  flipped in the same change as the code, and the `MainWindow`, `Ribbon`, `StatusBar`,
+  `ActionRegistry`, `Settings` and catalog rows were corrected with them. **A new open decision
+  arrived rather than a new debt: O11** (`Implementation-Plan.md` §8), the parameterized-command
+  question `ui.qatAdd` raised and Stage 14 owns.
 - ~~`CLAUDE.md`'s gate table lists four gates as though all four exist~~ — ✅ **done 2026-08-23**: the
   table carries a *State* column, and the Stage-0-era summary was replaced with a live status block.
   ~~It still says two; T6 must change it to three.~~ ✅ **done 2026-08-23 at T6** — it says three, and

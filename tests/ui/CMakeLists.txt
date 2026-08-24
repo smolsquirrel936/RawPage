@@ -24,6 +24,9 @@ add_executable(rawpage_ui_tests
     tst_shell.cpp
     tst_ribbonbuild.cpp
     tst_actionwiring.cpp
+    tst_qat.cpp
+    tst_toolfinder.cpp
+    tst_documenttabs.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

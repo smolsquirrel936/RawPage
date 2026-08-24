@@ -40,6 +40,25 @@ add_library(rawpage_ui STATIC
     shell/Ribbon.cpp
     shell/RibbonTabBuilder.h
     shell/RibbonTabBuilder.cpp
+
+    # The Quick Access Toolbar, the customization it serializes, and the tool finder -- T11.
+    # UiCustomization is widget-free on purpose: it is the shape of a file that leaves this machine
+    # (Features.md 1.1's export/import), and a class that needs a window to describe a file is a
+    # class the Stage 14 batch runner cannot use.
+    shell/UiCustomization.h
+    shell/UiCustomization.cpp
+    shell/QuickAccessToolbar.h
+    shell/QuickAccessToolbar.cpp
+    shell/ToolFinder.h
+    shell/ToolFinder.cpp
+
+    # Document tabs and the stub they carry -- T12, decision D1-2. DocumentWindow holds a path and
+    # nothing else: no Document, no CommandJournal, no page state. Guide case A-57 is the guard
+    # against that stub calcifying before Stage 2 fills it in.
+    shell/DocumentWindow.h
+    shell/DocumentWindow.cpp
+    shell/DocumentTabBar.h
+    shell/DocumentTabBar.cpp
 )
 
 # ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before

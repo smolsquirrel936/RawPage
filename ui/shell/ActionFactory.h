@@ -24,6 +24,7 @@
 #include "core/cmd/KeyContext.h"
 
 #include <QList>
+#include <QPointer>
 #include <QString>
 
 #include <functional>
@@ -52,6 +53,40 @@ public:
 
     // Creates the action for `id`, parented to `parent`. Never returns null.
     RawPageAction* create(core::ActionId id, QObject* parent);
+
+    // ---------------------------------------------------------------------------------------
+    // PLACING A COMMAND ON A MENU -- T11, and it is here for the same reason `create` is.
+    // ---------------------------------------------------------------------------------------
+    // `layer-lint`'s `bare-qaction` rule matches `addAction(` with no exception for the overload
+    // that takes an already-built action, and that bluntness is deliberate: distinguishing
+    // `addAction(QAction*)` from `addAction(QString)` by regular expression is exactly the kind of
+    // "the gate is nearly right" that lets the real violation through. So a caller that wants a
+    // command on a menu asks HERE, one line instead of two, and the rule stays absolute with a
+    // single allowed file.
+    RawPageAction* addToMenu(QMenu* menu, core::ActionId id);
+
+    // ---------------------------------------------------------------------------------------
+    // ADOPTING THE ACTIONS QT MADE FOR A WIDGET -- T11, issue I-22.
+    // ---------------------------------------------------------------------------------------
+    // Some Qt widgets manufacture an action as a side effect of an ordinary property.
+    // `QLineEdit::setClearButtonEnabled(true)` is the case that found this: the clear button IS a
+    // QAction, it is parented to the line edit, and -- unlike `QMenu::menuAction()` or
+    // `QDockWidget::toggleViewAction()` -- there is no accessor that hands it back, because it goes
+    // on the widget's private side-widget list rather than into `QWidget::actions()`. So it cannot
+    // be recognised by identity the way the other two are, and recognising it by Qt's internal
+    // object name would tie this gate to a private constant.
+    //
+    // Instead the widget's owner says so, once, at the moment it turns the property on: everything
+    // hanging off `widget` right now that is not a RawPageAction is Qt's, and is stamped as
+    // non-command. Returns how many were stamped, so a caller that expected one and got none knows
+    // its Qt version changed. Called IMMEDIATELY after construction -- it stamps what exists at
+    // that instant and nothing later, which is what keeps it from becoming a blanket amnesty.
+    static int adoptWidgetActions(QWidget* widget);
+
+    // A separator is a QAction too -- Qt has no other way to express one -- and it is not a
+    // command. Built here and stamped, so `wiringComplaints()` recognises it rather than reporting
+    // every menu's dividers as bare actions.
+    QAction* addMenuSeparator(QMenu* menu);
 
     // Re-reads enablement and check state from the registry for every action this factory made.
     // Called when document state changes; at Stage 1 that is only ever composition time.
@@ -101,7 +136,13 @@ public:
 private:
     core::ActionRegistry&  registry_;
     ContextProvider        context_;
-    QList<RawPageAction*>  made_;
+
+    // QPointers, not raw pointers, and that is a correctness requirement rather than caution. The
+    // Quick Access Toolbar rebuilds its buttons on every add, remove and reorder, and the actions
+    // are parented to the buttons -- so entries in this list are destroyed under us as a matter of
+    // routine. `refresh()` walked it. Raw pointers made that a use-after-free waiting for the first
+    // reorder; found at T11 by needing the rebuild, not by a crash.
+    QList<QPointer<RawPageAction>> made_;
 };
 
 } // namespace rawpage::ui

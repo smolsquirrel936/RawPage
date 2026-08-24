@@ -88,6 +88,22 @@ public:
     // first asking whether one exists.
     bool isChecked(ActionId id) const;
 
+    // Whether a `checked` predicate was supplied at all -- the question `isChecked` deliberately
+    // cannot answer, because it conflates "not a toggle" with "a toggle that is off".
+    //
+    // ADDED AT T11, and by a defect rather than by a plan. `ui/shell/ActionFactory`'s header has
+    // always promised that "a toggle is checkable, and only a toggle is", and the code called
+    // `QAction::setChecked` without ever calling `setCheckable` -- which on a non-checkable action
+    // does nothing at all. Nothing had a toggle until the QAT's placement item, so the promise had
+    // never been tested against a subject that could fail it. (Issue I-21.)
+    bool isToggle(ActionId id) const;
+
+    // The registration's tooltip key, or an empty view when it named none -- in which case the
+    // caller falls back to the label key, as the field's own comment says. Also added at T11: the
+    // field has been in `Registration` since T3 and nothing could read it, so a registration that
+    // supplied one was silently discarding it.
+    std::string_view tooltipKey(ActionId id) const;
+
     std::size_t registeredCount() const { return registeredCount_; }
 
     // Every declared id, with its registration state. Backs `--list-actions` (guide case A-25):

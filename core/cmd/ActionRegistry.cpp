@@ -116,6 +116,24 @@ bool ActionRegistry::isChecked(ActionId id) const
     return slot.registration.checked();
 }
 
+bool ActionRegistry::isToggle(ActionId id) const
+{
+    const auto index = static_cast<std::size_t>(id);
+    if (index >= kActionCount) return false;
+
+    const Slot& slot = slots_[index];
+    return slot.occupied && static_cast<bool>(slot.registration.checked);
+}
+
+std::string_view ActionRegistry::tooltipKey(ActionId id) const
+{
+    const auto index = static_cast<std::size_t>(id);
+    if (index >= kActionCount) return {};
+
+    const Slot& slot = slots_[index];
+    return slot.occupied ? slot.registration.tooltipKey : std::string_view{};
+}
+
 std::vector<ActionRegistry::ActionState> ActionRegistry::allActions() const
 {
     std::vector<ActionState> states;

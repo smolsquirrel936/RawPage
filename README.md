@@ -3,16 +3,19 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stage 0 complete; Stage 1 in progress — tasks T1–T10 of 15 done (2026-08-24).**
+> **Status: Stage 0 complete; Stage 1 in progress — tasks T1–T12 of 15 done (2026-08-24).**
 > The commands below work. What they build is still mostly *scaffolding*: a pinned toolchain, three
 > enforcement gates, the domain vocabulary, the entry point with its crash handler, the action layer
 > (`ActionId`, `ActionRegistry`, `KeyBindingStore`), the typed settings store, the `en`/`zh-TW`
 > string catalogs, the OS boundary with its single-instance bus, and the composition root that wires
 > all of it together. **`rawpage.exe` now opens a window with a working ribbon** — 9 tabs, 49 groups
 > and 192 controls, every one built from `res/ribbon.json` and dispatched through the action registry,
-> above a sidebar, a status bar and a live theme. Most of those controls are **disabled and say why**:
-> Stage 1 declares 358 commands and registers the four this window can actually service. **No PDF can
-> be opened** until Stage 2.
+> above a sidebar, a status bar and a live theme — plus a **customizable Quick Access Toolbar**, a
+> **tool finder** that searches every declared command, and **document tabs** that open a stub per
+> file and can be reordered, torn off into a new window and re-docked. Most of those controls are
+> **disabled and say why**: Stage 1 declares 358 commands and registers the seventeen this window can
+> actually service, and none of them is reachable from the keyboard until T13 wires the chords.
+> **No PDF is parsed or rendered** until Stage 2 — a document tab is a stub that names its file.
 > Risk **A3** (can Qt Widgets host a real ribbon without a commercial control library?) is settled:
 > **go, with named custom work.**
 > The design lives in [`claude-plan/`](./claude-plan/README.md); live status is the Stage 1 block in

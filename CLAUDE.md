@@ -4,27 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository currently is
 
-**Stage 0 scaffolding plus the first ten tasks of Stage 1.** The product is **RawPage**, a
+**Stage 0 scaffolding plus the first twelve tasks of Stage 1.** The product is **RawPage**, a
 Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives under
 `claude-plan/`.
 
 ### Where the work is right now — read this first
 
-**Stage 1 is IN PROGRESS. T1–T10 are complete; T11 is next.** Live status, task by task
+**Stage 1 is IN PROGRESS. T1–T12 are complete; T13 is next.** Live status, task by task
 and deviation by deviation, is the Stage 1 status block in `claude-plan/Implementation-Plan.md` —
 that block is the authority, and this section is its summary.
 
 | | |
 |---|---|
-| **Tests** | **250/250** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 65/65 with no Qt |
-| **Gates** | `layer-lint` clean at 109 files / 569 includes; `license-audit` clean; `i18n-lint` clean at 55 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Tests** | **275/275** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 65/65 with no Qt |
+| **Gates** | `layer-lint` clean at 122 files / 697 includes; `license-audit` clean; `i18n-lint` clean at 65 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**; **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
-| **Issue log** | I-01…I-20 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
-| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** M-03…M-12 are not walkable yet — the code they test does not exist |
+| **Issue log** | I-01…I-23 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** **M-03 (document tabs: tear off, re-dock) became walkable at T12.** M-04…M-12 are not walkable yet — the code they test does not exist |
 
-**Next action: T11** — `QuickAccessToolbar`, `UiCustomization`, `ToolFinder`. It carries one item
-forward from T10: a **horizontal scroll for a ribbon narrower than one collapsed group** (issue
-**I-19**), which today clips. Nothing is implemented ahead of the plan's task order.
+**Next action: T13** — `ShortcutBinder` and full chord wiring: `activeContext()` over the focus
+chain, chord resolution, dispatch. It is the task the last three have been feeding — **seventeen
+commands are registered** and reachable from the ribbon, the Quick Access Toolbar, the tool finder
+and a test, and **not one of them from the keyboard**. Nothing is carried forward: I-19 was paid off
+at T11 and A-58 closed at T12. Nothing is implemented ahead of the plan's task order.
 
 ### What now exists as code
 
@@ -42,8 +44,8 @@ forward from T10: a **horizontal scroll for a ribbon narrower than one collapsed
   misspelled key, a string key and a wrong-typed value each fail to compile. D1-16's versioning is
   live in both directions — an older file migrates and is restamped, a **newer** file is read for
   what we understand and left byte-identical.
-- **`tools/i18n-lint/` + `i18n/` (T6, extended T8/T9)** — the third gate, and `rawpage_en.ts` /
-  `rawpage_zh_TW.ts` at **389 keys each** (358 `action.*` + 22 `shell.*` + 9 `error.*`), declared in
+- **`tools/i18n-lint/` + `i18n/` (T6, extended T8/T9/T10/T11/T12)** — the third gate, and `rawpage_en.ts` /
+  `rawpage_zh_TW.ts` at **463 keys each** (358 `action.*` + 34 `shell.*` + 61 `ribbon.*` + 10 `error.*`), declared in
   `i18n/locales.json` with `zh_CN` and `ja` marked `"shipped": false`. The `.ts` files are compiled
   to `.qm` **beside the executable** rather than into a Qt resource, so Stage 15 can ship them
   replaceable; `LinguistTools` is a build tool and is deliberately not registered with
@@ -71,13 +73,25 @@ forward from T10: a **horizontal scroll for a ribbon narrower than one collapsed
   constructed**, enforced by a non-escapable `layer-lint` rule across four spellings and by a
   show-time self-check. `tools/spike-ribbon/` was **deleted**, exactly as D1-1 said it would be.
   There are **no icons**: a large button is a tall text button until there are assets to put on it.
+- **The Quick Access Toolbar, the tool finder and the customization (T11)** — `QuickAccessToolbar`
+  (add / remove / reorder / placement / reset, all five of them commands rather than context-menu
+  lambdas), `ToolFinder` (whose *ranking* is a widget-free free function, so the result order is
+  asserted without a window), and `UiCustomization` (versioned per D1-16, **carrying a newer build's
+  unknown fields through untouched**, and holding action *string ids* so a rename cannot orphan a
+  customization). The ribbon body now sits in a `QScrollArea`, which paid off **I-19**.
+- **Document tabs and the stub they carry (T12)** — `DocumentTabBar` (reorder, middle-click close,
+  tear-off, re-dock, overflow) and `DocumentWindow`, which under **D1-2** holds a path and nothing
+  else. `openFiles()` opens a tab per accepted path, still checking only the name and the suffix and
+  reading no bytes. **`rawpage.exe` opens PDFs into tabs** — as stubs that say what Stage 2 brings.
 
 **Still no document code**: nothing in `core/doc/`, `pdf/cos/`, `pdf/render/`, `pdf/ops/`, or
 `ui/viewer/`. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window with a
-working ribbon as of T10** — 9 tabs above a sidebar, a status bar and a live theme, with a central
-surface that names what arrives when. Most ribbon buttons are **disabled and say why**: 358 commands
-are declared and **four** are registered, which is the honest state rather than a shortcut. There is
-no QAT (T11), no document tab (T12) and no chord input (T13). Because an ordinary launch runs an
+working ribbon, a customizable toolbar, a tool finder and document tabs as of T12** — 9 tabs above a
+sidebar, a status bar and a live theme, and a tab per opened file whose surface names what Stage 2
+brings. Most ribbon buttons are **disabled and say why**: 358 commands are declared and **seventeen**
+are registered, which is the honest state rather than a shortcut. There is **no chord input (T13)**:
+every one of those seventeen is reachable from the ribbon, the toolbar, the tool finder, a test and
+the future batch runner, and none of them from the keyboard. Because an ordinary launch runs an
 event loop, **the headless smoke test is `--dump-ui-strings`**: it composes every service, loads both
 catalogs and exits 0 without creating a window.
 
@@ -156,6 +170,23 @@ catalogs and exits 0 without creating a window.
    adds a receiver, so "exactly one receiver on `triggered`" — the invariant the plan wrote — was
    false for all 192 ribbon buttons at once. Run a self-check against the *product*, not only against
    fixtures that prove it can fail. (Issues **I-18** and **I-20**.)
+
+14. **A command handler may not capture the window that registered it.** `ActionRegistry` is one
+   object shared by every `MainWindow`, and registration is deliberately not idempotent — so with a
+   second window (T12 tears a tab out into one) the first window's handler would act for the whole
+   application, including after that window was destroyed. Registration happens **once per
+   registry**; every handler resolves `MainWindow::activeShell()` at **dispatch** time. That is also
+   what makes a Global command mean *the window I am looking at*, which is what it always meant.
+   Corollary measured under `offscreen`: `activateWindow()` raises no `ActivationChange` there, so
+   `raiseToForeground()` sets the active shell itself rather than deriving it from an event that may
+   not come.
+15. **A command that needs a user is DISABLED where there is none — it does not block.** `file.open`
+   raises a modal file picker; under `QT_QPA_PLATFORM=offscreen` that dialog is shown to nobody and
+   never returns, which stopped a whole `ctest` run dead with no failure and no output. Its
+   enablement predicate is false when there is no one to ask, so a headless dispatch is refused with
+   `Unavailable` — distinct from `NotFound`, which is exactly what those two codes are for. Every
+   such command needs a parameterized twin that needs no user (`openFiles()` is `file.open`'s), and
+   the general answer is **O11**. (Issue **I-23**.)
 
 ### Accessibility is OUT OF SCOPE (2026-08-23)
 
@@ -363,7 +394,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 250/250 as of Stage 1 T10
+ctest --preset x64-release --output-on-failure        # 275/275 as of Stage 1 T12
 ```
 
 Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offscreen`:

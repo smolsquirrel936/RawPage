@@ -16,6 +16,7 @@
 #include "platform/platform.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
+#include "ui/shell/QuickAccessToolbar.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/RawPageAction.h"
 #include "ui/shell/RibbonModel.h"
@@ -78,18 +79,49 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // fifth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 4);
+    CHECK(fixture.actions.registeredCount() == 17);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleRibbon));   // T10
 
+    // T11's five. `ui.customize` is NOT among them and that is the point of checking the count as
+    // well as the names: the customization dialog is T14, and its menu item is offered disabled
+    // rather than wired to a handler that opens nothing.
+    CHECK(fixture.actions.isRegistered(core::ActionId::AppToolFinder));
+    CHECK(fixture.actions.isRegistered(core::ActionId::UiQatAdd));
+    CHECK(fixture.actions.isRegistered(core::ActionId::UiQatRemove));
+    CHECK(fixture.actions.isRegistered(core::ActionId::UiQatPlacement));
+    CHECK(fixture.actions.isRegistered(core::ActionId::UiResetCustomization));
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::UiCustomize));
+
+    // T12's eight: the documents and the windows.
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileOpen));
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileClose));
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileCloseAll));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowNextTab));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowPrevTab));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowNext));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowPrev));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowNew));
+
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
-    // yet is NotFound, not a silent no-op.
+    // yet is NotFound, not a silent no-op. `file.save` is one of the ~340 that are declared and
+    // unregistered; it used to be `file.open`, which T12 registered.
     const core::Result<void> notYet =
-        fixture.actions.dispatch(core::ActionId::FileOpen, core::KeyContext::Global);
+        fixture.actions.dispatch(core::ActionId::FileSave, core::KeyContext::Global);
     REQUIRE_FALSE(notYet);
     CHECK(notYet.error().code == core::ErrorCode::NotFound);
+
+    // AND THE OTHER HALF OF THAT DISTINCTION, which T12 made load-bearing rather than academic.
+    // `file.open` exists and raises a modal file picker, and there is nobody to look at one under
+    // `offscreen` -- so it is registered, disabled, and refused with `Unavailable`. Without that
+    // predicate this very dispatch hung the suite for ten minutes (issue I-23); with it, a headless
+    // caller gets an answer it can tell apart from a typo.
+    const core::Result<void> noUser =
+        fixture.actions.dispatch(core::ActionId::FileOpen, core::KeyContext::Global);
+    REQUIRE_FALSE(noUser);
+    CHECK(noUser.error().code == core::ErrorCode::Unavailable);
 }
 
 TEST_CASE("the real window, shown, has no action that bypasses the registry", "[shell]")
@@ -111,10 +143,15 @@ TEST_CASE("the real window, shown, has no action that bypasses the registry", "[
     CHECK(complaints.isEmpty());
 
     // And the ribbon really is on the window rather than merely constructed -- 192 controls, every
-    // one of them a RawPageAction, which is what makes the check above a meaningful sample.
+    // one of them a RawPageAction, which is what makes the check above a meaningful sample. Since
+    // T11 the Quick Access Toolbar's buttons carry actions too, so the figure is the ribbon's
+    // controls PLUS the toolbar's commands: naming both is what keeps this a census rather than a
+    // number somebody adjusted until it matched.
     REQUIRE(window.ribbon() != nullptr);
+    REQUIRE(window.quickAccessToolbar() != nullptr);
     CHECK(window.findChildren<ui::RawPageAction*>().size()
-          == ui::ribbon::shipped().spec.controlCount());
+          == ui::ribbon::shipped().spec.controlCount()
+                 + static_cast<qsizetype>(window.quickAccessToolbar()->commands().size()));
 }
 
 TEST_CASE("toggling the sidebar goes through the registry and keeps its width", "[shell]")

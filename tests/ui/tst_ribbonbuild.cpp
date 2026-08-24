@@ -285,9 +285,11 @@ TEST_CASE("tabs overflow to the chevron when the ribbon is too narrow for them",
     CHECK_FALSE(fixture.ribbon.hasOverflow());
 
     // Narrow enough that the tab strip cannot hold nine tabs. This is only reachable because the
-    // page layout's minimum is ONE collapsed group rather than the sum of them -- see I-19 and the
-    // comment on RibbonPageLayout::minimumSize. Before that fix the widget snapped back to 1044 and
-    // this assertion was a statement about a window that had refused to resize.
+    // ribbon body sits in a scroll area whose own minimum is a frame and a scrollbar, so the page
+    // layout's content minimum never reaches the window -- see I-19 and the comment on
+    // RibbonPageLayout::minimumSize. Before T10's first fix the widget snapped back to 1044 and this
+    // assertion was a statement about a window that had refused to resize; T11 replaced that fix's
+    // clipped row with the scroll below.
     fixture.resizeTo(240);
     INFO("ribbon width after asking for 240: " << fixture.ribbon.width());
     CHECK(fixture.ribbon.width() < 400);
@@ -295,6 +297,55 @@ TEST_CASE("tabs overflow to the chevron when the ribbon is too narrow for them",
 
     fixture.resizeTo(1600);
     CHECK_FALSE(fixture.ribbon.hasOverflow());
+}
+
+TEST_CASE("a ribbon narrower than its collapsed groups scrolls rather than clipping", "[ribbon]")
+{
+    // ISSUE I-19's OPEN HALF, carried from T10 and paid off here.
+    //
+    // T10 left the row clipped at the window edge below the width of one collapsed group, which is
+    // what the reference (P-4) does and is still a row whose right-hand end the user cannot reach.
+    // The body now scrolls, and the layout is free to ask for the width it actually needs.
+    Fixture fixture;
+
+    fixture.resizeTo(1600);
+    CHECK_FALSE(fixture.ribbon.hasBodyScroll());
+
+    fixture.resizeTo(240);
+    INFO("ribbon width after asking for 240: " << fixture.ribbon.width());
+    REQUIRE(fixture.ribbon.width() < 400);
+
+    // THE WIDEST PAGE IS WHAT SETS THE SCROLL EXTENT, and that is QStackedWidget's doing rather
+    // than ours: its minimum is the largest of its pages', so every tab is laid out at the width the
+    // widest tab needs. Measured here rather than assumed -- the first version of this case asserted
+    // the CURRENT page was fully collapsed and found four of its six groups collapsed, because page
+    // 0 is not the widest and was given room the widest page had asked for. The behaviour is worth
+    // keeping: the scroll range does not jump when the user switches tabs.
+    RibbonPageLayout* widest = nullptr;
+    for (int index = 0; index < fixture.ribbon.pageCount(); ++index) {
+        RibbonPageLayout* page = fixture.ribbon.layoutOfPage(index);
+        if (!page) continue;
+        if (!widest || page->minimumSize().width() > widest->minimumSize().width()) widest = page;
+    }
+    REQUIRE(widest != nullptr);
+
+    // On that page every group is collapsed -- collapse is tried first and exhausted before
+    // scrolling starts, which is the order that matters: a ribbon that scrolled while it still had
+    // groups left to collapse would be hiding content it could have shown.
+    CHECK(widest->collapsedCount() == widest->count());
+    CHECK(widest->minimumSize().width() > fixture.ribbon.width());
+    CHECK(fixture.ribbon.hasBodyScroll());
+
+    // And the current page collapsed too -- what is asserted is that the width reached the layout
+    // at all, which is the half a bare resize() would have left unproven (I-19's other lesson).
+    RibbonPageLayout* current = fixture.ribbon.layoutOfPage(fixture.ribbon.currentPage());
+    REQUIRE(current != nullptr);
+    CHECK(current->collapsedCount() > 0);
+
+    // And back. The scroll is a consequence of the width alone, like the collapse decision above
+    // it, so widening puts it away without anybody resetting anything.
+    fixture.resizeTo(1600);
+    CHECK_FALSE(fixture.ribbon.hasBodyScroll());
 }
 
 TEST_CASE("Tab visits the groups in visual order after any change of the collapsed set", "[ribbon]")

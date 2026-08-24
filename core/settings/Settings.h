@@ -85,6 +85,20 @@ public:
         setVariant(path, key.group, SettingsCodec<T>::toVariant(clamped));
     }
 
+    // Whether the FILE carries this key at all -- which is a different question from whether its
+    // value happens to equal the default, and the two answers differ exactly where it matters. The
+    // Quick Access Toolbar ships three commands by default and the user may remove all three; a
+    // stored empty list and a key that was never written are both "empty", and only one of them
+    // means "give them the factory toolbar". (T11. T14's Preferences pages want the same question
+    // for their reset-to-default affordance.)
+    template <class T>
+    bool isSet(const Key<T>& key) const
+    {
+        return values_.find(QString::fromUtf8(key.path.data(),
+                                              static_cast<qsizetype>(key.path.size())))
+               != values_.end();
+    }
+
     template <class T>
     bool isAtDefault(const Key<T>& key) const
     {

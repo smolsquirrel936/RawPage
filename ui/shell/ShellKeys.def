@@ -21,10 +21,12 @@
 #endif
 
 // --- The window --------------------------------------------------------------------------------
-// `shell.window.titleWithDocument` is deliberately NOT here. There is no document to name until
-// T12, and a key that leads its use is an `orphan-key` note on every gate run -- reported rather
-// than failed (S3), but a report nobody can act on is a report people learn to skip.
+// `shell.window.titleWithDocument` arrived at T12 WITH the tab that gives it a `%1`, which is the
+// rule this table has followed since T6: a key that leads its use is an `orphan-key` note on every
+// gate run -- reported rather than failed (S3), but a report nobody can act on is a report people
+// learn to skip.
 RAWPAGE_SHELL_STRING(WindowTitle,            "shell.window.title")
+RAWPAGE_SHELL_STRING(WindowTitleWithDocument,"shell.window.titleWithDocument")
 
 // --- The central surface -------------------------------------------------------------------------
 // Stage 2 replaces this whole widget with `ui/viewer/PageView`. The keys are named for what they
@@ -78,5 +80,43 @@ RAWPAGE_SHELL_STRING(RibbonOverflowTooltip,  "ribbon.overflow.tooltip")
 // name a stage number: `ActionId.def` does not carry one, and a hand-maintained "arrives in Stage 7"
 // per action would be 358 facts nobody updates when a plan moves.
 RAWPAGE_SHELL_STRING(RibbonTooltipUnregistered, "ribbon.tooltip.unregistered")
+
+// --- The Quick Access Toolbar (T11) ------------------------------------------------------------
+// Note what is NOT here: "Add to Quick Access Toolbar", "Remove from …" and the placement item
+// itself. Those are COMMANDS -- `ui.qatAdd`, `ui.qatRemove`, `ui.qatPlacement` -- and a command's
+// label comes from `ActionId.def` through `action.*`, never from a second key here. Spelling one
+// of them again in this table is exactly the drift D1-6 exists to prevent, and it would put two
+// different words on the same command in two different places in the UI.
+RAWPAGE_SHELL_STRING(QatTitle,               "shell.qat.title")
+RAWPAGE_SHELL_STRING(QatEmpty,               "shell.qat.empty")
+
+// The tooltip on `ui.qatPlacement`, whose label is a NOUN ("Quick Access Toolbar Placement") and so
+// cannot say which way the toggle currently points. The check mark says that; this says what the
+// check mark means, which a check mark on its own never does.
+RAWPAGE_SHELL_STRING(QatPlacementHint,       "shell.qat.placementHint")
+
+// --- The tool finder (T11) -----------------------------------------------------------------------
+RAWPAGE_SHELL_STRING(ToolFinderPlaceholder,  "shell.toolFinder.placeholder")
+RAWPAGE_SHELL_STRING(ToolFinderNoResults,    "shell.toolFinder.noResults")
+
+// A hit for a command that is DECLARED but not yet registered. The tool finder shows it disabled
+// rather than hiding it, for the same reason the ribbon does (guide case A-56): a command the
+// product names and cannot run is a fact about the stage, and hiding it makes the search results
+// silently disagree with the ribbon the user is looking at.
+RAWPAGE_SHELL_STRING(ToolFinderUnavailable,  "shell.toolFinder.unavailable")
+
+// --- Documents and their tabs (T12) --------------------------------------------------------------
+// A stub tab says what it is. `Features.md` describes a start page and a page surface; neither is
+// here, and a blank tab would read as a document that failed to open rather than as a stage that
+// has not arrived -- which is the same call the central placeholder made at T9.
+RAWPAGE_SHELL_STRING(DocumentPlaceholderBody, "shell.document.placeholderBody")
+RAWPAGE_SHELL_STRING(DocumentUntitled,        "shell.document.untitled")
+RAWPAGE_SHELL_STRING(TabStripHint,            "shell.tab.stripHint")
+
+// The file dialog `file.open` raises. Qt supplies its own translated chrome; the title and the
+// filter are ours, and a filter string is a user-facing sentence in every locale that has a word
+// for "documents".
+RAWPAGE_SHELL_STRING(DialogOpenTitle,         "shell.dialog.openTitle")
+RAWPAGE_SHELL_STRING(DialogPdfFilter,         "shell.dialog.pdfFilter")
 
 #undef RAWPAGE_SHELL_STRING

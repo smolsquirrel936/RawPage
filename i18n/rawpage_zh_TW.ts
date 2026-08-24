@@ -1526,9 +1526,61 @@
         <source>shell.theme.followSystem</source>
         <translation>跟隨系統</translation>
     </message>
+    <message>
+        <source>shell.window.titleWithDocument</source>
+        <translation>%1 — RawPage</translation>
+    </message>
+    <message>
+        <source>shell.document.placeholderBody</source>
+        <translation>%1 已以預留位置開啟。尚未讀取其中任何內容：PDF 引擎與頁面顯示區將於第 2 階段提供。</translation>
+    </message>
+    <message>
+        <source>shell.document.untitled</source>
+        <translation>未命名</translation>
+    </message>
+    <message>
+        <source>shell.tab.stripHint</source>
+        <translation>拖曳可重新排序；拖離可在新視窗開啟；按中鍵可關閉</translation>
+    </message>
+    <message>
+        <source>shell.dialog.openTitle</source>
+        <translation>開啟 PDF</translation>
+    </message>
+    <message>
+        <source>shell.dialog.pdfFilter</source>
+        <translation>PDF 文件 (*.pdf)</translation>
+    </message>
+    <message>
+        <source>shell.qat.title</source>
+        <translation>快速存取工具列</translation>
+    </message>
+    <message>
+        <source>shell.qat.empty</source>
+        <translation>快速存取工具列是空的</translation>
+    </message>
+    <message>
+        <source>shell.qat.placementHint</source>
+        <translation>勾選後，快速存取工具列會顯示在功能區下方</translation>
+    </message>
+    <message>
+        <source>shell.toolFinder.placeholder</source>
+        <translation>尋找命令</translation>
+    </message>
+    <message>
+        <source>shell.toolFinder.noResults</source>
+        <translation>沒有符合「%1」的命令</translation>
+    </message>
+    <message>
+        <source>shell.toolFinder.unavailable</source>
+        <translation type="unfinished">%1 — 尚未實作</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
+    <message>
+        <source>error.customization.malformed</source>
+        <translation>該檔案不是 RawPage 的自訂設定檔（%1）</translation>
+    </message>
     <message>
         <source>error.settings.directory</source>
         <translation>無法建立設定資料夾：%1</translation>

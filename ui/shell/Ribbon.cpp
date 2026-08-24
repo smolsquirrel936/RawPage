@@ -10,6 +10,8 @@
 #include <QLabel>
 #include <QMenu>
 #include <QResizeEvent>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QToolButton>
@@ -176,32 +178,30 @@ QSize RibbonPageLayout::sizeHint() const
 
 QSize RibbonPageLayout::minimumSize() const
 {
-    // THE WIDEST SINGLE COLLAPSED GROUP -- deliberately NOT the sum of them all.
+    // THE SUM OF THE COLLAPSED GROUPS -- the width below which this row genuinely cannot show its
+    // content, and nothing smaller.
     //
-    // Summing is the obvious answer and it is wrong, and it took a real ribbon to show why. This
-    // layout's minimum propagates all the way up to the main window, so with the resource as
-    // shipped -- 49 groups, the widest tab holding eight -- the sum made the whole application
-    // un-narrowable below about 1044 logical pixels. On a 1366-wide laptop at 150 % scaling that is
-    // wider than the screen, and the user cannot resize their way out of it because nothing on
-    // screen explains what is holding the window open.
+    // T10 returned the WIDEST SINGLE collapsed group here, deliberately and for a real reason: this
+    // layout's minimum propagated all the way up to the main window, and with the shipped resource
+    // -- 49 groups, the widest tab holding eight -- the honest sum held the whole application open
+    // at about 1044 logical pixels. On a 1366-wide laptop at 150 % scaling that is wider than the
+    // screen, and nothing on screen explained what was holding the window open. Two things hid
+    // behind it: the tab strip could never run out of room, so the chevron overflow -- one of the
+    // three pieces of named custom work the A3 verdict rests on -- was unreachable in the shipped
+    // configuration while its code looked correct. (Issue I-19.)
     //
-    // Two things went unnoticed behind it, which is what makes this worth the paragraph. Snapping
-    // back to 1044 on a resize to 240 also meant the tab strip could never run out of room, so the
-    // chevron overflow -- one of the three pieces of named custom work the A3 verdict rests on --
-    // was unreachable in the shipped configuration while its code looked perfectly correct. The
-    // spike never saw either: it had four groups.
-    //
-    // So the floor is one group. Collapse absorbs the first shortfall; past that the row is clipped
-    // at the window edge, which is what a narrow ribbon does in the reference (P-4). A horizontal
-    // scroll for the body is the better answer and it is a real feature rather than a line here --
-    // it belongs with the QAT work at T11. Issue I-19.
-    int widest = 0;
+    // The floor of one group bought a narrowable window at the cost of a row clipped at the window
+    // edge. T11 pays that cost off instead of carrying it: `Ribbon` puts this layout inside a
+    // QScrollArea, whose own minimum is a scrollbar and a frame, so the number below no longer
+    // reaches the window at all -- it tells the scroll area how wide the content is, which is
+    // exactly the question a scroll area exists to ask. The window narrows; the row scrolls.
+    int width = 0;
     for (QLayoutItem* item : items_)
         if (auto* group = qobject_cast<RibbonGroup*>(item->widget()))
-            widest = qMax(widest, group->collapsedWidth() + spacing());
+            width += group->collapsedWidth() + spacing();
 
     const QMargins margins = contentsMargins();
-    return {widest + margins.left() + margins.right(),
+    return {width + margins.left() + margins.right(),
             kRibbonBodyHeight + margins.top() + margins.bottom()};
 }
 
@@ -338,6 +338,7 @@ Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
     tabs_->setObjectName(QStringLiteral("ribbonTabs"));
     stripLayout->addWidget(tabs_, 0);
     stripLayout->addStretch(1);
+    strip_ = stripLayout;
 
     chevron_ = new QToolButton(strip);
     // Through the catalog, not as a literal. A chevron looks like punctuation rather than text, and
@@ -354,10 +355,31 @@ Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
 
     column->addWidget(strip, 0);
 
-    stack_ = new QStackedWidget(this);
+    stack_ = new QStackedWidget;
     stack_->setObjectName(QStringLiteral("ribbonPages"));
-    stack_->setFixedHeight(kRibbonBodyHeight + 4);
-    column->addWidget(stack_, 0);
+
+    // T11, issue I-19. The stack is the scroll area's WIDGET rather than a child of this widget:
+    // with `setWidgetResizable`, QScrollArea gives it the viewport's width or its own minimum,
+    // whichever is larger, which is precisely "fill the space, and scroll when the space is not
+    // enough". The page layout's minimum stops being a constraint on the main window and becomes a
+    // statement about the content -- see RibbonPageLayout::minimumSize.
+    scroll_ = new QScrollArea(this);
+    scroll_->setObjectName(QStringLiteral("ribbonBodyScroll"));
+    scroll_->setWidget(stack_);
+    scroll_->setWidgetResizable(true);
+    scroll_->setFrameShape(QFrame::NoFrame);
+    scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll_->setFocusPolicy(Qt::NoFocus);   // Tab visits the buttons, never the scroll area
+
+    // THE SCROLLBAR'S HEIGHT IS RESERVED AT EVERY WIDTH, and the ribbon is that much taller for it.
+    // The alternative -- growing when the bar appears -- moves the whole window's content by a dozen
+    // pixels at exactly the moment somebody is dragging its edge, and a ribbon whose height depends
+    // on the width is the flicker R-4 is judged against wearing a different hat. A fixed reservation
+    // costs the same twelve pixels at all times and never surprises anyone.
+    scroll_->setFixedHeight(kRibbonBodyHeight + 4
+                            + scroll_->horizontalScrollBar()->sizeHint().height());
+    column->addWidget(scroll_, 0);
 
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) {
         if (index >= 0 && index < stack_->count()) stack_->setCurrentIndex(index);
@@ -398,13 +420,56 @@ QString Ribbon::pageTitle(int index) const { return tabs_->tabText(index); }
 
 bool Ribbon::hasOverflow() const { return !chevron_->isHidden(); }
 
+bool Ribbon::hasBodyScroll() const
+{
+    // The scrollbar's RANGE rather than its visibility, for the reason hasOverflow() gives about
+    // the chevron: a child of a window that has not been shown is not visible no matter how the
+    // layout came out, and a case asserting visibility would be asserting something about the test
+    // harness. A maximum above zero means there is content off the right-hand edge.
+    return scroll_->horizontalScrollBar()->maximum() > 0;
+}
+
+void Ribbon::attachControl(QWidget* control, core::ActionId id)
+{
+    control->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    // Connected with `this` as the receiver and no destructor disconnect, which is a deliberate
+    // departure from the rule I-12 wrote down rather than an oversight of it. That rule exists
+    // because `~QWidget` HIDES children, and a signal emitted by hiding reaches a half-destroyed
+    // receiver. `customContextMenuRequested` is emitted only by a context-menu event on a live
+    // widget; nothing in destruction can raise it.
+    connect(control, &QWidget::customContextMenuRequested, this,
+            [this, control, id](const QPoint& position) {
+                emit controlContextMenuRequested(id, control->mapToGlobal(position));
+            });
+}
+
+void Ribbon::setCornerWidget(QWidget* widget)
+{
+    if (corner_ == widget) return;
+    if (corner_) {
+        strip_->removeWidget(corner_);
+        corner_->deleteLater();
+    }
+    corner_ = widget;
+    if (!corner_) return;
+
+    corner_->setParent(strip_->parentWidget());
+    // Before the chevron, which stays at the end: the chevron is about the tab strip and belongs
+    // where a strip that ran out of room ends, and a search box that jumped position whenever a tab
+    // overflowed would be a search box nobody could find twice.
+    strip_->insertWidget(strip_->count() - 1, corner_);
+}
+
 void Ribbon::setBodyCollapsed(bool collapsed)
 {
     if (bodyCollapsed_ == collapsed) return;
     bodyCollapsed_ = collapsed;
-    // R-7: the STACK is hidden, not the pages, and the tab bar's current index is untouched -- which
-    // is what makes the active tab survive a collapse/restore cycle for free.
-    stack_->setVisible(!collapsed);
+    // R-7: the BODY is hidden, not the pages, and the tab bar's current index is untouched -- which
+    // is what makes the active tab survive a collapse/restore cycle for free. The thing hidden is
+    // the scroll area rather than the stack inside it: hiding the stack alone would leave the scroll
+    // area's reserved height as an empty band under the tabs.
+    scroll_->setVisible(!collapsed);
 
     // Hiding a child invalidates this widget's own size hint, but nothing re-runs the PARENT's
     // layout until something asks it to. Without these two lines the ribbon keeps its expanded
@@ -430,7 +495,8 @@ void Ribbon::relayoutTabs()
 {
     // R-3, named custom work #2. QTabBar's own overflow is a pair of scroll arrows, which is not
     // what a ribbon does -- so hidden tabs are offered from a chevron menu instead.
-    const int budget = width() - chevron_->sizeHint().width() - 16;
+    const int corner = corner_ ? corner_->sizeHint().width() + strip_->spacing() : 0;
+    const int budget = width() - chevron_->sizeHint().width() - corner - 16;
 
     int  used      = 0;
     bool anyHidden = false;

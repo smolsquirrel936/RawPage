@@ -86,6 +86,12 @@ QStringList RibbonTabBuilder::build(const ribbon::ParseResult& parsed)
                 RawPageAction* action = actions_.create(control.id, content);
                 QToolButton*   button = makeButton(action, control.size, content);
 
+                // T11: right-clicking a ribbon control offers to put it on the Quick Access
+                // Toolbar. Which control was clicked is the command's parameter -- the ribbon
+                // reports it, `MainWindow` routes it, and the QAT holds it. See
+                // QuickAccessToolbar.h on why a parameterized command needs that at all (O11).
+                ribbon_.attachControl(button, control.id);
+
                 if (control.size == ribbon::ControlSize::Large) {
                     if (smallRow != 0) { ++column; smallRow = 0; }
                     grid->addWidget(button, 0, column, kSmallRowsPerColumn, 1);

@@ -257,13 +257,10 @@ std::vector<KeyBindingStore::OverrideEntry> Settings::shortcutOverrides() const
         // the context name is what the FILE holds, and this is the one place it turns back into
         // the enum.
         const std::string contextName = parts.at(0).toStdString();
-        std::optional<KeyContext> context;
-        for (std::size_t i = 0; i < kKeyContextCount; ++i) {
-            if (keyContextName(static_cast<KeyContext>(i)) == contextName) {
-                context = static_cast<KeyContext>(i);
-                break;
-            }
-        }
+        // Through core/cmd/KeyContext.h's own inverse rather than a loop written here. This file
+        // carried that loop until T11, when `ui/shell/UiCustomization` needed the same conversion
+        // and the choice was between two copies of a context-name table and none.
+        const std::optional<KeyContext> context = keyContextFromName(contextName);
         if (!context) continue;
 
         KeyBindingStore::OverrideEntry entry;

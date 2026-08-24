@@ -6,21 +6,21 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **In progress — Stage 1 T1…T10 verified as of 2026-08-24.** **68 automated** cases
+> **Status:** 🟡 **In progress — Stage 1 T1…T12 verified as of 2026-08-24.** **68 automated** cases
 > (A-01 … A-85, plus **A-67** added at T7) and **12 manual** (M-01 … M-12), of which **M-08 is
 > withdrawn** with the accessibility removal.
 >
 > | | |
 > |---|---|
-> | **Automated, green** | A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50**, **A-51**, **A-52**, **A-54**, **A-60**, **A-62**, **A-63**, **A-64**, A-65…A-67, A-70…A-72. `ctest` **250/250** on both presets; the bare `gates` preset **65/65** with no Qt; `checks` clean on **three** gates at 109 files / 569 includes, i18n-lint 55 files / 0 waivers |
-> | **Automated, half run** | **A-58** — the acceptance half is green (a `.pdf` full of plain text is accepted, and nothing reads it); the `Ctrl+O` half needs T13's chords and T12's stub tab, and is not being claimed |
-> | **Automated, not yet reachable** | A-53, A-55…A-57, A-61, A-81…A-85 — everything needing chord input, the QAT, the tool finder, document tabs, or a CI run at the final counts. They arrive with T11…T15. **A-80 is open rather than unreachable**: two of three CI jobs are green and the `windows` job has never run |
-> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. M-03…M-07, M-09…M-12 are **not walkable yet** — the code they test does not exist |
+> | **Automated, green** | A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50**, **A-51**, **A-52**, **A-54**, **A-55**, **A-56**, **A-57**, **A-58**, **A-60**, **A-62**, **A-63**, **A-64**, A-65…A-67, A-70…A-72. `ctest` **275/275** on both presets; the bare `gates` preset **65/65** with no Qt; `checks` clean on **three** gates at 122 files / 697 includes, i18n-lint 65 files / 0 waivers |
+> | **Automated, not yet reachable** | A-53, A-61, A-81…A-85 — everything needing chord input or a CI run at the final counts. They arrive with T13…T15. **A-80 is open rather than unreachable**: two of three CI jobs are green and the `windows` job has never run |
+> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp` so the walk only has to judge the gesture itself. M-04…M-07, M-09…M-12 are still not walkable: the code they test does not exist |
 >
-> **Issue log: I-01 … I-20. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
-> first `portable-asan` run to reach Stage 1's code, and **I-18 … I-20 by T10's first run against a
-> real, shown window**. **Fifteen of the twenty were found by running something rather than by
-> reading it**,
+> **Issue log: I-01 … I-23. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
+> first `portable-asan` run to reach Stage 1's code, **I-18 … I-20 by T10's first run against a
+> real, shown window**, and **I-21 … I-23 at T11 and T12 — every one of the three by running
+> something new against the product rather than by reading it**. **Eighteen of the twenty-three were
+> found by running something rather than by reading it**,
 > which is by now less a pattern than a method: **I-05** and **I-06** by the user's manual walk,
 > **I-03** by reading output rather than an exit code, **I-08** and **I-09** by settings fixtures
 > written the way a person would hand-edit the file, **I-11** — an S2 race in the single-instance
@@ -182,11 +182,11 @@ A stage that is green but has no verdicts is **not** signed off.
 | [Exit criterion](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance) | Cases |
 |---|---|
 | The window opens with a functional ribbon | A-50, A-51, M-01. 🟡 **The window opens as of T9**; the ribbon is T10, so this stays 🟡 and A-50/A-51 stay unrun |
-| **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. 🟡 **True of everything that exists at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
+| **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. 🟡 **True of everything that exists at T12** — the ribbon's 192 controls, the Quick Access Toolbar's buttons and its whole context menu, the tool finder's results, and every tab and window operation. Chords are still the missing surface (T13). *(Historic note, kept because it dates the claim:)* **True of everything that existed at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
 | A debug assertion catches a directly-connected `QAction` | A-12, A-54 |
 | The §8 Global defaults all resolve correctly | A-30, A-33, A-34. ✅ **All green 2026-08-23 at T4**, with D1-9's document parse negative-controlled in both directions |
 | Settings round-trip | A-40 … A-47, M-11. ✅ **A-40 … A-47 green 2026-08-23 at T5**, and the round trip closed at **T8**: nothing had ever called `Settings::sync()` (**I-14**), so every preference was correct for the life of the process and gone at the end of it — found by running flow B and then reading the file. M-11 needs the QAT (T11). A-41 is asserted three ways plus a positive control |
-| `--lang zh-TW` shows a translated UI | A-70, A-71, A-72, M-06. 🟡 **A-70, A-71 and A-72 all green 2026-08-23** — A-70/A-71 at T6 and re-run at T9 (zh-TW key-complete at **389** keys; no unwrapped literal, 0 waivers), **A-72 at T8/T9**: 380 strings dumped per locale, 377 differ, 0 render a raw key. **The automated half is complete; M-06 is not** — it is the editorial review of the 28 entries marked unfinished, which `lrelease` was measured at T9 to *keep* rather than drop, so they do reach a reviewer's screen |
+| `--lang zh-TW` shows a translated UI | A-70, A-71, A-72, M-06. 🟡 **A-70, A-71 and A-72 all green 2026-08-23** — A-70/A-71 at T6, re-run at T9 (zh-TW key-complete at **389** keys; no unwrapped literal, 0 waivers) and again at **T10**, where `i18n-lint` was clean over 55 files with both catalogs at **450** keys after the 61 `ribbon.*` entries, **A-72 at T8/T9**: 380 strings dumped per locale, 377 differ, 0 render a raw key. **The automated half is complete; M-06 is not** — it is the editorial review of the 28 entries marked unfinished, which `lrelease` was measured at T9 to *keep* rather than drop, so they do reach a reviewer's screen |
 | A second launch reuses the first instance | A-60, A-61, A-67, M-07. 🟡 **A-67 green at T7 and A-60 green at T8** — a second launch forwarded `測試-📄.pdf` and exited 0, and the primary logged the path byte for byte across three process boundaries. **A-61** (`general/singleInstance=false` gives two windows) is not yet run and **M-07** (foreground activation) has no offscreen equivalent, so this criterion is **not** complete |
 | **Risk A3 has a recorded verdict** | M-01, M-02, A-85. ✅ **Recorded 2026-08-23: `go, with named custom work`** *(M-08 withdrawn with R-8)* |
 | *(plan)* An undeclared settings key does not compile | A-41. ✅ **Green 2026-08-23 at T5** — a misspelled key, a key named by string, and a right key with a wrong-typed value each rejected, with `declared-key.cpp` compiling as the control |
@@ -558,33 +558,70 @@ manufactures intrinsic actions nobody asked for, and placing an action on a widg
 a receiver. The invariant is now *every receiver accounted for* — one from the factory plus at most
 one per widget the action sits on — with the residual gap written down rather than smoothed over.
 
-**A-55 · QAT customization round-trips**
-☐ **Expect** Add, reorder, move above/below, reset; serialize and reload identically.
+**A-55 · QAT customization round-trips** — ✅ **2026-08-24 at T11**
+☑ **Expect** Add, reorder, move above/below, reset; serialize and reload identically.
 **If it fails** S3. *(Surviving a real restart is M-11.)*
+**Result** Green, in three parts. **The operations**: add, remove, reorder and reset each change the
+row and each *refuses the no-op* — a duplicate add, a remove of something absent, a move to where it
+already is — and the assertions read the BUTTONS off the layout rather than reading the command list
+back to itself, so a mutation that stopped rebuilding the row would fail them. **The round trip**: a
+window writes to `Settings` on every change (not at shutdown — a customization that only survives a
+clean exit is one a crash takes with it, and this is the stage that built a crash handler), and a
+second window on the same settings file restores it exactly, placement included. What is on disk is
+**action string ids**, so the customization survives a row being inserted into `ActionId.def` and,
+through D1-16's alias table, a rename in a later stage; an id that resolves to nothing is dropped and
+**named** in the log. **The blob**: `UiCustomization` serializes and parses, and a file written by a
+build with a higher `version` keeps its unknown members through a re-serialize — the downgrade half
+of D1-16, which is the half that loses a user's layout during a rollback. A blob with no `version` is
+an **error** rather than an empty customization, because "imported successfully, everything reset"
+is indistinguishable from a reset the user asked for.
+**One behaviour the case did not anticipate, and it needed a new API:** a toolbar the user emptied
+and a profile that never customized one both read back as an empty list, and only one of them means
+"restore the factory defaults". `Settings::isSet()` is the difference.
 
-**A-56 · Tool finder ranking**
-☐ **Expect** An exact name ranks above a prefix, which ranks above a fuzzy subsequence; each result
+**A-56 · Tool finder ranking** — ✅ **2026-08-24 at T11**
+☑ **Expect** An exact name ranks above a prefix, which ranks above a fuzzy subsequence; each result
 carries its current chord from `KeyBindingStore`; a disabled action is shown as disabled rather than
 hidden. **If it fails** S3.
+**Result** Green, and asserted against `toolfinder::rank()` — a free function naming no widget, which
+is what lets the ORDER be checked without a window at all. The ranking claim is asserted as a
+property of the whole list (*the kinds never improve as you go down*) rather than as three named
+rows, so a command being renamed for good reasons cannot break it; the one row the catalog does
+guarantee — a label that IS the query — is asserted by name. A fourth kind sits between prefix and
+subsequence: **word-start**, so "all" finds *Close All*, which is the case a person hits constantly
+because they remember the noun and not the verb.
+**The chord comes from the store and is asserted by taking one away:** rebinding `Ctrl+W` to another
+command makes *Close*'s chord go empty, which is the behaviour that matters — binding a *second*
+chord would leave `Ctrl+W` firing and the finder would rightly go on showing it.
+**A declared-but-unregistered command ranks, appears and is marked**, and choosing it is a refusal
+that says why rather than a dispatch that fails somewhere below.
 
-**A-57 · A stub `DocumentWindow` holds no document state**
-☐ **Goal** D1-2's guard against calcification. **Expect** The class has no `Document`, no
+**A-57 · A stub `DocumentWindow` holds no document state** — ✅ **2026-08-24 at T12**
+☑ **Goal** D1-2's guard against calcification. **Expect** The class has no `Document`, no
 `CommandJournal`, and no member Stage 2 would have to *remove* rather than fill in.
 **If it fails** S3 now, S2 at Stage 2 — which is why it is checked now.
+**Result** Green, **and the case is worth less than it reads**, which is worth saying plainly. What a
+test can check is that the class adds no property and no method to `QWidget`'s meta-object, and that
+everything it reports — its title, its tab text, the window title it produces — is *derived* from the
+one path it was given rather than stored beside it. Both are asserted. "No member Stage 2 would have
+to remove" is a claim about the **header**, and the header is where it is made; a test that implied
+otherwise would be the more comfortable of the two options and the less honest one.
 
-**A-58 · `Ctrl+O` does not sniff file contents** — 🟡 **half run 2026-08-23 at T9**
+**A-58 · `Ctrl+O` does not sniff file contents** — ✅ **2026-08-24 at T12** *(acceptance half green at T9)*
 ☑ **Goal** D1-2. Deciding whether bytes are a PDF is `IDocumentBackend`'s job.
 **Steps** Open a `.pdf` whose contents are plain text.
 **Expect** A stub tab opens. No read of the file body anywhere in `ui/`.
 **If it fails** S2 — a content check here pre-empts Stage 2's boundary, and boundaries are much harder
 to reclaim than to hold.
-**Result** The *acceptance* half is green: `ui.opening a file checks the name and never reads the
-bytes` writes a file whose contents are `this is plain text, not a PDF at all`, names it `.pdf`, and
-asserts `MainWindow::openFiles()` accepts it and notes it in the recent list. A companion case
-asserts the two refusals — a path that does not exist and one that is not named `.pdf` — reach the
-recent list not at all. **The other half is not runnable yet and is not being claimed:** there is no
-`Ctrl+O` until T13 wires chords and no stub tab until T12, so this is re-run at T12 and the case
-stays 🟡 until then.
+**Result** ✅ **Closed at T12.** The *acceptance* half went green at T9: `ui.opening a file checks
+the name and never reads the bytes` writes a file whose contents are `this is plain text, not a PDF
+at all`, names it `.pdf`, and asserts `MainWindow::openFiles()` accepts it and notes it in the recent
+list; a companion case asserts the two refusals — a path that does not exist and one that is not
+named `.pdf` — reach the recent list not at all. **T12 supplied the missing half**: that same
+plain-text file now opens a **stub tab**, with its name on the tab, its path in the tab's tooltip and
+in the window title, and not one byte read. What is still not asserted is the literal **`Ctrl+O`
+keypress**, because chords arrive at T13 — but the command that keypress will reach is registered and
+dispatched here, so what T13 adds is the key, not the behaviour.
 
 ### 5.7 Single instance, command line, crash handler
 
@@ -960,8 +997,11 @@ record.
 | I-16 | §5.2 · gate file coverage | **Neither gate scanned `.def` files.** This project keeps its permanent public names in X-macro tables — `ActionId.def`, `KeyBindingDefaults.def`, `SettingsKeys.def`, and now `ShellKeys.def` — which are `#include`d straight into translation units. `i18n-lint` therefore reported all 22 new `shell.*` keys as orphans on a tree that references every one of them; and `layer-lint` could not have seen an `#include` written inside a table that lands in a layer with a deny list. | A gate reads the files the compiler reads | **S3** | Found 2026-08-23 at T9 by the orphan report, which was right that it could not find the references and wrong about what that meant. The `layer-lint` half is the more interesting one: it had been open since T3 and nothing had exercised it | **Closed 2026-08-23.** `.def` added to both gates' `extensions`, with the reasoning in each rules file. Whether a file is COMPILED is a fact about the build; whether it is part of a layer, or holds a user-facing key, is what the gates are for. `layer-lint` now scans 100 files where it scanned 96, still clean; `i18n-lint` 45 files, 0 orphans, 0 waivers |
 | I-17 | §5.5 · A-46 · `tst_recentfiles` | **`unit.the same document reached two ways is one entry` fails on Linux, and only on Linux** — `2 == 1`. `RecentFiles::canonical()` deduped through `QDir::cleanPath`, which converts **platform-native** separators: on Windows a backslash is one, under POSIX it is an ordinary filename character, so `C:\docs\a.pdf` stayed a second entry. Written at **T5**, green on Windows ever since, and never once run on Linux until the CI push after T9. | One dedup rule, the same on both builds | **S2** | Found 2026-08-23 by the **first `portable-asan` run to reach Stage 1's code** (run 32649389697, 176/177). The interesting half is the eleven-task gap: the `portable-asan` job had not run since before T3, so every `core/` test T3–T9 added was Windows-verified only. Not reproducible locally in either direction — on Windows the fix is unobservable, which is the whole shape of the bug | **Closed 2026-08-23.** `canonical()` normalizes separators **by hand** and then calls `cleanPath`, so the rule no longer depends on the host. Fixing the *test* instead — `#ifdef Q_OS_WIN` — was the smaller diff and the wrong one: it would leave the sanitized build exercising a different dedup rule from the shipping build, and a finding there has to be reproducible in `x64-debug` before it counts as fixed. The case also now asserts **which** spelling survives, since a count of 1 is satisfied by collapsing onto the wrong one |
 | I-18 | §5.6 · A-54 · `tst_actionwiring` | **The wiring self-check called the sidebar a bare `QAction`.** Its first run against a real, shown `MainWindow` reported `bare QAction "Panes"` — which is `QDockWidget::toggleViewAction()`, an action Qt creates the moment a dock exists. The ribbon's overflow chevron has the same shape through `QMenu::menuAction()`. Neither was written by anyone and neither can be prevented. | The check reports actions somebody wired, not actions Qt manufactures | **S3** | Found 2026-08-24 at T10 the only way it could be: by running the check against the product rather than against a fixture. Two tasks running, two self-checks taught something by their first real subject — the other was **I-12** | **Closed 2026-08-24.** `wiringComplaints()` skips an action that is its own parent widget's intrinsic action, recognised **by identity** (`menu->menuAction() == action`) rather than by type or name, so an ordinary action that merely sits on a menu is not excused. The residual gap is stated in the code: passing one of these to a command surface would go unreported, because its parent does not change when it is used |
-| I-19 | §5.6 · A-50 · the shipped ribbon | **The ribbon held the entire main window open at 1044 logical pixels, and hid a second defect behind it.** `RibbonPageLayout::minimumSize()` summed every group's collapsed width, and that minimum propagates to the window — on a 1366-wide laptop at 150 % scaling the window could not be made to fit the screen, with nothing on screen to explain why. Behind it: because the widget snapped back to 1044 on any narrower request, **the tab strip could never run out of room**, so the chevron overflow — one of the three pieces of named custom work the A3 verdict rests on — was unreachable in the shipped configuration while its code looked correct. `QTabBar` with `setUsesScrollButtons(false)` was independently demanding the full width of all nine tabs. | A ribbon narrows, then collapses, then clips — it does not veto the window size | **S2** | Found 2026-08-24 at T10 by a case that asked the ribbon to be 240 px wide and then **checked what width it actually got**. The spike never saw it: four groups, not forty-nine. An assertion that had trusted `resize()` would have reported overflow-not-triggered as a plain failure and taught nothing | **Closed 2026-08-24.** The page layout's minimum is the **widest single collapsed group**, and the tab bar's horizontal size policy is `Ignored` — its preferred width is not a smaller number, it is not a number at all, since overflow is decided by `relayoutTabs()` from the width the ribbon actually got. The case now asserts the achieved width *before* asserting overflow, so the two failures can never again be confused. A horizontal scroll for a ribbon narrower than one group is the better answer and is real work: **carried to T11** |
+| I-19 | §5.6 · A-50 · the shipped ribbon | **The ribbon held the entire main window open at 1044 logical pixels, and hid a second defect behind it.** `RibbonPageLayout::minimumSize()` summed every group's collapsed width, and that minimum propagates to the window — on a 1366-wide laptop at 150 % scaling the window could not be made to fit the screen, with nothing on screen to explain why. Behind it: because the widget snapped back to 1044 on any narrower request, **the tab strip could never run out of room**, so the chevron overflow — one of the three pieces of named custom work the A3 verdict rests on — was unreachable in the shipped configuration while its code looked correct. `QTabBar` with `setUsesScrollButtons(false)` was independently demanding the full width of all nine tabs. | A ribbon narrows, then collapses, then clips — it does not veto the window size | **S2** | Found 2026-08-24 at T10 by a case that asked the ribbon to be 240 px wide and then **checked what width it actually got**. The spike never saw it: four groups, not forty-nine. An assertion that had trusted `resize()` would have reported overflow-not-triggered as a plain failure and taught nothing | **Closed 2026-08-24.** The page layout's minimum is the **widest single collapsed group**, and the tab bar's horizontal size policy is `Ignored` — its preferred width is not a smaller number, it is not a number at all, since overflow is decided by `relayoutTabs()` from the width the ribbon actually got. The case now asserts the achieved width *before* asserting overflow, so the two failures can never again be confused. A horizontal scroll for a ribbon narrower than one group is the better answer and is real work: **carried to T11**. ✅ **Fully closed 2026-08-24 at T11**: the body sits in a `QScrollArea`, so the layout's minimum went back to the honest content figure — the SUM of the collapsed groups — while the window stayed narrowable, because a scroll area's own minimum is a frame and a scrollbar. Collapse is still exhausted before scrolling begins, which is the order that matters: a ribbon that scrolled while it still had groups left to collapse would be hiding content it could have shown. The scrollbar's height is **reserved at every width** rather than appearing and disappearing — a ribbon whose height depends on its width is R-4's flicker wearing a different hat |
 | I-20 | §5.6 · A-54 · `RawPageAction` | **"Exactly one receiver on `triggered`" was the wrong invariant**, and all 192 ribbon actions said so at once. `QToolButton::setDefaultAction` adds the action to the button and Qt connects the button to `triggered` itself. Placing an action on a widget is the ordinary, correct thing to do with one — an invariant that forbids it forbids the ribbon. | The check bounds what is legitimate rather than asserting a number that was never true | **S3** | Found 2026-08-24 at T10, in the same run as I-18. The plan wrote the invariant as `directConnectionCount() == 1` (§5.4) and it was never exercised against an action on a button until the ribbon existed | **Closed 2026-08-24.** The invariant is *every receiver accounted for*: one from `ActionFactory`, plus at most one per widget in `associatedObjects()`. **The residual gap is recorded in `RawPageAction.h` rather than glossed** — an action on two widgets where only one connects could hide a single direct connection. It is a bound, not a proof, and it is still the only mechanism that can see a second `connect()` at all, which the lint structurally cannot |
+| I-21 | §5.6 · A-54 · `ActionFactory` | **`ActionFactory` had never called `setCheckable`**, so `setChecked()` on every action it built was a no-op. The header has promised since T10 that *"a toggle is checkable, and only a toggle is"* — and the promise had never met a subject that could disprove it, because nothing registered a `checked` predicate until the Quick Access Toolbar's placement item at T11 | A toggle renders with a check mark; a non-toggle renders without one, and the two are distinguishable | **S3** | Register any command with a `checked` predicate and put it on a menu before the fix: the item is never ticked, whatever the predicate returns | **Closed 2026-08-24 at T11.** The factory now asks `ActionRegistry::isToggle()` — a new accessor, because `isChecked()` structurally cannot answer it: it returns false both for "not a toggle" and for "a toggle that is off", which is exactly the conflation the registry's own header warns about. `tooltipKey()` was added in the same change for the same reason: a `Registration` field nothing could read since T3. **The lesson is T10's I-18 and I-20 again in a third form** — a self-check, or a promise in a header, is only worth what its first meeting with a real subject proves |
+| I-22 | §5.6 · A-54 · `QLineEdit` | **A third kind of Qt-manufactured action**, found by the wiring self-check the first time a shown window contained the tool finder: `setClearButtonEnabled(true)` builds a `QAction` for the clear button and the check reported `bare QAction "" (_q_qlineeditclearaction)`. Unlike `QMenu::menuAction()` and `QDockWidget::toggleViewAction()` it is **not** recognisable by identity — measured, not assumed: it goes on the line edit's private side-widget list, so `QWidget::actions()` does not contain it, and the obvious identity check finds nothing | Qt's own intrinsic actions are excused; ours are checked | **S3** | Put a `QLineEdit` with a clear button on a shown `MainWindow` in a debug build: `Q_ASSERT_X` in `showEvent` fires | **Closed 2026-08-24 at T11.** `ActionFactory::adoptWidgetActions(widget)` lets the widget's owner stamp what Qt made **at the moment the property is turned on** — it stamps what exists at that instant and nothing later, which is what keeps it from becoming a blanket amnesty. Matching Qt's internal object name was the alternative and was rejected: it ties a gate to a private constant. The residual gap is stated in the header |
+| I-23 | §5.5 · A-58 · `file.open` | **A ten-minute CI hang.** T12 registered `file.open` with a modal `QFileDialog`, and `tst_shell`'s long-standing case *"the window registers exactly the actions it can service"* dispatches that id to assert it is `NotFound`. Under `offscreen` the dialog is built, shown to nobody, and never returns — the suite stopped dead at 274 of 275 tests with no failure and no output | A command a headless caller dispatches either runs or is **refused**; it never blocks | **S2** — a hang is worse than a failure, because a failure names itself | Before the fix: `ctest -R "the window registers exactly"` under `QT_QPA_PLATFORM=offscreen` never returns | **Closed 2026-08-24 at T12.** `file.open` carries an **enablement predicate** that is false when there is no user to show a dialog to (`platformName() == "offscreen"`), so a headless dispatch is refused with `Unavailable` — distinct from the `NotFound` of a command that does not exist, which is precisely the distinction T3 built those two codes for. The predicate is the fix rather than a check inside the handler because the registry already has the vocabulary, and a batch runner needs the answer, not the silence. **The parameterized form of "open this file" already exists** and needs no user: `MainWindow::openFiles()`, which is what flow B and the CLI use. The case that hung now asserts both codes — `NotFound` for `file.save`, `Unavailable` for `file.open` — so the hang has become an assertion |
 
 ---
 

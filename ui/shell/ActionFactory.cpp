@@ -37,8 +37,24 @@ RawPageAction* ActionFactory::create(ActionId id, QObject* parent)
     // "a toggle that is off" and for "not a toggle", so checkability is decided by the registration
     // rather than by the answer -- which is the distinction the registry's own header insists on.
     if (registered) {
+        // A TOGGLE IS CHECKABLE, AND ONLY A TOGGLE IS -- the header has promised this since T10 and
+        // the code did not do it. `setChecked` on an action that is not checkable is a no-op, so
+        // the promise held only because nothing registered a `checked` predicate until the QAT's
+        // placement item at T11. `ActionRegistry::isToggle` is the question `isChecked` cannot
+        // answer, and it was added for this. (Issue I-21.)
+        action->setCheckable(registry_.isToggle(id));
         action->setEnabled(registry_.isEnabled(id));
         action->setChecked(registry_.isChecked(id));
+
+        // The registration's own tooltip key, which `Registration` has carried since T3 with
+        // nothing able to read it. Empty falls back to the label, as that field's comment says --
+        // and a fallback is what an action with no separate tooltip should have, rather than a
+        // tooltip repeating its own label.
+        const std::string_view tooltipKey = registry_.tooltipKey(id);
+        if (!tooltipKey.empty()) {
+            action->setToolTip(catalog::translate(
+                QString::fromUtf8(tooltipKey.data(), static_cast<qsizetype>(tooltipKey.size()))));
+        }
     } else {
         // DECLARED BUT NOT REGISTERED. Stage 1 declares 358 ids and registers what the shell can
         // actually service, so this is the ordinary case for most of the ribbon. The button is
@@ -78,7 +94,7 @@ RawPageAction* ActionFactory::create(ActionId id, QObject* parent)
 
 void ActionFactory::refresh()
 {
-    for (RawPageAction* action : made_) {
+    for (const QPointer<RawPageAction>& action : made_) {
         if (!action) continue;
         if (!registry_.isRegistered(action->id())) continue;
         action->setEnabled(registry_.isEnabled(action->id()));
@@ -95,6 +111,12 @@ bool isQtIntrinsicAction(const QAction* action)
     if (auto* dock = qobject_cast<QDockWidget*>(action->parent());
         dock && dock->toggleViewAction() == action)
         return true;
+
+    // A QLineEdit's clear button is a QAction as well, and it is NOT recognisable here -- measured
+    // rather than assumed: `setClearButtonEnabled(true)` puts it on the line edit's private
+    // side-widget list, not in `QWidget::actions()`, so an identity check of the shape above finds
+    // nothing. It is handled by `adoptWidgetActions()` at the point the property is turned on
+    // instead. (Issue I-22.)
     return false;
 }
 
@@ -110,6 +132,34 @@ QAction* ActionFactory::addNonCommandMenuItem(QMenu* menu, const QString& text)
     QAction* item = menu->addAction(text);
     item->setProperty(nonCommandMarker(), true);
     return item;
+}
+
+RawPageAction* ActionFactory::addToMenu(QMenu* menu, ActionId id)
+{
+    RawPageAction* action = create(id, menu);
+    menu->addAction(action);
+    return action;
+}
+
+int ActionFactory::adoptWidgetActions(QWidget* widget)
+{
+    if (!widget) return 0;
+
+    int stamped = 0;
+    for (QAction* action : widget->findChildren<QAction*>()) {
+        if (qobject_cast<RawPageAction*>(action)) continue;
+        if (action->property(nonCommandMarker()).toBool()) continue;
+        action->setProperty(nonCommandMarker(), true);
+        ++stamped;
+    }
+    return stamped;
+}
+
+QAction* ActionFactory::addMenuSeparator(QMenu* menu)
+{
+    QAction* separator = menu->addSeparator();
+    separator->setProperty(nonCommandMarker(), true);
+    return separator;
 }
 
 QList<QString> ActionFactory::wiringComplaints(const QWidget* root)

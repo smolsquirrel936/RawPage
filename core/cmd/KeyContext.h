@@ -18,6 +18,7 @@
 #define RAWPAGE_CORE_CMD_KEYCONTEXT_H
 
 #include <cstddef>
+#include <optional>
 #include <string_view>
 
 namespace rawpage::core {
@@ -67,6 +68,20 @@ constexpr std::string_view keyContextName(KeyContext context)
     case KeyContext::FullScreen:      return "FullScreen";
     }
     return "?";
+}
+
+// The inverse, over the SAME table -- which is the only reason it is safe. Two callers need it
+// (`core/settings/Settings` reading a `shortcuts/<context>/<action>` key, and
+// `ui/shell/UiCustomization` reading an exported customization), and before T11 the first one
+// carried its own copy of this loop. A second list of context names is a list that disagrees with
+// this one the first time a context is added -- the same reasoning as D1-6, at a smaller scale.
+constexpr std::optional<KeyContext> keyContextFromName(std::string_view name)
+{
+    for (std::size_t i = 0; i < kKeyContextCount; ++i) {
+        const auto context = static_cast<KeyContext>(i);
+        if (keyContextName(context) == name) return context;
+    }
+    return std::nullopt;
 }
 
 } // namespace rawpage::core

@@ -44,6 +44,8 @@
 #ifndef RAWPAGE_UI_SHELL_RIBBON_H
 #define RAWPAGE_UI_SHELL_RIBBON_H
 
+#include "core/cmd/ActionId.h"
+
 #include <QHash>
 #include <QLayout>
 #include <QList>
@@ -51,7 +53,9 @@
 #include <QString>
 #include <QWidget>
 
+class QHBoxLayout;
 class QLabel;
+class QScrollArea;
 class QStackedWidget;
 class QTabBar;
 class QToolButton;
@@ -185,8 +189,38 @@ public:
     // assertion a statement about the test harness instead of about the ribbon.
     bool hasOverflow() const;
 
+    // ---------------------------------------------------------------------------------------
+    // T11: the ribbon body scrolls horizontally rather than clipping -- issue I-19's open half.
+    // ---------------------------------------------------------------------------------------
+    // Collapse absorbs the first shortfall in width. Past that -- a window narrower than the
+    // collapsed groups laid end to end -- T10 clipped the row at the window edge, which is what the
+    // reference (P-4) does and is still a row the user cannot reach the end of. The body now lives
+    // in a scroll area, so the honest content minimum (`RibbonPageLayout::minimumSize`, the SUM of
+    // the collapsed groups) no longer propagates to the main window: the window stays narrowable,
+    // and what does not fit can be scrolled to.
+    bool hasBodyScroll() const;
+
+    // Marks `control` as the on-screen representation of `id`, so that a right-click on it raises
+    // `controlContextMenuRequested`. Called by `RibbonTabBuilder` for every button it places -- the
+    // connection lives here rather than there because this class owns the signal, and a builder
+    // that emitted somebody else's signal would be a second place to look when the QAT stops
+    // offering to add things.
+    void attachControl(QWidget* control, core::ActionId id);
+
+    // A widget placed at the right-hand end of the tab strip -- the tool finder, at T11. Takes
+    // ownership. The ribbon knows nothing about what it is beyond how much width it wants, which is
+    // what keeps `ui/shell/ToolFinder` out of this file.
+    void setCornerWidget(QWidget* widget);
+    QWidget* cornerWidget() const { return corner_; }
+
 signals:
     void pageChanged(int index);
+
+    // A right-click on one of the ribbon's controls, carrying the command that was under the
+    // cursor. The ribbon does not know what a Quick Access Toolbar is -- `MainWindow` owns that
+    // connection -- but it is the only thing that knows which button was clicked, and "add THIS
+    // command to the QAT" is meaningless without that. See QuickAccessToolbar.h on O11.
+    void controlContextMenuRequested(core::ActionId id, const QPoint& globalPos);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -198,6 +232,9 @@ private:
     QTabBar*        tabs_    = nullptr;
     QToolButton*    chevron_ = nullptr;   // R-3, named custom work #2
     QStackedWidget* stack_   = nullptr;
+    QScrollArea*    scroll_  = nullptr;   // T11, I-19: the body scrolls instead of clipping
+    QHBoxLayout*    strip_   = nullptr;   // the tab strip's row, so a corner widget can join it
+    QWidget*        corner_  = nullptr;
     int             contextualIndex_   = -1;
     bool            contextualVisible_ = false;
     bool            bodyCollapsed_     = false;
