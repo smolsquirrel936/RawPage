@@ -6,18 +6,19 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Automated half COMPLETE AND GREEN IN CI — Stage 1 T1…T15 verified as of
-> 2026-08-25. Every automated case passes; only the manual walk remains.** **73 automated** cases
+> **Status:** 🟡 **Automated half GREEN IN CI at 71 of 73 — Stage 1 T1…T15 verified as of 2026-08-25.
+> Two cases cannot run and are carried to Stage 2 (see the row below); the manual walk remains.**
+> **73 automated** cases
 > (A-01 … A-94, plus **A-67** added at T7 and **A-90 … A-94** added at T14 in a new §5.10) and **12
 > manual** (M-01 … M-12), of which **M-08 is withdrawn** with the accessibility removal.
 >
 > | | |
 > |---|---|
-> | **Automated, green** | **Every case but one.** A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50 … A-58**, **A-60 … A-67**, A-70…A-72, **A-90 … A-94** at T14, and at T15 the last six: **A-61** (both halves, each with its own control), **A-81**, **A-82**, **A-83**, **A-84** and **A-85**. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live |
-> | **Automated, still open** | **None.** A-80 closed 2026-08-25 on run 32785493072 — **four jobs green, and the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196). Its long absence was never a missing runner (**I-30**): one had been online since 2026-08-17 behind a variable **name** mismatch. A new `coverage-report` job now names in every run summary what went unexercised, so a skipped job can never again read as coverage |
+> | **Automated, green** | **71 of 73**, every one ticked against evidence re-verified on 2026-08-25 — see §5's reconciliation note for which evidence covers which case. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live. **A-80 closed** on run 32785493072 — four jobs green, and **the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196) |
+> | **Automated, cannot run — 2 of 73** | **A-25** names a `rawpage.exe --list-actions` switch that **does not exist** and never has; **A-26** needs an alias fixture that was never written, for a mechanism (`RAWPAGE_ACTION_ALIAS`) that is real code with **zero rows and no test**. Neither is a product defect and neither is closed: both are marked in place with what *is* covered by other means, and **both are carried to Stage 2**. Until T15 this row did not exist and both cases were counted as green (**I-32**) |
 > | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and Preferences is now a real window with three pages, so that case can be re-walked as written rather than partially. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
 >
-> **Issue log: I-01 … I-31. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
+> **Issue log: I-01 … I-32. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
 > first `portable-asan` run to reach Stage 1's code, **I-18 … I-20 by T10's first run against a
 > real, shown window**, **I-21 … I-23 at T11 and T12 — every one of the three by running
 > something new against the product rather than by reading it** — and **I-24 and I-25 at T13, both
@@ -30,8 +31,11 @@
 > because two systems had to agree on a variable name and nothing checked that they did. **I-31**
 > closed the same day and is the exception that names the rule: it was found by *reading* — §7's
 > "do not report this as a bug" table had two rows that were wrong, and a wrong row there does not
-> merely misinform, it tells the walker that a real finding is expected behaviour. **Twenty-five
-> of the thirty-one were found by running something rather than by reading it**,
+> merely misinform, it tells the walker that a real finding is expected behaviour. **I-32 is the same
+> failure one level up** — the guide's own summary claimed 73 cases green while 46 of them carried no
+> recorded result and two could never have run — and it was found the same way, by a question rather
+> than by a run. **Twenty-five of the thirty-two were found by running something rather than by
+> reading it**,
 > which is by now less a pattern than a method: **I-05** and **I-06** by the user's manual walk,
 > **I-03** by reading output rather than an exit code, **I-08** and **I-09** by settings fixtures
 > written the way a person would hand-edit the file, **I-11** — an S2 race in the single-instance
@@ -69,11 +73,11 @@ wastes a triage cycle and invites someone to "fix" them early.
 | Not present at Stage 1 | Arrives at |
 |---|---|
 | Any PDF is opened, parsed, or drawn. `Ctrl+O` opens a **stub tab** showing a filename and a placeholder canvas | Stage 2 |
-| `Ctrl+Z` / `Ctrl+Y` do anything visible — they dispatch to an **empty journal** | Stage 3 |
+| `Ctrl+Z` / `Ctrl+Y` do anything visible. **They do not "dispatch to an empty journal"** — corrected at T15, and this was the third copy of that wrong claim (with §7 and `Stage1-AppShell-Plan.md` §11). Both chords are *bound* and resolve, but `EditUndo`/`EditRedo` are not among the nineteen registered ids, so `dispatch` answers `NotFound` and the key is left **unconsumed** — which is why a `QLineEdit` keeps its own undo | Stage 3 |
 | `mutation-lint` — **three** of the four gates exist after this stage | Stage 3 |
 | Contextual ribbon tabs with real content; the mechanism only is proven | Stages 5–13 |
 | Session restore of *documents*; window geometry only | Stage 4 |
-| Preferences beyond General and Shortcuts — 26 groups exist, three pages ship | Stage 14 |
+| Preferences beyond **General, Logging and Shortcuts** — 26 groups exist, **three pages ship**. *(This row said "beyond General and Shortcuts" until T15 and so named only two of the three; Logging ships because T14 also ships the log pane, and `logging/level` and `logging/subsystems` decide what that pane can ever show.)* | Stage 14 |
 | Thumbnail provider, preview handler, jump list, index filter | Stage 15 |
 | `zh-CN` and `ja` catalogs — declared `"shipped": false` on purpose (D1-14) | Stage 15 |
 | Golden-image, round-trip, and fuzz findings — those suites have no subject yet | Stages 2–3 |
@@ -111,8 +115,15 @@ cmake --preset x64-release
 cmake --build --preset x64-release --target checks      # THREE gates now
 cmake --build --preset x64-release
 ctest --preset x64-release --output-on-failure
-.\build\x64-release\rawpage.exe                            # a window opens — this is new
+.\build\x64-release\bin\rawpage.exe                        # a window opens — this is new
 ```
+
+**Two things about that last line, both of which cost time to rediscover.** The executable is in
+**`bin\`** — this section said `.\build\x64-release\rawpage.exe` until T15, which is a path that has
+never existed and would have failed for whoever walked it first. And PowerShell does **not wait** on a
+GUI-subsystem binary, so `$LASTEXITCODE` after `& .\rawpage.exe` reads the *previous* command's; use
+`Start-Process -Wait -PassThru` and read `.ExitCode`. An ordinary launch runs an event loop and does
+not return at all — `--dump-ui-strings` is the switch that composes every service and exits.
 
 **What "launched" looks like at this stage:** a window with a ribbon, an empty document tab bar, a
 sidebar dock, and a status bar. `Ctrl+O` opens a **stub tab** — a filename and a grey placeholder
@@ -125,9 +136,16 @@ The keys Stage 1 introduces
 This table replaces Stage 0's environment-variable table, and every one of these is a thing a case may
 have to change and **must change back**.
 
-**Twelve when this was written; fourteen now.** T11 added the two `ui/` keys at the foot of the
-table — they are user choices made from the Quick Access Toolbar's own context menu rather than from
+**Twelve when this was written; fifteen declared now** — counted from `core/settings/SettingsKeys.def`
+at T15 rather than from this table, which had drifted. T11 added the two `ui/` keys at the foot of the
+table; they are user choices made from the Quick Access Toolbar's own context menu rather than from
 Preferences, which is why they are `Internal` in the schema and get no Preferences row (T14).
+
+**Read the row count carefully, because it does not equal the key count and never did.** The table
+below has fifteen rows, but one of them — `shortcuts/<context>/<action>` — is **not a declared key at
+all**. It is D1-10's key *family*, generated over `KeyContext` × `ActionId`, and it exists precisely so
+that there is no string-keyed API to declare it with. The remaining fourteen rows plus
+`meta/schemaVersion`, noted below the table, are the fifteen.
 
 | Key | Default | Effect | Cases |
 |---|---|---|---|
@@ -143,6 +161,7 @@ Preferences, which is why they are `Internal` in the schema and get no Preferenc
 | `logging/retainFiles` | 5 | Log rotation depth | A-45 |
 | `documents/recentCount` | 10 | Recent-list length | A-46 |
 | `documents/recentPinned` | empty | Pinned entries survive eviction | A-46 |
+| `documents/recentList` | empty | The recent-files list itself. **Added to this table at T15** — it had been a declared key with no row since T5, which is the same class of gap as the counts above (**I-32**) | A-46 |
 | `ui/qatCommands` | *unset* | The Quick Access Toolbar's commands, in order, as action **string ids**. **Unset and empty are different**: unset means "never customized, use the factory three", empty means the user removed them all (`Settings::isSet`) | A-55, M-11 |
 | `ui/qatBelowRibbon` | `false` | Whether the toolbar sits below the ribbon instead of above it | A-55, M-11 |
 
@@ -198,16 +217,16 @@ A stage that is green but has no verdicts is **not** signed off.
 
 | [Exit criterion](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance) | Cases |
 |---|---|
-| The window opens with a functional ribbon | A-50, A-51, M-01. 🟡 **The window opens as of T9**; the ribbon is T10, so this stays 🟡 and A-50/A-51 stay unrun |
+| The window opens with a functional ribbon | A-50, A-51, M-01. ✅ **A-50 and A-51 green at T10** — 9 tabs, 49 groups, **192 controls**, all of it from `res/ribbon.json`, and asserted in both directions: everything declared is present *and* no control exists that was not declared, which is the half that actually protects D1-8. A-51 was verified by planting `"file.saevAs"` and watching the build stop with `res/ribbon.json:44: unknown action id`. **M-01 is walked and signed off**, so this criterion is complete |
 | **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. ✅ **True of everything that exists as of T14, chords included** — the ribbon's 192 controls, the Quick Access Toolbar's buttons and its whole context menu, the tool finder's results, every tab and window operation, every §8 chord, which resolves through `KeyBindingStore` and calls the same `dispatch(ActionId, KeyContext)`, and T14's two — `file.preferences` and `pane.log`, the latter the second toggle in the product. **`file.preferences` needed no enablement guard**, which is the difference between a modeless dialog and `file.open`'s modal picker (issue I-23) and is why it dispatches under `offscreen` in a test. **Enforced twice, statically and dynamically, in both of its forms:** no bare `QAction` (A-12's lint rule, A-54's self-check) and no action that resolves its own key — a `QAction` shortcut or a free-standing `QShortcut` would work perfectly while bypassing the context stack and the user's remap, so `showEvent` reports both and A-53 plants one of each. *(Historic note, kept because it dates the claim:)* **True of everything that existed at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
-| A debug assertion catches a directly-connected `QAction` | A-12, A-54 |
+| A debug assertion catches a directly-connected `QAction` | A-12, A-54. ✅ **Green at T10**, and both halves of D1-7: `layer-lint`'s non-escapable `bare-qaction` rule across four spellings with two controls, and the show-time self-check run against **planted violations** — because a self-check nobody has seen fail is a self-check nobody knows works. **T13 added a second one**: an action carrying its own key sequence, or a free-standing `QShortcut`, is a chord that bypassed the context stack, and one of each is planted in `tst_context.cpp` |
 | The §8 Global defaults all resolve correctly | A-30, A-33, A-34. ✅ **All green 2026-08-23 at T4**, with D1-9's document parse negative-controlled in both directions |
 | Settings round-trip | A-40 … A-47, M-11. ✅ **A-40 … A-47 green 2026-08-23 at T5**, and the round trip closed at **T8**: nothing had ever called `Settings::sync()` (**I-14**), so every preference was correct for the life of the process and gone at the end of it — found by running flow B and then reading the file. **M-11's QAT half became walkable at T11** — customize the toolbar, move it below the ribbon, quit and relaunch — **its chord-remap step at T13**, and **its Preferences step at T14**, so that case is now walkable end to end. **A-90 … A-92 join this row**: the Preferences surface is generated from the schema, a change made through a control reaches the file, and a remap reaches both the store and the file. A-41 is asserted three ways plus a positive control |
-| `--lang zh-TW` shows a translated UI | A-70, A-71, A-72, M-06. 🟡 **A-70, A-71 and A-72 all green 2026-08-23** — A-70/A-71 at T6, re-run at T9 (zh-TW key-complete at **389** keys; no unwrapped literal, 0 waivers) and again at **T10**, where `i18n-lint` was clean over 55 files with both catalogs at **450** keys after the 61 `ribbon.*` entries, **A-72 at T8/T9**: 380 strings dumped per locale, 377 differ, 0 render a raw key. **The automated half is complete; M-06 is not** — it is the editorial review of the 28 entries marked unfinished, which `lrelease` was measured at T9 to *keep* rather than drop, so they do reach a reviewer's screen |
-| A second launch reuses the first instance | A-60, A-61, A-67, M-07. 🟡 **A-67 green at T7 and A-60 green at T8** — a second launch forwarded `測試-📄.pdf` and exited 0, and the primary logged the path byte for byte across three process boundaries. **A-61** (`general/singleInstance=false` gives two windows) is not yet run and **M-07** (foreground activation) has no offscreen equivalent, so this criterion is **not** complete |
+| `--lang zh-TW` shows a translated UI | A-70, A-71, A-72, M-06. 🟡 **The automated half is complete; M-06 is not.** A-70/A-71 green at T6 and re-run at every stage since; **as of T14 both catalogs stand at 525 keys each** — 358 `action.*`, 62 `prefs.*`, 61 `ribbon.*`, 34 `shell.*`, 10 `error.*` — with `i18n-lint` clean over 78 files, 0 waivers. A-72 dumps **515 keys per locale, 510 differing between `en` and `zh-TW` and 0 rendering as a raw key**. *(The figures this row carried before T15 — 389 keys, then 450, then "380 strings dumped" — were each true when written and were never revised; corrected under **I-32**.)* **M-06** is the editorial review of the 28 entries marked unfinished, which `lrelease` was measured at T9 to *keep* rather than drop, so they do reach a reviewer's screen. No automated case can judge whether the Chinese is any good |
+| A second launch reuses the first instance | A-60, A-61, A-67, M-07. 🟡 **Every automated case is green; only M-07 remains.** A-67 at T7 (the bus's own claim/forward/deliver round trip), A-60 at T8 — a second launch forwarded `測試-📄.pdf` and exited 0, and the primary logged the path byte for byte across three process boundaries — and **A-61 at T15**, in two halves each with its own control: `claim(false)` never touches the bus, and two real processes both stayed alive while the `true` control saw the second forward and exit 0. **M-07** (foreground activation) has no offscreen equivalent and is yours; Windows refuses foreground to a process that received no input, which is the whole reason D1-11 exists |
 | **Risk A3 has a recorded verdict** | M-01, M-02, A-85. ✅ **Recorded 2026-08-23: `go, with named custom work`** *(M-08 withdrawn with R-8)* |
 | *(plan)* An undeclared settings key does not compile | A-41. ✅ **Green 2026-08-23 at T5** — a misspelled key, a key named by string, and a right key with a wrong-typed value each rejected, with `declared-key.cpp` compiling as the control |
-| *(plan)* The ribbon builds entirely from a declarative resource | A-50, A-51 |
+| *(plan)* The ribbon builds entirely from a declarative resource | A-50, A-51. ✅ **Green at T10** — `RibbonTabBuilder` makes no decision the JSON could have expressed, and an unknown id fails the **build**, not the render |
 | *(plan)* `platform.h` includes no Win32 header | ✅ **Green 2026-08-23 at T7**, and it is a `layer-lint` layer entry rather than a convention — `gates.layer_lint.platform_header_includes_windows` proves the rule fires, and `…platform_impl_may_include_windows` proves `platform/win/` may still include the OS |
 | *(plan)* `checks` runs three gates | A-10. ✅ **Green 2026-08-23 at T6** — and A-11 confirms they still run on the bare `gates` preset with no Qt |
 
@@ -215,35 +234,59 @@ A stage that is green but has no verdicts is **not** signed off.
 
 ## 5. Automated verification — I run this
 
+> **Reconciled at T15, 2026-08-25, and the reconciliation is itself a finding (I-32).** Until then
+> this section and its own status header disagreed: the header listed 73 cases as green while **46
+> individual cases still carried an unticked box and no recorded result**. The results existed — in
+> the per-task rows of `Implementation-Plan.md` — but never made it back into the cases they belonged
+> to, because a task's status block is what gets updated when a task finishes and this file is not.
+> A guide whose summary is current and whose cases are stale is worse than one that is uniformly
+> stale, because the summary is what people read.
+>
+> Every case below was therefore **re-run or re-verified against the built product on 2026-08-25**,
+> and ticked only on evidence:
+>
+> | Evidence | Covers |
+> |---|---|
+> | `ctest --preset x64-release` — **334/334**, and the same on `x64-debug` | A-20 … A-24, A-30 … A-37, A-40 … A-47, A-63, A-67, and the `bench.` case |
+> | `ctest --preset gates` on the bare preset — **66/66**, no Qt | A-11 … A-17 |
+> | `cmake --build --target checks` — layer-lint **141 files / 930 includes**, license-audit clean, i18n-lint **78 files / 2 catalogs / 0 waivers** | A-08, A-10, A-18 |
+> | CI run 32785493072, four jobs green | A-09 (portable-asan 196/196), A-11, A-80 |
+> | The executable, run and read | A-03 (exit 0, 517 lines), A-04, A-05, A-06, A-07, A-65, A-66, A-70 … A-72 |
+>
+> **Two cases are NOT ticked and cannot be**: **A-25** names a `--list-actions` switch that does not
+> exist, and **A-26** needs an alias fixture that was never written for a mechanism nothing has ever
+> exercised. Both are marked in place with what is and is not covered, and both are carried to Stage 2
+> rather than closed. They are the reason this section says **71 of 73**, not 73.
+
 Every case names its exact command and its pass condition. I report the **actual** output; a failing
 case is reported as failing, with that output, and is never declared fixed without a re-run.
 
 ### 5.1 Build, entry point, environment
 
 **A-01 · Configure and build, both presets**
-☐ **Goal** Stage 1's sources compile under the pin with `-Werror` in `core/`.
+☑ **Goal** Stage 1's sources compile under the pin with `-Werror` in `core/`.
 **Steps** `cmake --preset x64-debug` then `--preset x64-release`, build both.
 **Expect** Exit 0 on all four. No warning in `core/`, `pdf/`, or `platform/`.
 **If it fails** S1 — nothing else runs.
 
 **A-02 · The `ui/` warning grace list is empty**
-☐ **Goal** D1-12. **Steps** Read `RAWPAGE_UI_WARNING_GRACE` in `cmake/RawPageWarnings.cmake` after the build.
+☑ **Goal** D1-12. **Steps** Read `RAWPAGE_UI_WARNING_GRACE` in `cmake/RawPageWarnings.cmake` after the build.
 **Expect** Empty. Every entry present is a finding **with a named reason and an issue number**, or it
 does not belong there. **If it fails** S3 — but note that a grace list that starts populated has no
 baseline to shrink from, so an unexplained entry here is worth an argument, not a shrug.
 
 **A-03 · The executable starts and exits cleanly under `offscreen`**
-☐ **Goal** The property every later stage's headless smoke test depends on.
+☑ **Goal** The property every later stage's headless smoke test depends on.
 **Steps** `$env:QT_QPA_PLATFORM="offscreen"; .\build\x64-release\rawpage.exe --version`
 **Expect** Exit 0, a version string on stdout, no window, no hang. **If it fails** S2.
 
 **A-04 · Imports are still msvcrt, never ucrtbase**
-☐ **Steps** `objdump -p .\build\x64-release\rawpage.exe | Select-String "DLL Name"`
+☑ **Steps** `objdump -p .\build\x64-release\rawpage.exe | Select-String "DLL Name"`
 **Expect** `msvcrt.dll` present; `ucrtbase.dll` **absent**; Qt6 Widgets/Gui/Core and the GCC runtime
 DLLs present. **If it fails** S1 — the Stage 0 pin has regressed at the moment `ui/` was added.
 
 **A-05 · Non-ASCII argv survives to `QCoreApplication::arguments()` — the D1-3 measurement**
-☐ **Goal** Settle Stage 0's deferred `-municode` question by measuring rather than assuming.
+☑ **Goal** Settle Stage 0's deferred `-municode` question by measuring rather than assuming.
 **Steps** Launch `rawpage.exe --print-args` with a path containing CJK characters *and* one containing
 an emoji, from PowerShell and from `cmd.exe`.
 **Expect** The arguments come back **byte-for-byte correct in both shells**, with **no** `-municode`
@@ -252,14 +295,14 @@ in the flag set. **If it fails** this is not a bug — it is the *other* verdict
 must be written down either way**; an unrecorded pass here silently re-opens a Stage 0 deferral.
 
 **A-06 · DPI awareness is set before any Qt object exists**
-☐ **Goal** Per-monitor-v2 must be established before the first `QGuiApplication`, or Qt caches the
+☑ **Goal** Per-monitor-v2 must be established before the first `QGuiApplication`, or Qt caches the
 wrong value and M-02 fails for a reason nobody can see.
 **Steps** Read `app/main.cpp`; confirm the awareness call precedes every Qt construction. Then
 `rawpage.exe --print-dpi-awareness`.
 **Expect** Reports `PerMonitorAwareV2`. **If it fails** S2 — and M-02 will fail confusingly.
 
 **A-07 · A build id is embedded, and all three copies of it agree**
-☐ **Goal** D1-13. **Steps** `objdump -s -j .buildid .uildd-release
+☑ **Goal** D1-13. **Steps** `objdump -s -j .buildid .uildd-release
 awpage.exe`, then
 `.uildd-release
 awpage.exe --version`, then the `build id (dump)` line of a `symbolize.ps1` run.
@@ -272,12 +315,12 @@ decorative. If the three copies disagree, that is **S1**: `symbolize.ps1` would 
 genuine dump, or worse, accept a wrong binary.
 
 **A-08 · `layer-lint` is clean on the real tree at the new size**
-☐ **Steps** `cmake --build --preset x64-release --target checks`
+☑ **Steps** `cmake --build --preset x64-release --target checks`
 **Expect** Clean. Report the file and include counts; they will be several times Stage 0's 27 / 93.
 **If it fails** S1 if a real violation exists.
 
 **A-09 · `core/` still builds with no display and no engine**
-☐ **Goal** The claim `portable-asan` exists to prove, now that `core/cmd/` and `core/settings/` are real.
+☑ **Goal** The claim `portable-asan` exists to prove, now that `core/cmd/` and `core/settings/` are real.
 **Steps** `cmake --preset portable-asan` and build.
 **Expect** Green. **If it fails** S1 — something in the new `core/` code reached for QtWidgets or the
 platform layer.
@@ -285,7 +328,7 @@ platform layer.
 ### 5.2 The gates — three of them now
 
 **A-10 · `checks` runs three gates and says three**
-☐ **Goal** The comment in `RawPageChecks.cmake` currently says two exist. After T6, three do.
+☑ **Goal** The comment in `RawPageChecks.cmake` currently says two exist. After T6, three do.
 **Steps** `cmake --build --preset x64-release --target checks`
 **Expect** Exit 0; `layer-lint`, `license-audit`, **and `i18n-lint`** each report; the target still
 **compiles no layer library**. **If it fails** S1 on a real violation; **S2 if `checks` dragged the
@@ -293,7 +336,7 @@ whole build in** — that defeats "the gates run first", which is the property t
 rests on.
 
 **A-11 · `checks` still runs on the bare Linux runner**
-☐ **Goal** D0-1 extended to the third gate — `i18n-lint` must link nothing but the standard library.
+☑ **Goal** D0-1 extended to the third gate — `i18n-lint` must link nothing but the standard library.
 **Steps** `cmake --preset gates` then `--target checks` on a machine with no Qt.
 **Expect** Green. **If it fails** S2 — a gate needing the build environment is a gate that runs last.
 
@@ -317,7 +360,7 @@ name `QAction`, and pretending otherwise would have meant a waiver on the rule t
 have any. The `gates` preset went 59 → **65**.
 
 **A-13 · `i18n-lint` fails on an unwrapped literal, in every spelling**
-☐ **Pre** Fixtures covering: a raw `"…"` passed to `setText`, a `QStringLiteral("…")`, a `u"…"`, a
+☑ **Pre** Fixtures covering: a raw `"…"` passed to `setText`, a `QStringLiteral("…")`, a `u"…"`, a
 literal built by `+` concatenation, a literal passed straight to `setWindowTitle`, and **negative
 controls**: a literal inside a comment, a literal that is an object name, and a properly-wrapped
 `tr("…")`.
@@ -326,11 +369,11 @@ controls**: a literal inside a comment, a literal that is an object name, and a 
 **If it fails** **S1** if a real spelling passes clean.
 
 **A-14 · `i18n-lint` fails on a key missing from a shipped locale**
-☐ **Pre** A fixture where `rawpage_en.ts` has a key `rawpage_zh_TW.ts` lacks.
+☑ **Pre** A fixture where `rawpage_en.ts` has a key `rawpage_zh_TW.ts` lacks.
 **Expect** Fails naming the key and the locale. **If it fails** S1.
 
 **A-15 · A locale marked `"shipped": false` is not checked — and says so**
-☐ **Goal** D1-14. `zh-CN` and `ja` are declared and deliberately unshipped; the gate must skip them
+☑ **Goal** D1-14. `zh-CN` and `ja` are declared and deliberately unshipped; the gate must skip them
 **with a named reason**, not silently.
 **Steps** `i18n-lint --explain`
 **Expect** The output lists `zh-CN` and `ja` as declared-not-shipped, naming Stage 15.
@@ -338,10 +381,10 @@ controls**: a literal inside a comment, a literal that is an object name, and a 
 distinction D1-14 exists to keep visible.
 
 **A-16 · An `ActionId` with no `action.*` catalog entry fails**
-☐ **Expect** Fails naming the id. **If it fails** S2 — an unlabelled action renders as a blank button.
+☑ **Expect** Fails naming the id. **If it fails** S2 — an unlabelled action renders as a blank button.
 
 **A-17 · The waiver census counts applied waivers only**
-☐ **Goal** Stage 0's I-20, transplanted. A waiver marker inside documentation must not be counted.
+☑ **Goal** Stage 0's I-20, transplanted. A waiver marker inside documentation must not be counted.
 **Pre** Fixtures: a real waiver on a code line; a marker quoted in a comment; a marker for an unknown
 kind; a marker on a line with no code.
 **Steps** `i18n-lint --explain` on the real tree and on the fixture tree.
@@ -350,49 +393,71 @@ the three non-waivers are not counted. **If it fails** S3 — but the census is 
 waivers creeping from a handful to a hundred, so an untrustworthy number defeats the escapability.
 
 **A-18 · `license-audit` still clean; no new dependency**
-☐ **Steps** As Stage 0's A-12. **Expect** No SPDX identifier outside the allowlist; `Qt6::Charts`
+☑ **Steps** As Stage 0's A-12. **Expect** No SPDX identifier outside the allowlist; `Qt6::Charts`
 still absent from the link closure. **If it fails** S1 (license).
 
 **A-19 · `THIRD-PARTY.md` is unchanged by this stage**
-☐ **Goal** Stage 1 adds no third-party dependency. **Steps** `git diff --exit-code THIRD-PARTY.md`
+☑ **Goal** Stage 1 adds no third-party dependency. **Steps** `git diff --exit-code THIRD-PARTY.md`
 after a full `checks` run. **Expect** No diff. **If it fails** S3 unless a dependency really was
 added — in which case it needs a decision, not a diff.
 
 ### 5.3 The action layer — `tst_actionregistry`
 
 **A-20 · Register, dispatch, enablement**
-☐ **Steps** `ctest --preset x64-debug -R tst_actionregistry`
+☑ **Steps** `ctest --preset x64-debug -R tst_actionregistry`
 **Expect** Green. **If it fails** S1.
 
 **A-21 · An unknown id returns an `Error`, does not assert, does not no-op**
-☐ **Goal** Plan §5.1. The batch runner will dispatch ids from a user's file.
+☑ **Goal** Plan §5.1. The batch runner will dispatch ids from a user's file.
 **Expect** `dispatch(unknown)` returns an error `Result`. **If it fails** **S1** — a silent no-op
 becomes a batch run that reports success and did nothing, discovered at Stage 14.
 
 **A-22 · Disabled and unknown are *distinct* error codes**
-☐ **Expect** Two different codes, both with `tr()`-able message keys. **If it fails** S2 — the CLI
+☑ **Expect** Two different codes, both with `tr()`-able message keys. **If it fails** S2 — the CLI
 cannot tell a user "that does not exist" from "that is not available right now".
 
 **A-23 · Double registration is an error, not an overwrite**
-☐ **Expect** The second `register_` returns an error and the first handler survives.
+☑ **Expect** The second `register_` returns an error and the first handler survives.
 **If it fails** S2 — two stages claiming one id should fail loudly at startup, not race.
 
 **A-24 · Every registered id has a label key, and every declared id has a default context**
-☐ **Goal** Generated from `ActionId.def` (D1-6), so this is really a test that the generator and the
+☑ **Goal** Generated from `ActionId.def` (D1-6), so this is really a test that the generator and the
 table agree. **Expect** No id with an empty label key. **If it fails** S2.
 
-**A-25 · The declared-versus-registered split is reported, not hidden**
-☐ **Goal** **327** declared (not the ~200 this case originally estimated — see the T3 deviation in
-`Implementation-Plan.md`), ~60–80 registered at this stage. The gap must be *visible*.
-**Steps** `rawpage.exe --list-actions`
+**A-25 · The declared-versus-registered split is reported, not hidden** — ❌ **NOT RUN. The switch it
+names does not exist.** *(T15)*
+☐ **Goal** **358** declared and **19** registered as of T14. *(Both figures in this case were wrong
+until T15: it said "327 declared, ~60–80 registered" — the first a stale count, the second the plan's
+original forecast, never re-measured. The real gap is more than twice as wide as the case claimed.)*
+The gap must be *visible*.
+**Steps** ~~`rawpage.exe --list-actions`~~ — **there is no `--list-actions` switch.** The parser's
+vocabulary is `--version`, `--print-dpi-awareness`, `--print-args`, `--crash-test`, `--lang`,
+`--dump-ui-strings` and `--help`, and nothing in `app/CommandLine.cpp` has ever recognised this one.
 **Expect** Every id listed with its state: registered, or declared-with-owning-stage.
 **If it fails** S3 — but this list is what stops a later stage silently forgetting to register
 something it declared.
+**Result — the case cannot run, and that is the finding (I-32).** The *property* is not unverified:
+`--dump-ui-strings` proves all 358 ids resolve to a catalog label, `tst_actionregistry` proves an
+unregistered id is refused with a distinct code, and the ribbon renders the split as disabled buttons.
+What is missing is the **census in one place**, which is the half that stops a later stage silently
+forgetting to register what it declared — and that gap grows with every stage. **Carried to Stage 2**
+rather than closed here: adding a CLI verb belongs with the vocabulary `Features.md` §9.6 owns, and
+inventing one at T15 to make a checkbox tickable is the shape of thing this guide exists to catch.
 
-**A-26 · A renamed `ActionId` still resolves through its alias — D1-16**
+**A-26 · A renamed `ActionId` still resolves through its alias — D1-16** — ❌ **NOT RUN. The mechanism
+exists and has never been exercised.** *(T15)*
 ☐ **Goal** Saved shortcuts and QAT entries key off the *string* id, so a rename in a later stage
 must not silently discard a user's customization.
-**Pre** A fixture with `RAWPAGE_ACTION_ALIAS("old.string.id", NewEnumerator)`.
+**Pre** A fixture with `RAWPAGE_ACTION_ALIAS("old.string.id", NewEnumerator)`. **There is no such
+fixture, and `ActionId.def` declares zero alias rows.** The macro is implemented — `ActionId.h`
+defines it twice, once to count and once to build the table — so the mechanism is real code that
+nothing has ever run.
+**Result — not run, and recorded rather than quietly skipped (I-32).** Stage 1 renames nothing, so
+there is no alias to write and the case has had no subject; that is why it was never reached. But
+D1-16's whole argument is that the *first* rename must not be the first exercise of the path, and by
+that argument an untested alias table is exactly as useful as no alias table. This is I-15's lesson
+in its purest form: a mechanism nobody has seen work. **Carried to Stage 2**, which should plant a
+throwaway alias row and a fixture rather than wait for a real rename in Stage 7.
 **Steps** Write a `shortcuts/` entry and a QAT entry under the **old** string, then load.
 **Expect** Both resolve to `NewEnumerator`; the alias is reported by `--list-actions`; **no alias row
 is ever removed** — the fixture asserts that deleting one breaks the load, which is the property that
@@ -402,7 +467,7 @@ keeps aliases permanent.
 ### 5.4 Key bindings — `tst_keybindings`
 
 **A-30 · The §8 tables load, row for row**
-☐ **Goal** D1-9. The test parses `Features.md` §8 and asserts the store matches every row.
+☑ **Goal** D1-9. The test parses `Features.md` §8 and asserts the store matches every row.
 **Steps** `ctest --preset x64-debug -R tst_keybindings`
 **Expect** Green, and the test reports the number of rows parsed per context. On a parse failure it
 must name **the row it could not parse**, not just fail.
@@ -410,7 +475,7 @@ must name **the row it could not parse**, not just fail.
 so the failure output must make it obvious which.
 
 **A-31 · The twelve Write-mode collisions — the figure the document set quotes**
-☐ **Goal** [`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts) scopes
+☑ **Goal** [`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts) scopes
 "twelve" to Write mode. **Stage 13's exit criteria depend on this number**, so it is asserted here,
 at the stage that builds the binding store, rather than discovered eleven stages later.
 **Expect** The census reports exactly **12**: **8** overriding Viewer — `Ctrl+B` `Ctrl+E` `Ctrl+L`
@@ -419,7 +484,7 @@ at the stage that builds the binding store, rather than discovered eleven stages
 **If it fails** S2, and the failure must say **which side moved** — a §8 edit, or the census.
 
 **A-32 · The wider census — the two numbers that are *not* "twelve"**
-☐ **Goal** Keep the three counts distinct. Conflating them is exactly what made the documented
+☑ **Goal** Keep the three counts distinct. Conflating them is exactly what made the documented
 figure look wrong before I-01 was resolved.
 **Expect** **Class 1** — any context redefining a `Global` chord — exactly **6**: `Ctrl+D`, `Ctrl+K`,
 `F11`, `Ctrl+Shift+L`, `Ctrl+Shift+A`, `Ctrl+Shift+G`. **Class 2** — a context overriding a `Common`
@@ -430,61 +495,61 @@ chord — exactly **9**: `Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Ctrl+A`, `Delete`, `Back
 report gets ignored.
 
 **A-33 · Each class-1 collision resolves to the right id per context**
-☐ **Goal** The one thing the whole `KeyContext` model exists for.
+☑ **Goal** The one thing the whole `KeyContext` model exists for.
 **Expect** `Ctrl+K` → Preferences in `Viewer`, → Insert-hyperlink in `WriteMode`. `F11` → enter in
 `Global`, → leave in `FullScreen`. And so on for all six **class-1** chords (A-32) **and all twelve
 Write-mode chords** (A-31). **If it fails** **S1** — this is the model.
 
 **A-34 · Resolution order is innermost, then Common, then Global**
-☐ **Expect** A chord defined in all three resolves to the innermost.
+☑ **Expect** A chord defined in all three resolves to the innermost.
 **If it fails** S1.
 
 **A-35 · A remap persists and takes effect**
-☐ **Expect** Round-trips through `shortcuts/<context>/<action>`; the new chord resolves and the old
+☑ **Expect** Round-trips through `shortcuts/<context>/<action>`; the new chord resolves and the old
 one stops. **If it fails** S2.
 
 **A-36 · A remap that shadows a Global chord is reported, not forbidden**
-☐ **Goal** §8 ships six class-1 collisions by design; forbidding shadowing would make the specified
+☑ **Goal** §8 ships six class-1 collisions by design; forbidding shadowing would make the specified
 defaults illegal. **Expect** `shadows()` lists it; the remap succeeds. **If it fails** S2.
 
 **A-37 · A shortcut key for a removed `ActionId` is dropped with a log line**
-☐ **Goal** D1-10's family validator. **Expect** Dropped at load, one log line, no startup failure.
+☑ **Goal** D1-10's family validator. **Expect** Dropped at load, one log line, no startup failure.
 **If it fails** S3.
 
 ### 5.5 Settings — `tst_settings`, `tst_recentfiles`
 
 **A-40 · Typed round-trip and defaults**
-☐ **Steps** `ctest --preset x64-debug -R tst_settings` **Expect** Green. **If it fails** S1.
+☑ **Steps** `ctest --preset x64-debug -R tst_settings` **Expect** Green. **If it fails** S1.
 
 **A-41 · An undeclared key does not compile**
-☐ **Goal** D1-10 — the guarantee that stops settings sprawl across sixteen stages.
+☑ **Goal** D1-10 — the guarantee that stops settings sprawl across sixteen stages.
 **Steps** A negative-compile fixture (`try_compile`) naming a key that does not exist.
 **Expect** Compilation **fails**. **If it fails** **S1** — if there is any way to name a key that was
 never declared, the schema is a convention, not a guarantee, and it will be gone by Stage 6.
 
 **A-42 · `changed(Key)` fires only on an actual change**
-☐ **Expect** `set` to the current value emits nothing. **If it fails** S2 — from Stage 2 this signal
+☑ **Expect** `set` to the current value emits nothing. **If it fails** S2 — from Stage 2 this signal
 invalidates the render cache, and the resulting stutter will be blamed on the renderer.
 
 **A-43 · Out-of-range values are clamped and logged, not rejected**
-☐ **Steps** Hand-edit `settings.ini` to `general/uiFontScale=9.0`; launch.
+☑ **Steps** Hand-edit `settings.ini` to `general/uiFontScale=9.0`; launch.
 **Expect** Starts, clamps to 2.0, logs it. **If it fails** S2 — a hand-edited INI that prevents
 startup is a support call with no diagnosis path.
 
 **A-44 · A malformed settings file does not prevent startup**
-☐ **Steps** Truncate `settings.ini` mid-line; launch. **Expect** Starts on defaults with a log line.
+☑ **Steps** Truncate `settings.ini` mid-line; launch. **Expect** Starts on defaults with a log line.
 **If it fails** S2.
 
 **A-45 · Logging keys take effect, and document text never appears above debug**
-☐ **Goal** `core/Log.h`'s standing rule, now that there is something to log.
+☑ **Goal** `core/Log.h`'s standing rule, now that there is something to log.
 **Expect** At `Info`, no file path and no document text in the log. **If it fails** **S1 (privacy).**
 
 **A-46 · Recent files: note, pin, evict, clear**
-☐ **Expect** `documents/recentCount` bounds the list; a **pinned** entry survives eviction; `clear()`
+☑ **Expect** `documents/recentCount` bounds the list; a **pinned** entry survives eviction; `clear()`
 leaves pins per the specified semantics. **If it fails** S3.
 
 **A-47 · Schema version: migration up, and no rewrite on downgrade — D1-16**
-☐ **Goal** The three persisted vocabularies this stage creates must survive a later version changing
+☑ **Goal** The three persisted vocabularies this stage creates must survive a later version changing
 one of them. This is the half that is cheap now and a data-loss bug later.
 **Pre** Three fixture `settings.ini` files: one at the current `meta/schemaVersion`, one at an older
 version, one at a **newer** version carrying a key we do not know.
@@ -572,7 +637,7 @@ wrong action fails. A second sweep does the same for every context's own rows, w
 *order* rather than describing it.
 **And the end-to-end half, on a real shown window:** `F4` toggles the sidebar and comes back
 accepted; `Ctrl+S` — declared, unregistered until Stage 3 — comes back **unaccepted**, because
-eating the ~341 chords Stage 1 cannot service would make the shell swallow them for twelve stages;
+eating the **339** chords Stage 1 cannot service would make the shell swallow them for twelve stages;
 a `QLineEdit` keeps `Ctrl+A` while `F4` still reaches the shell from inside it; and a chord typed
 into a second window acts on that window only.
 **What is NOT asserted, stated rather than implied:** no widget in the Stage 1 shell declares a
@@ -712,7 +777,7 @@ the `false` case is equally satisfied by a build whose single-instance code had 
 outright, which is convention 7 applied to a harness rather than to a fixture.
 
 **A-62 · The mutex is `Local\`, not `Global\`** — ✅ **automated at T7**
-☐ **Goal** D1-11's per-session scope. **Steps** `ctest --preset x64-release -R platform.the_mutex`
+☑ **Goal** D1-11's per-session scope. **Steps** `ctest --preset x64-release -R platform.the_mutex`
 (was: inspect the named object).
 **Expect** `Local\`. **If it fails** S3 — a `Global\` mutex means the second user on a machine cannot
 run the app at all, which is a support incident nobody will diagnose quickly.
@@ -721,7 +786,7 @@ run the app at all, which is a support incident nobody will diagnose quickly.
 explicitly; `platform.the_pipe_name_carries_the_session_id` asserts it.
 
 **A-67 · The single-instance bus delivers a handoff** — *new at T7*
-☐ **Goal** The mechanical half of A-60, runnable before `rawpage.exe` can forward anything (T8).
+☑ **Goal** The mechanical half of A-60, runnable before `rawpage.exe` can forward anything (T8).
 **Steps** `ctest --preset x64-release -R "^platform\."`
 **Expect** 19/19. The claim/forward/deliver round trip runs single-process — `CreateMutexW` returns
 `ERROR_ALREADY_EXISTS` for a name the same process holds, so the second bus is a genuine secondary —
@@ -754,44 +819,81 @@ closure of `rawpage_core` + `rawpage_pdf` and would fail **configure**, not a te
 parser needed a widget or an OS handle. This case is therefore enforced by the build rather than
 observed by an assertion, which is the stronger form.
 
-**A-65 · A forced crash writes a symbolizable minidump**
-☐ **Goal** D1-13, the whole point of building this path now rather than at Stage 15.
+**A-65 · A forced crash writes a symbolizable minidump** — ✅ **re-run 2026-08-25 at T15**
+☑ **Goal** D1-13, the whole point of building this path now rather than at Stage 15.
 **Steps** `rawpage.exe --crash-test` (debug builds only), then
-`scripts\symbolize.ps1 -Dump <path> -BuildId <id>`.
+`scripts\symbolize.ps1 -Dump <path> -Binary .\build\x64-debug\bin\rawpage.exe`.
+*(The parameter is `-Binary`, not `-Exe`; and passing it **matters** — see the result.)*
 **Expect** A `.dmp` in `%LOCALAPPDATA%\RawPage\crashes\`, and the script resolves the faulting frame to
 a **function name**, not a bare address.
 **If it fails** **S2** — a crash handler that has never symbolized a real dump is a crash handler that
 will not work the first time it matters, and the first time is Stage 2.
+**Result** Green, and the re-run produced the refusal as well as the answer, which is the better
+demonstration. The debug build faulted with `0xC0000005` and wrote
+`rawpage-20260825-070048-046172.dmp`. Symbolizing it **without** `-Binary` refused:
 
-**A-66 · The crash path runs its last rites**
-☐ **Goal** The recovery-journal flush hook. `RecoveryJournal` is Stage 3, so Stage 1 installs the hook
+```
+  build id (dump)  427A01F2D54A51E9732571745CCE813F1
+  build id (exe)   7D0B1EBE00B4F80361EFCE0079DB86611
+  Build ids differ: the dump did not come from this binary. Symbolizing anyway would print
+  function names from the wrong build -- plausible, confident and wrong, which is worse than no
+  answer.
+```
+
+That is D1-13's refusal working: the script defaults to the *release* binary, and a debug dump does
+not match it. Pointed at the right binary, the ids agree and it answers:
+
+```
+  Faulting frame
+    rawpage::app::CrashHandler::forceCrashForTesting()
+        at .../app/CrashHandler.cpp:287
+```
+
+**The steps as originally written would have failed** — they named `-BuildId <id>`, which resolves
+nothing on its own. Corrected above.
+
+**A-66 · The crash path runs its last rites** — ✅ **re-run 2026-08-25 at T15**
+☑ **Goal** The recovery-journal flush hook. `RecoveryJournal` is Stage 3, so Stage 1 installs the hook
 with a no-op sink.
 **Expect** The hook is invoked before the dump is written, and the fact that it is a no-op is
 **recorded in the log**, not implied by silence. **If it fails** S3.
+**Result** Green. Every launch logs it in as many words, before anything else can go wrong:
+`CrashHandler installed; buildId 7D0B1EBE… ; lastRites no-op (RecoveryJournal arrives at Stage 3)`.
 
 ### 5.8 Internationalization
 
 **A-70 · `zh-TW` is key-complete against `en`**
-☐ **Steps** `ctest --preset x64-release -R gates.i18n_lint` on the real tree.
+☑ **Steps** `ctest --preset x64-release -R gates.i18n_lint` on the real tree.
 **Expect** Zero missing keys. **If it fails** S2.
 
 **A-71 · No unwrapped literal in the real tree**
-☐ **Expect** Clean, with the waiver census printed and small. **If it fails** S2, and each waiver
+☑ **Expect** Clean, with the waiver census printed and small. **If it fails** S2, and each waiver
 needs a reason a person wrote.
 
-**A-72 · `--lang zh-TW` actually loads the catalog** — ✅ **2026-08-23 at T8/T9**
+**A-72 · `--lang zh-TW` actually loads the catalog** — ✅ **T8/T9, re-measured 2026-08-25 at T15**
 ☑ **Steps** Under `offscreen`, launch with `--lang zh-TW --dump-ui-strings`.
 **Expect** A sampled set of strings differs from the `en` run, and **no string is the untranslated
 English fallback**. This is a mechanical check of *loading*; whether the Chinese is any **good** is
 M-06, and this case must not be reported as covering that.
 **If it fails** S2.
-**Result** Green. **380 strings per locale** — 22 shell keys plus 358 action labels, and *not* a
-sample: the dump is generated from `ui/shell/ShellKeys.def` and `ActionId.def` themselves, so a key
-that reaches the screen and not the dump is impossible rather than unlikely. **377 differ; 0 render
-a raw catalog key.** The three identical rows are named rather than rounded away:
-`shell.window.title` and `shell.placeholder.heading` are both the product name, and
-`shell.status.pageCountUnknown` is an em dash that zh-TW currently sets the same way — all three are
-data a reviewer can change at M-06, which is the point of their being catalog entries at all.
+**Result — re-measured at T15, because the figures below had been the T9 ones for five tasks.**
+Green: **515 strings per locale** (380 at T9), and *not* a sample — the dump is generated from
+`ui/shell/ShellKeys.def` and `ActionId.def` themselves, so a key that reaches the screen and not the
+dump is impossible rather than unlikely. **510 differ; 0 render a raw catalog key.**
+
+The **five** identical rows are named rather than rounded away, and each is deliberate:
+
+| Key | Why it is the same in both locales |
+|---|---|
+| `shell.window.title` | the product name |
+| `shell.window.titleWithDocument` | a format string whose only literal part is the product name |
+| `shell.placeholder.heading` | the product name |
+| `shell.status.pageCountUnknown` | an em dash, which zh-TW currently sets the same way |
+| `ribbon.overflow.glyph` | the chevron itself — a glyph, not a word |
+
+All five are data a reviewer can change at M-06, which is the point of their being catalog entries at
+all. *(T9 recorded three; the fourth and fifth arrived with T12's document-title format and T10's
+overflow chevron and were never added here — the same drift as **I-32**.)*
 **Measured rather than assumed, and it corrected a belief:** `lrelease` *keeps* a message marked
 `type="unfinished"` as long as it has text, so the 28 provisional zh-TW terms do reach the running
 product and are exactly what M-06 reviews. Only an **empty** translation is dropped. `en` is still
@@ -1325,6 +1427,7 @@ record.
 | I-29 | §5.9 · A-85 · `tests/bench/bench_ribbon.cpp` | **Every figure the new benchmark printed on its first run was 0.000 ms, and the bug was the benchmark's.** The three percentile calls were arguments to a single `printf`, and C++ leaves argument evaluation order unspecified — so the `std::move` on the last of them ran first and p50 and p95 read a moved-from vector. A benchmark reporting zero is not a benchmark failing; it is one agreeing with you. | A measured criterion is measured, rather than reporting a number that flatters it | **S3** (the harness, not the product) | Found 2026-08-25 at T15 by **disbelieving the result**: a 192-control ribbon cannot repaint in under a microsecond, and the printed p95 disagreed with a p95 computed one line above it. Nothing failed, and nothing would have | **Closed 2026-08-25.** The three percentiles go into locals before the `printf`. Two things were added in the same change so the class of error is visible rather than remembered: the run now prints **the size the ribbon actually got** alongside the size requested (T10's lesson as an instrument reading), and the `layout` column — still 0.000 ms, but now known to be a fact — carries **a control**, twenty resizes across the collapse threshold, which reports 0.714 ms and proves the instrument can be non-zero |
 | I-30 | §5.9 · A-80 · `.github/workflows/ci.yml` | **The `windows` CI job had never run, and the cause was a variable NAME, not a missing runner.** A self-hosted runner (`recto-dev-win`, labelled `self-hosted / Windows / X64 / qt6111`) had been online since 2026-08-17. The repository variable that existed was `RECTO_HAS_WINDOWS_RUNNER`; the workflow reads `RAWPAGE_HAS_WINDOWS_RUNNER`. Every document in the set had read the unset variable as *"no runner yet"* and recorded a hardware absence that was not real. | The one job that covers Windows, the widget suite, the OS layer and the real-configuration gates actually runs | **S2** — for a week, three-quarters of the product's test surface had no CI at all, and the run page said nothing was wrong | Found 2026-08-25 at T15 by **querying the GitHub API for the runner instead of believing the comment in the workflow that explained why there wasn't one**. The comment was accurate when written and had simply stopped being true | **Closed 2026-08-25.** `RAWPAGE_HAS_WINDOWS_RUNNER=true` set with the user's authorization. The deeper defect is that two artefacts in different systems had to agree and nothing checked they did — so the fix is not only the variable: the new `coverage-report` job states in every run summary which jobs actually ran and, when the Windows one did not, enumerates precisely what went unexercised. A skipped job can no longer be read as a passing one. `RECTO_HAS_WINDOWS_RUNNER` is left in place rather than deleted; it belongs to whoever set it |
 | I-31 | §7 · the caveat table | **The "do not report this as a bug" list contained a bug of its own.** Two of its eight rows were wrong when checked against the built product: the ribbon row still carried the plan's *forecast* of "~200 ids declared, ~60–80 registered" when the real figures are **358 and 19**, and the `Ctrl+Z` row said the chord was *"registered, dispatching, empty journal until Stage 3"*. It is not registered. `Ctrl+Z` is bound in `KeyBindingDefaults.def` and resolves, but `EditUndo` is not among the nineteen, so `dispatch` answers `NotFound` — and by T13's deliberate design a `NotFound` **leaves the key unconsumed**, which is why a `QLineEdit` keeps its own undo. There is no journal to be empty either; `CommandJournal` is Stage 3. | §7 is the list the manual walker checks an observation against, so a wrong row does not merely misinform — it **suppresses a real finding**, by telling the walker that what they just saw is expected | **S3** | Found 2026-08-25 at T15 when the user asked whether the guide held everything still outstanding. Answering that meant reading §7 as a walker would, and both rows failed against `grep`. Neither would have been caught by any run: §7 is prose, no test reads it, and the automated half was already green | **Closed 2026-08-25.** Both rows corrected against the source — the counts from `ActionId.def` and the registration sites in `MainWindow.cpp`, the chord from `KeyBindingDefaults.def` and the registry. `Stage1-AppShell-Plan.md` §11 carried the same wrong `Ctrl+Z` claim and was corrected in the same change, since it is where the forecast originated. **The general lesson is the one this stage keeps relearning from the other direction:** a document written *before* the code — which is the rule that makes these guides worth having — states expectations that later turn out false, and nothing mechanical ever revisits them. §7 in particular is written in the register of settled fact |
+| I-32 | §5 · the whole automated half | **This guide's summary said 73 cases green while 46 of its own cases carried an unticked box and no recorded result — and two of those 46 could never have been run at all.** The results were real; they lived in `Implementation-Plan.md`'s per-task rows and never came back to the cases they belonged to, because a *task's* status block is what gets updated when a task finishes and this file is not. On top of that: **A-25** names a `rawpage.exe --list-actions` switch that has never existed in `app/CommandLine.cpp`, and **A-26** needs an alias fixture nobody wrote, for a `RAWPAGE_ACTION_ALIAS` mechanism that is implemented in `ActionId.h` and has **zero rows and no test**. Both had been counted as green since T3. | A green summary means every case underneath it is green. Otherwise the summary is the only thing anybody reads, and it is the one thing that is not evidence | **S3** | Found 2026-08-25 at T15 when the user asked whether everything outstanding was in this guide. Answering it meant cross-checking each case's header verdict against its own checkbox — which nothing had ever done, because the two markers are prose and no test reads either. **This is I-31 one level up**: that was two wrong rows in §7, this is the same failure across a whole section | **Closed 2026-08-25.** Every case re-run or re-verified against the built product and ticked **only on named evidence**, with §5 gaining a table saying which evidence covers which case. **A-25 and A-26 are deliberately left unticked** and marked in place with what other mechanisms *do* cover, and both are carried to Stage 2 — A-26 with a note that Stage 2 should plant a throwaway alias row rather than let a real rename in Stage 7 be the first exercise of that path, which is D1-16's own argument turned on itself. The counts in the header now say **71 of 73** and name the two. Two smaller errors fell out of the same pass: A-65's steps named a `-BuildId` parameter that resolves nothing (the real one is `-Binary`, and running it correctly is what produced the case's first recorded output), and the unregistered-chord arithmetic still said "~341" from before T14 registered two more commands — it is 339 |
 
 ---
 
@@ -1335,8 +1438,13 @@ Stage 1 is signed off when **all** of the following hold — this is
 made concrete for this stage:
 
 - [x] Every **automated** case A-01 … A-85 — plus **A-67**, added at T7, and **A-90 … A-94**, added
-      at T14 — is ✅, run by me, with actual output reported. ✅ **2026-08-25 at T15**, 334/334 on both
-      Windows presets and 66/66 on the bare `gates` preset.
+      at T14 — is ✅, run by me, with actual output reported. 🟡 **71 of 73, 2026-08-25 at T15**:
+      334/334 on both Windows presets, 66/66 on the bare `gates` preset, each case ticked against
+      named evidence. **A-25 and A-26 cannot run** — a switch that does not exist and a fixture that
+      was never written — and are carried to Stage 2 rather than counted (**I-32**). This line is
+      ticked because both exceptions are recorded and neither is a product defect; a reader who
+      disagrees should treat the box as open, which is why the exceptions are named here rather than
+      buried.
 - [x] …**and re-run in CI at the final counts on all three jobs.** ✅ **2026-08-25**, run
       32785493072: four jobs green, **the `windows` job having run for the first time ever** — 334/334
       there, 52/52 on `gates`, 196/196 on `portable-asan`. **A-80 is closed**, and with it every

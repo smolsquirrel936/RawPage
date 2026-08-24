@@ -61,7 +61,7 @@ in CI.** What remains is the manual walk in ⑥.
 | Gates | `layer-lint` 141 files / 930 includes, `license-audit` clean, `i18n-lint` 78 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
 | Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion). T15 re-measured **R-9 against the shipped 192-control ribbon** rather than T2's spike: p95 **0.471 ms** against a 16.667 ms budget · **`-municode` = not adopted** |
 | Manual | **M-01 ✅, M-02 🟡** signed off by the user. **M-03 walkable since T12, M-12 since T13, and M-02's non-ribbon half and M-11 in full since T14**; M-04 is partly walkable; the rest are not walkable yet |
-| Issues | I-01…I-31 in ⑥. **None open.** T15's three were the harness, its infrastructure, and the guide itself: a benchmark whose every printed figure was its own argument-evaluation bug, and an S2 — a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did |
+| Issues | I-01…I-32 in ⑥. **None open.** T15's three were the harness, its infrastructure, and the guide itself: a benchmark whose every printed figure was its own argument-evaluation bug, and an S2 — a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
