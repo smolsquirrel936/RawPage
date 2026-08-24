@@ -11,10 +11,13 @@
 // WHAT IT DOES NOT HAVE YET, and where each arrives. Saying so here is cheaper than a reader
 // searching for a ribbon that is not missing so much as not yet built:
 //
-//   * chord input, which is `ui/shell/ShortcutBinder` at T13 -- until then the actions registered
-//     below are reachable through the registry (and so through a test and the batch runner), and
-//     through the ribbon, the toolbar and the tool finder, but not from the keyboard;
 //   * a real page surface, which is Stage 2 -- a document tab is a stub under decision D1-2.
+//
+// Chord input arrived at T13 and is `ui/shell/ShortcutBinder`, one per window: it computes the
+// §8 context from the focus chain, resolves the chord through `KeyBindingStore`, and dispatches
+// through the same `ActionRegistry` call the ribbon makes. NOTHING here sets a `QAction`
+// shortcut -- see `ShortcutBinder.h` for why Qt's own shortcut system cannot express §8's
+// per-context bindings, and `showEvent` for the check that keeps it that way.
 //
 // ---------------------------------------------------------------------------------------------
 // THERE CAN BE MORE THAN ONE OF THESE, AND THE ACTION LAYER HAD TO LEARN THAT AT T12.
@@ -56,6 +59,7 @@ class DocumentTabBar;
 class DocumentWindow;
 class QuickAccessToolbar;
 class Ribbon;
+class ShortcutBinder;
 class SidebarDock;
 class StatusBar;
 class ThemeManager;
@@ -131,6 +135,10 @@ public:
     // to choose WHICH window to raise.
     void raiseToForeground();
 
+    // The window's keyboard. `activeContext()` is what attributes every dispatch -- a ribbon
+    // click's as much as a chord's -- to the §8 context the focus is actually in.
+    ShortcutBinder*     shortcutBinder() const { return shortcuts_.get(); }
+
     Ribbon*             ribbon() const { return ribbon_; }
     QuickAccessToolbar* quickAccessToolbar() const { return qat_; }
     ToolFinder*         toolFinder() const { return toolFinder_; }
@@ -144,7 +152,8 @@ protected:
     // the same answer a desktop does.
     void changeEvent(QEvent* event) override;
 
-    // The debug half of D1-7. Runs at SHOW time rather than at construction because an action can
+    // The debug half of D1-7, in both of its forms -- no direct connection, and no QAction that
+    // resolves its own key. Runs at SHOW time rather than at construction because an action can
     // be added to the window after the constructor -- a dialog's, a pane's -- and the check is worth
     // having on the tree as the user actually sees it.
     void showEvent(QShowEvent* event) override;
@@ -183,6 +192,12 @@ private:
     void toggleRibbon();
 
     app::Services services_;
+
+    // Constructed before the action factory, because the factory's context provider asks it which
+    // §8 context a dispatch happened in, and destroyed first, because it filters the application's
+    // events and must stop doing so before the window it answers for comes apart (I-12's lesson,
+    // reached through a different door).
+    std::unique_ptr<ShortcutBinder> shortcuts_;
 
     // Constructed before the ribbon and destroyed after it: every RawPageAction the ribbon shows
     // was made here, and the lambda each one carries holds this factory by reference.

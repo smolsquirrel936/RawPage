@@ -13,6 +13,7 @@
 #include "ui/shell/Ribbon.h"
 #include "ui/shell/RibbonModel.h"
 #include "ui/shell/RibbonTabBuilder.h"
+#include "ui/shell/ShortcutBinder.h"
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/StatusBar.h"
 #include "ui/shell/ThemeManager.h"
@@ -135,6 +136,11 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     theme_ = std::make_unique<ThemeManager>(services_.settings, this);
     theme_->apply();
 
+    // THE KEYBOARD -- T13. Before `registerActions()` and before the ribbon, because the action
+    // factory built there asks it which §8 context a dispatch happened in, and because a window
+    // that is shown before its binder exists is a window with a dead keyboard for those frames.
+    shortcuts_ = std::make_unique<ShortcutBinder>(services_.actions, services_.keyBindings, this);
+
     status_ = new StatusBar(this);
     setStatusBar(status_);
 
@@ -165,6 +171,12 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
 
 MainWindow::~MainWindow()
 {
+    // THE KEYBOARD GOES FIRST. The binder filters the APPLICATION's events, so it is reached from
+    // outside this object; leaving it installed while ~QWidget takes the window apart is the same
+    // hazard as I-12's signal connection, arriving through a different door. Releasing it here
+    // removes the filter while `this` is still a whole MainWindow.
+    shortcuts_.reset();
+
     // NOT `= default`, and the reason is a real crash rather than a precaution.
     //
     // The lambdas below are connected to the SIDEBAR's signals with `this` as the receiver, and Qt
@@ -204,10 +216,12 @@ void MainWindow::buildHeader()
 {
     actionFactory_ = std::make_unique<ActionFactory>(
         services_.actions,
-        // The context every ribbon dispatch is attributed to. A constant until T13, when
-        // `ShortcutBinder::activeContext()` computes it from the focus chain -- which is why this is
-        // a callback and not a parameter: T13 replaces this lambda and touches nothing else.
-        [] { return KeyContext::Global; });
+        // The context every ribbon dispatch is attributed to, computed from the focus chain by
+        // `ShortcutBinder::activeContext()` -- T13, and it was one line exactly as the callback was
+        // shaped to make it. Capturing `this` is safe here in a way it is NOT in a registry handler
+        // (see the class comment): the factory is owned by this window and dies with it, whereas a
+        // registration outlives every window that made it.
+        [this] { return shortcuts_->activeContext(); });
 
     // setMenuWidget, not a QToolBar in the top dock area. A ribbon REPLACES the menu bar rather than
     // sitting under one, and the menu-widget slot is the only place QMainWindow puts a widget above
@@ -274,6 +288,15 @@ void MainWindow::showEvent(QShowEvent* event)
         RAWPAGE_LOG_ERROR(LogSubsystem::Ui) << "action wiring:" << complaint;
     Q_ASSERT_X(complaints.isEmpty(), "MainWindow::showEvent",
                "an action on this window bypasses ActionRegistry -- see the log lines above");
+
+    // T13's half of the same rule. A `QAction` carrying its own key sequence, or a free-standing
+    // `QShortcut`, resolves its key through Qt against no context and no user remap -- it works,
+    // and it makes §8's per-context bindings a document about something the product does not do.
+    const QList<QString> keyComplaints = ShortcutBinder::shortcutComplaints(this);
+    for (const QString& complaint : keyComplaints)
+        RAWPAGE_LOG_ERROR(LogSubsystem::Ui) << "shortcut wiring:" << complaint;
+    Q_ASSERT_X(keyComplaints.isEmpty(), "MainWindow::showEvent",
+               "a chord on this window bypasses ShortcutBinder -- see the log lines above");
 }
 
 void MainWindow::buildCentralSurface()

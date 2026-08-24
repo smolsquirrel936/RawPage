@@ -14,8 +14,7 @@
 # has real translation units, so the archive is no longer empty without it, and nothing had called
 # its anchor since T1 rewrote main.cpp.
 add_library(rawpage_ui STATIC
-    # shell/ -- the application frame (T9) and the ribbon (T10). The QAT, document tabs and the
-    # shortcut binder are T11 through T13 and are not here yet.
+    # shell/ -- the application frame (T9) and the ribbon (T10).
     shell/ShellKeys.def
     shell/Catalog.h
     shell/Catalog.cpp
@@ -59,6 +58,12 @@ add_library(rawpage_ui STATIC
     shell/DocumentWindow.cpp
     shell/DocumentTabBar.h
     shell/DocumentTabBar.cpp
+
+    # The keyboard -- T13. ShortcutBinder is the ONLY path from a key press to a command, and the
+    # only place a QKeySequence is turned into a core/cmd/Chord: core/ may not name a QtGui type,
+    # which is why the binding model is first-party and the conversion happens at this boundary.
+    shell/ShortcutBinder.h
+    shell/ShortcutBinder.cpp
 )
 
 # ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before

@@ -4,29 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository currently is
 
-**Stage 0 scaffolding plus the first twelve tasks of Stage 1.** The product is **RawPage**, a
+**Stage 0 scaffolding plus the first thirteen tasks of Stage 1.** The product is **RawPage**, a
 Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives under
 `claude-plan/`.
 
 ### Where the work is right now — read this first
 
-**Stage 1 is IN PROGRESS. T1–T12 are complete; T13 is next.** Live status, task by task
+**Stage 1 is IN PROGRESS. T1–T13 are complete; T14 is next.** Live status, task by task
 and deviation by deviation, is the Stage 1 status block in `claude-plan/Implementation-Plan.md` —
 that block is the authority, and this section is its summary.
 
 | | |
 |---|---|
-| **Tests** | **275/275** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 65/65 with no Qt |
-| **Gates** | `layer-lint` clean at 122 files / 697 includes; `license-audit` clean; `i18n-lint` clean at 65 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Tests** | **297/297** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is 65/65 with no Qt |
+| **Gates** | `layer-lint` clean at 125 files / 735 includes; `license-audit` clean; `i18n-lint` clean at 67 files / 2 catalogs, 0 waivers. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**; **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
-| **Issue log** | I-01…I-23 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
-| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** **M-03 (document tabs: tear off, re-dock) became walkable at T12.** M-04…M-12 are not walkable yet — the code they test does not exist |
+| **Issue log** | I-01…I-25 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** **M-03 (document tabs: tear off, re-dock) became walkable at T12, and M-12 (the stage's honest emptiness) fully at T13** — the keyboard works, so that walk can be taken as written. M-04…M-07, M-09 and M-10 are not walkable yet, and M-11 is walkable except for its Preferences step |
 
-**Next action: T13** — `ShortcutBinder` and full chord wiring: `activeContext()` over the focus
-chain, chord resolution, dispatch. It is the task the last three have been feeding — **seventeen
-commands are registered** and reachable from the ribbon, the Quick Access Toolbar, the tool finder
-and a test, and **not one of them from the keyboard**. Nothing is carried forward: I-19 was paid off
-at T11 and A-58 closed at T12. Nothing is implemented ahead of the plan's task order.
+**Next action: T14** — `LogPane` and `PreferencesDialog` (the shell plus the General and Shortcuts
+pages), every page built **from `SettingsSchema`** rather than hand-laid-out, with the Shortcuts page
+editing `KeyBindingStore` and showing `shadows()`. T13 hands it two things it needs: a remap now takes
+effect with nothing rebuilt, and `ShortcutBinder::qtKeyFor()` is the conversion a shortcut editor needs
+to show a chord as a key and read one back. Nothing is carried forward: I-19 was paid off at T11, A-58
+closed at T12 and A-53 at T13. Nothing is implemented ahead of the plan's task order.
 
 ### What now exists as code
 
@@ -83,15 +84,27 @@ at T11 and A-58 closed at T12. Nothing is implemented ahead of the plan's task o
   tear-off, re-dock, overflow) and `DocumentWindow`, which under **D1-2** holds a path and nothing
   else. `openFiles()` opens a tab per accepted path, still checking only the name and the suffix and
   reading no bytes. **`rawpage.exe` opens PDFs into tabs** — as stubs that say what Stage 2 brings.
+- **The keyboard (T13)** — `ui/shell/ShortcutBinder`, one per window, filtering `qApp` and answering
+  only for its own window. Three separable parts: `activeContext()`, a pure walk up `parentWidget()`
+  to the innermost widget that *declares* a `KeyContext`; `chordFor()`, the QtGui boundary
+  `core/cmd/Chord` was created for, driven by **one table read both ways** so `unreachableBindings()`
+  can say which §8 row names a key no keyboard can produce (all 248 round-trip); and `activate()`,
+  which resolves and dispatches. **Only two of five outcomes consume the key** — a dispatch and an
+  `Unavailable` refusal do, a `NotFound` does not. The focused widget gets **first refusal through
+  Qt's own `ShortcutOverride` handshake**, so a `QLineEdit` keeps `Ctrl+A` with no list of text
+  widgets to maintain. **Nothing in the Stage 1 shell declares a context**, so `activeContext()`
+  answers `Global` throughout — which is the honest state, and is what every §8 Global default is
+  resolved against.
 
 **Still no document code**: nothing in `core/doc/`, `pdf/cos/`, `pdf/render/`, `pdf/ops/`, or
 `ui/viewer/`. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window with a
-working ribbon, a customizable toolbar, a tool finder and document tabs as of T12** — 9 tabs above a
-sidebar, a status bar and a live theme, and a tab per opened file whose surface names what Stage 2
-brings. Most ribbon buttons are **disabled and say why**: 358 commands are declared and **seventeen**
-are registered, which is the honest state rather than a shortcut. There is **no chord input (T13)**:
-every one of those seventeen is reachable from the ribbon, the toolbar, the tool finder, a test and
-the future batch runner, and none of them from the keyboard. Because an ordinary launch runs an
+working ribbon, a customizable toolbar, a tool finder, document tabs and — since T13 — a keyboard** —
+9 tabs above a sidebar, a status bar and a live theme, and a tab per opened file whose surface names
+what Stage 2 brings. Most ribbon buttons are **disabled and say why**: 358 commands are declared and
+**seventeen** are registered, which is the honest state rather than a shortcut. Each of those
+seventeen is reachable from the ribbon, the toolbar, the tool finder, a test, the future batch runner
+**and now its §8 chord**; the other ~341 chords resolve, are refused as `NotFound`, and deliberately
+leave the key unconsumed. Because an ordinary launch runs an
 event loop, **the headless smoke test is `--dump-ui-strings`**: it composes every service, loads both
 catalogs and exits 0 without creating a window.
 
@@ -180,7 +193,16 @@ catalogs and exits 0 without creating a window.
    Corollary measured under `offscreen`: `activateWindow()` raises no `ActivationChange` there, so
    `raiseToForeground()` sets the active shell itself rather than deriving it from an event that may
    not come.
-15. **A command that needs a user is DISABLED where there is none — it does not block.** `file.open`
+15. **A chord never becomes a `QAction` shortcut or a `QShortcut`.** Qt's shortcut system cannot say
+   *innermost context, then `Common`, then `Global`* — the resolution order that IS the binding model
+   and the reason `Ctrl+K` means two different things — and it would have put each user remap into 358
+   actions as a shadow copy of `KeyBindingStore`. Every chord goes through `ui/shell/ShortcutBinder`:
+   focus chain → `KeyContext` → store → `ActionRegistry::dispatch`. A widget declares its context with
+   `ShortcutBinder::declareContext()` and nothing else does. This is D1-7's rule in its keyboard form,
+   and it is checked the same way — `MainWindow::showEvent` reports any action carrying a key sequence
+   and any free-standing `QShortcut`, with one of each planted in `tests/ui/tst_context.cpp`. (T13.)
+
+16. **A command that needs a user is DISABLED where there is none — it does not block.** `file.open`
    raises a modal file picker; under `QT_QPA_PLATFORM=offscreen` that dialog is shown to nobody and
    never returns, which stopped a whole `ctest` run dead with no failure and no output. Its
    enablement predicate is false when there is no one to ask, so a headless dispatch is refused with
@@ -348,10 +370,11 @@ Consequences that fall out of it: undo/redo, an fsync-per-command recovery journ
 
 Every user action is a named `ActionId`. Ribbon, QAT, context menus, chords, tool finder, CLI, and
 batch all resolve to one and call `ActionRegistry::dispatch(ActionId, KeyContext)`. **Nothing is wired
-directly to a widget slot.** `KeyContext` is computed from the focus chain by `ui/shell/ShortcutBinder`.
-This is what makes the same chord mean different things per context (twelve deliberate Write-mode collisions are
-specified in `Features.md` §8) and what makes the headless batch runner and CLI possible without a
-second implementation.
+directly to a widget slot.** `KeyContext` is computed from the focus chain by `ui/shell/ShortcutBinder`,
+which is also the only path from a key press to a command — **no `QAction` carries a shortcut** (see
+convention 15). This is what makes the same chord mean different things per context (twelve deliberate
+Write-mode collisions are specified in `Features.md` §8) and what makes the headless batch runner and
+CLI possible without a second implementation.
 
 ## Non-negotiable rules when writing code
 

@@ -13,7 +13,7 @@
 > | The locked toolchain, the seventeen platform interfaces, the inward-only rule | [`Tech-Stack-Plan.md` §4.2, §4.3, §6](./Tech-Stack-Plan.md#43-what-qt-gives-us-for-free-versus-what-needs-platform-code) |
 > | How Stage 1 is verified | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **In progress — T1 … T12 complete as of 2026-08-24; T13 is next.** Written
+> **Status:** 🟡 **In progress — T1 … T13 complete as of 2026-08-24; T14 is next.** Written
 > 2026-08-19, immediately after Stage 0 signed off and before any Stage 1 code existed. This file is a
 > plan, not a progress log — Stage 1's live status, task by task and deviation by deviation, is the
 > Stage 1 status block in `Implementation-Plan.md`, and that block is the authority.
@@ -348,6 +348,13 @@ waivers only. And I-15's: the fixtures must cover more than one spelling — a r
 | `rawpage_ui_tests` (new, D1-4) | `rawpage_core`, `rawpage_ui` | `tst_context`, `tst_ribbonbuild`, `tst_qat`, `tst_toolfinder`, `tst_theme`, `tst_actionwiring` | **Windows only**, `QT_QPA_PLATFORM=offscreen` |
 | `rawpage_platform_tests` (new, T7) | `rawpage_core`, `rawpage_platform` | `tst_platform` — the interface census, the OS object names, and a real claim/forward/deliver round trip | **Windows only**. Same reasoning as D1-4 from the other side: `tests/unit`'s headless assertion forbids linking `rawpage_platform`, and the first platform test is exactly the pressure that would otherwise weaken it |
 | gate fixtures (existing) | — | `i18n-lint` and the `platform/platform.h` cases join the `layer-lint` / `license-audit` ones | Windows + Linux |
+
+**Amended in place, per this file's header.** Two suites arrived that the table above does not
+name: **`tst_shell`** at T9, with the first widgets, and **`tst_documenttabs`** at T12. Both were
+predictable in hindsight and neither is a deviation from the design — the table was a forecast of
+subjects, and the shell frame and the document tabs are two the forecast simply missed.
+**`tst_context` arrived at T13**, as forecast and under its forecast name. The live list is
+`tests/ui/CMakeLists.txt`.
 
 `tst_commandline` lives in the headless suite even though `CommandLine` sits in `app/`: it is a pure
 parse of a `QStringList` into an intent, and the parser header is includable without linking the

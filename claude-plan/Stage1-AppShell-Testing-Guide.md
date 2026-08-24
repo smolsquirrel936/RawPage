@@ -6,20 +6,22 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **In progress — Stage 1 T1…T12 verified as of 2026-08-24.** **68 automated** cases
+> **Status:** 🟡 **In progress — Stage 1 T1…T13 verified as of 2026-08-24.** **68 automated** cases
 > (A-01 … A-85, plus **A-67** added at T7) and **12 manual** (M-01 … M-12), of which **M-08 is
 > withdrawn** with the accessibility removal.
 >
 > | | |
 > |---|---|
-> | **Automated, green** | A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50**, **A-51**, **A-52**, **A-54**, **A-55**, **A-56**, **A-57**, **A-58**, **A-60**, **A-62**, **A-63**, **A-64**, A-65…A-67, A-70…A-72. `ctest` **275/275** on both presets; the bare `gates` preset **65/65** with no Qt; `checks` clean on **three** gates at 122 files / 697 includes, i18n-lint 65 files / 0 waivers |
-> | **Automated, not yet reachable** | A-53, A-61, A-81…A-85 — everything needing chord input or a CI run at the final counts. They arrive with T13…T15. **A-80 is open rather than unreachable**: two of three CI jobs are green and the `windows` job has never run |
-> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp` so the walk only has to judge the gesture itself. M-04…M-07, M-09…M-12 are still not walkable: the code they test does not exist |
+> | **Automated, green** | A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50**, **A-51**, **A-52**, **A-54**, **A-55**, **A-56**, **A-53**, **A-57**, **A-58**, **A-60**, **A-62**, **A-63**, **A-64**, A-65…A-67, A-70…A-72. `ctest` **297/297** on both presets; the bare `gates` preset **65/65** with no Qt; `checks` clean on **three** gates at 125 files / 735 includes, i18n-lint 67 files / 0 waivers |
+> | **Automated, not yet reachable** | A-61, A-81…A-85 — a second-instance setting and the CI run at the final counts. They arrive with T14…T15. **A-53 closed at T13**, and with it the last case that needed chord input. **A-80 is open rather than unreachable**: two of three CI jobs are green and the `windows` job has never run |
+> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 is walkable except for its Preferences step (T14)**: the toolbar customization, the theme, the pane, the stub tab, the disabled buttons and now a chord remap are all there. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
 >
-> **Issue log: I-01 … I-23. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
+> **Issue log: I-01 … I-25. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
 > first `portable-asan` run to reach Stage 1's code, **I-18 … I-20 by T10's first run against a
-> real, shown window**, and **I-21 … I-23 at T11 and T12 — every one of the three by running
-> something new against the product rather than by reading it**. **Eighteen of the twenty-three were
+> real, shown window**, **I-21 … I-23 at T11 and T12 — every one of the three by running
+> something new against the product rather than by reading it** — and **I-24 and I-25 at T13, both
+> of them the harness rather than the product**: a case that asserted the opposite of what it meant,
+> and a gate that flagged a diagnostic string. **Twenty of the twenty-five were
 > found by running something rather than by reading it**,
 > which is by now less a pattern than a method: **I-05** and **I-06** by the user's manual walk,
 > **I-03** by reading output rather than an exit code, **I-08** and **I-09** by settings fixtures
@@ -109,10 +111,14 @@ canvas, with no page on it. That is D1-2 working correctly, not a rendering fail
 
 ### Settings keys that affect these cases
 
-The twelve keys Stage 1 introduces
+The keys Stage 1 introduces
 ([plan of record](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance)).
 This table replaces Stage 0's environment-variable table, and every one of these is a thing a case may
 have to change and **must change back**.
+
+**Twelve when this was written; fourteen now.** T11 added the two `ui/` keys at the foot of the
+table — they are user choices made from the Quick Access Toolbar's own context menu rather than from
+Preferences, which is why they are `Internal` in the schema and get no Preferences row (T14).
 
 | Key | Default | Effect | Cases |
 |---|---|---|---|
@@ -128,6 +134,8 @@ have to change and **must change back**.
 | `logging/retainFiles` | 5 | Log rotation depth | A-45 |
 | `documents/recentCount` | 10 | Recent-list length | A-46 |
 | `documents/recentPinned` | empty | Pinned entries survive eviction | A-46 |
+| `ui/qatCommands` | *unset* | The Quick Access Toolbar's commands, in order, as action **string ids**. **Unset and empty are different**: unset means "never customized, use the factory three", empty means the user removed them all (`Settings::isSet`) | A-55, M-11 |
+| `ui/qatBelowRibbon` | `false` | Whether the toolbar sits below the ribbon instead of above it | A-55, M-11 |
 
 `meta/schemaVersion` (D1-16) is written to the same file but is **not** a user setting and has no
 Preferences row — it is internal state, exercised by A-47.
@@ -182,10 +190,10 @@ A stage that is green but has no verdicts is **not** signed off.
 | [Exit criterion](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance) | Cases |
 |---|---|
 | The window opens with a functional ribbon | A-50, A-51, M-01. 🟡 **The window opens as of T9**; the ribbon is T10, so this stays 🟡 and A-50/A-51 stay unrun |
-| **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. 🟡 **True of everything that exists at T12** — the ribbon's 192 controls, the Quick Access Toolbar's buttons and its whole context menu, the tool finder's results, and every tab and window operation. Chords are still the missing surface (T13). *(Historic note, kept because it dates the claim:)* **True of everything that existed at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
+| **Every** button, menu item, and chord dispatches through `ActionRegistry` | A-12, A-20 … A-24, A-53, A-54, M-09. ✅ **True of everything that exists as of T13, chords included** — the ribbon's 192 controls, the Quick Access Toolbar's buttons and its whole context menu, the tool finder's results, every tab and window operation, and now every §8 chord, which resolves through `KeyBindingStore` and calls the same `dispatch(ActionId, KeyContext)`. **Enforced twice, statically and dynamically, in both of its forms:** no bare `QAction` (A-12's lint rule, A-54's self-check) and no action that resolves its own key — a `QAction` shortcut or a free-standing `QShortcut` would work perfectly while bypassing the context stack and the user's remap, so `showEvent` reports both and A-53 plants one of each. *(Historic note, kept because it dates the claim:)* **True of everything that existed at T9** — the sidebar's close button dispatches `view.toggleSidebar` rather than calling `hide()`, and `ui.toggling the sidebar goes through the registry` asserts it. The *enforcement* (A-12's lint rule, A-54's self-check) arrives with `ActionFactory` at T10, and chords at T13 |
 | A debug assertion catches a directly-connected `QAction` | A-12, A-54 |
 | The §8 Global defaults all resolve correctly | A-30, A-33, A-34. ✅ **All green 2026-08-23 at T4**, with D1-9's document parse negative-controlled in both directions |
-| Settings round-trip | A-40 … A-47, M-11. ✅ **A-40 … A-47 green 2026-08-23 at T5**, and the round trip closed at **T8**: nothing had ever called `Settings::sync()` (**I-14**), so every preference was correct for the life of the process and gone at the end of it — found by running flow B and then reading the file. M-11 needs the QAT (T11). A-41 is asserted three ways plus a positive control |
+| Settings round-trip | A-40 … A-47, M-11. ✅ **A-40 … A-47 green 2026-08-23 at T5**, and the round trip closed at **T8**: nothing had ever called `Settings::sync()` (**I-14**), so every preference was correct for the life of the process and gone at the end of it — found by running flow B and then reading the file. **M-11's QAT half became walkable at T11** — customize the toolbar, move it below the ribbon, quit and relaunch — **and its chord-remap step at T13**, since a remap now takes effect with nothing rebuilt (asserted in `tst_context`) and is read back from `settings.ini` at composition. Only its Preferences step still needs T14. A-41 is asserted three ways plus a positive control |
 | `--lang zh-TW` shows a translated UI | A-70, A-71, A-72, M-06. 🟡 **A-70, A-71 and A-72 all green 2026-08-23** — A-70/A-71 at T6, re-run at T9 (zh-TW key-complete at **389** keys; no unwrapped literal, 0 waivers) and again at **T10**, where `i18n-lint` was clean over 55 files with both catalogs at **450** keys after the 61 `ribbon.*` entries, **A-72 at T8/T9**: 380 strings dumped per locale, 377 differ, 0 render a raw key. **The automated half is complete; M-06 is not** — it is the editorial review of the 28 entries marked unfinished, which `lrelease` was measured at T9 to *keep* rather than drop, so they do reach a reviewer's screen |
 | A second launch reuses the first instance | A-60, A-61, A-67, M-07. 🟡 **A-67 green at T7 and A-60 green at T8** — a second launch forwarded `測試-📄.pdf` and exited 0, and the primary logged the path byte for byte across three process boundaries. **A-61** (`general/singleInstance=false` gives two windows) is not yet run and **M-07** (foreground activation) has no offscreen equivalent, so this criterion is **not** complete |
 | **Risk A3 has a recorded verdict** | M-01, M-02, A-85. ✅ **Recorded 2026-08-23: `go, with named custom work`** *(M-08 withdrawn with R-8)* |
@@ -531,12 +539,38 @@ lighter, which is the reversal an equality check cannot see. `FollowSystem` is a
 to be a *request* that resolves, never a palette of its own. Completeness itself is held by the
 compiler, not by this case: `colorFor()` is one switch with no `default`, under `ui/`'s `-Werror`.
 
-**A-53 · `activeContext()` over synthetic focus chains — `tst_context`**
-☐ **Goal** D1-5. Parented, never-shown widget trees; the innermost widget declaring a context wins;
+**A-53 · `activeContext()` over synthetic focus chains — `tst_context`** — ✅ **2026-08-24 at T13**
+☑ **Goal** D1-5. Parented, never-shown widget trees; the innermost widget declaring a context wins;
 a chain declaring none falls back to `Global`.
+**Steps** `ctest --preset x64-release -R "^ui\." --output-on-failure`
 **Expect** Green over every `KeyContext` value, plus a nested case (Comments pane inside a Viewer)
 and a detached-widget case. **If it fails** **S1** — this function is what makes one chord mean two
 things, and every collision case above is downstream of it.
+**Result** Green, as **22 cases** rather than the three the goal names, because the goal describes
+the focus walk and T13 has three separable parts that fail differently. The walk itself is asserted
+**over the enum** — every `KeyContext` a widget may declare, so a context added to `KeyContext.h` and
+forgotten here cannot look tested — plus the nested Comments-in-a-Viewer case, the detached widget,
+the empty chain, a `Common` declaration **refused** rather than stored (it is a resolution layer, not
+a place the focus can be), and an unreadable property falling through to the parent instead of
+asserting, since that value arrives from data.
+**Two things the case as written did not ask for, and both earn their place.** The **conversion
+census**: every one of §8's 248 rows is turned back into a key event and read again, so a chord whose
+key the boundary cannot name is a failure here rather than a binding that is loaded, censused,
+printed by the tool finder — and dead. And the **resolution sweep** that is the T13 exit criterion:
+each dispatched Global row is registered with a recording handler and pressed, and the id that
+arrives is compared with the row's own, so a resolution returning the right *kind* of answer for the
+wrong action fails. A second sweep does the same for every context's own rows, which asserts the
+*order* rather than describing it.
+**And the end-to-end half, on a real shown window:** `F4` toggles the sidebar and comes back
+accepted; `Ctrl+S` — declared, unregistered until Stage 3 — comes back **unaccepted**, because
+eating the ~341 chords Stage 1 cannot service would make the shell swallow them for twelve stages;
+a `QLineEdit` keeps `Ctrl+A` while `F4` still reaches the shell from inside it; and a chord typed
+into a second window acts on that window only.
+**What is NOT asserted, stated rather than implied:** no widget in the Stage 1 shell declares a
+context, so `activeContext()` answers `Global` throughout the product today. The per-context tables
+are exercised against synthetic chains and against the store, never against a real surface — the
+Viewer's is Stage 2, the panes' Stage 4, Write mode's Stage 13. Declaring `Viewer` on D1-2's stub to
+make the mechanism look exercised would have been a stub claiming to be a page surface.
 
 **A-54 · The no-direct-connection self-check catches a planted violation** — ✅ **2026-08-24 at T10**
 ☑ **Goal** D1-7(b). A self-check nobody has seen fail is a self-check nobody knows works.
@@ -737,8 +771,8 @@ status block. **If it fails** S1.
 CI run to reach Stage 1's code at T9's counts. (The Linux `gates` job runs 45 of the preset's 59 —
 the `wrong_compiler` fixtures are Windows-only, Stage 0's I-19.) **The `windows` job did not run and
 never has:** the workflow gates it on `vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'`, which is unset, so
-it is *skipped* rather than failing. Everything it would run is green **locally** at 226/226 on both
-presets — but locally-green is not CI-green, and A-80 asks for CI. **This case stays open**, and
+it is *skipped* rather than failing. Everything it would run is green **locally** at 275/275 on both
+presets (226/226 when this was first written at T9) — but locally-green is not CI-green, and A-80 asks for CI. **This case stays open**, and
 T15's job is to either register the self-hosted runner or record the deliberate absence here rather
 than let a skipped job read as a passing one.
 
@@ -925,7 +959,12 @@ whole-application keyboard pass. What is gone is the screen reader, the roles, a
 - **If it fails** S3 if the message is unclear; **S2 if you cannot find or symbolize it** — a dump path
   only I know is not a crash-reporting path.
 
-**M-11 · Everything survives a restart** ☐
+**M-11 · Everything survives a restart** ☐ — 🟡 **partly walkable as of T13**
+- **What is walkable now:** the QAT customization and its placement, the pane, the theme, the font
+  scale, three open tabs, a pinned recent file — and, since T13, *remap a chord*, though at this
+  stage the remap has to be made by hand in `settings.ini` under `shortcuts/<context>/<action>`
+  because the Shortcuts **page** is T14. **What is not:** Preferences itself, so walk the rest and
+  leave that step unticked rather than treating the case as blocked.
 - **Steps** Customize the QAT; move it below the ribbon; resize and auto-hide a pane; set a theme; set
   a font scale; remap a chord; open three tabs; pin one recent file. Quit properly. Relaunch. Then
   quit by **killing the process** and relaunch again.
@@ -934,7 +973,14 @@ whole-application keyboard pass. What is gone is the screen reader, the roles, a
   restored: `SessionState` is Stage 4, and their absence is correct here.
 - **If it fails** S2 if a customization is lost after a **clean** quit; S3 after a kill.
 
-**M-12 · The stage's honest emptiness is legible** ☐
+**M-12 · The stage's honest emptiness is legible** ☐ — 🟡 **fully walkable as of T13**
+- **What T13 changed:** the keyboard works, so the steps below can be walked as written. `Ctrl+Z`,
+  `Ctrl+S` and `Ctrl+P` still do nothing — and that is now the *correct* nothing rather than an
+  absent mechanism: those ids are declared and unregistered, so the chord resolves, the dispatch is
+  refused as `NotFound`, and the key is deliberately **left unconsumed** for whatever else might want
+  it. `Ctrl+O`, `F4`, `F9`, `F11` and `Ctrl+W` do work, which is the contrast the walk should notice.
+- **And this is the walk that can see what the harness cannot:** a chord the window manager, the IME
+  or the platform intercepts before Qt ever sees it. No synthetic key event can reproduce that.
 - **Goal** Stage 0's M-01 found that the most expensive defects were things the documentation did not
   say. The equivalent here is a UI that lies about what it can do.
 - **Steps** Use the app for ten minutes as if you did not know it was Stage 1. Click the disabled
@@ -1002,6 +1048,8 @@ record.
 | I-21 | §5.6 · A-54 · `ActionFactory` | **`ActionFactory` had never called `setCheckable`**, so `setChecked()` on every action it built was a no-op. The header has promised since T10 that *"a toggle is checkable, and only a toggle is"* — and the promise had never met a subject that could disprove it, because nothing registered a `checked` predicate until the Quick Access Toolbar's placement item at T11 | A toggle renders with a check mark; a non-toggle renders without one, and the two are distinguishable | **S3** | Register any command with a `checked` predicate and put it on a menu before the fix: the item is never ticked, whatever the predicate returns | **Closed 2026-08-24 at T11.** The factory now asks `ActionRegistry::isToggle()` — a new accessor, because `isChecked()` structurally cannot answer it: it returns false both for "not a toggle" and for "a toggle that is off", which is exactly the conflation the registry's own header warns about. `tooltipKey()` was added in the same change for the same reason: a `Registration` field nothing could read since T3. **The lesson is T10's I-18 and I-20 again in a third form** — a self-check, or a promise in a header, is only worth what its first meeting with a real subject proves |
 | I-22 | §5.6 · A-54 · `QLineEdit` | **A third kind of Qt-manufactured action**, found by the wiring self-check the first time a shown window contained the tool finder: `setClearButtonEnabled(true)` builds a `QAction` for the clear button and the check reported `bare QAction "" (_q_qlineeditclearaction)`. Unlike `QMenu::menuAction()` and `QDockWidget::toggleViewAction()` it is **not** recognisable by identity — measured, not assumed: it goes on the line edit's private side-widget list, so `QWidget::actions()` does not contain it, and the obvious identity check finds nothing | Qt's own intrinsic actions are excused; ours are checked | **S3** | Put a `QLineEdit` with a clear button on a shown `MainWindow` in a debug build: `Q_ASSERT_X` in `showEvent` fires | **Closed 2026-08-24 at T11.** `ActionFactory::adoptWidgetActions(widget)` lets the widget's owner stamp what Qt made **at the moment the property is turned on** — it stamps what exists at that instant and nothing later, which is what keeps it from becoming a blanket amnesty. Matching Qt's internal object name was the alternative and was rejected: it ties a gate to a private constant. The residual gap is stated in the header |
 | I-23 | §5.5 · A-58 · `file.open` | **A ten-minute CI hang.** T12 registered `file.open` with a modal `QFileDialog`, and `tst_shell`'s long-standing case *"the window registers exactly the actions it can service"* dispatches that id to assert it is `NotFound`. Under `offscreen` the dialog is built, shown to nobody, and never returns — the suite stopped dead at 274 of 275 tests with no failure and no output | A command a headless caller dispatches either runs or is **refused**; it never blocks | **S2** — a hang is worse than a failure, because a failure names itself | Before the fix: `ctest -R "the window registers exactly"` under `QT_QPA_PLATFORM=offscreen` never returns | **Closed 2026-08-24 at T12.** `file.open` carries an **enablement predicate** that is false when there is no user to show a dialog to (`platformName() == "offscreen"`), so a headless dispatch is refused with `Unavailable` — distinct from the `NotFound` of a command that does not exist, which is precisely the distinction T3 built those two codes for. The predicate is the fix rather than a check inside the handler because the registry already has the vocabulary, and a batch runner needs the answer, not the silence. **The parameterized form of "open this file" already exists** and needs no user: `MainWindow::openFiles()`, which is what flow B and the CLI use. The case that hung now asserts both codes — `NotFound` for `file.save`, `Unavailable` for `file.open` — so the hang has become an assertion |
+| I-24 | §5.6 · A-53 · `ShortcutBinder` | **The first version of the text-field case asserted the opposite of what it meant.** It pressed `Ctrl+A` in a `QLineEdit` on a shown window and required the key event to come back **unaccepted** as proof that the shortcut layer had stood aside. The field accepts it — that is what a text widget does with `Ctrl+A` — so the case failed against a product that was behaving exactly as designed. Worse, it was **vacuous** either way: `edit.selectAll` is one of the ~341 ids Stage 1 declares and does not register, so no dispatch could have happened whether the handshake worked or not. | A case about a collision uses a chord that actually collides, and asserts the SHELL did not act rather than that nobody did | **S4** — a defect in the case, never shipped | Found 2026-08-24 at T13 on the suite's first run: 296 of 297 green, this one red for the right behaviour | **Closed 2026-08-24.** The case now registers `edit.selectAll` itself — which is what Stage 3 will do for real, and the moment that would otherwise have broken every line edit in the product — then asserts the handler did **not** run and the field **did** select its text. **I-18 and I-20's lesson in a fourth form:** a check meets its real subject once, and that is when it gets corrected; here the subject was a `QLineEdit` doing its job |
+| I-25 | §5.6 · A-12 · `layer-lint` | **The `bare-qaction` rule flagged a diagnostic string.** T13's self-check produces the message *"… bypasses …"*, and the rule's patterns include `QAction` followed by a space — matched inside the message text, in a file that is not an allowed path. `checks` failed on prose. | A blunt, non-escapable substring rule is allowed to be blunt; the tree works around it | **S4** | Found 2026-08-24 at T13 by `gates.layer_lint.clean_tree` — which is the fixture that exists for exactly this: it asserts the real tree is clean rather than only that bad input fails | **Closed 2026-08-24 by rewording the MESSAGE, not the rule.** Narrowing a non-escapable rule to ignore string literals would weaken the one gate that stands between the product and an unroutable action, and would do it for a cosmetic reason; the reworded diagnostic costs nothing and carries a comment saying not to "fix" it back. **Recorded because the next person to write such a message will hit it too**, and because a gate that catches its own documentation is the failure mode Stage 0's I-20 named — here it is the harmless direction of it |
 
 ---
 
