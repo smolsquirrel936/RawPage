@@ -6,14 +6,15 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Automated half COMPLETE — Stage 1 T1…T15 verified as of 2026-08-25.** **73 automated** cases
+> **Status:** 🟡 **Automated half COMPLETE AND GREEN IN CI — Stage 1 T1…T15 verified as of
+> 2026-08-25. Every automated case passes; only the manual walk remains.** **73 automated** cases
 > (A-01 … A-94, plus **A-67** added at T7 and **A-90 … A-94** added at T14 in a new §5.10) and **12
 > manual** (M-01 … M-12), of which **M-08 is withdrawn** with the accessibility removal.
 >
 > | | |
 > |---|---|
 > | **Automated, green** | **Every case but one.** A-03…A-08, A-10…A-17, A-20…A-26, A-30…A-37, A-40…A-47, **A-50 … A-58**, **A-60 … A-67**, A-70…A-72, **A-90 … A-94** at T14, and at T15 the last six: **A-61** (both halves, each with its own control), **A-81**, **A-82**, **A-83**, **A-84** and **A-85**. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live |
-> | **Automated, still open** | **A-80 alone**, and it is now waiting on a CI *run* rather than on infrastructure. T15 found that the `windows` job's absence was never a missing runner — one has been online since 2026-08-17 — but a variable **name** mismatch (**I-30**). The variable is set; the case is green when a run exists. The skip can no longer be misread either way: a new `coverage-report` job states in every run summary exactly what went unexercised |
+> | **Automated, still open** | **None.** A-80 closed 2026-08-25 on run 32785493072 — **four jobs green, and the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196). Its long absence was never a missing runner (**I-30**): one had been online since 2026-08-17 behind a variable **name** mismatch. A new `coverage-report` job now names in every run summary what went unexercised, so a skipped job can never again read as coverage |
 > | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and Preferences is now a real window with three pages, so that case can be re-walked as written rather than partially. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
 >
 > **Issue log: I-01 … I-30. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
@@ -796,9 +797,32 @@ installed underneath every locale, for the day a key is added to `en` and not ye
 
 ### 5.9 CI, portable, and the one benchmark
 
-**A-80 · CI green on all three jobs** — 🟡 **awaiting the first `windows` run, 2026-08-25 at T15**
-☐ **Expect** `gates`, `windows`, `portable-asan` all green; the new counts recorded here and in the
+**A-80 · CI green on all three jobs** — ✅ **2026-08-25 at T15, and the `windows` job ran for the
+first time in the project's history**
+☑ **Expect** `gates`, `windows`, `portable-asan` all green; the new counts recorded here and in the
 status block. **If it fails** S1.
+
+**Result — run 32785493072, four jobs, all green:**
+
+| Job | Result | Counts |
+|---|---|---|
+| `gates` (ubuntu, no Qt, no vcpkg) | ✅ | **52/52** — the preset's 66 minus the 14 Windows-only `wrong_compiler` fixtures (Stage 0's I-19) |
+| `windows` (self-hosted, Qt 6.11.1 / MinGW 13.1.0) | ✅ **first run ever** | **334/334**, registering `unit.` 144 · `ui.` 104 · `platform.` 19 · `bench.` 1 |
+| `portable-asan` (ubuntu, ASan+UBSan) | ✅ | **196/196**, and zero `ui.`/`platform.`/`bench.` cases — the portable subset asserted rather than assumed |
+| `coverage-report` | ✅ | Reported Windows coverage obtained |
+
+**A-85's figure, re-measured on the runner rather than on this machine:** switch p95 0.343 ms, layout
+0.000 ms, paint 0.140 ms, **TOTAL p95 0.476 ms** — against 0.471 ms locally, a 1 % difference across
+two machines, which is what a stable measurement looks like. The `windows` job also confirmed the
+linkage check (`msvcrt.dll` present, `ucrtbase.dll` and `Qt6Charts` absent) and ran the gates **against
+the real configuration**, which is the only place `qt-modules.txt` and `compiler-plugins.txt` exist —
+so the Qt Charts and GCC-plugin checks have now had teeth for the first time as well.
+
+**What this run actually proves, beyond the counts.** Three quarters of the product's test surface —
+the widget suite, the OS layer, the toolchain pin and the real-configuration gates — had never once
+been exercised by CI. It now has been, and it was green on the first attempt. The reason it had not
+is **I-30**, and the reason nobody noticed is that a skipped job renders as a grey tick beside two
+green ones: the `coverage-report` job exists so that can never again be read as coverage.
 
 **History.** ✅ `gates` **45/45** and ✅ `portable-asan` **177/177** on run 32649932954, the first CI run
 to reach Stage 1's code at T9's counts. (The Linux `gates` job runs 45 of the preset's 66 — the
@@ -814,10 +838,8 @@ existed was `RECTO_HAS_WINDOWS_RUNNER=true` — a different product's spelling �
 `RAWPAGE_HAS_WINDOWS_RUNNER`. Two artefacts that had to agree, in different systems, with nothing
 checking that they did. Logged as **I-30**.
 
-`RAWPAGE_HAS_WINDOWS_RUNNER=true` was set on 2026-08-25 with the user's authorization. **This case is
-green only when a run exists**, so it stays 🟡 until then; every count it will assert is green locally
-at 334/334 on both Windows presets and 66/66 on the bare `gates` preset, and locally-green is still not
-CI-green.
+`RAWPAGE_HAS_WINDOWS_RUNNER=true` was set on 2026-08-25 with the user's authorization, and the next
+push produced the run recorded above.
 
 **And the skip no longer reads as a pass.** A fourth job, `coverage-report`, runs on every push
 whatever the others do, and when `RAWPAGE_HAS_WINDOWS_RUNNER` is not `true` it writes into the run
@@ -1311,8 +1333,10 @@ made concrete for this stage:
 - [x] Every **automated** case A-01 … A-85 — plus **A-67**, added at T7, and **A-90 … A-94**, added
       at T14 — is ✅, run by me, with actual output reported. ✅ **2026-08-25 at T15**, 334/334 on both
       Windows presets and 66/66 on the bare `gates` preset.
-- [ ] …**and re-run in CI at the final counts on all three jobs.** This is **A-80**, and it is the one
-      automated line still open. It is no longer blocked on infrastructure (**I-30**) — only on a run.
+- [x] …**and re-run in CI at the final counts on all three jobs.** ✅ **2026-08-25**, run
+      32785493072: four jobs green, **the `windows` job having run for the first time ever** — 334/334
+      there, 52/52 on `gates`, 196/196 on `portable-asan`. **A-80 is closed**, and with it every
+      automated case in this guide.
 - [ ] Every **manual** case M-01 … M-12 is ✅, walked by you on the §2 rig, and **signed off by you**.
       I do not mark these.
 - [ ] Every caveat in §7 has a human verdict, not an assumption.

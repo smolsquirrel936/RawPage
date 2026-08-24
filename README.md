@@ -22,9 +22,9 @@ first-party COS layer for every write.
 > **No PDF is parsed or rendered** until Stage 2 — a document tab is a stub that names its file.
 > Risk **A3** (can Qt Widgets host a real ribbon without a commercial control library?) is settled:
 > **go, with named custom work.**
-> What is left of Stage 1 is not code: one CI run, and a manual walk on real hardware for the things
-> an offscreen test cannot judge — how the ribbon looks, and how it behaves across two monitors at
-> different scale factors.
+> What is left of Stage 1 is not code: a manual walk on real hardware for the things an offscreen test
+> cannot judge — how the ribbon looks, and how it behaves across two monitors at different scale
+> factors. **CI is green on all four jobs**, Windows included.
 > The design lives in [`claude-plan/`](./claude-plan/README.md); live status is the Stage 1 block in
 > [`Implementation-Plan.md`](./claude-plan/Implementation-Plan.md).
 >

@@ -10,8 +10,8 @@ Windows-first desktop PDF editor modeled on Right PDF Professional. The design l
 
 ### Where the work is right now — read this first
 
-**Stage 1's CODE IS COMPLETE — T1–T15 all done.** What is left is not a task: it is one CI run
-(guide case **A-80**) and **your manual walk**. Live status, task by task and deviation by deviation,
+**Stage 1's CODE IS COMPLETE — T1–T15 all done, and the automated half is green in CI.** What is left
+is **your manual walk**, and nothing else. Live status, task by task and deviation by deviation,
 is the Stage 1 status block in `claude-plan/Implementation-Plan.md` — that block is the authority,
 and this section is its summary.
 
@@ -23,16 +23,18 @@ and this section is its summary.
 | **Issue log** | I-01…I-30 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
 | **Manual pass** | **M-01 ✅ and M-02 🟡 signed off by the user 2026-08-23.** **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and all three now exist, so that case can be re-walked as written. **M-04 is partly walkable**: the log pane is real, but auto-hide and width memory are `SidebarDock`'s and are walked against the sidebar. M-05…M-07, M-09 and M-10 are still not walkable |
 
-**Next action: not a task — Stage 1's Definition of Done, which is two things and neither is code.**
+**Next action: the manual walk — Stage 1's only remaining Definition-of-Done item, and it is not code.**
+M-01 and M-02 are signed off; M-03, M-11 and M-12 are walkable and M-04 partly so; M-05…M-07, M-09 and
+M-10 test code that does not exist yet. **I do not mark a manual case.**
 
-1. **One CI run** — guide case **A-80**, the last automated case. Everything it asserts is green
-   locally, and locally-green is not CI-green. T15 found that the `windows` job's long absence was
-   never the missing runner every document had assumed: one has been online since 2026-08-17, and the
-   block was a variable **name** mismatch (`RECTO_HAS_WINDOWS_RUNNER` set, `RAWPAGE_HAS_WINDOWS_RUNNER`
-   read). That is fixed, and a fourth CI job now names in every run summary what went unexercised when
-   the Windows job does not run, so a skipped job cannot be misread as a passing one.
-2. **Your manual walk.** M-01 and M-02 are signed off; M-03, M-11 and M-12 are walkable and M-04 partly
-   so; M-05…M-07, M-09 and M-10 test code that does not exist yet. **I do not mark a manual case.**
+**CI is green on all four jobs** (run 32785493072), and **the `windows` job ran for the first time in
+the project's history** — 334/334 there, `gates` 52/52, `portable-asan` 196/196. Its absence was never
+the missing runner every document had assumed: one had been online since 2026-08-17, and the block was
+a variable **name** mismatch (`RECTO_HAS_WINDOWS_RUNNER` set, `RAWPAGE_HAS_WINDOWS_RUNNER` read —
+**I-30**). Three quarters of the test surface had therefore never been exercised by CI at all; it has
+now, and it was green first time. A fourth job, `coverage-report`, names in every run summary what
+went unexercised when the Windows job does not run, so a skipped job cannot again be misread as
+coverage.
 
 **Nothing is carried forward**: I-19 was paid off at T11, A-58 closed at T12, A-53 at T13, I-26…I-28
 each in the same change as the code that found them, and I-29 and I-30 the same way at T15.

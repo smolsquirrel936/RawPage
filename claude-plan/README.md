@@ -52,12 +52,12 @@ rather than a gap — those files are written when their stage comes up, not in 
 **Stage 0 is complete** — both halves of its verification green and signed off 2026-08-19, CI green on
 three jobs, verdicts **A5** and **A6** recorded in ②.
 
-**Stage 1's code is complete: all fifteen tasks done (2026-08-25).** What remains is not a task —
-one CI run (case **A-80**) and the manual walk in ⑥.
+**Stage 1's code is complete: all fifteen tasks done (2026-08-25), and every automated case is green
+in CI.** What remains is the manual walk in ⑥.
 
 | | |
 |---|---|
-| Tests | **334/334** on `x64-debug` and `x64-release`; the bare `gates` preset **66/66** with no Qt; plus one benchmark, whose exit code is about whether the measurement was possible rather than whether the machine was fast |
+| Tests | **334/334** on `x64-debug` and `x64-release`; the bare `gates` preset **66/66** with no Qt. **CI green on all four jobs** (run 32785493072), and the `windows` job **ran for the first time in the project's history**: 334/334 there, `gates` 52/52, `portable-asan` 196/196; plus one benchmark, whose exit code is about whether the measurement was possible rather than whether the machine was fast |
 | Gates | `layer-lint` 141 files / 930 includes, `license-audit` clean, `i18n-lint` 78 files / 2 catalogs / 0 waivers. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
 | Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion). T15 re-measured **R-9 against the shipped 192-control ribbon** rather than T2's spike: p95 **0.471 ms** against a 16.667 ms budget · **`-municode` = not adopted** |
 | Manual | **M-01 ✅, M-02 🟡** signed off by the user. **M-03 walkable since T12, M-12 since T13, and M-02's non-ribbon half and M-11 in full since T14**; M-04 is partly walkable; the rest are not walkable yet |
