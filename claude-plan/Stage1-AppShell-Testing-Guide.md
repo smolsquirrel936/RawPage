@@ -17,7 +17,7 @@
 > | **Automated, still open** | **None.** A-80 closed 2026-08-25 on run 32785493072 — **four jobs green, and the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196). Its long absence was never a missing runner (**I-30**): one had been online since 2026-08-17 behind a variable **name** mismatch. A new `coverage-report` job now names in every run summary what went unexercised, so a skipped job can never again read as coverage |
 > | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and Preferences is now a real window with three pages, so that case can be re-walked as written rather than partially. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
 >
-> **Issue log: I-01 … I-30. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
+> **Issue log: I-01 … I-31. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
 > first `portable-asan` run to reach Stage 1's code, **I-18 … I-20 by T10's first run against a
 > real, shown window**, **I-21 … I-23 at T11 and T12 — every one of the three by running
 > something new against the product rather than by reading it** — and **I-24 and I-25 at T13, both
@@ -27,8 +27,11 @@
 > nobody could act on, and a log file that could not name the binary that wrote it — and **I-29 and
 > I-30 at T15**, both of them again the harness and its infrastructure rather than the product: a
 > benchmark whose every figure was its own argument-evaluation bug, and a CI job that had never run
-> because two systems had to agree on a variable name and nothing checked that they did. **Twenty-five
-> of the thirty were found by running something rather than by reading it**,
+> because two systems had to agree on a variable name and nothing checked that they did. **I-31**
+> closed the same day and is the exception that names the rule: it was found by *reading* — §7's
+> "do not report this as a bug" table had two rows that were wrong, and a wrong row there does not
+> merely misinform, it tells the walker that a real finding is expected behaviour. **Twenty-five
+> of the thirty-one were found by running something rather than by reading it**,
 > which is by now less a pattern than a method: **I-05** and **I-06** by the user's manual walk,
 > **I-03** by reading output rather than an exit code, **I-08** and **I-09** by settings fixtures
 > written the way a person would hand-edit the file, **I-11** — an S2 race in the single-instance
@@ -1267,8 +1270,8 @@ assumption — Stage 0's sign-off criteria required exactly this and it was wort
 | Looks like a bug | Is actually |
 |---|---|
 | A tab shows a filename and a grey canvas with no page | D1-2, working as designed. Stage 2 fills it in |
-| Many ribbon buttons are visibly disabled | ~200 ids declared, ~60–80 registered. The tooltip should say which kind of disabled — if it does not, **that** is the bug (M-12) |
-| `Ctrl+Z` does nothing | Registered, dispatching, empty journal until Stage 3 |
+| Many ribbon buttons are visibly disabled | **358 ids declared, 19 registered** — the figures the plan forecast as *"~200 declared, ~60–80 registered"* were both wrong, and the honest state is further apart than that. The tooltip should say which kind of disabled — if it does not, **that** is the bug (M-12) |
+| `Ctrl+Z` does nothing, and neither does anything else it is typed into | **Corrected 2026-08-25 at T15 — the caveat this row used to carry was wrong.** It said *"registered, dispatching, empty journal until Stage 3"*. `Ctrl+Z` IS bound: `KeyBindingDefaults.def` maps it to `EditUndo` in `Common`, and `ShortcutBinder` resolves it. But `EditUndo` is **not registered** — it is not one of the nineteen — so `dispatch` returns **`NotFound`**, and by T13's deliberate design a `NotFound` **does not consume the key**. There is no journal to be empty; `CommandJournal` is Stage 3. So the correct expectation is *"nothing happens, and the keystroke passes through to whatever had focus"* — which is why a `QLineEdit` still gets its own `Ctrl+Z`. The same is true of every one of the ~339 unregistered ids |
 | `checks` runs three gates, not four | `mutation-lint` needs `Command`, Stage 3. If it ever *claims* four, that is the bug |
 | `portable-asan` does not run any UI test | D1-4, deliberate. The portable subset is `core/` + `pdf/cos/` by rule |
 | No golden-image or round-trip suite ran | They have no subject until Stages 2 and 3 |
@@ -1321,6 +1324,7 @@ record.
 | I-28 | §5.10 · A-93 · `app/LogFile` | **The rolling log file could not name the binary that wrote it.** Everything logged before composition reached the console and not the file — including `CrashHandler::install()`'s build id, which is the one line a support bundle needs in order to symbolize a dump against an archived binary (D1-13). The file cannot exist any earlier: its retention count is `logging/retainFiles`, and `Settings` does not exist until `CompositionRoot` runs. | A log a user mails in can be matched to the build that produced it | **S3** | Found 2026-08-25 at T14 by **reading the file the executable actually wrote**, rather than by testing `LogFile` — which passes either way, because the omission is in the ordering of the process and not in the class | **Closed 2026-08-25** with a session banner: the first line of every log file names the version, the build id and the Qt version. Restating the build id was the right fix rather than deferring the crash handler's own line — the handler must be installed before anything else can go wrong, and a log whose first line is a session header is what every rolling log has anyway |
 | I-29 | §5.9 · A-85 · `tests/bench/bench_ribbon.cpp` | **Every figure the new benchmark printed on its first run was 0.000 ms, and the bug was the benchmark's.** The three percentile calls were arguments to a single `printf`, and C++ leaves argument evaluation order unspecified — so the `std::move` on the last of them ran first and p50 and p95 read a moved-from vector. A benchmark reporting zero is not a benchmark failing; it is one agreeing with you. | A measured criterion is measured, rather than reporting a number that flatters it | **S3** (the harness, not the product) | Found 2026-08-25 at T15 by **disbelieving the result**: a 192-control ribbon cannot repaint in under a microsecond, and the printed p95 disagreed with a p95 computed one line above it. Nothing failed, and nothing would have | **Closed 2026-08-25.** The three percentiles go into locals before the `printf`. Two things were added in the same change so the class of error is visible rather than remembered: the run now prints **the size the ribbon actually got** alongside the size requested (T10's lesson as an instrument reading), and the `layout` column — still 0.000 ms, but now known to be a fact — carries **a control**, twenty resizes across the collapse threshold, which reports 0.714 ms and proves the instrument can be non-zero |
 | I-30 | §5.9 · A-80 · `.github/workflows/ci.yml` | **The `windows` CI job had never run, and the cause was a variable NAME, not a missing runner.** A self-hosted runner (`recto-dev-win`, labelled `self-hosted / Windows / X64 / qt6111`) had been online since 2026-08-17. The repository variable that existed was `RECTO_HAS_WINDOWS_RUNNER`; the workflow reads `RAWPAGE_HAS_WINDOWS_RUNNER`. Every document in the set had read the unset variable as *"no runner yet"* and recorded a hardware absence that was not real. | The one job that covers Windows, the widget suite, the OS layer and the real-configuration gates actually runs | **S2** — for a week, three-quarters of the product's test surface had no CI at all, and the run page said nothing was wrong | Found 2026-08-25 at T15 by **querying the GitHub API for the runner instead of believing the comment in the workflow that explained why there wasn't one**. The comment was accurate when written and had simply stopped being true | **Closed 2026-08-25.** `RAWPAGE_HAS_WINDOWS_RUNNER=true` set with the user's authorization. The deeper defect is that two artefacts in different systems had to agree and nothing checked they did — so the fix is not only the variable: the new `coverage-report` job states in every run summary which jobs actually ran and, when the Windows one did not, enumerates precisely what went unexercised. A skipped job can no longer be read as a passing one. `RECTO_HAS_WINDOWS_RUNNER` is left in place rather than deleted; it belongs to whoever set it |
+| I-31 | §7 · the caveat table | **The "do not report this as a bug" list contained a bug of its own.** Two of its eight rows were wrong when checked against the built product: the ribbon row still carried the plan's *forecast* of "~200 ids declared, ~60–80 registered" when the real figures are **358 and 19**, and the `Ctrl+Z` row said the chord was *"registered, dispatching, empty journal until Stage 3"*. It is not registered. `Ctrl+Z` is bound in `KeyBindingDefaults.def` and resolves, but `EditUndo` is not among the nineteen, so `dispatch` answers `NotFound` — and by T13's deliberate design a `NotFound` **leaves the key unconsumed**, which is why a `QLineEdit` keeps its own undo. There is no journal to be empty either; `CommandJournal` is Stage 3. | §7 is the list the manual walker checks an observation against, so a wrong row does not merely misinform — it **suppresses a real finding**, by telling the walker that what they just saw is expected | **S3** | Found 2026-08-25 at T15 when the user asked whether the guide held everything still outstanding. Answering that meant reading §7 as a walker would, and both rows failed against `grep`. Neither would have been caught by any run: §7 is prose, no test reads it, and the automated half was already green | **Closed 2026-08-25.** Both rows corrected against the source — the counts from `ActionId.def` and the registration sites in `MainWindow.cpp`, the chord from `KeyBindingDefaults.def` and the registry. `Stage1-AppShell-Plan.md` §11 carried the same wrong `Ctrl+Z` claim and was corrected in the same change, since it is where the forecast originated. **The general lesson is the one this stage keeps relearning from the other direction:** a document written *before* the code — which is the rule that makes these guides worth having — states expectations that later turn out false, and nothing mechanical ever revisits them. §7 in particular is written in the register of settled fact |
 
 ---
 
@@ -1339,22 +1343,39 @@ made concrete for this stage:
       automated case in this guide.
 - [ ] Every **manual** case M-01 … M-12 is ✅, walked by you on the §2 rig, and **signed off by you**.
       I do not mark these.
-- [ ] Every caveat in §7 has a human verdict, not an assumption.
-- [ ] No open **S1** or **S2** in the issue log. **I-01 is closed** (S3, resolved 2026-08-20), so
-      A-31 and A-32 now have defined figures to assert. **I-02 and I-03 closed 2026-08-23** at T1;
-      **I-05 and I-06 closed 2026-08-23** at T2, both raised by your M-01 walk; **I-07 closed** at T3;
-      **I-08 and I-09 closed 2026-08-23** at T5, both S2, both found by running the fixtures rather
-      than by reading the code; **I-10 and I-11 closed 2026-08-23** at T7, the second an S2 race the
-      new platform suite caught on its first run; **I-04 is open** (S3) and closes at T8 with the
-      `argv` rule asserted by a case.
-- [ ] **The A3 verdict is recorded** in `Tech-Stack-Plan.md` §3.3, on the three-point scale, with a
-      **per-criterion result for R-1 … R-9** rather than one overall impression.
-- [ ] **The `-municode` question is answered** either way, in the Stage 1 status block, closing Stage
-      0's deviation (a).
-- [ ] `Architecture-FileMap.md` Stage 1 rows flipped ○ → ✅, and the rows
+- [ ] Every caveat in §7 has a human verdict, not an assumption. **This is part of your walk, not a
+      separate task** — each row is something that will look wrong and is not, and the verdict is
+      *"yes, I saw that and it is the documented behaviour"*. **Two of those rows were themselves
+      wrong and were corrected at T15**, which is the argument for the checklist existing: the
+      registered-command figures were a forecast nobody had re-measured, and the `Ctrl+Z` row
+      described behaviour the product does not have.
+- [x] No open **S1** or **S2** in the issue log. ✅ **2026-08-25** — the log runs I-01 … I-30 and
+      **none is open**. The four S2s all closed in the task that found them: **I-08** and **I-09** at
+      T5 (the settings codecs, found by fixtures written the way a person hand-edits an INI),
+      **I-11** at T7 (a race in the single-instance bus, caught by the platform suite's first run),
+      and **I-30** at T15 (the `windows` CI job that had never run). Every other entry is S3 or S4.
+- [x] **The A3 verdict is recorded** in `Tech-Stack-Plan.md` §3.3, on the three-point scale, with a
+      **per-criterion result for R-1 … R-9** rather than one overall impression. ✅ **2026-08-23 at
+      T2: `go, with named custom work`**, per criterion, with **R-8 withdrawn rather than cleared**
+      and the verdict explicitly resting on eight criteria rather than nine. **R-9 was re-measured at
+      T15** against the shipped ribbon rather than the spike.
+- [x] **The `-municode` question is answered** either way, in the Stage 1 status block, closing Stage
+      0's deviation (a). ✅ **2026-08-23 at T1: not adopted**, by measurement — `argv` loses bytes the
+      ANSI code page cannot represent, and `QCoreApplication::arguments()` does not, so the problem
+      the flag exists to solve is solved for the only consumer we have. That measurement became
+      convention 1 and issue **I-04**, and it is now held by three mechanisms rather than a comment.
+- [x] `Architecture-FileMap.md` Stage 1 rows flipped ○ → ✅, and the rows
       [plan §10](./Stage1-AppShell-Plan.md#10-lockstep-debt-this-stage-creates) names as missing added.
-- [ ] `Implementation-Plan.md` Stage 1 status, §5's guide row, `CLAUDE.md`'s gate count, and
-      `README.md`'s *Current state* updated to reality, deviations included.
+      ✅ **2026-08-25 at T15** — no Stage 1 row is `○`. The rows still showing `🟡` are files a later
+      stage extends (`CrashHandler` owes `SIGABRT`, `LogPane` and `PreferencesDialog` grow per stage),
+      which is what `🟡` means. **Every file in the tree now has a row**, `scripts/symbolize.ps1`
+      included — the oldest debt this stage carried, owed since T1.
+- [x] `Implementation-Plan.md` Stage 1 status, §5's guide row, `CLAUDE.md`'s gate count, and
+      `README.md`'s *Current state* updated to reality, deviations included. ✅ **2026-08-25 at T15.**
+
+**That is the whole remainder.** Everything above except the two unticked lines is done, and both of
+those are yours: the §6 manual cases, and the §7 caveat verdicts that come with them. Nothing else in
+this stage is waiting on code, on CI, or on me.
 
 *"Automated green, manual not yet walked" is a legitimate state to report for this stage, and given
 the size of §6 it will be the state for a while. It is not "done".*

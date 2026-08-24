@@ -532,7 +532,7 @@ early — which is how a stage's risk retirement gets scrambled.
 | Not in Stage 1 | Arrives at |
 |---|---|
 | Opening, parsing, or rendering any PDF — `Ctrl+O` opens a **stub tab** (D1-2) | Stage 2 |
-| `mutation-lint`, `Command`, `CommandJournal` — `Ctrl+Z` / `Ctrl+Y` are registered and dispatch to an **empty journal** | Stage 3 |
+| `mutation-lint`, `Command`, `CommandJournal`. ⚠️ **This row forecast that `Ctrl+Z` / `Ctrl+Y` would be "registered and dispatch to an empty journal". They are not** — corrected at T15. Both chords are *bound* in `KeyBindingDefaults.def` and resolve, but `EditUndo` and `EditRedo` are not among the nineteen registered ids, so `dispatch` answers `NotFound` and T13's rule leaves the key **unconsumed**. Registering a command that dispatches into nothing would have been a stub claiming to be a feature, which convention 6 forbids one layer down and is no better here | Stage 3 |
 | Contextual ribbon tabs *populated* — the mechanism is proven at R-4, the content is per-feature | Stages 5–13 |
 | Per-document pane state and session restore of documents — `SessionState` is Stage 4 | Stage 4 |
 | The full Preferences page set — three pages here; 26 groups exist | Stage 14 |
