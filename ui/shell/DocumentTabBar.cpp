@@ -2,6 +2,7 @@
 
 #include "ui/shell/Catalog.h"
 
+#include <QCursor>
 #include <QMouseEvent>
 
 namespace rawpage::ui {
@@ -29,13 +30,27 @@ void DocumentTabBar::mousePressEvent(QMouseEvent* event)
     // Which tab the gesture started on, remembered here because by the time the pointer has left
     // the strip `tabAt()` no longer knows -- it answers about where the pointer IS.
     pressedTab_ = tabAt(event->position().toPoint());
-    tearing_ = false;
+    if (event->button() == Qt::LeftButton && tearingTab_ >= 0) {
+        // A fresh press while a tear is still recorded means the previous gesture never got its
+        // release -- a lost grab, which is rare but leaves the strip unable to reorder until it is
+        // cleared. The button cannot already be down here, so this can only be recovery.
+        tearingTab_ = -1;
+        unsetCursor();
+    }
     QTabBar::mousePressEvent(event);
 }
 
 void DocumentTabBar::mouseMoveEvent(QMouseEvent* event)
 {
-    if (tearing_ || pressedTab_ < 0 || !(event->buttons() & Qt::LeftButton)) {
+    if (tearingTab_ >= 0) {
+        // Already carrying a tab: Qt's move-drag was ended at the threshold and must not be
+        // restarted, so these moves are swallowed rather than forwarded. The pointer is tracked by
+        // the release, not by us.
+        event->accept();
+        return;
+    }
+
+    if (pressedTab_ < 0 || !(event->buttons() & Qt::LeftButton)) {
         QTabBar::mouseMoveEvent(event);
         return;
     }
@@ -53,13 +68,16 @@ void DocumentTabBar::mouseMoveEvent(QMouseEvent* event)
     // End Qt's internal move-drag before anyone removes the tab under it. QTabBar tracks the
     // dragged tab by index, and taking that index away mid-drag leaves it dragging something that
     // is not there; a synthetic release puts it back in a clean state first.
-    tearing_ = true;
+    tearingTab_ = pressedTab_;
+    pressedTab_ = -1;
     QMouseEvent release(QEvent::MouseButtonRelease, event->position(), event->globalPosition(),
                         Qt::LeftButton, Qt::NoButton, event->modifiers());
     QTabBar::mouseReleaseEvent(&release);
 
-    emit tearOffRequested(pressedTab_, event->globalPosition().toPoint());
-    pressedTab_ = -1;
+    // AND NOW WAIT FOR THE BUTTON. The gesture is not over -- the real button is still down, so
+    // this widget keeps the mouse grab and keeps receiving moves, and where the pointer ENDS is
+    // the only position that answers "which window did you mean". See the signal's comment (I-34).
+    setCursor(Qt::DragMoveCursor);
 }
 
 void DocumentTabBar::mouseReleaseEvent(QMouseEvent* event)
@@ -76,8 +94,14 @@ void DocumentTabBar::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
-    if (tearing_) {
-        tearing_ = false;
+    if (tearingTab_ >= 0) {
+        const int tab = tearingTab_;
+        tearingTab_ = -1;
+        unsetCursor();
+        // Cleared BEFORE the emit: a receiver may delete this strip's tab, adopt it into another
+        // window, or -- when the move is refused -- do nothing at all, and none of those may find
+        // a half-finished gesture still recorded here.
+        emit tearOffRequested(tab, event->globalPosition().toPoint());
         event->accept();
         return;
     }

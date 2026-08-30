@@ -17,15 +17,16 @@ and this section is its summary.
 
 | | |
 |---|---|
-| **Tests** | **334/334** on `x64-debug` and `x64-release` (66 at the end of Stage 0); the bare `gates` preset is **66/66** with no Qt. Plus **one benchmark**, `bench.ribbon.tab_switch` — a bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
-| **Gates** | `layer-lint` clean at **141 files / 930 includes**, **6** live filesystem-write waivers; `license-audit` clean; `i18n-lint` clean at **78 files / 2 catalogs, 0 waivers**. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Tests** | **339/339** on `x64-debug` and `x64-release` (66 at the end of Stage 0; 334 at T15, +5 from the M-03 fixes); the bare `gates` preset is **66/66** with no Qt. Plus **one benchmark**, `bench.ribbon.tab_switch` — a bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
+| **Gates** | `layer-lint` clean at **141 files / 933 includes**, **6** live filesystem-write waivers; `license-audit` clean; `i18n-lint` clean at **78 files / 2 catalogs, 0 waivers**. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**. T15 **re-measured R-9 against the shipped ribbon** rather than against T2's throwaway spike — p95 **0.471 ms** against a 16.667 ms budget, over 192 real controls, with a control proving the instrument was live. Both figures stand in `Tech-Stack-Plan.md` §3.3; the second is the one that is a claim about the product. **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
-| **Issue log** | I-01…I-32 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
-| **Manual pass** | **M-01 ✅ signed off 2026-08-23; M-02 ✅** — signed off 2026-08-23 for the ribbon, then **re-walked in full on 2026-08-30** against the shipped shell: all four steps including the mid-session scale change and the re-login, **no findings**, which retired R-6's last scoping note and satisfied precondition P-1 outright. **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and T14 made all three real, which is what let that re-walk happen as written. **M-04 is partly walkable**: the log pane is real, but auto-hide and width memory are `SidebarDock`'s and are walked against the sidebar. M-05…M-07, M-09 and M-10 are still not walkable |
+| **Issue log** | I-01…I-35 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** **I-33, I-34 and I-35 were raised by the user's M-03 walk on 2026-08-30 and are Stage 1's first findings in the PRODUCT rather than in the harness** — every earlier one was a test, a gate, a document or the CI. **I-34 (S2)**: re-docking a tab into another window could not be performed by a person, because `DocumentTabBar` reported the gesture at the instant the 40 px threshold was crossed rather than at the release, giving the drag one sample to land on a ~25 px strip; the branch it fed was correct and had never been driven by test or by hand. **I-33 (S3)**: tearing a window's ONLY tab out left the original with no tabs, because `detachDocument` guarded the index but never the count. **I-35 (S3)**: a window emptied by re-docking its last tab away stayed open — reachable only *after* I-34 was fixed, which is why a repaired case is re-walked rather than signed off on the strength of the repair. All fixed the same day — five cases, five negative controls, 339/339. I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
+| **Manual pass** | **M-01 ✅ signed off 2026-08-23; M-02 ✅** — signed off 2026-08-23 for the ribbon, then **re-walked in full on 2026-08-30** against the shipped shell: all four steps including the mid-session scale change and the re-login, **no findings**, which retired R-6's last scoping note and satisfied precondition P-1 outright. **M-03 ✅ walked and signed off 2026-08-30**, in full — and it found **I-33, I-34 and I-35**, the stage's first three defects in the product, all fixed and the case re-walked before sign-off. **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and T14 made all three real, which is what let that re-walk happen as written. **M-04 is partly walkable**: the log pane is real, but auto-hide and width memory are `SidebarDock`'s and are walked against the sidebar. M-05…M-07, M-09 and M-10 are still not walkable |
 
 **Next action: the manual walk — Stage 1's only remaining Definition-of-Done item, and it is not code.**
-M-01 and M-02 are signed off (M-02 in full since 2026-08-30); M-03, M-11 and M-12 are walkable and M-04
-partly so; M-05…M-07, M-09 and M-10 test code that does not exist yet. **I do not mark a manual case.**
+M-01, M-02 and M-03 are signed off, all three in full as of 2026-08-30; M-11 and M-12 are walkable and
+M-04 partly so; M-05…M-07, M-09 and M-10 test code that does not exist yet. **I do not mark a manual
+case.**
 
 **CI is green on all four jobs** (run 32785493072), and **the `windows` job ran for the first time in
 the project's history** — 334/334 there, `gates` 52/52, `portable-asan` 196/196. Its absence was never
@@ -96,7 +97,12 @@ order.
   customization). The ribbon body now sits in a `QScrollArea`, which paid off **I-19**.
 - **Document tabs and the stub they carry (T12)** — `DocumentTabBar` (reorder, middle-click close,
   tear-off, re-dock, overflow) and `DocumentWindow`, which under **D1-2** holds a path and nothing
-  else. `openFiles()` opens a tab per accepted path, still checking only the name and the suffix and
+  else. **A tear-off is reported on the release, never at the 40 px threshold crossing** (I-34), and
+  `detachDocument` refuses to detach a window's only document into a new window while still allowing
+  it to be dropped onto another window's strip (I-33) — the guard sits *after* that branch, because a
+  torn-off window holds exactly one document by construction. A window emptied by a **move** closes
+  itself (I-35), and one emptied by a **close** does not; only a window that owns itself can go, since
+  the primary window is a stack object in `app/main.cpp` whose address `main()` holds. `openFiles()` opens a tab per accepted path, still checking only the name and the suffix and
   reading no bytes. **`rawpage.exe` opens PDFs into tabs** — as stubs that say what Stage 2 brings.
 - **The keyboard (T13)** — `ui/shell/ShortcutBinder`, one per window, filtering `qApp` and answering
   only for its own window. Three separable parts: `activeContext()`, a pure walk up `parentWidget()`
@@ -263,6 +269,17 @@ catalogs and exits 0 without creating a window.
    construction order and unwind in closing order. It is also I-12's bug in a new disguise: a lambda
    installed by a widget outlives the widget unless something removes it. (T14; the reasoning lives in
    `core/LogBuffer.h`.)
+
+19. **A test that reaches a behaviour through a back door must say what it therefore does NOT
+   cover.** `tst_documenttabs.cpp` asserted re-dock by calling `adoptDocument` directly, which proves
+   the *destination* works and says nothing about whether the gesture can reach it. A comment recorded
+   the gesture as manual-only, so the gap was known — and the case still read as coverage to everyone
+   who came after, including the guide, the file map and this document, all four of which described
+   re-dock as shipped. It was unreachable by hand for six days and green the whole time (**I-34**, the
+   stage's first S2 in the product). The rule is not *"test the gestures"* — offscreen there is no
+   pointer and that limit is real. It is that the back door has to be named at the assertion, so the
+   next reader subtracts it instead of adding it. The corollary is convention 7's: a case that cannot
+   fail for the reason it claims to test is worse than no case at all.
 
 ### Accessibility is OUT OF SCOPE (2026-08-23)
 
@@ -471,7 +488,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 334/334 as of Stage 1 T15
+ctest --preset x64-release --output-on-failure        # 339/339 as of the M-03 fixes (I-33…I-35)
 ```
 
 Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offscreen`:

@@ -6,6 +6,16 @@
 // asserted here is everything those gestures END in -- reorder, release, adopt, detach, close --
 // each reachable as a function and each also reachable as a command. A case here claiming to have
 // tested a drag would be a defect in the case.
+//
+// AND WHAT THAT LEFT UNGUARDED, WHICH COST AN S2 (issue I-34). "Everything the gesture ends in" was
+// asserted by calling `adoptDocument` directly -- which proves the DESTINATION works and says
+// nothing about whether the gesture can reach it. Re-dock was documented as shipped in four places,
+// green in CI, and impossible to perform by hand for as long as it existed; the user's first M-03
+// walk found it. Two cases below close that gap from both ends: one drives `detachDocument` with a
+// position over a real strip (which turns out not to need a pointer at all -- the strip can be
+// asked where it is), and one drives the tab bar's own handlers with synthetic mouse events to
+// assert WHEN it reports. Synthetic events prove the state machine, not that a real pointer
+// produces them; the pointer stays M-03's.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -28,6 +38,8 @@
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMouseEvent>
+#include <QPoint>
 #include <QTemporaryDir>
 
 using namespace rawpage;
@@ -255,10 +267,10 @@ TEST_CASE("a tab torn out keeps its identity and can be re-docked", "[tabs]")
 
 TEST_CASE("tearing a tab out makes a window that owns it", "[tabs]")
 {
-    // The gesture is M-03; this is what the gesture ends in. The drop-onto-another-strip branch of
-    // `detachDocument` needs a pointer position over a real strip and stays manual -- what is
-    // asserted here is the branch that makes a window, and that the document went WITH it rather
-    // than being rebuilt from its path.
+    // The gesture is M-03; this is what the gesture ends in. What is asserted here is the branch
+    // that makes a window, and that the document went WITH it rather than being rebuilt from its
+    // path. The drop-onto-another-strip branch was recorded here as manual-only until I-34 showed
+    // that was never true -- see "a lone document can still be dropped" below.
     Fixture fixture;
     ui::MainWindow window(fixture.services());
     window.openFiles({fixture.writePdf(QStringLiteral("a.pdf")),
@@ -362,4 +374,175 @@ TEST_CASE("Ctrl+F6 walks the window set and refuses when there is one window", "
 
     REQUIRE(fixture.actions.dispatch(ActionId::WindowPrev, core::KeyContext::Global));
     CHECK(ui::MainWindow::activeShell() == &second);
+}
+
+// ===========================================================================================
+// I-33 and I-34 -- both found by the user walking M-03 on 2026-08-30, and both `detachDocument`
+// being asked the wrong question: one never asked the count, the other asked the position too
+// early.
+// ===========================================================================================
+
+TEST_CASE("a window's only document is not detached into a new window", "[tabs]")
+{
+    // I-33. The move is a null one -- the same lone document ends up alone in a window either way,
+    // and the user is left with an empty shell to close.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.openFiles({fixture.writePdf(QStringLiteral("only.pdf"))});
+    REQUIRE(window.documentCount() == 1);
+
+    const int windowsBefore = ui::MainWindow::shellWindows().size();
+
+    CHECK(window.detachDocument(0, QPoint(4000, 4000)) == nullptr);
+    CHECK(window.documentCount() == 1);                             // the tab stayed put
+    CHECK(ui::MainWindow::shellWindows().size() == windowsBefore);  // and no window appeared
+
+    // THE CONTROL, because a guard that refused everything would pass all three checks above and be
+    // a worse defect than the one it fixes. A second document makes the same call legitimate.
+    window.openFiles({fixture.writePdf(QStringLiteral("second.pdf"))});
+    ui::MainWindow* torn = window.detachDocument(1, QPoint(4000, 4000));
+    REQUIRE(torn != nullptr);
+    CHECK(window.documentCount() == 1);
+    CHECK(torn->documentCount() == 1);
+
+    torn->close();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+}
+
+TEST_CASE("a lone document can still be dropped onto another window's strip", "[tabs]")
+{
+    // I-33's GUARD PLACEMENT, which is the whole subtlety of that fix. A torn-off window holds
+    // exactly one document by construction, so a count guard at the top of `detachDocument` would
+    // make dragging it back the one re-dock nobody could perform -- the commonest one there is, and
+    // a required step of M-03. The guard sits after this branch, and this case is what says so.
+    Fixture fixture;
+    ui::MainWindow source(fixture.services());
+    ui::MainWindow target(fixture.services());
+
+    source.openFiles({fixture.writePdf(QStringLiteral("lone.pdf"))});
+    target.openFiles({fixture.writePdf(QStringLiteral("host.pdf"))});
+    source.show();
+    target.show();
+
+    ui::DocumentWindow* moved = source.documentAt(0);
+    REQUIRE(moved != nullptr);
+
+    const QPoint overTargetStrip =
+        target.documentTabs()->mapToGlobal(target.documentTabs()->rect().center());
+
+    CHECK(source.detachDocument(0, overTargetStrip) == &target);
+    CHECK(source.documentCount() == 0);
+    CHECK(target.documentCount() == 2);
+    CHECK(target.currentDocument() == moved);   // the same object, not one rebuilt from the path
+}
+
+TEST_CASE("the tear-off gesture reports where the pointer was RELEASED", "[tabs]")
+{
+    // I-34, and the assertion that would have caught it: the drag must report NOTHING when it
+    // crosses the threshold, and must report the RELEASE position when the button comes up.
+    // Emitting at the crossing gave the gesture one sample to land on a ~25 px strip, which made
+    // re-dock unreachable by hand while every automated case here stayed green.
+    //
+    // A bare tab bar, because this is about the widget's own state machine -- and because letting a
+    // MainWindow receive the signal would spawn a window as a side effect of a test about timing.
+    ui::DocumentTabBar bar;
+    bar.addTab(QStringLiteral("a.pdf"));
+    bar.addTab(QStringLiteral("b.pdf"));
+    bar.resize(400, 32);
+    bar.show();
+
+    int    reports = 0;
+    int    reportedIndex = -1;
+    QPoint reportedPos;
+    QObject::connect(&bar, &ui::DocumentTabBar::tearOffRequested,
+                     [&](int index, const QPoint& pos) {
+                         ++reports;
+                         reportedIndex = index;
+                         reportedPos = pos;
+                     });
+
+    const QPoint grab = bar.tabRect(0).center();
+    QMouseEvent  press(QEvent::MouseButtonPress, grab, bar.mapToGlobal(grab), Qt::LeftButton,
+                       Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&bar, &press);
+
+    // Clear of the strip by more than the threshold -- the moment the old code fired.
+    const QPoint crossed(grab.x(), bar.rect().top() - (ui::DocumentTabBar::kTearOffDistance + 10));
+    QMouseEvent  moveOut(QEvent::MouseMove, crossed, bar.mapToGlobal(crossed), Qt::NoButton,
+                         Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&bar, &moveOut);
+
+    CHECK(reports == 0);   // THE REGRESSION ASSERTION. This read 1 before the fix.
+
+    // On, to somewhere else entirely -- as a hand does on its way to another window's strip.
+    const QPoint ended(grab.x() + 260, crossed.y() - 90);
+    QMouseEvent  moveOn(QEvent::MouseMove, ended, bar.mapToGlobal(ended), Qt::NoButton,
+                        Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&bar, &moveOn);
+    CHECK(reports == 0);
+
+    QMouseEvent release(QEvent::MouseButtonRelease, ended, bar.mapToGlobal(ended), Qt::LeftButton,
+                        Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(&bar, &release);
+
+    CHECK(reports == 1);
+    CHECK(reportedIndex == 0);
+    CHECK(reportedPos == bar.mapToGlobal(ended));   // the release, not the crossing
+}
+
+TEST_CASE("a torn-off window closes when its last document is moved back", "[tabs]")
+{
+    // I-35, found by the user walking M-03 on 2026-08-30 once re-dock could actually be performed:
+    // the window the tab came FROM stayed behind, empty. A window emptied by a move has done its
+    // job. This is the whole round trip -- tear out, drag back -- which is M-03's step in one case.
+    Fixture fixture;
+    ui::MainWindow home(fixture.services());
+    home.openFiles({fixture.writePdf(QStringLiteral("stays.pdf")),
+                    fixture.writePdf(QStringLiteral("travels.pdf"))});
+    home.show();
+
+    ui::DocumentWindow* travelling = home.documentAt(1);
+    ui::MainWindow*     torn       = home.detachDocument(1, QPoint());
+    REQUIRE(torn != nullptr);
+    REQUIRE(torn->documentCount() == 1);
+    torn->show();
+
+    const QPoint overHomeStrip =
+        home.documentTabs()->mapToGlobal(home.documentTabs()->rect().center());
+
+    CHECK(torn->detachDocument(0, overHomeStrip) == &home);
+    CHECK(home.documentCount() == 2);
+    CHECK(home.currentDocument() == travelling);   // the same object came home
+
+    // `WA_DeleteOnClose` posts a DeferredDelete; the event loop is what runs it, and there is none
+    // in a Catch2 case -- so deliver that one event by hand, exactly as the tear-off case above
+    // does. Without it this reads "still in the set", which is true and means nothing.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK_FALSE(ui::MainWindow::shellWindows().contains(torn));
+}
+
+TEST_CASE("a window that does not own itself is emptied but not closed", "[tabs]")
+{
+    // I-35's OTHER HALF, and the control: `closeIfEmptied` must not close everything it is handed.
+    // The primary window is a stack object in `app/main.cpp` -- Qt may not delete it, and `close()`
+    // would only hide it, leaving a hidden entry in the window set for `Ctrl+F6` to walk into and
+    // for a single-instance forward to call `openFiles()` on. An empty window on screen is the
+    // state a launch with no files produces, so stopping there is correct rather than a shortfall.
+    Fixture fixture;
+    ui::MainWindow source(fixture.services());   // no WA_DeleteOnClose -- as `main()` builds it
+    ui::MainWindow target(fixture.services());
+    source.openFiles({fixture.writePdf(QStringLiteral("lone.pdf"))});
+    target.openFiles({fixture.writePdf(QStringLiteral("host.pdf"))});
+    source.show();
+    target.show();
+
+    const QPoint overTargetStrip =
+        target.documentTabs()->mapToGlobal(target.documentTabs()->rect().center());
+
+    CHECK(source.detachDocument(0, overTargetStrip) == &target);
+    CHECK(source.documentCount() == 0);
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(ui::MainWindow::shellWindows().contains(&source));   // still there, and still visible
+    CHECK(source.isVisible());
 }

@@ -42,8 +42,16 @@ signals:
     // and giving them separate signals would let the two paths drift into doing different things.
     void closeRequested(int index);
 
-    // A tab dragged clear of the strip. `globalPos` is where the pointer was, which is what lets
-    // the receiver decide between a new window and another window's strip -- see the class comment.
+    // A tab dragged clear of the strip AND released. `globalPos` is where the pointer was when the
+    // button came up, which is what lets the receiver decide between a new window and another
+    // window's strip -- see the class comment.
+    //
+    // EMITTED ON RELEASE, NOT WHEN THE THRESHOLD IS CROSSED (issue I-34). It used to fire from
+    // `mouseMoveEvent` the instant the drag went `kTearOffDistance` clear, carrying the position at
+    // that one instant -- which made "drop onto another window's strip" unreachable in practice: the
+    // target strip is ~25 px tall and had to be under the pointer on the single move event that
+    // crossed the band, and an ordinary drag steps straight over it. The branch was correct and
+    // could not be reached by hand. Deciding on release is also what a person means by a drag.
     void tearOffRequested(int index, const QPoint& globalPos);
 
 protected:
@@ -53,7 +61,11 @@ protected:
 
 private:
     int  pressedTab_ = -1;
-    bool tearing_ = false;
+
+    // The tab a tear-off gesture is carrying, or -1. Set when the drag first goes clear of the
+    // strip and read when the button comes up; `pressedTab_` cannot serve both, because Qt's own
+    // move-drag has to be ended at the threshold and that is what clears it.
+    int  tearingTab_ = -1;
 };
 
 } // namespace rawpage::ui

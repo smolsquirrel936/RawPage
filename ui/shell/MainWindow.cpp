@@ -478,6 +478,28 @@ DocumentWindow* MainWindow::releaseDocument(int index)
     return document;
 }
 
+void MainWindow::closeIfEmptied()
+{
+    if (documentCount() > 0) return;
+
+    // ONLY A WINDOW THAT OWNS ITSELF CAN GO. `WA_DeleteOnClose` is set on every window this class
+    // creates -- a tear-off, and `window.new` -- and on no other. The PRIMARY window is a stack
+    // object in `app/main.cpp`, which Qt may not delete and which `close()` would merely hide,
+    // leaving a hidden entry in the window set for `Ctrl+F6` to walk into and for a single-instance
+    // forward to call `openFiles()` on. So it stays, and that is not a shortfall: an empty primary
+    // window is exactly the state a launch with no files produces, which is a place the product is
+    // designed to sit.
+    if (!testAttribute(Qt::WA_DeleteOnClose)) return;
+
+    RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "window closing: its last document was moved to another";
+
+    // `close()` on a `WA_DeleteOnClose` window posts a DeferredDelete rather than destroying now,
+    // which is what makes this safe from here: this call is reached from `DocumentTabBar`'s own
+    // mouse handler, by way of a signal, and destroying the strip inside its own event would leave
+    // that handler returning through freed memory. The event loop does it once the stack is gone.
+    close();
+}
+
 void MainWindow::closeDocument(int index)
 {
     if (DocumentWindow* document = releaseDocument(index)) document->deleteLater();
@@ -518,7 +540,22 @@ MainWindow* MainWindow::detachDocument(int index, const QPoint& globalPos)
         const int at = other->tabs_->tabAt(local);
         other->adoptDocument(releaseDocument(index), at);
         other->raiseToForeground();
+        closeIfEmptied();   // I-35 -- nothing below this line may touch `this`
         return other;
+    }
+
+    // A WINDOW'S ONLY TAB HAS NOWHERE TO GO (issue I-33). Detaching it into a new window is a null
+    // move: the same lone document ends up alone in a window either way, and the user is left with
+    // a second, empty shell to close. Refuse, and the drag simply does nothing.
+    //
+    // THE PLACEMENT IS THE POINT -- this sits AFTER the loop above, not before it. A torn-off
+    // window holds exactly one document by construction, so guarding at the top of this function
+    // would make dragging it back the one re-dock nobody could perform, which is the commonest one
+    // there is and a required step of M-03.
+    if (documentCount() <= 1) {
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+            << "tear-off refused: this window's only document has nowhere to go";
+        return nullptr;
     }
 
     auto* window = new MainWindow(services_);

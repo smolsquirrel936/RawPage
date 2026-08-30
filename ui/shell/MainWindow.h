@@ -171,6 +171,11 @@ protected:
     void showEvent(QShowEvent* event) override;
 
 private:
+    // A window emptied by a MOVE has done its job and goes (issue I-35). Called after a document is
+    // adopted away by another window, and only then -- a window emptied by a CLOSE stays, because
+    // the user is still standing in it and may open the next file into it.
+    void closeIfEmptied();
+
     void buildHeader();
     void buildCentralSurface();
     void buildAutoHideStrips();
