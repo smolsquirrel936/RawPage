@@ -16,7 +16,7 @@
 > |---|---|
 > | **Automated, green** | **71 of 73**, every one ticked against evidence re-verified on 2026-08-25 — see §5's reconciliation note for which evidence covers which case. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live. **A-80 closed** on run 32785493072 — four jobs green, and **the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196) |
 > | **Automated, cannot run — 2 of 73** | **A-25** names a `rawpage.exe --list-actions` switch that **does not exist** and never has; **A-26** needs an alias fixture that was never written, for a mechanism (`RAWPAGE_ACTION_ALIAS`) that is real code with **zero rows and no test**. Neither is a product defect and neither is closed: both are marked in place with what *is* covered by other means, and **both are carried to Stage 2**. Until T15 this row did not exist and both cases were counted as green (**I-32**) |
-> | **Manual** | **M-01 ✅** and **M-02 🟡** walked and signed off by the user 2026-08-23. **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and Preferences is now a real window with three pages, so that case can be re-walked as written rather than partially. M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
+> | **Manual** | **M-01 ✅** and **M-02 ✅** walked and signed off by the user — M-01 on 2026-08-23, M-02 on 2026-08-23 for the ribbon and **re-walked in full on 2026-08-30** (all four steps, no findings). **M-03 became walkable at T12** — tabs, reorder, tear-off, re-dock and overflow all exist, and everything those gestures END in is asserted in `tst_documenttabs.cpp`, so the walk only has to judge the gesture itself. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and T14 made all three real, so that case could be re-walked as written rather than partially. **That re-walk happened on 2026-08-30 and M-02 is now ✅.** M-04…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
 >
 > **Issue log: I-01 … I-32. None open** — I-04 closed at T8, I-12 … I-16 at T8/T9, **I-17** by the
 > first `portable-asan` run to reach Stage 1's code, **I-18 … I-20 by T10's first run against a
@@ -1195,8 +1195,18 @@ than left for someone to notice.
   needs a custom `QLayout` is *not* a failure and should be recorded as **go with named custom work**.
   The distinction is the whole verdict.
 
-**M-02 · Mixed DPI, and a scale change while running (R-6)** 🟡
+**M-02 · Mixed DPI, and a scale change while running (R-6)** ✅
 
+> ✅ **Re-walked in full and signed off by the user, 2026-08-30.** All four steps, **step 3 and step 4
+> included** — the mid-session scale change made in Windows Settings with the app running, and the
+> log-out / log-in at a different primary scale. The half R-6 had never been judged on — the sidebar, a
+> floating pane and Preferences, on each monitor in turn and dragged between them — behaved. **No
+> findings, and therefore no §8 entry**; precondition **A-06** was re-checked first and still reports
+> `PerMonitorAwareV2`, so the walk was reading the product rather than a mis-set awareness mode. This
+> discharges the re-walk the two notes below scheduled, and M-02 is ✅ rather than 🟡.
+>
+> ⤵ *The two notes below record why this case stood amber from T2 to T14. Kept as breadcrumbs.*
+>
 > 🟡 **Walked and signed off by the user, 2026-08-23 — for the RIBBON, which is all that exists.**
 > **R-6 is met** and A3's DPI question is answered. Recorded as 🟡 rather than ✅ only because step 2
 > names *"the sidebar, a floating pane, and Preferences"*, and at T2 none of them exists — `SidebarDock`

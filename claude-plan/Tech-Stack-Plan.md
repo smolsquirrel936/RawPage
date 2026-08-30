@@ -110,7 +110,7 @@ and runs the four criteria that have a defined right answer. The verdict scale i
 | **R-3** | Tabs overflow to a chevron | Person | ✅ **Met, with named custom work.** Signed off 2026-08-23 (M-01) |
 | **R-4** | A contextual tab appears and disappears without changing ribbon height or flickering the strip | Machine (height), person (flicker) | ✅ **Met.** Machine: 60 show/hide cycles, constant 122 px, active tab kept. Flicker at 60 Hz signed off by the user 2026-08-23 (M-01) |
 | **R-5** | `Alt` key tips two levels deep, `Esc` dismisses | Person, keyboard-only | ✅ **Met.** Signed off 2026-08-23 (M-01) |
-| **R-6** | Correct at 100 / 150 / 200 %, **including a per-monitor change while running** | Person, two monitors | ✅ **Met for the ribbon.** Signed off 2026-08-23 (M-02), including the live per-monitor scale change. M-02's panes-and-dialogs half cannot be walked until T9/T14 exist and is re-walked then — a scope note, not a qualification |
+| **R-6** | Correct at 100 / 150 / 200 %, **including a per-monitor change while running** | Person, two monitors | ✅ **Met, and now on both halves.** Signed off 2026-08-23 (M-02) for the ribbon, including the live per-monitor scale change, and **completed 2026-08-30** when M-02 was re-walked in full against the shipped shell — sidebar, floating pane and Preferences across two monitors, all four steps, no findings. The scope note this row used to carry is discharged rather than still pending |
 | **R-7** | `F9` collapses to the tab strip and restores, preserving the active tab | Machine, confirmed by hand | ✅ **Met.** 122 px → 26 px → 122 px, active tab preserved; also walked 2026-08-23 (M-01) |
 | ~~**R-8**~~ | ~~Every control `Tab`/arrow reachable and announced with a name and a role~~ | — | ⤵ **Withdrawn 2026-08-23** when accessibility was removed from the product (see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23)). The *announced with a name and a role* half is gone with it. The `Tab`-reachability half survives as **keyboard operability**, which is retained and is asserted by the spike's focus-order self-test — see the third item under *named custom work* below |
 | **R-9** | A tab switch inside one 60 Hz frame | Machine, measured | ✅ **Met with room to spare, and measured twice against two different subjects.** At **T2**, over the throwaway spike: p50 **0.13 ms** · p95 **0.28 ms** · max **0.63 ms**. At **T15**, over the **shipped** ribbon — 9 tabs, 49 groups, **192 controls** — through `tests/bench/bench_ribbon`: p50 **0.442 ms** · p95 **0.471 ms** · max **0.504 ms**, against a 16.667 ms budget, i.e. **35× headroom**. The second figure is the load-bearing one: a spike's ribbon is as small as the spike's author made it, and this criterion is a claim about the product. The T15 run splits the cost — switch 0.330 ms, layout **0.000 ms**, paint 0.143 ms at p95 — and carries a control (20 resizes across the collapse threshold, 0.783 ms p95) proving that the zero is a fact about the ribbon rather than a dead instrument: **collapse is decided on resize, not on tab switch**, which is exactly what makes a switch cheap. Both figures are offscreen, so both are floors: no compositor, no swap chain |
@@ -167,11 +167,14 @@ accessibility was removed from the product ([`Features.md` → *Removed from sco
 nine. That is a smaller evidence base than the criteria list was designed to demand, and a reader
 comparing this verdict to §5.3 should know which rung was removed rather than cleared.
 
-**One scope note that must not be lost.** M-02 was walked against the spike, which has a ribbon and
-nothing else. Its non-ribbon half — *"the sidebar, a floating pane, and Preferences"* at mixed DPI —
-has **not** been tested, because `SidebarDock`/`ThemeManager` arrive at T9 and `LogPane`/
-`PreferencesDialog` at T14. R-6 is settled *for the ribbon*, which is what A3 asks about; the rest is
-re-walked after T14, recorded in the guide so it stays a scheduled item rather than an assumption.
+**One scope note that must not be lost — and it is now discharged.** M-02 was first walked against the
+spike, which has a ribbon and nothing else, so its non-ribbon half — *"the sidebar, a floating pane,
+and Preferences"* at mixed DPI — went untested: `SidebarDock`/`ThemeManager` arrive at T9 and
+`LogPane`/`PreferencesDialog` at T14. R-6 was settled *for the ribbon*, which is what A3 asks about,
+and the rest was recorded in the guide as a scheduled item rather than an assumption. **The user
+re-walked M-02 in full on 2026-08-30** — all four steps against the shipped shell, no findings — so
+R-6 now rests on both halves. The note is kept because the shape of it is the point: the verdict said
+plainly what it had not seen, and that is what made the debt collectable.
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release

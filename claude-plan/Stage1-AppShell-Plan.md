@@ -396,7 +396,7 @@ Owner: **you**, before T2 can be judged and before the guide's manual half can b
 
 | # | Precondition | Why | State |
 |---|---|---|---|
-| **P-1** | **Two monitors at different scale factors** (e.g. 100 % and 150 %), at least one able to change scale while the app runs | R-6 and guide case M-02. The mid-session per-monitor DPI change is the one that finds real bugs, and it cannot be faked offscreen | 🟡 **Hardware ready** — two 2560×1440 displays confirmed 2026-08-20. You set the differing scale factors when M-02 is walked |
+| **P-1** | **Two monitors at different scale factors** (e.g. 100 % and 150 %), at least one able to change scale while the app runs | R-6 and guide case M-02. The mid-session per-monitor DPI change is the one that finds real bugs, and it cannot be faked offscreen | ✅ **Satisfied** — two 2560×1440 displays confirmed 2026-08-20, and the rig was exercised in full when M-02 was re-walked on 2026-08-30: differing scale factors, a scale changed mid-session, and a re-login at a different primary scale |
 | ~~**P-2**~~ | ⤵ **Withdrawn 2026-08-23** — *a screen reader (Narrator)*. Removed with R-8 and M-08 when accessibility left the product; see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23). | — | ⤵ No longer required |
 | **P-3** | Your judgement available for the **zh-TW** review in guide case M-06 | Per your answer of 2026-08-19, Stage 1 ships real Traditional Chinese, reviewed by you rather than by a lint that can only count keys | ✅ **Confirmed 2026-08-20** |
 | **P-4** | A reference for what "a real ribbon" means — Right PDF Professional or Office on the same machine | R-1 and R-4 are judged against a reference, and "looks fine" is not a result | ✅ **Confirmed 2026-08-20** |
