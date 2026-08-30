@@ -70,7 +70,14 @@ QColor ThemeManager::colorFor(ThemeToken token, Resolved theme)
     case ThemeToken::AccentText:          return dark ? QColor(0x10, 0x10, 0x10) : QColor(0xff, 0xff, 0xff);
     case ThemeToken::SelectionBackground: return dark ? QColor(0x2d, 0x53, 0x7a) : QColor(0xcc, 0xe0, 0xf5);
     case ThemeToken::SelectionText:       return dark ? QColor(0xff, 0xff, 0xff) : QColor(0x10, 0x10, 0x10);
-    case ThemeToken::DisabledText:        return dark ? QColor(0x6a, 0x6a, 0x6a) : QColor(0x9a, 0x9a, 0x9a);
+    // MEASURED, NOT PICKED (issue I-40). Disabled text is the majority of this shell's text --
+    // 358 commands are declared and 19 registered -- so the disabled colour is not an edge case
+    // here the way it is in a finished product; it is most of the ribbon. The old pair read 3.05
+    // against the dark window and 2.54 against the light one, and the dark half was reported
+    // unreadable by a person looking at it. Both now clear 3.0 with room: 4.77 dark, 3.87 light,
+    // and each stays far below the enabled text's 13.45 / 15.68, so "disabled" still reads as
+    // disabled at a glance. `tst_theme` asserts the floor rather than the hex values.
+    case ThemeToken::DisabledText:        return dark ? QColor(0x8a, 0x8a, 0x8a) : QColor(0x7a, 0x7a, 0x7a);
     }
 
     // Unreachable for any declared token; returning an INVALID colour rather than a plausible one
@@ -95,14 +102,47 @@ QString ThemeManager::requestedNameKey() const
 
 void ThemeManager::apply()
 {
+    if (applying_) return;
+    applying_ = true;
+
     requested_ = settings_.get(core::keys::general::theme);
     fontScale_ = settings_.get(core::keys::general::uiFontScale);
 
     const Resolved previous = resolved_;
+
+    // ---------------------------------------------------------------------------------------
+    // TELL QT THE SCHEME, NOT ONLY THE PALETTE. Issue I-41, and the reason the palette below is
+    // necessary but was never sufficient.
+    //
+    // The native `windows11` style paints control text from ITS OWN colour scheme -- the one Qt
+    // derives from Windows -- and ignores the application palette while doing it. Measured, with the
+    // OS in light mode and this palette installed: an ENABLED QToolButton's glyph came out #1f1f1f
+    // on a #1f1f1f background, and a disabled one #181b1f, DARKER than the background it sat on. A
+    // `QLabel` in the same window honoured the palette exactly. So half the shell was themed and the
+    // half made of buttons -- which is the ribbon, the toolbar and the tool finder -- was not.
+    //
+    // `setColorScheme` is how an application says what it is painting, rather than inferring it. The
+    // order below is load-bearing: `FollowSystem` hands the scheme BACK to the OS first, because
+    // `systemTheme()` reads `styleHints()->colorScheme()` and would otherwise read our own last
+    // answer and call it the system's.
+    // ---------------------------------------------------------------------------------------
+    QStyleHints* const hints = QGuiApplication::styleHints();
     switch (requested_) {
-    case core::Theme::Light:        resolved_ = Resolved::Light; break;
-    case core::Theme::Dark:         resolved_ = Resolved::Dark; break;
-    case core::Theme::FollowSystem: resolved_ = systemTheme(); break;
+    case core::Theme::Light:
+        requestedScheme_ = Qt::ColorScheme::Light;
+        hints->setColorScheme(requestedScheme_);
+        resolved_ = Resolved::Light;
+        break;
+    case core::Theme::Dark:
+        requestedScheme_ = Qt::ColorScheme::Dark;
+        hints->setColorScheme(requestedScheme_);
+        resolved_ = Resolved::Dark;
+        break;
+    case core::Theme::FollowSystem:
+        requestedScheme_ = Qt::ColorScheme::Unknown;
+        hints->setColorScheme(requestedScheme_);
+        resolved_ = systemTheme();
+        break;
     }
 
     QPalette palette;
@@ -136,6 +176,8 @@ void ThemeManager::apply()
                                          static_cast<qsizetype>(core::themeName(requested_).size()))
         << "resolved to" << (resolved_ == Resolved::Dark ? "dark" : "light")
         << "at font scale" << fontScale_;
+
+    applying_ = false;
 
     if (resolved_ != previous) emit themeChanged(resolved_);
 }

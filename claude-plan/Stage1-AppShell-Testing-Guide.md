@@ -16,7 +16,7 @@
 > |---|---|
 > | **Automated, green** | **71 of 73**, every one ticked against evidence re-verified on 2026-08-25 — see §5's reconciliation note for which evidence covers which case. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live. **A-80 closed** on run 32785493072 — four jobs green, and **the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196) |
 > | **Automated, cannot run — 2 of 73** | **A-25** names a `rawpage.exe --list-actions` switch that **does not exist** and never has; **A-26** needs an alias fixture that was never written, for a mechanism (`RAWPAGE_ACTION_ALIAS`) that is real code with **zero rows and no test**. Neither is a product defect and neither is closed: both are marked in place with what *is* covered by other means, and **both are carried to Stage 2**. Until T15 this row did not exist and both cases were counted as green (**I-32**) |
-> | **Manual** | **M-01 ✅** and **M-02 ✅** walked and signed off by the user — M-01 on 2026-08-23, M-02 on 2026-08-23 for the ribbon and **re-walked in full on 2026-08-30** (all four steps, no findings). **M-03 ✅ walked and signed off 2026-08-30**, and it is the case that proved the manual half earns its place: it found **I-33, I-34 and I-35** — the stage's first three defects in the *product* — where `tst_documenttabs.cpp` had asserted everything those gestures end in and stayed green throughout. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and T14 made all three real, so that case could be re-walked as written rather than partially. **That re-walk happened on 2026-08-30 and M-02 is now ✅.** **M-04 ✅ walked and signed off 2026-08-30**, after three passes and four findings — each repair making the next defect reachable: **I-36** (S2) stopped it at its own first step — there was no View tab to click, because the ribbon's whole tab strip had been laid out zero pixels wide since T10 — then **I-37** (S3), an auto-hidden pane that only a click could reveal, and **I-38**, a `touchMode` switch that reads back and does nothing, which the user reclassified as a planned absence rather than a defect. The case was re-walked from step 1 after I-36, per M-03's rule. M-05…M-07, M-09, M-10 are still not walkable: the code they test does not exist |
+> | **Manual** | **M-01 ✅** and **M-02 ✅** walked and signed off by the user — M-01 on 2026-08-23, M-02 on 2026-08-23 for the ribbon and **re-walked in full on 2026-08-30** (all four steps, no findings). **M-03 ✅ walked and signed off 2026-08-30**, and it is the case that proved the manual half earns its place: it found **I-33, I-34 and I-35** — the stage's first three defects in the *product* — where `tst_documenttabs.cpp` had asserted everything those gestures end in and stayed green throughout. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and T14 made all three real, so that case could be re-walked as written rather than partially. **That re-walk happened on 2026-08-30 and M-02 is now ✅.** **M-04 ✅ walked and signed off 2026-08-30**, after three passes and four findings — each repair making the next defect reachable: **I-36** (S2) stopped it at its own first step — there was no View tab to click, because the ribbon's whole tab strip had been laid out zero pixels wide since T10 — then **I-37** (S3), an auto-hidden pane that only a click could reveal, and **I-38**, a `touchMode` switch that reads back and does nothing, which the user reclassified as a planned absence rather than a defect. The case was re-walked from step 1 after I-36, per M-03's rule. **M-05 ✅ walked and signed off 2026-08-31** — mis-listed as unwalkable until 2026-08-30, then it produced **I-40** (S3, unreadable disabled text in both themes, light the worse of the two) and **I-41** (S2, the native style painting control text from its own colour scheme and ignoring the palette), the second found only because the first fix changed nothing on screen. M-06, M-07, M-09 and M-10 are still not walkable: the code they test does not exist |
 >
 > **Issue log: I-01 … I-35. None open.** The last three were the user's M-03 walk on 2026-08-30 and
 > all three were **in the product** rather than in the harness — Stage 1's first of those:
@@ -256,7 +256,7 @@ A stage that is green but has no verdicts is **not** signed off.
 >
 > | Evidence | Covers |
 > |---|---|
-> | `ctest --preset x64-release` — **341/341**, and the same on `x64-debug` | A-20 … A-24, A-30 … A-37, A-40 … A-47, A-63, A-67, and the `bench.` case |
+> | `ctest --preset x64-release` — **343/343**, and the same on `x64-debug` | A-20 … A-24, A-30 … A-37, A-40 … A-47, A-63, A-67, and the `bench.` case |
 > | `ctest --preset gates` on the bare preset — **66/66**, no Qt | A-11 … A-17 |
 > | `cmake --build --target checks` — layer-lint **141 files / 933 includes**, license-audit clean, i18n-lint **78 files / 2 catalogs / 0 waivers** | A-08, A-10, A-18 |
 > | CI run 32785493072, four jobs green | A-09 (portable-asan 196/196), A-11, A-80 |
@@ -1010,11 +1010,11 @@ five new cases on a machine where neither forbidden library exists at all.
 ☑ **Steps** The whole Stage 0 gate suite. **Expect** Green at its Stage 0 counts plus the new i18n
 cases. **If it fails** S1.
 **Result** Green. The bare `gates` preset — **no Qt, no vcpkg** — is **66/66**, against Stage 0's 26.
-Both Windows presets are **341/341** (328 at T14, 334 at T15): +5 from A-61's policy cases, +1 from
-the benchmark, and **+7 on 2026-08-30 from I-33, I-34, I-35, I-36, I-37 and I-39** — every one of
-those seven added by a manual walk finding something in the product rather than by a task building
-one. I-39 added no case of its own: it was found in the step I-37 created and is asserted inside
-that case, in both directions.
+Both Windows presets are **343/343** (328 at T14, 334 at T15): +5 from A-61's policy cases, +1 from
+the benchmark, **+8 on 2026-08-30 from I-33 … I-40** and **+1 on 2026-08-31 from I-41** — every one of those eight added by a
+manual walk finding something in the product rather than by a task building one. I-39 added no case
+of its own: it was found in the step I-37 created and is asserted inside that case, in both
+directions.
 `checks` is clean on three gates at **141 files / 933 includes**, `i18n-lint` at 78 files / 2 catalogs
 / **0 waivers**, `license-audit` clean at 17 components / 4 Qt modules.
 
@@ -1323,7 +1323,44 @@ than left for someone to notice.
   is a planned absence until Stage 14 — §1, I-38.)*
 - **If it fails** S3, unless a pane cannot be re-docked at all — S2.
 
-**M-05 · Theme follows the system** ☐
+**M-05 · Theme follows the system** ✅
+
+> ✅ **Walked and signed off by the user, 2026-08-31 — two passes, two findings, and the second one
+> only existed because the first fix changed nothing on screen.**
+>
+> **I-40** (S3), 2026-08-30: dark mode's **disabled** text could not be read — and disabled text is
+> most of this shell, because 358 commands are declared and 19 registered. Measured 3.05 against the
+> window and 2.62 against a pane. The light theme, already signed off twice, measured **2.54** and was
+> the worse of the two: M-01 and M-02 walked light only, since nothing before this case had a reason
+> to switch the OS. Both raised, and `tst_theme` now measures every foreground token against the
+> background it is actually painted over, in both themes, as a ratio against a floor.
+>
+> **I-41** (S2), 2026-08-31: with the palette corrected the text was *still* unreadable, and that is
+> what pointed away from the palette. Qt's native `windows11` style paints control text from the
+> colour scheme **it** derives from Windows and ignores the application palette — so the theme reached
+> every `QLabel` and no `QToolButton`, which is the ribbon, the toolbar and the tool finder. Measured
+> by rendering a widget and reading the pixels back: an enabled button's glyph was `#1f1f1f` on a
+> `#1f1f1f` background. `apply()` now sets `QStyleHints::setColorScheme()` as well, `Unknown` for
+> follow-system so the OS keeps the decision.
+>
+> **What this case is worth remembering for.** A correct fix to a real defect changed nothing a person
+> could see, and saying so out loud is what found the defect underneath it. Measuring the colour table
+> confirmed the colour table; only rendering the widget said what reached the screen. Both halves of
+> the walk — follow-system tracking an OS flip live, and an explicit Dark holding against a light-mode
+> OS — were re-walked on the repaired build before this sign-off.
+>
+> ⤵ *Two breadcrumbs kept: why the case was thought unwalkable, and one colour it cannot reach.*
+>
+> **Mis-listed as not walkable until 2026-08-30.** Both halves had existed since T14 — `ThemeManager`
+> (T9) connects `QStyleHints::colorSchemeChanged` and re-applies only when the request is
+> `FollowSystem`, and `general/theme` has been an editable row on the General page since T14. The
+> stale line covered M-05 … M-07, M-09 and M-10 as a block; the other four are still correct.
+>
+> **One colour in the shell is not a theme token and cannot be walked here:** the contextual tab's
+> text is a hard-coded purple (`ui/shell/Ribbon.cpp`), and nothing outside a test can show a
+> contextual tab in Stage 1. A real thing to fix when contextual tabs get content (Stages 5–13), not
+> a finding this case can produce.
+
 - **Steps** With `general/theme=FollowSystem`, switch Windows between light and dark **while RawPage is
   running**. Then set RawPage to Dark explicitly and switch Windows again.
 - **Expect** Follow-system tracks live, with no restart and no half-themed widget. An explicit choice
@@ -1509,6 +1546,10 @@ record.
 | I-38 | M-04 · `general/touchMode` | **A preference a user can switch on that changes nothing.** The key is declared in `core/settings/SettingsKeys.def`, stored, and offered on the shipped General page since T14 — and the only occurrences of it in the tree are its own two rows. No hit target, font or margin reads it. | Either the switch does something, or nothing offers it | **n/a — not a defect** | **Found before the walk reached it, 2026-08-30**, by grepping the key while preparing M-04 rather than by pressing it. It was in neither out-of-scope list, so it was a gap in the documents rather than a decision anyone had taken | **Closed 2026-08-30 by a scoping decision, and recorded here so the decision is traceable to the walk that raised it.** The user's call: **planned absence, Stage 14** — touch mode is `Features.md`'s pen-and-finger work and belongs with the stage that owns the preference set, not bolted onto the shell to make one manual step pass. Now a row in this guide's §1 and in `Stage1-AppShell-Plan.md` §11, the key's §2 row says so, and M-04's *Steps* and *Expect* no longer ask for it. The alternative considered and rejected was hiding the key from the General page: the page is generated from the table, and carving one row out of a generated surface to hide an unfinished feature is the kind of special case D1-10 exists to prevent |
 
 | I-39 | M-04 · auto-hide / `MainWindow::updateAutoHideStrips` | **The edge strip stays on screen beside the pane it exists to summon.** Hover the strip, the pane slides out — and the 24-pixel bar is still there next to it, so the window shows both the stand-in and the thing it stands in for. | The strip is up only while the pane is away | **S3** | **Found by the user re-walking M-04's hover step, 2026-08-30** — the step that existed because of I-37, on the build that fixed it. Older than both: the strip has behaved this way since T9, and nothing could see it because until I-37 no test and no person could peek a pane except by calling `peek()` in a fixture, where visibility is not what is being looked at | **Closed 2026-08-30.** `isAutoHidden()` stays true through a peek, on purpose — a peek is a look and not a pin — so on its own it was the wrong question for this function. The condition now excludes a peeking pane, and the strip returns on `unpeek()`. The pointer is standing on the strip when it goes, which is safe and is *why* the pane is reachable: the dock area sits outside the central widget, so the revealed pane takes the space the strip was drawn in and arrives under the pointer. Asserted in both directions inside `hovering the edge strip peeks the auto-hidden pane`; with the peek term removed it fails at `!true` |
+
+| I-40 | M-05 · `ui/shell/ThemeManager` colour table | **In dark mode most of the shell's text is not readable.** Not the theme failing to apply — background, enabled labels, the heading and the status bar were all correct — but **disabled** text, which in this shell is nearly everything: **358 commands are declared and 19 registered**, so the disabled colour is what most of the ribbon is drawn in. Measured, `disabledText` on `windowBackground` was **3.05** dark and **2.54** light, and on `surfaceBackground` **2.62** dark. | Text a person can read in both themes, while still looking disabled | **S3** | **Found by the user walking M-05, 2026-08-30**, by switching Windows to dark with the app running. Present since T9. Invisible to every prior pass for two reasons worth separating: **M-01 and M-02 walked the LIGHT theme only** — nothing before M-05 had a reason to switch the OS — and the automated theme suite asserted that each token *resolves*, that light and dark *differ*, and that the background/text pair is the right way round, none of which is a question about whether the result can be read | **Closed 2026-08-30.** `disabledText` is now `#8a8a8a` dark and `#7a7a7a` light: **4.77 / 4.10** dark and **3.87 / 4.29** light against window and surface. **The light half was changed too, though only the dark half was reported** — it measured *lower* than the value that was called unreadable, and shipping a fix that leaves the worse number in place would be fixing the report rather than the defect. New case **`every text token is legible against the surface it is drawn on`**, which measures every foreground token against the background it is actually painted over, in both themes, against a floor of **3.0** — a floor rather than a target, so a deliberately quiet colour can stay quiet — and asserts in the same case that disabled text stays at **less than half** the enabled text's ratio, because raising the floor until the two are indistinguishable would trade this defect for a worse one. It measures RATIOS, never hex values: pinning the hex would make the case a copy of the table it checks. Control: with the old pair restored it fails on three of the seven, naming each ratio. **This is not an accessibility criterion** — accessibility left the product on 2026-08-23 — it is whether the ribbon can be read |
+
+| I-41 | M-05 · `ui/shell/ThemeManager::apply` | **The dark theme was only half in force, and the half that was missing is the ribbon.** Qt's native `windows11` style paints control text from the colour scheme **it** derives from Windows and ignores the application palette while doing it, so setting a palette themed the `QLabel`s and left every `QToolButton` painting in the OS's colours. Measured on a light-mode OS with the dark palette installed: an **enabled** button's glyph came out `#1f1f1f` on a `#1f1f1f` background — invisible — and a **disabled** one `#181b1f`, *darker than the background*; a `QLabel` in the same window honoured the palette exactly (`#8a8a8a`). | The whole shell paints in the theme the user chose | **S2** | **Found by the user re-walking M-05 on 2026-08-31**, after I-40 changed the palette and the text was still unreadable — which is what said the palette was not the thing painting it. Present since T9. **I-40 was a real defect and its fix was not wrong; it was incomplete**, and the reason is worth keeping: the token table was the only place anyone had thought to look, so a measurement of the tokens confirmed the tokens and said nothing about what reached the screen. The step that found this was rendering a widget and reading the pixels back | **Closed 2026-08-31.** `apply()` now calls `QStyleHints::setColorScheme()` as well as installing the palette — `Light`/`Dark` for an explicit choice, **`Unknown` for follow-system**, which hands the scheme back to the OS. That last one is ordered before `systemTheme()` runs and the order is load-bearing: `systemTheme()` reads `styleHints()->colorScheme()`, so a manager that had just forced Dark would read its own answer back and report it as the system's — "follow system" would quietly mean "follow whatever I last chose". Re-measured after the fix: enabled `#99deff`, disabled `#3d5871`. `setColorScheme` emits `colorSchemeChanged`, which is connected to `apply()`, so there is a re-entrancy flag and a case that calls `apply()` twice. **What the suite cannot see, named rather than papered over (convention 19):** offscreen, `setColorScheme` is inert — `colorScheme()` still answers `Unknown` and no signal fires — so the case asserts the theme → scheme **mapping** and cannot assert that Qt was told, and it cannot assert painting at all, because the style offscreen is not the style on a desktop. The pixel evidence above is the control, and it was taken by hand |
 
 ---
 

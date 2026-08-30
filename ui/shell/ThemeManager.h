@@ -105,6 +105,13 @@ public:
     // asked for it is the more disruptive of the two mistakes.
     static Resolved systemTheme();
 
+    // WHAT `apply()` LAST ASKED `QStyleHints` FOR -- `Unknown` meaning "the OS decides". Kept
+    // because it cannot be read back everywhere: under the offscreen platform the widget suite runs
+    // on, `QStyleHints::colorScheme()` answers `Unknown` no matter what was set, so a test that
+    // interrogated Qt would be asserting a property of the test platform. This is the value handed
+    // over; whether the STYLE then paints with it is manual case M-05. (Issue I-41.)
+    Qt::ColorScheme requestedColorScheme() const { return requestedScheme_; }
+
 signals:
     void themeChanged(Resolved resolved);
 
@@ -115,6 +122,12 @@ private:
     double      fontScale_ = 1.0;
     int         settingsSubscription_ = 0;
     double      baseFontPointSize_ = 0.0;
+
+    // `apply()` asks Qt for a colour scheme, and Qt answers by emitting `colorSchemeChanged`,
+    // which is connected back to `apply()`. One flag rather than a subtler comparison: the
+    // reentrant call has nothing left to do, and "nothing" is the cheapest thing to prove.
+    bool        applying_ = false;
+    Qt::ColorScheme requestedScheme_ = Qt::ColorScheme::Unknown;
 };
 
 } // namespace rawpage::ui

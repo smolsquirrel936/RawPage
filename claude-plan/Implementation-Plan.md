@@ -359,6 +359,33 @@ person could perform at all, since every earlier case reached `peek()` in a fixt
 was not the subject. Fixed the same day and asserted in both directions inside I-37's own case.
 Re-walked once more and **signed off by the user the same day**. `ctest` **341/341**.
 
+**M-05 then found I-40 (S3) at its first step**: switching Windows to dark left most of the shell's
+text unreadable — not the theme failing to apply, but the **disabled** colour, which is what most
+of this ribbon is drawn in because 358 commands are declared and 19 registered. Measured, it was
+3.05 against the window and 2.62 against a pane; the light theme, signed off in two earlier passes,
+measured **2.54** and was the worse of the two — M-01 and M-02 had walked light only, because until
+M-05 nothing had a reason to switch the OS. Both raised, and the new case measures every foreground
+token against the background it is actually painted over, in both themes, against a floor rather
+than a target — and asserts in the same breath that disabled text stays under half the enabled
+ratio, since a floor raised until the two match would trade the defect for a worse one. `ctest`
+**342/342**. It is not an accessibility criterion: that left the product on 2026-08-23.
+
+**And the I-40 fix did not work, which is how I-41 (S2) was found on 2026-08-31.** With the palette
+corrected the text was still unreadable, and that is the fact that pointed away from the palette:
+Qt's native `windows11` style paints control text from the colour scheme **it** derives from
+Windows and ignores the application palette entirely. Rendering a widget and reading the pixels
+back settled it — on a light-mode OS with the dark palette installed, an enabled `QToolButton`'s
+glyph was `#1f1f1f` on a `#1f1f1f` background and a disabled one `#181b1f`, while a `QLabel` in the
+same window honoured the palette exactly. So the theme reached every label and no button: the
+ribbon, the toolbar, the tool finder. `apply()` now calls `QStyleHints::setColorScheme()` as well
+as installing the palette, with **`Unknown` for follow-system** so the OS keeps the decision — and
+that call is ordered before `systemTheme()` reads the scheme back, or "follow system" would read
+our own last answer and report it as the system's. `ctest` **343/343**. The lesson is I-40's, one
+level up: measuring the colour table confirmed the colour table and said nothing about what
+reached the screen. **M-05 was then re-walked on the repaired build — both halves, follow-system
+across a live OS flip and an explicit Dark held against a light-mode OS — and signed off by the
+user on 2026-08-31.**
+
 **M-04 took three passes and produced four findings, and that sequence is its real result**: a tab
 strip nobody could click hid a pane gesture nobody could perform, which hid a strip nobody could
 watch disappear. Not one of the three defects was a regression — two had shipped at T9 and T10 and
@@ -367,8 +394,9 @@ were green in CI throughout. **Four manual cases are now signed off**; **M-11 an
 **The remaining Definition-of-Done item is that walk, and it is the user's alone**: M-01 and
 M-02 are signed off — **M-02 re-walked in full on 2026-08-30**, all four steps against the shipped
 shell rather than T2's spike, with no findings, which retires the last scoping note A3's R-6 carried;
-M-03 and **M-04** are signed off too, both on 2026-08-30; **M-11 and M-12 are walkable and not yet
-walked**; M-05…M-07, M-09 and M-10 test code that does not exist yet.
+M-03 and **M-04** are signed off too, both on 2026-08-30, and **M-05 on 2026-08-31** — a case this
+guide had listed as unwalkable, wrongly, since both halves of it had existed since T14. **M-11 and
+M-12 are walkable and not yet walked**; M-06, M-07, M-09 and M-10 test code that does not exist yet.
 Risk **A3** —
 can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
 library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,
