@@ -336,8 +336,16 @@ Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
     tabs_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     tabs_->setFocusPolicy(Qt::TabFocus);     // keyboard operability, retained
     tabs_->setObjectName(QStringLiteral("ribbonTabs"));
-    stripLayout->addWidget(tabs_, 0);
-    stripLayout->addStretch(1);
+
+    // AND THEREFORE THE TAB BAR CARRIES THE STRETCH ITSELF -- issue I-36, and the other half of the
+    // line above. `Ignored` tells QBoxLayout that this widget's size hint is not a number, so the
+    // layout has nothing to give it *unless* a stretch factor says how much of the leftover space is
+    // its share. With `addWidget(tabs_, 0)` followed by a separate `addStretch(1)`, the whole of the
+    // strip's width went to the stretch item and the tab bar was laid out 0 pixels wide -- at every
+    // window size, so NOT ONE TAB WAS EVER DRAWN. The corner widget still needs to sit hard right,
+    // which it now does because an expanding tab bar pushes it there; the spacer it used to need is
+    // what was eating the strip.
+    stripLayout->addWidget(tabs_, 1);
     strip_ = stripLayout;
 
     chevron_ = new QToolButton(strip);

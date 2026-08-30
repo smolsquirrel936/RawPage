@@ -170,6 +170,12 @@ protected:
     // having on the tree as the user actually sees it.
     void showEvent(QShowEvent* event) override;
 
+    // REACHING FOR AN AUTO-HIDDEN PANE IS A HOVER, and the edge strips are the only widgets this
+    // filters. A strip is a `QToolButton` and a button has no "pointer arrived" signal, so the
+    // window watches the two of them for `QEvent::Enter` -- see `buildAutoHideStrips()` for why the
+    // filter is removed in the destructor rather than left to Qt.
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     // A window emptied by a MOVE has done its job and goes (issue I-35). Called after a document is
     // adopted away by another window, and only then -- a window emptied by a CLOSE stays, because

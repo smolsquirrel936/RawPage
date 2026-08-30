@@ -332,11 +332,43 @@ sign-off is on the repaired product rather than on the repair, which is the only
 case that means anything. Note the order: I-35 was unreachable until I-34 was fixed, so a case
 interrupted by a defect is finished when it is walked again, not when the defect is closed.
 
+**And then M-04 stopped at its own first step.** Its opening move is *View tab → Panes → Log*,
+and on 2026-08-30 there was no View tab to click: the ribbon's `QTabBar` had been laid out **zero
+pixels wide at every window size since T10** (**I-36**, S2), so the strip showed the tool finder
+and nothing else, and only the page that happened to be current — Home — was reachable at all.
+`QSizePolicy::Ignored` tells `QBoxLayout` that the widget's width preference is not a number, so a
+**stretch factor** is the only thing that can state its share; beside a separate `addStretch(1)`
+the spacer took the strip. Fixed the same day, `ctest` **340/340**, with the control convention 7
+requires. The instructive part is why eleven green ribbon cases missed it: every one asked the tab
+bar what it *contained* — page count, current index, which tabs the chevron had taken — and
+`tabRect()` measures the bar's own contents, which stay perfectly correct inside a widget the
+layout gave no width. Nothing asked what the **layout handed the widget**, and that is now part of
+shared convention 12 in `CLAUDE.md`.
+
+**M-04 was then re-walked from step 1 and signed off by the user on 2026-08-30**, with two more
+results neither of which was a broken pane. **I-37** (S3): an auto-hidden sidebar answered a click
+on its edge strip and not a hover, where the case's *Expect* asks for a hover — both gestures are
+defensible, so this was closed by a **decision** rather than by default, and the user chose to move
+the product to the guide; the strip now peeks on `QEvent::Enter` and still answers a click.
+**I-38** is not a defect at all: `general/touchMode` is declared, stored, offered on the General
+page and **read by nothing**, and the user's call was **planned absence, Stage 14** — it is now a
+row in `Stage1-AppShell-Plan.md` §11 and in the guide's §1, and M-04's steps no longer ask for it.
+**And re-walking that one gesture found I-39** (S3): the edge strip stayed on screen beside the pane
+it had just summoned — behaviour unchanged since T9, and unseeable until I-37 made a peek something a
+person could perform at all, since every earlier case reached `peek()` in a fixture where visibility
+was not the subject. Fixed the same day and asserted in both directions inside I-37's own case.
+Re-walked once more and **signed off by the user the same day**. `ctest` **341/341**.
+
+**M-04 took three passes and produced four findings, and that sequence is its real result**: a tab
+strip nobody could click hid a pane gesture nobody could perform, which hid a strip nobody could
+watch disappear. Not one of the three defects was a regression — two had shipped at T9 and T10 and
+were green in CI throughout. **Four manual cases are now signed off**; **M-11 and M-12 are walkable and not yet walked**.
+
 **The remaining Definition-of-Done item is that walk, and it is the user's alone**: M-01 and
 M-02 are signed off — **M-02 re-walked in full on 2026-08-30**, all four steps against the shipped
 shell rather than T2's spike, with no findings, which retires the last scoping note A3's R-6 carried;
-M-03 is signed off too, as of 2026-08-30; M-04 (partly), M-11 and M-12 are walkable; M-05…M-07, M-09
-and M-10 test code that does not exist yet.
+M-03 and **M-04** are signed off too, both on 2026-08-30; **M-11 and M-12 are walkable and not yet
+walked**; M-05…M-07, M-09 and M-10 test code that does not exist yet.
 Risk **A3** —
 can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
 library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,

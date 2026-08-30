@@ -186,6 +186,13 @@ MainWindow::~MainWindow()
     // removes the filter while `this` is still a whole MainWindow.
     shortcuts_.reset();
 
+    // AND THE STRIP FILTERS WITH IT, for the same reason. `~QWidget` hides this window's children,
+    // and an event delivered to a strip while `this` is a half-destroyed MainWindow would dispatch
+    // `eventFilter` on an object whose derived part is gone -- issue I-12's hazard reached through
+    // the event system rather than through a signal.
+    if (leftStrip_) leftStrip_->removeEventFilter(this);
+    if (rightStrip_) rightStrip_->removeEventFilter(this);
+
     // NOT `= default`, and the reason is a real crash rather than a precaution.
     //
     // The lambdas below are connected to the SIDEBAR's signals with `this` as the receiver, and Qt
@@ -593,6 +600,18 @@ void MainWindow::updateDocumentChrome()
 
 void MainWindow::buildAutoHideStrips()
 {
+    // HOVER REVEALS, CLICK ALSO REVEALS. The first is the gesture -- reaching for the edge is how a
+    // person opens an auto-hidden pane, and it is what manual case M-04 expects (decided 2026-08-30;
+    // the strip answered only to a click until then, which is a different product). The second stays
+    // because a 24-pixel strip that looks like a button and does nothing when pressed reads as a
+    // broken control, and `peek()` is idempotent, so a click on an already-peeked pane is a no-op.
+    //
+    // An event filter rather than a signal: `QToolButton` has no "the pointer arrived" signal, and
+    // `enterEvent` is protected. Filtering the two strips costs one virtual call on their events and
+    // nothing on anyone else's.
+    leftStrip_->installEventFilter(this);
+    rightStrip_->installEventFilter(this);
+
     connect(leftStrip_, &QToolButton::clicked, this, [this]() { sidebar_->peek(); });
     connect(rightStrip_, &QToolButton::clicked, this, [this]() { sidebar_->peek(); });
 
@@ -605,10 +624,31 @@ void MainWindow::buildAutoHideStrips()
                             + catalog::translate(catalog::key::SidebarDockRight) + QLatin1Char(')'));
 }
 
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    // `peek()` does nothing unless the pane is auto-hidden, so there is no state to check here and
+    // no way for a stray Enter to open a pinned pane. The event is NOT consumed: the strip is still
+    // a button and still has a tooltip to show.
+    if (event->type() == QEvent::Enter && (watched == leftStrip_ || watched == rightStrip_))
+        sidebar_->peek();
+
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::updateAutoHideStrips()
 {
+    // A PEEKED PANE IS ON SCREEN, SO ITS STRIP IS NOT (issue I-39). The strip is what stands in for
+    // the pane while the pane is away; showing both at once puts a 24-pixel bar beside the very pane
+    // it exists to summon. `isAutoHidden()` stays true through a peek -- deliberately, because a peek
+    // is a look and not a pin -- so it is the wrong question to ask here on its own.
+    //
+    // The pointer is standing on the strip at the moment it goes: that is fine and is the reason the
+    // pane can be reached at all. The dock area sits OUTSIDE the central widget, so a revealed pane
+    // takes the space the strip was drawn in and arrives under the pointer; leaving the pane is what
+    // puts it away (`SidebarDock::leaveEvent`).
     const bool collapsed =
-        sidebar_->isAutoHidden() || (!sidebar_->isVisible() && !sidebar_->isFloating());
+        (sidebar_->isAutoHidden() && !sidebar_->isPeeking())
+        || (!sidebar_->isVisible() && !sidebar_->isFloating());
     const bool onLeft = dockWidgetArea(sidebar_) != Qt::RightDockWidgetArea;
 
     leftStrip_->setVisible(collapsed && onLeft);

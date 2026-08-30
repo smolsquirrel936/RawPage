@@ -19,7 +19,9 @@
 #include "ui/shell/RibbonTabBuilder.h"
 
 #include <QFile>
+#include <QLabel>
 #include <QSet>
+#include <QTabBar>
 #include <QToolButton>
 #include <QWidget>
 
@@ -274,6 +276,48 @@ TEST_CASE("F9 collapses the ribbon to its tab strip and restores the active tab"
     fixture.ribbon.layout()->activate();
     CHECK(fixture.ribbon.sizeHint().height() == expanded);
     CHECK(fixture.ribbon.currentPage() == 2);
+}
+
+TEST_CASE("the tab bar is allocated real width so the tabs are on screen", "[ribbon]")
+{
+    // ISSUE I-36, and the case this suite did not have. Everything else here asks the tab bar what
+    // it CONTAINS -- how many pages, which one is current, which ones the chevron took -- and every
+    // one of those answers was correct while the widget itself was laid out zero pixels wide, so the
+    // shipped ribbon showed a body with no tabs above it from T10 until a person went looking for
+    // the View tab. `tabRect()` is measured from the bar's own contents and is a fine number in a
+    // widget nobody can see; the question a test has to ask instead is what the LAYOUT gave it.
+    Fixture fixture;
+
+    auto* tabs = fixture.ribbon.findChild<QTabBar*>(QStringLiteral("ribbonTabs"));
+    REQUIRE(tabs != nullptr);
+
+    const int current = fixture.ribbon.currentPage();
+    REQUIRE(current >= 0);
+    INFO("tab bar geometry: " << tabs->geometry().width() << "x" << tabs->geometry().height());
+    CHECK(tabs->width() >= tabs->tabRect(current).width());
+    CHECK(tabs->height() > 0);
+
+    // And with a corner widget in the strip, which is how the shell actually builds it: the tool
+    // finder goes in beside the tabs (MainWindow, T11), and the reason the spacer that broke this
+    // existed at all was to hold that widget against the right-hand edge. It still is held there,
+    // and the tabs still have the rest.
+    auto* corner = new QLabel(QStringLiteral("find"));
+    corner->setFixedWidth(180);
+    fixture.ribbon.setCornerWidget(corner);
+    fixture.resizeTo(1600);
+    // Convention 12: offscreen nothing re-runs a layout for you, and the resize above does not
+    // touch the strip's own layout because the strip's SIZE did not change -- only its contents.
+    REQUIRE(corner->parentWidget() != nullptr);
+    // `setParent()` leaves a widget hidden, and a hidden widget is an EMPTY layout item -- so
+    // without this the strip would hand the tab bar the corner's share too and the assertion below
+    // would pass by accident. The shell gets the same show for free: it sets its corner widget
+    // before the window is shown, and showing a window shows the children it has not been told to
+    // hide.
+    corner->show();
+    corner->parentWidget()->layout()->activate();
+
+    CHECK(tabs->width() >= tabs->tabRect(current).width());
+    CHECK(corner->x() > tabs->x() + tabs->tabRect(current).width());
 }
 
 TEST_CASE("tabs overflow to the chevron when the ribbon is too narrow for them", "[ribbon]")

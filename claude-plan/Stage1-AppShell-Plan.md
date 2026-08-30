@@ -536,6 +536,7 @@ early — which is how a stage's risk retirement gets scrambled.
 | Contextual ribbon tabs *populated* — the mechanism is proven at R-4, the content is per-feature | Stages 5–13 |
 | Per-document pane state and session restore of documents — `SessionState` is Stage 4 | Stage 4 |
 | The full Preferences page set — three pages here; 26 groups exist | Stage 14 |
+| **`general/touchMode` doing anything.** The key is declared in `SettingsKeys.def` and editable on the General page from T14, and **nothing reads it** — enlarging hit targets for pen and finger is `Features.md`'s touch mode and belongs with the preference work that owns it. Added 2026-08-30, when M-04 walked the switch and found it inert (**I-38**) | Stage 14 |
 | `WinShellIntegration` beyond file association — thumbnails, preview, index filter, jump list | Stage 15 |
 | `PolicyOverlay` — the schema carries the lock flag, nothing reads it yet | Stage 15 |
 | `zh-CN` and `ja` catalogs (D1-14) | Stage 15 |

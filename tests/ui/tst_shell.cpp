@@ -26,7 +26,9 @@
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/StatusBar.h"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QEnterEvent>
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
@@ -255,6 +257,52 @@ TEST_CASE("the edge strip appears only on the side the pane is docked to", "[she
     window.addDockWidget(Qt::RightDockWidgetArea, window.sidebar());
     CHECK_FALSE(left->isVisible());
     CHECK(right->isVisible());
+}
+
+TEST_CASE("hovering the edge strip peeks the auto-hidden pane", "[shell]")
+{
+    // M-04, decided 2026-08-30: reaching for the edge is the gesture that reveals an auto-hidden
+    // pane, and until that day the strip answered only to a click -- so the case's own Expect line
+    // described a product we did not have. Offscreen there is no pointer to move, so the Enter the
+    // window manager would send is sent by hand; what that DOES cover is the wiring from the strip
+    // to `peek()`, which is the half that was missing. Whether a real pointer crossing a 24-pixel
+    // strip feels right is M-04's to say and always was.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    auto* left = window.findChild<QToolButton*>(QStringLiteral("sidebarStripLeft"));
+    REQUIRE(left != nullptr);
+
+    // Pinned: the strip is not even up, and a stray Enter must not open anything.
+    QEnterEvent stray(QPointF(1, 1), QPointF(1, 1), QPointF(1, 1));
+    QCoreApplication::sendEvent(left, &stray);
+    CHECK_FALSE(window.sidebar()->isPeeking());
+
+    window.sidebar()->setAutoHidden(true);
+    REQUIRE(left->isVisible());
+    REQUIRE_FALSE(window.sidebar()->isPeeking());
+
+    QEnterEvent arrive(QPointF(1, 1), QPointF(1, 1), QPointF(1, 1));
+    QCoreApplication::sendEvent(left, &arrive);
+
+    // Revealed, and still auto-hidden: a peek is a look, not a pin.
+    CHECK(window.sidebar()->isPeeking());
+    CHECK(window.sidebar()->isAutoHidden());
+
+    // AND THE STRIP IS GONE WHILE THE PANE IS OUT (issue I-39). The strip stands in for the pane;
+    // the two of them on screen together is a bar sitting beside the pane it exists to summon.
+    CHECK_FALSE(left->isVisible());
+
+    // And leaving the pane puts it away again -- the half that already worked, asserted here so the
+    // round trip is one case rather than two halves nobody joins up.
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(window.sidebar(), &leave);
+    CHECK_FALSE(window.sidebar()->isPeeking());
+
+    // The pane is away again, so the strip is back -- otherwise there would be nothing left to
+    // reach for and the pane would be unreachable by pointer for the rest of the session.
+    CHECK(left->isVisible());
 }
 
 TEST_CASE("the status bar says there is no document rather than showing a made-up one", "[shell]")
