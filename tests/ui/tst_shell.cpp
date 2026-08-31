@@ -22,6 +22,7 @@
 #include "ui/shell/QuickAccessToolbar.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/RawPageAction.h"
+#include "ui/shell/Ribbon.h"
 #include "ui/shell/RibbonModel.h"
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/StatusBar.h"
@@ -78,14 +79,19 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // Nineteen, and named. Stage 1 declares 358 ids; an id that is declared and UNREGISTERED renders as
-    // a visible, disabled control saying it is not built yet, which is the honest state. Registering
-    // a stub handler for the other 354 would make every one of them look available.
+    // Twenty-two, and named. Stage 1 declares 360 ids; an id that is declared and UNREGISTERED
+    // renders as a visible, disabled control saying it is not built yet, which is the honest state.
+    // Registering a stub handler for the other 338 would make every one of them look available.
+    //
+    // Nineteen until 2026-08-31, when three joined in one day, each because a manual walk reached
+    // for something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
+    // and `ui.qatMoveLeft` / `ui.qatMoveRight` (I-43), which are also the only ids Stage 1 has
+    // ADDED to the 358 the plan declared.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // fifth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 19);
+    CHECK(fixture.actions.registeredCount() == 22);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -303,6 +309,45 @@ TEST_CASE("hovering the edge strip peeks the auto-hidden pane", "[shell]")
     // The pane is away again, so the strip is back -- otherwise there would be nothing left to
     // reach for and the pane would be unreachable by pointer for the rest of the session.
     CHECK(left->isVisible());
+}
+
+TEST_CASE("Alt key tips are reachable through the registry", "[shell]")
+{
+    // ISSUE I-42. The ribbon has drawn key tips since T10 and NOTHING EVER ASKED IT TO: `Alt` is
+    // bound to `AppRibbonKeyTips` in `KeyBindingDefaults.def`, `ShortcutBinder` forms that chord and
+    // `tst_context` asserts that it does -- and the id was never registered, so `dispatch` answered
+    // `NotFound`, left the key unconsumed, and pressing Alt did nothing in any locale. Every link
+    // was tested and the CHAIN was not, which is why this dispatches through the registry rather
+    // than calling `showKeyTips()`. R-5 had been recorded as met against the T2 spike, which had a
+    // handler of its own that the shipped ribbon never inherited.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    ui::Ribbon* ribbon = window.ribbon();
+    REQUIRE(ribbon != nullptr);
+    REQUIRE_FALSE(ribbon->keyTipsVisible());
+
+    REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
+    CHECK(ribbon->keyTipsVisible());
+
+    // A letter chooses its tab and opens level two; Esc walks back out, one level at a time.
+    const QString letter = ribbon->accessKeyOfPage(1);
+    REQUIRE(letter.size() == 1);
+    CHECK(ribbon->handleKeyTip(letter.at(0).unicode()));
+    CHECK(ribbon->currentPage() == 1);
+    CHECK(ribbon->keyTipsVisible());
+
+    CHECK(ribbon->handleKeyTip(Qt::Key_Escape));
+    CHECK(ribbon->keyTipsVisible());              // back to level one, not gone
+    CHECK(ribbon->handleKeyTip(Qt::Key_Escape));
+    CHECK_FALSE(ribbon->keyTipsVisible());
+
+    // Alt again is a toggle, which is what Alt does in every ribbon.
+    REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
+    CHECK(ribbon->keyTipsVisible());
+    REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
+    CHECK_FALSE(ribbon->keyTipsVisible());
 }
 
 TEST_CASE("the status bar says there is no document rather than showing a made-up one", "[shell]")

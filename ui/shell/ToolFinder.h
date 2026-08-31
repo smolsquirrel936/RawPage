@@ -102,7 +102,20 @@ public:
 
     void focusSearchBox();
 
+    // Puts the result list away. `Esc`, a click outside it, and the window going inactive all end
+    // here -- see the comment in the .cpp on why a list that cannot be dismissed is not a cosmetic
+    // problem (issue I-44).
+    void dismissResults();
+    bool resultsVisible() const;
+
     QLineEdit* searchBox() const { return search_; }
+
+protected:
+    // The result list is a `Qt::Popup` WINDOW, which grabs the mouse for the whole application while
+    // it is up. That is what a popup is for -- and it is also why this class must guarantee the list
+    // can always be put away. Filtered rather than subclassed: the behaviour belongs to the finder,
+    // not to a list widget, and a QListWidget subclass would be a second file to look in.
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void refresh();

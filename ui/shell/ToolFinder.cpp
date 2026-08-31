@@ -7,7 +7,10 @@
 #include "ui/shell/Catalog.h"
 
 #include <QLineEdit>
+#include <QFocusEvent>
+#include <QKeyEvent>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -156,13 +159,89 @@ ToolFinder::ToolFinder(core::ActionRegistry& registry, core::KeyBindingStore& bi
     list_->setFocusPolicy(Qt::NoFocus);   // typing stays in the box while the list is up
     list_->hide();
 
+    // ISSUE I-44 -- AND THE REASON THIS IS NOT COSMETIC. `Qt::Popup` grabs the mouse for the whole
+    // application while the list is shown, so a list that nothing can dismiss is an application that
+    // does not answer the mouse anywhere: every click goes to the popup, which ignores it. The
+    // "nothing matched" row made that reachable by typing a word with no hits, because it is a row,
+    // so the list was non-empty and shown -- and `Esc` did nothing, an outside click did nothing,
+    // and `Enter` on an unselectable row returned early WITHOUT hiding. Force-closing the process
+    // was the only way out, which is how the user found it.
+    //
+    // Both windows are watched: keys reach the line edit (the popup takes no focus), and the mouse
+    // reaches the popup, so the two halves of "put it away" arrive at different objects.
+    list_->installEventFilter(this);
+    search_->installEventFilter(this);
+
     connect(search_, &QLineEdit::textChanged, this, [this](const QString&) { refresh(); });
     connect(search_, &QLineEdit::returnPressed, this, [this]() {
-        activate(list_->currentRow() >= 0 ? list_->currentRow() : 0);
+        // A failed activation puts the list away too (I-44). `activate()` returns false for the
+        // "nothing matched" row -- there is no result behind it -- and leaving a grabbing popup on
+        // screen after the user pressed Enter at it is the shape of the freeze this fixes.
+        if (!activate(list_->currentRow() >= 0 ? list_->currentRow() : 0)) dismissResults();
     });
     connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) {
         activate(list_->row(item));
     });
+}
+
+bool ToolFinder::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == list_ || watched == search_) {
+        switch (event->type()) {
+        case QEvent::KeyPress:
+            // Esc puts the list away and leaves the query alone: a person pressing it wants the
+            // list gone, not their typing gone. A second Esc is a plain key nobody handles here.
+            if (static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape && resultsVisible()) {
+                dismissResults();
+                return true;
+            }
+            break;
+
+        case QEvent::MouseButtonPress:
+            // A press the popup receives at coordinates outside itself IS the click somewhere else
+            // in the application -- the grab is why it arrives here at all. `QMenu` does exactly
+            // this; a bare `QListWidget` with the popup flag does not, which is the whole defect.
+            if (watched == list_) {
+                const QPoint at = static_cast<QMouseEvent*>(event)->position().toPoint();
+                if (!list_->rect().contains(at)) {
+                    dismissResults();
+                    return true;
+                }
+            }
+            break;
+
+        case QEvent::FocusOut:
+            // SHOWING THE LIST IS ITSELF A FOCUS CHANGE, and this is where the first version of the
+            // I-44 fix broke the finder: a `Qt::Popup` takes activation, so the search box receives
+            // a FocusOut with reason `PopupFocusReason` at the very moment the results appear, and
+            // dismissing on it closed the list in the same turn it opened. Every search looked as
+            // though it had matched nothing. Losing focus to the popup is not losing focus.
+            if (static_cast<QFocusEvent*>(event)->reason() == Qt::PopupFocusReason) break;
+            dismissResults();
+            break;
+
+        case QEvent::WindowDeactivate:
+            // The POPUP's own deactivation, not the shell window's -- for the same reason. Alt-
+            // tabbing away with the list up would otherwise leave a popup floating over another
+            // application, still holding the grab.
+            if (watched == list_) dismissResults();
+            break;
+
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void ToolFinder::dismissResults()
+{
+    if (list_) list_->hide();
+}
+
+bool ToolFinder::resultsVisible() const
+{
+    return list_ && !list_->isHidden();
 }
 
 ToolFinder::~ToolFinder()

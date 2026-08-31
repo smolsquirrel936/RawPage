@@ -315,8 +315,8 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     second.openFiles({fixture.writePdf(QStringLiteral("c.pdf"))});
 
     // Registration happened once -- the second window found the commands already there and did not
-    // try to register them again, which would have been nineteen "duplicate registration" errors.
-    CHECK(fixture.actions.registeredCount() == 19);
+    // try to register them again, which would have been twenty-two "duplicate registration" errors.
+    CHECK(fixture.actions.registeredCount() == 22);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

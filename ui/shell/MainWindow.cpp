@@ -758,6 +758,20 @@ void MainWindow::registerActions()
     // and from the Stage 14 batch runner without a second implementation.
     registerAction(ActionId::ViewToggleRibbon, onActiveShell(&MainWindow::toggleRibbon));
 
+    // R-5, AND THE COMMAND THAT MAKES `Alt` MEAN ANYTHING (issue I-42). The ribbon has drawn key
+    // tips since T10 and nothing ever asked it to: `Alt` is bound to this id in
+    // `KeyBindingDefaults.def`, the chord forms correctly, and the id was simply never registered --
+    // so `dispatch` answered `NotFound`, left the key unconsumed, and pressing Alt did nothing in
+    // every locale. R-5 had been recorded as met against the T2 spike, which had its own handler.
+    // The follow-up letter is the ribbon's own: `showKeyTips()` takes focus, so it arrives in
+    // `Ribbon::keyPressEvent` rather than through a second application-wide key path.
+    registerAction(ActionId::AppRibbonKeyTips, [](KeyContext) {
+        MainWindow* window = activeShell();
+        if (!window || !window->ribbon()) return;
+        if (window->ribbon()->keyTipsVisible()) window->ribbon()->hideKeyTips();
+        else                                    window->ribbon()->showKeyTips();
+    });
+
     // Quit closes EVERY shell window rather than the active one -- `file.close` is the command for
     // one window's document and `file.quit` is the application. Closing them in reverse order so
     // that the set is not mutated from under the loop.
@@ -808,6 +822,45 @@ void MainWindow::registerActions()
             return std::find(commands.begin(), commands.end(), *qat->pendingTarget())
                    != commands.end();
         });
+
+    // REORDER, WHICH THE TOOLBAR COULD DO AND NOBODY COULD ASK IT TO (issue I-43). `moveCommand`
+    // has been public since T11 and `UiCustomization` has persisted the order for just as long; the
+    // only caller was `tst_qat`. Two commands rather than a drag: a drag reaches nothing but a
+    // pointer, and the rule this toolbar was built under is that every one of its operations is a
+    // command the batch runner and a chord can reach too (flow K).
+    //
+    // The index is resolved at DISPATCH time from the pending target, never captured: the same
+    // registry serves every window (convention 14), and the button that was right-clicked is the
+    // parameter (O11).
+    const auto qatIndexOfTarget = [activeQat]() -> int {
+        QuickAccessToolbar* qat = activeQat();
+        if (!qat || !qat->pendingTarget()) return -1;
+        const std::vector<ActionId>& commands = qat->commands();
+        const auto found = std::find(commands.begin(), commands.end(), *qat->pendingTarget());
+        return found == commands.end() ? -1 : static_cast<int>(found - commands.begin());
+    };
+
+    const auto registerQatMove = [&](ActionId id, int delta) {
+        core::ActionRegistry::Registration move;
+        move.handler = [activeQat, qatIndexOfTarget, delta](KeyContext) {
+            QuickAccessToolbar* qat = activeQat();
+            const int from = qatIndexOfTarget();
+            if (qat && from >= 0) qat->moveCommand(from, from + delta);
+        };
+        // Disabled at the end it cannot move towards, rather than offered and silently refused --
+        // `moveCommand` already rejects an out-of-range index, and a menu item that does nothing
+        // when clicked is how a user learns to distrust the menu.
+        move.enable = [activeQat, qatIndexOfTarget, delta] {
+            QuickAccessToolbar* qat = activeQat();
+            if (!qat) return false;
+            const int from = qatIndexOfTarget();
+            const int to   = from + delta;
+            return from >= 0 && to >= 0 && to < static_cast<int>(qat->commands().size());
+        };
+        registerRegistration(id, std::move(move));
+    };
+    registerQatMove(ActionId::UiQatMoveLeft, -1);
+    registerQatMove(ActionId::UiQatMoveRight, +1);
 
     // THE FIRST TOGGLE IN THE PRODUCT. `checked` is what makes `ActionFactory` mark the action
     // checkable at all -- and getting here is what showed that the factory had never done so

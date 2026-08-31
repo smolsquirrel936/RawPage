@@ -17,8 +17,14 @@
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/QuickAccessToolbar.h"
+#include "ui/shell/RawPageAction.h"
 #include "ui/shell/UiCustomization.h"
 
+#include <QApplication>
+#include <QContextMenuEvent>
+#include <QMenu>
+#include <QSet>
+#include <QToolButton>
 #include <QDir>
 #include <QTemporaryDir>
 
@@ -134,6 +140,76 @@ TEST_CASE("every toolbar operation is reachable as a command through the registr
     REQUIRE(fixture.actions.dispatch(ActionId::UiResetCustomization, core::KeyContext::Global));
     CHECK(qat->commands() == ui::QuickAccessToolbar::factoryDefaults());
     CHECK_FALSE(qat->isBelowRibbon());
+}
+
+TEST_CASE("reordering the toolbar is reachable by a person and stops at both ends", "[qat]")
+{
+    // ISSUE I-43. `moveCommand` was public from T11, `UiCustomization` persisted the order from T11,
+    // three documents described reordering as shipped -- and the ONLY caller was the case above,
+    // which calls the widget method directly. Nothing on screen could move a button: no menu item,
+    // no drag, no command. Convention 19's shape, and the same one as I-34: the destination was
+    // proven and the route was never built.
+    //
+    // So this case dispatches, and never calls `moveCommand`.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+    REQUIRE(qat != nullptr);
+
+    const std::vector<ActionId> defaults = qat->commands();
+    REQUIRE(defaults.size() >= 3);
+
+    // Right-clicking the middle button is what sets the target (O11); the commands read it at
+    // dispatch time rather than capturing an index that the next add would invalidate.
+    qat->setPendingTarget(defaults.at(1));
+    REQUIRE(fixture.actions.dispatch(ActionId::UiQatMoveLeft, core::KeyContext::Global));
+    CHECK(qat->commands().at(0) == defaults.at(1));
+    CHECK(qat->commands().at(1) == defaults.at(0));
+    CHECK(qat->renderedCommands() == qat->commands());   // the BUTTONS moved, not just the list
+
+    REQUIRE(fixture.actions.dispatch(ActionId::UiQatMoveRight, core::KeyContext::Global));
+    CHECK(qat->commands() == defaults);
+
+    // AT THE ENDS THE COMMAND IS DISABLED, not offered and silently refused. A menu item that does
+    // nothing when clicked is how a person learns to stop trusting the menu.
+    qat->setPendingTarget(defaults.front());
+    CHECK_FALSE(fixture.actions.isEnabled(ActionId::UiQatMoveLeft));
+    CHECK(fixture.actions.isEnabled(ActionId::UiQatMoveRight));
+
+    qat->setPendingTarget(defaults.back());
+    CHECK(fixture.actions.isEnabled(ActionId::UiQatMoveLeft));
+    CHECK_FALSE(fixture.actions.isEnabled(ActionId::UiQatMoveRight));
+
+    // And with no button under the cursor there is nothing to move in either direction.
+    qat->setPendingTarget(std::nullopt);
+    CHECK_FALSE(fixture.actions.isEnabled(ActionId::UiQatMoveLeft));
+    CHECK_FALSE(fixture.actions.isEnabled(ActionId::UiQatMoveRight));
+
+    // AND THE ROUTE, not only the destination -- which is the whole reason this issue existed. The
+    // dispatches above would every one of them pass against a build whose context menu never
+    // mentions reordering, because that is exactly the build that shipped from T11 to 2026-08-31.
+    // So: raise the real menu the way a right-click does, and read what it offers.
+    window.show();
+    auto* button = qat->findChild<QToolButton*>();
+    REQUIRE(button != nullptr);
+
+    const QPoint inButton = button->geometry().center();
+    QContextMenuEvent rightClick(QContextMenuEvent::Mouse, inButton, qat->mapToGlobal(inButton));
+    QApplication::sendEvent(qat, &rightClick);
+
+    QMenu* menu = qat->findChild<QMenu*>();
+    REQUIRE(menu != nullptr);
+
+    QSet<int> offered;
+    for (QAction* action : menu->actions())
+        if (auto* command = qobject_cast<ui::RawPageAction*>(action))
+            offered.insert(static_cast<int>(command->id()));
+
+    CHECK(offered.contains(static_cast<int>(ActionId::UiQatMoveLeft)));
+    CHECK(offered.contains(static_cast<int>(ActionId::UiQatMoveRight)));
+    CHECK(offered.contains(static_cast<int>(ActionId::UiQatRemove)));
+
+    menu->close();
 }
 
 TEST_CASE("a customization survives being written and read back", "[qat]")

@@ -2,6 +2,12 @@
 // tab does. `Features.md` §1.1 lists five operations for it: add from any ribbon control, remove,
 // reorder, place above or below the ribbon, and reset to factory defaults. All five are here.
 //
+// "All five" was true of the METHODS and false of the product until 2026-08-31 (issue I-43):
+// `moveCommand` was public, `UiCustomization` persisted the order, this comment and two other
+// documents called reordering shipped -- and no menu item, no drag and no command could reach it,
+// so the only caller in the tree was a test. It is now `ui.qatMoveLeft` / `ui.qatMoveRight`, in
+// the context menu with the rest, each disabled at the end it cannot move towards.
+//
 // ---------------------------------------------------------------------------------------------
 // IT HOLDS `ActionId`s, NOT WIDGETS, AND REBUILDS ITS BUTTONS FROM THAT LIST.
 //

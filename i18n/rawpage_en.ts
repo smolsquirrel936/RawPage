@@ -1432,6 +1432,14 @@
         <translation>Remove from Quick Access Toolbar</translation>
     </message>
     <message>
+        <source>action.ui.qatMoveLeft</source>
+        <translation>Move Left</translation>
+    </message>
+    <message>
+        <source>action.ui.qatMoveRight</source>
+        <translation>Move Right</translation>
+    </message>
+    <message>
         <source>action.ui.qatPlacement</source>
         <translation>Quick Access Toolbar Placement</translation>
     </message>
@@ -1620,6 +1628,42 @@
 </context>
 <context>
     <name>ribbon</name>
+    <message>
+        <source>ribbon.keytip.home</source>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.create</source>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.edit</source>
+        <translation>E</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.comment</source>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.organize</source>
+        <translation>O</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.forms</source>
+        <translation>F</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.protect</source>
+        <translation>P</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.view</source>
+        <translation>V</translation>
+    </message>
+    <message>
+        <source>ribbon.keytip.tableTools</source>
+        <translation>T</translation>
+    </message>
     <message>
         <source>ribbon.tab.home</source>
         <translation>Home</translation>

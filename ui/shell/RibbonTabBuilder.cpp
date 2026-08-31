@@ -106,7 +106,19 @@ QStringList RibbonTabBuilder::build(const ribbon::ParseResult& parsed)
             pageLayout->addWidget(widget);
         }
 
-        ribbon_.addPage(catalog::translate(tab.titleKey), page, tab.contextual);
+        // THE ACCESS KEY IS DERIVED FROM THE TAB ID AND RESOLVED THROUGH THE CATALOG -- the same
+        // shape T14 used for `prefs.setting.*`, where a generated surface reads a key it computes
+        // rather than one somebody copied into a second table. `translate()` hands back the key
+        // itself when there is no entry, which is what makes a missing letter reportable here
+        // instead of arriving on screen as "ribbon.keytip.view". (Issue I-42.)
+        const QString accessKeyKey = ribbon::tabAccessKeyKey(tab.id);
+        QString accessKey = catalog::translate(accessKeyKey);
+        if (accessKey == accessKeyKey || accessKey.isEmpty()) {
+            problems << QStringLiteral("tab '%1' has no access key (%2)").arg(tab.id, accessKeyKey);
+            accessKey.clear();
+        }
+
+        ribbon_.addPage(catalog::translate(tab.titleKey), page, tab.contextual, accessKey);
 
         // The FIRST tab-order pass, before any resize has happened. Without it the chain is
         // whatever creation order produced, and the first collapse is what would otherwise

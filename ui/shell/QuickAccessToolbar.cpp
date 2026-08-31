@@ -186,6 +186,13 @@ QMenu* QuickAccessToolbar::buildMenu(bool overCommand)
     // reach, on the toolbar whose entire purpose is reaching commands quickly.
     if (overCommand) {
         actions_.addToMenu(menu, ActionId::UiQatRemove);
+
+        // REORDERING IS TWO COMMANDS, and until 2026-08-31 it was none (issue I-43): `moveCommand`
+        // was public, `UiCustomization` persisted the order, and the only caller was a test. Each is
+        // disabled at the end it cannot move towards -- the enablement predicate reads the pending
+        // target, which `contextMenuEvent` has already set by the time this menu is built.
+        actions_.addToMenu(menu, ActionId::UiQatMoveLeft);
+        actions_.addToMenu(menu, ActionId::UiQatMoveRight);
     } else {
         actions_.addToMenu(menu, ActionId::UiQatAdd);
     }

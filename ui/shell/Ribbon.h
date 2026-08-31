@@ -51,6 +51,7 @@
 #include <QList>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 class QHBoxLayout;
@@ -162,7 +163,13 @@ class Ribbon : public QWidget {
 public:
     explicit Ribbon(QWidget* parent = nullptr);
 
-    int  addPage(const QString& title, QWidget* page, bool contextual = false);
+    // `accessKey` is the letter this tab's key tip shows and answers to (R-5). It is DATA FROM THE
+    // CATALOG rather than the first character of the title: in `zh-TW` the titles begin 常 建 編 註
+    // 組 表 保 檢, none of which a keyboard can produce as an `Alt` chord, and 表 is the first
+    // character of both 表單 and 表格工具. An empty letter means this tab has no key tip, which is
+    // a defect `RibbonTabBuilder` reports rather than a state to paper over. (Issue I-42.)
+    int  addPage(const QString& title, QWidget* page, bool contextual = false,
+                 const QString& accessKey = QString());
     void setContextualVisible(bool visible);
     bool isContextualVisible() const { return contextualVisible_; }
 
@@ -180,6 +187,10 @@ public:
     void hideKeyTips();
     bool keyTipsVisible() const { return !tips_.isEmpty(); }
     bool handleKeyTip(int key);
+
+    // The letter a tab answers to, for the suite that asserts the set of them is typable and has no
+    // duplicates -- the two properties the first-character scheme silently lost in Chinese.
+    QString accessKeyOfPage(int index) const;
 
     RibbonPageLayout* layoutOfPage(int index) const;
 
@@ -225,6 +236,12 @@ signals:
 protected:
     void resizeEvent(QResizeEvent* event) override;
 
+    // WHILE KEY TIPS ARE UP THE RIBBON HOLDS FOCUS, and this is where the follow-up letter lands.
+    // The alternative -- filtering the application -- would put a second key path beside
+    // `ShortcutBinder`, and D1-7's whole point is that there is one. Focus is taken in
+    // `showKeyTips()` and given back to whatever had it in `hideKeyTips()`.
+    void keyPressEvent(QKeyEvent* event) override;
+
 private:
     void relayoutTabs();
     void rebuildOverflowMenu();
@@ -241,6 +258,8 @@ private:
     int             tipLevel_          = 0;
     QList<QWidget*> tips_;
     QHash<int, int> tipTargets_;          // key -> tab index, level 1
+    QStringList     accessKeys_;          // per page, from the catalog -- see addPage()
+    QPointer<QWidget> focusBeforeTips_;   // restored when the tips go away
 };
 
 } // namespace rawpage::ui

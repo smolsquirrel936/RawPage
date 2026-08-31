@@ -19,6 +19,12 @@
 #include "ui/shell/ToolFinder.h"
 
 #include <QDir>
+#include <QApplication>
+#include <QFocusEvent>
+#include <QKeyEvent>
+#include <QListWidget>
+#include <QMouseEvent>
+#include <QLineEdit>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -190,6 +196,77 @@ TEST_CASE("an empty query lists nothing and a query nothing matches lists nothin
     REQUIRE(bounded.size() == 5);
     REQUIRE(unbounded.size() > 5);
     for (std::size_t i = 0; i < bounded.size(); ++i) CHECK(bounded[i].id == unbounded[i].id);
+}
+
+TEST_CASE("the result list can always be put away", "[toolfinder]")
+{
+    // ISSUE I-44, and the worst defect this stage has produced. The list is a `Qt::Popup` WINDOW,
+    // which grabs the mouse for the whole application while it is up -- so "the list will not close"
+    // is not a cosmetic complaint, it is an application that answers no click anywhere. A query that
+    // matched nothing still filled the list with the "nothing matched" ROW, so the list was shown;
+    // `Esc` was not handled, an outside click was not handled, and `Enter` on an unselectable row
+    // returned early without hiding. Force-closing the process was the only way out.
+    //
+    // Each of the three exits is asserted separately, because each was independently missing.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    ui::ToolFinder* finder = window.toolFinder();
+    REQUIRE(finder != nullptr);
+
+    // Cleared first, deliberately: `setQuery` goes through `QLineEdit::setText`, which emits nothing
+    // when the text does not change -- so re-typing the SAME query after a dismissal would leave the
+    // list hidden and the next assertion would pass for the wrong reason. Found by this case failing
+    // on its second use of the helper.
+    const auto typeSomethingWithNoHits = [&] {
+        finder->setQuery(QString());
+        REQUIRE_FALSE(finder->resultsVisible());  // an empty query shows nothing at all
+        finder->setQuery(QStringLiteral("qzxjvw"));
+        REQUIRE(finder->results().empty());       // nothing matched...
+        REQUIRE(finder->resultsVisible());        // ...and the list is up anyway, saying so
+    };
+
+    // 1. Esc.
+    typeSomethingWithNoHits();
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(finder->searchBox(), &escape);
+    CHECK_FALSE(finder->resultsVisible());
+    CHECK(finder->query() == QStringLiteral("qzxjvw"));   // the list went, the typing stayed
+
+    // 2. A click somewhere else. The grab is why the popup receives it at all, and the coordinates
+    //    being outside its own rect is what makes it "somewhere else".
+    typeSomethingWithNoHits();
+    auto* list = finder->findChild<QListWidget*>(QStringLiteral("toolFinderResults"));
+    REQUIRE(list != nullptr);
+    const QPointF outside(-40, -40);
+    QMouseEvent click(QEvent::MouseButtonPress, outside, outside, Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QApplication::sendEvent(list, &click);
+    CHECK_FALSE(finder->resultsVisible());
+
+    // 3. THE LIST SURVIVES THE FOCUS CHANGE THAT SHOWING IT CAUSES. This is the regression the
+    //    first version of the I-44 fix shipped for one build: a `Qt::Popup` takes activation, so the
+    //    search box gets a FocusOut with reason `PopupFocusReason` the moment the results appear,
+    //    and dismissing on that closed the list in the same turn it opened -- every search looked
+    //    as though nothing matched. Offscreen the real focus change does not happen, so the event
+    //    is sent by hand; what this covers is the RULE, not the platform's behaviour.
+    typeSomethingWithNoHits();
+    QFocusEvent toPopup(QEvent::FocusOut, Qt::PopupFocusReason);
+    QApplication::sendEvent(finder->searchBox(), &toPopup);
+    CHECK(finder->resultsVisible());
+
+    // ...while a real focus loss -- clicking into another widget -- still puts it away.
+    QFocusEvent elsewhere(QEvent::FocusOut, Qt::MouseFocusReason);
+    QApplication::sendEvent(finder->searchBox(), &elsewhere);
+    CHECK_FALSE(finder->resultsVisible());
+
+    // 4. Enter on the row that has no command behind it. It used to return false and leave the
+    //    popup holding the grab.
+    typeSomethingWithNoHits();
+    CHECK_FALSE(finder->activate(0));
+    finder->searchBox()->returnPressed();
+    CHECK_FALSE(finder->resultsVisible());
 }
 
 TEST_CASE("choosing a result runs the command through the registry", "[toolfinder]")

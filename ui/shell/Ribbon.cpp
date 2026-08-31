@@ -3,10 +3,12 @@
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 
+#include <QApplication>
 #include <QColor>
 #include <QFont>
 #include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QResizeEvent>
@@ -395,9 +397,11 @@ Ribbon::Ribbon(QWidget* parent) : QWidget(parent)
     });
 }
 
-int Ribbon::addPage(const QString& title, QWidget* page, bool contextual)
+int Ribbon::addPage(const QString& title, QWidget* page, bool contextual,
+                    const QString& accessKey)
 {
     const int index = tabs_->addTab(title);
+    accessKeys_.append(accessKey.trimmed().left(1).toUpper());
     stack_->addWidget(page);
     if (contextual) {
         contextualIndex_ = index;
@@ -547,14 +551,26 @@ void Ribbon::showKeyTips()
     tipLevel_ = 1;
     tipTargets_.clear();
 
+    // The ribbon takes focus so the next key lands in keyPressEvent(). Remembered rather than
+    // assumed: the tips are dismissed with Esc and the person expects to be back where they were,
+    // and offscreen there may be no focus widget at all, which QPointer handles by staying null.
+    focusBeforeTips_ = QApplication::focusWidget();
+    setFocusPolicy(Qt::StrongFocus);
+    setFocus(Qt::OtherFocusReason);
+
     for (int i = 0; i < tabs_->count(); ++i) {
         if (!tabs_->isTabVisible(i)) continue;
-        const QString text = tabs_->tabText(i);
-        if (text.isEmpty()) continue;
-        const int key = text.at(0).toUpper().unicode();
+
+        // FROM THE CATALOG, never from the title (I-42). A tab with no access key gets no tip --
+        // `RibbonTabBuilder` has already reported it as a problem, and inventing one here would
+        // hide that report behind a letter nobody chose.
+        const QString letter = accessKeyOfPage(i);
+        if (letter.isEmpty()) continue;
+        const int key = letter.at(0).unicode();
+        if (tipTargets_.contains(key)) continue;   // first wins; the suite asserts there are none
         tipTargets_.insert(key, i);
 
-        auto* tip = new QLabel(QString(QChar(key)), this);
+        auto* tip = new QLabel(letter, this);
         tip->setObjectName(QStringLiteral("ribbonKeyTip"));
         tip->setFrameShape(QFrame::Box);
         tip->setAlignment(Qt::AlignCenter);
@@ -572,6 +588,28 @@ void Ribbon::hideKeyTips()
     qDeleteAll(tips_);
     tips_.clear();
     tipLevel_ = 0;
+
+    // Focus goes back where it was, and the ribbon stops being focusable -- it is not a control and
+    // must not join the tab order (I-05 is about exactly that order).
+    setFocusPolicy(Qt::NoFocus);
+    if (focusBeforeTips_) focusBeforeTips_->setFocus(Qt::OtherFocusReason);
+    focusBeforeTips_.clear();
+}
+
+QString Ribbon::accessKeyOfPage(int index) const
+{
+    return (index >= 0 && index < accessKeys_.size()) ? accessKeys_.at(index) : QString();
+}
+
+void Ribbon::keyPressEvent(QKeyEvent* event)
+{
+    // Only while the tips are up. With them down this widget does not hold focus at all, so this is
+    // belt and braces rather than a branch anyone reaches.
+    if (tipLevel_ != 0 && handleKeyTip(event->key())) {
+        event->accept();
+        return;
+    }
+    QWidget::keyPressEvent(event);
 }
 
 bool Ribbon::handleKeyTip(int key)

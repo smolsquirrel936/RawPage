@@ -66,9 +66,23 @@ QStringList Spec::catalogKeys() const
     QStringList keys;
     for (const Tab& tab : tabs) {
         keys << tab.titleKey;
+
+        // AND THE ACCESS KEY, which is derived from the tab id rather than written in the resource
+        // (I-42) -- so this is the only place that can enumerate it. `--dump-ui-strings` is what
+        // guide case A-72 compares between locales, and `i18n-lint` sees the reference in
+        // `RibbonTabBuilder` as a NAMESPACE (`"ribbon.keytip."`, per I-27) and therefore cannot
+        // check the nine members one by one. A family nothing enumerates is a family that can lose
+        // a member in one locale and stay green everywhere.
+        keys << tabAccessKeyKey(tab.id);
+
         for (const Group& group : tab.groups) keys << group.titleKey;
     }
     return keys;
+}
+
+QString tabAccessKeyKey(const QString& tabId)
+{
+    return QStringLiteral("ribbon.keytip.") + tabId;
 }
 
 int Spec::controlCount() const

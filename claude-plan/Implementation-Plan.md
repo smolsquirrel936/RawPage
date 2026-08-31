@@ -359,6 +359,50 @@ person could perform at all, since every earlier case reached `peek()` in a fixt
 was not the subject. Fixed the same day and asserted in both directions inside I-37's own case.
 Re-walked once more and **signed off by the user the same day**. `ctest` **341/341**.
 
+**The same walk's tool-finder step then produced I-44 (S2), and it is the worst defect this stage
+has found**: a query that matched nothing **froze the application**. The result list is a
+`Qt::Popup` window and therefore holds the mouse grab for the whole process; the *nothing matched*
+message is itself a row, so an empty result set still showed the list; and `Esc`, a click outside
+and `Enter` on the unselectable row all failed to put it away. Every click anywhere went to a
+popup that ignored it, and force-closing the process was the only way out. Found by making a
+typo — which is how anyone would find it, and nobody had, since T11. Three exits added, each
+independently missing, and the case asserts each one separately.
+
+**And the fix for it shipped a regression, I-45 (S2), which the user found by re-walking the same
+step within the hour.** Dismissing the list on any `FocusOut` closed it in the same turn it opened,
+because **showing a `Qt::Popup` is itself a focus change** — the search box receives a focus-out
+with reason `PopupFocusReason` exactly when the results appear — so no search showed anything at
+all. The case added with I-44 could not see it: offscreen there is no such focus change, so the
+assertion passed while the desktop did the opposite. Losing focus **to the popup** is not losing
+focus; the rule is now asserted in both directions with the bug as its control. Two fixes for one
+defect in one afternoon is the cost of a `Qt::Popup`, and it is written into the file map row.
+
+**And answering a question about the QAT's context menu during that same sitting found I-43 (S3)**:
+reordering the toolbar could not be done by a person. `moveCommand` had been public since T11 and
+the order persisted since T11; `QuickAccessToolbar.h`, `CLAUDE.md` and `Architecture-FileMap.md`
+all called reordering shipped; and there was no menu item, no drag and no `ActionId` — the only
+caller in the tree was a test calling the method. **That is I-34's shape and the third instance in
+this stage**, which is why the new case asserts the ROUTE as well as the destination: it raises
+the real context menu and reads what it offers, and taking the items out of `buildMenu` fails it —
+a dispatch-only case would have passed against the build that shipped. `ui.qatMoveLeft` and
+`ui.qatMoveRight` are **the only ids Stage 1 has added to the plan's 358**, which now stands at
+360 declared and 22 registered. Logged against **M-11**, whose steps say *customize the toolbar*.
+
+**M-06 was signed off on 2026-08-31 after producing four defects, and it opened with I-42 (S2)**: pressing `Alt` did nothing,
+in every locale. The ribbon has *drawn* key tips since T10 — two levels, `Esc` backs out — and
+nothing ever asked it to: `Alt` is bound to `AppRibbonKeyTips`, `ShortcutBinder` forms the chord
+and a case asserts that it does, and the id was never registered, so `dispatch` answered
+`NotFound` and the key fell through. Every link was tested; the chain was not. And
+`Tech-Stack-Plan.md` §3.3 had recorded **R-5 as met since 2026-08-23** — judged in M-01 against
+the T2 spike, whose handler the shipped ribbon never inherited, which is I-36's shape exactly.
+Registered as the **twentieth** of 358 ids, and the tip letters moved out of the tab titles into a
+`ribbon.keytip.*` catalog family: the first-character scheme gave `zh-TW` 常 建 編 註 組 表 保 檢,
+none of them typable, with 表 claimed by both 表單 and 表格工具. The new case asserts the letters
+are ASCII and distinct **in both shipped catalogs**, because the half that was broken was broken
+only in Chinese and M-01 walked English. `ctest` **345/345**. The A3 verdict stands — R-5 asked
+whether Qt Widgets *can* host key tips and the spike answered it — but the row describing the
+product was false for eleven days, and is now corrected the way T15 corrected R-9.
+
 **M-05 then found I-40 (S3) at its first step**: switching Windows to dark left most of the shell's
 text unreadable — not the theme failing to apply, but the **disabled** colour, which is what most
 of this ribbon is drawn in because 358 commands are declared and 19 registered. Measured, it was
@@ -394,9 +438,11 @@ were green in CI throughout. **Four manual cases are now signed off**; **M-11 an
 **The remaining Definition-of-Done item is that walk, and it is the user's alone**: M-01 and
 M-02 are signed off — **M-02 re-walked in full on 2026-08-30**, all four steps against the shipped
 shell rather than T2's spike, with no findings, which retires the last scoping note A3's R-6 carried;
-M-03 and **M-04** are signed off too, both on 2026-08-30, and **M-05 on 2026-08-31** — a case this
-guide had listed as unwalkable, wrongly, since both halves of it had existed since T14. **M-11 and
-M-12 are walkable and not yet walked**; M-06, M-07, M-09 and M-10 test code that does not exist yet.
+M-03 and **M-04** are signed off too, both on 2026-08-30, and **M-05 and M-06 on 2026-08-31** —
+M-05 a case this guide had listed as unwalkable, wrongly, since both halves of it had existed since
+T14, and M-06 the longest walk of the stage: every surface in `zh-TW` plus the editorial review of
+the 29 unfinished catalog entries, which no automated case can do. **M-11 and M-12 are walkable and
+not yet walked**; M-07, M-09 and M-10 test code that does not exist yet.
 Risk **A3** —
 can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
 library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,
@@ -519,7 +565,7 @@ and `ui/qatBelowRibbon` at T11. All four are in the `Internal` group and get no 
 are state and customization rather than settings a user goes looking for in a dialog.
 
 **Cross-cutting additions.** No commands yet. **i18n catalog groups introduced:** `shell.*`,
-`ribbon.*`, `error.*`, `prefs.*`, `action.*` (one label per `ActionId`). **Live at T14: 525 keys per
+`ribbon.*`, `error.*`, `prefs.*`, `action.*` (one label per `ActionId`). **Live at T14: 536 keys per
 shipped locale**, of which 62 are `prefs.*`. Three of those families are **generated rather than
 written down** — `prefs.setting.<group>.<key>` from `SettingsKeys.def`, `prefs.choice.<enum>.<member>`
 from the enum's own name table, and `prefs.context.<Name>` from `KeyContext` — so the whole key

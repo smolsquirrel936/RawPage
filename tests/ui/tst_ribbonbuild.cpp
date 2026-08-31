@@ -13,14 +13,18 @@
 
 #include "core/cmd/ActionRegistry.h"
 #include "ui/shell/ActionFactory.h"
+#include "ui/shell/Catalog.h"
 #include "ui/shell/RawPageAction.h"
 #include "ui/shell/Ribbon.h"
 #include "ui/shell/RibbonModel.h"
 #include "ui/shell/RibbonTabBuilder.h"
 
+#include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QLabel>
 #include <QSet>
+#include <QTranslator>
 #include <QTabBar>
 #include <QToolButton>
 #include <QWidget>
@@ -390,6 +394,52 @@ TEST_CASE("a ribbon narrower than its collapsed groups scrolls rather than clipp
     // it, so widening puts it away without anybody resetting anything.
     fixture.resizeTo(1600);
     CHECK_FALSE(fixture.ribbon.hasBodyScroll());
+}
+
+TEST_CASE("every tab access key is typable and no two tabs claim the same one", "[ribbon]")
+{
+    // THE HALF THAT WAS WRONG IN CHINESE AND RIGHT IN ENGLISH, which is why it is asserted against
+    // BOTH shipped catalogs rather than against the one the suite happens to install. Key tips took
+    // the first character of the tab title until 2026-08-31, so `zh-TW` offered 常 建 編 註 組 表 保
+    // 檢 -- no keyboard produces any of them as an Alt chord -- and 表 was the first character of
+    // both 表單 (Forms) and 表格工具 (Table Tools), so one of the two was unreachable even in
+    // principle. Neither fact is visible from an English run, and M-01 walked English.
+    const ribbon::Spec& spec = shippedSpec().spec;
+    REQUIRE(spec.tabs.size() > 1);
+
+    for (const QString& locale : {QStringLiteral("en"), QStringLiteral("zh_TW")}) {
+        QTranslator catalog;
+        const QString path = QDir(QCoreApplication::applicationDirPath())
+                                 .filePath(QStringLiteral("i18n/rawpage_%1.qm").arg(locale));
+        INFO("catalog: " << path.toStdString());
+        REQUIRE(catalog.load(path));
+        REQUIRE(QCoreApplication::installTranslator(&catalog));
+
+        QSet<QString> claimed;
+        for (const ribbon::Tab& tab : spec.tabs) {
+            const QString key = ribbon::tabAccessKeyKey(tab.id);
+            const QString letter = catalog::translate(key);
+
+            INFO(locale.toStdString() << " " << tab.id.toStdString() << " -> "
+                                      << letter.toStdString());
+            CHECK(letter != key);                       // the catalog has an entry at all
+            REQUIRE(letter.size() == 1);
+            const QChar character = letter.at(0);
+
+            // TYPABLE, which is the property the first-character scheme lost. A key tip is pressed,
+            // not read: a letter no keyboard can produce is a tip that dead-ends.
+            CHECK(character.unicode() < 128);
+            CHECK(character.isLetterOrNumber());
+            CHECK(character == character.toUpper());
+
+            // And distinct, per locale -- the 表 collision was invisible in English.
+            CHECK(claimed.insert(letter.toUpper()) != claimed.end());
+            CHECK(claimed.contains(letter.toUpper()));
+        }
+        CHECK(claimed.size() == static_cast<int>(spec.tabs.size()));
+
+        QCoreApplication::removeTranslator(&catalog);
+    }
 }
 
 TEST_CASE("Tab visits the groups in visual order after any change of the collapsed set", "[ribbon]")

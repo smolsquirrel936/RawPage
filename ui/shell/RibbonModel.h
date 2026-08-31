@@ -70,6 +70,12 @@ struct Tab {
     std::vector<Group> groups;
 };
 
+// The catalog key holding a tab's `Alt` access key -- one function so the builder, the dump and the
+// suite ask the same question the same way. Derived from the tab id rather than declared in
+// `res/ribbon.json`, because the LETTER is per-locale data and belongs in the catalog; the resource
+// says which tabs exist. (Issue I-42.)
+QString tabAccessKeyKey(const QString& tabId);
+
 struct Spec {
     int              schemaVersion = 0;
     std::vector<Tab> tabs;

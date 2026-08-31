@@ -483,6 +483,12 @@ RAWPAGE_ACTION(UiResetCustomization,   "ui.resetCustomization",   Global, "actio
 RAWPAGE_ACTION(UiQatAdd,               "ui.qatAdd",               Global, "action.ui.qatAdd")
 RAWPAGE_ACTION(UiQatRemove,            "ui.qatRemove",            Global, "action.ui.qatRemove")
 RAWPAGE_ACTION(UiQatPlacement,         "ui.qatPlacement",         Global, "action.ui.qatPlacement")
+// Reordering the toolbar was reachable only from a test until 2026-08-31 (issue I-43):
+// `QuickAccessToolbar::moveCommand` existed, `UiCustomization` persisted the order, three
+// documents called it shipped, and nothing on screen could move a button. Left and right rather
+// than up and down because the toolbar is a row in both of its placements.
+RAWPAGE_ACTION(UiQatMoveLeft,          "ui.qatMoveLeft",          Global, "action.ui.qatMoveLeft")
+RAWPAGE_ACTION(UiQatMoveRight,         "ui.qatMoveRight",         Global, "action.ui.qatMoveRight")
 
 // =============================================================================================
 // ALIASES -- append only, never delete (rule 2 above, decision D1-16)
