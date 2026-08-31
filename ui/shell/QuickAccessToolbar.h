@@ -5,8 +5,11 @@
 // "All five" was true of the METHODS and false of the product until 2026-08-31 (issue I-43):
 // `moveCommand` was public, `UiCustomization` persisted the order, this comment and two other
 // documents called reordering shipped -- and no menu item, no drag and no command could reach it,
-// so the only caller in the tree was a test. It is now `ui.qatMoveLeft` / `ui.qatMoveRight`, in
-// the context menu with the rest, each disabled at the end it cannot move towards.
+// so the only caller in the tree was a test. I-43 fixed it with `ui.qatMoveLeft` /
+// `ui.qatMoveRight` in the context menu -- and the user asked for a DRAG instead the same day, so
+// both items came back out of the menu. Reordering is now the gesture (see `eventFilter()`); the
+// two commands stay REGISTERED and unlisted so the tool finder and flow K can still reach the
+// operation, and `ui.qatLock` guards the gesture against being made by accident.
 //
 // ---------------------------------------------------------------------------------------------
 // IT HOLDS `ActionId`s, NOT WIDGETS, AND REBUILDS ITS BUTTONS FROM THAT LIST.

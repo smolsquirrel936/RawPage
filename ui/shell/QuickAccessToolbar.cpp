@@ -330,10 +330,13 @@ QMenu* QuickAccessToolbar::buildMenu()
     if (alreadyOnToolbar) {
         actions_.addToMenu(menu, ActionId::UiQatRemove);
 
-        // REORDERING IS TWO COMMANDS, and until 2026-08-31 it was none (issue I-43): `moveCommand`
-        // was public, `UiCustomization` persisted the order, and the only caller was a test. Each is
-        // disabled at the end it cannot move towards -- the enablement predicate reads the pending
-        // target, which `contextMenuEvent` has already set by the time this menu is built.
+        // REORDERING IS DELIBERATELY NOT IN THIS MENU. Until 2026-08-31 it was reachable from
+        // nowhere at all (issue I-43): `moveCommand` was public, `UiCustomization` persisted the
+        // order, and the only caller was a test. I-43 put `ui.qatMoveLeft` / `ui.qatMoveRight` here
+        // beside Remove; the user then asked for a DRAG instead, so both items came back out the
+        // same day. They stay REGISTERED and unlisted -- `eventFilter()` holds the gesture, and a
+        // gesture reaches nothing but a pointer, so flow K and the tool finder still need the two
+        // commands. `tst_qat` asserts BOTH halves: registered, and absent from this menu.
         actions_.addMenuSeparator(menu);
     } else if (hasTarget) {
         actions_.addToMenu(menu, ActionId::UiQatAdd);

@@ -382,11 +382,14 @@ reordering the toolbar could not be done by a person. `moveCommand` had been pub
 the order persisted since T11; `QuickAccessToolbar.h`, `CLAUDE.md` and `Architecture-FileMap.md`
 all called reordering shipped; and there was no menu item, no drag and no `ActionId` — the only
 caller in the tree was a test calling the method. **That is I-34's shape and the third instance in
-this stage**, which is why the new case asserts the ROUTE as well as the destination: it raises
-the real context menu and reads what it offers, and taking the items out of `buildMenu` fails it —
-a dispatch-only case would have passed against the build that shipped. `ui.qatMoveLeft` and
-`ui.qatMoveRight` are **the only ids Stage 1 has added to the plan's 358**, which now stands at
-360 declared and 22 registered. Logged against **M-11**, whose steps say *customize the toolbar*.
+this stage**, which is why the new case asserts the ROUTE as well as the destination — a
+dispatch-only case would have passed against the build that shipped. **The route then changed
+inside the same walk**: the user asked for drag-to-reorder, `buildMenu` dropped the two items and
+gained `ui.qatLock`, and the case now asserts the commands stay registered and are **absent** from
+the menu — the same route assertion pointed the other way (see the M-11 paragraph below).
+`ui.qatMoveLeft`, `ui.qatMoveRight` and `ui.qatLock` are **the only ids Stage 1 has added to the
+plan's 358**, which now stands at 361 declared and 23 registered. Logged against **M-11**, whose
+steps say *customize the toolbar*.
 
 **M-06 was signed off on 2026-08-31 after producing four defects, and it opened with I-42 (S2)**: pressing `Alt` did nothing,
 in every locale. The ribbon has *drawn* key tips since T10 — two levels, `Esc` backs out — and
@@ -433,7 +436,7 @@ user on 2026-08-31.**
 **M-04 took three passes and produced four findings, and that sequence is its real result**: a tab
 strip nobody could click hid a pane gesture nobody could perform, which hid a strip nobody could
 watch disappear. Not one of the three defects was a regression — two had shipped at T9 and T10 and
-were green in CI throughout. **Eight manual cases are now signed off — M-01 … M-07 and M-11**; M-12 is walkable and is the last one, and M-09 and M-10 test code that does not exist.
+were green in CI throughout. **All nine walkable manual cases are now signed off — M-01 … M-07, M-11 and M-12**, the last of them on 2026-08-31, which closes the manual half of this stage. M-08 was withdrawn with accessibility; M-09 and M-10 test code that does not exist.
 
 **Preparing M-11 found I-47 (S2) before the walk began**: `Settings::sync()` was called from one
 place — `CompositionRoot`'s teardown — so every preference lived in memory until a clean quit and a
@@ -473,7 +476,7 @@ reorders by **dragging** a button, with a **lock** toggle guarding against doing
 (`ui/qatLocked`, unlocked by default). The two move commands stay REGISTERED although the context
 menu no longer offers them, because a drag reaches nothing but a pointer and this project's
 standing rule is that no feature may exist which flow K cannot reach — the menu was simplified as
-asked, the reachability was not traded away. `ctest` **353/353**; 361 ids declared, 23 registered.
+asked, the reachability was not traded away. `ctest` **354/354**; 361 ids declared, 23 registered.
 
 **The remaining Definition-of-Done item is that walk, and it is the user's alone**: M-01 and
 M-02 are signed off — **M-02 re-walked in full on 2026-08-30**, all four steps against the shipped
@@ -489,8 +492,13 @@ preconditions its own text had never stated were dealt with (**I-46**): the Qt r
 inherit the dev shell's `PATH`, and a hand-made Windows association, since **no route in the product
 can register one** — implemented, tested, unreachable, and declared a planned absence for Stage 14/15.
 **M-11 was walked and signed off on 2026-08-31** — the case that produced the most of any in this
-stage, and the only one that changed the product's feature set while being walked. **M-12 is walkable
-and is the last one**; M-09 and M-10 test code that does not exist yet.
+stage, and the only one that changed the product's feature set while being walked. **M-12 was walked and signed off on 2026-08-31 and was the last one**, which closes the manual
+half and with it Stage 1's Definition of Done. It produced **I-53**, disposed of as a planned
+absence: plan §5.1's *registered-but-disabled* tooltip was never built, and the user's call was
+that at Stage 1 the second kind of disabled is nearly theoretical — 338 of 361 ids are
+unregistered, so almost every disabled control a person meets is the explained kind, and the few
+that are not are refused for reasons visible on screen. It becomes real at Stage 2. M-09 and M-10
+test code that does not exist yet.
 Risk **A3** —
 can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
 library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,

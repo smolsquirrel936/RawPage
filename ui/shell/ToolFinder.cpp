@@ -10,6 +10,7 @@
 #include <QFocusEvent>
 #include <QKeyEvent>
 #include <QListWidget>
+#include <QCoreApplication>
 #include <QMouseEvent>
 #include <QVBoxLayout>
 
@@ -156,7 +157,28 @@ ToolFinder::ToolFinder(core::ActionRegistry& registry, core::KeyBindingStore& bi
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("toolFinderResults"));
     list_->setWindowFlags(Qt::Popup);
-    list_->setFocusPolicy(Qt::NoFocus);   // typing stays in the box while the list is up
+    // THREE THINGS ARE NEEDED HERE AND NOT ONE, which is what issue I-54 cost to establish. A
+    // `Qt::Popup` is a WINDOW, and opening one takes both the keyboard and the window activation
+    // away from the search box. Those are separate losses with separate symptoms and separate
+    // fixes, and the first round of the I-54 fix repaired only the first of them:
+    //
+    //   1. `Qt::NoFocus` -- the list never takes focus WITHIN its own window. This alone was here
+    //      since T11, under a comment claiming typing stayed in the box. It never could: focus
+    //      policy picks a widget inside a window and says nothing about which window the keyboard
+    //      is talking to.
+    //   2. `eventFilter` forwards the keys the list does not need to the line edit, because Qt
+    //      delivers key presses to the active popup. Without this the query stopped growing after
+    //      one character.
+    //   3. `WA_ShowWithoutActivating` + `setFocusProxy` -- so showing the list does not deactivate
+    //      the shell window. Without these the keys arrive (2 having fixed that) but `QLineEdit`
+    //      stops painting its blinking caret, because a line edit in a DEACTIVATED window hides the
+    //      cursor whether or not it still holds focus. Typing worked and looked like it should not.
+    //
+    // 1 and 3 together are what `QCompleter` does with its own popup; 2 is its `eventFilter`. This
+    // widget is a completer in all but name and it pays the same costs.
+    list_->setFocusPolicy(Qt::NoFocus);
+    list_->setAttribute(Qt::WA_ShowWithoutActivating);
+    list_->setFocusProxy(search_);
     list_->hide();
 
     // ISSUE I-44 -- AND THE REASON THIS IS NOT COSMETIC. `Qt::Popup` grabs the mouse for the whole
@@ -167,8 +189,9 @@ ToolFinder::ToolFinder(core::ActionRegistry& registry, core::KeyBindingStore& bi
     // and `Enter` on an unselectable row returned early WITHOUT hiding. Force-closing the process
     // was the only way out, which is how the user found it.
     //
-    // Both windows are watched: keys reach the line edit (the popup takes no focus), and the mouse
-    // reaches the popup, so the two halves of "put it away" arrive at different objects.
+    // Both windows are watched, and BOTH kinds of event arrive at the popup once it is up: the
+    // mouse because a `Qt::Popup` grabs it, and the keyboard because a `Qt::Popup` is the active
+    // window (issue I-54 -- this comment used to say keys reach the line edit, and they do not).
     list_->installEventFilter(this);
     search_->installEventFilter(this);
 
@@ -188,14 +211,54 @@ bool ToolFinder::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == list_ || watched == search_) {
         switch (event->type()) {
-        case QEvent::KeyPress:
+        case QEvent::KeyPress: {
+            auto* key = static_cast<QKeyEvent*>(event);
+
             // Esc puts the list away and leaves the query alone: a person pressing it wants the
             // list gone, not their typing gone. A second Esc is a plain key nobody handles here.
-            if (static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape && resultsVisible()) {
+            if (key->key() == Qt::Key_Escape && resultsVisible()) {
                 dismissResults();
                 return true;
             }
+
+            // ISSUE I-54, AND THE THIRD DEFECT THIS POPUP HAS PRODUCED. `Qt::Popup` is a WINDOW,
+            // and while one is up Qt delivers key presses to the active popup rather than to
+            // whatever held focus before it opened. `setFocusPolicy(Qt::NoFocus)` does not change
+            // that and never could: focus policy governs which widget takes focus WITHIN a window,
+            // and this is a question about which window the keyboard is talking to. So the first
+            // character reached the line edit, the list opened, and from the SECOND character on
+            // every keystroke arrived here -- at a QListWidget, which spent it on its own keyboard
+            // search. The query stopped growing and the caret appeared to desert the box.
+            //
+            // The list keeps the keys that are its own job and forwards the rest to the line edit.
+            // This is what `QCompleter` does with its popup, for this exact reason.
+            if (watched == list_) {
+                switch (key->key()) {
+                case Qt::Key_Up:
+                case Qt::Key_Down:
+                case Qt::Key_PageUp:
+                case Qt::Key_PageDown:
+                    return false;   // moving the selection IS the list's job
+
+                case Qt::Key_Return:
+                case Qt::Key_Enter:
+                    // Handled here rather than forwarded, so that Enter means the same thing
+                    // whichever window the platform happened to deliver it to. Same body as the
+                    // `returnPressed` connection, including I-44's "a failed activation still puts
+                    // the list away".
+                    if (!activate(list_->currentRow() >= 0 ? list_->currentRow() : 0))
+                        dismissResults();
+                    return true;
+
+                default:
+                    // Home and End go this way too: in a search box those move the caret, which is
+                    // what a person typing a query means by them -- not "jump to the last result".
+                    QCoreApplication::sendEvent(search_, event);
+                    return true;
+                }
+            }
             break;
+        }
 
         case QEvent::MouseButtonPress:
             // A press the popup receives at coordinates outside itself IS the click somewhere else

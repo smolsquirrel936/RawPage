@@ -312,3 +312,86 @@ TEST_CASE("choosing a result runs the command through the registry", "[toolfinde
     CHECK_FALSE(finder->activate(-1));
     CHECK_FALSE(finder->activate(9999));
 }
+
+TEST_CASE("typing keeps reaching the search box after the result list opens", "[toolfinder]")
+{
+    // ISSUE I-54 (S2), and the THIRD defect this one popup has produced -- after I-44's freeze and
+    // I-45's regression in its fix.
+    //
+    // `Qt::Popup` is a WINDOW. While one is up, Qt delivers key presses to the active popup rather
+    // than to whatever held focus before it opened, so the first character reached the line edit,
+    // the list opened, and every character after that arrived at a QListWidget which spent it on
+    // its own keyboard search. The query stopped growing and the caret appeared to desert the box.
+    // `setFocusPolicy(Qt::NoFocus)` does not prevent this and never could: focus policy decides
+    // which widget takes focus WITHIN a window, and this is a question about which window the
+    // keyboard is talking to.
+    //
+    // WHY NINE GREEN CASES MISSED IT: every other case in this file sends its keys to
+    // `searchBox()`, which is the one address a real keystroke does NOT arrive at while the list is
+    // up. That is convention 19's back door -- the destination was proven and the route was never
+    // driven -- and it is the same shape as I-34 and I-43.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    ui::ToolFinder* finder = window.toolFinder();
+    REQUIRE(finder != nullptr);
+
+    finder->setQuery(QStringLiteral("op"));
+    REQUIRE(finder->resultsVisible());
+
+    auto* list = finder->findChild<QListWidget*>(QStringLiteral("toolFinderResults"));
+    REQUIRE(list != nullptr);
+    REQUIRE(list->count() > 1);   // the Down control below needs somewhere to move to
+
+    // THE CARET'S HALF OF I-54, asserted as a MECHANISM because offscreen it can be nothing else.
+    // Forwarding the keys fixed the typing and left the blinking cursor gone: a `QLineEdit` in a
+    // DEACTIVATED window stops painting its cursor whether or not it still holds focus, and showing
+    // a popup deactivates the window behind it. `WA_ShowWithoutActivating` stops that, and the focus
+    // proxy sends any focus the list is given back to the box -- together they are what `QCompleter`
+    // does. Under `offscreen` there is no activation to lose and no cursor to paint, so what this
+    // case can honestly assert is that the two are set; **the proof that the caret blinks is a
+    // manual one**, exactly as convention 21 records for `QStyleHints::setColorScheme` at I-41.
+    CHECK(list->testAttribute(Qt::WA_ShowWithoutActivating));
+    CHECK(list->focusProxy() == finder->searchBox());
+
+    // A KEYSTROKE ADDRESSED TO THE POPUP, which is where the platform actually delivers it.
+    QKeyEvent letter(QEvent::KeyPress, Qt::Key_E, Qt::NoModifier, QStringLiteral("e"));
+    QApplication::sendEvent(list, &letter);
+    CHECK(finder->query() == QStringLiteral("ope"));
+
+    // ...and Backspace, so the box can be corrected as well as extended. Before the fix this was
+    // swallowed too, which is what made a mistyped query feel unrecoverable.
+    QKeyEvent backspace(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+    QApplication::sendEvent(list, &backspace);
+    CHECK(finder->query() == QStringLiteral("op"));
+
+    // THE CONTROL, in the other direction: the keys that ARE the list's job must not be forwarded,
+    // or choosing a result with the arrow keys would stop working -- a fix that traded one half of
+    // the keyboard for the other would pass a test that only checked the letters.
+    //
+    // The query is chosen so the control can actually run. Down moves between rows a person can
+    // CHOOSE, and `QAbstractItemView` skips disabled ones -- so a query whose only enabled hit is
+    // its first row leaves the arrow key correctly with nowhere to go. This case was first written
+    // against "op", whose one enabled hit is `Open…`, and it failed against a CORRECT fix. That is
+    // convention 7: a control that cannot exercise the thing it claims to is worse than none.
+    finder->setQuery(QStringLiteral("toggle"));
+    REQUIRE(finder->resultsVisible());
+    int choosableRows = 0;
+    for (int row = 0; row < list->count(); ++row)
+        if (list->item(row)->flags() != Qt::NoItemFlags) ++choosableRows;
+    REQUIRE(choosableRows > 1);   // `Toggle Ribbon` and `Toggle Sidebar` are both registered
+
+    const int before = list->currentRow();
+    QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+    QApplication::sendEvent(list, &down);
+    CHECK(list->currentRow() != before);
+    CHECK(finder->query() == QStringLiteral("toggle"));   // navigation leaves the query untouched
+
+    // Esc still reaches the dismissal from the popup as well as from the box (I-44's exit must
+    // survive the forwarding, since Esc is handled BEFORE the watched == list_ branch).
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(list, &escape);
+    CHECK_FALSE(finder->resultsVisible());
+    CHECK(finder->query() == QStringLiteral("toggle"));
+}

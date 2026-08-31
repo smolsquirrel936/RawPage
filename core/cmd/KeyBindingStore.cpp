@@ -138,7 +138,7 @@ Result<void> KeyBindingStore::rebind(const Chord& chord, KeyContext context, Act
 
 std::optional<Chord> KeyBindingStore::overrideChordFor(ActionId action, KeyContext context) const
 {
-    // A linear scan over the USER's overrides, which is a handful of entries rather than the 248
+    // A linear scan over the USER's overrides, which is a handful of entries rather than the 240
     // defaults. A second index would have to be kept in step with every rebind and every clear for
     // a lookup nobody performs in a loop.
     for (const auto& [key, bound] : overrides_)
