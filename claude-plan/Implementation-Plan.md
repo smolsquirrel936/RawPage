@@ -669,10 +669,38 @@ implemented". Contextual ribbon tabs, per-document pane state, the full Preferen
 
 *Part 2 of the first milestone.*
 
-**Status:** ⚪ **Not started.** Carries risk **A2** as a hard **go/no-go**: p95 per-tile latency
+**Status:** ⚪ **Not started — but planned.** Its execution plan
+([`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md), decisions **D2-1 … D2-14**, tasks
+**T1 … T18**) and its testing guide
+([`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md), **74 automated** and
+**10 manual** cases) were both written on 2026-08-31, **before any Stage 2 code**, per §5.
+
+Carries risk **A2** as a hard **go/no-go**: p95 per-tile latency
 must be under ~16 ms at the target DPI on the reference machine. If it is not, the tiling policy in
 [`Tech-Stack-Plan.md` D10](./Tech-Stack-Plan.md#2-decisions-confirmed) is revisited **before**
-anything is built on top of it.
+anything is built on top of it. **The plan measures A2 twice** (D2-1): a throwaway probe over raw
+`FPDF_RenderPageBitmap` at **T3**, early enough that a no-go reshapes the architecture rather than
+replacing it, and a final measurement through the shipped `RenderScheduler` at **T18** — which is
+Stage 1 T15's lesson, where the ribbon's R-9 figure had to be re-measured against the shipped ribbon
+because a spike's ribbon is as small as its author made it. Stage 2 also owns **O7** and **O10** (§8).
+
+**Two corrections were made to this document set while the plan was written**, both recorded as
+**I-01** in the Stage 2 guide's §8. `Architecture-FileMap.md` tagged the six `pdf/cos/` **reader**
+rows (fifteen files) ○ (S3) while the component list below claims them and Stage 3's does not; and it
+tagged `Revision.h`, `Scope` and `Page` ○ (S3) while their own *Interacts with* column names Stage 2
+consumers. This document owns stage ordering, so the FileMap was corrected — including `PageTree`'s
+new split tag **○ (S2 read, S3 edit)**, which follows `Outline`'s existing precedent.
+
+**The corpus is entirely generated — decided by the user 2026-08-31 (plan D2-11), which withdrew
+precondition P-2 outright.** Nothing in `corpus/` is borrowed or downloaded, so no committed file
+needs licence clearance — a gap no gate closes, since `license-audit` governs linked dependencies
+and says nothing about data — and every file regenerates byte-identically, which matters because a
+PDF xref stores absolute byte offsets. **It also bounds the exit criterion below**: *“every corpus
+file opens and renders correctly”* is a claim about **consistency against our own output**, not
+about **fidelity to real-world PDFs**. Real-producer constructs — scanner CCITT quirks, InDesign
+transparency, unusual colour spaces — are outside Stage 2's evidence. That limit is a
+Definition-of-Done item (plan §13.6) rather than a footnote, and the trigger for revisiting it is
+the first real-world rendering bug the corpus cannot reproduce.
 
 **Objectives.** Open a PDF and look at it: scroll, zoom, all four page-layout modes, correct
 rasterization at each monitor's physical DPI, and a window that survives being dragged between
@@ -691,9 +719,13 @@ monitors at different scaling.
 - `core/render/RenderCache` — `std::optional<QImage> lookup(const RenderRequest&) const`,
   `void put(...)`, `void invalidate(Scope, Revision)`.
 - `core/render/PagePresentation` — `QVector<QRectF> layout(const PageTree&, LayoutMode, Zoom) const`.
-- `core/doc/RepairReport`.
+- `core/doc/RepairReport`, and **four vocabulary types brought forward from Stage 3** because the three
+  signatures above already name them: `Revision.h` and `Scope` (`RenderCache::invalidate`, and the
+  `Revision` `RenderRequest` carries), `Page` (`TileGrid::tilesFor`), and a **read-only** `PageTree`
+  (`PagePresentation::layout`) — construct, index, page size, rotation and label here; insert, move,
+  remove and duplicate at Stage 3. See `Stage2-Rendering-Plan.md` **D2-5**.
 - `pdf/cos/` first half — `CosObject`, `Lexer`, `Parser`, `XrefTable`, `XrefRepair`,
-  `filters/{Flate,LZW,Ascii85,AsciiHex,RunLength,Dct,Jpx,Ccitt,Jbig2}`.
+  `filters/{Flate,LZW,Ascii85,AsciiHex,RunLength,Dct,Jpx,Ccitt,Jbig2}` — **nine**; `CryptFilter` goes to Stage 10 with the `StandardSecurityHandler` whose key it needs (D2-4).
 - `pdf/render/PdfiumInit`, `PdfiumDocument` (`Result<Handle> open(path, PasswordCb)`),
   `PdfiumRasterizer` (`Result<QImage> raster(const RenderRequest&)`), `GlyphCache`,
   `FontResolverBridge`.
@@ -738,7 +770,8 @@ separately so a failure is unambiguous).
 *Automated:* `tst_dpipolicy`, `tst_tilegrid`, `tst_rendercache` (LRU, cap, scope invalidation),
 `tst_presentation` (all four layout modes, cover page, RTL), `tst_cos_lexer`, `tst_cos_parser`,
 `tst_cos_filters` (each filter round-trips), `tst_xrefrepair` (every `corpus/malformed/` file yields
-a report, never a crash). `tests/golden/` establishes the baseline at three DPIs. `tests/bench/`
+a report, never a crash). **`tests/fuzz/` — `fuzz_cos_lexer` and `fuzz_cos_parser`, the first targets
+the `portable-fuzz` preset has ever had.** `tests/golden/` establishes the baseline at three DPIs. `tests/bench/`
 reports p50/p95 — **the A2 gate**. `portable-asan` runs the COS parse of the whole corpus clean
 under ASan+UBSan; the raster path, which cannot leave Windows because PDFium is in it, is checked
 with Dr. Memory / Application Verifier over the same corpus instead (R7).
@@ -785,7 +818,9 @@ page, undo it, redo it, save it incrementally, reopen it, and recover it after a
 - `pdf/ops/MutationSinkImpl` — `void setPageRotation(PageIndex, int)` + the queue/flush pair.
 - `pdf/ops/PageOps` — `void applyRotation(CosDict& pageDict, int angle)`.
 - `app/RecoveryPrompt`, `ui/dialogs/RecoveryDialog`, `ui/dialogs/RepairReportDialog`.
-- `tools/mutation-lint/`, `tests/roundtrip/`, `tests/fuzz/`.
+- `tools/mutation-lint/`, `tests/roundtrip/`. ~~`tests/fuzz/`~~ — **moved to Stage 2**, which is where
+  `pdf/cos/Lexer` and `Parser` are written and therefore the earliest a fuzz target can exist;
+  `CMakePresets.json` has said so since Stage 0. Stage 3 adds seeds, not targets.
 
 **Key bindings handled** — `Ctrl+S` ([Global](./Features.md#global-active-in-every-context)),
 `Ctrl+Z` / `Ctrl+Y` ([Common](./Features.md#common-all-contexts-unless-a-context-above-overrides-the-chord),
@@ -1697,13 +1732,15 @@ Each guide carries **two sections**, per §2:
   section above; this one is the residue and should shrink over the project's life.
 
 Stages whose surface is entirely headless still get a guide — its manual section is short or empty,
-and that is a finding worth recording rather than a reason to skip the file. **Stages 0 and 1 have theirs**, each
+and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1 and 2 have theirs**, each
 written from its plan before its code; every other row below is a schedule, not a backlog of missing
 documents.
 
 **A stage's §4 entry may also be expanded into a `Stage<N>-<Area>-Plan.md` execution document** when
-its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md)
-and [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md) are the two that exist. Such a document owns **only** that stage's
+its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md),
+[`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md) and
+[`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md) are the three that exist. Such a document
+owns **only** that stage's
 task ordering and its stage-local design choices; the objectives, components, and exit criteria stay
 here, and the stage's live status stays in its §4 status block. It sits between plan and guide in the
 sequence: **§4 entry → `Stage<N>-<Area>-Plan.md` (optional) → testing guide → implement → run the
@@ -1713,7 +1750,7 @@ guide.**
 |---|---|---|
 | 0 — Toolchain & gates | [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) | ✅ **Written 2026-08-17** from [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md), before any Stage 0 code · **not yet run** — no case has a result. 40 automated cases (A-01…A-73), 7 manual (M-01…M-07): the clean-machine bootstrap and the **real** UCRT64 wrong-compiler configure. Carries the **A5/A6** verdicts and keeps **A7** settled |
 | 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · 🟡 **partly run — T1…T13 verified 2026-08-24**. 68 automated (A-01…A-85, plus **A-67** added at T7), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go, **recorded**. Twenty-five issues, **none open** (I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-24 and I-25 at T13, both of them the harness rather than the product** — **CI now green at `gates` 45/45 and `portable-asan` 177/177**, run 32649932954, with the `windows` job still skipped for want of a registered runner, which is why **A-80 stays open**); **fifteen of the twenty were found by running something rather than by reading it**, including both S1s |
-| 2 — Rendering | `Stage2-Rendering-Testing-Guide.md` | ⚪ Queued — **needs two monitors at different scaling**; carries the **A2** verdict |
+| 2 — Rendering | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) | ✅ **Written 2026-08-31** from [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md), before any Stage 2 code · **not yet run** — no case has a result. **74 automated** (A-01…A-74), **10 manual** (M-01…M-10). The manual half is **smaller than Stage 1's**, on purpose: most of this stage is pure arithmetic and is automated, so what is left is the irreducible residue — two monitors at different scaling, perceived smoothness while scrolling, fidelity judged beside a reference, and a memory checker the CI runner does not have. **Needs two monitors at different scaling** (satisfied — the rig matches A2's specification exactly) and carries the **A2** verdict, plus **O7** and **O10**. One issue, **I-01**, raised by reading rather than running and closed the same day |
 | 3 — Mutation & save | `Stage3-Mutation-Testing-Guide.md` | ⚪ Queued — **needs a hex editor and a way to kill the process mid-edit**; carries the **A4** verdict |
 | 4 — Viewing surface | `Stage4-ViewingSurface-Testing-Guide.md` | ⚪ Queued |
 | 5 — Text, selection, search | `Stage5-TextSearch-Testing-Guide.md` | ⚪ Queued — near-entirely automated; the manual section covers selection feel and RTL/CJK rendering only |

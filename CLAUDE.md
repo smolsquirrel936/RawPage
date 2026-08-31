@@ -29,8 +29,21 @@ included — it was the last one, and it was never code. M-01 … M-04 were sign
 M-09 and M-10 are not walkable, their subject being code no stage before Stage 2 writes. **I do not
 mark a manual case** — every one of these was walked and signed off by the user.
 
-**Next action: Stage 2**, which is where documents start being opened, parsed and drawn — and where
-**I-53** stops being theoretical (see below).
+**Next action: Stage 2 T1.** Stage 2 is where documents start being opened, parsed and drawn — and
+where **I-53** stops being theoretical (see below). **Its two planning documents are written and its
+code is not started**, which is the workflow's intended state: `Stage2-Rendering-Plan.md` (decisions
+**D2-1 … D2-14**, tasks **T1 … T18**, preconditions **P-1 … P-4**) and
+`Stage2-Rendering-Testing-Guide.md` (**74 automated**, **10 manual** cases, none run), both dated
+2026-08-31. **Stage 2's `T1`…`T18` are a different namespace from Stage 0's and Stage 1's `T1`…`T15`**
+— always say which stage. Three things that plan settles are worth knowing before touching the code:
+**`rawpage_pdf` must split** into `rawpage_cos` (portable, first-party) and `rawpage_pdfium` (Windows,
+links the DLL), because `tests/unit`'s `rawpage_assert_headless()` claims *“no display and no PDF
+engine”* while forbidding only `rawpage_ui` and `rawpage_platform` — the moment `PdfiumInit.cpp` joins
+`rawpage_pdf`, that claim is false and `portable-asan` stops configuring (D2-2); **A2 is measured
+twice**, a throwaway probe at T3 and the shipped pipeline at T18, which is Stage 1 T15's R-9 lesson
+written down in advance (D2-1); and **four `core/doc/` vocabulary types come forward from Stage 3** —
+`Revision.h`, `Scope`, `Page` and a read-only `PageTree` — because three Stage 2 signatures already
+name them (D2-5). All three are recorded in `Stage2-Rendering-Plan.md` §3.
 
 **M-12 produced one finding, disposed of as a planned absence rather than fixed.** **I-53**: plan
 §5.1 (`Stage1-AppShell-Plan.md`) requires a disabled control to say *which kind* of disabled it is —
@@ -376,8 +389,8 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Tech-Stack-Plan.md` | Locked stack, license posture, directory layout, the inward-only dependency rule, mutation-through-commands, the first milestone. |
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
-| `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order and its stage-local design choices. **Two exist:** `Stage0-Toolchain-Plan.md` (tasks T1–T15, decisions D0-1…D0-8, the §7 precondition checklist) and `Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16, the §7 precondition checklist P-1…P-4). It owns no product facts and no live status — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Two exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed) and `Stage1-AppShell-Testing-Guide.md`, written from Stage 1's plan before its code — **no case in it has been run**; its one issue, I-01, was raised and closed before any code. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order and its stage-local design choices. **Three exist:** `Stage0-Toolchain-Plan.md` (tasks T1–T15, decisions D0-1…D0-8, the §7 precondition checklist), `Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16, the §7 precondition checklist P-1…P-4) and `Stage2-Rendering-Plan.md` (tasks **T1–T18**, decisions D2-1…D2-14, preconditions P-1…P-4 of which P-2…P-4 are open), written 2026-08-31 before any Stage 2 code. It owns no product facts and no live status — those stay in the four documents above. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Three exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed); `Stage1-AppShell-Testing-Guide.md` (written before Stage 1's code, **fully run and fully walked** — 73 automated cases, 12 manual of which 9 were walkable and all 9 signed off, issues I-01…I-55, none open); and `Stage2-Rendering-Testing-Guide.md`, written from Stage 2's plan before its code — **74 automated (A-01…A-74) and 10 manual (M-01…M-10), and no case in it has been run**. Its one issue, **I-01**, was raised and closed before any code, by *reading* the document set rather than running it: `Architecture-FileMap.md` tagged the `pdf/cos/` reader and three `core/doc/` vocabulary types Stage 3 while `Implementation-Plan.md` — which owns stage ordering — claims them for Stage 2. **Stage 2's guide has its own `A-nn`/`M-nn`/`I-nn` namespace**; a bare `I-34` means Stage 1's. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
