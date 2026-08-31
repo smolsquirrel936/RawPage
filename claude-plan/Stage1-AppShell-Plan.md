@@ -538,6 +538,7 @@ early — which is how a stage's risk retirement gets scrambled.
 | The full Preferences page set — three pages here; 26 groups exist | Stage 14 |
 | **`general/touchMode` doing anything.** The key is declared in `SettingsKeys.def` and editable on the General page from T14, and **nothing reads it** — enlarging hit targets for pen and finger is `Features.md`'s touch mode and belongs with the preference work that owns it. Added 2026-08-30, when M-04 walked the switch and found it inert (**I-38**) | Stage 14 |
 | `WinShellIntegration` beyond file association — thumbnails, preview, index filter, jump list | Stage 15 |
+| **A route for the user to register the PDF association.** The four association calls are implemented at T7 and tested against the real registry; nothing in `app/` or `ui/` calls them, so the capability exists and is unreachable. Added 2026-08-31 from M-07 (**I-46**) | Stage 14/15 |
 | `PolicyOverlay` — the schema carries the lock flag, nothing reads it yet | Stage 15 |
 | `zh-CN` and `ja` catalogs (D1-14) | Stage 15 |
 | ~~The full accessibility pass and a screen-reader rig~~ | ⤵ **Withdrawn 2026-08-23** — accessibility is out of the product, not deferred. See [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23) |

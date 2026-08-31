@@ -433,7 +433,7 @@ user on 2026-08-31.**
 **M-04 took three passes and produced four findings, and that sequence is its real result**: a tab
 strip nobody could click hid a pane gesture nobody could perform, which hid a strip nobody could
 watch disappear. Not one of the three defects was a regression — two had shipped at T9 and T10 and
-were green in CI throughout. **Four manual cases are now signed off**; **M-11 and M-12 are walkable and not yet walked**.
+were green in CI throughout. **Seven manual cases are now signed off — M-01 … M-07**; M-11 and M-12 are walkable and not yet walked, and M-09 and M-10 test code that does not exist.
 
 **The remaining Definition-of-Done item is that walk, and it is the user's alone**: M-01 and
 M-02 are signed off — **M-02 re-walked in full on 2026-08-30**, all four steps against the shipped
@@ -441,8 +441,14 @@ shell rather than T2's spike, with no findings, which retires the last scoping n
 M-03 and **M-04** are signed off too, both on 2026-08-30, and **M-05 and M-06 on 2026-08-31** —
 M-05 a case this guide had listed as unwalkable, wrongly, since both halves of it had existed since
 T14, and M-06 the longest walk of the stage: every surface in `zh-TW` plus the editorial review of
-the 29 unfinished catalog entries, which no automated case can do. **M-11 and M-12 are walkable and
-not yet walked**; M-07, M-09 and M-10 test code that does not exist yet.
+the 29 unfinished catalog entries, which no automated case can do. **M-07 was walked and signed off on 2026-08-31** — flow B end to end, all five steps, one process
+throughout and both awkward filenames intact, which is the one thing no automated case can judge:
+D1-11's `AllowSetForegroundWindow` grant is refused to a process that received no input, so *raises*
+and *flashes in the taskbar* look identical to a harness. It became walkable the same day, once two
+preconditions its own text had never stated were dealt with (**I-46**): the Qt runtime deployed beside the executable, since Explorer does not
+inherit the dev shell's `PATH`, and a hand-made Windows association, since **no route in the product
+can register one** — implemented, tested, unreachable, and declared a planned absence for Stage 14/15.
+**M-11 and M-12 are walkable and not yet walked**; M-09 and M-10 test code that does not exist yet.
 Risk **A3** —
 can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
 library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,
