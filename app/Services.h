@@ -13,9 +13,17 @@
 // mocks with no PDFium, no Win32 and no display -- the property flow A in Architecture-FileMap.md
 // §5 exists to demonstrate.
 //
-// Stage 2 adds `pdf::IDocumentBackend&` and `core::render::RenderScheduler&` here. They are NOT
-// declared now as null members: unlike a platform interface, those types do not exist yet, and a
-// forward declaration of a type nobody can define is a promise rather than a boundary.
+// Stage 2 adds `core::IDocumentBackend&` and `core::render::RenderScheduler&` here -- both `core/`
+// types, which is what keeps this header inside what `ui/` is allowed to name (it has its own
+// layer-lint entry saying so).
+//
+// THE BACKEND EXISTS AS OF STAGE 2 T1 AND IS STILL NOT HERE, deliberately. `core/backend.h` now
+// declares all seven engine interfaces and `app/CompositionRoot` owns the one instance, but nothing
+// in `ui/` reads it until T9 gives `MainWindow::openFiles()` a reason to. A service handed to every
+// widget ahead of the first widget that uses it is how a capability ends up built and unreachable,
+// which Stage 1 found five separate times (I-34, I-42, I-43, I-46, I-47). It arrives with its
+// consumer. (Note the namespace: the interfaces are `rawpage::core`, not `rawpage::pdf` -- the
+// header is `core/backend.h`, and `core/render/` holds an `IPageRasterizer*` of its own.)
 
 #ifndef RAWPAGE_APP_SERVICES_H
 #define RAWPAGE_APP_SERVICES_H

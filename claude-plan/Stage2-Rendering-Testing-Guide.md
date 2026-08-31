@@ -6,13 +6,17 @@
 > **before any Stage 2 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** ⚪ **Written 2026-08-31. No case in this guide has been run.** **75 automated**
-> (A-01 … A-74, plus **A-75** added the same day — see I-02) and **10 manual** (M-01 … M-10). The
-> issue log holds two entries. **I-01** (S3) — two
+> **Status:** 🟡 **Written 2026-08-31; T1's cases run 2026-09-01.** **75 automated**
+> (A-01 … A-74, plus **A-75** added the same day — see I-02) and **10 manual** (M-01 … M-10), of which
+> **A-01 and A-03 are green and A-46 is partly green** — every other box is still ☐, including
+> **A-04**, which is a Linux job this machine does not run. The
+> issue log holds three entries. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
 > closure pulls in four ports the licence gate structurally cannot see. Owned by T7 and T16.
+> **I-03** (S3, closed at T1) — three `QImage` signatures in `Implementation-Plan.md`'s Stage 2
+> component list that `core/` cannot name, found by writing the interface they describe.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -268,9 +272,13 @@ case is reported as failing, with that output, and is never declared fixed witho
 ### 5.1 Build, the engine boundary, environment
 
 **A-01 · Configure and build, both presets**
-☐ **Goal** Stage 2's sources compile under the pin with `-Werror` in `core/` and `pdf/`.
+✅ **at T1, 2026-09-01 — re-run at every task.** **Goal** Stage 2's sources compile under the pin with
+`-Werror` in `core/` and `pdf/`.
 **Steps** `cmake --preset x64-debug`, `--preset x64-release`, build both.
 **Expect** Exit 0 on all four. No warning in `core/`, `pdf/`, `platform/`.
+**Result at T1** Exit 0 on all four; no warning anywhere. `ctest` **367/367** on both presets (354 at
+the end of Stage 1: +6 `unit.` backend cases, +5 `gates.headless_assert.*`, +2 `gates.layer_lint.*`),
+and the bare `gates` preset **73/73**.
 **If it fails** S1 — nothing else runs.
 
 **A-02 · The `ui/` warning grace list is still empty**
@@ -280,11 +288,31 @@ case is reported as failing, with that output, and is never declared fixed witho
 **If it fails** S3, and worth an argument rather than a shrug — the list may only shrink.
 
 **A-03 · `rawpage_tests` cannot link PDFium — the D2-2 assertion**
-☐ **Goal** The strengthened `rawpage_assert_headless()`. **This is the case that protects the whole
-portable story**, and it must fail for the right reason (convention 7).
+✅ **2026-09-01 (T1).** **Goal** The strengthened `rawpage_assert_headless()`. **This is the case that
+protects the whole portable story**, and it must fail for the right reason (convention 7).
 **Steps** With a fixture that adds `rawpage_pdfium` to `rawpage_tests`' link libraries, configure.
 Then remove it and configure again.
 **Expect** The first **fails configure** with the assertion's named message. The second succeeds.
+**Result** Built as a CTest fixture rather than a hand edit, so it is re-run on every configure:
+`tests/gates/fixtures/headless-assert/`, five cases, all green on `x64-release`, `x64-debug` **and the
+bare `gates` preset** — it is a `LANGUAGES NONE` project, so it also runs on the Linux gates runner,
+which is the closest that job gets to the portable presets it defends.
+
+- `gates.headless_assert.clean_closure_is_allowed` — **the control, and it comes first**: without it
+  every case below is equally satisfied by an assertion that refuses everything.
+- `…direct_pdfium_edge` — one line added to the suite's own link list.
+- `…transitive_pdfium_edge` — **the one that actually happens**: nobody edits `tests/unit` at all,
+  `rawpage_cos` grows the dependency, and the leak arrives through the closure.
+- `…pdfium_name_without_target` — the forbidden **name** with nothing defining it, which is the
+  portable-preset shape.
+- `…ui_edge_still_caught` — Stage 1's two entries still fire after the function moved out of
+  `tests/unit/CMakeLists.txt`.
+
+The fixture **includes `cmake/RawPageHeadless.cmake`** rather than carrying a copy — which is why the
+function was moved there — and it earned that on its first run: the assertion was reading
+`LINK_LIBRARIES` only, so an INTERFACE or IMPORTED target (`Qt6::Core` among them) kept its edges
+where the walk never looked, and it reported a clean closure it had never finished traversing. Both
+properties are read now.
 **If it fails** S1 — the unit suite is linking a PDF engine while the assertion that exists to prevent
 exactly that is passing.
 
@@ -292,6 +320,12 @@ exactly that is passing.
 ☐ **Goal** The split (D2-2) kept `pdf/` buildable on Linux, where no PDFium exists.
 **Steps** `cmake --preset portable-asan` and build, on the Linux job.
 **Expect** Configure succeeds; `rawpage_cos` builds; `rawpage_pdfium` is **not** in the build graph.
+**State after T1** Still ☐, and deliberately so: this is a Linux job and **CI is what runs it**, not
+this machine. What T1 can say is that the split leaves `pdf/` holding exactly one portable
+translation unit (`BackendFactory.cpp`, which names no engine type), that `rawpage_pdfium` is
+declared nowhere yet, and that the forbidden-name check does not depend on that target existing —
+which is the half of the property a Windows run can establish. Reported as unrun rather than inferred
+from it.
 **If it fails** S1 — this is the failure mode D2-2 was written to prevent, and it is silent: a job that
 stops configuring reads as infrastructure trouble rather than as a layering breach.
 
@@ -324,10 +358,16 @@ re-checks it now that the DLL ships rather than sitting in a spike.
 ### 5.2 The gates — still three
 
 **A-09 · `checks` clean, and it still says three**
-☐ **Steps** `cmake --build --preset x64-release --target checks`
+✅ **at T1, 2026-09-01 — re-run at every task.** **Steps**
+`cmake --build --preset x64-release --target checks`
 **Expect** Exit 0. `layer-lint` clean over the grown tree; `license-audit` clean; `i18n-lint` clean.
 The target reports **three** gates — `mutation-lint` arrives at Stage 3, and a `checks` that claims
-four is itself the bug. **If it fails** S1.
+four is itself the bug.
+**Result at T1** Exit 0, three gates. `layer-lint` clean at **144 files / 999 includes** (141 / 972 at
+the end of Stage 1) with the new `core-backend` layer entry live and six filesystem-write waivers
+unchanged; `license-audit` clean at 17 components and 4 Qt modules, with its two standing
+not-yet-built warnings; `i18n-lint` clean at **79 files / 2 catalogs / 0 waivers**, the catalogs now
+**538 keys** each. **If it fails** S1.
 
 **A-10 · `layer-lint`: `FPDF_` outside `pdf/render/` fails**
 ☐ **Goal** D2-9's narrowing. **Steps** A fixture placing `FPDF_InitLibrary` in `pdf/cos/Parser.cpp` —
@@ -561,10 +601,21 @@ render flags honoured. **If it fails** S1.
 **Expect** No crash, no corrupted output, no data race. **`PdfiumInit` is entered once.**
 **If it fails** S1 — PDFium's global state is the one thing this design must own exclusively.
 
-**A-46 · The backend interface census** ☐ **Goal** D2-7.
+**A-46 · The backend interface census** 🟡 **partly green at T1, 2026-09-01.** **Goal** D2-7.
 **Expect** `core/backend.h` declares all seven; the backend names which it implements; **calling an
 unimplemented one returns an explicit not-implemented `Result`, never a silent success or an empty
 value.** After Stage 2 the implemented set is `IDocumentBackend` and `IPageRasterizer`.
+**Result at T1** `tests/unit/tst_backend.cpp`, six cases in the **headless** suite (it names the
+engine boundary and links `rawpage_cos`, so it runs on `portable-asan` too). All seven are declared
+and named, with no duplicate and no empty entry; `createBackend()` reports **none** implemented and
+`unimplementedBackendInterfaces()` names all seven in enum order; `open` and `close` return
+`Unsupported` carrying `error.backend.notImplemented` and a context of `IDocumentBackend::open` /
+`::close`; every sub-interface accessor is **null rather than an empty stub**; and the password
+callback is asserted **not** to have run, so the case cannot pass against a backend that opened the
+file and returned nothing. `notImplementedError` has its own case with a control for the no-method
+form. **The last sentence of the Expect is not asserted and cannot be until T9** — that half is
+`{IDocumentBackend, IPageRasterizer}` after the real backend exists, and the file says so at the top
+rather than leaving a reader to add up what is covered (convention 19).
 **If it fails** S1 — convention 6's argument: a stub that silently succeeds surfaces stages later as
 data nobody produced.
 
@@ -947,8 +998,9 @@ document means **Stage 1's**, and says so where it appears.
 |---|---|---|---|
 | **I-01** | S3 | **`Architecture-FileMap.md` disagreed with `Implementation-Plan.md` about which stage owns the `pdf/cos/` reader, and about three `core/doc/` vocabulary types.** All six COS reader rows (fifteen files) were tagged ○ (S3) while Stage 2's component list claims them and Stage 3's does not; `Revision.h`, `Scope` and `Page` were tagged ○ (S3) while their **own** *Interacts with* column names Stage 2 consumers (`RenderCache`, `TileGrid`). Found while writing this guide's §4 manifest, by checking each path against the map rather than by running anything — which is the method Stage 1's I-31 and I-32 also came from. `Implementation-Plan.md` owns stage ordering, so the FileMap is the document that was wrong. **Confirmed with the user 2026-08-31** and corrected in the same change as this guide, along with `PageTree`'s split tag `○ (S2 read, S3 edit)` following `Outline`'s existing precedent. **A third instance surfaced while verifying this guide's §4 manifest against the map**, and it is the same root cause once more: `tests/fuzz/` was tagged ○ (S3) **and listed among Stage 3's components**, though a fuzz target over `pdf/cos/Lexer` and `Parser` cannot exist before those files do — and `CMakePresets.json`'s `portable-fuzz` description has said *“NO TARGETS EXIST until Stage 2”* since Stage 0. **The build system was right and two documents were wrong.** Moved to Stage 2 T5/T6; cases **A-25 … A-27** are written against it. The related filter-count disagreement — ten in the FileMap, nine in the plan — is resolved by **D2-4**: `CryptFilter` goes to Stage 10 with the security handlers it needs a key from. **The lesson is the one Stage 1's I-31 and I-32 already taught: a document set this size drifts in the places nobody executes**, and the only thing that finds it is checking each claim against its owner rather than reading for sense. | ✅ **Closed 2026-08-31** |
 | **I-02** | S2 | **`license-audit` inventories the DECLARED manifest, not the RESOLVED closure — so four libraries Stage 2 links are invisible to the licence gate.** Found 2026-08-31 by running precondition **P-3**'s dry-run, which was in the plan only because writing it raised the question of whether two features declared at Stage 0 and never built still resolve. They do — `codecs`, `text` and both together all exit 0 on `x64-mingw-dynamic`, against Qt's own pinned `x86_64-w64-mingw32-g++`. **The resolution was never the risk; the closure was.** `freetype` pulls `brotli` and `bzip2`, `tiff` pulls `liblzma`, and — **measured with `vcpkg depend-info` on 2026-08-31, after this entry first mis-attributed it to `icu`** — **`hunspell` pulls `libiconv`**, and is its only parent. `icu` depends on neither — and none of the four appears in `vcpkg.json`, so `Inventory.cpp`'s `addPort` is never called for them: it iterates `root["dependencies"]`, `root["features"][*]["dependencies"]` and the non-vcpkg `overrides` map, and that is the whole of its input. It *does* read each port's SBOM, but only for ports it already knows to ask about — which is precisely backwards for a closure. **Nothing found is GPL**, so there is no breach today: `brotli` is MIT (already allowlisted), `bzip2` is `bzip2-1.0.6` and `liblzma` is 0BSD — both permissive, neither on `Tech-Stack-Plan.md` §8.2's allowlist — and **`libiconv` is GNU libiconv, LGPL-2.1-or-later**, which D4 permits but which carries an election and a **source-offer obligation** of the same shape as Qt's and Hunspell's, and nobody has recorded one. S2 rather than S3 because the gate's documented claim is broader than its behaviour and three later stages build on that claim: Stage 10 adds OpenSSL, Stage 16 adds tesseract and leptonica, and Stage 15's release compliance gate *is* this tool. **The allowlist rows are the cheap half; the inventory change is the real one.** Owned by **T7** (the map entries arriving with `codecs`) and **T16** (`text`, and `libiconv`'s source offer), with **A-75** as the case. Whether `libiconv` reaches the shipped DLL set is confirmed at T16 with `objdump -p` — the dry-run proves it enters the tree, which is not quite the same claim. **Licences verified 2026-08-31**, against each port's manifest, its `portfile.cmake` copyright block, and upstream licence text — not from memory. **`brotli` 1.2.0 = MIT** (upstream `LICENSE`, standard MIT text; already on the allowlist). **`bzip2` 1.0.8 = `bzip2-1.0.6`** (BSD-style permissive, no copyleft, no source-disclosure obligation; retain the notice, no endorsement). **`liblzma` 5.8.3 = `0BSD`** for the library itself — XZ Utils' own `COPYING` at v5.8.3 says *“liblzma is under the BSD Zero Clause License”*, while the `xzgrep`/`xzdiff` **scripts** are GPLv2+ and parts of the build system are GPLv2+/GPLv3+; the port ships the library, so none of that is linked. Both identifiers are **absent from `Tech-Stack-Plan.md` §8.2's allowlist** and must be added. ⚠️ **`libiconv` 1.19 is the one that is not simply a missing row — and `depend-info` moved it out of Stage 2's reach.** Its **only** parent is `hunspell`, the spell checker, which nothing before **Stage 13** links; `vcpkg.json`'s `text` feature is a group spanning *“Stages 2, 5, 13”* by its own description, so T16 turning it on **builds** hunspell, icu and libiconv while Stage 2 links only freetype. **Built is not linked**, so Stage 2 most likely incurs no LGPL obligation at all here — which T16's `objdump -p` settles either way, and is exactly why that check is in the task rather than assumed. The licence facts below stand regardless, and become live at Stage 13. Its vcpkg manifest declares `license: null` — vcpkg's marker for *not expressible as one SPDX expression* — and the portfile says why, verbatim: *“The libiconv and libcharset libraries and their header files are under **LGPL**, see COPYING.LIB… The **iconv program** and the documentation are under **GPL**, see COPYING.”* So the package is **split**: the part we link is **LGPL-2.1-or-later**, which D4 permits and which needs the Qt/Hunspell treatment — an election, dynamic linking, a user-replaceable binary and a **corresponding-source offer**, none of which exists. The part we do **not** link is **GPL**, and the portfile's `vcpkg_make_install()` plus `vcpkg_copy_tool_dependencies(…/tools/libiconv/bin)` means **a GPL `iconv.exe` is installed into the vcpkg tree**. **That is not a breach and Stage 2 does not package anything** — it is a build-tree artifact, and D4 forbids a GPL *dependency*, not a GPL binary sitting in a toolchain directory. **It becomes one the moment anything sweeps `installed/<triplet>/tools/` into an installer, which is Stage 15's MSI/MSIX work.** Recorded here rather than deferred silently, because the packaging stage will not rediscover it. | 🟡 **Open** — raised 2026-08-31, licences verified the same day, owned by T7/T16 (the map entries and the inventory fix) with the GPL-tool exclusion flagged forward to **Stage 15** |
+| **I-03** | S3 | **Three signatures this document set had written for Stage 2 name `QImage`, and none of them could have been built as written.** `Implementation-Plan.md` § Stage 2's component list gives `PdfiumRasterizer` `Result<QImage> raster(const RenderRequest&)`, `RenderCache` `std::optional<QImage> lookup(...)` and `RenderScheduler` `Signal<RenderRequest, QImage> ready` — but `IPageRasterizer` is declared in `core/backend.h`, `RenderCache` and `RenderScheduler` are `core/render/`, and **`core/` may not name a QtGui type**: it links `Qt6::Core` only, `layer-lint`'s `core` layer has listed `QImage` in `denyExternal` since Stage 0, and CLAUDE.md convention 3 is the standing rule (it is why `core/cmd/Chord` is first-party rather than a `QKeySequence`). Found at **T1**, by writing the interface the list describes. **Not a conflict anyone had to adjudicate**: plan **D2-9** already says the tile pipeline carries *buffers and callbacks only*, so the component sketch was the loose statement of a settled rule rather than a rival decision. Fixed in `core/backend.h` with `core::RasterImage` — width, height, **stride**, pixel format and bytes, with the stride carried rather than computed because a rasterizer may align its rows and a consumer assuming `width * 4` on a padded buffer draws diagonal garbage. `ui/` wraps those bytes in a `QImage` at the far side, where QtGui is allowed, and the wrap is free: both formats are the little-endian BGRA layout `QImage::Format_ARGB32` and `Format_RGB32` consume. `Implementation-Plan.md`'s three rows were corrected in the same change. **T10 and T11 inherit the correction**, and **A-44 is unaffected** — the raster suite links `rawpage_pdfium` and may hold a `QImage` of its own. S3 because it was a documentation slip that the gate would have caught the moment anyone typed it. | ✅ **Closed 2026-09-01** at T1, in the header that declares the interface | 
 
-**One S2 open — I-02, owned by T7 and T16.** One S3, closed.
+**One S2 open — I-02, owned by T7 and T16.** Two S3, both closed.
 
 ---
 

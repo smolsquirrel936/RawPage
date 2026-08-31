@@ -21,6 +21,11 @@ add_library(rawpage_core STATIC
     Geometry.h
     Units.h
 
+    # The ENGINE boundary (Stage 2 T1, decision D2-7). The second of the two interface headers this
+    # architecture rests on -- header-only, like platform/platform.h, and constrained by its own
+    # tools/layer-lint entry because core/, pdf/, ui/ and app/ all include it.
+    backend.h
+
     # The in-memory tail of the log, so that ui/panes/LogPane has something to show (Stage 1 T14).
     # It is here rather than in ui/ because core/Log.h has ONE sink and setLogSink replaces it: a
     # pane that chained the installed sink would be dropped the next time app/CompositionRoot

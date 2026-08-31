@@ -116,6 +116,22 @@ rawpage_add_gate_test(NAME gates.layer_lint.platform_header_includes_windows
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/platform-header-includes-windows --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "external-include")
 
+# Stage 2 T1. The same treatment for the OTHER interface header -- and the fixture is deliberately
+# about the ONE thing the core-backend entry adds that the core entry did not already give it.
+#
+# THE FIRST VERSION OF THIS CASE WAS WORTHLESS AND IS WORTH RECORDING AS SUCH. It put an fpdfview.h
+# include in core/backend.h and asserted a failure -- which the `core` layer has denied since Stage 0,
+# so it passed with the new entry deleted. A fixture that cannot fail for the reason it claims to
+# test is convention 7's defect, and it is exactly the shape of Stage 0's I-15.
+#
+# What core-backend actually narrows is the outward look: core/ at large may include
+# platform/platform.h and the engine contract may not. The fixture's own core/settings/Store.cpp
+# includes the same header legitimately, so the failure is attributable to WHICH file reached for the
+# OS boundary rather than to the include being denied everywhere under core/.
+rawpage_add_gate_test(NAME gates.layer_lint.backend_header_includes_platform
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/backend-header-includes-platform --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
+
 # Stage 1 T8. Issue I-04's rule made mechanical: nothing may read a path out of argv. The fixture is
 # the exact shape of the mistake -- a command-line parser building a QStringList from argv -- because
 # that is the one place it would ever be written, and on a machine whose code page cannot represent
@@ -183,6 +199,16 @@ rawpage_add_gate_test(NAME gates.layer_lint.ui_may_include_the_two_interface_hea
 # that forbade windows.h anywhere under platform/ would make the layer unable to do its only job.
 rawpage_add_gate_test(NAME gates.layer_lint.platform_impl_may_include_windows
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/platform-impl-may-include-windows --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# THE MISSING CONTROL FOR THE fpdf RULE (Stage 2 T1). `fpdf_outside_pdf` above has proved since
+# Stage 0 that naming PDFium outside pdf/ fails, and nothing has ever proved that naming it INSIDE
+# pdf/ succeeds -- so that case was equally satisfied by a gate rejecting every mention of PDFium in
+# the tree, which would make the facade unable to do its only job. The fixture also has a
+# core/backend.h holding buffers and interfaces, which is what the real one looks like: the engine
+# contract and the engine, in one tree, with the line between them where it belongs.
+rawpage_add_gate_test(NAME gates.layer_lint.pdf_impl_may_include_pdfium
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/pdf-impl-may-include-pdfium --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")
 
 # A gate that could not run must not look like a gate that passed.
@@ -385,6 +411,71 @@ rawpage_add_gate_test(NAME gates.i18n_lint.missing_locales_is_exit_2
 rawpage_add_gate_test(NAME gates.i18n_lint.shipped_locale_without_catalog_is_exit_2
     COMMAND ${IL} --root ${IL_FIX}/shipped-catalog-missing --rules ${IL_RULES}
     EXPECT_EXIT 2 EXPECT_MATCH "declared shipped but its catalog is missing")
+
+# --------------------------------------------------------------------------------------
+# rawpage_assert_headless() -- guide case A-03 (Stage 2 T1, decision D2-2).
+#
+# THE CASE THAT PROTECTS THE WHOLE PORTABLE STORY. tests/unit must link rawpage_core and rawpage_cos
+# and nothing else; if a PDF engine or a widget library enters that closure, core/ is no longer
+# testable without one and portable-asan stops being able to build it on Linux. The assertion is
+# the only thing standing there, and until this fixture existed nothing had ever proved it fires.
+#
+# The fixture INCLUDES cmake/RawPageHeadless.cmake rather than carrying a copy, which is the whole
+# reason that function was moved out of tests/unit/CMakeLists.txt: a fixture with its own copy
+# proves the copy fires (convention 7, and Stage 0's I-15).
+#
+# NOT guarded by if(WIN32): the assertion is pure CMake over a LANGUAGES NONE project, so it runs on
+# the bare Linux gates runner too -- which is exactly the configuration whose portability it exists
+# to defend.
+# --------------------------------------------------------------------------------------
+set(HA_PROJECT "${FIXTURES}/headless-assert/project")
+
+function(rawpage_add_headless_test)
+    cmake_parse_arguments(HA "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXTRA" "" ${ARGN})
+    rawpage_add_gate_test(NAME ${HA_NAME}
+        COMMAND ${CMAKE_COMMAND} --fresh
+                -S ${HA_PROJECT}
+                -B ${CMAKE_BINARY_DIR}/gate-fixtures/${HA_NAME}
+                -G Ninja
+                -DRAWPAGE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+                ${HA_EXTRA}
+        EXPECT_EXIT ${HA_EXPECT_EXIT} EXPECT_MATCH "${HA_EXPECT_MATCH}")
+endfunction()
+
+# THE CONTROL, first: a clean closure must configure. Without it every case below is equally
+# satisfied by an assertion that refuses everything, which is the failure mode this whole file
+# exists to catch.
+rawpage_add_headless_test(NAME gates.headless_assert.clean_closure_is_allowed
+    EXTRA "-DFIXTURE_LEAK="
+    EXPECT_EXIT 0 EXPECT_MATCH "closure is clean")
+
+# A direct edge -- somebody adds one line to tests/unit/CMakeLists.txt to get a raster test to link.
+# The pattern is a SINGLE WORD from the END of the diagnostic: message(FATAL_ERROR) hard-wraps, so a
+# phrase can be split across a line break and fail for a reason unrelated to the message (I-09).
+rawpage_add_headless_test(NAME gates.headless_assert.direct_pdfium_edge
+    EXTRA "-DFIXTURE_LEAK=direct|-DFIXTURE_DEFINE_PDFIUM=ON"
+    EXPECT_EXIT 1 EXPECT_MATCH "resist")
+
+# THE ONE THAT ACTUALLY HAPPENS: nobody edits the suite's own CMakeLists at all. rawpage_cos grows a
+# dependency on the engine, and the leak arrives transitively -- which is why the assertion walks the
+# resolved closure rather than reading one link line.
+rawpage_add_headless_test(NAME gates.headless_assert.transitive_pdfium_edge
+    EXTRA "-DFIXTURE_LEAK=transitive|-DFIXTURE_DEFINE_PDFIUM=ON"
+    EXPECT_EXIT 1 EXPECT_MATCH "resist")
+
+# The name is rejected even where nothing defines it. This is the portable-preset case: rawpage_pdfium
+# is Windows-only and will never be a target on Linux, and a check that skipped unresolvable names
+# would be silent precisely there -- handing the developer CMake's own "target not found" from the
+# generate step instead of a diagnostic that says what rule was broken.
+rawpage_add_headless_test(NAME gates.headless_assert.pdfium_name_without_target
+    EXTRA "-DFIXTURE_LEAK=direct"
+    EXPECT_EXIT 1 EXPECT_MATCH "resist")
+
+# And Stage 1's two entries still fire after the function moved out of tests/unit. A refactor that
+# quietly narrowed the forbidden list to the newest member would pass every case above.
+rawpage_add_headless_test(NAME gates.headless_assert.ui_edge_still_caught
+    EXTRA "-DFIXTURE_LEAK=ui"
+    EXPECT_EXIT 1 EXPECT_MATCH "rawpage_ui")
 
 # --------------------------------------------------------------------------------------
 # The toolchain pin (TA-1 .. TA-9), against a minimal fixture project.

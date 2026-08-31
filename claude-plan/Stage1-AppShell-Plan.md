@@ -503,7 +503,9 @@ Owed by **T15**, in the same change as the code:
   carried it since T7 and its own comment had asked for it since Stage 0 — `core/` has had real
   translation units since T3 and nothing had called `coreModuleAnchor()` since T1 rewrote `main.cpp`.
   A placeholder that outlives its purpose becomes a mystery. `pdf/PdfModule.cpp` is **not** dead and
-  stays: its layer still has no other translation unit, and Stage 2 deletes it.
+  stays: its layer still has no other translation unit, and Stage 2 deletes it. **It did —
+  2026-09-01, at Stage 2 T1**, in the change that gave `pdf/` its first real translation unit
+  (`BackendFactory.cpp`) and renamed the library `rawpage_cos`. This debt is closed.
 
 - **New at T11/T12, and already paid:** `Architecture-FileMap.md` rows for
   `ui/shell/{QuickAccessToolbar,UiCustomization,ToolFinder,DocumentTabBar,DocumentWindow}` were

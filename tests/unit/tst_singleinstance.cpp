@@ -19,7 +19,7 @@
 // WHY IT IS IN THE HEADLESS SUITE. app/SingleInstance.cpp names core/ and platform/platform.h, and
 // platform.h is an interface header that includes no OS header (its own layer-lint entry says so).
 // It is compiled into rawpage_tests the way app/CommandLine.cpp and app/LogFile.cpp already are, so
-// rawpage_assert_headless() still resolves to rawpage_core + rawpage_pdf -- guide case A-83 is
+// rawpage_assert_headless() still resolves to rawpage_core + rawpage_cos -- guide case A-83 is
 // untouched, and the day this file needs rawpage_platform to compile, configure fails and the
 // finding is about SingleInstance rather than about the test.
 

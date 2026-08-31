@@ -94,7 +94,7 @@ set_target_properties(rawpage_ui PROPERTIES AUTOMOC ON)
 
 target_include_directories(rawpage_ui PUBLIC "${CMAKE_SOURCE_DIR}")
 
-# rawpage_core only. NOT rawpage_pdf, NOT rawpage_platform -- if this line ever grows one of
+# rawpage_core only. NOT rawpage_cos, NOT rawpage_pdfium, NOT rawpage_platform -- if this line ever grows one of
 # those, the boundary is gone regardless of what any lint says.
 target_link_libraries(rawpage_ui PUBLIC rawpage_core)
 

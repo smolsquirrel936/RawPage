@@ -1629,6 +1629,10 @@
         <source>error.open.notPdf</source>
         <translation>%1 不是 PDF 檔案。</translation>
     </message>
+    <message>
+        <source>error.backend.notImplemented</source>
+        <translation>此版本尚無法執行該項作業：%1 尚未實作。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>

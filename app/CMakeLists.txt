@@ -42,7 +42,7 @@ add_dependencies(rawpage rawpage_translations)
 
 target_link_libraries(rawpage PRIVATE
     rawpage_core
-    rawpage_pdf
+    rawpage_cos
     rawpage_platform
     rawpage_ui
 )

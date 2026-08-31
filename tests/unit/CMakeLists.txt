@@ -1,12 +1,17 @@
 # tests/unit -- the headless suite.
 #
-# THE STANDING PROOF: this target links rawpage_core and rawpage_pdf and NOTHING ELSE. If the
+# THE STANDING PROOF: this target links rawpage_core and rawpage_cos and NOTHING ELSE. If the
 # full domain suite cannot pass without a display and without a PDF engine, the layer
 # boundary has already leaked -- and it will have leaked quietly, months before anyone
 # notices. Tech-Stack-Plan.md 9 names this as a verification step in its own right.
 #
 # It is asserted below rather than left as a convention, because a convention survives
 # exactly until someone needs one widget class in a test.
+#
+# Stage 2 T1 moved the assertion itself into cmake/RawPageHeadless.cmake and added rawpage_pdfium
+# to its forbidden list (D2-2). It is included rather than written here so that the gate fixture at
+# tests/gates/fixtures/headless-assert/ exercises the REAL function -- a fixture carrying its own
+# copy would prove that the copy fires.
 
 find_package(Catch2 3 REQUIRED)
 
@@ -22,6 +27,7 @@ add_executable(rawpage_tests
     tst_commandline.cpp           # Stage 1 T8
     tst_logbuffer.cpp             # Stage 1 T14
     tst_singleinstance.cpp        # Stage 1 T15 -- guide case A-61
+    tst_backend.cpp               # Stage 2 T1  -- guide case A-46, the engine-interface census
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -29,7 +35,7 @@ add_executable(rawpage_tests
     # GUI type, no side effect -- which is the whole reason Stage1-AppShell-Plan.md 5.7 puts its
     # test in the HEADLESS suite even though the file lives in app/. Note what this does NOT do:
     # it adds no target_link_libraries entry, so rawpage_assert_headless() below still resolves to
-    # rawpage_core + rawpage_pdf and guide case A-64 still holds. The day this file needs
+    # rawpage_core + rawpage_cos and guide case A-64 still holds. The day this file needs
     # rawpage_ui or rawpage_platform to compile, configure fails -- and the finding is about the
     # parser, not about the test.
     ../../app/CommandLine.cpp
@@ -45,7 +51,7 @@ add_executable(rawpage_tests
     # layer-lint layer entry -- so the policy half of "does a second launch forward?" is testable
     # against a recording bus with no Win32 object created anywhere. It adds no
     # target_link_libraries entry, so rawpage_assert_headless() below still resolves to
-    # rawpage_core + rawpage_pdf and guide case A-83 is untouched.
+    # rawpage_core + rawpage_cos and guide case A-83 is untouched.
     ../../app/SingleInstance.cpp
 )
 
@@ -60,55 +66,17 @@ target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
 target_link_libraries(rawpage_tests PRIVATE
     rawpage_core
-    rawpage_pdf
+    rawpage_cos
     Catch2::Catch2WithMain
 )
 
 rawpage_common_flags(rawpage_tests)
 
 # --- The boundary assertion ---------------------------------------------------------
-# Checks the RESOLVED link closure, not just what this file writes: a transitive edge
-# (rawpage_pdf gaining a dependency on rawpage_platform, say) is exactly the way this leaks
-# without anybody editing this file.
-function(rawpage_assert_headless target)
-    set(forbidden rawpage_ui rawpage_platform)
-    set(pending ${target})
-    set(seen "")
-
-    while(pending)
-        list(POP_FRONT pending current)
-        if(current IN_LIST seen)
-            continue()
-        endif()
-        list(APPEND seen ${current})
-
-        if(NOT TARGET ${current})
-            continue()
-        endif()
-
-        foreach(bad IN LISTS forbidden)
-            if(current STREQUAL bad)
-                message(FATAL_ERROR
-                    "\n${target} links ${bad}, directly or transitively.\n\n"
-                    "The unit suite must build and pass with NO DISPLAY and NO PDF ENGINE. "
-                    "That is not a preference: core/ is required to be testable in isolation "
-                    "(Tech-Stack-Plan.md 4.2, 9), and the portable-asan preset compiles the "
-                    "same sources on Linux where neither library exists at all.\n\n"
-                    "If a test needs a widget or an OS handle, the thing it is testing "
-                    "belongs behind an interface, not in this suite.\n")
-            endif()
-        endforeach()
-
-        get_target_property(deps ${current} LINK_LIBRARIES)
-        if(deps)
-            foreach(dep IN LISTS deps)
-                if(TARGET ${dep})
-                    list(APPEND pending ${dep})
-                endif()
-            endforeach()
-        endif()
-    endwhile()
-endfunction()
+# Defined in cmake/RawPageHeadless.cmake, for the reason that file's header gives: the gate fixture
+# that proves it fires has to exercise the real one. Forbidden today: rawpage_ui, rawpage_platform
+# and -- since Stage 2 T1 -- rawpage_pdfium.
+include(RawPageHeadless)
 
 rawpage_assert_headless(rawpage_tests)
 

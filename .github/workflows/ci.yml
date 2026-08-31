@@ -48,7 +48,11 @@ jobs:
       #
       # The gates.wrong_compiler.* cases are absent here by design: they configure against
       # cmake/toolchain-mingw.cmake, which pins a Windows compiler. tests/gates/CMakeLists.txt
-      # guards them with if(WIN32), so this runner sees 16 cases and the Windows job sees 23.
+      # guards them with if(WIN32), so this runner sees fewer cases than the Windows job does.
+      #
+      # The gates.headless_assert.* cases (Stage 2 T1) are NOT guarded and run here on purpose:
+      # they are pure CMake over a LANGUAGES NONE fixture, and this Linux runner is the closest
+      # thing the gate job has to the portable presets whose portability they defend.
       - name: Gate fixtures
         run: ctest --preset gates
 

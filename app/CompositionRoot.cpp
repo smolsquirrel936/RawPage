@@ -2,6 +2,8 @@
 
 #include "app/CrashHandler.h"
 
+#include "pdf/BackendFactory.h"
+
 #include "core/settings/SettingsSchema.h"
 
 #include <QtGlobal>
@@ -95,6 +97,17 @@ CompositionRoot::CompositionRoot(Options options)
             << static_cast<int>(settings_->droppedShortcutKeyCount())
             << "keys named an action or context that no longer exists";
     }
+
+    // THE ONLY createBackend() CALL IN THE PROGRAM (Stage 2 T1), and the second half of what makes
+    // flow A's two factory lines real. Like the platform bundle it logs its own interface census --
+    // which today reads "0 of 7 interfaces implemented", because T1 declares the boundary and T9 is
+    // what implements it. That line is the point: a build that cannot open a document should say so
+    // in its log rather than leave a caller to find out from an empty result (D2-7, convention 6).
+    //
+    // It is NOT in `Services` yet. The consumer arrives at T9, when `MainWindow::openFiles()` stops
+    // deciding a file by its suffix and asks the backend -- and a service handed to every widget
+    // ahead of the first widget that reads it is the shape Stage 1 kept finding (I-34, I-42, I-46).
+    backend_ = pdf::createBackend();
 
     if (options_.createPlatform) {
         // THE ONLY createPlatform() CALL IN THE PROGRAM. It logs its own interface census.

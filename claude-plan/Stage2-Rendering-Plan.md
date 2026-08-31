@@ -13,8 +13,8 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** ⚪ **Not started.** Written 2026-08-31, immediately after Stage 1 signed off and before
-> any Stage 2 code exists. This file is a plan, not a progress log — Stage 2's live status, task by
+> **Status:** 🟡 **T1 complete, 2026-09-01.** Written 2026-08-31, immediately after Stage 1 signed off
+> and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
 >

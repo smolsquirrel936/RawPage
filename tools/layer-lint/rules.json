@@ -70,7 +70,29 @@
       "note": "platform/platform.h is INTERFACES ONLY and is included by core/, ui/ and app/. An OS header reaching it gives all three a platform-SDK dependency -- min/max macros, `interface`, GetMessage renaming itself -- and the failure would not show up here: it would show up as the Linux portable-asan job no longer being able to build core/, which is the mechanical proof that the domain layer is portable. A Win32 handle crosses this boundary as an opaque integer, and nothing else does."
     },
 
-    "core-settings": {
+    "core-backend": {
+    "paths": [
+      "core/backend.h"
+    ],
+    "mayInclude": [
+      "core/"
+    ],
+    "denyExternal": [
+      "QtWidgets",
+      "QtGui",
+      "QWidget",
+      "QGuiApplication",
+      "QPainter",
+      "QImage",
+      "QPixmap",
+      "fpdfview.h",
+      "fpdf_",
+      "windows.h",
+      "Windows.h"
+    ],
+    "note": "core/backend.h is the ENGINE boundary -- INTERFACES ONLY, and it is included by core/, pdf/, ui/ and app/. It gets its own entry for the reason platform/platform.h has one, and Stage2-Rendering-Plan.md 10 calls for it by name: a PDFium header or an FPDF_ symbol reaching this file would hand all four layers a dependency on the engine through the one door that is open, and the failure would surface not here but as the Linux portable-asan job no longer being able to build core/. What crosses this boundary is BUFFERS AND CALLBACKS -- which is also why QImage is denied and IPageRasterizer hands back a RasterImage instead: core/ may not name a QtGui type, and ui/ wraps the bytes at the far side. Note that it may include core/ and NOT platform/platform.h: this header is the engine contract and has no business naming the OS boundary."
+  },
+  "core-settings": {
       "paths": ["core/settings/"],
       "mayInclude": ["core/", "platform/platform.h"],
       "denyExternal": ["QtWidgets", "QtGui", "QWidget", "QGuiApplication", "fpdfview.h", "fpdf_", "windows.h", "Windows.h"],

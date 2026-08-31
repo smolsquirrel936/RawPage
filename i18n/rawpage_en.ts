@@ -1629,6 +1629,10 @@
         <source>error.open.notPdf</source>
         <translation>%1 is not a PDF file.</translation>
     </message>
+    <message>
+        <source>error.backend.notImplemented</source>
+        <translation>This build cannot do that yet: %1 is not implemented.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>

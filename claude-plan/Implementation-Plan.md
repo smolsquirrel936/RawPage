@@ -669,11 +669,16 @@ implemented". Contextual ribbon tabs, per-document pane state, the full Preferen
 
 *Part 2 of the first milestone.*
 
-**Status:** ⚪ **Not started — but planned.** Its execution plan
+**Status:** 🟡 **In progress — T1 of 18 complete (2026-09-01).** Its execution plan
 ([`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md), decisions **D2-1 … D2-14**, tasks
 **T1 … T18**) and its testing guide
 ([`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md), **74 automated** and
 **10 manual** cases) were both written on 2026-08-31, **before any Stage 2 code**, per §5.
+
+| Task | State | Outcome and deviations |
+|---|---|---|
+| **T1** the engine boundary and the library split | ✅ 2026-09-01 | `core/backend.h` (all seven interfaces, D2-7), `pdf/BackendFactory.{h,cpp}`, `cmake/RawPageHeadless.cmake`, `tests/unit/tst_backend.cpp`, two `layer-lint` fixtures and a five-case gate fixture for the headless assertion; `pdf/PdfModule.cpp` **deleted**; `rawpage_pdf` renamed **`rawpage_cos`**. `ctest` **367/367** on `x64-debug` and `x64-release` (was 354: +6 unit, +5 `gates.headless_assert.*`, +2 `gates.layer_lint.*`); the bare `gates` preset **73/73** (was 66); `checks` clean at **144 files / 999 includes**, `i18n-lint` clean at 79 files / 2 catalogs / 0 waivers, and the catalogs are **538 keys each** (the new one is `error.backend.notImplemented`). **Deviations, and every one of them is a decision the plan left open rather than a departure from it:** **(a) `IPageRasterizer` returns a first-party `RasterImage`, not a `QImage`** — see **I-03** in the guide's §8. This document's own component list writes `Result<QImage> raster(...)` and three `core/render/` signatures beside it; `core/` may not name a QtGui type, links `Qt6::Core` only, and `layer-lint`'s `core` layer has denied `QImage` since Stage 0. The gate and the layer contract win, so the boundary carries width/height/stride/format/bytes and `ui/` wraps them at the far side — which is also what D2-9's *buffers and callbacks only* already said. T10 and T11 inherit the same correction for `RenderCache` and `RenderScheduler`. **(b) `rawpage_pdfium` is not declared as a target yet.** It has no sources until T2 writes `pdf/render/PdfiumInit`, and a static library kept alive by a placeholder TU is exactly what this task just deleted. The guarantee does not wait for the target: `rawpage_assert_headless()` rejects the forbidden **name** before resolving it to anything, which is what makes the rule hold on the portable presets where that target will never exist at all. **(c) The assertion moved to `cmake/RawPageHeadless.cmake`** so the gate fixture could exercise the real function rather than a copy of it (convention 7). **(d) It was reading half the graph, and the fixture found it on its first run**: an INTERFACE or IMPORTED target — `Qt6::Core` among them — keeps its edges in `INTERFACE_LINK_LIBRARIES` and leaves `LINK_LIBRARIES` unset, so a walk reading only the latter stops at the first edge of the wrong kind and reports a clean closure it never finished. Both are read now. **(e) The backend is wired into `app/CompositionRoot` and deliberately NOT into `Services`.** `pdf::createBackend()` has its one real caller and logs `backend: assembled -- 0 of 7 interfaces implemented` at startup; the service reaches `ui/` at T9, with the first widget that reads it, because a capability handed downward ahead of its consumer is the shape Stage 1 found five times (I-34, I-42, I-43, I-46, I-47). **(f) Two figures in this document set were measured rather than carried forward and were wrong**: the catalogs (`Architecture-FileMap.md` §3.18 said 463 keys; 538) and `platform/platform.h`'s interface count in the FileMap's own §1 diagram (said 15; 17 since Stage 1 T7). Both corrected. **A-04 (`portable-asan` still configures) is green by construction and unrun here** — it is a Linux job, and CI is what runs it. |
+| **T2 … T18** | ⚪ not started | — |
 
 Carries risk **A2** as a hard **go/no-go**: p95 per-tile latency
 must be under ~16 ms at the target DPI on the reference machine. If it is not, the tiling policy in
@@ -715,8 +720,8 @@ monitors at different scaling.
 - `core/render/TileGrid` — `TileSet tilesFor(const Page&, Resolution, QRectF viewport) const`.
 - `core/render/RenderRequest.h` — the value type whose equality **is** the cache key.
 - `core/render/RenderScheduler` — `Handle enqueue(RenderRequest, Priority)`,
-  `void cancel(Handle)`, `Signal<RenderRequest, QImage> ready`.
-- `core/render/RenderCache` — `std::optional<QImage> lookup(const RenderRequest&) const`,
+  `void cancel(Handle)`, `Signal<RenderRequest, RasterImage> ready`.
+- `core/render/RenderCache` — `std::optional<RasterImage> lookup(const RenderRequest&) const`,
   `void put(...)`, `void invalidate(Scope, Revision)`.
 - `core/render/PagePresentation` — `QVector<QRectF> layout(const PageTree&, LayoutMode, Zoom) const`.
 - `core/doc/RepairReport`, and **four vocabulary types brought forward from Stage 3** because the three
@@ -727,8 +732,15 @@ monitors at different scaling.
 - `pdf/cos/` first half — `CosObject`, `Lexer`, `Parser`, `XrefTable`, `XrefRepair`,
   `filters/{Flate,LZW,Ascii85,AsciiHex,RunLength,Dct,Jpx,Ccitt,Jbig2}` — **nine**; `CryptFilter` goes to Stage 10 with the `StandardSecurityHandler` whose key it needs (D2-4).
 - `pdf/render/PdfiumInit`, `PdfiumDocument` (`Result<Handle> open(path, PasswordCb)`),
-  `PdfiumRasterizer` (`Result<QImage> raster(const RenderRequest&)`), `GlyphCache`,
+  `PdfiumRasterizer` (`Result<RasterImage> raster(const RenderRequest&)`), `GlyphCache`,
   `FontResolverBridge`.
+  **The three signatures above said `QImage` until 2026-09-01 and could not have been built as
+  written** — `QImage` is QtGui, `core/` links `Qt6::Core` only and `layer-lint` has denied it there
+  since Stage 0, so an interface declared in `core/backend.h` cannot name one. `core::RasterImage`
+  is the first-party buffer that replaces it (width, height, stride, pixel format, bytes), which is
+  also what plan **D2-9**'s *buffers and callbacks only* already required; `ui/` wraps those bytes in
+  a `QImage` at the far side, where QtGui is allowed. Recorded as **I-03** in the Stage 2 guide's §8
+  and fixed at **T1**, in the header that declares the interface.
 - `pdf/DocumentBackendImpl`, `pdf/BackendFactory` (`std::unique_ptr<IDocumentBackend> createBackend()`).
 - `ui/viewer/PageView`, `TilePresenter`, `PageLayoutEngine`, `ViewportController`.
 - `ui/shell/MessageBar`.

@@ -2,7 +2,7 @@
 #
 # WHY THIS TARGET EXISTS SEPARATELY (Stage 1 T7, extending D1-4's reasoning to the other side).
 #
-# tests/unit/ links rawpage_core and rawpage_pdf and NOTHING else, and rawpage_assert_headless()
+# tests/unit/ links rawpage_core and rawpage_cos and NOTHING else, and rawpage_assert_headless()
 # enforces that against the resolved link closure. That assertion is the standing proof that core/
 # is testable with no display and no engine, and portable-asan verifies it on a machine that has
 # neither. The first platform test is exactly the pressure that would otherwise "just add

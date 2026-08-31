@@ -36,6 +36,7 @@ normalisation and needs no fixture — verified by hand, not by a case.
 | `qaction-stack/` | `QAction placeholder(parent);` — the same mistake with a different lifetime, and invisible to a pattern that only looks for `new` |
 | `qaction-menu-literal/` | `menu->addAction("Rotate Clockwise")` — QMenu builds the action for you, so the construction does not appear in the source at all |
 | `qaction-toolbar-literal/` | `bar->addAction(icon, "Delete Page")` — the same hidden construction through QToolBar. Catching one convenience and not the other is a rule that half works |
+| `backend-header-includes-platform/` | **(S2 · T1)** `core/backend.h` reaching for `platform/platform.h`. It is the one thing the `core-backend` entry narrows that the `core` entry did not already deny — `core/` at large may include the OS boundary, and the engine contract may not — and the tree's own `core/settings/Store.cpp` includes the same header legitimately, so the failure is attributable to which file reached for it. **The first version of this fixture used `fpdfview.h` and was worthless**: `core` has denied that since Stage 0, so it passed with the new entry deleted. Convention 7, and I-15's shape |
 
 ### Negative controls — without these, a gate that rejected everything would pass
 
@@ -45,6 +46,7 @@ normalisation and needs no fixture — verified by hand, not by a case.
 | `mention-in-comment/` | prose naming an outward include, `FPDF_InitLibrary()` and `QIODevice::WriteOnly` |
 | `qaction-factory-allowed/` | the legitimate construction in `ui/shell/ActionFactory.cpp`, both spellings — without this, "fires on every spelling" is equally satisfied by a rule that makes D1-7's mechanism impossible to write |
 | `qaction-mention-in-comment/` | a file that discusses `QAction`, `new QAction(this)` and `menu->addAction(...)` at length in prose and constructs none |
+| `pdf-impl-may-include-pdfium/` | **(S2 · T1)** `pdf/render/` including `fpdfview.h`, beside a `core/backend.h` holding buffers and interfaces. `fpdf-outside-pdf/` has proved since Stage 0 that naming PDFium outside `pdf/` fails and nothing had ever proved that naming it **inside** `pdf/` succeeds — so that case was equally satisfied by a gate rejecting every mention of PDFium in the tree, which would leave the facade unable to do its only job |
 
 ## Known **not** covered
 

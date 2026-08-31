@@ -26,6 +26,7 @@
 #include "app/LogFile.h"
 #include "core/LogBuffer.h"
 #include "core/Result.h"
+#include "core/backend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
 #include "core/settings/RecentFiles.h"
@@ -83,6 +84,13 @@ public:
     LogFile*               logFile() { return logFile_.get(); }
     platform::Platform&    platform() { return *platform_; }
 
+    // The engine, behind its interface -- `app/` is the only layer that knows a concrete one
+    // exists. Always non-null: an engine that implements nothing is a backend that SAYS it
+    // implements nothing (`implementedInterfaces()`), not an absent one, which is why there is no
+    // `Options::createBackend` mirroring `createPlatform`. Nothing but this class reads it before
+    // Stage 2 T9 gives `MainWindow::openFiles()` a reason to.
+    core::IDocumentBackend& backend() { return *backend_; }
+
     // How many per-user shortcut overrides were read out of settings.ini and accepted. A key naming
     // an ActionId that no longer exists is dropped with a log line rather than retained silently --
     // `core::Settings::droppedShortcutKeyCount()` counts those, and the two numbers together are
@@ -108,6 +116,7 @@ private:
     std::unique_ptr<core::LogBuffer>       logBuffer_;
     std::unique_ptr<LogFile>               logFile_;
     std::unique_ptr<platform::Platform>    platform_;
+    std::unique_ptr<core::IDocumentBackend> backend_;
 
     int         settingsSubscription_ = 0;
     std::size_t droppedOverrides_ = 0;

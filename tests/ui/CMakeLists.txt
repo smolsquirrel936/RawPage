@@ -1,6 +1,6 @@
 # tests/ui -- the widget suite. Decision D1-4.
 #
-# WHY IT IS A SEPARATE TARGET. tests/unit links rawpage_core and rawpage_pdf and nothing else, and
+# WHY IT IS A SEPARATE TARGET. tests/unit links rawpage_core and rawpage_cos and nothing else, and
 # rawpage_assert_headless() enforces that against the RESOLVED link closure. That assertion is the
 # standing proof that core/ is testable with no display and no engine, and portable-asan verifies it
 # on a machine that has neither. The first widget test is precisely the pressure that would
