@@ -508,6 +508,46 @@ TEST_CASE("a saved shortcut for an id that no longer exists is dropped and count
     CHECK_FALSE(readBytes(path).contains("thisActionWasRetired"));
 }
 
+TEST_CASE("a change is on disk before anything shuts down", "[settings]")
+{
+    // ISSUE I-47, and the state a KILLED process leaves behind. `sync()` used to be called from one
+    // place -- `app/CompositionRoot`'s teardown -- so a preference the user changed and watched take
+    // effect lived only in this process's memory until a clean quit. The Preferences dialog makes
+    // that worse rather than better: it applies immediately and has no OK button, so there is no
+    // moment at which anyone would think "now it is saved".
+    //
+    // Nothing here calls `sync()`. That omission IS the case: a second `Settings` opened on the same
+    // file is what a relaunch after a kill sees.
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString path = QDir(dir.path()).filePath(QStringLiteral("settings.ini"));
+
+    {
+        Settings settings(path);
+        settings.set(keys::general::theme, Theme::Dark);
+        settings.set(keys::general::uiFontScale, 1.5);
+        settings.setShortcutOverride(ShortcutKey::forAction(KeyContext::Global, ActionId::FileOpen),
+                                     QStringLiteral("Ctrl+Shift+O"));
+        // No sync, and no destructor-driven flush either -- the object is still alive here.
+        CHECK(readBytes(path).contains("dark"));
+    }
+
+    Settings reopened(path);
+    CHECK(reopened.get(keys::general::theme) == Theme::Dark);
+    CHECK(reopened.get(keys::general::uiFontScale) == 1.5);
+    REQUIRE(reopened.shortcutOverrides().size() == 1);
+    CHECK(reopened.shortcutOverrides().front().chord == "Ctrl+Shift+O");
+
+    // A REMOVAL travels the same way. Clearing an override erases a key rather than writing one, and
+    // that path had its own `removed_` list and its own way of never reaching the disk.
+    {
+        Settings settings(path);
+        settings.clearShortcutOverride(ShortcutKey::forAction(KeyContext::Global, ActionId::FileOpen));
+    }
+    Settings afterClear(path);
+    CHECK(afterClear.shortcutOverrides().empty());
+}
+
 // =======================================================================================
 // A-47 -- D1-16: migration up, and NO REWRITE on downgrade
 // =======================================================================================

@@ -17,12 +17,17 @@
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/QuickAccessToolbar.h"
+#include "ui/shell/Ribbon.h"
 #include "ui/shell/RawPageAction.h"
 #include "ui/shell/UiCustomization.h"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QContextMenuEvent>
+#include <QLabel>
+#include <QLayout>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QSet>
 #include <QToolButton>
 #include <QDir>
@@ -185,10 +190,13 @@ TEST_CASE("reordering the toolbar is reachable by a person and stops at both end
     CHECK_FALSE(fixture.actions.isEnabled(ActionId::UiQatMoveLeft));
     CHECK_FALSE(fixture.actions.isEnabled(ActionId::UiQatMoveRight));
 
-    // AND THE ROUTE, not only the destination -- which is the whole reason this issue existed. The
-    // dispatches above would every one of them pass against a build whose context menu never
-    // mentions reordering, because that is exactly the build that shipped from T11 to 2026-08-31.
-    // So: raise the real menu the way a right-click does, and read what it offers.
+    // THE ROUTE MOVED, and this is where that is recorded. I-43 put the two move commands in the
+    // context menu because reordering had no route at all; the toolbar now reorders by DRAGGING a
+    // button, so the menu items were removed as redundant and the commands stayed registered for
+    // flow K. What follows therefore asserts the menu still raises and still offers Remove -- the
+    // gesture is covered by `a button can be dragged to a new place unless the toolbar is locked`,
+    // and the menu's current shape by `the move commands stay reachable although the menu no longer
+    // offers them`.
     window.show();
     auto* button = qat->findChild<QToolButton*>();
     REQUIRE(button != nullptr);
@@ -205,10 +213,408 @@ TEST_CASE("reordering the toolbar is reachable by a person and stops at both end
         if (auto* command = qobject_cast<ui::RawPageAction*>(action))
             offered.insert(static_cast<int>(command->id()));
 
-    CHECK(offered.contains(static_cast<int>(ActionId::UiQatMoveLeft)));
-    CHECK(offered.contains(static_cast<int>(ActionId::UiQatMoveRight)));
     CHECK(offered.contains(static_cast<int>(ActionId::UiQatRemove)));
+    CHECK(offered.contains(static_cast<int>(ActionId::UiQatLock)));
 
+    menu->close();
+}
+
+TEST_CASE("adding a command starts with a right-click on the ribbon button", "[qat]")
+{
+    // THE ROUTE, which nothing had ever driven: `showAddMenu` and `Ribbon::controlContextMenuRequested`
+    // appear in no test in this tree, and the case above reaches `ui.qatAdd` by setting the pending
+    // target by hand -- which proves the command and says nothing about how a person gets to it.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+    ui::Ribbon* ribbon = window.ribbon();
+    REQUIRE(qat != nullptr);
+    REQUIRE(ribbon != nullptr);
+
+    // LAID OUT, not merely shown (convention 12). Offscreen there is no event loop, so the ribbon's
+    // pages keep default geometry and every control reports itself invisible -- and `childAt()`, which
+    // is how a position becomes a command for a DISABLED control, sees nothing at all.
+    window.resize(1600, 900);
+    window.layout()->activate();
+    ribbon->layout()->activate();
+    if (ui::RibbonPageLayout* page = ribbon->layoutOfPage(ribbon->currentPage())) page->activate();
+
+    // A real ribbon button carrying a command NOT already on the toolbar. `wantEnabled` picks which
+    // half of the ribbon to take it from, and BOTH halves matter: 22 of the 360 declared commands are
+    // enabled and 338 are not, and the disabled ones are precisely what a person pins for later.
+    // `mustBeVisible` only for the disabled half, and the asymmetry is measured rather than tidy.
+    // Offscreen this ribbon reports 192 controls, 8 enabled, 20 visible and NONE both: `file.open` is
+    // deliberately disabled where there is nobody to answer a file dialog (I-23), and the commands
+    // that are enabled sit on pages the stacked widget is not showing. The enabled half does not need
+    // visibility -- the event goes straight at the button, which is what an enabled widget receives.
+    // The disabled half does, because `childAt()` skips hidden children and that is the whole
+    // mechanism under test.
+    const auto ribbonButton = [&](bool wantEnabled, bool mustBeVisible) -> QToolButton* {
+        for (QToolButton* button : ribbon->findChildren<QToolButton*>()) {
+            auto* action = qobject_cast<ui::RawPageAction*>(button->defaultAction());
+            if (!action) continue;
+            const std::vector<ActionId>& on = qat->commands();
+            if (std::find(on.begin(), on.end(), action->id()) != on.end()) continue;
+            if (button->isEnabled() != wantEnabled) continue;
+            if (mustBeVisible && !button->isVisible()) continue;
+            return button;
+        }
+        return nullptr;
+    };
+
+    QToolButton* targetWidget = ribbonButton(/*wantEnabled=*/true, /*mustBeVisible=*/false);
+    REQUIRE(targetWidget != nullptr);
+    auto* target = qobject_cast<ui::RawPageAction*>(targetWidget->defaultAction());
+    REQUIRE(target != nullptr);
+
+    // Right-click it, the way a person does. The ribbon owns the signal; the window connects it to
+    // the toolbar, which records the command as the pending target (O11) and raises its menu.
+    int emitted = 0;
+    QObject::connect(ribbon, &ui::Ribbon::controlContextMenuRequested, ribbon,
+                     [&emitted](core::ActionId, const QPoint&) { ++emitted; });
+
+    QContextMenuEvent rightClick(QContextMenuEvent::Mouse, QPoint(2, 2),
+                                 targetWidget->mapToGlobal(QPoint(2, 2)));
+    QApplication::sendEvent(targetWidget, &rightClick);
+
+    UNSCOPED_INFO("policy: " << static_cast<int>(targetWidget->contextMenuPolicy())
+                  << "  (3 = CustomContextMenu)   signal emissions: " << emitted
+                  << "   pending target set: " << qat->pendingTarget().has_value());
+
+    QMenu* menu = qat->findChild<QMenu*>();
+    REQUIRE(menu != nullptr);
+
+    ui::RawPageAction* addItem = nullptr;
+    for (QAction* action : menu->actions())
+        if (auto* command = qobject_cast<ui::RawPageAction*>(action);
+            command && command->id() == ActionId::UiQatAdd)
+            addItem = command;
+
+    REQUIRE(addItem != nullptr);
+    INFO("the Add item is the one a person clicks; disabled here means the toolbar cannot be built");
+    CHECK(addItem->isEnabled());
+
+    // And it does what it says.
+    const std::size_t before = qat->commands().size();
+    addItem->trigger();
+    CHECK(qat->commands().size() == before + 1);
+    CHECK(qat->commands().back() == target->id());
+    CHECK(qat->renderedCommands() == qat->commands());
+    menu->close();
+
+    // CLOSING A MENU ONLY SCHEDULES ITS DELETION -- `WA_DeleteOnClose` runs through `deleteLater`,
+    // and offscreen nothing drains that queue on its own. Without this the next `findChild<QMenu*>`
+    // returns the menu that was just dismissed, whose `Add` still points at the previous target, and
+    // the assertions below pass or fail for reasons that have nothing to do with the product.
+    const auto dropClosedMenus = [] {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    };
+    dropClosedMenus();
+
+    // AND A DISABLED CONTROL, which is 338 of the 360 and was the whole defect (I-50). Qt delivers
+    // no input event to a disabled widget, so its own `CustomContextMenu` signal never fires; the
+    // event reaches the nearest enabled ancestor and propagates to `Ribbon`, which maps the position
+    // back to a command. Before that, right-clicking a greyed button did nothing at all and a person
+    // could pin only what already worked.
+    QToolButton* greyed = ribbonButton(/*wantEnabled=*/false, /*mustBeVisible=*/true);
+    REQUIRE(greyed != nullptr);
+    auto* greyedAction = qobject_cast<ui::RawPageAction*>(greyed->defaultAction());
+    REQUIRE(greyedAction != nullptr);
+    REQUIRE_FALSE(greyed->isEnabled());
+
+    // ON THE PAGE THAT IS ACTUALLY SHOWING: `childAt()` skips hidden children, and the ribbon keeps
+    // its other eight pages in a QStackedWidget.
+    REQUIRE(greyed->isVisible());
+
+    // Delivered to the RIBBON, at the button's position. That is where Qt's own propagation ends up
+    // -- a disabled widget takes no input event, the nearest enabled ancestor gets it, and an
+    // ignored context-menu event walks up the parent chain from there. Sending it straight at the
+    // button, as the enabled half of this case does, is precisely what a disabled widget never sees.
+    const QPoint inRibbon = greyed->mapTo(ribbon, QPoint(2, 2));
+    QContextMenuEvent onGreyed(QContextMenuEvent::Mouse, inRibbon, greyed->mapToGlobal(QPoint(2, 2)));
+    QApplication::sendEvent(ribbon, &onGreyed);
+
+    QMenu* greyedMenu = qat->findChild<QMenu*>();
+    REQUIRE(greyedMenu != nullptr);
+
+    ui::RawPageAction* addGreyed = nullptr;
+    for (QAction* action : greyedMenu->actions())
+        if (auto* command = qobject_cast<ui::RawPageAction*>(action);
+            command && command->id() == ActionId::UiQatAdd)
+            addGreyed = command;
+    REQUIRE(addGreyed != nullptr);
+    CHECK(addGreyed->isEnabled());
+
+    addGreyed->trigger();
+    CHECK(qat->commands().back() == greyedAction->id());
+    greyedMenu->close();
+    dropClosedMenus();
+
+    // AND THE TOOLBAR'S OWN EMPTY SPACE OFFERS NO `Add` AT ALL. It cannot: there is no command under
+    // the cursor there, so the item could only ever appear greyed -- which is what told the user
+    // adding was impossible while they were looking for how to do it.
+    qat->setPendingTarget(std::nullopt);
+    QContextMenuEvent onEmpty(QContextMenuEvent::Mouse, QPoint(1, 1), qat->mapToGlobal(QPoint(1, 1)));
+    QApplication::sendEvent(qat, &onEmpty);
+
+    QMenu* emptyMenu = qat->findChild<QMenu*>();
+    REQUIRE(emptyMenu != nullptr);
+    for (QAction* action : emptyMenu->actions())
+        if (auto* command = qobject_cast<ui::RawPageAction*>(action)) {
+            INFO("offered over empty space: " << static_cast<int>(command->id()));
+            CHECK(command->id() != ActionId::UiQatAdd);
+            CHECK(command->id() != ActionId::UiQatRemove);
+        }
+    emptyMenu->close();
+}
+
+TEST_CASE("the toolbar stays on screen when emptied and when moved", "[qat]")
+{
+    // THE TWO WAYS A PERSON CAN LOSE IT, asked as questions about the WIDGET rather than about the
+    // state -- which is the gap the cases above leave: they assert `isBelowRibbon()` and the command
+    // list, both of which stay perfectly correct in a toolbar nobody can see.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+
+    ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+    REQUIRE(qat != nullptr);
+    REQUIRE(qat->isVisible());
+    const int populatedHeight = qat->height();
+    REQUIRE(populatedHeight > 0);
+
+    // 1. EMPTIED. Removing the last command must not remove the toolbar: the context menu is the
+    //    only way back, and a widget with no height has nothing to right-click.
+    // COPIED FIRST: `commands()` returns a reference to the vector `removeCommand` mutates, and
+    // iterating it while removing walks off the end of the list it is shortening.
+    const std::vector<ActionId> toRemove = qat->commands();
+    for (const ActionId id : toRemove) qat->removeCommand(id);
+    REQUIRE(qat->commands().empty());
+    // EVERY LEVEL, per convention 12: the toolbar's own row, the header that holds it, and the
+    // window. Offscreen nothing re-runs a layout for you, and activating only the outermost one
+    // reports the geometry the widget had before the change -- which is how a 4-pixel reading gets
+    // mistaken for a defect, or a defect for a stale number.
+    const auto relayout = [&] {
+        qat->layout()->activate();
+        if (QWidget* header = qat->parentWidget(); header && header->layout()) header->layout()->activate();
+        window.layout()->activate();
+    };
+    relayout();
+
+    CHECK(qat->isVisible());
+    INFO("emptied height: " << qat->height());
+    CHECK(qat->height() > 0);
+    auto* emptyLabel = qat->findChild<QLabel*>(QStringLiteral("quickAccessEmpty"));
+    CHECK(emptyLabel != nullptr);
+    if (emptyLabel) {
+        UNSCOPED_INFO("label text: '" << emptyLabel->text().toStdString() << "'"
+                      << "  label sizeHint: " << emptyLabel->sizeHint().height()
+                      << "  label visible: " << emptyLabel->isVisible());
+    }
+    UNSCOPED_INFO("qat sizeHint: " << qat->sizeHint().height()
+                  << "  minimumSizeHint: " << qat->minimumSizeHint().height()
+                  << "  layout count: " << qat->layout()->count());
+
+    // 2. MOVED, in both directions, while empty -- the state a person reaches by accident.
+    qat->setBelowRibbon(true);
+    relayout();
+    CHECK(qat->isVisible());
+    CHECK(qat->height() > 0);
+    CHECK(qat->parentWidget() != nullptr);
+
+    qat->setBelowRibbon(false);
+    relayout();
+    CHECK(qat->isVisible());
+    CHECK(qat->height() > 0);
+
+    // 3. AND BACK. `ui.resetCustomization` is the documented way out, and it is reachable from the
+    //    ribbon as well as from the toolbar's own menu -- which matters precisely when the toolbar
+    //    is the thing that went missing.
+    REQUIRE(fixture.actions.dispatch(ActionId::UiResetCustomization, core::KeyContext::Global));
+    relayout();
+    CHECK(qat->commands() == ui::QuickAccessToolbar::factoryDefaults());
+    CHECK(qat->isVisible());
+    CHECK(qat->height() == populatedHeight);
+
+    // AND THE BUTTONS THEMSELVES ARE ON SCREEN, which is the general form of this defect: every
+    // widget a rebuild creates after the window is shown starts hidden, and `commands()` and
+    // `renderedCommands()` both go on answering correctly about a row nobody can see. Those two are
+    // exactly what every other case in this file asks, which is why none of them noticed.
+    const QList<QToolButton*> buttons = qat->findChildren<QToolButton*>();
+    REQUIRE(buttons.size() == static_cast<int>(ui::QuickAccessToolbar::factoryDefaults().size()));
+    for (QToolButton* button : buttons) {
+        INFO("button: " << button->text().toStdString());
+        CHECK(button->isVisible());
+        CHECK(button->height() > 0);
+    }
+}
+
+TEST_CASE("a button can be dragged to a new place unless the toolbar is locked", "[qat]")
+{
+    // The gesture that replaced the two move items in the context menu. Both halves matter: the drag
+    // must reorder, and it must NOT also run the command it was holding -- dropping `Open` in its new
+    // place and having a file dialog appear is the most annoying way this can fail.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+    window.resize(1200, 800);
+    window.layout()->activate();
+
+    ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+    REQUIRE(qat != nullptr);
+    qat->layout()->activate();
+
+    const std::vector<ActionId> before = qat->renderedCommands();
+    REQUIRE(before.size() >= 3);
+
+    QList<QToolButton*> buttons;
+    for (int i = 0; i < qat->layout()->count(); ++i)
+        if (auto* button = qobject_cast<QToolButton*>(qat->layout()->itemAt(i)->widget()))
+            buttons.append(button);
+    REQUIRE(buttons.size() == static_cast<int>(before.size()));
+
+    QToolButton* dragged = buttons.first();
+    auto* draggedAction = qobject_cast<ui::RawPageAction*>(dragged->defaultAction());
+    REQUIRE(draggedAction != nullptr);
+
+    int fired = 0;
+    QObject::connect(draggedAction, &QAction::triggered, draggedAction, [&fired]() { ++fired; });
+
+    // WHAT THIS CANNOT SEE, said here rather than dressed up (convention 19). The release is
+    // consumed so that a drop does not ALSO run the command it was holding -- dropping `Open` in
+    // its new place and getting a file dialog is the worst way this feature can fail. That is not
+    // observable here: a synthetic press never leaves the button in the pressed state a real click
+    // needs, so `fired` stays 0 either way, and `isAccepted()` is true either way because
+    // QToolButton accepts a release regardless of what a filter did. The ORDER is what this case
+    // proves; the swallow is walked by hand in M-11.
+    const auto dragTo = [&](QToolButton* button, const QPoint& destination) {
+        const QPoint from = button->mapToGlobal(button->rect().center());
+        QMouseEvent press(QEvent::MouseButtonPress, button->rect().center(), QPointF(from), QPointF(from),
+                          Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(button, &press);
+
+        const QPointF to(destination);
+        QMouseEvent move(QEvent::MouseMove, button->mapFromGlobal(destination), to, to,
+                         Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(button, &move);
+
+        QMouseEvent release(QEvent::MouseButtonRelease, button->mapFromGlobal(destination), to, to,
+                            Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(button, &release);
+    };
+
+    // Past the LAST button's centre, which is what says "put it after that one".
+    const QPoint pastTheEnd = buttons.last()->mapToGlobal(buttons.last()->rect().center()) + QPoint(4, 0);
+    dragTo(dragged, pastTheEnd);
+
+    const std::vector<ActionId> after = qat->renderedCommands();
+    INFO("before: " << before.size() << " commands; after: " << after.size());
+    CHECK(after.size() == before.size());
+    CHECK(after.back() == before.front());        // the dragged one ended up last
+    CHECK(qat->commands() == after);              // and the LIST followed the row, not the reverse
+    CHECK(fired == 0);                            // the drag did not also run the command
+
+    // AND IT LANDED IN THE ROW, not past the end of it (issue I-52). A slot among the buttons is not
+    // an index into the layout -- the layout also holds the trailing stretch that keeps the toolbar
+    // left-aligned, and inserting at the stretch's index parked the button on the far right edge
+    // with a gap in front of it. `renderedCommands()` reads the same order either way, which is
+    // exactly why the first version of this case passed while the row looked wrong: the invariant
+    // that catches it is POSITIONAL.
+    const auto buttonsOccupyTheFirstSlots = [&] {
+        bool seenNonButton = false;
+        for (int i = 0; i < qat->layout()->count(); ++i) {
+            const bool isButton = qobject_cast<QToolButton*>(qat->layout()->itemAt(i)->widget()) != nullptr;
+            if (!isButton) seenNonButton = true;
+            else if (seenNonButton) return false;   // a button after the stretch
+        }
+        return true;
+    };
+    CHECK(buttonsOccupyTheFirstSlots());
+
+    // LOCKED, and the same drag does nothing at all.
+    qat->setLocked(true);
+    CHECK(qat->isLocked());
+
+    const std::vector<ActionId> locked = qat->renderedCommands();
+    QToolButton* first = nullptr;
+    for (int i = 0; i < qat->layout()->count() && !first; ++i)
+        first = qobject_cast<QToolButton*>(qat->layout()->itemAt(i)->widget());
+    REQUIRE(first != nullptr);
+    dragTo(first, pastTheEnd);
+
+    CHECK(qat->renderedCommands() == locked);
+    CHECK(qat->commands() == locked);
+}
+
+TEST_CASE("locking is a command, is remembered, and a reset clears it", "[qat]")
+{
+    Fixture fixture;
+    {
+        ui::MainWindow window(fixture.services());
+        ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+        REQUIRE(qat != nullptr);
+        CHECK_FALSE(qat->isLocked());              // unlocked by default: dragging is the expectation
+
+        REQUIRE(fixture.actions.dispatch(ActionId::UiQatLock, core::KeyContext::Global));
+        CHECK(qat->isLocked());
+        CHECK(fixture.actions.isChecked(ActionId::UiQatLock));   // the menu renders a check mark
+    }
+
+    // A SECOND WINDOW ON THE SAME SETTINGS reads it back -- the same path a relaunch takes.
+    {
+        ui::MainWindow window(fixture.services());
+        ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+        REQUIRE(qat != nullptr);
+        CHECK(qat->isLocked());
+
+        // And a reset unlocks: a reset that left the toolbar locked would not be one.
+        REQUIRE(fixture.actions.dispatch(ActionId::UiResetCustomization, core::KeyContext::Global));
+        CHECK_FALSE(qat->isLocked());
+        CHECK(qat->commands() == ui::QuickAccessToolbar::factoryDefaults());
+    }
+}
+
+TEST_CASE("the move commands stay reachable although the menu no longer offers them", "[qat]")
+{
+    // THE RULE THIS FEATURE COLLIDED WITH, asserted rather than remembered: `CLAUDE.md` says no
+    // feature may exist that the headless batch path cannot reach, and a drag reaches nothing but a
+    // pointer. So the menu drops the two move items -- the gesture replaces them -- and the COMMANDS
+    // stay registered, which is what keeps reordering available to flow K and to a chord.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    ui::QuickAccessToolbar* qat = window.quickAccessToolbar();
+    REQUIRE(qat != nullptr);
+    window.show();
+
+    CHECK(fixture.actions.isRegistered(ActionId::UiQatMoveLeft));
+    CHECK(fixture.actions.isRegistered(ActionId::UiQatMoveRight));
+
+    const std::vector<ActionId> before = qat->commands();
+    qat->setPendingTarget(before.at(1));
+    REQUIRE(fixture.actions.dispatch(ActionId::UiQatMoveLeft, core::KeyContext::Global));
+    CHECK(qat->commands().front() == before.at(1));
+
+    // The menu over a toolbar button offers Remove and the toolbar-wide items, and no Move.
+    auto* button = qat->findChild<QToolButton*>();
+    REQUIRE(button != nullptr);
+    const QPoint at = button->geometry().center();
+    QContextMenuEvent rightClick(QContextMenuEvent::Mouse, at, qat->mapToGlobal(at));
+    QApplication::sendEvent(qat, &rightClick);
+
+    QMenu* menu = qat->findChild<QMenu*>();
+    REQUIRE(menu != nullptr);
+    bool sawRemove = false, sawLock = false;
+    for (QAction* action : menu->actions())
+        if (auto* command = qobject_cast<ui::RawPageAction*>(action)) {
+            CHECK(command->id() != ActionId::UiQatMoveLeft);
+            CHECK(command->id() != ActionId::UiQatMoveRight);
+            if (command->id() == ActionId::UiQatRemove) sawRemove = true;
+            if (command->id() == ActionId::UiQatLock)   sawLock = true;
+        }
+    CHECK(sawRemove);
+    CHECK(sawLock);
     menu->close();
 }
 

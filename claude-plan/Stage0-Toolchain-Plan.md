@@ -138,7 +138,7 @@ the toolchain file therefore run many times and can fail a probe for the wrong r
 | TA-6 | CRT is **msvcrt, not UCRT** | `g++ -dM -E -` over an empty TU must **not** define `_UCRT`. This is the single most valuable assertion in the file — it is the one that catches an MSYS2 UCRT64 install, which passes TA-1..TA-3 and TA-5 | §3.3 A7 |
 | TA-7 | The compiler is *inside* `RAWPAGE_MINGW_ROOT` | `get_filename_component(... REALPATH)` prefix match — stops a `PATH`-ordering accident where the pin says one thing and CMake found another | this plan |
 | TA-8 | `Qt6_VERSION` is `6.11.1` and its prefix is `RAWPAGE_QT_PREFIX` | after `find_package(Qt6)` | §6.1 |
-| TA-9 | **No non-free GCC plugin.** `CMAKE_CXX_FLAGS` and `CMAKE_CXX_FLAGS_<CONFIG>` contain no `-fplugin`; the directory from `g++ -print-file-name=plugin` contains no third-party module. The list is written to `${CMAKE_BINARY_DIR}/compiler-plugins.txt` for `license-audit` to re-check | [§8.1](./Tech-Stack-Plan.md#81-obligation--concrete-action) — the Runtime Library Exception rests on this |
+| TA-9 | **No non-free GCC plugin** — the Runtime Library Exception rests on this | `CMAKE_CXX_FLAGS` and `CMAKE_CXX_FLAGS_<CONFIG>` contain no `-fplugin`; the directory from `g++ -print-file-name=plugin` contains no third-party module. The list is written to `${CMAKE_BINARY_DIR}/compiler-plugins.txt` for `license-audit` to re-check | [§8.1](./Tech-Stack-Plan.md#81-obligation--concrete-action) |
 
 Flags come from the translation table in [`Tech-Stack-Plan.md` §6.3](./Tech-Stack-Plan.md#63-build-and-dependency-management)
 and are applied through `cmake/RawPageWarnings.cmake`, never pasted per target: `-std=c++20` (not

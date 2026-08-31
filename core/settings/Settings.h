@@ -192,6 +192,11 @@ private:
     // instantiation, and so the message is written once.
     void logClamp(std::string_view path, bool hasRange) const;
 
+    // Flushes after every change, so a killed process keeps what the user had already seen take
+    // effect (I-47). `sync()` stays public because teardown still calls it and because a caller
+    // that wants the Result rather than a log line should have one.
+    void autoFlush();
+
     QString filePath_;
     std::unique_ptr<QSettings> backing_;
 

@@ -104,7 +104,10 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Collapse the ribbon to a single row of tab labels.
 - Quick Access Toolbar: add a command from any ribbon control.
 - Quick Access Toolbar: remove a command.
-- Quick Access Toolbar: reorder commands.
+- Quick Access Toolbar: reorder commands — **by dragging a button to its new place**, and as two
+  commands (`ui.qatMoveLeft` / `ui.qatMoveRight`) so the batch runner and a chord can reach the
+  same operation a pointer can.
+- Quick Access Toolbar: **lock it**, so a drag cannot reorder it by accident. Unlocked by default.
 - Quick Access Toolbar: position above or below the ribbon.
 - Reset the Quick Access Toolbar and ribbon to factory defaults.
 - Export the UI customization (ribbon + QAT + shortcuts) to a file.

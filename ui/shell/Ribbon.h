@@ -236,6 +236,14 @@ signals:
 protected:
     void resizeEvent(QResizeEvent* event) override;
 
+    // A RIGHT-CLICK ON A DISABLED CONTROL STILL NAMES A COMMAND (issue I-50). Qt delivers no input
+    // event to a disabled widget -- it walks up to the nearest enabled ancestor -- so the
+    // `CustomContextMenu` signal on each control fires for the 22 registered commands and for none
+    // of the other 338, which are precisely the ones a person most wants to pin for later. The
+    // unhandled event arrives here by propagation; `childAt()` returns disabled children, so this is
+    // where the position becomes an `ActionId` again.
+    void contextMenuEvent(QContextMenuEvent* event) override;
+
     // WHILE KEY TIPS ARE UP THE RIBBON HOLDS FOCUS, and this is where the follow-up letter lands.
     // The alternative -- filtering the application -- would put a second key path beside
     // `ShortcutBinder`, and D1-7's whole point is that there is one. Focus is taken in
@@ -259,6 +267,7 @@ private:
     QList<QWidget*> tips_;
     QHash<int, int> tipTargets_;          // key -> tab index, level 1
     QStringList     accessKeys_;          // per page, from the catalog -- see addPage()
+    QHash<QWidget*, core::ActionId> controlIds_;   // every control attachControl() has seen
     QPointer<QWidget> focusBeforeTips_;   // restored when the tips go away
 };
 

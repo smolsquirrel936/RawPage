@@ -7,6 +7,8 @@
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QApplication>
+#include <QMouseEvent>
 #include <QMenu>
 #include <QToolButton>
 
@@ -155,7 +157,9 @@ void QuickAccessToolbar::rebuild()
         button->setFocusPolicy(Qt::TabFocus);   // keyboard operability, retained
         button->setToolButtonStyle(Qt::ToolButtonTextOnly);
         button->setFixedHeight(kButtonHeight);
+        button->installEventFilter(this);   // drag-to-reorder; see eventFilter()
         row_->addWidget(button);
+        button->show();
         items_.append(button);
     }
 
@@ -167,13 +171,142 @@ void QuickAccessToolbar::rebuild()
         empty->setObjectName(QStringLiteral("quickAccessEmpty"));
         empty->setEnabled(false);
         row_->addWidget(empty);
+        empty->show();
         items_.append(empty);
     }
 
     row_->addStretch(1);
+
+    // SHOWN EXPLICITLY, AND THE PARENT TOLD (issue I-49). A widget constructed with a parent that is
+    // ALREADY on screen starts hidden, and a hidden widget is an empty layout item -- so every
+    // rebuild after the window was shown produced a row of invisible buttons and a toolbar that
+    // collapsed to its 4 pixels of margin. The constructor's rebuild was the only one that worked,
+    // because it runs before the window is shown and `show()` then reaches the whole tree.
+    //
+    // That is every customization: add, remove, reorder, reset, and the empty-state label that was
+    // supposed to say the toolbar is empty rather than leave a bare strip. `updateGeometry()`
+    // because the row's size hint has just changed and the header's layout is the one that has to
+    // hear about it.
+    updateGeometry();
 }
 
-QMenu* QuickAccessToolbar::buildMenu(bool overCommand)
+void QuickAccessToolbar::setLocked(bool locked)
+{
+    if (locked_ == locked) return;
+    locked_ = locked;
+
+    // A lock taken mid-drag ends the drag rather than leaving a button following the pointer with
+    // nothing able to drop it.
+    if (locked_ && pressedButton_) {
+        pressedButton_ = nullptr;
+        dragging_ = false;
+        unsetCursor();
+    }
+    emit lockedChanged(locked_);
+}
+
+bool QuickAccessToolbar::eventFilter(QObject* watched, QEvent* event)
+{
+    auto* button = qobject_cast<QToolButton*>(watched);
+    if (!button) return QWidget::eventFilter(watched, event);
+
+    switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+        auto* mouse = static_cast<QMouseEvent*>(event);
+        if (mouse->button() == Qt::LeftButton && !locked_) {
+            pressedButton_ = button;
+            pressedAt_     = mouse->globalPosition().toPoint();
+            dragging_      = false;
+        }
+        break;   // NOT consumed: a press that never becomes a drag has to reach the button
+    }
+
+    case QEvent::MouseMove: {
+        if (pressedButton_ != button) break;
+        auto* mouse = static_cast<QMouseEvent*>(event);
+        const QPoint travelled = mouse->globalPosition().toPoint() - pressedAt_;
+        if (!dragging_ && travelled.manhattanLength() < QApplication::startDragDistance()) break;
+
+        dragging_ = true;
+        setCursor(Qt::ClosedHandCursor);
+        moveDraggedButtonTo(mapFromGlobal(mouse->globalPosition().toPoint()).x());
+        return true;
+    }
+
+    case QEvent::MouseButtonRelease: {
+        if (pressedButton_ != button) break;
+        const bool wasDragging = dragging_;
+        pressedButton_ = nullptr;
+        dragging_      = false;
+        unsetCursor();
+
+        if (!wasDragging) break;
+
+        // CONSUMED, so the drag does not also RUN the command. Dropping a button on its new place
+        // and having the file dialog open is the single most annoying way this feature can fail.
+        commitDraggedOrder();
+        return true;
+    }
+
+    default:
+        break;
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void QuickAccessToolbar::moveDraggedButtonTo(int x)
+{
+    if (!pressedButton_) return;
+
+    // TWO INDEX SPACES, and confusing them is issue I-52. A slot is a position among the BUTTONS;
+    // `QHBoxLayout::insertWidget` takes a position in the LAYOUT, which also holds the trailing
+    // stretch that keeps the row left-aligned. The first version of this counted buttons and then
+    // inserted by that number -- so a drop past the last button asked for a layout index one beyond
+    // the last button, which after the removal is the STRETCH's index: the button landed on the far
+    // right edge of the toolbar with a gap in front of it. It only happened at the right-hand end,
+    // which is why it looked intermittent.
+    QList<QToolButton*> others;
+    int currentSlot = 0;
+    bool seenDragged = false;
+    for (int i = 0; i < row_->count(); ++i) {
+        auto* sibling = qobject_cast<QToolButton*>(row_->itemAt(i)->widget());
+        if (!sibling) continue;
+        if (sibling == pressedButton_) { seenDragged = true; continue; }
+        if (!seenDragged) ++currentSlot;
+        others.append(sibling);
+    }
+    if (!seenDragged) return;
+
+    // A neighbour yields once the pointer is past its CENTRE, which is what makes the row feel like
+    // it follows the hand rather than snapping late.
+    int slot = 0;
+    for (QToolButton* other : others) {
+        if (x <= other->geometry().center().x()) break;
+        ++slot;
+    }
+    if (slot == currentSlot) return;
+
+    // Only the WIDGET moves. `commands_` is left alone until the release, so nothing here triggers
+    // `rebuild()` -- which would delete the button the pointer is still holding.
+    row_->removeWidget(pressedButton_);
+
+    const int layoutIndex = slot < others.size()
+                                ? row_->indexOf(others.at(slot))          // before that button
+                                : row_->indexOf(others.last()) + 1;       // after the last one,
+                                                                         // and still before the stretch
+    row_->insertWidget(layoutIndex, pressedButton_);
+}
+
+void QuickAccessToolbar::commitDraggedOrder()
+{
+    // Read back off the layout, which is where the drag has been working all along.
+    const std::vector<ActionId> dropped = renderedCommands();
+    if (dropped == commands_) return;
+    commands_ = dropped;
+    emit commandsChanged();
+}
+
+QMenu* QuickAccessToolbar::buildMenu()
 {
     // Parented to this widget and deleted when it closes: the menu's items are RawPageActions, and
     // a menu kept alive between right-clicks would accumulate one set of them per click.
@@ -184,19 +317,30 @@ QMenu* QuickAccessToolbar::buildMenu(bool overCommand)
     // which the shell has not registered and which therefore appears disabled and says why. A
     // context menu built from lambdas would be four features the Stage 14 batch runner cannot
     // reach, on the toolbar whose entire purpose is reaching commands quickly.
-    if (overCommand) {
+    // WHAT IS UNDER THE CURSOR DECIDES, not which call site raised the menu (issue I-50). The old
+    // split was "raised from the toolbar" versus "raised from the ribbon", which offered `Add` over
+    // the toolbar's own empty space -- where there is no command to add, so the item could never be
+    // enabled and sat there greyed, telling a person that adding is impossible at the exact moment
+    // they went looking for it. It also offered `Add` for a ribbon command already ON the toolbar,
+    // which would have been refused.
+    const bool hasTarget = pendingTarget_.has_value();
+    const bool alreadyOnToolbar =
+        hasTarget && std::find(commands_.begin(), commands_.end(), *pendingTarget_) != commands_.end();
+
+    if (alreadyOnToolbar) {
         actions_.addToMenu(menu, ActionId::UiQatRemove);
 
         // REORDERING IS TWO COMMANDS, and until 2026-08-31 it was none (issue I-43): `moveCommand`
         // was public, `UiCustomization` persisted the order, and the only caller was a test. Each is
         // disabled at the end it cannot move towards -- the enablement predicate reads the pending
         // target, which `contextMenuEvent` has already set by the time this menu is built.
-        actions_.addToMenu(menu, ActionId::UiQatMoveLeft);
-        actions_.addToMenu(menu, ActionId::UiQatMoveRight);
-    } else {
+        actions_.addMenuSeparator(menu);
+    } else if (hasTarget) {
         actions_.addToMenu(menu, ActionId::UiQatAdd);
+        actions_.addMenuSeparator(menu);
     }
-    actions_.addMenuSeparator(menu);
+
+    actions_.addToMenu(menu, ActionId::UiQatLock);
     actions_.addToMenu(menu, ActionId::UiQatPlacement);
     actions_.addToMenu(menu, ActionId::UiResetCustomization);
     actions_.addMenuSeparator(menu);
@@ -207,7 +351,7 @@ QMenu* QuickAccessToolbar::buildMenu(bool overCommand)
 void QuickAccessToolbar::showAddMenu(const QPoint& globalPos, ActionId target)
 {
     setPendingTarget(target);
-    buildMenu(/*overCommand=*/false)->popup(globalPos);
+    buildMenu()->popup(globalPos);
 }
 
 void QuickAccessToolbar::contextMenuEvent(QContextMenuEvent* event)
@@ -223,7 +367,7 @@ void QuickAccessToolbar::contextMenuEvent(QContextMenuEvent* event)
     }
     setPendingTarget(target);
 
-    buildMenu(/*overCommand=*/target.has_value())->popup(event->globalPos());
+    buildMenu()->popup(event->globalPos());
     event->accept();
 }
 

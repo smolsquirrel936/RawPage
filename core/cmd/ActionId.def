@@ -487,6 +487,10 @@ RAWPAGE_ACTION(UiQatPlacement,         "ui.qatPlacement",         Global, "actio
 // `QuickAccessToolbar::moveCommand` existed, `UiCustomization` persisted the order, three
 // documents called it shipped, and nothing on screen could move a button. Left and right rather
 // than up and down because the toolbar is a row in both of its placements.
+RAWPAGE_ACTION(UiQatLock,              "ui.qatLock",              Global, "action.ui.qatLock")
+// The two move commands stay REGISTERED although the context menu no longer offers them: drag is
+// the gesture, and a gesture reaches nothing but a pointer. The batch runner and a chord still
+// need a way to reorder the toolbar -- see the standing rule about flow K in CLAUDE.md.
 RAWPAGE_ACTION(UiQatMoveLeft,          "ui.qatMoveLeft",          Global, "action.ui.qatMoveLeft")
 RAWPAGE_ACTION(UiQatMoveRight,         "ui.qatMoveRight",         Global, "action.ui.qatMoveRight")
 

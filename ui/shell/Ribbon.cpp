@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QContextMenuEvent>
 #include <QFont>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -443,6 +444,7 @@ bool Ribbon::hasBodyScroll() const
 
 void Ribbon::attachControl(QWidget* control, core::ActionId id)
 {
+    controlIds_.insert(control, id);
     control->setContextMenuPolicy(Qt::CustomContextMenu);
 
     // Connected with `this` as the receiver and no destructor disconnect, which is a deliberate
@@ -454,6 +456,22 @@ void Ribbon::attachControl(QWidget* control, core::ActionId id)
             [this, control, id](const QPoint& position) {
                 emit controlContextMenuRequested(id, control->mapToGlobal(position));
             });
+}
+
+void Ribbon::contextMenuEvent(QContextMenuEvent* event)
+{
+    // ONLY DISABLED CONTROLS REACH HERE. An enabled one has `CustomContextMenu` and accepts the
+    // event itself, so there is no double emission; a disabled one never sees the event at all and
+    // Qt hands it to the nearest enabled ancestor, which propagates up to this widget.
+    for (QWidget* widget = childAt(event->pos()); widget && widget != this;
+         widget = widget->parentWidget()) {
+        const auto found = controlIds_.constFind(widget);
+        if (found == controlIds_.constEnd()) continue;
+        emit controlContextMenuRequested(found.value(), event->globalPos());
+        event->accept();
+        return;
+    }
+    QWidget::contextMenuEvent(event);
 }
 
 void Ribbon::setCornerWidget(QWidget* widget)

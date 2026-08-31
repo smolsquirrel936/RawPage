@@ -87,7 +87,10 @@ public:
     // an ActionId that no longer exists is dropped with a log line rather than retained silently --
     // `core::Settings::droppedShortcutKeyCount()` counts those, and the two numbers together are
     // what makes a lost customization diagnosable instead of mysterious.
-    std::size_t importedShortcutOverrides() const { return importedOverrides_; }
+    // HOW MANY WERE DROPPED, which is what `KeyBindingStore::importOverrides` returns. Named for
+    // what it holds after I-51, where the old name `importedOverrides_` had produced a log line
+    // saying the exact opposite of what had happened.
+    std::size_t droppedShortcutOverrides() const { return droppedOverrides_; }
 
 private:
     void applyLoggingSettings();
@@ -107,7 +110,7 @@ private:
     std::unique_ptr<platform::Platform>    platform_;
 
     int         settingsSubscription_ = 0;
-    std::size_t importedOverrides_ = 0;
+    std::size_t droppedOverrides_ = 0;
 };
 
 } // namespace rawpage::app

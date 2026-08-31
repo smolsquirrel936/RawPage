@@ -80,11 +80,18 @@ CompositionRoot::CompositionRoot(Options options)
     // than assuming success, because the interesting case is the one that drops entries.
     keyBindings_ = std::make_unique<core::KeyBindingStore>();
     const std::vector<core::KeyBindingStore::OverrideEntry> overrides = settings_->shortcutOverrides();
-    importedOverrides_ = keyBindings_->importOverrides(overrides);
+
+    // `importOverrides` RETURNS HOW MANY IT DROPPED, which its header says and this line read
+    // backwards until 2026-08-31 (issue I-51): a session that applied the user's single remap
+    // perfectly logged "0 of 1 user overrides applied". The number was right and the sentence was
+    // its opposite, which is worse than no line at all -- it is a line that sends whoever reads it
+    // hunting a defect that is not there, and it did.
+    droppedOverrides_ = keyBindings_->importOverrides(overrides);
     if (!overrides.empty() || settings_->droppedShortcutKeyCount() > 0) {
         RAWPAGE_LOG_INFO(LogSubsystem::Ui)
-            << "shortcuts:" << static_cast<int>(importedOverrides_) << "of"
+            << "shortcuts:" << static_cast<int>(overrides.size() - droppedOverrides_) << "of"
             << static_cast<int>(overrides.size()) << "user overrides applied;"
+            << static_cast<int>(droppedOverrides_) << "dropped;"
             << static_cast<int>(settings_->droppedShortcutKeyCount())
             << "keys named an action or context that no longer exists";
     }

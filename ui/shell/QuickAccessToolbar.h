@@ -39,6 +39,7 @@
 
 #include <QList>
 #include <QPointer>
+#include <QPoint>
 #include <QWidget>
 
 #include <optional>
@@ -46,6 +47,7 @@
 
 class QHBoxLayout;
 class QMenu;
+class QToolButton;
 
 namespace rawpage::ui {
 
@@ -75,6 +77,11 @@ public:
     // and re-rendering a no-op, and a test uses it to assert the refusal.
     bool addCommand(core::ActionId id);
     bool removeCommand(core::ActionId id);
+
+    // LOCKED means a drag cannot reorder the row. It is a guard against doing by accident what the
+    // toolbar otherwise invites: dragging a button somewhere else. Persisted as `ui/qatLocked`.
+    bool isLocked() const { return locked_; }
+    void setLocked(bool locked);
     bool moveCommand(int from, int to);
 
     void resetToDefaults();
@@ -98,19 +105,40 @@ public:
     std::vector<core::ActionId> renderedCommands() const;
 
 signals:
+    void lockedChanged(bool locked);
+
     void commandsChanged();
     void placementChanged(bool belowRibbon);
 
 protected:
+    // DRAG-TO-REORDER lives here rather than in a QToolButton subclass: the order belongs to the
+    // toolbar, and a button that knew how to reorder its siblings would be a button that has to
+    // know it is on a toolbar. Filtered on each button because a QToolButton consumes the press.
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
     void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     void rebuild();
-    QMenu* buildMenu(bool overCommand);
+    QMenu* buildMenu();
+
+    // Moves the DRAGGED WIDGET inside the layout, without touching `commands_` and without a
+    // rebuild -- a rebuild would delete the very button the pointer is holding (see the note in
+    // `rebuild()` about I-49 and about deleteLater). The list is committed once, on release.
+    void moveDraggedButtonTo(int x);
+    void commitDraggedOrder();
 
     ActionFactory& actions_;
 
     std::vector<core::ActionId>   commands_;
+    bool                          locked_ = false;
+
+    // The in-flight drag. `pressedButton_` is set on a press and cleared on release; `dragging_`
+    // turns true only once the pointer has travelled the platform's start-drag distance, so a click
+    // stays a click and a drag stops being one.
+    QPointer<QToolButton>         pressedButton_;
+    QPoint                        pressedAt_;
+    bool                          dragging_ = false;
     std::optional<core::ActionId> pendingTarget_;
     bool                          belowRibbon_ = false;
 

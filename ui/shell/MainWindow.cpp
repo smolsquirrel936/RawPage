@@ -261,6 +261,7 @@ void MainWindow::buildHeader()
     // (T8/I-14), but a customization that only reaches the file if the process exits cleanly is a
     // customization a crash takes with it -- and this is the stage that built a crash handler.
     connect(qat_, &QuickAccessToolbar::commandsChanged, this, [this]() { saveUiCustomization(); });
+    connect(qat_, &QuickAccessToolbar::lockedChanged, this, [this](bool) { saveUiCustomization(); });
     connect(qat_, &QuickAccessToolbar::placementChanged, this, [this](bool) {
         applyQatPlacement();
         saveUiCustomization();
@@ -679,6 +680,7 @@ void MainWindow::loadUiCustomization()
     suppressCustomizationSave_ = true;
 
     qat_->setBelowRibbon(services_.settings.get(core::keys::ui::qatBelowRibbon));
+    qat_->setLocked(services_.settings.get(core::keys::ui::qatLocked));
 
     if (services_.settings.isSet(core::keys::ui::qatCommands)) {
         QStringList dropped;
@@ -703,6 +705,7 @@ void MainWindow::saveUiCustomization()
     services_.settings.set(core::keys::ui::qatCommands,
                            UiCustomization::toStringIds(qat_->commands()));
     services_.settings.set(core::keys::ui::qatBelowRibbon, qat_->isBelowRibbon());
+    services_.settings.set(core::keys::ui::qatLocked, qat_->isLocked());
 }
 
 void MainWindow::registerActions()
@@ -877,8 +880,24 @@ void MainWindow::registerActions()
     placement.tooltipKey = "shell.qat.placementHint";
     registerRegistration(ActionId::UiQatPlacement, std::move(placement));
 
+    // LOCK, a toggle like placement. Drag-to-reorder is the gesture the toolbar now offers, and a
+    // lock is the guard against performing it by accident -- so it is offered in the same menu and
+    // persisted with the rest of the customization.
+    core::ActionRegistry::Registration lock;
+    lock.handler = [activeQat](KeyContext) {
+        if (QuickAccessToolbar* qat = activeQat()) qat->setLocked(!qat->isLocked());
+    };
+    lock.checked = [activeQat] {
+        QuickAccessToolbar* qat = activeQat();
+        return qat && qat->isLocked();
+    };
+    registerRegistration(ActionId::UiQatLock, std::move(lock));
+
     registerAction(ActionId::UiResetCustomization, [activeQat](KeyContext) {
-        if (QuickAccessToolbar* qat = activeQat()) qat->resetToDefaults();
+        if (QuickAccessToolbar* qat = activeQat()) {
+            qat->resetToDefaults();
+            qat->setLocked(false);   // a reset that left the toolbar locked would not be one
+        }
     });
 
     // --- Preferences and the log pane (T14) -------------------------------------------------

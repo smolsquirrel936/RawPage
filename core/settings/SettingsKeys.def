@@ -125,6 +125,13 @@ RAWPAGE_SETTING(ui, qatCommands, QStringList,
 RAWPAGE_SETTING(ui, qatBelowRibbon, bool,
                 "ui/qatBelowRibbon", false, Internal, false)
 
+// Locking the toolbar stops a drag from reordering it. Default UNLOCKED: dragging a button to a
+// new place is the gesture people expect from a toolbar, and a lock is an opt-in guard against
+// doing it by accident -- the reverse default would make the feature invisible to the person who
+// never opens the context menu.
+RAWPAGE_SETTING(ui, qatLocked, bool,
+                "ui/qatLocked", false, Internal, false)
+
 // The recent-files list itself. `documents/recentCount` bounds it and `documents/recentPinned`
 // says which of its entries survive eviction; the ordered list has to live somewhere, and an
 // undeclared key is exactly what D1-10 exists to make impossible.

@@ -1432,6 +1432,10 @@
         <translation>從快速存取工具列移除</translation>
     </message>
     <message>
+        <source>action.ui.qatLock</source>
+        <translation>鎖定工具列</translation>
+    </message>
+    <message>
         <source>action.ui.qatMoveLeft</source>
         <translation>向左移動</translation>
     </message>

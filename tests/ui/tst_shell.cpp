@@ -79,19 +79,19 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // Twenty-two, and named. Stage 1 declares 360 ids; an id that is declared and UNREGISTERED
+    // Twenty-three, and named. Stage 1 declares 361 ids; an id that is declared and UNREGISTERED
     // renders as a visible, disabled control saying it is not built yet, which is the honest state.
     // Registering a stub handler for the other 338 would make every one of them look available.
     //
     // Nineteen until 2026-08-31, when three joined in one day, each because a manual walk reached
     // for something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
-    // and `ui.qatMoveLeft` / `ui.qatMoveRight` (I-43), which are also the only ids Stage 1 has
-    // ADDED to the 358 the plan declared.
+    // `ui.qatMoveLeft` / `ui.qatMoveRight` (I-43), and `ui.qatLock`, which arrived with
+    // drag-to-reorder. Those three are the only ids Stage 1 has ADDED to the 358 the plan declared.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // fifth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 22);
+    CHECK(fixture.actions.registeredCount() == 23);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));

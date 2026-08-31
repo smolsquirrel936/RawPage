@@ -180,7 +180,29 @@ void Settings::setVariant(const QString& path, SettingsGroup group, const QVaria
     }
 
     dirty_.push_back(path);
+    autoFlush();
     notify(Change{path, group});
+}
+
+void Settings::autoFlush()
+{
+    // WRITTEN WHEN CHANGED, NOT AT EXIT (issue I-47). Until 2026-08-31 `sync()` was called from
+    // exactly one place -- `app/CompositionRoot`'s teardown -- so every preference a person changed
+    // and watched take effect was still only in this process's memory. A crash, a kill, or a power
+    // cut lost the lot, and the Preferences dialog makes that worse rather than better: it applies
+    // immediately and has no OK button, so there is no moment at which a user would think "now it is
+    // saved". Guide case M-11 says settings are written when changed and had said so since it was
+    // written; the code said otherwise, and the case had never been walked.
+    //
+    // The cost is one small INI write per changed key. Measured against the alternative: a debounce
+    // timer would put a QTimer in `core/`, which may not have one, and would reintroduce exactly the
+    // window this closes.
+    if (const Result<void> written = sync(); !written) {
+        // Logged, not returned: `set()` is a void, and a caller that could not have prevented the
+        // failure cannot act on it either. `writesSuppressed()` is the question a UI asks instead.
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+            << "settings: could not write" << filePath_ << "--" << written.error().messageKey;
+    }
 }
 
 void Settings::notify(const Change& change)
@@ -238,6 +260,7 @@ void Settings::clearShortcutOverride(const ShortcutKey& key)
 
     values_.erase(it);
     removed_.push_back(path);
+    autoFlush();
     notify(Change{path, ShortcutKey::group()});
 }
 

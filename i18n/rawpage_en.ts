@@ -1432,6 +1432,10 @@
         <translation>Remove from Quick Access Toolbar</translation>
     </message>
     <message>
+        <source>action.ui.qatLock</source>
+        <translation>Lock the Toolbar</translation>
+    </message>
+    <message>
         <source>action.ui.qatMoveLeft</source>
         <translation>Move Left</translation>
     </message>

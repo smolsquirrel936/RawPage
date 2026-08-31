@@ -433,7 +433,47 @@ user on 2026-08-31.**
 **M-04 took three passes and produced four findings, and that sequence is its real result**: a tab
 strip nobody could click hid a pane gesture nobody could perform, which hid a strip nobody could
 watch disappear. Not one of the three defects was a regression — two had shipped at T9 and T10 and
-were green in CI throughout. **Seven manual cases are now signed off — M-01 … M-07**; M-11 and M-12 are walkable and not yet walked, and M-09 and M-10 test code that does not exist.
+were green in CI throughout. **Eight manual cases are now signed off — M-01 … M-07 and M-11**; M-12 is walkable and is the last one, and M-09 and M-10 test code that does not exist.
+
+**Preparing M-11 found I-47 (S2) before the walk began**: `Settings::sync()` was called from one
+place — `CompositionRoot`'s teardown — so every preference lived in memory until a clean quit and a
+kill lost the lot. The case had said *settings are written when changed, not at exit* since it was
+written and the code had said the opposite since T5; **the two had never been compared, because
+M-11 had never been walked**, and the suite could not compare them either, since every settings
+case called `sync()` itself. Flushed on change now, teardown kept as a backstop, `ctest` **348/348**.
+**I-48** struck two of that case's steps as testing things Stage 1 never had — a recent-files
+surface, the fifth built-but-unreachable capability of the stage, and a window-geometry restore
+that belongs to `SessionState` at Stage 4.
+
+**And walking M-11 found I-49 (S2) in its first step**: every Quick Access Toolbar customization
+made the toolbar disappear. A widget constructed with a parent that is already on screen starts
+hidden, and a hidden widget is an empty layout item — so add, remove, reorder, reset and the
+empty-state label all produced invisible widgets and a row collapsed to 4 pixels of margin. The
+constructor's rebuild was the only one that had ever worked. `ui.resetCustomization` — the
+documented way back — rebuilt it invisibly too, so **restarting the application was the only
+recovery**, and the user reported it as having accidentally closed the toolbar. Nine `[qat]` cases
+missed it because every one of them asks the command LIST, which stays correct for a row nobody
+can see: the sixth instance of this stage's recurring shape. `ctest` **349/349**.
+
+**M-11 then produced three more, and one feature.** **I-50** (S3): only the 22 enabled commands
+could be added to the toolbar, because Qt delivers no input event to a disabled widget and every
+ribbon control carried its own `CustomContextMenu` — so right-clicking any of the other 338 did
+nothing, and the toolbar's own empty space offered an `Add` that could never be enabled. **I-51**
+(S3): the startup line printed `importOverrides`'s DROPPED count as the applied one, so a session
+that applied the user's remap perfectly logged `0 of 1 user overrides applied` — and it cost real
+time, because a wrong diagnostic sends its reader hunting a defect that is not there. **I-52**
+(S3) is the one to remember: a defect in the drag feature two hours after it shipped, where a
+slot among the buttons was used as an index into the layout, so a drop past the last button
+landed on the trailing stretch — **and the case written with the feature missed it**, because it
+asserted the command list, which reads identically either way. The invariant that catches it is
+positional, and that is the third time in two days the same blind spot has been paid for.
+
+**The feature itself was the user's request, made during the walk**: the Quick Access Toolbar now
+reorders by **dragging** a button, with a **lock** toggle guarding against doing it by accident
+(`ui/qatLocked`, unlocked by default). The two move commands stay REGISTERED although the context
+menu no longer offers them, because a drag reaches nothing but a pointer and this project's
+standing rule is that no feature may exist which flow K cannot reach — the menu was simplified as
+asked, the reachability was not traded away. `ctest` **353/353**; 361 ids declared, 23 registered.
 
 **The remaining Definition-of-Done item is that walk, and it is the user's alone**: M-01 and
 M-02 are signed off — **M-02 re-walked in full on 2026-08-30**, all four steps against the shipped
@@ -448,7 +488,9 @@ and *flashes in the taskbar* look identical to a harness. It became walkable the
 preconditions its own text had never stated were dealt with (**I-46**): the Qt runtime deployed beside the executable, since Explorer does not
 inherit the dev shell's `PATH`, and a hand-made Windows association, since **no route in the product
 can register one** — implemented, tested, unreachable, and declared a planned absence for Stage 14/15.
-**M-11 and M-12 are walkable and not yet walked**; M-09 and M-10 test code that does not exist yet.
+**M-11 was walked and signed off on 2026-08-31** — the case that produced the most of any in this
+stage, and the only one that changed the product's feature set while being walked. **M-12 is walkable
+and is the last one**; M-09 and M-10 test code that does not exist yet.
 Risk **A3** —
 can Qt Widgets host a real ribbon, tear-off tabs, and auto-hiding panes without a commercial control
 library — is **settled: `go, with named custom work`**. The fallback (a first-party ribbon widget,
@@ -571,7 +613,7 @@ and `ui/qatBelowRibbon` at T11. All four are in the `Internal` group and get no 
 are state and customization rather than settings a user goes looking for in a dialog.
 
 **Cross-cutting additions.** No commands yet. **i18n catalog groups introduced:** `shell.*`,
-`ribbon.*`, `error.*`, `prefs.*`, `action.*` (one label per `ActionId`). **Live at T14: 536 keys per
+`ribbon.*`, `error.*`, `prefs.*`, `action.*` (one label per `ActionId`). **Live at T14: 537 keys per
 shipped locale**, of which 62 are `prefs.*`. Three of those families are **generated rather than
 written down** — `prefs.setting.<group>.<key>` from `SettingsKeys.def`, `prefs.choice.<enum>.<member>`
 from the enum's own name table, and `prefs.context.<Name>` from `KeyContext` — so the whole key
