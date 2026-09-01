@@ -13,8 +13,10 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1, T2 and T3 complete, 2026-09-01 — and T3's probe recorded A2 as `go` while
-> finding that D2-9's per-worker thread confinement is not sufficient (I-05).** Written 2026-08-31,
+> **Status:** 🟡 **T1–T4 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
+> finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
+> on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
+> byte-identically under `gates.corpus.reproducible`.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -89,7 +91,7 @@ Recorded so the tasks below are concrete. None of these is re-decided here.
 | `tools/spike-pdfium/` | ✅ Stage 0 T12, marked ⤵ throwaway: *"deleted when `pdf/render/PdfiumInit` replaces it at Stage 2"* | T2 deletes it, exactly as `tools/spike-ribbon/` was deleted at Stage 1 T10 |
 | `rawpage_pdf` | One static library, one placeholder TU, linked by `rawpage_tests` under `rawpage_assert_headless()` | **It must split — see D2-2.** This is the single most likely way Stage 2 breaks a Stage 0 guarantee without anyone editing the file that states it |
 | `portable-fuzz` | Wired since Stage 0; its preset description says **"NO TARGETS EXIST until Stage 2"** | T5–T8 give it its first real targets. A preset that has never built a fuzzer has not been proven to build one |
-| `corpus/` | `make-minimal.py` + one generated `minimal.pdf`. Stage 0 §7.3 recorded **"Stage 2 owns the real corpus"** | T4 |
+| `corpus/` | `make-minimal.py` + one generated `minimal.pdf`. Stage 0 §7.3 recorded **"Stage 2 owns the real corpus"** | ✅ T4 — 60 files, a `PROVENANCE.md` row each, byte-identical regeneration gated |
 | `ui/` warning grace list | `RAWPAGE_UI_WARNING_GRACE` still **empty** (D1-12) | It may only shrink. `ui/viewer/` is the largest block of new `ui/` code since T10 and is where the pressure to add an entry will come from |
 | Carried cases | **A-25** (`--list-actions`, a switch that never existed) and **A-26** (an alias fixture for `RAWPAGE_ACTION_ALIAS`, real code with zero rows) — carried to Stage 2 rather than closed | T18 (D2-10) |
 | Open issues | **None.** I-01 … I-55, all closed | Stage 2 starts from a clean log |
@@ -394,10 +396,11 @@ to existing documents and are made when this plan is written.
   whether or not we ever link the library, because the tool is installed by the port rather than by the
   link line. **Flagged forward
   explicitly, because a packaging stage that sweeps `tools/` will not rediscover this on its own.**
-- **`corpus/PROVENANCE.md` and T4's new generators have no FileMap rows.** `corpus/make-minimal.py`
-  has one; the provenance file is new and is the only record of where a committed test document came
-  from and under what licence, which `license-audit` does not cover because it governs linked
-  dependencies rather than data (**D2-11**).
+- ~~**`corpus/PROVENANCE.md` and T4's new generators have no FileMap rows.**~~ **Paid at T4,
+  2026-09-02.** Twelve rows added to §3.18 — `PROVENANCE.md`, the driver, `pdfbuild.py`, the four
+  encoder modules (`deflate`, `jpegenc`, `ccitt`, `jpxenc`), `fontenc.py`, `cryptenc.py`, and one per
+  generated directory. The `.gitattributes` row was amended in the same change: `corpus/** binary` was
+  marking the new generators binary too, so `git diff` showed nothing for them.
 - **`core/backend.h` has no FileMap row.** §3.8 covers `core/batch/`, `core/settings/` and shared
   headers; the second of the two interface headers this architecture rests on is not in it, though
   `platform/platform.h` is. Add it, with the `layer-lint` layer entry it will need for the same

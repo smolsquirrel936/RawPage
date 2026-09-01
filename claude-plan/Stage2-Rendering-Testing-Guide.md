@@ -6,10 +6,12 @@
 > **before any Stage 2 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01.** **75 automated**
-> (A-01 … A-74, plus **A-75** added the same day — see I-02) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13 are green and A-46 is partly green** — every other box is still ☐,
-> including **A-04**, which is a Linux job this machine does not run.
+> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's on 2026-09-02.**
+> **78 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02 — and **A-76 … A-78**
+> added at T4, because the plan's *“asserted rather than assumed”* named a check the guide had no
+> case for) and **10 manual** (M-01 … M-10), of which
+> **A-01, A-03, A-05 … A-13 and A-76 … A-78 are green and A-46 is partly green** — every other box is
+> still ☐, including **A-04**, which is a Linux job this machine does not run.
 > **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through in the same change. The
@@ -97,6 +99,15 @@ It also bounds what a green run means, and the bound is stated here rather than 
 > rasterize **our own output consistently**. It does **not** prove we rasterize **real-world PDFs
 > correctly**. Real-producer constructs — a scanner's CCITT quirks, InDesign transparency, an unusual
 > colour space, a broken-but-tolerated producer string — are **outside Stage 2's evidence entirely**.
+
+**T4 added three narrower limits, each stated where it is created rather than left to be inferred**
+(`corpus/PROVENANCE.md` carries the same table, beside the files):
+
+| Limit | Consequence |
+|---|---|
+| The JPEG 2000 stream carries **one coding pass** — `corpus/jpxenc.py` implements the MQ coder and the EBCOT *cleanup* pass, not the significance-propagation or magnitude-refinement passes | `ordinary/image-jpx.pdf` decodes to two tones: a 0/255 source comes back as roughly 0/128. A **truncated**, not a malformed, codestream. It proves the `/JPXDecode` path is reached and decoded; it proves nothing about JPEG 2000 fidelity |
+| The JPEG streams are **baseline 4:4:4 only** — no progressive, no chroma subsampling, no arithmetic coding, no restart markers | Each of those is a different decode path, and none of them is in the corpus. A `/DCTDecode` bug in one of them is outside this stage's evidence |
+| The embedded fonts are **sixteen rectilinear glyphs** — nine hanzi and seven capitals, all rectangles | They are real characters correctly drawn, and they exercise `/FontFile2`, CIDFontType2, Identity-H and `/W`. They say nothing about curves, hinting, kerning or composite glyphs |
 
 Two consequences for how this guide is read. **A-48's green is a narrower claim than it looks**, and
 the sign-off says so in those words (§9.7) rather than letting *"every corpus file renders correctly"*
@@ -256,6 +267,7 @@ and the case that closes it.
 |---|---|
 | Every corpus file opens and renders correctly | A-42, A-44, A-48, **M-07** |
 | `corpus/malformed/` included, with no crash | A-21, A-22, A-24, **M-07** |
+| *(plan T4)* Every file has a provenance row, and regenerates byte-identically | **A-76, A-77**, with **A-78** as the control |
 | No ASan finding on the portable COS run | A-24 |
 | No Dr. Memory finding on the raster run | **M-09** |
 | Golden baselines committed | A-48, A-49, A-50 |
@@ -476,6 +488,51 @@ the case passing for the right reason rather than a change of its own.
 reader's named failures present in **both** shipped locales. Waiver count still low and censused.
 **If it fails** S2 — and a *literal* reaching a message bar is the likely shape, since `MessageBar` is
 this stage's first new user-facing surface.
+
+**A-76 · The whole corpus regenerates byte-identically** ✅ **2026-09-02 (T4)**
+☐→✅ **Goal** D2-11's load-bearing property, and Stage 2 T4's exit criterion in its own words:
+*every file regenerates byte-identically from a clean checkout — that reproducibility is the property
+the whole decision rests on, and it is **asserted rather than assumed**.*
+**Steps** `ctest --preset gates -R gates.corpus.reproducible`, or by hand
+`python corpus/make-corpus.py --verify`.
+**Expect** Exit 0 and *“60 files regenerate byte-identically”*. The check regenerates every file in
+memory and compares it against the tree, **and** flags an ORPHAN — a `.pdf` on disk that no generator
+claims — because a corpus that can accumulate files from nowhere is one where D2-11's *“every file is
+ours”* has stopped being checkable. It also builds twice in one process, which catches a generator
+seeded per-run that a disk comparison alone would only catch on a machine that had already written
+the first answer.
+**Result 2026-09-02** Exit 0, 60 files. **If it fails** S2 — and read the failure before assuming the
+corpus is at fault: the three likeliest causes are a non-deterministic generator (a clock, a `set`, a
+`zlib` that differs between this box and the Ubuntu runner), a corpus file **edited by hand** (a PDF
+xref stores absolute byte offsets, so one character invalidates every offset below it), and
+`.gitattributes` failing to keep `corpus/**` binary.
+
+**A-77 · Every corpus file has a `PROVENANCE.md` row, and every row has a file** ✅ **2026-09-02 (T4)**
+☐→✅ **Goal** The other half of D2-11: *“`corpus/PROVENANCE.md` still gives every file a row — which
+generator produced it, what it is for, and what is deliberately wrong with it.”* This is the only
+mechanism in the project that keeps *“nothing is borrowed”* checkable rather than merely stated —
+**`license-audit` governs linked dependencies and says nothing about data**, which is the gap D2-11
+names.
+**Steps** `ctest --preset gates -R gates.corpus.provenance`, or
+`python corpus/make-corpus.py --check-provenance`.
+**Expect** Exit 0 and *“60 PROVENANCE.md rows, one per file”*. An UNLISTED file, a STALE row naming a
+file nothing generates, and a duplicated row are each reported by name.
+**Result 2026-09-02** Exit 0, 60 rows. **If it fails** S3 unless the missing row is for a
+`malformed/` file, in which case **S2** — an undescribed damaged fixture is exactly the *“this file is
+broken somehow”* mystery D2-11 exists to prevent.
+
+**A-78 · The corpus checks can actually fail — the negative control** ✅ **2026-09-02 (T4)**
+☐→✅ **Goal** The negative A-76 and A-77 cannot supply for themselves: **a checker that returns
+success without looking passes both of them.** This is Stage 1's I-30 in its general form, and
+CLAUDE.md convention 7 — *every negative control must actually exercise the thing*.
+**Steps** `ctest --preset gates -R gates.corpus.self_test`, or
+`python corpus/make-corpus.py --self-test`.
+**Expect** Exit 0 and *“5 of 5 controls fired”*, with each detection named: an edited file reported
+as DIFFERS, a deleted one as MISSING, an unclaimed one as ORPHAN, an undocumented one as UNLISTED,
+and a row for no file as STALE. The stand-in tree and row list are built **in memory**, so an
+interrupted run cannot leave the real corpus damaged.
+**If it fails** S2 — a control that stops firing turns A-76 and A-77 into decoration, and neither of
+them would go red to tell you.
 
 **A-75 · `license-audit` sees the RESOLVED closure, not just the declared manifest**
 ☐ **Goal** I-02. Added 2026-08-31, after the guide was written, when P-3's dry-run showed the
@@ -1064,6 +1121,9 @@ was. If a row here turns out to be wrong, that is itself a finding.
 | **Double-clicking a PDF opens RawPage rather than a viewer** | Correct — the `.pdf` association was hand-made during Stage 1's M-07 walk (its I-46). Open a reference with right-click → *Open with* |
 | **Every corpus file is synthetic — there is not one real-world PDF in the tree** | Correct and deliberate (D2-11). It bounds what the golden suite proves; see §1, *What this corpus cannot tell us*. **Not a gap to be filed** — the trigger for revisiting is the first real-world rendering bug the corpus cannot reproduce |
 | **`portable-fuzz` has never run before this stage** | Correct — its preset description has said "NO TARGETS EXIST until Stage 2" since Stage 0. Its **first** green run is a finding worth recording, not a formality (A-27) |
+| **`ordinary/image-jpx.pdf` renders as black-on-mid-grey rather than black-on-white** | Correct, and written down at both ends — `corpus/jpxenc.py`'s header and `corpus/PROVENANCE.md`'s limitations table. The codestream carries **one coding pass** (the EBCOT cleanup pass of the MSB plane), so a 0/255 source reconstructs to roughly 0/128. It is a **truncated** codestream, not a malformed one, and it exercises the `/JPXDecode` path rather than JPEG 2000 fidelity |
+| **The embedded fonts have nine hanzi and seven capitals, all made of rectangles** | Correct (`corpus/fontenc.py`). 一 二 三 十 口 日 田 中 目 and E F H I L T are real characters correctly drawn — they genuinely are straight strokes. What is exercised is the embedding path (`/FontFile2`, CIDFontType2, Identity-H, `/W`), not typography |
+| **19 of the 24 `malformed/` files open in PDFium rather than being refused** | Correct and intended (measured at T4). They are *damaged*, not *destroyed* — most are recoverable by design, which is what makes them a test of `XrefRepair` rather than of error handling. The five PDFium refuses — `missing-endobj`, `no-root`, `objstm-corrupt`, `root-points-at-nothing`, `truncated-mid-stream` — are the interesting targets, not the failures |
 
 ---
 
@@ -1092,7 +1152,7 @@ document means **Stage 1's**, and says so where it appears.
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-74 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-78 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.

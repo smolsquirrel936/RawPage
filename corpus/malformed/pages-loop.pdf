@@ -1,0 +1,42 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 3 0 R ] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Pages /Parent 2 0 R /Kids [ 5 0 R 2 0 R ] /Count 2 >>
+endobj
+4 0 obj
+<< /Length 88 >>
+stream
+BT /F1 12 Tf 1 0 0 1 48 700 Tm (pages-loop.pdf - the tree below contains a cycle) Tj ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [ 0 0 595.276 841.89 ] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+7 0 obj
+<< /Title (\376\377\000R\000a\000w\000P\000a\000g\000e\000 \000c\000o\000r\000p\000u\000s\000:\000 \000c\000y\000c\000l\000i\000c\000 \000p\000a\000g\000e\000 \000t\000r\000e\000e) /Producer (RawPage corpus generator) /CreationDate (D:20260831000000Z) /ModDate (D:20260831000000Z) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000112 00000 n 
+0000000171 00000 n 
+0000000250 00000 n 
+0000000388 00000 n 
+0000000523 00000 n 
+0000000572 00000 n 
+trailer
+<< /Size 8 /Root 6 0 R /Info 7 0 R /ID [ <D7CFB5E5F663F086A0BEF227EEE061AA> <D7CFB5E5F663F086A0BEF227EEE061AA> ] >>
+startxref
+871
+%%EOF

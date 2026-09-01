@@ -24,6 +24,16 @@
 corpus/**   binary
 golden/**   binary
 
+# ...but corpus/ is no longer only data. Stage 2 T4 put the GENERATORS in there too, and
+# `corpus/** binary` marks them binary as well -- so `git diff` shows nothing for several
+# thousand lines of Python and Markdown, and a change to a generator cannot be reviewed. The
+# last matching pattern wins per attribute, so these three lines pull the source files back
+# out; the .pdf data below stays binary, which is the part that actually matters (a PDF xref
+# stores absolute byte offsets, and CRLF injection shifts every one of them).
+corpus/*.py     text eol=lf diff=python merge
+corpus/*.md     text eol=lf merge
+corpus/*.json   text eol=lf merge
+
 *.pdf   binary
 *.fdf   binary
 *.xfdf  binary

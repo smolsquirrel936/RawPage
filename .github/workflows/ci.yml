@@ -53,6 +53,18 @@ jobs:
       # The gates.headless_assert.* cases (Stage 2 T1) are NOT guarded and run here on purpose:
       # they are pure CMake over a LANGUAGES NONE fixture, and this Linux runner is the closest
       # thing the gate job has to the portable presets whose portability they defend.
+      #
+      # The gates.corpus.* cases (Stage 2 T4) run here for a stronger reason: this is the ONLY
+      # place the cross-platform half of D2-11's claim gets checked. "Every file regenerates
+      # byte-identically from a clean checkout" is a much weaker statement if only one machine
+      # has ever regenerated them, and the two things most likely to break it are both
+      # platform-shaped -- zlib's deflate output differs between builds, and math.cos is the
+      # platform's libm. corpus/deflate.py and corpus/jpegenc.py exist precisely so this runner
+      # agrees with the Windows one; if it ever does not, that divergence is the finding.
+      #
+      # This needs a Python 3.9+ interpreter, which the ubuntu-latest image ships. If one is
+      # ever absent the three cases FAIL rather than vanishing (tests/gates/RequirePython.cmake)
+      # -- Stage 1's I-30 was a job that reported green because it had never run.
       - name: Gate fixtures
         run: ctest --preset gates
 

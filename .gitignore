@@ -26,6 +26,12 @@ claude-plan/skills-specs-generation/
 .vscode/
 *.user
 
+# Python bytecode. The corpus generators (Stage 2 T4) are the only Python in the tree that is
+# imported rather than merely run -- make-corpus.py loads the make-*.py scripts through importlib
+# -- so __pycache__ appears under corpus/ the first time the reproducibility gate runs.
+__pycache__/
+*.py[cod]
+
 # OS noise
 Thumbs.db
 .DS_Store
