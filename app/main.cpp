@@ -31,6 +31,8 @@
 
 #include "core/Log.h"
 #include "core/settings/SettingsSchema.h"
+
+#include "pdf/render/PdfiumInit.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
 
@@ -136,6 +138,14 @@ bool handleDiagnosticSwitch(const QStringList& arguments, int argc, char** argv,
         const QString id = rawpage::app::CrashHandler::buildId();
         writeLine(QStringLiteral("build-id %1").arg(id.isEmpty() ? QStringLiteral("(none)") : id));
         writeLine(QStringLiteral("Qt %1").arg(QLatin1String(qVersion())));
+        // The rasterizer, because "which engine did this bug report come from" is the second
+        // question anyone asks about a rendering defect and the first one nobody can answer from a
+        // screenshot. It is the BUILD-TIME PIN that cmake/PdfiumAssert.cmake verified against
+        // third_party/pdfium/VERSION -- the FPDF_ C API exposes no version call at all -- and the
+        // line says so, because the one reader who cares about this number is usually the one
+        // wondering whether the pdfium.dll beside the executable is still the one we built against.
+        writeLine(QStringLiteral("PDFium %1 (pinned at build)")
+                      .arg(rawpage::pdf::render::version()));
         return true;
     }
 

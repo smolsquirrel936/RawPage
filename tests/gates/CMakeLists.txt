@@ -51,6 +51,38 @@ rawpage_add_gate_test(NAME gates.layer_lint.fpdf_outside_pdf
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-outside-pdf --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "fpdf")
 
+# --- D2-9's narrowing, Stage 2 T2 ------------------------------------------------------
+# The rule above has said "not outside pdf/" since Stage 0. The four cases here are about the line
+# moving INWARD: pdf/cos/ is first-party by rule -- the half of D3 that never learns the engine
+# exists, and half of what portable-asan and portable-fuzz build on Linux where PDFium is not there
+# at all -- and it lives inside the directory the old rule allowed.
+#
+# A-10: the call, inside pdf/, which used to pass clean.
+rawpage_add_gate_test(NAME gates.layer_lint.fpdf_in_cos
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-in-cos --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "fpdf")
+
+# A-12: the HANDLE, in core/, with three spellings in one struct. No FPDF_ call appears anywhere in
+# that fixture -- which is the point: a type can hold the engine's object graph without ever calling
+# it, and that is the leak the boundary exists to prevent.
+rawpage_add_gate_test(NAME gates.layer_lint.fpdf_handle_outside_render
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-handle-outside-render --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "fpdf-handle")
+
+# A-12 again, one directory deeper and a fourth spelling: a first-party xref table that knows what
+# an FPDF_DOCUMENT is has stopped being first-party.
+rawpage_add_gate_test(NAME gates.layer_lint.fpdf_handle_in_cos
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-handle-in-cos --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "fpdf-handle")
+
+# THE SPELLING THAT IS NOT REDUNDANT, and the reason the handle rule is worth having at all: PDFium's
+# own include/cpp/ defines ScopedFPDFDocument and the FPDFDocumentDeleter family, which contain no
+# underscore after FPDF and are therefore invisible to a search for `FPDF_`. Every other handle
+# pattern is caught twice; this one is caught once, by this rule, or not at all.
+rawpage_add_gate_test(NAME gates.layer_lint.fpdf_scoper_in_core
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-scoper-in-core --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "fpdf-handle")
+
 rawpage_add_gate_test(NAME gates.layer_lint.write_outside_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/write-outside-allowed --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write")
@@ -209,6 +241,15 @@ rawpage_add_gate_test(NAME gates.layer_lint.platform_impl_may_include_windows
 # contract and the engine, in one tree, with the line between them where it belongs.
 rawpage_add_gate_test(NAME gates.layer_lint.pdf_impl_may_include_pdfium
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/pdf-impl-may-include-pdfium --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
+# A-11 -- THE CONTROL FOR THE NARROWED RULE (Stage 2 T2). pdf/render/ is the facade, and its only
+# job is to call the engine: four call spellings and, in the tree above it, the handles it owns.
+# Without this case, "FPDF_ outside pdf/render/ fails" is equally satisfied by a rule that rejects
+# PDFium everywhere -- which is not a stricter version of the rule, it is a rule that forbids the
+# product.
+rawpage_add_gate_test(NAME gates.layer_lint.fpdf_render_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-render-allowed --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")
 
 # A gate that could not run must not look like a gate that passed.
@@ -476,6 +517,79 @@ rawpage_add_headless_test(NAME gates.headless_assert.pdfium_name_without_target
 rawpage_add_headless_test(NAME gates.headless_assert.ui_edge_still_caught
     EXTRA "-DFIXTURE_LEAK=ui"
     EXPECT_EXIT 1 EXPECT_MATCH "rawpage_ui")
+
+# --------------------------------------------------------------------------------------
+# The PDFium pin (PA-1 .. PA-5) -- guide case A-05, Stage 2 T2, decision D2-3.
+#
+# A golden-image baseline is a claim about ONE rasterizer, so the engine's version is asserted at
+# configure rather than assumed. These cases drive the assertion against small committed trees --
+# four-line VERSION files and args.gn files -- rather than against this machine's third_party/, which
+# is what lets them run on the bare Linux gates runner WITH NO PDFium FETCHED AT ALL. Testing the
+# assertion and testing the developer's directory are different things, and only the first is worth
+# a case.
+#
+# Not guarded by if(WIN32): a LANGUAGES NONE project needs no compiler and no engine.
+# --------------------------------------------------------------------------------------
+set(PP_PROJECT "${FIXTURES}/pdfium-pin/project")
+set(PP_TREES "${FIXTURES}/pdfium-pin/trees")
+
+function(rawpage_add_pdfium_pin_test)
+    cmake_parse_arguments(PP "" "NAME;TREE;EXPECT_EXIT;EXPECT_MATCH;EXPECT_NOT_MATCH" "" ${ARGN})
+    rawpage_add_gate_test(NAME ${PP_NAME}
+        COMMAND ${CMAKE_COMMAND} --fresh
+                -S ${PP_PROJECT}
+                -B ${CMAKE_BINARY_DIR}/gate-fixtures/${PP_NAME}
+                -G Ninja
+                -DRAWPAGE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+                -DFIXTURE_TREE=${PP_TREE}
+        EXPECT_EXIT ${PP_EXPECT_EXIT} EXPECT_MATCH "${PP_EXPECT_MATCH}"
+        EXPECT_NOT_MATCH "${PP_EXPECT_NOT_MATCH}")
+endfunction()
+
+# THE CONTROL, first and for the usual reason: a correct tree must configure, or every case below is
+# satisfied by an assertion that refuses everything.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.correct_tree_is_accepted
+    TREE ${PP_TREES}/good
+    EXPECT_EXIT 0 EXPECT_MATCH "accepted 153.0.8009.0")
+
+# PA-3 -- the case A-05 is written for. The pattern is the FOUND version, not the expected one: a
+# diagnostic that says only "wrong version" cannot be acted on, and A-05 names that as its control.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.wrong_version_names_both
+    TREE ${PP_TREES}/wrong-version
+    EXPECT_EXIT 1 EXPECT_MATCH "153.0.7000.0")
+
+# ...and the other half of "names both", asserted separately so a failure says which half broke.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.wrong_version_names_expected
+    TREE ${PP_TREES}/wrong-version
+    EXPECT_EXIT 1 EXPECT_MATCH "153.0.8009.0")
+
+# PA-4 -- the -v8- archive. It is the wrong file rather than the wrong version, and it fails for a
+# reason of its own: a JavaScript engine behind an entry point we never call is pure attack surface,
+# and it renders differently, which makes it a baseline question too.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.v8_enabled_is_refused
+    TREE ${PP_TREES}/v8-enabled
+    EXPECT_EXIT 1 EXPECT_MATCH "pdf_enable_v8")
+
+# PA-2 -- a VERSION file that does not state a version. Without this the parse would assemble "..."
+# and PA-3 would report a nonsense `found` value, which is a diagnostic that sends its reader after
+# the wrong problem. EXPECT_NOT_MATCH asserts exactly that: the failure must not arrive dressed as a
+# version mismatch.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.unparseable_version_says_so
+    TREE ${PP_TREES}/unparseable
+    EXPECT_EXIT 1 EXPECT_MATCH "not parseable" EXPECT_NOT_MATCH "PA-3")
+
+# PA-5 -- the DLL is there and the GNU import library is not, which is precisely the state of a tree
+# unpacked by hand instead of through scripts/fetch-pdfium.ps1. Upstream ships only an MSVC-format
+# import library, and without this check the failure is a wall of undefined FPDF_ references.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.missing_import_library
+    TREE ${PP_TREES}/no-implib
+    EXPECT_EXIT 1 EXPECT_MATCH "libpdfium.dll.a")
+
+# PA-1 -- nothing fetched at all, which is what a fresh clone looks like. It gets its own message
+# because the fix is completely different from every other failure here.
+rawpage_add_pdfium_pin_test(NAME gates.pdfium_pin.unfetched_tree_says_run_the_script
+    TREE ${PP_TREES}/does-not-exist
+    EXPECT_EXIT 1 EXPECT_MATCH "fetch-pdfium.ps1")
 
 # --------------------------------------------------------------------------------------
 # The toolchain pin (TA-1 .. TA-9), against a minimal fixture project.

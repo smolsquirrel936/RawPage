@@ -110,7 +110,7 @@
       "paths": ["pdf/"],
       "mayInclude": ["pdf/", "core/"],
       "denyExternal": ["QtWidgets", "QWidget"],
-      "note": "pdf/ is the only layer that may emit PDF bytes or call FPDF_. It implements core/backend.h and does not know ui/ exists."
+      "note": "pdf/ is the only layer that may emit PDF bytes. It implements core/backend.h and does not know ui/ exists. NAMING PDFium IS NARROWER STILL: since Stage 2 T2 the fpdf and fpdf-handle token rules allow only pdf/render/, because pdf/cos/ is first-party by rule and is half of what portable-asan and portable-fuzz build on Linux, where PDFium does not exist (D2-9)."
     },
 
     "platform": {
@@ -134,10 +134,54 @@
   "tokenRules": [
     {
       "kind": "fpdf",
-      "patterns": ["FPDF_", "FPDFPage_", "FPDFText_", "FPDFDoc_", "FPDFBitmap_"],
-      "allowedPaths": ["pdf/"],
+      "$comment": [
+        "NARROWED FROM pdf/ TO pdf/render/ AT STAGE 2 T2 -- decision D2-9.",
+        "",
+        "The old rule was right while pdf/ held one placeholder translation unit and is too loose",
+        "the moment pdf/cos/ exists: the first-party COS reader is the half of D3 that must never",
+        "learn about PDFium -- we read through PDFium and WRITE THROUGH OUR OWN CODE -- and it lives",
+        "inside the directory the old rule allowed. Narrowing it costs one entry and closes the gap",
+        "while pdf/cos/ is still empty, which is the only cheap moment there will ever be.",
+        "",
+        "pdf/ops/ is Stage 3 and is NOT on this list, deliberately: a mutation is realized as COS",
+        "objects, so an FPDF_ call there would mean writing through the engine."
+      ],
+      "patterns": ["FPDF_", "FPDFPage_", "FPDFText_", "FPDFDoc_", "FPDFBitmap_", "FPDFAvail_", "FPDFAnnot_", "FPDFDest_", "FPDFLink_", "FPDFAction_", "FPDFFont_", "FPDFPageObj_"],
+      "allowedPaths": ["pdf/render/"],
       "escapable": false,
-      "message": "Only pdf/ may name the PDFium C API. Everything else reaches the engine through core/backend.h, which is what keeps the engine replaceable and core/ testable with no engine linked."
+      "message": "Only pdf/render/ may name the PDFium C API (D2-9). pdf/cos/ is first-party by rule -- it is the half of D3 that never learns the engine exists, and it is what portable-asan and portable-fuzz build on Linux where PDFium does not exist at all. Everything outside pdf/ reaches the engine through core/backend.h, which is what keeps it replaceable and core/ testable with no engine linked."
+    },
+    {
+      "kind": "fpdf-handle",
+      "$comment": [
+        "The COMPANION rule D2-9 asks for, and it is not redundant with the one above.",
+        "",
+        "The handle typedefs are the way a PDFium type ESCAPES the facade without any function ever",
+        "being called outside it: a struct member of type FPDF_DOCUMENT, a signature taking an",
+        "FPDF_PAGE, a cache keyed on an FPDF_BITMAP. None of those matches `FPDF_` followed by a",
+        "call, and each of them is exactly the leak the boundary exists to prevent -- what crosses",
+        "it is buffers and callbacks, never a handle.",
+        "",
+        "Its patterns are spelled out one per typedef rather than folded into the rule above,",
+        "because the rules report their KIND and `fpdf-handle` names a different mistake with a",
+        "different fix. Stage 0's I-15 is the reason there is a fixture per spelling.",
+        "",
+        "THE C++ SPELLINGS ARE THE HALF THAT IS NOT REDUNDANT, and finding that is why this rule was",
+        "written rather than waved at. The raw typedefs (FPDF_DOCUMENT and friends) all begin with",
+        "FPDF_ and are therefore already caught by the rule above -- but PDFium also ships",
+        "include/cpp/, whose ScopedFPDFDocument, ScopedFPDFPage, ScopedFPDFBitmap and the matching",
+        "FPDFDocumentDeleter family contain NO underscore after FPDF, so a substring search for",
+        "`FPDF_` does not see them at all. A core/ struct holding a ScopedFPDFDocument is the leak",
+        "this boundary exists to prevent, spelled in the way that slips past the other rule.",
+        "",
+        "The raw typedefs are listed anyway. They are redundant TODAY, and the two rules are allowed",
+        "to diverge: if a later stage ever widens where an FPDF_ CALL may appear, the handles must",
+        "not travel with it."
+      ],
+      "patterns": ["FPDF_DOCUMENT", "FPDF_PAGE", "FPDF_BITMAP", "FPDF_FORMHANDLE", "FPDF_TEXTPAGE", "FPDF_ANNOTATION", "FPDF_SCHHANDLE", "FPDF_PAGELINK", "FPDF_LIBRARY_CONFIG", "ScopedFPDF", "FPDFDocumentDeleter", "FPDFPageDeleter", "FPDFBitmapDeleter", "FPDFTextPageDeleter"],
+      "allowedPaths": ["pdf/render/"],
+      "escapable": false,
+      "message": "A PDFium HANDLE may not be named outside pdf/render/ (D2-9). The engine's own object graph never leaves the facade: what crosses the boundary is buffers and callbacks. A core/ or pdf/cos/ type holding an FPDF_DOCUMENT is the leak this rule exists for, and no FPDF_ function call has to appear for it to have happened -- core::DocumentHandle is the opaque token that replaces it."
     },
     {
       "kind": "argv-path-read",

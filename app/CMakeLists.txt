@@ -43,6 +43,11 @@ add_dependencies(rawpage rawpage_translations)
 target_link_libraries(rawpage PRIVATE
     rawpage_core
     rawpage_cos
+    # The engine, from Stage 2 T2. app/ is the composition root and is the only layer permitted to
+    # name a concrete backend -- and `--version` reports the pinned PDFium version, which is the
+    # second question anyone asks about a rendering bug report. Linking it here also means
+    # pdfium.dll is deployed beside the executable by rawpage_pdfium's own runtime target.
+    rawpage_pdfium
     rawpage_platform
     rawpage_ui
 )

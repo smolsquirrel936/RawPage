@@ -1633,6 +1633,10 @@
         <source>error.backend.notImplemented</source>
         <translation>This build cannot do that yet: %1 is not implemented.</translation>
     </message>
+    <message>
+        <source>error.engine.initFailed</source>
+        <translation>The PDF engine could not be started (error %1).</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>

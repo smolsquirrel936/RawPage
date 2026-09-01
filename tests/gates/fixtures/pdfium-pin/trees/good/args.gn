@@ -1,0 +1,6 @@
+is_component_build = false
+is_debug = false
+pdf_enable_v8 = false
+pdf_enable_xfa = false
+target_cpu = "x64"
+target_os = "win"

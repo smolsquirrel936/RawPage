@@ -31,7 +31,26 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "scannedPaths": ["ui/", "app/", "core/", "res/"],
+  "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],
+
+  "$comment-scannedPaths": [
+    "pdf/ and platform/ were added at Stage 2 T2, and their absence was the same omission twice.",
+    "Both layers RETURN Result errors carrying catalog keys -- platform/win/ names eleven of them",
+    "and pdf/render/PdfiumInit names the first engine one -- so both reference the catalog exactly",
+    "the way core/ does. The absence had no visible effect while pdf/ held one placeholder",
+    "translation unit, and the first key added to the engine layer produced a false `orphan-key`",
+    "note the same afternoon: the key was referenced, by a file the gate had never been told to",
+    "read. That is convention 8 in CLAUDE.md -- a gate reads the files that reference a key, and",
+    "whether the gate has been pointed at their directory is a fact about this file rather than",
+    "about the rule.",
+    "",
+    "Adding them changes what the LITERAL rule covers as well, which is the half that matters going",
+    "forward: pdf/cos/ produces a named error for every malformation it survives, from T5 onward.",
+    "",
+    "It does NOT close the gap issue I-04 records. Nothing here compares a key a source REFERENCES",
+    "against the catalogs -- orphan-key is the inverse question and is a note -- so eighteen keys",
+    "referenced by shipped code still have no catalog entry, four of them in core/, which has been",
+    "scanned since T6. Scanning more directories does not find them; a rule does."],
 
   "$comment-scanned": [
     "core/ is scanned even though it has no tr() and no QObject. That is the point: core/ must hold",

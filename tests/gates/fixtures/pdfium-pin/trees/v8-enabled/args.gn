@@ -1,0 +1,3 @@
+is_component_build = false
+pdf_enable_v8 = true
+pdf_enable_xfa = false

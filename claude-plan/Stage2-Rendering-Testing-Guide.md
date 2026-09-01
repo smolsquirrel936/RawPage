@@ -6,17 +6,25 @@
 > **before any Stage 2 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-08-31; T1's cases run 2026-09-01.** **75 automated**
+> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01.** **75 automated**
 > (A-01 … A-74, plus **A-75** added the same day — see I-02) and **10 manual** (M-01 … M-10), of which
-> **A-01 and A-03 are green and A-46 is partly green** — every other box is still ☐, including
-> **A-04**, which is a Linux job this machine does not run. The
-> issue log holds three entries. **I-01** (S3) — two
+> **A-01, A-03, A-05 … A-13 are green and A-46 is partly green** — every other box is still ☐,
+> including **A-04**, which is a Linux job this machine does not run.
+> **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
+> [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
+> risk **R5** struck through in the same change. The
+> issue log holds five entries. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
 > closure pulls in four ports the licence gate structurally cannot see. Owned by T7 and T16.
 > **I-03** (S3, closed at T1) — three `QImage` signatures in `Implementation-Plan.md`'s Stage 2
 > component list that `core/` cannot name, found by writing the interface they describe.
+> **I-04** (S3, open, T14) — no rule compares a key a source *references* against the catalogs, and
+> eighteen referenced keys have no entry. **I-05** (S2, open, T11) — **PDFium cannot be called from
+> two threads at once**, so D2-9's per-worker thread confinement is not sufficient and D10's worker
+> pool cannot be eight PDFium threads. Found by the T3 probe on its first run, which is what that
+> probe is for.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -330,29 +338,71 @@ from it.
 stops configuring reads as infrastructure trouble rather than as a layering breach.
 
 **A-05 · The PDFium version pin fails configure on a mismatch**
-☐ **Goal** D2-3. **Steps** Edit `third_party/pdfium/VERSION` to a wrong build number; configure.
-Restore it; configure.
+✅ **2026-09-01 (T2).** **Goal** D2-3. **Steps** Edit `third_party/pdfium/VERSION` to a wrong build
+number; configure. Restore it; configure.
 **Expect** The first fails with a named diagnostic naming both the expected and found versions. The
 second succeeds. **A control:** the diagnostic must name the *found* version, or it cannot be acted on.
+**Result** Walked by hand against the real tree — `BUILD=8009` → `9999` gave
+`PDFium pin violated: PA-3 PDFium version / found: 153.0.9999.0 / expected: 153.0.8009.0` and the
+restore configured clean. Then built as **seven CTest cases** so it is re-run rather than remembered:
+`gates.pdfium_pin.*` over committed four-line fixture trees, which is what lets them run **on the
+bare Linux `gates` runner with no PDFium fetched at all** — testing the assertion and testing this
+developer's `third_party/` are different things, and only the first is worth a case.
+
+- `correct_tree_is_accepted` — **the control, and it comes first.**
+- `wrong_version_names_both` / `..._names_expected` — the two halves of the diagnostic, asserted
+  separately so a failure says which half broke.
+- `v8_enabled_is_refused` (PA-4) — the wrong *archive* rather than the wrong version.
+- `unparseable_version_says_so` (PA-2) — with `EXPECT_NOT_MATCH "PA-3"`, because a `VERSION` file
+  that states no version must not fail dressed as a version mismatch.
+- `missing_import_library` (PA-5) — the state of a tree unpacked by hand: upstream ships only an
+  MSVC-format import library, and without this the failure is a wall of undefined `FPDF_` references.
+- `unfetched_tree_says_run_the_script` (PA-1) — what a fresh clone hits.
+
 **If it fails** S2 — golden baselines become claims about an unknown rasterizer.
 
 **A-06 · `--version` reports the PDFium version**
-☐ **Steps** `rawpage.exe --version` under `offscreen`.
+✅ **2026-09-01 (T2).** **Steps** `rawpage.exe --version` under `offscreen`.
 **Expect** Exit 0; the RawPage name, build id, Qt version, **and PDFium 153.0.8009.0**.
+**Result** Exit 0:
+
+```
+RawPage 0.1.0
+build-id 14F8446940C19B6547E6B04AA77F844D1
+Qt 6.11.1
+PDFium 153.0.8009.0 (pinned at build)
+```
+
+The parenthesis is deliberate and is not padding: the `FPDF_` C API exposes **no version call**, so
+this is the pin `cmake/PdfiumAssert.cmake` verified against `third_party/pdfium/VERSION` at configure
+time. The one reader who cares about this line is usually the one wondering whether the `pdfium.dll`
+beside the executable is still the one it was built against, and the line says what it can answer.
 **If it fails** S3 — but it is the fastest way a person tells which engine a bug report came from.
 
 **A-07 · The executable still starts and exits cleanly under `offscreen`**
-☐ **Goal** The property every later stage's headless smoke test depends on, now with an engine linked.
+✅ **2026-09-01 (T2).** **Goal** The property every later stage's headless smoke test depends on, now
+with an engine linked.
 **Steps** `$env:QT_QPA_PLATFORM="offscreen"; rawpage.exe --dump-ui-strings`
 **Expect** Exit 0, every shell key and action label resolved, no window, no hang. **PDFium's
-initialization must not require a display.** **If it fails** S2.
+initialization must not require a display.**
+**Result** Exit 0, 529 lines, no window, no hang. The engine-initialization half is asserted
+separately and more strongly by `render.the engine initializes with no display and reports the
+pinned version`: `rawpage_render_tests` creates **no `QGuiApplication` at all**, so a process with no
+Qt GUI object in it starts PDFium and renders — which is a stronger statement than a `--dump-ui-strings`
+run that happens not to touch the engine. **If it fails** S2.
 
 **A-08 · Imports are still msvcrt, never ucrtbase — with `pdfium.dll` now in the picture**
-☐ **Steps** `objdump -p .\build\x64-release\bin\rawpage.exe | Select-String "DLL Name"`, and the same
+✅ **2026-09-01 (T2).** **Steps** `objdump -p .\build\x64-release\bin\rawpage.exe | Select-String "DLL Name"`, and the same
 for `pdfium.dll`.
 **Expect** `msvcrt.dll` present, `ucrtbase.dll` **absent** from `rawpage.exe`. `pdfium.dll` present
 beside the executable. **PDFium links no CRT at all** — that was Stage 0's A6 finding, and this case
 re-checks it now that the DLL ships rather than sitting in a spike.
+**Result** `rawpage.exe` imports `Qt6Core/Gui/Widgets`, `ADVAPI32`, `KERNEL32`, `SHELL32`, `USER32`,
+`libgcc_s_seh-1`, `libstdc++-6`, `libwinpthread-1`, **`msvcrt.dll`** and **`pdfium.dll`** — and **no
+`ucrtbase.dll`**. `pdfium.dll` imports `KERNEL32`, `ADVAPI32`, `GDI32`, `USER32` and **no CRT at
+all**, which re-confirms Stage 0's A6 measurement now that the DLL ships beside the executable rather
+than sitting beside a spike. `pdfium.dll` is deployed into the output directory by a build step, so a
+fresh build tree runs without anything on `PATH`.
 **If it fails** S1 — the Stage 0 toolchain pin has regressed at the moment the engine was added.
 
 ### 5.2 The gates — still three
@@ -367,29 +417,57 @@ four is itself the bug.
 the end of Stage 1) with the new `core-backend` layer entry live and six filesystem-write waivers
 unchanged; `license-audit` clean at 17 components and 4 Qt modules, with its two standing
 not-yet-built warnings; `i18n-lint` clean at **79 files / 2 catalogs / 0 waivers**, the catalogs now
-**538 keys** each. **If it fails** S1.
+**538 keys** each.
+**Result at T2** Exit 0, three gates. `layer-lint` clean at **147 files / 1,024 includes** with the
+narrowed `fpdf` rule and the new `fpdf-handle` rule live; `license-audit` unchanged; `i18n-lint` clean
+at **90 files / 2 catalogs / 0 waivers** — the file count jumped because `pdf/` and `platform/` were
+added to its scanned paths, which is half of **I-04**. **If it fails** S1.
 
 **A-10 · `layer-lint`: `FPDF_` outside `pdf/render/` fails**
-☐ **Goal** D2-9's narrowing. **Steps** A fixture placing `FPDF_InitLibrary` in `pdf/cos/Parser.cpp` —
-*inside* `pdf/`, which the old rule permitted.
-**Expect** Gate fails, naming file, line and rule. **If it fails** S1 — the first-party COS layer is
+✅ **2026-09-01 (T2).** **Goal** D2-9's narrowing. **Steps** A fixture placing `FPDF_InitLibrary` in
+`pdf/cos/Parser.cpp` — *inside* `pdf/`, which the old rule permitted.
+**Expect** Gate fails, naming file, line and rule.
+**Result** `gates.layer_lint.fpdf_in_cos` — exit 1, `fpdf`. The fixture also contains a legitimate
+call in `pdf/render/`, so the failure is attributable to **which directory** named the engine rather
+than to PDFium appearing anywhere in the tree. **If it fails** S1 — the first-party COS layer is
 the half of D3 that must never learn about PDFium, and it lives in the directory the old rule allowed.
 
 **A-11 · …and the control: a legal `FPDF_` in `pdf/render/` passes**
-☐ **Goal** Convention 7 — a rule that fails on everything is not a rule.
-**Steps** The same call in `pdf/render/PdfiumInit.cpp`. **Expect** Gate clean. **If it fails** S2.
+✅ **2026-09-01 (T2).** **Goal** Convention 7 — a rule that fails on everything is not a rule.
+**Steps** The same call in `pdf/render/PdfiumInit.cpp`. **Expect** Gate clean.
+**Result** `gates.layer_lint.fpdf_render_allowed` — exit 0, clean, over four call spellings. Worth
+noting what this closes: `gates.layer_lint.fpdf_outside_pdf` has proved since Stage 0 that naming
+PDFium **outside** `pdf/` fails, and until now **nothing had ever proved that naming it inside
+succeeds** — so that case was equally satisfied by a gate rejecting every mention of PDFium in the
+tree, which is not a stricter rule but a rule that forbids the product. **If it fails** S2.
 
 **A-12 · `layer-lint`: a PDFium handle typedef outside `pdf/render/` fails, with its control**
-☐ **Steps** A fixture naming `FPDF_DOCUMENT` in `core/render/RenderRequest.h`; then the same typedef
-used legally inside `pdf/render/`.
+✅ **2026-09-01 (T2).** **Steps** A fixture naming `FPDF_DOCUMENT` in `core/render/RenderRequest.h`;
+then the same typedef used legally inside `pdf/render/`.
 **Expect** Fails, then clean. **Vary the spelling** — `FPDF_DOCUMENT`, `FPDF_PAGE`, `FPDF_BITMAP` —
 because Stage 0's I-15 was a gate that passed on real violations since every fixture used one spelling.
-**If it fails** S1.
+**Result** Three fixtures, exit 1 with kind `fpdf-handle` in each, and **no `FPDF_` call appears in
+any of them** — which is the point: a type can hold the engine's object graph without ever calling
+it. `fpdf_handle_outside_render` (three spellings in one `core/` struct), `fpdf_handle_in_cos` (a
+fourth, one directory deeper), and `fpdf_scoper_in_core`.
+
+**That third one is the case that makes the companion rule worth having, and writing it is what
+found the gap.** The raw typedefs all begin with `FPDF_` and are therefore already caught by A-10's
+rule — but PDFium ships `include/cpp/`, whose **`ScopedFPDFDocument`, `ScopedFPDFPage`,
+`ScopedFPDFBitmap`** and the `FPDFDocumentDeleter` family contain **no underscore after `FPDF`**, so
+a substring search for `FPDF_` does not see them at all. A `core/` struct holding a
+`ScopedFPDFDocument` is this boundary's exact failure mode, spelled the one way the other rule
+misses. **If it fails** S1.
 
 **A-13 · `license-audit` sees PDFium as BSD-3 and stays clean**
-☐ **Steps** `license-audit.exe --root . --explain`
+✅ **2026-09-01 (T2).** **Steps** `license-audit.exe --root . --explain`
 **Expect** PDFium listed, SPDX `BSD-3-Clause`, inside the allowlist. The GCC runtime still
 `GPL-3.0-or-later WITH GCC-exception-3.1`. No `GPL` **substring** match — whole expressions only.
+**Result** Clean — 17 components, 4 Qt modules, 2 standing not-yet-built warnings (openssl,
+tesseract). PDFium is listed at 153.0.8009.0, SPDX `BSD-3-Clause`, inside the allowlist; the GCC
+runtime is still `GPL-3.0-or-later WITH GCC-exception-3.1` and matched as a whole expression.
+**Nothing in T2 changed this gate** — `spdx-map.json` has carried PDFium since Stage 0 T12, which is
+the case passing for the right reason rather than a change of its own.
 **If it fails** S1 — this is the gate that mechanically enforces D4.
 
 **A-14 · `i18n-lint` clean with the new catalog families**
@@ -1000,7 +1078,12 @@ document means **Stage 1's**, and says so where it appears.
 | **I-02** | S2 | **`license-audit` inventories the DECLARED manifest, not the RESOLVED closure — so four libraries Stage 2 links are invisible to the licence gate.** Found 2026-08-31 by running precondition **P-3**'s dry-run, which was in the plan only because writing it raised the question of whether two features declared at Stage 0 and never built still resolve. They do — `codecs`, `text` and both together all exit 0 on `x64-mingw-dynamic`, against Qt's own pinned `x86_64-w64-mingw32-g++`. **The resolution was never the risk; the closure was.** `freetype` pulls `brotli` and `bzip2`, `tiff` pulls `liblzma`, and — **measured with `vcpkg depend-info` on 2026-08-31, after this entry first mis-attributed it to `icu`** — **`hunspell` pulls `libiconv`**, and is its only parent. `icu` depends on neither — and none of the four appears in `vcpkg.json`, so `Inventory.cpp`'s `addPort` is never called for them: it iterates `root["dependencies"]`, `root["features"][*]["dependencies"]` and the non-vcpkg `overrides` map, and that is the whole of its input. It *does* read each port's SBOM, but only for ports it already knows to ask about — which is precisely backwards for a closure. **Nothing found is GPL**, so there is no breach today: `brotli` is MIT (already allowlisted), `bzip2` is `bzip2-1.0.6` and `liblzma` is 0BSD — both permissive, neither on `Tech-Stack-Plan.md` §8.2's allowlist — and **`libiconv` is GNU libiconv, LGPL-2.1-or-later**, which D4 permits but which carries an election and a **source-offer obligation** of the same shape as Qt's and Hunspell's, and nobody has recorded one. S2 rather than S3 because the gate's documented claim is broader than its behaviour and three later stages build on that claim: Stage 10 adds OpenSSL, Stage 16 adds tesseract and leptonica, and Stage 15's release compliance gate *is* this tool. **The allowlist rows are the cheap half; the inventory change is the real one.** Owned by **T7** (the map entries arriving with `codecs`) and **T16** (`text`, and `libiconv`'s source offer), with **A-75** as the case. Whether `libiconv` reaches the shipped DLL set is confirmed at T16 with `objdump -p` — the dry-run proves it enters the tree, which is not quite the same claim. **Licences verified 2026-08-31**, against each port's manifest, its `portfile.cmake` copyright block, and upstream licence text — not from memory. **`brotli` 1.2.0 = MIT** (upstream `LICENSE`, standard MIT text; already on the allowlist). **`bzip2` 1.0.8 = `bzip2-1.0.6`** (BSD-style permissive, no copyleft, no source-disclosure obligation; retain the notice, no endorsement). **`liblzma` 5.8.3 = `0BSD`** for the library itself — XZ Utils' own `COPYING` at v5.8.3 says *“liblzma is under the BSD Zero Clause License”*, while the `xzgrep`/`xzdiff` **scripts** are GPLv2+ and parts of the build system are GPLv2+/GPLv3+; the port ships the library, so none of that is linked. Both identifiers are **absent from `Tech-Stack-Plan.md` §8.2's allowlist** and must be added. ⚠️ **`libiconv` 1.19 is the one that is not simply a missing row — and `depend-info` moved it out of Stage 2's reach.** Its **only** parent is `hunspell`, the spell checker, which nothing before **Stage 13** links; `vcpkg.json`'s `text` feature is a group spanning *“Stages 2, 5, 13”* by its own description, so T16 turning it on **builds** hunspell, icu and libiconv while Stage 2 links only freetype. **Built is not linked**, so Stage 2 most likely incurs no LGPL obligation at all here — which T16's `objdump -p` settles either way, and is exactly why that check is in the task rather than assumed. The licence facts below stand regardless, and become live at Stage 13. Its vcpkg manifest declares `license: null` — vcpkg's marker for *not expressible as one SPDX expression* — and the portfile says why, verbatim: *“The libiconv and libcharset libraries and their header files are under **LGPL**, see COPYING.LIB… The **iconv program** and the documentation are under **GPL**, see COPYING.”* So the package is **split**: the part we link is **LGPL-2.1-or-later**, which D4 permits and which needs the Qt/Hunspell treatment — an election, dynamic linking, a user-replaceable binary and a **corresponding-source offer**, none of which exists. The part we do **not** link is **GPL**, and the portfile's `vcpkg_make_install()` plus `vcpkg_copy_tool_dependencies(…/tools/libiconv/bin)` means **a GPL `iconv.exe` is installed into the vcpkg tree**. **That is not a breach and Stage 2 does not package anything** — it is a build-tree artifact, and D4 forbids a GPL *dependency*, not a GPL binary sitting in a toolchain directory. **It becomes one the moment anything sweeps `installed/<triplet>/tools/` into an installer, which is Stage 15's MSI/MSIX work.** Recorded here rather than deferred silently, because the packaging stage will not rediscover it. | 🟡 **Open** — raised 2026-08-31, licences verified the same day, owned by T7/T16 (the map entries and the inventory fix) with the GPL-tool exclusion flagged forward to **Stage 15** |
 | **I-03** | S3 | **Three signatures this document set had written for Stage 2 name `QImage`, and none of them could have been built as written.** `Implementation-Plan.md` § Stage 2's component list gives `PdfiumRasterizer` `Result<QImage> raster(const RenderRequest&)`, `RenderCache` `std::optional<QImage> lookup(...)` and `RenderScheduler` `Signal<RenderRequest, QImage> ready` — but `IPageRasterizer` is declared in `core/backend.h`, `RenderCache` and `RenderScheduler` are `core/render/`, and **`core/` may not name a QtGui type**: it links `Qt6::Core` only, `layer-lint`'s `core` layer has listed `QImage` in `denyExternal` since Stage 0, and CLAUDE.md convention 3 is the standing rule (it is why `core/cmd/Chord` is first-party rather than a `QKeySequence`). Found at **T1**, by writing the interface the list describes. **Not a conflict anyone had to adjudicate**: plan **D2-9** already says the tile pipeline carries *buffers and callbacks only*, so the component sketch was the loose statement of a settled rule rather than a rival decision. Fixed in `core/backend.h` with `core::RasterImage` — width, height, **stride**, pixel format and bytes, with the stride carried rather than computed because a rasterizer may align its rows and a consumer assuming `width * 4` on a padded buffer draws diagonal garbage. `ui/` wraps those bytes in a `QImage` at the far side, where QtGui is allowed, and the wrap is free: both formats are the little-endian BGRA layout `QImage::Format_ARGB32` and `Format_RGB32` consume. `Implementation-Plan.md`'s three rows were corrected in the same change. **T10 and T11 inherit the correction**, and **A-44 is unaffected** — the raster suite links `rawpage_pdfium` and may hold a `QImage` of its own. S3 because it was a documentation slip that the gate would have caught the moment anyone typed it. | ✅ **Closed 2026-09-01** at T1, in the header that declares the interface | 
 
-**One S2 open — I-02, owned by T7 and T16.** Two S3, both closed.
+| **I-04** | S3 | **Nothing compares a catalog key a source REFERENCES against the catalogs, and eighteen referenced keys have no entry.** Found at T2 the moment the engine layer named its first key: `error.engine.initFailed` was reported as an `orphan-key` — a key nothing references — while being referenced by the file that had just been written, because `pdf/` was not in `i18n-lint`'s `scannedPaths`. Neither was `platform/`, which names **eleven** keys. **Fixing the paths was the easy half and it is done** (`pdf/` and `platform/` added; the gate went from 79 files to 90 and the false note is gone). **The real half is that no rule asks the question at all**: `missing-key` compares the shipped catalogs *against each other*, `action-label` covers `action.*` from `ActionId.def`, and `orphan-key` is the INVERSE — a catalog key nothing references — so a key a source names and no catalog defines is invisible from both directions. Measured 2026-09-01 by diffing every quoted `error.*`/`shell.*`/`ribbon.*`/`prefs.*` literal in `core/`, `ui/`, `app/`, `pdf/` and `platform/` against `rawpage_en.ts`: **eighteen** are missing — `error.action.{unknown,unavailable,alreadyRegistered,noHandler}` and `error.shortcut.{unknownAction,invalidChord,widgetNative}` from **`core/`, which has been scanned since T6**, plus `error.shell.*` (3) and `error.singleInstance.*` (8) from `platform/`. **Latent today rather than visible**: only `error.open.*` and `error.customization.*` currently reach a surface, and both exist — an unresolved key would render as its own key text, which is what makes this S3 now and **S2 the moment `MessageBar` starts showing engine errors**. Owned by **T14**, which builds that surface, with **A-14** as its case; the fix is an `unknown-key` rule keyed on the declared catalog families (so `settings.ini` and `pdfium.dll` are not mistaken for keys) plus the eighteen rows. **Not fixed at T2 on purpose**: writing eighteen error messages in two locales is a design act that belongs with the surface that shows them, and T2 is the engine boundary. | 🟡 **Open** — the scanned-path half fixed 2026-09-01; the rule and the eighteen keys owned by **T14** |
+| **I-05** | S2 | **PDFium cannot be called from two threads at once, and per-document confinement does not help — so D2-9's “thread-confined per worker” is false and D10's “worker pool” cannot be eight PDFium threads.** Found at **T3**, by the A2 probe, on its first run — which is the entire argument for measuring early rather than after T13. Eight workers, **each with its own `FPDF_DOCUMENT` and its own `FPDF_PAGE`**, crash. Measured by walking the worker count rather than asserted: **1 worker exits 0; 2, 4 and 8 all die with `STATUS_HEAP_CORRUPTION` (0xC0000374)** inside the render call, and before the pages were preloaded they died inside `FPDF_LoadPage` (stack captured under `gdb`). What PDFium shares between threads is **process-global** — its font mapper and glyph caches — not per-document, so confining a document to a worker confines the wrong thing. Reproducible on demand: `rawpage_bench_render.exe 8 --unsafe-parallel`, because a finding that needs a source edit to reproduce is one that gets re-litigated. **A2 IS UNAFFECTED AND IS `go`**: the constraint is a throughput ceiling, not a latency one — per-tile p95 is 0.532 ms against a 16.667 ms budget, and eight workers behind one engine lock retire **1.05×** the tiles per second of one worker. The engine is fast; it is simply not parallel. **What D10 actually promises is untouched** — *the UI thread never parses or rasterizes* — and two arrangements keep it: **one render thread with a queue**, or **N workers serialized on one engine lock**. Neither is chosen here, deliberately: that is `RenderScheduler`'s shape and it belongs to **T11**, with **A-45** as its case and **D2-9**'s wording to be corrected in the same change. Also flagged forward: **T16**'s font work and **Stage 5**'s text extraction inherit the same constraint, since both call the engine from the same global state. | 🟡 **Open** — raised 2026-09-01 at T3, owned by **T11**, which must choose the arrangement and correct D2-9 |
+
+**Two S2 open — I-02 (T7/T16) and I-05 (T11) — plus one S3 open, I-04 (T14). Two S3 closed.**
+
+**I-05 is the one to read before touching T10 or T11.** It is not a defect in code anybody wrote: it is a measurement that contradicts a decision two documents had already made, found by the probe D2-1 put at T3 precisely so that it would be found before `RenderScheduler` was built on top of it. Stage 1's lesson was that a spike's figure says nothing about the product; this stage's first is that a spike can also say something the product's *design* had assumed away.
 
 ---
 
@@ -1021,9 +1104,13 @@ Stage 2 is done when **all** of these hold. This is
    Stage 2 status block states in those words that the golden suite's green is **consistency against our
    own generated output**, not **fidelity to real-world PDFs** (plan §13.6). An unqualified *"every
    corpus file renders correctly"* overstates the evidence.
-8. ☐ **A2 has a recorded verdict with numbers** — the probe's and the product's — in
-   `Tech-Stack-Plan.md` §3.3, with risk **R5** struck through in the same change.
+8. 🟡 **A2 has a recorded verdict with numbers** — the probe's and the product's — in
+   `Tech-Stack-Plan.md` §3.3, with risk **R5** struck through in the same change. **Half done
+   2026-09-01:** the probe's figure is recorded (`go` — p95 **0.532 ms** against 16.667 ms, 8 workers
+   behind an engine lock; 1,849 tiles/s against one worker's 1,769) and R5 is struck through. The
+   product's figure is T18's and is still owed. Recorded with it: the probe's own limits — one page,
+   one non-embedded font, no images or transparency — and **I-05**.
 9. ☐ **O7 and O10 resolved** in `Implementation-Plan.md` §8.
-10. ☐ No open S1 or S2 in §8. **I-02 is open now** and must be closed before sign-off.
+10. ☐ No open S1 or S2 in §8. **I-02 (T7/T16) and I-05 (T11) are open now** and both must be closed before sign-off; **I-04** is S3 and is owned by T14.
 11. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
     `Implementation-Plan.md` Stage 2 status block updated to reality, deviations included.

@@ -1633,6 +1633,10 @@
         <source>error.backend.notImplemented</source>
         <translation>此版本尚無法執行該項作業：%1 尚未實作。</translation>
     </message>
+    <message>
+        <source>error.engine.initFailed</source>
+        <translation>無法啟動 PDF 引擎（錯誤 %1）。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>

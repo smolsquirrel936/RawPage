@@ -95,6 +95,21 @@ include(RawPageWarnings)
 include(RawPageQt)
 include(RawPageChecks)
 
+# --- The PDFium pin (Stage 2 T2, decision D2-3) ------------------------------
+# The second pinned dependency, asserted rather than assumed for the same reason as the first: a
+# golden-image baseline is a claim about ONE rasterizer, and an unnoticed engine bump reclassifies
+# every rendering regression as a baseline update. PA-1 .. PA-5 are in cmake/PdfiumAssert.cmake.
+#
+# Skipped for the same two configurations the toolchain pin is: the `gates` build has no layers at
+# all, and the portable subset is core/ + pdf/cos/ on Linux, where there is no PDFium to pin -- which
+# is exactly the property D2-2's library split exists to keep true.
+if(RAWPAGE_PORTABLE_SUBSET OR RAWPAGE_GATES_ONLY)
+    message(STATUS "Gate build: PDFium pin NOT applied -- no engine is linked here")
+else()
+    include(PdfiumAssert)
+    rawpage_assert_pdfium("${CMAKE_CURRENT_SOURCE_DIR}/third_party/pdfium")
+endif()
+
 enable_testing()
 
 # --- Build layout ------------------------------------------------------------
@@ -169,6 +184,11 @@ if(NOT RAWPAGE_GATES_ONLY)
         # exactly the pressure that would otherwise weaken that. Windows only, offscreen.
         add_subdirectory(tests/ui)
 
+        # The suite that links the ENGINE (Stage 2 T2). Separate from tests/unit for the reason
+        # D2-2 and tests/render/CMakeLists.txt give: the raster suite is the pressure that would
+        # otherwise put PDFium into the headless closure. Windows only, and it needs no display.
+        add_subdirectory(tests/render)
+
         # The measurements. One benchmark today -- A3's criterion R-9, the only one of the eight
         # that is a number rather than a judgement -- and Stage 2's per-tile render latency joins
         # it. Windows only, because it links rawpage_ui; and a bench under ASan would be a
@@ -188,6 +208,7 @@ message(STATUS "")
 message(STATUS "RawPage ${PROJECT_VERSION}")
 message(STATUS "  compiler        ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "  Qt              ${Qt6_VERSION}")
+message(STATUS "  PDFium          ${RAWPAGE_PDFIUM_VERSION}")
 message(STATUS "  portable subset ${RAWPAGE_PORTABLE_SUBSET}")
 message(STATUS "  output          ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 if(RAWPAGE_BUILD_FUZZERS)
