@@ -6,12 +6,14 @@
 > **before any Stage 2 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's on 2026-09-02.**
+> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02.**
 > **78 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02 — and **A-76 … A-78**
 > added at T4, because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13 and A-76 … A-78 are green and A-46 is partly green** — every other box is
-> still ☐, including **A-04**, which is a Linux job this machine does not run.
+> **A-01, A-03, A-05 … A-13, A-15 and A-76 … A-78 are green**, **A-27 is partly closed** and
+> **A-46 is partly green** — every other box is still ☐. **Two are Linux jobs this machine cannot
+> run and neither should be read as merely pending: A-04**, and now **A-25**, whose target exists
+> but has never been linked or run because there is no clang here.
 > **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through in the same change. The
@@ -433,7 +435,20 @@ not-yet-built warnings; `i18n-lint` clean at **79 files / 2 catalogs / 0 waivers
 **Result at T2** Exit 0, three gates. `layer-lint` clean at **147 files / 1,024 includes** with the
 narrowed `fpdf` rule and the new `fpdf-handle` rule live; `license-audit` unchanged; `i18n-lint` clean
 at **90 files / 2 catalogs / 0 waivers** — the file count jumped because `pdf/` and `platform/` were
-added to its scanned paths, which is half of **I-04**. **If it fails** S1.
+added to its scanned paths, which is half of **I-04**. *(Recorded 2026-09-02, on re-measurement: T2
+also took the catalogs from 538 keys to **539**, adding `error.engine.initFailed` with `PdfiumInit`,
+and no running figure moved with it — see the T5 result below.)*
+
+**Result at T4** Exit 0, three gates, all figures unchanged: T4 added **data and Python**, and
+neither gate reads either.
+
+**Result at T5** Exit 0, three gates. `layer-lint` clean at **153 files / 1,047 includes**, still
+**six** filesystem-write waivers; `license-audit` clean at 17 components and 4 Qt modules with its two
+standing not-yet-built warnings; `i18n-lint` clean at **92 files / 2 catalogs / 0 waivers**, the
+catalogs at **539 keys** each (12 `error.*`), 29 of `zh_TW`'s marked unfinished. `pdf/cos/Lexer`
+adds no catalog key at all, which is correct rather than an omission: it holds no user-facing text —
+`core/Result.h` carries the key when a failure has to reach a person, and a tokenizer that never
+fails has no such failure to report. **If it fails** S1.
 
 **A-10 · `layer-lint`: `FPDF_` outside `pdf/render/` fails**
 ✅ **2026-09-01 (T2).** **Goal** D2-9's narrowing. **Steps** A fixture placing `FPDF_InitLibrary` in
@@ -554,9 +569,19 @@ deeper closures on top of it, and Stage 15's release compliance gate is built di
 
 ### 5.3 The COS reader
 
-**A-15 · `tst_cos_lexer`** ☐ **Steps** `ctest -R unit.cos.lexer`
+**A-15 · `tst_cos_lexer`** ✅ **2026-09-02 (T5)** **Steps** `ctest -R "unit.cos lexer"`
 **Expect** Delimiters, literal and hex strings, numbers, names, comments; tolerant of the malformed
-inputs the corpus generator produces on purpose. **If it fails** S2.
+inputs the corpus generator produces on purpose.
+**Result 2026-09-02** **24 cases green** on both Windows presets, plus
+`unit.cos.compile.fuzz_entrypoint`. The suite is in three parts and the third is the one that
+matters most: the ordinary grammar; the **tolerances**, each a specified behaviour with a corpus
+file or a named real-world producer behind it (`--5` reads as −5, `1.2.3` still yields a number,
+`/A#GG` keeps its `#`, `<41A>` pads to `<41A0>`, an out-of-range integer **clamps rather than
+wraps**); and the **contract the fuzzer depends on** — progress, bounds, `End` stability,
+`peek`/`next` agreement — replayed over all **60** corpus files, **38** of which produce at least
+one `LexNote`. **Two negative controls were run** rather than reasoned about: removing the `)`
+advance produced *“no progress at 0 (token Junk)”* **and** *“no progress at 585”* from a real corpus
+file, and removing the `<<` lookahead reddened two cases. **If it fails** S2.
 
 **A-16 · `tst_cos_parser`** ☐ **Steps** `ctest -R unit.cos.parser`
 **Expect** Objects, indirect objects, streams, object streams. **Identity-preserving round-trip of
@@ -615,20 +640,36 @@ ASan+UBSan.
 ### 5.4 Fuzzing — the preset's first real targets
 
 **A-25 · `fuzz_cos_lexer` builds and runs 10 minutes clean**
-☐ **Goal** `portable-fuzz` has been wired since Stage 0 with its preset description saying **"NO
-TARGETS EXIST until Stage 2"**. **Steps** Build on `portable-fuzz`; run seeded from `corpus/malformed/`.
+☐ **WRITTEN AT T5; NOT RUN — this is a Linux/clang job, like A-04.**
+**Goal** `portable-fuzz` has been wired since Stage 0 with its preset description saying **"NO
+TARGETS EXIST until Stage 2"**. **Steps** Build on `portable-fuzz`; run seeded from `corpus/malformed/`:
+`./bin/fuzz_cos_lexer corpus/malformed -max_total_time=600`.
 **Expect** Builds; 10 minutes with no crash, no leak, no timeout.
+**State 2026-09-02** The target **exists** (`tests/fuzz/fuzz_cos_lexer.cpp`), and this machine has no
+clang and no libFuzzer, so neither the link nor the run has happened. **Two things were done instead,
+and neither is a substitute:** the entry point is compiled `-fsyntax-only` by the Windows toolchain on
+every run (`unit.cos.compile.fuzz_entrypoint`), so it cannot rot unnoticed between Linux runs; and its
+body lives in `tests/fuzz/LexerFuzzBody.h`, which `tst_cos_lexer` calls over all 60 corpus files and a
+table of adversarial inputs. **Replaying 60 known files is not fuzzing and finds nothing new by
+construction** — say so rather than letting the green count imply otherwise.
 **If it fails** S1 if it crashes; **S2 if it fails to build** — a preset that has never built anything
 has not been proven to build anything, which is Stage 1's I-30 in a different costume.
 
 **A-26 · `fuzz_cos_parser` — the primary target — same**
-☐ **Steps** As A-25. **Expect** As A-25. **If it fails** S1.
+☐ **Steps** As A-25. **Expect** As A-25. **Not yet written: the parser is T6.** **If it fails** S1.
 
 **A-27 · The fuzz targets actually exist in the build graph**
-☐ **Goal** The negative that A-25 and A-26 cannot supply for themselves: a target that silently
+🟡 **partly closed at T5 — and moved from a manual enumeration to an assertion**
+**Goal** The negative that A-25 and A-26 cannot supply for themselves: a target that silently
 builds nothing passes a "no crashes" check trivially.
 **Steps** Enumerate the `portable-fuzz` build graph.
 **Expect** Exactly two fuzz targets. **Zero is a failure, not a pass.**
+**Change made at T5** Counting targets by hand once, at sign-off, is the shape of check that is
+right on the day and silently wrong afterwards. `tests/fuzz/CMakeLists.txt` now **fails configure**
+when its target count is not `RAWPAGE_EXPECTED_FUZZ_TARGETS`, so an empty fuzz graph stops the
+`portable-fuzz` build instead of passing its run. **The number is 1 at T5 and becomes 2 at T6** —
+bumping it is part of that task. The root `CMakeLists.txt` message that said *"NO FUZZ TARGETS EXIST
+YET"* since Stage 0 changed in the same commit.
 **If it fails** S2 — and this case exists because Stage 1's I-30 was precisely a job that reported
 success by doing nothing.
 

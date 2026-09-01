@@ -16,7 +16,10 @@
 > **Status:** 🟡 **T1–T4 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
 > finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
 > on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
-> byte-identically under `gates.corpus.reproducible`.** Written 2026-08-31,
+> byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
+> the first token of PDF this project has ever read for itself, and `portable-fuzz`'s first target
+> — which has still never been RUN, that being a Linux job, and is recorded as such rather than as
+> pending.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -90,7 +93,7 @@ Recorded so the tasks below are concrete. None of these is re-decided here.
 | `pdf/PdfModule.cpp` | Stage 0's placeholder TU; `Stage1-AppShell-Plan.md` §10 records **"Stage 2 deletes it"** | T1 deletes it — `pdf/` gets real translation units there |
 | `tools/spike-pdfium/` | ✅ Stage 0 T12, marked ⤵ throwaway: *"deleted when `pdf/render/PdfiumInit` replaces it at Stage 2"* | T2 deletes it, exactly as `tools/spike-ribbon/` was deleted at Stage 1 T10 |
 | `rawpage_pdf` | One static library, one placeholder TU, linked by `rawpage_tests` under `rawpage_assert_headless()` | **It must split — see D2-2.** This is the single most likely way Stage 2 breaks a Stage 0 guarantee without anyone editing the file that states it |
-| `portable-fuzz` | Wired since Stage 0; its preset description says **"NO TARGETS EXIST until Stage 2"** | T5–T8 give it its first real targets. A preset that has never built a fuzzer has not been proven to build one |
+| `portable-fuzz` | Wired since Stage 0; its preset description says **"NO TARGETS EXIST until Stage 2"** | ✅ **T5 gave it `fuzz_cos_lexer`**, its first target ever, and `tests/fuzz/CMakeLists.txt` now fails configure on the wrong target count. It has still never been RUN — no clang on the dev box — so "proven to build one" is owed by the Linux job, not claimed here |
 | `corpus/` | `make-minimal.py` + one generated `minimal.pdf`. Stage 0 §7.3 recorded **"Stage 2 owns the real corpus"** | ✅ T4 — 60 files, a `PROVENANCE.md` row each, byte-identical regeneration gated |
 | `ui/` warning grace list | `RAWPAGE_UI_WARNING_GRACE` still **empty** (D1-12) | It may only shrink. `ui/viewer/` is the largest block of new `ui/` code since T10 and is where the pressure to add an entry will come from |
 | Carried cases | **A-25** (`--list-actions`, a switch that never existed) and **A-26** (an alias fixture for `RAWPAGE_ACTION_ALIAS`, real code with zero rows) — carried to Stage 2 rather than closed | T18 (D2-10) |
@@ -130,14 +133,14 @@ wrong stage tag, and are lockstep debt — §10.
 
 | File | FileMap row | Task |
 |---|---|---|
-| `core/backend.h` | §3.8 ⚠️ *(no row — see §10)* | T1 |
-| `pdf/BackendFactory.{h,cpp}`, `pdf/DocumentBackendImpl.{h,cpp}` | §3.11 ⚠️ *(no rows)* | T1, T9 |
+| `core/backend.h` | §3.8 ✅ (S2 · T1) — row added with the header | T1 |
+| `pdf/BackendFactory.{h,cpp}`, `pdf/DocumentBackendImpl.{h,cpp}` | §3.11 — `BackendFactory` ✅ (S2 · T1); `DocumentBackendImpl` ○, T9's | T1, T9 |
 | `pdf/PdfModule.cpp` — **deleted** | §4 breadcrumb, **not a row** — a placeholder TU has no responsibility to fold anywhere, exactly as `platform/PlatformModule.cpp` was handled at Stage 1 T7 | T1 |
-| `pdf/render/PdfiumInit.{h,cpp}` | §3.10 ○ (S2) | T2 |
-| `cmake/PdfiumAssert.cmake` | §3.18 ⚠️ *(no row)* | T2 |
+| `pdf/render/PdfiumInit.{h,cpp}` | §3.10 ✅ (S2 · T2) | T2 |
+| `cmake/PdfiumAssert.cmake` | §3.18 ✅ (S2 · T2) — row added with the assertion | T2 |
 | `tools/spike-pdfium/` — **deleted** | §3.17 ⤵ | T2 |
-| `corpus/**`, `corpus/PROVENANCE.md`, `corpus/make-*.py` | §3.18 ⚠️ *(`make-minimal.py` has a row; `PROVENANCE.md` and the new generators have none)* | T4 |
-| `pdf/cos/Lexer.{h,cpp}` | §3.9 ⚠️ **○ (S3) → ○ (S2)** | T5 |
+| `corpus/**`, `corpus/PROVENANCE.md`, `corpus/make-*.py` | §3.18 ✅ (S2 · T4) — twelve rows added: the provenance file, the driver, `pdfbuild.py`, the four encoders, `fontenc`, `cryptenc`, and one per generated directory | T4 |
+| `pdf/cos/Lexer.{h,cpp}` | §3.9 ✅ (S2 · T5) | T5 |
 | `pdf/cos/CosObject.{h,cpp}`, `pdf/cos/Parser.{h,cpp}` | §3.9 ⚠️ **○ (S3) → ○ (S2)** | T6 |
 | `pdf/cos/XrefTable.{h,cpp}` | §3.9 ⚠️ **○ (S3) → ○ (S2)** | T7 |
 | `pdf/cos/filters/*.{h,cpp}` — **nine** (D2-4) | §3.9 ⚠️ **○ (S3) → ○ (S2)**, and the row's tenth filter re-tagged S10 | T7 |
@@ -154,8 +157,8 @@ wrong stage tag, and are lockstep debt — §10.
 | `ui/shell/MessageBar.{h,cpp}` | §3.13 ○ (S2) | T14 |
 | `pdf/render/GlyphCache.{h,cpp}`, `FontResolverBridge.{h,cpp}` | §3.10 ○ (S2) | T16 |
 | `tests/golden/`, `tools/golden-update/` | §3.17 ⚠️ *(`tests/golden/` has a row; the tool does not)* | T17 |
-| `tests/bench/bench_render.cpp` | §3.17 | T3, T18 |
-| `tests/fuzz/` | §3.17 ⚠️ **○ (S3) → ○ (S2)** — corrected when this plan was written | T5, T6 |
+| `tests/bench/bench_render.cpp` | §3.17 🟡 (S2 · T3; T18 completes it) | T3, T18 |
+| `tests/fuzz/` | §3.17 🟡 (S2 · T5; T6 completes it) — the stage retag was made when this plan was written | T5, T6 |
 
 **Settings keys** — the sixteen from
 [`Implementation-Plan.md` § Stage 2](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering)
@@ -354,16 +357,16 @@ runner. Its absence from CI is stated here so it is a known gap rather than an a
 Owed by **T18**, in the same change as the code — except the two marked *now*, which are corrections
 to existing documents and are made when this plan is written.
 
-- **⚠️ NOW — `Architecture-FileMap.md` §3.9: the six `pdf/cos/` reader rows (fifteen files) are tagged
-  ○ (S3) and belong to Stage 2.** `Implementation-Plan.md` § Stage 2 lists `CosObject`, `Lexer`, `Parser`,
+- ~~**⚠️ NOW — `Architecture-FileMap.md` §3.9: the six `pdf/cos/` reader rows (fifteen files) are tagged
+  ○ (S3) and belong to Stage 2.**~~ **Paid when this plan was written; `Lexer` flipped ○ → ✅ at T5.** `Implementation-Plan.md` § Stage 2 lists `CosObject`, `Lexer`, `Parser`,
   `XrefTable`, `XrefRepair` and the filters as Stage 2 components, and Stage 3's own component list
   claims only `IncrementalWriter` and `ObjectAllocator`. `Implementation-Plan.md` owns stage
   ordering, so the FileMap is the document that is wrong. Confirmed with the user 2026-08-31.
-- **⚠️ NOW — `Architecture-FileMap.md` §3.2: `Revision.h`, `Scope` and `Page` are tagged ○ (S3) while
-  their own *Interacts with* column names Stage 2 consumers**, and `PageTree` needs the split tag
+- ~~**⚠️ NOW — `Architecture-FileMap.md` §3.2: `Revision.h`, `Scope` and `Page` are tagged ○ (S3) while
+  their own *Interacts with* column names Stage 2 consumers**~~ **— paid: all four now read ○ (S2), with `PageTree` as ○ (S2 read, S3 edit)**, and `PageTree` needs the split tag
   `○ (S2 read, S3 edit)`. See **D2-5**.
-- **⚠️ NOW — `Architecture-FileMap.md` §3.17 and `Implementation-Plan.md` § Stage 3: `tests/fuzz/` was
-  tagged ○ (S3) and listed among Stage 3's components**, though a fuzz target over `pdf/cos/Lexer` and
+- ~~**⚠️ NOW — `Architecture-FileMap.md` §3.17 and `Implementation-Plan.md` § Stage 3: `tests/fuzz/` was
+  tagged ○ (S3) and listed among Stage 3's components**~~ **— paid, and the row went 🟡 (S2 · T5) when `fuzz_cos_lexer` made it real**, though a fuzz target over `pdf/cos/Lexer` and
   `Parser` cannot exist before those files do — and `CMakePresets.json`'s `portable-fuzz` description
   has said *“NO TARGETS EXIST until Stage 2”* since Stage 0. **The build system was right and both
   documents were wrong**, for the same root cause as the two entries above: they were written when the
@@ -401,27 +404,35 @@ to existing documents and are made when this plan is written.
   encoder modules (`deflate`, `jpegenc`, `ccitt`, `jpxenc`), `fontenc.py`, `cryptenc.py`, and one per
   generated directory. The `.gitattributes` row was amended in the same change: `corpus/** binary` was
   marking the new generators binary too, so `git diff` showed nothing for them.
-- **`core/backend.h` has no FileMap row.** §3.8 covers `core/batch/`, `core/settings/` and shared
+- ~~**`core/backend.h` has no FileMap row.**~~ **Paid at T1**, with the `core-backend` `layer-lint`
+  entry the item below anticipated. §3.8 covers `core/batch/`, `core/settings/` and shared
   headers; the second of the two interface headers this architecture rests on is not in it, though
   `platform/platform.h` is. Add it, with the `layer-lint` layer entry it will need for the same
   reason `platform/platform.h` has one — `core/`, `pdf/` and `app/` all include it.
-- **`pdf/BackendFactory` and `pdf/DocumentBackendImpl` have no rows.** §3.11 is `pdf/ops/`; these two
+- 🟡 **`pdf/BackendFactory` has a row as of T1; `pdf/DocumentBackendImpl` does not exist yet and is T9's.** §3.11 is `pdf/ops/`; these two
   sit at `pdf/`'s root beside the deleted `PdfModule.cpp` and need either rows or a folded row with a
   ⤵ breadcrumb.
-- **`platform/win/`'s four Stage 2 implementations have no rows.** §3.12 has rows for the *interfaces*
-  and for `WinSingleInstanceBus` / `WinShellIntegration`; `WinDisplayTopology`, `WinPowerSession`,
-  `WinFontResolver` and `WinAcceleratedSurface` have none. Stage 1 T7 set the precedent of adding an
+- 🟡 **`platform/win/`'s four Stage 2 implementations — rows exist, tagged ○ (S2); the CODE does not.**
+  Re-measured 2026-09-02: `WinDisplayTopology`, `WinPowerSession`, `WinFontResolver` and
+  `WinAcceleratedSurface` each have a §3.12 row already, so what is owed is the ○ → ✅ flip at **T12**
+  and **T16**, not the rows themselves. Stage 1 T7 set the precedent of adding an
   implementation's row in the same change as the implementation.
-- **`tools/golden-update/` has no row**, though `tests/golden/` does.
-- **`cmake/PdfiumAssert.cmake` has no row**, though `cmake/ToolchainAssert.cmake` does — and it is
-  the same kind of file for the same kind of reason (D2-3).
-- **`Tech-Stack-Plan.md` §3.3 must gain A2's verdict**, and §10's risk **R5** (*"A2 is unmeasured and
-  gates D10"*) must be struck through and dated in the same change. A risk that has been retired but
+- ~~**`tools/golden-update/` has no row**, though `tests/golden/` does.~~ **Stale — re-measured
+  2026-09-02: §3.17 has one, tagged ○ (S2). The ○ → ✅ flip is T17's.**
+- ~~**`cmake/PdfiumAssert.cmake` has no row**, though `cmake/ToolchainAssert.cmake` does.~~ **Paid at
+  T2**, in the same change as the assertion itself (D2-3).
+- 🟡 **`Tech-Stack-Plan.md` §3.3 gained A2's PROBE verdict at T3 and **R5** is struck through; the
+  PRODUCT's figure is still owed by T18 (D2-1).** The original wording of this item — that a
+  retired risk still reading as open is how a later reader re-does settled work — applies equally to
+  a half-answered one, which is why the row says which half. A risk that has been retired but
   still reads as open is how a later reader re-does settled work.
-- **`CLAUDE.md`'s "Still no document code" paragraph** — *"nothing in `core/doc/`, `pdf/cos/`,
+- 🟡 **`CLAUDE.md`'s "Still no document code" paragraph** — *"nothing in `core/doc/`, `pdf/cos/`,
   `pdf/render/`, `pdf/ops/`, or `ui/viewer/`"* — is false after T13 and must be rewritten, not
-  amended. The same file's gate table gains the narrowed `FPDF_` rule, and its test-target table
-  gains `rawpage_render_tests` and the fourth CI job's new prefixes.
+  amended. **Rewritten twice already rather than left to rot at T18**: at T2 for `pdf/render/`, and
+  at T5, when `pdf/cos/` stopped being empty and the sentence had to name what the lexer does *not*
+  know as well as what it does. It is still owed a final rewrite at T13. The same file's gate table
+  gained the narrowed `FPDF_` rule at T2 and its test-target table gained `rawpage_render_tests`;
+  **the fourth CI job's prefixes are still owed.**
 - **`Features.md` §8's Viewer table gains no rows and must gain none.** Stage 2 handles the subset
   `Implementation-Plan.md` lists; `Ctrl+4` (Reflow), `Ctrl+R` (rotate **pages**), `S`, `Ctrl+B`,
   `Ctrl+E`, `Ctrl+L`, `Ctrl+U`, `Ctrl+'`, `Ctrl+;`, `Ctrl+Alt+C`, `Ctrl+.`/`Ctrl+,` and

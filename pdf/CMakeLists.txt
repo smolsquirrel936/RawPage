@@ -46,6 +46,12 @@ add_library(rawpage_cos STATIC
     # below is real content, and a placeholder that outlives its purpose becomes a mystery.
     BackendFactory.h
     BackendFactory.cpp
+
+    # The COS reader itself, from Stage 2 T5. Every file here is std-only on purpose: pdf/cos/ is
+    # portable BY RULE, and the fuzz driver hands it a `const uint8_t*` that must not have to become
+    # a Qt container once per iteration.
+    cos/Lexer.h
+    cos/Lexer.cpp
 )
 
 target_include_directories(rawpage_cos PUBLIC "${CMAKE_SOURCE_DIR}")

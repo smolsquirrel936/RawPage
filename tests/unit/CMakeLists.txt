@@ -28,6 +28,8 @@ add_executable(rawpage_tests
     tst_logbuffer.cpp             # Stage 1 T14
     tst_singleinstance.cpp        # Stage 1 T15 -- guide case A-61
     tst_backend.cpp               # Stage 2 T1  -- guide case A-46, the engine-interface census
+    tst_cos_lexer.cpp             # Stage 2 T5  -- guide case A-15, and the fuzz body's
+                                  #                only Windows caller (tests/fuzz)
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -60,7 +62,11 @@ add_executable(rawpage_tests
 # build. The path is a compile definition rather than a runtime lookup because a test that silently
 # skips when it cannot find its input is a test that passes for the wrong reason.
 target_compile_definitions(rawpage_tests PRIVATE
-    RAWPAGE_FEATURES_MD="${CMAKE_SOURCE_DIR}/claude-plan/Features.md")
+    RAWPAGE_FEATURES_MD="${CMAKE_SOURCE_DIR}/claude-plan/Features.md"
+    # The corpus, by absolute source path, for tst_cos_lexer's replay of corpus/malformed/. Same
+    # mechanism as the line above and for the same reason: a test that guessed a relative path
+    # would pass or fail depending on the working directory CTest happened to use.
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
 
 target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -137,6 +143,16 @@ rawpage_add_compile_case(NAME unit.settings.compile.declared_key_control
 # half of the rule is tools/layer-lint's non-escapable `argv-path-read` token rule.
 rawpage_add_compile_case(NAME unit.commandline.compile.argv_overload
     SOURCE argv-overload.cpp EXPECT_FAIL 1 EXPECT_MATCH "parse")
+
+# --- Stage 2 T5: the fuzz entry point still compiles ----------------------------------------
+# `fuzz_cos_lexer` is built only by `portable-fuzz` -- clang, Linux, libFuzzer -- so nothing on
+# this machine or in the Windows CI job would notice it breaking. This case compiles that exact
+# translation unit with `-fsyntax-only`; it cannot link, because there is no libFuzzer here to
+# supply main(), and linking is not what is at risk. What IS at risk is a signature in
+# pdf/cos/Lexer.h changing under an entry point nobody builds, and waiting for a Linux run to
+# find out. Guide case A-27's concern, one layer earlier.
+rawpage_add_compile_case(NAME unit.cos.compile.fuzz_entrypoint
+    SOURCE fuzz-entrypoint.cpp EXPECT_FAIL 0)
 
 rawpage_add_compile_case(NAME unit.commandline.compile.arguments_list_control
     SOURCE arguments-list.cpp EXPECT_FAIL 0)

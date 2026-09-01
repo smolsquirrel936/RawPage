@@ -173,6 +173,14 @@ add_subdirectory(tests/gates)
 if(NOT RAWPAGE_GATES_ONLY)
     add_subdirectory(tests/unit)   # needs Catch2 from vcpkg, and core/ to test
 
+    # The fuzz targets (Stage 2 T5). ONLY the portable-fuzz preset sets this: MinGW GCC has no
+    # libFuzzer, so there is nothing to build on Windows and a guard here is honest rather than
+    # defensive. tests/fuzz/CMakeLists.txt asserts its own target COUNT at configure time, which is
+    # guide case A-27 -- "zero fuzz targets is a failure, not a pass".
+    if(RAWPAGE_BUILD_FUZZERS)
+        add_subdirectory(tests/fuzz)
+    endif()
+
     # The platform suite is Windows-only and deliberately a SEPARATE target: tests/unit must keep
     # linking core/ and pdf/ and nothing else, which is what portable-asan proves on a machine with
     # no display and no engine. See tests/platform/CMakeLists.txt.
@@ -212,9 +220,11 @@ message(STATUS "  PDFium          ${RAWPAGE_PDFIUM_VERSION}")
 message(STATUS "  portable subset ${RAWPAGE_PORTABLE_SUBSET}")
 message(STATUS "  output          ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 if(RAWPAGE_BUILD_FUZZERS)
-    # Said out loud on purpose: a fuzz preset that silently builds nothing is
-    # indistinguishable from one that is broken.
-    message(STATUS "  fuzzers         ENABLED, but NO FUZZ TARGETS EXIST YET -- they arrive")
-    message(STATUS "                  with pdf/cos/Lexer and Parser at Stage 2")
+    # From Stage 0 to Stage 2 T5 this said "NO FUZZ TARGETS EXIST YET", deliberately: a fuzz preset
+    # that silently builds nothing is indistinguishable from one that is broken. T5 gave it its
+    # first real target, so the line now names what is actually in the graph -- and tests/fuzz
+    # FAILS CONFIGURE if that count is ever wrong, which is guide case A-27's "zero is a failure,
+    # not a pass" made structural rather than remembered.
+    message(STATUS "  fuzzers         ENABLED")
 endif()
 message(STATUS "")
