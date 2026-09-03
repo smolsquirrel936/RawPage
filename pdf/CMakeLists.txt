@@ -60,11 +60,65 @@ add_library(rawpage_cos STATIC
     cos/CosObject.cpp
     cos/Parser.h
     cos/Parser.cpp
+
+    # T7: the nine stream filters (D2-4 -- NINE, not ten; CryptFilter is Stage 10's, with the
+    # StandardSecurityHandler whose key it needs). Filter.{h,cpp} is the registry, the DecodeParms
+    # and the predictor that Flate and LZW share -- it is not a tenth filter, and guide case A-19
+    # asserts the filter LIST rather than counting files in this directory.
+    cos/filters/Filter.h
+    cos/filters/Filter.cpp
+    cos/filters/AsciiHexFilter.h
+    cos/filters/AsciiHexFilter.cpp
+    cos/filters/Ascii85Filter.h
+    cos/filters/Ascii85Filter.cpp
+    cos/filters/RunLengthFilter.h
+    cos/filters/RunLengthFilter.cpp
+    cos/filters/LZWFilter.h
+    cos/filters/LZWFilter.cpp
+    cos/filters/FlateFilter.h
+    cos/filters/FlateFilter.cpp
+    cos/filters/CcittFilter.h
+    cos/filters/CcittFilter.cpp
+    cos/filters/DctFilter.h
+    cos/filters/DctFilter.cpp
+    cos/filters/JpxFilter.h
+    cos/filters/JpxFilter.cpp
+    cos/filters/Jbig2Filter.h
+    cos/filters/Jbig2Filter.cpp
+
+    # T7: object numbers to byte offsets. Classic tables, cross-reference STREAMS, and the /Prev
+    # chain across incremental updates.
+    cos/XrefTable.h
+    cos/XrefTable.cpp
+
+    # T8: why damaged files open instead of failing. The Stage 2 exit criterion -- every
+    # corpus/malformed/ file yields a report and never a crash -- is this file's.
+    cos/XrefRepair.h
+    cos/XrefRepair.cpp
 )
 
 target_include_directories(rawpage_cos PUBLIC "${CMAKE_SOURCE_DIR}")
 
-target_link_libraries(rawpage_cos PUBLIC rawpage_core)
+# --- The codecs (Stage 2 T7) -----------------------------------------------------------
+# vcpkg's `codecs` feature, declared at Stage 0 (D0-3) and dry-run-verified at precondition P-3,
+# is switched on by CMakePresets' VCPKG_MANIFEST_FEATURES for the Windows AND portable presets.
+# T7 is where it stops being theoretical.
+#
+# WHY THESE THREE AND NOT MORE. zlib is not an image dependency here -- it is the reason the reader
+# can open a modern document at all, since every PDF 1.5-or-later file keeps its cross-reference
+# table and its object streams Flate-compressed. libjpeg-turbo and openjpeg back /DCTDecode and
+# /JPXDecode. CCITT is first-party (see CcittFilter.h: libtiff's fax decoder is reachable only
+# through a TIFF* handle, so borrowing it costs more than writing it), and JBIG2 has no permissible
+# library at all -- jbig2dec is AGPL-3.0, which D4 forbids outright (see Jbig2Filter.h and I-06).
+#
+# PUBLIC vs PRIVATE: PRIVATE, because none of the three appears in a pdf/cos/ header. A caller of
+# `decodeStream()` gets a std::vector<uint8_t> and never learns which library produced it, which is
+# what keeps `tests/unit` from acquiring a transitive jpeglib.h include.
+find_package(ZLIB REQUIRED)
+find_package(JPEG REQUIRED)
+find_package(OpenJPEG CONFIG REQUIRED)
+
+target_link_libraries(rawpage_cos PUBLIC rawpage_core PRIVATE ZLIB::ZLIB JPEG::JPEG openjp2)
 
 rawpage_strict(rawpage_cos)           # -Werror: no warning survives in pdf/ either
 

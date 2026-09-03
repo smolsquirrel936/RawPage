@@ -34,6 +34,12 @@ const std::vector<std::string> kSpdxAllowlist = {
     "BSD-2-Clause",
     "BSD-3-Clause",
     "MIT",
+    // 0BSD -- liblzma, which arrives transitively with `tiff` under the `codecs` feature
+    // (Stage 2 T7, issue I-02). The BSD Zero Clause License is BSD-2-Clause with the
+    // attribution requirement removed, so it is strictly more permissive than two entries
+    // already here. Added with the row in spdx-map.json and the Tech-Stack-Plan.md 8.2 line,
+    // in one change, because this list's own comment says it is the only copy.
+    "0BSD",
     "Apache-2.0",
     "Zlib",
     "BSL-1.0",

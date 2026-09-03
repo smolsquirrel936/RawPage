@@ -155,6 +155,87 @@ VcpkgManifest loadManifest(const InventoryInputs& inputs) {
         }
     }
 
+    // --- THE RESOLVED CLOSURE (issue I-02) ----------------------------------------------
+    // Everything above builds the list from what we WROTE DOWN. That is not what we ship.
+    //
+    // Measured 2026-08-31 by P-3's dry-run and confirmed 2026-09-03 by an actual install: the
+    // `codecs` feature pulls in `liblzma` (through tiff) and the `text` feature pulls in
+    // `brotli`, `bzip2` and `libiconv` -- and `vcpkg.json` names none of the four, so `addPort`
+    // was never called for them and the gate had no verdict on any of them. `libiconv` is the one
+    // that matters: GNU libiconv is LGPL-2.1-or-later and carries a source-offer obligation.
+    //
+    // Nothing found was GPL, so there was no breach -- but CLAUDE.md and Tech-Stack-Plan.md 8.2
+    // both describe this tool as what mechanically enforces the no-GPL rule, and a gate that
+    // audits the manifest rather than the closure cannot make that claim. Stage 10 (OpenSSL) and
+    // Stage 16 (tesseract, leptonica) add much deeper closures on top of it.
+    //
+    // An installed tree IS the closure: vcpkg writes share/<port>/vcpkg.spdx.json for every
+    // package it actually installed, transitive ones included. So the fix is to enumerate that
+    // directory rather than to maintain a second list of what depends on what -- a hand-kept list
+    // would be one more thing to drift, which is the failure being repaired here.
+    //
+    // WITH NO INSTALLED TREE this loop does nothing, and that is correct rather than a gap: the
+    // CI `gates` job has no vcpkg (D0-1) and still has to fail on a bad licence, which it does
+    // from the map. The map therefore carries a row for each KNOWN transitive port, so the
+    // no-GPL rule is enforced in both configurations.
+    if (!inputs.vcpkgInstalledDir.empty()) {
+        std::vector<std::string> alreadyKnown;
+        alreadyKnown.reserve(manifest.dependencies.size());
+        for (const Dependency& dep : manifest.dependencies) alreadyKnown.push_back(dep.name);
+
+        const fs::path shareDir = inputs.vcpkgInstalledDir / "share";
+        std::error_code ignored;
+        if (fs::is_directory(shareDir, ignored)) {
+            // Sorted, so the report and THIRD-PARTY.md do not reorder themselves between runs on
+            // filesystems that enumerate differently.
+            std::vector<std::string> found;
+            for (const auto& entry : fs::directory_iterator(shareDir, ignored)) {
+                if (!entry.is_directory()) continue;
+                const std::string port = entry.path().filename().string();
+                // Only directories carrying an SBOM are packages. vcpkg also drops alias and
+                // documentation directories in here (`jpeg`, `png`, `man`, `doc`), and counting
+                // those as components would put four licence-less rows in the report.
+                if (!fs::exists(entry.path() / "vcpkg.spdx.json")) continue;
+                if (std::find(alreadyKnown.begin(), alreadyKnown.end(), port) != alreadyKnown.end())
+                    continue;
+                found.push_back(port);
+            }
+            std::sort(found.begin(), found.end());
+
+            for (const std::string& port : found) {
+                Dependency dep;
+                dep.name = port;
+                dep.origin = "vcpkg";
+                // Named rather than left blank: a reader of the report has to be able to tell a
+                // port we chose from one that arrived with something else, because the two have
+                // different answers to "can we drop it".
+                dep.featureGroup = "(transitive)";
+                dep.active = true;      // it is in the installed tree, so it is in this build
+
+                SbomFacts facts;
+                if (readSbom(inputs.vcpkgInstalledDir, port, facts)) {
+                    dep.version = facts.version;
+                    dep.spdx = facts.spdx;
+                    dep.upstream = facts.downloadLocation;
+                    dep.hasNotice = hasNoticeFile(inputs.vcpkgInstalledDir, port);
+                    dep.noticeChecked = true;
+                }
+                auto it = overrides.find(port);
+                if (it != overrides.end()) {
+                    // The map still wins on licence. vcpkg concludes `LicenseRef-vcpkg-null` for
+                    // liblzma -- it could not determine one -- and an unverified marker must never
+                    // become an allowlist hit.
+                    if (!it->second.spdx.empty()) dep.spdx = it->second.spdx;
+                    if (!it->second.upstream.empty()) dep.upstream = it->second.upstream;
+                    dep.sourceOffer = it->second.sourceOffer;
+                    dep.election = it->second.election;
+                    dep.noticeRequired = it->second.noticeRequired;
+                }
+                manifest.dependencies.push_back(std::move(dep));
+            }
+        }
+    }
+
     // Components that never appear in vcpkg.json because they do not come from vcpkg:
     // Qt, the GCC and mingw-w64 runtimes, the prebuilt PDFium DLL, WiX. They are shipped,
     // so they are audited -- the GCC runtime especially, since it is the one GPL-family

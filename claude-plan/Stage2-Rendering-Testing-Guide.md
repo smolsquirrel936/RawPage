@@ -10,15 +10,17 @@
 > **78 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02 — and **A-76 … A-78**
 > added at T4, because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13, A-15 … A-17 and A-76 … A-78 are green**, **A-27 is CLOSED** (T6 took
+> **A-01, A-03, A-05 … A-13, A-15 … A-23, A-75 … A-78 are green**, **A-27 is CLOSED** (T6 took
 > the expected target count from 1 to 2) and
 > **A-46 is partly green** — every other box is still ☐. **Three are Linux jobs this machine cannot
 > run and none should be read as merely pending: A-04**, and **A-25** and **A-26**, whose targets
-> both exist but have never been linked or run because there is no clang here.
+> both exist but have never been linked or run because there is no clang here. **A-24 joins them at
+> T8** — the ASan corpus run is the same Linux job.
+> **The Stage 2 exit criterion (A-21) is met on Windows as of T8** and is owed its ASan half.
 > **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through in the same change. The
-> issue log holds five entries. **I-01** (S3) — two
+> issue log holds six entries. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
@@ -29,7 +31,11 @@
 > eighteen referenced keys have no entry. **I-05** (S2, open, T11) — **PDFium cannot be called from
 > two threads at once**, so D2-9's per-worker thread confinement is not sufficient and D10's worker
 > pool cannot be eight PDFium threads. Found by the T3 probe on its first run, which is what that
-> probe is for.
+> probe is for. **I-06** (S3, open, added at T7) — a **scope finding rather than a defect**:
+> `/JBIG2Decode` is declared and decodes nothing, because the only usable library is AGPL-3.0 (D4
+> forbids it), the corpus has no JBIG2 file, and nothing in Stage 2 would call it — which is D2-4's
+> own argument for `CryptFilter`. It refuses under its own catalog key rather than returning a blank
+> image. `/CCITTFaxDecode` with `K > 0` is the smaller half: implemented, and with no fixture.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -551,7 +557,7 @@ interrupted run cannot leave the real corpus damaged.
 them would go red to tell you.
 
 **A-75 · `license-audit` sees the RESOLVED closure, not just the declared manifest**
-☐ **Goal** I-02. Added 2026-08-31, after the guide was written, when P-3's dry-run showed the
+🟡 **T7's half done 2026-09-04; `text`'s ports are T16's** **Goal** I-02. Added 2026-08-31, after the guide was written, when P-3's dry-run showed the
 `codecs` and `text` features pull in four ports `vcpkg.json` never names.
 **Steps** With both features active, list the resolved closure
 (`vcpkg install --dry-run --x-feature=codecs --x-feature=text --triplet x64-mingw-dynamic`), then run
@@ -560,6 +566,29 @@ them would go red to tell you.
 `brotli` (MIT), `bzip2` (`bzip2-1.0.6`), `liblzma` (0BSD) and `libiconv` (**LGPL-2.1-or-later**) —
 because `Inventory.cpp` builds its list from `vcpkg.json`'s `dependencies` and `features` arrays plus
 the non-vcpkg overrides, and never enumerates what vcpkg actually installs.
+**Result 2026-09-04 (T7)** **The inventory change is done, and it is the half I-02 called "the real
+one".** `Inventory.cpp` now enumerates `share/*/vcpkg.spdx.json` in the installed tree and adds every
+port the manifest never named, marked `(transitive)`. An installed tree **is** the closure — vcpkg
+writes an SBOM for every package it actually installed — so the fix reads what we ship rather than
+maintaining a second hand-kept list of what depends on what, which would be one more thing to drift.
+Only directories carrying an SBOM count, which filters vcpkg's alias and documentation directories
+(`jpeg`, `png`, `man`, `doc`) that would otherwise appear as four licence-less components.
+**Measured:** `checks` went from **17 components to 20** — `liblzma` plus the two `vcpkg-cmake` host
+ports, none of which any previous run had a verdict on. `liblzma` is the one that needed a decision:
+vcpkg concludes `LicenseRef-vcpkg-null` for it, so the **map** supplies `0BSD`, verified against XZ
+Utils 5.8.3's own `COPYING`. `0BSD` joined the allowlist and `Tech-Stack-Plan.md` §8.2 in the same
+change, as that list's own comment requires.
+**With NO installed tree the loop does nothing, and that is correct rather than a gap**: the CI
+`gates` job has no vcpkg (D0-1) and still fails on a bad licence, from the map — which is why the map
+carries a row for each known transitive port.
+**Two new gate cases with a real control:** `gates.license_audit.undeclared_transitive_gpl` puts a
+GPL-3.0-only port in a fixture tree that the manifest never names and requires exit 1;
+`…_permissive` does the same with an MIT port and requires exit 0 **and a component count of 1**,
+because a control that only checked exit 0 would pass against a tool that failed on any installed
+tree at all. Before the change that count was 0.
+**Still open, and owned by T16:** `brotli`, `bzip2` and `libiconv` arrive with the **`text`**
+feature, which this stage does not switch on — so they are still invisible here. `libiconv` is the
+one that matters: LGPL-2.1-or-later, with a source-offer obligation nobody has recorded.
 **If it fails** S2. **Not because anything here is GPL** — none of the four is — but because
 [`CLAUDE.md`](../CLAUDE.md) and `Tech-Stack-Plan.md` §8.2 both describe this gate as *what
 mechanically enforces the no-GPL rule*, and a gate that audits what we **wrote down** rather than what
@@ -623,47 +652,152 @@ has no `endstream` at all, so the data runs to the end of the file under its own
 exactly this case and its too-long twin, and nothing else. **If it fails** S2.
 
 **A-18 · `tst_cos_filters` — each of the nine round-trips**
-☐ **Steps** `ctest -R unit.cos.filters`
+✅ **2026-09-04 (T7), with a correction to the case itself** **Steps** `ctest -R unit.cos.filters`
 **Expect** `Flate`, `LZW`, `Ascii85`, `AsciiHex`, `RunLength`, `Dct`, `Jpx`, `Ccitt`, `Jbig2` — each
 `encode`→`decode` returns the input exactly, and each `decode` of a corpus-sourced stream matches its
-expected bytes. **If it fails** S2.
+expected bytes.
+**THE CASE AS WRITTEN ASKS FOR SOMETHING THREE OF THE NINE CANNOT DO, and that is a defect in this
+guide rather than in the code.** `encode`→`decode` returning the input exactly is **not a property
+JPEG or JPEG 2000 has** — both are lossy by construction — and CCITT and JBIG2 are decode-only this
+stage (D2-4 makes `pdf/cos/` a READER). Written before the code, the criterion read as uniform; it
+is not. Corrected here rather than quietly narrowed (`Stage2-Rendering-Plan.md` §12), and the
+correction is **structural**: `isLossless(FilterKind)` lives in `pdf/cos/filters/Filter.h`, the
+round-trip case iterates it rather than a list the test keeps in its own head, and a companion case
+asserts that the other four **refuse to encode by name**. Adding a tenth filter cannot silently
+escape either half.
+**Result 2026-09-04** **13 cases green** on both Windows presets. The five lossless filters
+round-trip over nine payload shapes plus 9,000 bytes of pseudo-noise chosen to push LZW past its
+9-bit boundary. The corpus decodes are **exact, not structural**, wherever the generator's bitmap is
+a closed-form expression — `image-lzw-ascii85.pdf`'s chained `[/ASCII85Decode /LZWDecode]` gradient,
+its `/RunLengthDecode` twin, and `image-flate-predictor.pdf`'s PNG-Up photograph are all recomputed
+here and compared byte for byte. **The two CCITT files are compared BOTH ways**: against each other
+(the same bitmap through one-dimensional and two-dimensional coding — two independent decoder paths,
+one expected answer) *and* against the reproduced bitmap, because the cross-check alone has a blind
+spot that was measured rather than reasoned about — `/BlackIs1` is a polarity, and inverting it
+inverts both files identically, so two decoders that agreed with each other would both have been
+producing a photographic negative.
+**Four negative controls were run:** breaking LZW's EarlyChange boundary reddened the corpus chain
+and the round-trip; inverting `/BlackIs1` reddened the CCITT case **only after** the exact
+comparison was added, which is what established the blind spot was real; truncating a stream span
+and trusting `/Length` blindly reddened their own cases (T6's).
+**If it fails** S2.
 
 **A-19 · `CryptFilter` is absent, deliberately**
-☐ **Goal** D2-4. **Steps** `ls pdf/cos/filters/`.
-**Expect** Nine files, no `CryptFilter`. **If it fails** — that is, if it *exists* — S3 and a scope
+✅ **2026-09-04 (T7)** **Goal** D2-4. **Steps** `ls pdf/cos/filters/`.
+**Expect** Nine files, no `CryptFilter`.
+**Result 2026-09-04** Asserted in `tst_cos_filters` over the FILTER LIST rather than by counting
+files, and the difference matters: `Filter.{h,cpp}` is the registry, the `DecodeParms` and the
+predictor Flate and LZW share — it is not a tenth filter, and a file count would have to be told to
+ignore it and would then ignore a real tenth filter too. The case checks all nine kinds resolve from
+both their full names and their ISO 32000-1 table 6 abbreviations, that each has its own translation
+unit, that `CryptFilter.{h,cpp}` do not exist, and that `/Crypt` is reported under **its own catalog
+key** rather than as an unknown filter — "unknown filter" sends a reader looking for a typo, and
+`/Crypt` should send them to Stage 10.
+**If it fails** — that is, if it *exists* — S3 and a scope
 finding: a crypt filter with no `StandardSecurityHandler` (Stage 10) has no key to decrypt with, so it
 cannot have been tested and will be rewritten.
 
 **A-20 · `tst_xreftable` walks a three-generation incremental file**
-☐ **Steps** `ctest -R unit.cos.xref`
+✅ **2026-09-04 (T7)** **Steps** `ctest -R unit.cos.xref`
 **Expect** Classic tables and xref streams both; the `/Prev` chain resolved across three incremental
 updates, with the newest generation of each object winning; the trailer read.
+**Result 2026-09-04** **14 cases green** on both Windows presets. Over
+`corpus/ordinary/incremental-3gen.pdf`: three sections newest-first, and the property that matters
+asserted **by revision** rather than by counting sections — object 6 comes from revision 0, object 3
+from revision 1, object 1 from revision 2, and every live object fetches to itself. Reversing the
+rule reads a document as it was two saves ago **with no error anywhere**, which is why the case names
+the numbers.
+Cross-reference **streams** are covered by `objstm-xrefstream.pdf`, a file with no classic table
+anywhere — and it is where **T6's deliberately open seam closes**: its `/Type /XRef` stream is
+`/FlateDecode`d, so nothing could read it until T7's filters existed, and its type-2 entries are
+objects that exist only inside a compressed container. The merged trailer takes each key from the
+newest section carrying it, because a file whose last revision omits `/Root` must still resolve.
+**Negative control run:** changing the merge from first-wins to last-wins (that is, letting the
+OLDEST revision win) reddened exactly this case and nothing else.
 **If it fails** S1 — Stage 3's incremental writer appends to exactly this structure.
 
 **A-21 · Every `corpus/malformed/` file yields a report and never a crash — the exit criterion**
-☐ **Steps** `ctest -R unit.cos.repair`, iterating the whole directory.
+✅ **2026-09-04 (T8) on Windows; its ASan half is A-24 and is unrun**
+**Steps** `ctest -R unit.cos.repair`, iterating the whole directory.
 **Expect** For every file: a `Result` that is either success-with-a-`RepairReport` or a **named**
 failure. No crash, no hang, no assertion, no unbounded allocation.
+**Result 2026-09-04** **12 cases green.** All 24 malformed files go through `openWithRepair()` — the
+single entry point T9 will call, deliberately the only one, so that "open a document" is one code
+path whether or not the file is damaged. Every file yields a table and a report or an
+`Unsupported`/`ParseFailure` carrying a catalog key; none crashes and none hangs.
+The three forbidden outcomes are each asserted where they live rather than inferred from the suite
+finishing: the **two hang fixtures** (`circular-prev.pdf`, `pages-loop.pdf`) are named individually
+so a red run says which property broke; the **two resource fixtures**
+(`huge-length-claim.pdf`'s `/Length 4294967295` in a 10 KB file, `deep-nesting.pdf`'s 4,000 levels)
+are checked by asserting every recovered stream span fits inside the file. The first case in the
+suite is the NEGATIVE one — every `ordinary/` file must come back **un-repaired** — because the
+easiest way to satisfy this criterion by accident is to rebuild everything on open, which would also
+make A-22's ratio 1.0 for every document ever opened.
+**Caveat worth reading with a red run:** a hang would surface as a CTest **timeout**, not as a named
+failure. There is no in-process watchdog.
+**Negative control run:** forcing the repairer to skip its "the file's own structures work" fast path
+reddened the un-repaired control immediately.
 **If it fails** S1 — this is the criterion the malformed corpus exists for.
 
 **A-22 · `RepairReport` says how much was reconstructed, not merely that it was**
-☐ **Goal** `Stage2-Rendering-Plan.md` §5.4 — Stage 3 forces a repaired file's first save to Save-As,
-and *"reconstructed 3 objects of 4,000"* and *"reconstructed the entire xref"* are different risks.
+✅ **2026-09-04 (T8)** **Goal** `Stage2-Rendering-Plan.md` §5.4 — Stage 3 forces a repaired file's
+first save to Save-As, and *"reconstructed 3 objects of 4,000"* and *"reconstructed the entire xref"*
+are different risks.
 **Steps** Two malformed fixtures at those two extremes.
 **Expect** Per-object entries with severity, and a summary a message bar can render in one line.
+**Result 2026-09-04** The two extremes are `xref-missing.pdf` (nothing to start from — every object
+found by scanning, `xrefRebuiltFromScratch()` true, summary key `error.repair.wholeXref`) and
+`xref-offsets-short.pdf` (offsets twelve bytes short from object 4 onward, so the early entries are
+fine — patched rather than rebuilt, `error.repair.objects` with **both** halves of the ratio). A
+repairer that rebuilt everything would report the two identically, which is the outcome §5.4 exists
+to prevent; the distinction is recorded as an explicit flag rather than inferred from the ratio,
+because a two-object file rebuilt from nothing and a two-object file with two bad offsets both have
+a ratio of 1.0.
+**The summary is a CATALOG KEY plus arguments, never a sentence**, and that is asserted structurally
+over every corpus file: `core/` holds no user-facing English and has no `tr()`, so an English summary
+returned from this layer would be the single change that makes the product unshippable in `zh-TW`
+while looking entirely reasonable in review. The case checks the key has no spaces, is one of the
+four declared families, and carries exactly the arguments its `%1`/`%2` need.
+**One finding, fixed in the same change:** `root-points-at-nothing.pdf` came back marked repaired
+with an **empty report** — the trailer named a `/Root` that is not in the file, and the code asked
+"is there a `/Root`?" rather than "does it resolve?". Repaired-with-nothing-to-show is the one
+combination this case forbids, since it tells the user nothing.
 **If it fails** S2 — Stage 3 inherits a boolean and cannot make the decision the convention requires.
 
 **A-23 · The COS reader declines an encrypted file by name**
-☐ **Goal** D2-6. **Steps** Parse `corpus/encrypted/*.pdf` through `pdf/cos/Parser`.
+✅ **2026-09-04 (T8)** **Goal** D2-6. **Steps** Parse `corpus/encrypted/*.pdf` through the COS reader.
 **Expect** A named `Result` error meaning *encrypted, handler arrives at Stage 10* — **not** a parse
-failure, not a partial parse, not a crash. **If it fails** S2: two parsers reaching different
+failure, not a partial parse, not a crash.
+**Result 2026-09-04** All five encrypted fixtures (revisions 2/3/4/6) are declined by
+`openWithRepair()` with `error.pdf.encrypted` and — the half that matters as much as the key — the
+code **`Unsupported`, not `ParseFailure`**. `Unsupported` says *this file is fine and this build
+cannot read it*; `ParseFailure` would say *this file is damaged* and would send the repair path, and
+a caller, down entirely the wrong road. The check sits **before** the repair path for that reason.
+It is knowable early because `/Encrypt` is a trailer key and the cross-reference structure itself is
+never encrypted, so `XrefTable::isEncrypted()` answers before any string is touched. **The control**
+is an unencrypted file that must still open, without which the case is satisfied by a reader that
+declines everything.
+**Deviation from the steps as written:** they say *"through `pdf/cos/Parser`"*, and the check lives
+one layer up, on the table. The parser sees objects, not trailers, so it is not where the question
+can be asked — the wording predates the layering and the behaviour is the one D2-6 specifies.
+**If it fails** S2: two parsers reaching different
 conclusions about one protected file is a class of bug that is very hard to see.
 
 **A-24 · `portable-asan` over the whole corpus parse — clean**
-☐ **Goal** Half of O10. **Steps** On the Linux job, run the COS suites over every corpus file under
+☐ **THE SUITES EXIST AS OF T8; THIS IS A LINUX JOB, like A-04, A-25 and A-26.**
+**Goal** Half of O10. **Steps** On the Linux job, run the COS suites over every corpus file under
 ASan+UBSan.
 **Expect** No finding. **A finding here is reproduced in `x64-debug` before it counts as fixed**
-(convention 11's corollary). **If it fails** S1.
+(convention 11's corollary).
+**State 2026-09-04** The suites this case runs — `unit.cos lexer`, `unit.cos parser`,
+`unit.cos filters`, `unit.cos xref`, `unit.cos repair` — are all green on Windows over the whole
+corpus. **That is not this case.** Running these files under `x64-debug` proves they terminate and
+produce the right answers; it proves nothing about a read one byte past a buffer, which is exactly
+what ASan exists to find and what MinGW GCC cannot provide (risk R7). **`pdf/cos/` links zlib,
+libjpeg-turbo and openjpeg as of T7**, so the portable presets now pull the `codecs` feature on
+Linux too — `VCPKG_MANIFEST_FEATURES` is set for `_portable` as well as `_windows`, and the first
+`portable-asan` run after T7 is the first evidence that resolution works on `x64-linux`.
+**If it fails** S1.
 
 ### 5.4 Fuzzing — the preset's first real targets
 
@@ -1219,11 +1353,12 @@ document means **Stage 1's**, and says so where it appears.
 | # | Sev | Title | State |
 |---|---|---|---|
 | **I-01** | S3 | **`Architecture-FileMap.md` disagreed with `Implementation-Plan.md` about which stage owns the `pdf/cos/` reader, and about three `core/doc/` vocabulary types.** All six COS reader rows (fifteen files) were tagged ○ (S3) while Stage 2's component list claims them and Stage 3's does not; `Revision.h`, `Scope` and `Page` were tagged ○ (S3) while their **own** *Interacts with* column names Stage 2 consumers (`RenderCache`, `TileGrid`). Found while writing this guide's §4 manifest, by checking each path against the map rather than by running anything — which is the method Stage 1's I-31 and I-32 also came from. `Implementation-Plan.md` owns stage ordering, so the FileMap is the document that was wrong. **Confirmed with the user 2026-08-31** and corrected in the same change as this guide, along with `PageTree`'s split tag `○ (S2 read, S3 edit)` following `Outline`'s existing precedent. **A third instance surfaced while verifying this guide's §4 manifest against the map**, and it is the same root cause once more: `tests/fuzz/` was tagged ○ (S3) **and listed among Stage 3's components**, though a fuzz target over `pdf/cos/Lexer` and `Parser` cannot exist before those files do — and `CMakePresets.json`'s `portable-fuzz` description has said *“NO TARGETS EXIST until Stage 2”* since Stage 0. **The build system was right and two documents were wrong.** Moved to Stage 2 T5/T6; cases **A-25 … A-27** are written against it. The related filter-count disagreement — ten in the FileMap, nine in the plan — is resolved by **D2-4**: `CryptFilter` goes to Stage 10 with the security handlers it needs a key from. **The lesson is the one Stage 1's I-31 and I-32 already taught: a document set this size drifts in the places nobody executes**, and the only thing that finds it is checking each claim against its owner rather than reading for sense. | ✅ **Closed 2026-08-31** |
-| **I-02** | S2 | **`license-audit` inventories the DECLARED manifest, not the RESOLVED closure — so four libraries Stage 2 links are invisible to the licence gate.** Found 2026-08-31 by running precondition **P-3**'s dry-run, which was in the plan only because writing it raised the question of whether two features declared at Stage 0 and never built still resolve. They do — `codecs`, `text` and both together all exit 0 on `x64-mingw-dynamic`, against Qt's own pinned `x86_64-w64-mingw32-g++`. **The resolution was never the risk; the closure was.** `freetype` pulls `brotli` and `bzip2`, `tiff` pulls `liblzma`, and — **measured with `vcpkg depend-info` on 2026-08-31, after this entry first mis-attributed it to `icu`** — **`hunspell` pulls `libiconv`**, and is its only parent. `icu` depends on neither — and none of the four appears in `vcpkg.json`, so `Inventory.cpp`'s `addPort` is never called for them: it iterates `root["dependencies"]`, `root["features"][*]["dependencies"]` and the non-vcpkg `overrides` map, and that is the whole of its input. It *does* read each port's SBOM, but only for ports it already knows to ask about — which is precisely backwards for a closure. **Nothing found is GPL**, so there is no breach today: `brotli` is MIT (already allowlisted), `bzip2` is `bzip2-1.0.6` and `liblzma` is 0BSD — both permissive, neither on `Tech-Stack-Plan.md` §8.2's allowlist — and **`libiconv` is GNU libiconv, LGPL-2.1-or-later**, which D4 permits but which carries an election and a **source-offer obligation** of the same shape as Qt's and Hunspell's, and nobody has recorded one. S2 rather than S3 because the gate's documented claim is broader than its behaviour and three later stages build on that claim: Stage 10 adds OpenSSL, Stage 16 adds tesseract and leptonica, and Stage 15's release compliance gate *is* this tool. **The allowlist rows are the cheap half; the inventory change is the real one.** Owned by **T7** (the map entries arriving with `codecs`) and **T16** (`text`, and `libiconv`'s source offer), with **A-75** as the case. Whether `libiconv` reaches the shipped DLL set is confirmed at T16 with `objdump -p` — the dry-run proves it enters the tree, which is not quite the same claim. **Licences verified 2026-08-31**, against each port's manifest, its `portfile.cmake` copyright block, and upstream licence text — not from memory. **`brotli` 1.2.0 = MIT** (upstream `LICENSE`, standard MIT text; already on the allowlist). **`bzip2` 1.0.8 = `bzip2-1.0.6`** (BSD-style permissive, no copyleft, no source-disclosure obligation; retain the notice, no endorsement). **`liblzma` 5.8.3 = `0BSD`** for the library itself — XZ Utils' own `COPYING` at v5.8.3 says *“liblzma is under the BSD Zero Clause License”*, while the `xzgrep`/`xzdiff` **scripts** are GPLv2+ and parts of the build system are GPLv2+/GPLv3+; the port ships the library, so none of that is linked. Both identifiers are **absent from `Tech-Stack-Plan.md` §8.2's allowlist** and must be added. ⚠️ **`libiconv` 1.19 is the one that is not simply a missing row — and `depend-info` moved it out of Stage 2's reach.** Its **only** parent is `hunspell`, the spell checker, which nothing before **Stage 13** links; `vcpkg.json`'s `text` feature is a group spanning *“Stages 2, 5, 13”* by its own description, so T16 turning it on **builds** hunspell, icu and libiconv while Stage 2 links only freetype. **Built is not linked**, so Stage 2 most likely incurs no LGPL obligation at all here — which T16's `objdump -p` settles either way, and is exactly why that check is in the task rather than assumed. The licence facts below stand regardless, and become live at Stage 13. Its vcpkg manifest declares `license: null` — vcpkg's marker for *not expressible as one SPDX expression* — and the portfile says why, verbatim: *“The libiconv and libcharset libraries and their header files are under **LGPL**, see COPYING.LIB… The **iconv program** and the documentation are under **GPL**, see COPYING.”* So the package is **split**: the part we link is **LGPL-2.1-or-later**, which D4 permits and which needs the Qt/Hunspell treatment — an election, dynamic linking, a user-replaceable binary and a **corresponding-source offer**, none of which exists. The part we do **not** link is **GPL**, and the portfile's `vcpkg_make_install()` plus `vcpkg_copy_tool_dependencies(…/tools/libiconv/bin)` means **a GPL `iconv.exe` is installed into the vcpkg tree**. **That is not a breach and Stage 2 does not package anything** — it is a build-tree artifact, and D4 forbids a GPL *dependency*, not a GPL binary sitting in a toolchain directory. **It becomes one the moment anything sweeps `installed/<triplet>/tools/` into an installer, which is Stage 15's MSI/MSIX work.** Recorded here rather than deferred silently, because the packaging stage will not rediscover it. | 🟡 **Open** — raised 2026-08-31, licences verified the same day, owned by T7/T16 (the map entries and the inventory fix) with the GPL-tool exclusion flagged forward to **Stage 15** |
+| **I-02** | S2 | **`license-audit` inventories the DECLARED manifest, not the RESOLVED closure — so four libraries Stage 2 links are invisible to the licence gate.** Found 2026-08-31 by running precondition **P-3**'s dry-run, which was in the plan only because writing it raised the question of whether two features declared at Stage 0 and never built still resolve. They do — `codecs`, `text` and both together all exit 0 on `x64-mingw-dynamic`, against Qt's own pinned `x86_64-w64-mingw32-g++`. **The resolution was never the risk; the closure was.** `freetype` pulls `brotli` and `bzip2`, `tiff` pulls `liblzma`, and — **measured with `vcpkg depend-info` on 2026-08-31, after this entry first mis-attributed it to `icu`** — **`hunspell` pulls `libiconv`**, and is its only parent. `icu` depends on neither — and none of the four appears in `vcpkg.json`, so `Inventory.cpp`'s `addPort` is never called for them: it iterates `root["dependencies"]`, `root["features"][*]["dependencies"]` and the non-vcpkg `overrides` map, and that is the whole of its input. It *does* read each port's SBOM, but only for ports it already knows to ask about — which is precisely backwards for a closure. **Nothing found is GPL**, so there is no breach today: `brotli` is MIT (already allowlisted), `bzip2` is `bzip2-1.0.6` and `liblzma` is 0BSD — both permissive, neither on `Tech-Stack-Plan.md` §8.2's allowlist — and **`libiconv` is GNU libiconv, LGPL-2.1-or-later**, which D4 permits but which carries an election and a **source-offer obligation** of the same shape as Qt's and Hunspell's, and nobody has recorded one. S2 rather than S3 because the gate's documented claim is broader than its behaviour and three later stages build on that claim: Stage 10 adds OpenSSL, Stage 16 adds tesseract and leptonica, and Stage 15's release compliance gate *is* this tool. **The allowlist rows are the cheap half; the inventory change is the real one.** Owned by **T7** (the map entries arriving with `codecs`, **and the inventory change itself**) and **T16** (`text`, and `libiconv`'s source offer), with **A-75** as the case. **T7 did the inventory change on 2026-09-04**: the audit now enumerates the installed tree's SBOMs and the component count went 17 → 20, picking up `liblzma` (mapped to `0BSD`, since vcpkg concludes `LicenseRef-vcpkg-null`) and the two `vcpkg-cmake` host ports. Two gate cases with a control prove the enumeration fires and does not simply fail on every tree. Whether `libiconv` reaches the shipped DLL set is confirmed at T16 with `objdump -p` — the dry-run proves it enters the tree, which is not quite the same claim. **Licences verified 2026-08-31**, against each port's manifest, its `portfile.cmake` copyright block, and upstream licence text — not from memory. **`brotli` 1.2.0 = MIT** (upstream `LICENSE`, standard MIT text; already on the allowlist). **`bzip2` 1.0.8 = `bzip2-1.0.6`** (BSD-style permissive, no copyleft, no source-disclosure obligation; retain the notice, no endorsement). **`liblzma` 5.8.3 = `0BSD`** for the library itself — XZ Utils' own `COPYING` at v5.8.3 says *“liblzma is under the BSD Zero Clause License”*, while the `xzgrep`/`xzdiff` **scripts** are GPLv2+ and parts of the build system are GPLv2+/GPLv3+; the port ships the library, so none of that is linked. Both identifiers are **absent from `Tech-Stack-Plan.md` §8.2's allowlist** and must be added. ⚠️ **`libiconv` 1.19 is the one that is not simply a missing row — and `depend-info` moved it out of Stage 2's reach.** Its **only** parent is `hunspell`, the spell checker, which nothing before **Stage 13** links; `vcpkg.json`'s `text` feature is a group spanning *“Stages 2, 5, 13”* by its own description, so T16 turning it on **builds** hunspell, icu and libiconv while Stage 2 links only freetype. **Built is not linked**, so Stage 2 most likely incurs no LGPL obligation at all here — which T16's `objdump -p` settles either way, and is exactly why that check is in the task rather than assumed. The licence facts below stand regardless, and become live at Stage 13. Its vcpkg manifest declares `license: null` — vcpkg's marker for *not expressible as one SPDX expression* — and the portfile says why, verbatim: *“The libiconv and libcharset libraries and their header files are under **LGPL**, see COPYING.LIB… The **iconv program** and the documentation are under **GPL**, see COPYING.”* So the package is **split**: the part we link is **LGPL-2.1-or-later**, which D4 permits and which needs the Qt/Hunspell treatment — an election, dynamic linking, a user-replaceable binary and a **corresponding-source offer**, none of which exists. The part we do **not** link is **GPL**, and the portfile's `vcpkg_make_install()` plus `vcpkg_copy_tool_dependencies(…/tools/libiconv/bin)` means **a GPL `iconv.exe` is installed into the vcpkg tree**. **That is not a breach and Stage 2 does not package anything** — it is a build-tree artifact, and D4 forbids a GPL *dependency*, not a GPL binary sitting in a toolchain directory. **It becomes one the moment anything sweeps `installed/<triplet>/tools/` into an installer, which is Stage 15's MSI/MSIX work.** Recorded here rather than deferred silently, because the packaging stage will not rediscover it. | 🟡 **Open** — raised 2026-08-31, licences verified the same day, owned by T7/T16 (the map entries and the inventory fix) with the GPL-tool exclusion flagged forward to **Stage 15** |
 | **I-03** | S3 | **Three signatures this document set had written for Stage 2 name `QImage`, and none of them could have been built as written.** `Implementation-Plan.md` § Stage 2's component list gives `PdfiumRasterizer` `Result<QImage> raster(const RenderRequest&)`, `RenderCache` `std::optional<QImage> lookup(...)` and `RenderScheduler` `Signal<RenderRequest, QImage> ready` — but `IPageRasterizer` is declared in `core/backend.h`, `RenderCache` and `RenderScheduler` are `core/render/`, and **`core/` may not name a QtGui type**: it links `Qt6::Core` only, `layer-lint`'s `core` layer has listed `QImage` in `denyExternal` since Stage 0, and CLAUDE.md convention 3 is the standing rule (it is why `core/cmd/Chord` is first-party rather than a `QKeySequence`). Found at **T1**, by writing the interface the list describes. **Not a conflict anyone had to adjudicate**: plan **D2-9** already says the tile pipeline carries *buffers and callbacks only*, so the component sketch was the loose statement of a settled rule rather than a rival decision. Fixed in `core/backend.h` with `core::RasterImage` — width, height, **stride**, pixel format and bytes, with the stride carried rather than computed because a rasterizer may align its rows and a consumer assuming `width * 4` on a padded buffer draws diagonal garbage. `ui/` wraps those bytes in a `QImage` at the far side, where QtGui is allowed, and the wrap is free: both formats are the little-endian BGRA layout `QImage::Format_ARGB32` and `Format_RGB32` consume. `Implementation-Plan.md`'s three rows were corrected in the same change. **T10 and T11 inherit the correction**, and **A-44 is unaffected** — the raster suite links `rawpage_pdfium` and may hold a `QImage` of its own. S3 because it was a documentation slip that the gate would have caught the moment anyone typed it. | ✅ **Closed 2026-09-01** at T1, in the header that declares the interface | 
 
 | **I-04** | S3 | **Nothing compares a catalog key a source REFERENCES against the catalogs, and eighteen referenced keys have no entry.** Found at T2 the moment the engine layer named its first key: `error.engine.initFailed` was reported as an `orphan-key` — a key nothing references — while being referenced by the file that had just been written, because `pdf/` was not in `i18n-lint`'s `scannedPaths`. Neither was `platform/`, which names **eleven** keys. **Fixing the paths was the easy half and it is done** (`pdf/` and `platform/` added; the gate went from 79 files to 90 and the false note is gone). **The real half is that no rule asks the question at all**: `missing-key` compares the shipped catalogs *against each other*, `action-label` covers `action.*` from `ActionId.def`, and `orphan-key` is the INVERSE — a catalog key nothing references — so a key a source names and no catalog defines is invisible from both directions. Measured 2026-09-01 by diffing every quoted `error.*`/`shell.*`/`ribbon.*`/`prefs.*` literal in `core/`, `ui/`, `app/`, `pdf/` and `platform/` against `rawpage_en.ts`: **eighteen** are missing — `error.action.{unknown,unavailable,alreadyRegistered,noHandler}` and `error.shortcut.{unknownAction,invalidChord,widgetNative}` from **`core/`, which has been scanned since T6**, plus `error.shell.*` (3) and `error.singleInstance.*` (8) from `platform/`. **Latent today rather than visible**: only `error.open.*` and `error.customization.*` currently reach a surface, and both exist — an unresolved key would render as its own key text, which is what makes this S3 now and **S2 the moment `MessageBar` starts showing engine errors**. Owned by **T14**, which builds that surface, with **A-14** as its case; the fix is an `unknown-key` rule keyed on the declared catalog families (so `settings.ini` and `pdfium.dll` are not mistaken for keys) plus the eighteen rows. **Not fixed at T2 on purpose**: writing eighteen error messages in two locales is a design act that belongs with the surface that shows them, and T2 is the engine boundary. | 🟡 **Open** — the scanned-path half fixed 2026-09-01; the rule and the eighteen keys owned by **T14** |
 | **I-05** | S2 | **PDFium cannot be called from two threads at once, and per-document confinement does not help — so D2-9's “thread-confined per worker” is false and D10's “worker pool” cannot be eight PDFium threads.** Found at **T3**, by the A2 probe, on its first run — which is the entire argument for measuring early rather than after T13. Eight workers, **each with its own `FPDF_DOCUMENT` and its own `FPDF_PAGE`**, crash. Measured by walking the worker count rather than asserted: **1 worker exits 0; 2, 4 and 8 all die with `STATUS_HEAP_CORRUPTION` (0xC0000374)** inside the render call, and before the pages were preloaded they died inside `FPDF_LoadPage` (stack captured under `gdb`). What PDFium shares between threads is **process-global** — its font mapper and glyph caches — not per-document, so confining a document to a worker confines the wrong thing. Reproducible on demand: `rawpage_bench_render.exe 8 --unsafe-parallel`, because a finding that needs a source edit to reproduce is one that gets re-litigated. **A2 IS UNAFFECTED AND IS `go`**: the constraint is a throughput ceiling, not a latency one — per-tile p95 is 0.532 ms against a 16.667 ms budget, and eight workers behind one engine lock retire **1.05×** the tiles per second of one worker. The engine is fast; it is simply not parallel. **What D10 actually promises is untouched** — *the UI thread never parses or rasterizes* — and two arrangements keep it: **one render thread with a queue**, or **N workers serialized on one engine lock**. Neither is chosen here, deliberately: that is `RenderScheduler`'s shape and it belongs to **T11**, with **A-45** as its case and **D2-9**'s wording to be corrected in the same change. Also flagged forward: **T16**'s font work and **Stage 5**'s text extraction inherit the same constraint, since both call the engine from the same global state. | 🟡 **Open** — raised 2026-09-01 at T3, owned by **T11**, which must choose the arrangement and correct D2-9 |
+| **I-06** | S3 | **`/JBIG2Decode` is DECLARED AND DECODES NOTHING, and `/CCITTFaxDecode` with `K > 0` is implemented against no fixture.** Two gaps in T7's nine filters, raised by building them rather than by running anything. **JBIG2 is the substantive one, and three facts forced it, each established rather than assumed.** (1) **There is no permissible library**: the one usable open-source JBIG2 decoder is Ghostscript's `jbig2dec`, which is **AGPL-3.0** — `Tech-Stack-Plan.md` **D4** forbids any GPL or AGPL dependency outright and `license-audit` enforces it mechanically, so linking it is a build failure rather than a trade-off to weigh. PDFium has its own decoder and is behind the `FPDF_` boundary `layer-lint` forbids `pdf/cos/` from crossing (D2-9), which is half of D3. (2) **There is no corpus fixture** — checked against `corpus/PROVENANCE.md`, not remembered: `corpus/` has DCT, JPX, CCITT G3, CCITT G4, Flate, LZW and RunLength images and **no JBIG2 file at all**, and **D2-11** says in as many words that *a construct the corpus never contains is a construct nothing in this project ever renders*. (3) **Nothing in Stage 2 would call it** — rendering goes through PDFium, which decodes JBIG2 itself; the first real consumer is Stage 8's image export. Together those are exactly the argument **D2-4** already accepted for `CryptFilter`: *building it here produces a file that cannot be tested and will be rewritten*. **What was built instead** is a declared filter that returns `Unsupported` under its own catalog key `error.pdf.filterJbig2` — never an empty buffer, which would reach the image pipeline as a blank page indistinguishable from a page that is genuinely blank (convention 6's argument about silent stubs, one layer down from `platform/`). The refusal is asserted by `tst_cos_filters`, through the ordinary filter chain as well as directly, so a registry that never dispatched to it would not pass. **The cost of finishing it, recorded so the estimate is not rediscovered:** an MQ arithmetic decoder, segment headers, and generic region decoding for templates 0–3 with TPGDON — roughly 450 lines — **plus** a first-party `corpus/jbig2enc.py`, since every corpus file is generated by us (D2-11). Symbol dictionaries and text regions are more again. **The honest sequencing is corpus first, decoder second**, because the decoder cannot be believed without the fixture. **The CCITT half is smaller**: `K > 0` (mixed one- and two-dimensional Group 3) is implemented — it is the same machinery as the other two plus one flag bit — and has no corpus file, so it is exercised only for *does not crash on nonsense*. Named at the assertion rather than left for a reader to assume covered (convention 19). **S3 rather than S2** because nothing in Stage 2 through Stage 7 calls either path and both refuse audibly; it becomes S2 at **Stage 8**, when image export needs to read what it is exporting. **Raised at T7 by the author of the filters**, and recorded rather than absorbed because `Stage2-Rendering-Plan.md` §12 says an overrun is said out loud rather than quietly narrowing the corpus. | 🟡 **Open** — a scope finding, not a defect. Owner unassigned; the natural home is Stage 8 |
 
 **Two S2 open — I-02 (T7/T16) and I-05 (T11) — plus one S3 open, I-04 (T14). Two S3 closed.**
 

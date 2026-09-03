@@ -1645,6 +1645,66 @@
         <source>error.pdf.badObjectStream</source>
         <translation>此 PDF 已損毀：無法讀取壓縮物件群組（%1）。</translation>
     </message>
+    <message>
+        <source>error.pdf.filterFailed</source>
+        <translation>此 PDF 已損毀：無法解碼壓縮串流（%1）。</translation>
+    </message>
+    <message>
+        <source>error.pdf.filterUnsupported</source>
+        <translation>此版本無法讀取以 %1 壓縮的串流。</translation>
+    </message>
+    <message>
+        <source>error.pdf.filterCrypt</source>
+        <translation>此 PDF 使用加密篩選器，該功能將於後續版本提供。</translation>
+    </message>
+    <message>
+        <source>error.pdf.filterJbig2</source>
+        <translation>此版本無法讀取 JBIG2 影像，此頁部分內容可能空白。</translation>
+    </message>
+    <message>
+        <source>error.pdf.noXref</source>
+        <translation>此 PDF 沒有可用的交互參照表（%1）；RawPage 將嘗試重建。</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectMissing</source>
+        <translation>此 PDF 已損毀：物件 %1 被參照但不存在。</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectFree</source>
+        <translation>此 PDF 已損毀：物件 %1 已刪除但仍被參照。</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectOffsetWrong</source>
+        <translation>此 PDF 已損毀：物件 %1 不在交互參照表所指的位置。</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectStreamUnreadable</source>
+        <translation>此 PDF 已損毀：無法讀取壓縮物件群組 %1。</translation>
+    </message>
+    <message>
+        <source>error.pdf.noObjects</source>
+        <translation>此檔案不含任何 PDF 物件，無法開啟。</translation>
+    </message>
+    <message>
+        <source>error.pdf.encrypted</source>
+        <translation>此 PDF 有密碼保護。RawPage 尚無法開啟受保護的檔案。</translation>
+    </message>
+    <message>
+        <source>error.repair.none</source>
+        <translation>此 PDF 無須修復即可開啟。</translation>
+    </message>
+    <message>
+        <source>error.repair.minor</source>
+        <translation>此 PDF 開啟時發現 %1 項輕微問題。</translation>
+    </message>
+    <message>
+        <source>error.repair.objects</source>
+        <translation>此 PDF 已損毀：RawPage 重建了 %2 個物件中的 %1 個。請另存新檔以保留修復結果。</translation>
+    </message>
+    <message>
+        <source>error.repair.wholeXref</source>
+        <translation>此 PDF 的索引已完全重建（%1 個物件）。請另存新檔以保留修復結果。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>

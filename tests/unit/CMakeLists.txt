@@ -31,6 +31,10 @@ add_executable(rawpage_tests
     tst_cos_lexer.cpp             # Stage 2 T5  -- guide case A-15, and the fuzz body's
                                   #                only Windows caller (tests/fuzz)
     tst_cos_parser.cpp            # Stage 2 T6  -- guide cases A-16 and A-17
+    tst_cos_filters.cpp           # Stage 2 T7  -- guide cases A-18 and A-19
+    tst_xreftable.cpp             # Stage 2 T7  -- guide case A-20
+    tst_xrefrepair.cpp            # Stage 2 T8  -- guide cases A-21 and A-22, the exit criterion
+    tst_docvocabulary.cpp         # Stage 2 T8  -- core/doc/Revision and Scope (D2-5)
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -67,7 +71,11 @@ target_compile_definitions(rawpage_tests PRIVATE
     # The corpus, by absolute source path, for tst_cos_lexer's replay of corpus/malformed/. Same
     # mechanism as the line above and for the same reason: a test that guessed a relative path
     # would pass or fail depending on the working directory CTest happened to use.
-    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
+    # Guide case A-19 asserts that `CryptFilter` is ABSENT, which is a claim about the source tree
+    # rather than about any compiled symbol -- so the directory has to be reachable at runtime, by
+    # the same mechanism and for the same reason as the two paths above.
+    RAWPAGE_FILTERS_DIR="${CMAKE_SOURCE_DIR}/pdf/cos/filters")
 
 target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 

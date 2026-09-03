@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "A port that vcpkg INSTALLED and that vcpkg.json never names -- which is exactly the shape of",
+    "issue I-02: brotli, bzip2, liblzma and libiconv all arrive this way. This one is GPL-3.0-only",
+    "so the closure enumeration has something it must refuse.",
+    "",
+    "Before the Inventory.cpp change this file was invisible to the gate: loadManifest built its",
+    "list from vcpkg.json's dependencies and features arrays plus the non-vcpkg overrides, and",
+    "never enumerated what vcpkg actually installs."
+  ],
+  "packages": [
+    {
+      "name": "fixture-undeclared-gpl",
+      "versionInfo": "9.9.9",
+      "downloadLocation": "https://example.invalid/fixture-undeclared-gpl",
+      "licenseConcluded": "GPL-3.0-only",
+      "licenseDeclared": "GPL-3.0-only"
+    }
+  ]
+}

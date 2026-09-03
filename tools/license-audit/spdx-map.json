@@ -50,6 +50,14 @@
       "noticeRequired": false
     },
 
+    "liblzma": {
+      "spdx": "0BSD",
+      "origin": "vcpkg",
+      "upstream": "https://tukaani.org/xz/",
+      "election": "TRANSITIVE, not declared: liblzma arrives with `tiff`, which arrives with the `codecs` feature (Stage 2 T7). vcpkg concludes `LicenseRef-vcpkg-null` for it -- it could not determine a licence -- so the identifier here is OURS, verified 2026-08-31 against XZ Utils 5.8.3's own COPYING, which says in as many words that liblzma is under the BSD Zero Clause License. The xzgrep/xzdiff SCRIPTS and parts of the build system are GPLv2+; the port ships the library, so none of that is linked. This row exists so the no-GPL rule is enforced with NO installed tree as well as with one -- see I-02 and the closure loop in Inventory.cpp.",
+      "noticeRequired": false
+    },
+
     "freetype": {
       "spdx": "FTL",
       "origin": "vcpkg",

@@ -797,9 +797,14 @@ silently disappeared from the register is a defect at any stage; one that is wri
 unfinished is not. §8.3 is where it stops being acceptable — the release gate below turns each entry
 into a URL that must resolve and serve the exact shipped version.
 The build fails if a dependency's SPDX identifier is not on the allowlist
-(`BSD-2-Clause, BSD-3-Clause, MIT, Apache-2.0, Zlib, BSL-1.0, Unicode-DFS-2016, FTL, LGPL-3.0,
+(`BSD-2-Clause, BSD-3-Clause, MIT, 0BSD, Apache-2.0, Zlib, BSL-1.0, Unicode-DFS-2016, FTL, LGPL-3.0,
 libpng-2.0, libtiff, IJG, MS-RL, ZPL-2.1, GPL-3.0-or-later WITH GCC-exception-3.1`) — which is what
-mechanically enforces D4. The last entry is the GCC runtime and is allowed **only** in that exact
+mechanically enforces D4. **`0BSD` was added at Stage 2 T7** with `liblzma`, which arrives
+transitively with `tiff` under the `codecs` feature; it is BSD-2-Clause with the attribution
+requirement removed, so it is strictly more permissive than two entries already here. That same task
+made the gate audit the **resolved closure** rather than the declared manifest (issue **I-02**), so
+a transitively-installed port can no longer reach the tree without a verdict.
+The last entry is the GCC runtime and is allowed **only** in that exact
 expression: bare `GPL-3.0-or-later` is a build failure, so dropping the exception (by adding a
 non-free compiler plugin, or by pulling a differently-licensed runtime) fails the audit rather than
 passing silently. Matching is on the whole expression — see §8.1's note on substrings.

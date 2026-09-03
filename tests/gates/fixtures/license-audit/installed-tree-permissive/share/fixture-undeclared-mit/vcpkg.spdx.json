@@ -1,0 +1,18 @@
+{
+  "$comment": [
+    "THE CONTROL for the fixture next door. Same shape -- installed, undeclared, discovered only by",
+    "enumerating the tree -- and permissively licensed, so the gate must PASS.",
+    "",
+    "Without it, gates.license_audit.undeclared_transitive_gpl is equally satisfied by a tool that",
+    "fails on any installed tree at all, which would be a worse defect than the one being fixed."
+  ],
+  "packages": [
+    {
+      "name": "fixture-undeclared-mit",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "https://example.invalid/fixture-undeclared-mit",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT"
+    }
+  ]
+}

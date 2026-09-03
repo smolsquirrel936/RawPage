@@ -10,11 +10,11 @@ Project: rawpage 0.1.0
 
 | Component | Version | SPDX | Origin | Group | Attribution owed | Upstream |
 |---|---|---|---|---|---|---|
-| zlib | *(not resolved)* | `Zlib` | vcpkg | codecs | licence text | https://zlib.net/ |
-| libjpeg-turbo | *(not resolved)* | `IJG` | vcpkg | codecs | licence text | https://libjpeg-turbo.org/ |
-| openjpeg | *(not resolved)* | `BSD-2-Clause` | vcpkg | codecs | licence text | https://www.openjpeg.org/ |
-| tiff | *(not resolved)* | `libtiff` | vcpkg | codecs | licence text | https://libtiff.gitlab.io/libtiff/ |
-| libpng | *(not resolved)* | `libpng-2.0` | vcpkg | codecs | licence text | https://www.libpng.org/pub/png/libpng.html |
+| zlib | 1.3.2#2 | `Zlib` | vcpkg | codecs | licence text | https://zlib.net/ |
+| libjpeg-turbo | 3.2.0 | `IJG` | vcpkg | codecs | licence text | https://libjpeg-turbo.org/ |
+| openjpeg | 2.5.4 | `BSD-2-Clause` | vcpkg | codecs | licence text | https://www.openjpeg.org/ |
+| tiff | 4.7.2 | `libtiff` | vcpkg | codecs | licence text | https://libtiff.gitlab.io/libtiff/ |
+| libpng | 1.6.58 | `libpng-2.0` | vcpkg | codecs | licence text | https://www.libpng.org/pub/png/libpng.html |
 | openssl | *(not resolved)* | `Apache-2.0` | vcpkg | crypto | licence text, NOTICE not checked | https://www.openssl.org/ |
 | tesseract | *(not resolved)* | `Apache-2.0` | vcpkg | ocr | licence text, NOTICE not checked | https://github.com/tesseract-ocr/tesseract |
 | leptonica | *(not resolved)* | `BSD-2-Clause` | vcpkg | ocr | licence text | https://github.com/DanBloomberg/leptonica |
@@ -23,6 +23,9 @@ Project: rawpage 0.1.0
 | harfbuzz | *(not resolved)* | `MIT` | vcpkg | text | licence text | https://harfbuzz.github.io/ |
 | icu | *(not resolved)* | `Unicode-DFS-2016` | vcpkg | text | licence text | https://icu.unicode.org/ |
 | hunspell | *(not resolved)* | `LGPL-3.0` | vcpkg | text | licence text | https://github.com/hunspell/hunspell |
+| liblzma | 5.8.3 | `0BSD` | vcpkg | (transitive) | licence text | https://tukaani.org/xz/ |
+| vcpkg-cmake | 2025-08-07 | `MIT` | vcpkg | (transitive) | licence text | git+https://github.com/microsoft/vcpkg@16b9390dfeaca6df7288ba3f827e40e48e5fc942 |
+| vcpkg-cmake-config | 2026-07-21 | `MIT` | vcpkg | (transitive) | licence text | git+https://github.com/microsoft/vcpkg@51befcb03097f8d19c1c59f9ec3625e69d85322a |
 | gcc-runtime | 13.1.0 | `GPL-3.0-or-later WITH GCC-exception-3.1` | toolchain | always | licence text | https://gcc.gnu.org/ |
 | mingw-w64-runtime | 11.0 (rt_v11-rev1) | `Zlib` | toolchain | always | licence text | https://www.mingw-w64.org/ |
 | pdfium | 153.0.8009.0 | `BSD-3-Clause` | prebuilt | always | licence text | https://pdfium.googlesource.com/pdfium/ |
@@ -39,6 +42,7 @@ Where a component is offered under more than one licence, the one we take is rec
 - **libjpeg-turbo** — libjpeg-turbo is offered under IJG / BSD-3-Clause / zlib. We ELECT IJG, matching Tech-Stack-Plan.md 6.2.
 - **freetype** — FreeType is dual-licensed FTL / GPL-2.0. We ELECT FTL. FTL requires a credit in the documentation, which the Third-Party Notices dialog provides.
 - **hunspell** — Hunspell is tri-licensed 'MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later' (verified against upstream license.hunspell and vcpkg's port manifest, 2026-08-18). We ELECT the LGPL branch, and because that grant is '2.1 OR LATER' we take it specifically as LGPL-3.0 -- the same licence as Qt. That means one obligation model covers both libraries: dynamic linking, user-replaceable binaries, and a corresponding-source offer. Electing MPL-1.1 would have been lighter (file-level copyleft, no relinking obligation) but would add a second, differently-shaped set of obligations to track and release-gate.
+- **liblzma** — TRANSITIVE, not declared: liblzma arrives with `tiff`, which arrives with the `codecs` feature (Stage 2 T7). vcpkg concludes `LicenseRef-vcpkg-null` for it -- it could not determine a licence -- so the identifier here is OURS, verified 2026-08-31 against XZ Utils 5.8.3's own COPYING, which says in as many words that liblzma is under the BSD Zero Clause License. The xzgrep/xzdiff SCRIPTS and parts of the build system are GPLv2+; the port ships the library, so none of that is linked. This row exists so the no-GPL rule is enforced with NO installed tree as well as with one -- see I-02 and the closure loop in Inventory.cpp.
 - **gcc-runtime** — libstdc++-6.dll, libgcc_s_seh-1.dll and libwinpthread-1.dll are shipped beside the executable, never statically linked. The Runtime Library Exception permits distributing a program under any licence, INCLUDING PROPRIETARY, provided it was produced by an Eligible Compilation Process -- i.e. stock GCC with no non-free plugin. TA-9 and license-audit both check that condition.
 - **mingw-w64-runtime** — The mingw-w64 runtime is a permissive mix (public domain / ZPL-2.1 / MIT / BSD-2) recorded per component. Zlib is used here as the representative expression; the per-component breakdown is owed before release.
 - **pdfium** — Consumed as a DLL through its FPDF_ C API (verified T12, 2026-08-18), so the compiler that built it does not matter. Read and raster only -- every write goes through our own COS layer. NOTE: the prebuilt archive ships only the packager MIT licence; PDFium own BSD-3-Clause text and its third-party notices must be fetched into res/licenses/ before release.

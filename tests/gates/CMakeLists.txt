@@ -302,6 +302,33 @@ rawpage_add_gate_test(NAME gates.license_audit.compiler_plugin_loaded
             --compiler-plugins ${FIXTURES}/license-audit/compiler-plugins-nonempty.txt
     EXPECT_EXIT 1 EXPECT_MATCH "Runtime Library Exception")
 
+# --- I-02: the gate audits the RESOLVED CLOSURE, not the declared manifest ------------
+# Guide case A-75. Before Stage 2 T7, `Inventory.cpp` built its list from vcpkg.json's
+# `dependencies` and `features` arrays plus the non-vcpkg overrides, and never enumerated what
+# vcpkg actually installs -- so `brotli`, `bzip2`, `liblzma` and `libiconv`, all of which the
+# `codecs` and `text` features pull in, had no licence verdict at all. Nothing found was GPL, so
+# there was no breach; the problem was that the gate's documented claim was broader than its
+# behaviour, and Stage 15's release compliance gate is built directly on that claim.
+#
+# The fixture tree holds ONE port that vcpkg.json never names. The manifest is the empty one.
+rawpage_add_gate_test(NAME gates.license_audit.undeclared_transitive_gpl
+    COMMAND ${LA} --manifest ${FIXTURES}/license-audit/manifest-minimal.json --spdx-map ${LA_FIXMAP}
+            --vcpkg-installed ${FIXTURES}/license-audit/installed-tree-transitive
+    EXPECT_EXIT 1 EXPECT_MATCH "fixture-undeclared-gpl")
+
+# THE CONTROL, and it is the half that makes the case above mean something: the same shape of
+# tree with a permissive licence must PASS. Without it, the case is equally satisfied by a tool
+# that fails on any installed tree at all -- a worse defect than the one being repaired.
+# It matches the COMPONENT COUNT rather than the port name because a clean run prints a summary
+# rather than a roster (license-audit has no --explain; that is layer-lint's and i18n-lint's). The
+# count is still the discriminator that matters: this manifest declares NOTHING, so the run
+# reported "0 components" before the closure loop existed and reports "1 components" after. A
+# control that only checked exit 0 would have passed either way.
+rawpage_add_gate_test(NAME gates.license_audit.undeclared_transitive_permissive
+    COMMAND ${LA} --manifest ${FIXTURES}/license-audit/manifest-minimal.json --spdx-map ${LA_FIXMAP}
+            --vcpkg-installed ${FIXTURES}/license-audit/installed-tree-permissive
+    EXPECT_EXIT 0 EXPECT_MATCH "1 components")
+
 rawpage_add_gate_test(NAME gates.license_audit.missing_manifest_is_exit_2
     COMMAND ${LA} --manifest ${FIXTURES}/does-not-exist.json --spdx-map ${LA_MAP}
     EXPECT_EXIT 2 EXPECT_MATCH "cannot open")

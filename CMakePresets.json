@@ -38,6 +38,7 @@
         "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchain-mingw.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
         "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_MANIFEST_FEATURES": "tests;codecs",
         "RAWPAGE_TARGET_ARCH": "x64"
       }
     },
@@ -87,6 +88,7 @@
       "cacheVariables": {
         "RAWPAGE_PORTABLE_SUBSET": "ON",
         "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "VCPKG_MANIFEST_FEATURES": "tests;codecs",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     },

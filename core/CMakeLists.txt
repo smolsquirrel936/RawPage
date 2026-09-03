@@ -58,6 +58,25 @@ add_library(rawpage_core STATIC
     settings/Settings.cpp
     settings/RecentFiles.h
     settings/RecentFiles.cpp
+
+    # doc/ -- the document VOCABULARY, and the first thing in core/doc/ (Stage 2 T8).
+    #
+    # Revision and Scope are BROUGHT FORWARD FROM STAGE 3 by decision D2-5, because Stage 2 already
+    # names them: `RenderCache::invalidate(Scope, Revision)` is a Stage 2 signature and D2-12 makes
+    # the Revision inside a RenderRequest mandatory rather than defaulted. Building them at Stage 3
+    # would force Stage 2 to invent a parallel type and then delete it.
+    #
+    # RepairReport is natively Stage 2's: `pdf/cos/XrefRepair` populates it and Stage 3 reads it to
+    # decide whether a document's first save is forced to Save-As. Revision.h has no .cpp on
+    # purpose -- it is constexpr and header-only, exactly as Architecture-FileMap.md 3.2 lists it.
+    #
+    # CLAUDE.md's Stage 2 note says a FIFTH type appearing in core/doc/ during this stage is a
+    # finding. These are three of the four D2-5 names; Page and PageTree are T9's.
+    doc/Revision.h
+    doc/Scope.h
+    doc/Scope.cpp
+    doc/RepairReport.h
+    doc/RepairReport.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

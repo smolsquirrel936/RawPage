@@ -1645,6 +1645,66 @@
         <source>error.pdf.badObjectStream</source>
         <translation>This PDF is damaged: a compressed object group could not be read (%1).</translation>
     </message>
+    <message>
+        <source>error.pdf.filterFailed</source>
+        <translation>This PDF is damaged: a compressed stream could not be decoded (%1).</translation>
+    </message>
+    <message>
+        <source>error.pdf.filterUnsupported</source>
+        <translation>This build cannot read a stream compressed with %1.</translation>
+    </message>
+    <message>
+        <source>error.pdf.filterCrypt</source>
+        <translation>This PDF uses a crypt filter, which arrives in a later version of RawPage.</translation>
+    </message>
+    <message>
+        <source>error.pdf.filterJbig2</source>
+        <translation>This build cannot read JBIG2 images, so parts of this page may be blank.</translation>
+    </message>
+    <message>
+        <source>error.pdf.noXref</source>
+        <translation>This PDF has no usable cross-reference table (%1); RawPage will try to rebuild it.</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectMissing</source>
+        <translation>This PDF is damaged: object %1 is named but not present.</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectFree</source>
+        <translation>This PDF is damaged: object %1 was deleted but is still referenced.</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectOffsetWrong</source>
+        <translation>This PDF is damaged: object %1 is not where the cross-reference table says.</translation>
+    </message>
+    <message>
+        <source>error.pdf.objectStreamUnreadable</source>
+        <translation>This PDF is damaged: compressed object group %1 could not be read.</translation>
+    </message>
+    <message>
+        <source>error.pdf.noObjects</source>
+        <translation>This file contains no PDF objects and cannot be opened.</translation>
+    </message>
+    <message>
+        <source>error.pdf.encrypted</source>
+        <translation>This PDF is password-protected. RawPage cannot open protected files yet.</translation>
+    </message>
+    <message>
+        <source>error.repair.none</source>
+        <translation>This PDF opened without repair.</translation>
+    </message>
+    <message>
+        <source>error.repair.minor</source>
+        <translation>This PDF opened with %1 minor findings.</translation>
+    </message>
+    <message>
+        <source>error.repair.objects</source>
+        <translation>This PDF was damaged: RawPage rebuilt %1 of %2 objects. Save a copy to keep the repair.</translation>
+    </message>
+    <message>
+        <source>error.repair.wholeXref</source>
+        <translation>This PDF's index was rebuilt from scratch (%1 objects). Save a copy to keep the repair.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
