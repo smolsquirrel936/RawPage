@@ -49,6 +49,8 @@
 
 #include "core/Result.h"
 
+#include <mutex>
+
 #include <QLatin1String>
 #include <QString>
 
@@ -74,6 +76,26 @@ int initializationCount();
 // Releases PDFium's global state. Almost nothing should call this; see the note above. Safe to call
 // when it was never initialized, and safe to call twice.
 void shutdown();
+
+// THE ENGINE LOCK -- one mutex for the whole process, held across every call into PDFium.
+//
+// It lives here because this file is *the one place PDFium's global state is touched*, and a
+// process-wide serialization lock is exactly that. Two locks would serialize nothing, which is why
+// it is vended rather than declared wherever it is needed.
+//
+// **D2-9 said "thread-confined per worker", and that was MEASURED FALSE at T3 (issue I-05).** What
+// PDFium shares between threads is process-global -- its font mapper and its glyph caches -- so
+// eight workers with a document and a page each corrupt the heap, and two are enough. Confining a
+// document to a worker confines the wrong thing.
+//
+// This is the conservative half of the choice **T11** still has to make (one render thread with a
+// queue, or N workers serialized here) and is correct under either outcome. The cost was measured
+// rather than feared: eight workers behind this lock retire 1.05x the tiles per second of one, and
+// per-tile p95 stays at 0.532 ms against a 16.667 ms budget.
+//
+// HOLD IT ACROSS THE WHOLE ENGINE INTERACTION, not just the render call: `FPDFBitmap_Create` and
+// `_Destroy` race on PDFium's allocator too, which is what the T3 probe crashed inside.
+std::mutex& engineLock();
 
 // The pinned version, as a string: "153.0.8009.0".
 //

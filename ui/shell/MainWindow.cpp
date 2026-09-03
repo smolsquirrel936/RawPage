@@ -1,6 +1,9 @@
 #include "ui/shell/MainWindow.h"
 
 #include "core/Log.h"
+// T9: `openFiles()` asks the backend whether a file is a PDF (guide case A-47). It is a `core/`
+// header, so it widens nothing -- convention 9's list of what `ui/` looks OUTWARD to is unchanged.
+#include "core/backend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
@@ -1049,27 +1052,49 @@ void MainWindow::openFiles(const QStringList& paths)
     for (const QString& path : paths) {
         const QFileInfo info(path);
 
-        // D1-2: existence and suffix. NOTHING here reads the file. See the header.
+        // Existence is still ours: "there is no such file" is a different message from "that is
+        // not a PDF", and asking the engine to open something that is not there would turn the
+        // first into the second.
         if (!info.exists() || !info.isFile()) {
             RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "open: no such file:" << path;
             status_->setMessage(catalog::translateError(QStringLiteral("error.open.notFound"), path));
             continue;
         }
-        if (info.suffix().compare(QLatin1String("pdf"), Qt::CaseInsensitive) != 0) {
-            RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "open: not a .pdf by name:" << path;
+
+        // **T9: THE SUFFIX CHECK IS GONE, AND THE BACKEND DECIDES.** Guide case A-47, which
+        // replaces Stage 1's A-58 -- that case asserted the OPPOSITE and was correct then, because
+        // D1-2 said the shell reads no bytes and there was no engine to ask. There is now.
+        //
+        // The consequence is user-visible in both directions: a PDF someone saved as `.dat` opens,
+        // and a `.pdf` that is really a spreadsheet is refused **with the reason the engine gave**
+        // rather than with a guess from its name. Deciding whether bytes are a PDF is
+        // `IDocumentBackend::open()`'s question and nowhere else's.
+        //
+        // No password callback yet: the prompt is a dialog, and dialogs are T14's. An encrypted
+        // file therefore refuses here by name today, which is the honest state rather than a
+        // silent empty tab -- and it is why the callback is a parameter rather than something the
+        // backend reaches for.
+        const core::Result<core::DocumentHandle> opened =
+            services_.backend.open(info.absoluteFilePath(), nullptr);
+        if (!opened) {
+            RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+                << "open: backend refused" << info.absoluteFilePath() << "--"
+                << opened.error().messageKey.data();
             status_->setMessage(
-                catalog::translateError(QStringLiteral("error.open.notPdf"), info.fileName()));
+                catalog::translateError(opened.error().messageKey, opened.error().context));
             continue;
         }
 
-        // The recent list is a list of paths (T5's deviation (c)), and a path handed to us on the
-        // command line belongs in it whether or not there is yet a document behind it.
+        // The recent list is a list of paths (T5's deviation (c)). It is noted only AFTER the
+        // backend accepted the file: Stage 1 noted every path it was handed because it could not
+        // tell whether one was openable, and a recent list full of things that will not open is
+        // worse than a short one.
         services_.recentFiles.note(info.absoluteFilePath());
 
-        // T12: this is where the path stops being a log line and becomes a tab. Stage 2 replaces
-        // the tab's placeholder with a page surface and this check with `IDocumentBackend::open()`.
         openDocument(info.absoluteFilePath());
-        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "open: accepted" << info.absoluteFilePath();
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+            << "open: accepted" << info.absoluteFilePath() << "as handle"
+            << static_cast<int>(opened.value().id);
     }
 }
 

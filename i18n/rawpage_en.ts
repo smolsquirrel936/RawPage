@@ -1690,6 +1690,26 @@
         <translation>This PDF is password-protected. RawPage cannot open protected files yet.</translation>
     </message>
     <message>
+        <source>error.open.cancelled</source>
+        <translation>Opening %1 was cancelled.</translation>
+    </message>
+    <message>
+        <source>error.open.badPassword</source>
+        <translation>The password for %1 was not accepted.</translation>
+    </message>
+    <message>
+        <source>error.render.badRequest</source>
+        <translation>This page could not be drawn: the request for page %1 was invalid.</translation>
+    </message>
+    <message>
+        <source>error.render.noSuchPage</source>
+        <translation>This document has no page %1.</translation>
+    </message>
+    <message>
+        <source>error.render.failed</source>
+        <translation>Page %1 could not be drawn.</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>This PDF opened without repair.</translation>
     </message>

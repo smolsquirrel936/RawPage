@@ -13,7 +13,7 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T8 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
+> **Status:** 🟡 **T1–T9 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
 > finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
 > on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
 > byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
@@ -27,7 +27,11 @@
 > criterion** on Windows (every `corpus/malformed/` file yields a report and never a crash) and
 > leaves its ASan half owed to the Linux job. T7 raised **I-06**, a scope finding: `/JBIG2Decode`
 > is declared and decodes nothing, because the only usable library is AGPL-3.0 and the corpus has
-> no JBIG2 file.** Written 2026-08-31,
+> no JBIG2 file. **T9 the same day: a document OPENS and a page is DRAWN** — `PdfiumDocument`,
+> `PdfiumRasterizer` and the real `DocumentBackendImpl`, which took the backend census from 0 of 7
+> to 2 of 7 and closed **A-46**. `openFiles()` now asks the backend instead of the suffix (A-47,
+> replacing Stage 1's A-58), and `pdf::createBackend()` moved into `rawpage_pdfium` because a
+> backend that opens documents is the engine.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -142,7 +146,7 @@ wrong stage tag, and are lockstep debt — §10.
 | File | FileMap row | Task |
 |---|---|---|
 | `core/backend.h` | §3.8 ✅ (S2 · T1) — row added with the header | T1 |
-| `pdf/BackendFactory.{h,cpp}`, `pdf/DocumentBackendImpl.{h,cpp}` | §3.11 — `BackendFactory` ✅ (S2 · T1); `DocumentBackendImpl` ○, T9's | T1, T9 |
+| `pdf/BackendFactory.{h,cpp}`, `pdf/DocumentBackendImpl.{h,cpp}` | §3.11 — both ✅ (S2 · T1, T9). **`BackendFactory.cpp` moved to `pdf/render/` at T9** (D2-2: the real backend is the engine, and the headless suite may not link it) | T1, T9 |
 | `pdf/PdfModule.cpp` — **deleted** | §4 breadcrumb, **not a row** — a placeholder TU has no responsibility to fold anywhere, exactly as `platform/PlatformModule.cpp` was handled at Stage 1 T7 | T1 |
 | `pdf/render/PdfiumInit.{h,cpp}` | §3.10 ✅ (S2 · T2) | T2 |
 | `cmake/PdfiumAssert.cmake` | §3.18 ✅ (S2 · T2) — row added with the assertion | T2 |
@@ -155,10 +159,11 @@ wrong stage tag, and are lockstep debt — §10.
 | `pdf/cos/XrefRepair.{h,cpp}` | §3.9 ✅ (S2 · T8) | T8 |
 | `core/doc/RepairReport.{h,cpp}` | §3.2 ✅ (S2 · T8) | T8 |
 | `core/doc/Revision.h`, `core/doc/Scope.{h,cpp}` | §3.2 ✅ (S2 · T8) (D2-5) | T8 |
-| `core/doc/Page.{h,cpp}` | §3.2 ⚠️ **○ (S3) → ○ (S2)** (D2-5) | T9 |
-| `core/doc/PageTree.{h,cpp}` | §3.2 ⚠️ **○ (S3) → ○ (S2 read, S3 edit)** (D2-5) | T9 |
-| `pdf/render/PdfiumDocument.{h,cpp}`, `PdfiumRasterizer.{h,cpp}` | §3.10 ○ (S2) | T9 |
-| `core/render/DpiPolicy.{h,cpp}`, `TileGrid.{h,cpp}`, `RenderRequest.h`, `PagePresentation.{h,cpp}` | §3.4 ○ (S2) | T10 |
+| `core/doc/Page.{h,cpp}` | §3.2 ✅ (S2 · T9) (D2-5) | T9 |
+| `core/doc/PageTree.{h,cpp}` | §3.2 ✅ (S2 · T9, read half) (D2-5) | T9 |
+| `pdf/render/PdfiumDocument.{h,cpp}`, `PdfiumRasterizer.{h,cpp}` | §3.10 ✅ (S2 · T9) | T9 |
+| `core/render/DpiPolicy.{h,cpp}`, `TileGrid.{h,cpp}`, `PagePresentation.{h,cpp}` | §3.4 ○ (S2) | T10 |
+| `core/render/RenderRequest.h` | §3.4 ✅ **(S2 · T9, brought forward from T10)** — `IPageRasterizer::raster()` takes one and T9's exit criterion is a rasterized page | T9 |
 | `core/render/RenderScheduler.{h,cpp}`, `RenderCache.{h,cpp}` | §3.4 ○ (S2) | T11 |
 | `platform/win/WinDisplayTopology.{h,cpp}`, `WinPowerSession.{h,cpp}`, `WinFontResolver.{h,cpp}`, `WinAcceleratedSurface.{h,cpp}` | §3.12 ⚠️ *(no rows — the header declares the interfaces; the implementations have none)* | T12, T16 |
 | `ui/viewer/PageView.{h,cpp}`, `TilePresenter.{h,cpp}`, `PageLayoutEngine.{h,cpp}`, `ViewportController.{h,cpp}` | §3.14 ○ (S2) | T13 |

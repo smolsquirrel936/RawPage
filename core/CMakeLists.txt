@@ -77,6 +77,19 @@ add_library(rawpage_core STATIC
     doc/Scope.cpp
     doc/RepairReport.h
     doc/RepairReport.cpp
+
+    # T9 completes D2-5's four: Page and a READ-ONLY PageTree. Stage 3 adds the mutating half of
+    # PageTree (insert/move/remove/duplicate), which is the same split core/doc/Outline uses.
+    doc/Page.h
+    doc/Page.cpp
+    doc/PageTree.h
+    doc/PageTree.cpp
+
+    # render/ -- the rendering POLICY layer. RenderRequest is T10's by the plan and is built at T9
+    # because IPageRasterizer::raster() takes one and T9's exit criterion is a rasterized page;
+    # core/backend.h has carried a forward declaration of it since T1. DpiPolicy, TileGrid and
+    # PagePresentation are still T10's, and are built ON this.
+    render/RenderRequest.h
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

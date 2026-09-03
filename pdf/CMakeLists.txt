@@ -41,11 +41,14 @@
 
 add_library(rawpage_cos STATIC
     # PdfModule.cpp -- Stage 0's placeholder translation unit -- was DELETED at Stage 2 T1, as its
-    # own comment instructed and as Stage1-AppShell-Plan.md 10 recorded it would be. It existed so
-    # this archive was non-empty and the link order was exercised from the first commit; the factory
-    # below is real content, and a placeholder that outlives its purpose becomes a mystery.
+    # own comment instructed and as Stage1-AppShell-Plan.md 10 recorded it would be.
+    #
+    # BackendFactory.CPP MOVED TO pdf/render/ AT T9, and only the header stays here. A backend that
+    # opens documents IS the engine, so the definition had to leave this library: tests/unit links
+    # rawpage_cos under rawpage_assert_headless(), which forbids rawpage_pdfium BY NAME (D2-2). The
+    # header is still listed because pdf/BackendFactory.h is what app/CompositionRoot includes, and
+    # a header nobody lists is one an IDE cannot find.
     BackendFactory.h
-    BackendFactory.cpp
 
     # The COS reader itself, from Stage 2 T5. Every file here is std-only on purpose: pdf/cos/ is
     # portable BY RULE, and the fuzz driver hands it a `const uint8_t*` that must not have to become
@@ -162,6 +165,22 @@ set_target_properties(pdfium PROPERTIES
 add_library(rawpage_pdfium STATIC
     render/PdfiumInit.h
     render/PdfiumInit.cpp
+
+    # T9: a document opens, and a page is drawn. PdfiumDocument owns the FPDF_DOCUMENT and the
+    # buffer PDFium points into; PdfiumRasterizer is the first real implementation of one of
+    # core/backend.h's seven interfaces. Neither header names an engine type -- the document's
+    # handle accessor is a void* on purpose, so including it does not drag fpdf_*.h into every
+    # translation unit that wants a page count.
+    render/PdfiumDocument.h
+    render/PdfiumDocument.cpp
+    render/PdfiumRasterizer.h
+    render/PdfiumRasterizer.cpp
+
+    # The backend itself, and the factory that vends it. Both are in THIS library rather than in
+    # rawpage_cos for the reason at the top of the rawpage_cos block: they need the engine.
+    DocumentBackendImpl.h
+    DocumentBackendImpl.cpp
+    render/BackendFactory.cpp
 )
 
 target_include_directories(rawpage_pdfium PUBLIC "${CMAKE_SOURCE_DIR}")
@@ -176,7 +195,13 @@ target_compile_definitions(rawpage_pdfium PRIVATE
 # two halves of D3 -- "we read through PDFium and write through our own code" -- and neither is
 # built on the other. A dependency here would be the first step in the direction D2-2 split them to
 # prevent.
-target_link_libraries(rawpage_pdfium PUBLIC rawpage_core PRIVATE pdfium)
+# rawpage_cos joins the link line at T9, and it is worth saying why that does NOT undo D2-2's
+# split. The direction of the dependency is what matters: rawpage_pdfium may use the first-party
+# COS reader -- PdfiumDocument runs it over the same bytes for the RepairReport that PDFium's own
+# silent repair never produces -- while rawpage_cos still knows nothing about PDFium and still
+# builds on the portable presets alone. The forbidden edge is the other way round, and
+# rawpage_assert_headless() is what keeps it forbidden.
+target_link_libraries(rawpage_pdfium PUBLIC rawpage_core rawpage_cos PRIVATE pdfium)
 
 rawpage_strict(rawpage_pdfium)        # -Werror: pdf/ is a strict layer on both sides of the boundary
 

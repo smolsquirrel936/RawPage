@@ -1690,6 +1690,26 @@
         <translation>此 PDF 有密碼保護。RawPage 尚無法開啟受保護的檔案。</translation>
     </message>
     <message>
+        <source>error.open.cancelled</source>
+        <translation>已取消開啟 %1。</translation>
+    </message>
+    <message>
+        <source>error.open.badPassword</source>
+        <translation>%1 的密碼不正確。</translation>
+    </message>
+    <message>
+        <source>error.render.badRequest</source>
+        <translation>無法繪製此頁：第 %1 頁的請求無效。</translation>
+    </message>
+    <message>
+        <source>error.render.noSuchPage</source>
+        <translation>此文件沒有第 %1 頁。</translation>
+    </message>
+    <message>
+        <source>error.render.failed</source>
+        <translation>無法繪製第 %1 頁。</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>此 PDF 無須修復即可開啟。</translation>
     </message>

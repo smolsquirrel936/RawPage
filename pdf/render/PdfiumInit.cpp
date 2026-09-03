@@ -85,6 +85,16 @@ void shutdown()
     RAWPAGE_LOG_DEBUG(LogSubsystem::Render) << "pdfium: destroyed";
 }
 
+std::mutex& engineLock()
+{
+    // A function-local static, so its construction order cannot matter and it is never destroyed
+    // before a worker that is still holding it. Deliberately NOT the same mutex as `g_mutex`
+    // above: that one guards initialization and is taken briefly, while this one is held across a
+    // whole render and would make `ensure()` wait behind an unrelated tile.
+    static std::mutex lock;
+    return lock;
+}
+
 QLatin1String version()
 {
     return QLatin1String(RAWPAGE_PDFIUM_VERSION);

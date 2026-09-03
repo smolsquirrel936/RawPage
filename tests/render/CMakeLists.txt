@@ -23,7 +23,16 @@ find_package(Catch2 3 REQUIRED)
 
 add_executable(rawpage_render_tests
     tst_pdfiuminit.cpp            # Stage 2 T2 -- guide cases A-07's engine half, and A-45's first
+    tst_pdfiumdoc.cpp             # Stage 2 T9 -- guide cases A-42 and A-43
+    tst_rasterizer.cpp            # Stage 2 T9 -- guide cases A-44, A-45, A-46's second half,
+                                  #               and A-47's engine half
 )
+
+# The corpus, by absolute source path -- the same mechanism tests/unit uses and for the same
+# reason: a test that guessed a relative path would pass or fail on whatever working directory
+# CTest happened to use.
+target_compile_definitions(rawpage_render_tests PRIVATE
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
 
 target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 

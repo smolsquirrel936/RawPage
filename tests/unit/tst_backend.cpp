@@ -1,23 +1,31 @@
-// Stage 2 T1 -- `core/backend.h` and `pdf/BackendFactory`.
+// `core/backend.h` -- the engine boundary itself. Stage 2 T1, split at T9.
 //
 // Guide case A-46 in Stage2-Rendering-Testing-Guide.md 5.6, whose subject is decision D2-7: all
-// seven engine interfaces are declared now, the backend says which of them it implements, and
-// calling an unimplemented one returns an EXPLICIT not-implemented Result -- never a silent success
-// and never an empty value.
+// seven engine interfaces are declared, a backend says which of them it implements, and calling an
+// unimplemented one returns an EXPLICIT not-implemented Result -- never a silent success and never
+// an empty value.
 //
-// WHAT THIS CASE CANNOT COVER YET, said here rather than left to be inferred (convention 19). A-46
-// also asserts that after Stage 2 the implemented set is {IDocumentBackend, IPageRasterizer}; that
-// half becomes checkable at T9 and is not asserted below. What IS asserted is the opposite end of
-// the same property -- that a backend implementing nothing reports nothing and refuses by name --
-// because a census is only worth having if it can say no.
+// **THIS FILE WAS SPLIT AT T9 AND THE REASON IS LOAD-BEARING.** Until then it exercised
+// `pdf::createBackend()` directly, because the backend that factory returned implemented nothing
+// and needed no engine. A backend that opens documents IS the engine, so the factory moved into
+// `rawpage_pdfium` -- which `rawpage_assert_headless()` forbids this suite from linking by name
+// (D2-2). The concrete backend's census therefore moved to `tests/render/tst_backendimpl.cpp`,
+// beside the engine.
 //
-// It lives in the HEADLESS suite, which is the point: this file names the engine boundary, links
-// rawpage_cos, and runs on portable-asan where no PDF engine exists at all.
+// What stays here is the part that is genuinely portable, and it is not a leftover: the interface
+// declarations, `notImplementedError`, `unimplementedBackendInterfaces`, and `RasterImage`'s own
+// validation -- all asserted over a backend DEFINED IN THIS FILE. That is stronger than it sounds.
+// A test backend written here is the only way to assert what an unimplemented backend does now
+// that the real one implements things, and it keeps every one of those checks running under
+// `portable-asan`, where no PDF engine exists at all.
+//
+// WHAT THIS FILE THEREFORE DOES NOT COVER (convention 19): anything about the SHIPPED backend.
+// A-46's second half -- that the implemented set is `{IDocumentBackend, IPageRasterizer}` after
+// Stage 2 -- is `tests/render/`'s, and this file cannot see it.
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/backend.h"
-#include "pdf/BackendFactory.h"
 
 #include <algorithm>
 #include <memory>
@@ -29,6 +37,49 @@ using namespace rawpage;
 using rawpage::core::BackendInterface;
 using rawpage::core::backendInterfaceNames;
 using rawpage::core::kBackendInterfaceCount;
+
+namespace {
+
+// THE BACKEND THAT IMPLEMENTS NOTHING, AND SAYS SO -- defined here rather than obtained from
+// `pdf::createBackend()`, which now returns a real one.
+//
+// Every method answers `notImplementedError`, naming itself. Nothing returns an empty value, a
+// default-constructed handle or a silent success: that is the whole point (D2-7, convention 6). A
+// caller must be able to tell "this build does not do that" from "it did it and there was nothing
+// there", because the second is data nobody produced and it surfaces stages later.
+//
+// `implementedInterfaces()` reports seven falses INCLUDING `IDocumentBackend` itself, and that is
+// not a contradiction with deriving from it: the census is about what FUNCTIONS, not about what a
+// vtable happens to satisfy.
+class NothingBackend final : public core::IDocumentBackend {
+public:
+    std::array<bool, kBackendInterfaceCount> implementedInterfaces() const override
+    {
+        return {false, false, false, false, false, false, false};
+    }
+
+    core::Result<core::DocumentHandle> open(const QString&, const core::PasswordCallback&) override
+    {
+        return core::notImplementedError(BackendInterface::DocumentBackend, "open");
+    }
+    core::Status close(core::DocumentHandle) override
+    {
+        return core::notImplementedError(BackendInterface::DocumentBackend, "close");
+    }
+    core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
+    core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }
+    core::MutationSink* mutationSink(core::DocumentHandle) override { return nullptr; }
+    core::ISigner* signer(core::DocumentHandle) override { return nullptr; }
+    core::IOcrEngine* ocrEngine() override { return nullptr; }
+    core::IIndexer* indexer() override { return nullptr; }
+};
+
+std::unique_ptr<core::IDocumentBackend> makeNothingBackend()
+{
+    return std::make_unique<NothingBackend>();
+}
+
+} // namespace
 
 // =======================================================================================
 // The census
@@ -59,9 +110,9 @@ TEST_CASE("all seven engine interfaces are declared and named", "[backend]")
     }
 }
 
-TEST_CASE("the T1 backend implements none of the seven and says so", "[backend]")
+TEST_CASE("a backend implementing none of the seven says so", "[backend]")
 {
-    const std::unique_ptr<core::IDocumentBackend> backend = pdf::createBackend();
+    const std::unique_ptr<core::IDocumentBackend> backend = makeNothingBackend();
     REQUIRE(backend != nullptr);
 
     const std::array<bool, kBackendInterfaceCount> implemented = backend->implementedInterfaces();
@@ -81,7 +132,7 @@ TEST_CASE("the T1 backend implements none of the seven and says so", "[backend]"
 
 TEST_CASE("an unimplemented backend refuses by name rather than succeeding quietly", "[backend]")
 {
-    const std::unique_ptr<core::IDocumentBackend> backend = pdf::createBackend();
+    const std::unique_ptr<core::IDocumentBackend> backend = makeNothingBackend();
 
     // A password callback that would be a defect if it ran: nothing here reaches the point of
     // asking, and a case that could not tell the difference would pass against a backend that
@@ -110,7 +161,7 @@ TEST_CASE("an unimplemented backend refuses by name rather than succeeding quiet
 
 TEST_CASE("an unimplemented sub-interface is null, not an empty stub", "[backend]")
 {
-    const std::unique_ptr<core::IDocumentBackend> backend = pdf::createBackend();
+    const std::unique_ptr<core::IDocumentBackend> backend = makeNothingBackend();
     const core::DocumentHandle handle{};
 
     // The direct analogue of platform::Platform's null members. A stub returning an object whose

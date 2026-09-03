@@ -100,13 +100,18 @@ CompositionRoot::CompositionRoot(Options options)
 
     // THE ONLY createBackend() CALL IN THE PROGRAM (Stage 2 T1), and the second half of what makes
     // flow A's two factory lines real. Like the platform bundle it logs its own interface census --
-    // which today reads "0 of 7 interfaces implemented", because T1 declares the boundary and T9 is
-    // what implements it. That line is the point: a build that cannot open a document should say so
-    // in its log rather than leave a caller to find out from an empty result (D2-7, convention 6).
+    // which read "0 of 7 interfaces implemented" from T1 until T9 implemented two of them. That
+    // line is the point: a build that cannot open a document should say so in its log rather than
+    // leave a caller to find out from an empty result (D2-7, convention 6).
     //
-    // It is NOT in `Services` yet. The consumer arrives at T9, when `MainWindow::openFiles()` stops
-    // deciding a file by its suffix and asks the backend -- and a service handed to every widget
-    // ahead of the first widget that reads it is the shape Stage 1 kept finding (I-34, I-42, I-46).
+    // **IT IS IN `Services` AS OF T9**, and it arrived with its consumer exactly as the note here
+    // said it would: `MainWindow::openFiles()` now asks the backend whether a file is a PDF instead
+    // of looking at the suffix (guide case A-47). A service handed to every widget ahead of the
+    // first widget that reads it is the shape Stage 1 kept finding (I-34, I-42, I-46), and waiting
+    // is what avoided it.
+    //
+    // The census now reads "2 of 7 interfaces implemented" -- `IDocumentBackend` and
+    // `IPageRasterizer`.
     backend_ = pdf::createBackend();
 
     if (options_.createPlatform) {
@@ -147,7 +152,8 @@ CompositionRoot::~CompositionRoot()
 
 Services CompositionRoot::services()
 {
-    return Services{*settings_, *recentFiles_, *actions_, *keyBindings_, *logBuffer_, *platform_};
+    return Services{*settings_, *recentFiles_, *actions_,  *keyBindings_,
+                    *logBuffer_, *backend_,     *platform_};
 }
 
 void CompositionRoot::applyLoggingSettings()

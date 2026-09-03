@@ -30,6 +30,7 @@
 
 namespace rawpage::core {
 class ActionRegistry;
+class IDocumentBackend;
 class KeyBindingStore;
 class LogBuffer;
 class RecentFiles;
@@ -53,6 +54,15 @@ struct Services {
     // for because `core::setLogSink` REPLACES rather than chains -- see `core/LogBuffer.h`, which
     // owns that reasoning.
     core::LogBuffer&       logBuffer;
+
+    // THE ENGINE, and it arrived at T9 with its first consumer -- exactly as the note above said
+    // it would. `MainWindow::openFiles()` asks it whether a file is a PDF instead of looking at
+    // the suffix, which is guide case A-47 and the end of Stage 1's D1-2.
+    //
+    // Note the namespace: `core::IDocumentBackend`, not `pdf::`. The interface is declared in
+    // `core/backend.h`, so handing it to `ui/` widens nothing -- `ui/` looks outward to exactly two
+    // files (convention 9) and this is not a third.
+    core::IDocumentBackend& backend;
 
     // The OS bundle, whose own members are null wherever an interface is not implemented yet.
     // `unimplementedInterfaces()` names them, so a Stage 1 window can print what it cannot do

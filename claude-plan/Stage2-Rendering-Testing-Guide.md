@@ -10,9 +10,9 @@
 > **78 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02 — and **A-76 … A-78**
 > added at T4, because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13, A-15 … A-23, A-75 … A-78 are green**, **A-27 is CLOSED** (T6 took
-> the expected target count from 1 to 2) and
-> **A-46 is partly green** — every other box is still ☐. **Three are Linux jobs this machine cannot
+> **A-01, A-03, A-05 … A-13, A-15 … A-23, A-42 … A-47 and A-75 … A-78 are green**, **A-27 and
+> A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave A-46 the second
+> half it had been waiting for since T1) — every other box is still ☐. **Three are Linux jobs this machine cannot
 > run and none should be read as merely pending: A-04**, and **A-25** and **A-26**, whose targets
 > both exist but have never been linked or run because there is no clang here. **A-24 joins them at
 > T8** — the ASan corpus run is the same Linux job.
@@ -936,22 +936,80 @@ Stage 3's mutations safe, and Stage 2 is where it must already be right.
 
 ### 5.7 The engine
 
-**A-42 · Every corpus file opens** ☐ **Steps** `ctest -R render.pdfiumdoc`
+**A-42 · Every corpus file opens** ✅ **2026-09-04 (T9)** **Steps** `ctest -R "^render\."`
 **Expect** For each: a document handle and a page count matching `PROVENANCE.md`. The malformed set is
-allowed to open *repaired* — but never to open silently wrong. **If it fails** S1.
+allowed to open *repaired* — but never to open silently wrong.
+**Result 2026-09-04** All 29 `ordinary/` files open, and the check is a page TREE rather than a
+count: every page must have a usable display size and every box must resolve inside its MediaBox.
+The malformed set opens or is refused with a named key, and — the assertion that matters —
+**at least one file PDFium opened happily is reported as damaged by our own reader**. PDFium repairs
+silently and reports nothing, so without the first-party `RepairReport` run over the same bytes,
+*"it opened"* is all anyone would ever learn and Stage 3's forced Save-As would have nothing to
+trigger on.
+**ONE FINDING, and it is the reason `pages-count-wrong.pdf` exists.** `FPDF_GetPageCount` returns
+the `/Pages` dictionary's `/Count` field verbatim, so that file — which declares **`/Count 97` over
+three real kids** — opened through PDFium claiming **97 pages**. `PROVENANCE.md` says in as many
+words that the answer has to be the tree, and the page count reaches the status bar and the
+scrollbar before anything walks the document: believing it gives a three-page file a 97-page
+scrollbar. `PdfiumDocument` now drops the TRAILING run of pages that will not load, and only the
+trailing run — a page that fails in the middle keeps its placeholder, because removing it would
+renumber every page after it and a link pointing at page 40 would land on 39.
+**Negative control run:** restoring the trust in `/Count` reddens exactly this case.
+**If it fails** S1.
 
-**A-43 · The password callback** ☐
+**A-43 · The password callback** ✅ **2026-09-04 (T9)**
 **Expect** `corpus/encrypted/*.pdf` opens with the right password, is refused with the wrong one, and
-the refusal is a **named** `Result` rather than an empty document. **If it fails** S2.
+the refusal is a **named** `Result` rather than an empty document.
+**Result 2026-09-04** Four cases. All four enciphered fixtures open with `user`; the wrong password
+is refused as **`PermissionDenied` + `error.open.badPassword`**, and the attempt loop is bounded, so
+a scripted caller returning the same wrong string stops rather than spinning. **Giving up is
+`Cancelled`, not a failure** — a cancelled prompt is not a damaged file, and a message bar saying so
+would be lying to the person who just pressed Escape. `owner-empty-user.pdf` opens with **no prompt
+at all**, which is what its `PROVENANCE.md` row exists to check from the other side. And a callback
+that is absent entirely — a batch run, a headless test — is a refusal rather than a parse failure.
+Every case asserts whether the callback WAS ASKED, which is what separates an encrypted file that
+opened from an unencrypted one; without it the suite would pass against a corpus of plain documents.
+**If it fails** S2.
 
-**A-44 · `tst_rasterizer` — one page to a `QImage`** ☐
+**A-44 · `tst_rasterizer` — one page to a `QImage`** ✅ **2026-09-04 (T9)**
 **Expect** A `RenderRequest` produces an image of exactly the requested pixel size, non-blank, with the
-render flags honoured. **If it fails** S1.
+render flags honoured.
+**Result 2026-09-04** **This is where a page is drawn for the first time.** Exactly the requested
+pixels, the right stride, non-blank measured as distinct byte values rather than "some pixel is not
+white" (one stray dot would satisfy that), and five invalid requests refused rather than returned as
+correctly-sized emptiness — an empty image is indistinguishable from a blank page once it is in a
+cache. The result is a `core::RasterImage` of BGRA bytes, **not a `QImage`**: `core/` may not name a
+QtGui type (I-03), and `ui/` wraps the bytes at the far side without a copy.
+**The tile arithmetic has a case of its own**, because it is the thing most likely to be wrong:
+`FPDF_RenderPageBitmap` has no region parameter, so a tile comes out by passing the WHOLE scaled
+page's size with a NEGATIVE origin. Passing the tile's size instead scales the entire page into
+every tile — a bug that reads as a zoom problem. Asserted by comparing two tiles of one page and by
+rendering the same tile twice.
+**THE FIXTURE FOR THE FLAGS CASE WAS WRONG FIRST TIME, and the failure was the code being right.**
+It rendered `text-a4.pdf`, which is black body copy on white paper — content that is ALREADY
+greyscale, so a `Grayscale` render of it is byte-identical by construction. Moved to
+`image-dct-rgb.pdf`, and the case now first REQUIREs that the colour render actually contains
+colour, so the comparison cannot pass vacuously.
+**Negative control run:** replacing the negative origin with `(0,0)` and the page size with the
+tile's reddens the region case and the scale case, and nothing else.
+**If it fails** S1.
 
 **A-45 · Thread confinement — eight workers, concurrently**
 ☐ **Goal** D2-9. **Steps** Rasterize 200 tiles across 8 workers over 4 documents, repeatedly, under
 `x64-debug`.
 **Expect** No crash, no corrupted output, no data race. **`PdfiumInit` is entered once.**
+**Result ✅ 2026-09-04 (T9)** Eight threads, 25 tiles each, over four documents — and the workers
+SHARE documents deliberately, because two threads on one document is precisely the case per-worker
+confinement was supposed to make safe and did not. 200 of 200 tiles rendered, none failed, and
+`initializationCount()` is 1.
+**What made this passable at all is the engine lock**, which lives in `PdfiumInit` because that file
+is the one place PDFium's global state is touched. D2-9's *"thread-confined per worker"* was
+measured FALSE at T3 (**I-05**); the lock is the conservative half of the choice **T11** still has
+to make, and is correct under either outcome.
+**WHAT IT DOES NOT PROVE, named at the assertion** (convention 19): it is **not a data-race
+detector**. This toolchain has no TSan (risk R7), so a race that happens not to fire in one run
+would pass. What makes it worth having is that the UNGUARDED version of this exact shape crashed
+reliably at T3.
 **If it fails** S1 — PDFium's global state is the one thing this design must own exclusively.
 
 **A-46 · The backend interface census** 🟡 **partly green at T1, 2026-09-01.** **Goal** D2-7.
@@ -966,17 +1024,45 @@ and named, with no duplicate and no empty entry; `createBackend()` reports **non
 `::close`; every sub-interface accessor is **null rather than an empty stub**; and the password
 callback is asserted **not** to have run, so the case cannot pass against a backend that opened the
 file and returned nothing. `notImplementedError` has its own case with a control for the no-method
-form. **The last sentence of the Expect is not asserted and cannot be until T9** — that half is
-`{IDocumentBackend, IPageRasterizer}` after the real backend exists, and the file says so at the top
-rather than leaving a reader to add up what is covered (convention 19).
+form. **Result at T9 — the case is now CLOSED.** The last sentence of the Expect is asserted in
+`tests/render/tst_rasterizer.cpp`: the shipped backend reports exactly `{IDocumentBackend,
+IPageRasterizer}`, and `unimplementedBackendInterfaces()` names the other five in enum order. The
+five accessors are **null rather than empty stubs**, and a handle is never reused — a token held
+across a close MISSES rather than starting to name a different document.
+**The file had to SPLIT to get there, and the reason is worth recording.** `tst_backend.cpp` drove
+`pdf::createBackend()` directly, which was fine while that factory returned a backend implementing
+nothing and needing no engine. **A backend that opens documents IS the engine**, so the factory moved
+into `rawpage_pdfium` — which `rawpage_assert_headless()` forbids the headless suite from linking by
+name (D2-2). What stays in `tests/unit` is asserted over a **test backend defined in that file**: the
+interface declarations, `notImplementedError`, the census helper and `RasterImage`'s stride
+validation, all still running under `portable-asan`. **What is lost is stated rather than absorbed**:
+the SHIPPED backend's census is no longer asserted under ASan.
 **If it fails** S1 — convention 6's argument: a stub that silently succeeds surfaces stages later as
 data nobody produced.
 
 **A-47 · `openFiles()` asks the backend, not the filename**
-☐ **Goal** This replaces Stage 1's A-58, which asserted the opposite and was correct then (D1-2).
+✅ **2026-09-04 (T9)** **Goal** This replaces Stage 1's A-58, which asserted the opposite and was
+correct then (D1-2).
 **Steps** A `.pdf` file that is not a PDF; a PDF with a `.dat` suffix.
 **Expect** The first is **refused with a named reason**; the second **opens**. Deciding whether bytes
-are a PDF is `IDocumentBackend`'s job. **If it fails** S2.
+are a PDF is `IDocumentBackend`'s job.
+**Result 2026-09-04** Asserted from BOTH sides, and the split matters. The **engine half** is in
+`tests/render/`, against real bytes: a copy of `minimal.pdf` named `.dat` opens, and a `.pdf`
+containing a sentence of English is refused with `error.open.notPdf`. The **UI half** is in
+`tests/ui/`, against a fake backend, because `ui/` may not link the engine (D1-4) *and* because the
+claim under test is about the shell's POLICY — a fake is what lets a case decide whether the shell
+consulted the backend **at all**. "The file was refused" and "the backend was never asked" look
+identical from outside, and only the second is the bug this case exists to catch, so the fake records
+every path it was asked about.
+**Existence stays the shell's own check**: *"there is no such file"* is a different message from
+*"that is not a PDF"*, and asking the engine about a path that is not there would turn the first into
+the second. The recent list is now noted only AFTER the backend accepts — Stage 1 noted every path it
+was handed because it could not tell which were openable.
+**Two Stage 1 cases were rewritten rather than deleted**, because they asserted the OLD contract and
+were correct under it. **`Services` gained `core::IDocumentBackend&`** at the same time, which is the
+consumer `app/Services.h` has been saying since T1 that it was waiting for.
+**Negative control run:** ignoring the backend's refusal reddens both halves of the UI case.
+**If it fails** S2.
 
 ### 5.8 Golden images
 

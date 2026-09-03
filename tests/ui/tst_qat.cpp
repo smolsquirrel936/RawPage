@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/Services.h"
+#include "tests/ui/FakeBackend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
@@ -49,10 +50,11 @@ struct Fixture {
     core::KeyBindingStore keyBindings;
     core::LogBuffer       logBuffer;
     platform::Platform    platform;
+    uitest::FakeBackend   backend;   // T9: Services now carries the engine
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, backend, platform};
     }
 };
 

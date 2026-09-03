@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/Services.h"
+#include "tests/ui/FakeBackend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
@@ -55,10 +56,11 @@ struct Fixture {
     core::KeyBindingStore   keyBindings;
     core::LogBuffer         logBuffer;
     platform::Platform      platform;   // every interface null: the honest state of a test bundle
+    uitest::FakeBackend     backend;   // T9: Services now carries the engine
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, backend, platform};
     }
 };
 
@@ -385,20 +387,35 @@ TEST_CASE("opening a file checks the name and never reads the bytes", "[shell]")
     CHECK(fixture.recentFiles.entries().front().path.endsWith(QStringLiteral("not-really.pdf")));
 }
 
-TEST_CASE("a path that does not exist, and one that is not a pdf, are both refused", "[shell]")
+TEST_CASE("a path that does not exist and one the backend refuses are both refused", "[shell]")
 {
+    // **REWRITTEN AT T9.** It used to assert that a file not named `.pdf` was refused, which was
+    // Stage 1's D1-2 and is no longer true: guide case A-47 moved that decision to the backend, and
+    // the suffix is not consulted. The two refusals that REMAIN are the ones worth keeping, and
+    // they are refused by two different parties for two different reasons.
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
+    // The shell's own: existence. "There is no such file" is a different message from "that is not
+    // a PDF", and asking the engine about a path that is not there would turn the first into the
+    // second.
     const QString missing = QDir(fixture.directory.path()).filePath(QStringLiteral("absent.pdf"));
-    const QString notPdf = writeFile(fixture.directory, QStringLiteral("notes.txt"),
-                                     QByteArrayLiteral("notes\n"));
 
-    window.openFiles({missing, notPdf});
+    // The backend's: these bytes are not a document.
+    const QString refused = writeFile(fixture.directory, QStringLiteral("notes.txt"),
+                                      QByteArrayLiteral("notes\n"));
+    fixture.backend.accepts = [&refused](const QString& path) { return path != refused; };
+
+    window.openFiles({missing, refused});
 
     // Neither reached the recent list. A recent list that accumulates files nobody could open is
     // one people clear and stop using.
     CHECK(fixture.recentFiles.entries().empty());
+
+    // The missing one was never handed to the backend -- the shell answered it -- and the other
+    // one was. Without this the case cannot tell which party refused what.
+    REQUIRE(fixture.backend.asked.size() == 1);
+    CHECK(fixture.backend.asked.front() == refused);
 }
 
 TEST_CASE("the string dump covers every shell key and every action label", "[shell]")

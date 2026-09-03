@@ -20,6 +20,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/Services.h"
+#include "tests/ui/FakeBackend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
@@ -56,10 +57,11 @@ struct Fixture {
     core::KeyBindingStore keyBindings;
     core::LogBuffer       logBuffer;
     platform::Platform    platform;
+    uitest::FakeBackend   backend;   // T9: Services now carries the engine
 
     app::Services services()
     {
-        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, platform};
+        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, backend, platform};
     }
 
     // A file that IS named `.pdf` and is NOT a PDF. D1-2 says the shell checks the name and never
@@ -118,8 +120,10 @@ TEST_CASE("opening a file gives it a tab and opening it twice does not", "[tabs]
     CHECK(window.currentDocument() != nullptr);
     CHECK(window.currentDocument()->path() == second);
 
-    // A-58's second half, which was not runnable until this task: the file's CONTENTS are plain
-    // text, and a stub tab opens for it because the check is the name and the suffix.
+    // **T9 REPLACED THE REASON THIS PASSES.** Stage 1's A-58 said a stub tab opened because the
+    // check was the NAME; guide case A-47 says the backend decides. The fixture's files are plain
+    // text with a `.pdf` name, and they open here because the FAKE backend accepts them -- which is
+    // the point: the shell asks, and what it gets back is the answer.
     CHECK(window.documentAt(0)->path() == first);
 
     // The same path again focuses the tab that already has it rather than adding a second.
@@ -128,11 +132,56 @@ TEST_CASE("opening a file gives it a tab and opening it twice does not", "[tabs]
     CHECK(window.documentCount() == 2);
     CHECK(window.currentDocument()->path() == second);
 
-    // And the two refusals still refuse -- neither a missing file nor a file that is not named
-    // `.pdf` gets a tab.
-    window.openFiles({QDir(fixture.directory.path()).filePath(QStringLiteral("nothing.pdf")),
-                      fixture.writePdf(QStringLiteral("notes.txt"))});
+    // A MISSING file still refuses, and existence is still the shell's own check: "there is no such
+    // file" is a different message from "that is not a PDF", and asking the engine to open
+    // something that is not there would turn the first into the second.
+    window.openFiles({QDir(fixture.directory.path()).filePath(QStringLiteral("nothing.pdf"))});
     CHECK(window.documentCount() == 2);
+
+    // **AND A `.txt` NOW OPENS, WHICH IS THE T9 CHANGE.** Stage 1 refused it on its suffix (A-58,
+    // correct then under D1-2). The suffix is no longer consulted: this backend accepts it, so it
+    // gets a tab. The case asserting the OTHER direction -- a `.pdf` the backend refuses -- is
+    // `openFiles asks the backend rather than the filename` below.
+    window.openFiles({fixture.writePdf(QStringLiteral("notes.txt"))});
+    CHECK(window.documentCount() == 3);
+}
+
+TEST_CASE("openFiles asks the backend rather than the filename", "[tabs]")
+{
+    // **GUIDE CASE A-47's UI half**, and it replaces Stage 1's A-58, which asserted the opposite
+    // and was correct then: D1-2 said the shell reads no bytes, and there was no engine to ask.
+    //
+    // A fake backend rather than the real one, and not merely because `tests/ui` may not link the
+    // engine (D1-4): the claim under test is about the SHELL'S POLICY, and a fake is what lets the
+    // case decide whether the shell consulted it AT ALL. "The file was refused" and "the backend
+    // was never asked" look identical from outside, and only the second is the bug this catches.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+
+    // Refuse anything whose name contains "reject", regardless of suffix.
+    fixture.backend.accepts = [](const QString& path) { return !path.contains(QLatin1String("reject")); };
+
+    const QString disguised = fixture.writePdf(QStringLiteral("really-a-pdf.dat"));
+    const QString liar = fixture.writePdf(QStringLiteral("reject-me.pdf"));
+
+    window.openFiles({disguised, liar});
+
+    // THE BACKEND WAS ASKED ABOUT BOTH -- including the `.dat`, which Stage 1 would have discarded
+    // on its suffix without ever asking.
+    REQUIRE(fixture.backend.asked.size() == 2);
+    CHECK(fixture.backend.asked.at(0).endsWith(QStringLiteral("really-a-pdf.dat")));
+    CHECK(fixture.backend.asked.at(1).endsWith(QStringLiteral("reject-me.pdf")));
+
+    // The `.dat` OPENED and the `.pdf` did not. Both halves matter: the first is what Stage 1 could
+    // not do, and the second is what stops this being "accept everything".
+    REQUIRE(window.documentCount() == 1);
+    CHECK(window.documentAt(0)->path() == disguised);
+
+    // And only the accepted one reached the recent list. Stage 1 noted every path it was handed
+    // because it could not tell which were openable; a recent list full of files that will not open
+    // is one people clear and stop using.
+    REQUIRE(fixture.recentFiles.entries().size() == 1);
+    CHECK(fixture.recentFiles.entries().front().path.endsWith(QStringLiteral("really-a-pdf.dat")));
 }
 
 TEST_CASE("the window title and the status bar follow the current document", "[tabs]")
