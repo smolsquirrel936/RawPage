@@ -52,6 +52,14 @@ add_library(rawpage_cos STATIC
     # a Qt container once per iteration.
     cos/Lexer.h
     cos/Lexer.cpp
+
+    # T6: the object model and the grammar over it. CosObject is the type Stage 3's byte-identical
+    # save depends on -- it carries the exact span every object was written as, so an untouched
+    # object is REWRITTEN BY COPYING rather than by re-serializing.
+    cos/CosObject.h
+    cos/CosObject.cpp
+    cos/Parser.h
+    cos/Parser.cpp
 )
 
 target_include_directories(rawpage_cos PUBLIC "${CMAKE_SOURCE_DIR}")

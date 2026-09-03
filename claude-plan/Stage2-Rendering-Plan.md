@@ -13,13 +13,16 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T4 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
+> **Status:** 🟡 **T1–T6 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
 > finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
 > on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
 > byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
-> the first token of PDF this project has ever read for itself, and `portable-fuzz`'s first target
-> — which has still never been RUN, that being a Linux job, and is recorded as such rather than as
-> pending.** Written 2026-08-31,
+> the first token of PDF this project has ever read for itself, and `portable-fuzz`'s first target.
+> **T6 on 2026-09-03**: `CosObject` + `Parser` — the first PDF *object*, the identity-preserving
+> span Stage 3's byte-identical save rests on, the `/Length` recovery with A-17's control, and the
+> preset's SECOND target, which took `RAWPAGE_EXPECTED_FUZZ_TARGETS` from 1 to 2 exactly as T5 said
+> it would. **Neither fuzz target has ever been RUN**, that being a Linux job, and both are recorded
+> as such rather than as pending.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -93,7 +96,7 @@ Recorded so the tasks below are concrete. None of these is re-decided here.
 | `pdf/PdfModule.cpp` | Stage 0's placeholder TU; `Stage1-AppShell-Plan.md` §10 records **"Stage 2 deletes it"** | T1 deletes it — `pdf/` gets real translation units there |
 | `tools/spike-pdfium/` | ✅ Stage 0 T12, marked ⤵ throwaway: *"deleted when `pdf/render/PdfiumInit` replaces it at Stage 2"* | T2 deletes it, exactly as `tools/spike-ribbon/` was deleted at Stage 1 T10 |
 | `rawpage_pdf` | One static library, one placeholder TU, linked by `rawpage_tests` under `rawpage_assert_headless()` | **It must split — see D2-2.** This is the single most likely way Stage 2 breaks a Stage 0 guarantee without anyone editing the file that states it |
-| `portable-fuzz` | Wired since Stage 0; its preset description says **"NO TARGETS EXIST until Stage 2"** | ✅ **T5 gave it `fuzz_cos_lexer`**, its first target ever, and `tests/fuzz/CMakeLists.txt` now fails configure on the wrong target count. It has still never been RUN — no clang on the dev box — so "proven to build one" is owed by the Linux job, not claimed here |
+| `portable-fuzz` | Wired since Stage 0; its preset description says **"NO TARGETS EXIST until Stage 2"** | ✅ **T5 gave it `fuzz_cos_lexer` and T6 `fuzz_cos_parser`, the primary one**, and `tests/fuzz/CMakeLists.txt` fails configure on the wrong target count — 1 at T5, **2 from T6**. Neither has ever been RUN — no clang on the dev box — so "proven to build one" is owed by the Linux job, not claimed here |
 | `corpus/` | `make-minimal.py` + one generated `minimal.pdf`. Stage 0 §7.3 recorded **"Stage 2 owns the real corpus"** | ✅ T4 — 60 files, a `PROVENANCE.md` row each, byte-identical regeneration gated |
 | `ui/` warning grace list | `RAWPAGE_UI_WARNING_GRACE` still **empty** (D1-12) | It may only shrink. `ui/viewer/` is the largest block of new `ui/` code since T10 and is where the pressure to add an entry will come from |
 | Carried cases | **A-25** (`--list-actions`, a switch that never existed) and **A-26** (an alias fixture for `RAWPAGE_ACTION_ALIAS`, real code with zero rows) — carried to Stage 2 rather than closed | T18 (D2-10) |
@@ -141,7 +144,7 @@ wrong stage tag, and are lockstep debt — §10.
 | `tools/spike-pdfium/` — **deleted** | §3.17 ⤵ | T2 |
 | `corpus/**`, `corpus/PROVENANCE.md`, `corpus/make-*.py` | §3.18 ✅ (S2 · T4) — twelve rows added: the provenance file, the driver, `pdfbuild.py`, the four encoders, `fontenc`, `cryptenc`, and one per generated directory | T4 |
 | `pdf/cos/Lexer.{h,cpp}` | §3.9 ✅ (S2 · T5) | T5 |
-| `pdf/cos/CosObject.{h,cpp}`, `pdf/cos/Parser.{h,cpp}` | §3.9 ⚠️ **○ (S3) → ○ (S2)** | T6 |
+| `pdf/cos/CosObject.{h,cpp}`, `pdf/cos/Parser.{h,cpp}` | §3.9 ✅ (S2 · T6) | T6 |
 | `pdf/cos/XrefTable.{h,cpp}` | §3.9 ⚠️ **○ (S3) → ○ (S2)** | T7 |
 | `pdf/cos/filters/*.{h,cpp}` — **nine** (D2-4) | §3.9 ⚠️ **○ (S3) → ○ (S2)**, and the row's tenth filter re-tagged S10 | T7 |
 | `pdf/cos/XrefRepair.{h,cpp}` | §3.9 ⚠️ **○ (S3) → ○ (S2)** | T8 |
@@ -158,7 +161,7 @@ wrong stage tag, and are lockstep debt — §10.
 | `pdf/render/GlyphCache.{h,cpp}`, `FontResolverBridge.{h,cpp}` | §3.10 ○ (S2) | T16 |
 | `tests/golden/`, `tools/golden-update/` | §3.17 ⚠️ *(`tests/golden/` has a row; the tool does not)* | T17 |
 | `tests/bench/bench_render.cpp` | §3.17 🟡 (S2 · T3; T18 completes it) | T3, T18 |
-| `tests/fuzz/` | §3.17 🟡 (S2 · T5; T6 completes it) — the stage retag was made when this plan was written | T5, T6 |
+| `tests/fuzz/` | §3.17 ✅ (S2 · T5, T6) — the stage retag was made when this plan was written | T5, T6 |
 
 **Settings keys** — the sixteen from
 [`Implementation-Plan.md` § Stage 2](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering)
@@ -341,7 +344,7 @@ the work that produced it.
 | `gates` (ubuntu, no Qt) | 66 cases, three gates | Plus `layer-lint`'s narrowed `FPDF_` rule and the handle rule, each with a fixture **and a control** (D2-9); plus the `PdfiumAssert` fixture. Still three gates, still no Qt, still runs before any compile |
 | `windows` (self-hosted) | 354 tests | Plus `rawpage_tests`' eight new suites, **`rawpage_render_tests`** (new), the `ui.` viewer suites, `tst_displaytopology`, and `tests/golden/`. The T15-era assertion that a suite prefix is never *empty* extends to `render.` — the whole point of that assertion is that a target which failed to build subtracts cases from a run still reporting *"100% tests passed"* |
 | `portable-asan` (ubuntu) | 196 tests | Plus the COS parse of the **whole corpus** under ASan+UBSan. This is the job that makes D2-2's split worth its cost, and it is also the one that would have silently stopped configuring without it |
-| `portable-fuzz` (ubuntu, clang) | **Never run — no targets exist** | `fuzz_cos_lexer` and `fuzz_cos_parser`, seeded from `corpus/malformed/`, 10 minutes clean in CI. **A preset that has never built anything has not been proven to build anything** — Stage 1's I-30, where a job everyone assumed was running had never run, is the argument for treating the first green run as a finding rather than a formality |
+| `portable-fuzz` (ubuntu, clang) | **Never run — both targets now EXIST (T5, T6) and neither has been linked or run; there is no clang on the dev box** | `fuzz_cos_lexer` and `fuzz_cos_parser`, seeded from `corpus/malformed/`, 10 minutes clean in CI. **A preset that has never built anything has not been proven to build anything** — Stage 1's I-30, where a job everyone assumed was running had never run, is the argument for treating the first green run as a finding rather than a formality |
 | `coverage-report` | Names what went unexercised when a job did not run | Gains the new prefixes, so a skipped `render.` cannot be misread as coverage |
 
 **The raster path cannot leave Windows** — PDFium is in it — so ASan does not cover it. Per

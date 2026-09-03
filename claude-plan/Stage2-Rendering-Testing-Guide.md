@@ -10,10 +10,11 @@
 > **78 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02 — and **A-76 … A-78**
 > added at T4, because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13, A-15 and A-76 … A-78 are green**, **A-27 is partly closed** and
-> **A-46 is partly green** — every other box is still ☐. **Two are Linux jobs this machine cannot
-> run and neither should be read as merely pending: A-04**, and now **A-25**, whose target exists
-> but has never been linked or run because there is no clang here.
+> **A-01, A-03, A-05 … A-13, A-15 … A-17 and A-76 … A-78 are green**, **A-27 is CLOSED** (T6 took
+> the expected target count from 1 to 2) and
+> **A-46 is partly green** — every other box is still ☐. **Three are Linux jobs this machine cannot
+> run and none should be read as merely pending: A-04**, and **A-25** and **A-26**, whose targets
+> both exist but have never been linked or run because there is no clang here.
 > **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through in the same change. The
@@ -583,16 +584,43 @@ one `LexNote`. **Two negative controls were run** rather than reasoned about: re
 advance produced *“no progress at 0 (token Junk)”* **and** *“no progress at 585”* from a real corpus
 file, and removing the `<<` lookahead reddened two cases. **If it fails** S2.
 
-**A-16 · `tst_cos_parser`** ☐ **Steps** `ctest -R unit.cos.parser`
+**A-16 · `tst_cos_parser`** ✅ **2026-09-03 (T6)** **Steps** `ctest -R unit.cos.parser`
 **Expect** Objects, indirect objects, streams, object streams. **Identity-preserving round-trip of
-anything we do not interpret** — the property Stage 3's byte-identical save depends on. **If it fails** S1.
+anything we do not interpret** — the property Stage 3's byte-identical save depends on.
+**Result 2026-09-03** **30 cases green** on both Windows presets, plus
+`unit.cos.compile.fuzz_entrypoint_parser`. The round-trip half is asserted the strong way rather
+than over literals: **every object in every one of the 29 `corpus/ordinary/` files is re-parsed FROM
+ITS OWN RECORDED BYTE RANGE and must compare equal** — 200-plus objects, 20-plus of them streams —
+because the failure mode is a construct nobody thought to write down. `(a\053b)` versus `(a+b)` and
+`4.` versus `4.0` are asserted directly beside it: they decode identically, are not the same bytes,
+and both spellings come back verbatim.
+**Two limits this case does NOT cover, named at the assertion** (convention 19). **Object streams
+run against hand-built payloads**, not the corpus, because every `/ObjStm` in `corpus/` is
+`/FlateDecode`d and Flate is **T7** — and that gap is *asserted* by its own case rather than left in
+a comment, so it closes when T7 closes it. And nothing here resolves an object NUMBER to an offset;
+that is `XrefTable`'s (T7), and the `/Length 9 0 R` cases use a hand-written resolver in its place.
+**Negative control run:** truncating a stream's span reddened this case and the stream case, and
+nothing else. **If it fails** S1.
 
 **A-17 · A `/Length` that lies is recovered — and the control proves the path was taken**
-☐ **Goal** The single most common real-world malformation.
+✅ **2026-09-03 (T6)** **Goal** The single most common real-world malformation.
 **Steps** A generated fixture whose stream `/Length` is 12 bytes short. Then one where it is correct.
 **Expect** The first parses to the same content as the second, **and reports that it recovered**. The
 control is the second: it must parse *without* the recovery path running, or the case proves nothing
-about recovery. **If it fails** S2.
+about recovery.
+**Result 2026-09-03** Both halves green over the pair T4 built for it —
+`malformed/length-lies-short.pdf` (4497) and `ordinary/stream-length-control.pdf` (4509), three
+bytes apart. The damaged file recovers to **4,509 bytes**, byte-identical to the control's stream,
+reports `StreamLengthRecovered` **once** and keeps the declared 4,497 alongside it, because T8's
+report has to say what it reconstructed rather than that it did. **The control reports zero.**
+The rule the parser actually implements is **trust `/Length` only when it lands on `endstream`**,
+and three further files establish why nothing weaker would do: `length-lies-long.pdf` is 400 bytes
+too long and **still fits inside the file**, so a check of `declared > available` alone would accept
+it silently; `huge-length-claim.pdf` declares 4,294,967,295 in a 10 KB file and allocates nothing,
+because a stream is an offset and a length into the caller's buffer; and `truncated-mid-stream.pdf`
+has no `endstream` at all, so the data runs to the end of the file under its own note.
+**Negative control run:** accepting the declared length without checking for `endstream` reddened
+exactly this case and its too-long twin, and nothing else. **If it fails** S2.
 
 **A-18 · `tst_cos_filters` — each of the nine round-trips**
 ☐ **Steps** `ctest -R unit.cos.filters`
@@ -656,10 +684,22 @@ construction** — say so rather than letting the green count imply otherwise.
 has not been proven to build anything, which is Stage 1's I-30 in a different costume.
 
 **A-26 · `fuzz_cos_parser` — the primary target — same**
-☐ **Steps** As A-25. **Expect** As A-25. **Not yet written: the parser is T6.** **If it fails** S1.
+☐ **WRITTEN AT T6; NOT RUN — a Linux/clang job, like A-04 and A-25.**
+**Steps** As A-25, against `./bin/fuzz_cos_parser`. **Expect** As A-25.
+**State 2026-09-03** The target **exists** (`tests/fuzz/fuzz_cos_parser.cpp`) and this machine has
+no clang, so neither the link nor the run has happened. The same two substitutes-that-are-not stand
+as at T5: the entry point is compiled `-fsyntax-only` every Windows run
+(`unit.cos.compile.fuzz_entrypoint_parser`), and its body lives in `tests/fuzz/ParserFuzzBody.h`,
+which `tst_cos_parser` replays over all 60 corpus files and a table of adversarial inputs.
+**Replaying 60 known files is not fuzzing** — say so rather than letting the green count imply
+otherwise. What the body checks beyond what ASan would: **progress** (a parser that stops advancing
+is a hang, the one failure a fuzzer reports badly), **the depth bound** — measured by an ITERATIVE
+walk, because a recursive one would be the very bug it is looking for — and **span containment**,
+which is not a crash here but becomes someone else's memory inside a saved PDF once Stage 3's
+writer starts copying those bytes. **If it fails** S1.
 
 **A-27 · The fuzz targets actually exist in the build graph**
-🟡 **partly closed at T5 — and moved from a manual enumeration to an assertion**
+✅ **closed at T6 — and moved from a manual enumeration to an assertion at T5**
 **Goal** The negative that A-25 and A-26 cannot supply for themselves: a target that silently
 builds nothing passes a "no crashes" check trivially.
 **Steps** Enumerate the `portable-fuzz` build graph.
@@ -667,9 +707,12 @@ builds nothing passes a "no crashes" check trivially.
 **Change made at T5** Counting targets by hand once, at sign-off, is the shape of check that is
 right on the day and silently wrong afterwards. `tests/fuzz/CMakeLists.txt` now **fails configure**
 when its target count is not `RAWPAGE_EXPECTED_FUZZ_TARGETS`, so an empty fuzz graph stops the
-`portable-fuzz` build instead of passing its run. **The number is 1 at T5 and becomes 2 at T6** —
-bumping it is part of that task. The root `CMakeLists.txt` message that said *"NO FUZZ TARGETS EXIST
-YET"* since Stage 0 changed in the same commit.
+`portable-fuzz` build instead of passing its run. **The number was 1 at T5 and became 2 at T6**, bumped in
+the same commit as `fuzz_cos_parser` exactly as that comment said it would be. The root
+`CMakeLists.txt` message that said *"NO FUZZ TARGETS EXIST YET"* since Stage 0 changed at T5.
+**Closed 2026-09-03**: the graph holds the two targets this stage specifies, and the count is
+asserted at configure time rather than counted by hand at sign-off — so it cannot be right on the
+day and silently wrong afterwards, which is the failure mode this case was written against.
 **If it fails** S2 — and this case exists because Stage 1's I-30 was precisely a job that reported
 success by doing nothing.
 

@@ -1637,6 +1637,14 @@
         <source>error.engine.initFailed</source>
         <translation>無法啟動 PDF 引擎（錯誤 %1）。</translation>
     </message>
+    <message>
+        <source>error.pdf.badObjectHeader</source>
+        <translation>此 PDF 已損毀：位置 %1 沒有任何物件。</translation>
+    </message>
+    <message>
+        <source>error.pdf.badObjectStream</source>
+        <translation>此 PDF 已損毀：無法讀取壓縮物件群組（%1）。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>

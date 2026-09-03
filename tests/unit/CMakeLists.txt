@@ -30,6 +30,7 @@ add_executable(rawpage_tests
     tst_backend.cpp               # Stage 2 T1  -- guide case A-46, the engine-interface census
     tst_cos_lexer.cpp             # Stage 2 T5  -- guide case A-15, and the fuzz body's
                                   #                only Windows caller (tests/fuzz)
+    tst_cos_parser.cpp            # Stage 2 T6  -- guide cases A-16 and A-17
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -153,6 +154,11 @@ rawpage_add_compile_case(NAME unit.commandline.compile.argv_overload
 # find out. Guide case A-27's concern, one layer earlier.
 rawpage_add_compile_case(NAME unit.cos.compile.fuzz_entrypoint
     SOURCE fuzz-entrypoint.cpp EXPECT_FAIL 0)
+
+# The same for T6's target, which is the PRIMARY one: `fuzz_cos_parser` covers the layer that
+# recurses, that sizes containers from the input and that trusts a producer-written `/Length`.
+rawpage_add_compile_case(NAME unit.cos.compile.fuzz_entrypoint_parser
+    SOURCE fuzz-entrypoint-parser.cpp EXPECT_FAIL 0)
 
 rawpage_add_compile_case(NAME unit.commandline.compile.arguments_list_control
     SOURCE arguments-list.cpp EXPECT_FAIL 0)

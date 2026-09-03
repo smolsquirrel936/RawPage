@@ -27,14 +27,16 @@ function(rawpage_add_fuzz_target name source)
 endfunction()
 
 rawpage_add_fuzz_target(fuzz_cos_lexer fuzz_cos_lexer.cpp)
+rawpage_add_fuzz_target(fuzz_cos_parser fuzz_cos_parser.cpp)   # T6, and the PRIMARY target (A-26)
 
 # Guide case A-27: "Enumerate the portable-fuzz build graph. Expect exactly two fuzz targets. ZERO
 # IS A FAILURE, NOT A PASS." That case exists because A-25 and A-26 -- "no crashes in ten minutes"
 # -- are passed trivially by a target that builds nothing. The count is asserted here, at configure
 # time, so the build graph cannot quietly become empty between now and the Linux run.
 #
-# It is 1 at T5 and becomes 2 at T6 with fuzz_cos_parser. Bumping this number is part of T6.
-set(RAWPAGE_EXPECTED_FUZZ_TARGETS 1)
+# It was 1 at T5 and became 2 at T6 with fuzz_cos_parser, exactly as that comment said it would.
+# The next task to add or remove a target changes this number in the same commit.
+set(RAWPAGE_EXPECTED_FUZZ_TARGETS 2)
 get_property(_fuzz_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 list(LENGTH _fuzz_targets _fuzz_target_count)
 if(NOT _fuzz_target_count EQUAL RAWPAGE_EXPECTED_FUZZ_TARGETS)

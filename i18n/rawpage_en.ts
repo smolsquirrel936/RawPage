@@ -1637,6 +1637,14 @@
         <source>error.engine.initFailed</source>
         <translation>The PDF engine could not be started (error %1).</translation>
     </message>
+    <message>
+        <source>error.pdf.badObjectHeader</source>
+        <translation>This PDF is damaged: no object begins at position %1.</translation>
+    </message>
+    <message>
+        <source>error.pdf.badObjectStream</source>
+        <translation>This PDF is damaged: a compressed object group could not be read (%1).</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
