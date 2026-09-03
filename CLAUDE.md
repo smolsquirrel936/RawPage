@@ -105,8 +105,8 @@ has been opened. Four things bind what comes next:
   failure, not a pass"* made structural.
 
 **T6 shipped `pdf/cos/CosObject` and `pdf/cos/Parser` (2026-09-03) — the first PDF object.**
-`rawpage_cos` now turns bytes into objects; `pdf::createBackend()` still refuses everything by name,
-and no document has been opened. Five things bind what comes next:
+`rawpage_cos` turns bytes into objects. **At T6 no document had yet been opened** — that is T9's,
+below — and five things it settled bind what came after:
 
 - **Identity-preserving round-trip is carried by a SPAN, and the corollary is enforced rather than
   documented.** Every object parsed from a buffer records the exact byte range it was written as, so
@@ -375,8 +375,12 @@ order.
   it to be dropped onto another window's strip (I-33) — the guard sits *after* that branch, because a
   torn-off window holds exactly one document by construction. A window emptied by a **move** closes
   itself (I-35), and one emptied by a **close** does not; only a window that owns itself can go, since
-  the primary window is a stack object in `app/main.cpp` whose address `main()` holds. `openFiles()` opens a tab per accepted path, still checking only the name and the suffix and
-  reading no bytes. **`rawpage.exe` opens PDFs into tabs** — as stubs that say what Stage 2 brings.
+  the primary window is a stack object in `app/main.cpp` whose address `main()` holds. `openFiles()` opens a tab per accepted path. **At Stage 1 it checked the name and the suffix and read
+  no bytes (D1-2, case A-58); Stage 2 T9 replaced that with `IDocumentBackend::open()`** — a PDF
+  saved as `.dat` now opens, and a `.pdf` that is not one is refused with the engine's own reason
+  (A-47). Existence stays the shell's own check, because *"no such file"* and *"not a PDF"* are
+  different messages. **`rawpage.exe` opens real PDFs into tabs**, whose surface still names what is
+  coming: there is no viewer widget until T13.
 - **The keyboard (T13)** — `ui/shell/ShortcutBinder`, one per window, filtering `qApp` and answering
   only for its own window. Three separable parts: `activeContext()`, a pure walk up `parentWidget()`
   to the innermost widget that *declares* a `KeyContext`; `chordFor()`, the QtGui boundary
@@ -417,17 +421,16 @@ open a damaged PDF and hand back any object by number. `pdf/render/` opens docum
 tiles. What nothing can do is emit a byte: `IncrementalWriter` and `ObjectAllocator` are Stage 3's
 (D2-4). `core/doc/` holds five vocabulary types and no `Document`; `core/render/` holds
 `RenderRequest` and none of the policy that consumes it; `pdf/ops/` and `ui/viewer/` are still
-empty, so **a rendered tile has nowhere to be shown** — T13 builds `PageView`. Stage 2 T1
-added the engine *contract* (`core/backend.h`) and a backend that implements none of it, T2 added
-`pdf/render/PdfiumInit` — the library's global state and nothing else — T4 added **data**, not
-code (`corpus/` is 60 generated files and their generators), T5 added `pdf/cos/Lexer`, T6 added
-`pdf/cos/CosObject` + `Parser`, T7 added the nine filters and `pdf/cos/XrefTable`, and T8 added
-`pdf/cos/XrefRepair` with the first three `core/doc/` types, and T9 added `pdf/render/
-{PdfiumDocument,PdfiumRasterizer}` with `pdf/DocumentBackendImpl`. **A page has now been rendered by
-the product, and there is still no widget to put it in
-and no page has been rendered by the product**: the only thing that has rasterized anything is the A2
-probe, which is a benchmark, and `pdf::createBackend()` still returns the backend that refuses every
-call by name. T9 is where that changes. `platform/win/` holds two of seventeen interfaces. **`rawpage.exe` opens a window with a
+empty, so **a rendered tile has nowhere to be shown** — T13 builds `PageView`.
+
+Task by task: T1 added the engine *contract* (`core/backend.h`) and a backend implementing none of
+it; T2 `pdf/render/PdfiumInit`, the library's global state and nothing else; T4 **data** rather than
+code (`corpus/` is 60 generated files and their generators); T5 `pdf/cos/Lexer`; T6 `CosObject` +
+`Parser`; T7 the nine filters and `XrefTable`; T8 `XrefRepair` with the first three `core/doc/`
+types; and **T9 `PdfiumDocument`, `PdfiumRasterizer` and `DocumentBackendImpl` — which is where a
+page was first drawn by the product rather than by a benchmark**, and where
+`pdf::createBackend()` stopped refusing every call by name. `platform/win/` holds two of seventeen
+interfaces. **`rawpage.exe` opens a window with a
 working ribbon, a customizable toolbar, a tool finder, document tabs, a keyboard, a Preferences dialog
 and a log pane** —
 9 tabs above a sidebar, a status bar and a live theme, and a tab per opened file whose surface names
@@ -445,6 +448,11 @@ event loop, **the headless smoke test is `--dump-ui-strings`**: it composes ever
 catalogs and exits 0 without creating a window.
 
 ### Conventions established mid-stage — these bind all later work
+
+> **Every bare `Tn` in this section is a STAGE 1 task.** These conventions were written as Stage 1
+> discovered them, and Stage 2 now has a `T1`…`T18` of its own — so an unqualified "T9" here means
+> the shell task that built `MainWindow`, not the one that opened a document. That is the collision
+> the *Citing a label* section warns about, applied to the one place in this file that predates it.
 
 1. **Nothing may read a path out of `argv`.** Measured at T1: this machine's ANSI code page is
    **950**, and the CRT replaces anything it cannot represent with `?` — an emoji path came back as
@@ -641,7 +649,7 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
 | `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order and its stage-local design choices. **Three exist:** `Stage0-Toolchain-Plan.md` (tasks T1–T15, decisions D0-1…D0-8, the §7 precondition checklist), `Stage1-AppShell-Plan.md` (tasks T1–T15, decisions D1-1…D1-16, the §7 precondition checklist P-1…P-4) and `Stage2-Rendering-Plan.md` (tasks **T1–T18**, decisions D2-1…D2-14, preconditions P-1…P-4 of which P-2…P-4 are open), written 2026-08-31 before any Stage 2 code. It owns no product facts and no live status — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Three exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed); `Stage1-AppShell-Testing-Guide.md` (written before Stage 1's code, **fully run and fully walked** — 73 automated cases, 12 manual of which 9 were walkable and all 9 signed off, issues I-01…I-55, none open); and `Stage2-Rendering-Testing-Guide.md`, written from Stage 2's plan before its code — **74 automated (A-01…A-74) and 10 manual (M-01…M-10), and no case in it has been run**. Its one issue, **I-01**, was raised and closed before any code, by *reading* the document set rather than running it: `Architecture-FileMap.md` tagged the `pdf/cos/` reader and three `core/doc/` vocabulary types Stage 3 while `Implementation-Plan.md` — which owns stage ordering — claims them for Stage 2. **Stage 2's guide has its own `A-nn`/`M-nn`/`I-nn` namespace**; a bare `I-34` means Stage 1's. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk. **Three exist:** `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed); `Stage1-AppShell-Testing-Guide.md` (written before Stage 1's code, **fully run and fully walked** — 73 automated cases, 12 manual of which 9 were walkable and all 9 signed off, issues I-01…I-55, none open); and `Stage2-Rendering-Testing-Guide.md`, written from Stage 2's plan before its code — **78 automated (A-01…A-78) and 10 manual (M-01…M-10)**, of which **the automated cases through T9 have results and none of the ten manual ones is walkable yet** (there is no viewer to look at until T13). Four automated cases are Linux jobs this machine cannot run — **A-04, A-24, A-25, A-26** — and are recorded as such rather than as pending. Its one issue, **I-01**, was raised and closed before any code, by *reading* the document set rather than running it: `Architecture-FileMap.md` tagged the `pdf/cos/` reader and three `core/doc/` vocabulary types Stage 3 while `Implementation-Plan.md` — which owns stage ordering — claims them for Stage 2. **Stage 2's guide has its own `A-nn`/`M-nn`/`I-nn` namespace**; a bare `I-34` means Stage 1's. Each is written right after its stage's plan and before that stage's code, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 

@@ -55,35 +55,46 @@ three jobs, verdicts **A5** and **A6** recorded in ②.
 **Stage 1 is COMPLETE — every Definition-of-Done item closed as of 2026-08-31**, the manual walk
 included. All fifteen tasks, all nine walkable manual cases signed off by the user, no open issue.
 
-**Stage 2 is planned but not started.** Its execution plan
-([⑤](./Stage2-Rendering-Plan.md) — decisions **D2-1…D2-14**, tasks **T1…T18**) and its testing guide
-([⑥](./Stage2-Rendering-Testing-Guide.md) — now **78 automated**, **10 manual** cases) were both written
-on 2026-08-31, **before any Stage 2 code**, per ④ §5. It carries the **A2** go/no-go and owns **O7**
-and **O10**. Writing them corrected two stage tags in ③ that disagreed with ④ — the guide's **I-01**.
+**Stage 2 is under way — T1 … T9 of 18 are complete**, the most recent three on 2026-09-04. Its
+execution plan ([⑤](./Stage2-Rendering-Plan.md) — decisions **D2-1…D2-14**, tasks **T1…T18**) and its
+testing guide ([⑥](./Stage2-Rendering-Testing-Guide.md) — **78 automated**, **10 manual** cases) were
+both written on 2026-08-31, **before any Stage 2 code**, per ④ §5. It carries the **A2** go/no-go and
+owns **O7** and **O10**. Writing them corrected two stage tags in ③ that disagreed with ④ — the
+guide's **I-01**.
+
+**Where Stage 2 has got to**: the engine boundary and the pinned PDFium (T1–T2), A2's probe verdict
+`go` (T3), the 60-file generated corpus (T4), and then the whole first-party COS reader — lexer,
+object model, parser, nine filters, cross-reference engine and repair scanner (T5–T8) — which meets
+the **Stage 2 exit criterion** on Windows: every one of the 24 `corpus/malformed/` files yields a
+report and never a crash. **T9 opened a document and drew a page.** What is still missing is
+everything that puts a rendered tile on screen: `core/render/` policy (T10), the scheduler and cache
+(T11), and `ui/viewer/` (T13).
 
 | | |
 |---|---|
-| Tests | **412/412** on `x64-debug` and `x64-release`, measured 2026-09-02 (354 at the end of Stage 1; +13 at S2 T1, +16 at T2, +1 at T3, +3 at T4, +25 at T5); the bare `gates` preset **88/88** with no Qt. Split: `unit.` 176, `ui.` 123, `gates.` 88, `platform.` 19, `render.` 4, `bench.` 2. **CI green on all four jobs** (run 32785493072), and the `windows` job **ran for the first time in the project's history** — that run predates Stage 2, so its figures are Stage 1's |
-| Gates | `layer-lint` **153 files / 1,047 includes** with **six** filesystem-write waivers, `license-audit` clean at 17 components and 4 Qt modules, `i18n-lint` **92 files / 2 catalogs / 0 waivers**. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, deliberately not a fourth gate |
-| Verdicts | **A3 = `go, with named custom work`** (②'s §3.3, per criterion). T15 re-measured **R-9 against the shipped 192-control ribbon** rather than T2's spike: p95 **0.471 ms** against a 16.667 ms budget · **`-municode` = not adopted** |
-| Manual | **All nine walkable Stage 1 cases ✅** — M-01 … M-07, M-11 and M-12, every one signed off by the user (M-08 was withdrawn with accessibility; M-09 and M-10 are not walkable) — M-02 re-walked in full 2026-08-30 with no findings, M-03 walked 2026-08-30 and it found **I-33, I-34 and I-35**, all fixed. **M-04 ✅ signed off 2026-08-30** after three passes and four findings (I-36, I-37, I-38, I-39), each repair making the next defect reachable. **M-05 ✅ signed off 2026-08-31** after I-40 and I-41 — the second found because the first fix changed nothing on screen — and **M-06 ✅ the same day** after four more (I-42, I-44, I-45, and I-43 which belongs to M-11). **M-07 ✅ signed off 2026-08-31** — flow B end to end, needing a hand-made association and a `windeployqt` step neither the case nor the product provided (I-46). **M-11 ✅ signed off 2026-08-31** after five defects (I-47, I-49, I-50, I-51, I-52) and one feature added mid-walk. **M-12 ✅ signed off 2026-08-31 — the last case**, and with it the whole manual half. It found **I-53** (§5.1's *registered-but-disabled* tooltip was never built), disposed of as a planned absence for Stage 2. The rest are not walkable |
-| Issues | I-01…I-55 in ⑥. **None open.** **I-55 (S4)** a binding count quoted as 248 in three places matched nothing measurable; the def has 240 and §8 has 202 rows, so all three now say 240 and name their source. **I-54 (S2)** the tool finder accepted only the first character of a query: its result list is a `Qt::Popup`, so once open it — not the search box — is the window Qt hands key presses to, and nine green cases missed it because all nine type at the search box directly. Raised by the user after M-12 had been signed off. M-12 added **I-53** (not a defect): a control that is registered but merely unavailable explains nothing, where an unregistered one says it is not built — plan §5.1 asked for both, only one shipped, and the gap is a recorded planned absence for Stage 2 rather than an open issue. M-11 added **I-50** (only enabled commands could be pinned; a greyed ribbon button answered no right-click), **I-51** (the shortcuts log line printed the dropped count as the applied one) and **I-52** (a drop past the last toolbar button landed on the layout's stretch). **I-49 (S2)** every QAT customization made the toolbar invisible — widgets created under an already-shown parent start hidden — and reset rebuilt it invisibly too, so only a restart brought it back. **I-47 (S2)** settings reached disk only on a clean shutdown, so a kill lost them — now written on change. **I-48** (not a defect) struck two M-11 steps that tested things Stage 1 never had: a recent-files surface and a window-geometry restore. **I-46** (not a defect) records that no route exists for a user to register the PDF association — implemented, tested, unreachable — declared a planned absence for Stage 14/15. **I-45 (S2)** was a regression in I-44's fix — dismissing on any focus-out closed the list in the same turn it opened — caught by re-walking the repaired build. **I-44 (S2)** a tool-finder query matching nothing froze the whole application — a `Qt::Popup` list holding the mouse grab that `Esc`, an outside click and `Enter` all failed to dismiss. **I-43 (S3)** reordering the QAT was reachable only from a test while three documents called it shipped — now two commands in the context menu, with the route asserted as well as the dispatch. **I-42 (S2)** `Alt` raised no key tips in any locale — drawn since T10, never triggered, and R-5 had been signed off against the deleted spike; registered now, with typable per-locale access keys. **I-41 (S2)** the `windows11` style paints control text from its own OS-derived scheme and ignores the app palette, so dark mode reached the labels and not one button; `apply()` now sets the colour scheme too. **I-40 (S3)** dark mode's disabled text — most of this shell's text — was unreadable at 3.05, and light measured 2.54 after two passes had signed it off; both raised, with a contrast case in both themes. **I-39 (S3)** the auto-hide strip stayed up beside the pane it had just revealed — a T9 defect nothing could see until I-37 made peeking performable. **I-37 (S3)** an auto-hidden pane answered a click but not a hover — the user chose hover and the product moved; **I-38** `general/touchMode` is read by nothing and is now a recorded planned absence for Stage 14 rather than a defect. **I-36 (S2)** came from opening M-04: the ribbon's `QTabBar` was laid out **zero pixels wide** from T10 on, so no tab was ever drawn — eleven green ribbon cases had asked the bar what it contained and none what the layout gave it. The last three came from the M-03 walk and were the first in the *product*: **I-34 (S2)**, re-dock could not be performed at all; **I-33 (S3)**, tearing the only tab out of a window left it empty; and **I-35 (S3)**, a window emptied by a re-dock stayed open — all fixed 2026-08-30. T15's three were the harness, its infrastructure, and the guide itself: a benchmark whose every printed figure was its own argument-evaluation bug, and an S2 — a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did |
+| Tests | **526/526** on `x64-debug` and `x64-release`, measured 2026-09-04; the bare `gates` preset **90/90** with no Qt. Split: `unit.` 265, `ui.` 124, `gates.` 90, `platform.` 19, `render.` 26, `bench.` 2. The per-task history and every deviation live in ④'s Stage 2 block, which is the authority |
+| Gates | `layer-lint` **209 files / 1,320 includes** with **six** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **136 files / 2 catalogs / 0 waivers**. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, not a gate |
+| Verdicts | **A3 = `go, with named custom work`** and **A2's probe = `go`** (both in ②'s §3.3, per criterion). A2's *product* figure is still owed at T18 — D2-1 measures it twice on purpose |
+| Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user; the roster and what each found are in Stage 1's ⑥ §6. **Stage 2's ten manual cases have not been walked** — none of them is reachable until there is a viewer to look at |
+| Issues | Stage 1: **I-01…I-55, none open** — the full log is in Stage 1's ⑥ §8. Stage 2: **six**, of which **I-02** (the licence gate's closure, half-closed at T7), **I-04** (no rule compares a referenced catalog key against the catalogs), **I-05** (PDFium cannot be called from two threads at once) and **I-06** (JBIG2 is declared and decodes nothing — no permissible library, no corpus fixture) are open. Each stage's ⑥ §8 owns its own |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
 ribbon spike (`tools/spike-ribbon/`, **deleted at T10, as planned**); the action layer — `ActionId` (**361** declared
 actions), `ActionRegistry`, `Chord`, `KeyBindingStore` (240 bindings seeded from ① §8); the typed
 settings store (`core/settings/`, where an undeclared key does not compile); the third gate
-(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **539 keys each** (measured 2026-09-02); the OS boundary
+(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **561 keys each** (measured 2026-09-04); the OS boundary
 (`platform/platform.h`, seventeen interfaces declared, two implemented); the composition root that
 wires all of it together (`app/`); the application frame (`ui/shell/`); since T14, the Preferences
 surface and the log (`ui/dialogs/`, `ui/panes/`, `core/LogBuffer`, `app/LogFile`); and since T15
 `tests/bench/`, which holds the one A3 criterion that is a number rather than a judgement.
 
-**Almost no document code exists yet.** Nothing in `core/doc/`, `pdf/ops/` or `ui/viewer/`; `pdf/`
-holds the engine *contract* and a backend that implements none of it (T1), PDFium's global state
-(T2) and a tokenizer (T5) — **no document has been opened and no page has been rendered by the
-product**. Meanwhile **`rawpage.exe`
+**The reader is complete and a page can be drawn; nothing WRITES yet.** `pdf/cos/` holds the whole
+first-party COS reader — tokenizer, object model, grammar, nine filters, cross-reference engine and
+repair scanner — and `pdf/render/` opens documents and rasterizes tiles through the pinned PDFium.
+`core/doc/` holds five vocabulary types and no `Document`; `pdf/ops/` and `ui/viewer/` are still
+empty, so **a rendered tile has nowhere to be shown** until T13. Nothing anywhere can emit a PDF
+byte: the incremental writer is Stage 3's. Meanwhile **`rawpage.exe`
 opens a window with a working ribbon**: 9 tabs, 49 groups and 192 controls, every one of them
 built from `res/ribbon.json` and dispatching through `ActionRegistry`, above a sidebar, a status bar
 and a live theme. T11 added a **customizable Quick Access Toolbar** whose every operation is itself a
@@ -97,7 +108,7 @@ later stage is a table row and no widget code), a Shortcuts page that writes a r
 binding store and the settings file, and a log pane over an in-memory buffer and a rolling file under
 `%LOCALAPPDATA%`. Most controls are **disabled and say why** — **361** commands are declared and
 the **twenty-three** this window can service are registered.
-**Stage 2 is in progress — T1–T5 of 18** — and stages 3–16 are `⚪ not started`.
+**Stage 2 is in progress — T1–T9 of 18** — and stages 3–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
 record is ① → *Removed from scope*; every other document cross-references it.

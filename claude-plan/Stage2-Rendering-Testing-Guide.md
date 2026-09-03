@@ -308,6 +308,11 @@ case is reported as failing, with that output, and is never declared fixed witho
 **Result at T1** Exit 0 on all four; no warning anywhere. `ctest` **367/367** on both presets (354 at
 the end of Stage 1: +6 `unit.` backend cases, +5 `gates.headless_assert.*`, +2 `gates.layer_lint.*`),
 and the bare `gates` preset **73/73**.
+**Result at T9 (2026-09-04), which is this case's CURRENT figure** — the T1 line above is kept as the
+first measurement rather than overwritten, because the point of re-running at every task is the
+progression: `ctest` **526/526** on both presets, the bare `gates` preset **90/90**, and no warning
+in `core/`, `pdf/` or `platform/`. The per-task history is in `Implementation-Plan.md`'s Stage 2
+block, which owns it; this case owns only the pass/fail.
 **If it fails** S1 — nothing else runs.
 
 **A-02 · The `ui/` warning grace list is still empty**

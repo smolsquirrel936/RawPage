@@ -838,7 +838,9 @@ page, undo it, redo it, save it incrementally, reopen it, and recover it after a
 - `pdf/cos/IncrementalWriter` — `Result<void> append(QIODevice&, const ObjectDelta&)`.
 - `pdf/cos/ObjectAllocator`.
 - `pdf/ops/MutationSinkImpl` — `void setPageRotation(PageIndex, int)` + the queue/flush pair.
-- `pdf/ops/PageOps` — `void applyRotation(CosDict& pageDict, int angle)`.
+- `pdf/ops/PageOps` — `void applyRotation(CosObject& pageDict, int angle)`. **The type is
+  `CosObject`**, the single variant Stage 2 T6 built; this line said `CosDict` while the object
+  model was still a sketch.
 - `app/RecoveryPrompt`, `ui/dialogs/RecoveryDialog`, `ui/dialogs/RepairReportDialog`.
 - `tools/mutation-lint/`, `tests/roundtrip/`. ~~`tests/fuzz/`~~ — **moved to Stage 2**, which is where
   `pdf/cos/Lexer` and `Parser` are written and therefore the earliest a fuzz target can exist;

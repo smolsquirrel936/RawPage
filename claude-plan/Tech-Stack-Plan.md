@@ -73,10 +73,13 @@ annotation appearance-stream authoring, redaction of content-stream operators, e
 re-keying, or cross-reference repair with a report. Therefore **D3 splits the engine in two**:
 
 - `pdf/render/` — a thin facade over PDFium for **read and raster** only.
-- `pdf/cos/` — our **own** COS (Carousel Object System) layer: lexer, object model
-  (`CosDict`/`CosArray`/`CosStream`/`CosRef`), cross-reference table and stream parsing, filters,
-  encryption, and an **incremental writer**. This is the part we own outright, and the part the
-  fuzzer targets.
+- `pdf/cos/` — our **own** COS (Carousel Object System) layer: lexer, object model, cross-reference
+  table and stream parsing, filters, encryption, and an **incremental writer**. This is the part we
+  own outright, and the part the fuzzer targets. **The object model as built is ONE variant type,
+  `CosObject`, not a class per kind** — this sketch said `CosDict`/`CosArray`/`CosStream`/`CosRef`
+  until Stage 2 T6 built it, and a hierarchy would have bought a vtable and an ownership question
+  in exchange for nothing, since every kind is a value and none has behaviour of its own. `CosRef`
+  and `CosStreamData` survive as plain structs inside it.
 
 This split is the single most consequential technical decision in the document, so it is called out
 explicitly: **we read through PDFium and write through our own code.** Both are hidden behind
