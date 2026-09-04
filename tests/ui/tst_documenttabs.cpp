@@ -390,8 +390,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     second.openFiles({fixture.writePdf(QStringLiteral("c.pdf"))});
 
     // Registration happened once -- the second window found the commands already there and did not
-    // try to register them again, which would have been twenty-three "duplicate registration" errors.
-    CHECK(fixture.actions.registeredCount() == 23);
+    // try to register them again, which would have been FORTY-EIGHT "duplicate registration"
+    // errors. The number grew by 25 at Stage 2 T14 (the §8 Viewer commands) and the point of
+    // asserting it here is unchanged: this case is about registration happening once per REGISTRY
+    // rather than once per window, and a count is how "once" is stated.
+    CHECK(fixture.actions.registeredCount() == 48);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

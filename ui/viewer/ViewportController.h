@@ -115,6 +115,13 @@ public:
     core::render::LayoutMode layoutMode() const noexcept { return mode_; }
     void setLayoutMode(core::render::LayoutMode mode);
 
+    // The SESSION's rotation of the whole view (`Ctrl+Shift+=` / `Ctrl+Shift+-`), never the
+    // document's `/Rotate`. Rotating pages destructively is `page.rotate` and is Stage 3's, and
+    // keeping the two apart here is what stops a view command from being mistaken for an edit.
+    core::PageRotation viewRotation() const noexcept { return viewRotation_; }
+    void setViewRotation(core::PageRotation rotation);
+    void rotateView(int quarterTurns);
+
     int currentPage() const noexcept { return currentPage_; }
     int pageCount() const noexcept { return pageCount_; }
     void setPageCount(int count);
@@ -163,6 +170,7 @@ private:
     core::DevicePoint scroll_;
     core::render::Zoom zoom_ = core::render::Zoom::actualSize();
     core::render::LayoutMode mode_ = core::render::LayoutMode::SingleContinuous;
+    core::PageRotation viewRotation_ = core::PageRotation::None;
     FitMode fit_ = FitMode::None;
     int currentPage_ = 0;
     int pageCount_ = 0;

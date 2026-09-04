@@ -454,3 +454,56 @@ TEST_CASE("the shipped backend decides what is a PDF by its bytes, not its name"
     CHECK(refused.error().messageKey == QLatin1String("error.open.notPdf"));
     QFile::remove(liar);
 }
+
+// ==========================================================================================
+// The VIEW rotation -- Stage 2 T14. `FPDF_RenderPageBitmap`'s `rotate` argument.
+// ==========================================================================================
+
+TEST_CASE("a rotated view produces different pixels for the same tile", "[render][rotation]")
+{
+    // THE HALF WITH NO SYMPTOM IF IT IS WRONG. `RenderRequest::viewRotation` is part of the cache
+    // key, so a rasterizer that ignored it would be handed a rotation, return the unrotated tile,
+    // and have it cached under the rotated key -- the rotate command appearing to do nothing, with
+    // no error and no failing test anywhere else.
+    auto document = openOrFail("ordinary/text-a4.pdf");
+    PdfiumRasterizer rasterizer(*document);
+
+    RenderRequest upright = requestFor(0, TileRect{0, 0, 300, 300}, 1.0);
+    RenderRequest turned = upright;
+    turned.viewRotation = rawpage::core::PageRotation::Clockwise90;
+
+    // …AND THE KEYS DIFFER, which is what makes the two reach the engine at all rather than one
+    // being served for the other.
+    CHECK(upright != turned);
+
+    const auto a = rasterizer.raster(upright);
+    const auto b = rasterizer.raster(turned);
+    REQUIRE(a);
+    REQUIRE(b);
+
+    // Same buffer size -- the TILE did not change shape, the page under it did.
+    REQUIRE(a.value().width == b.value().width);
+    REQUIRE(a.value().height == b.value().height);
+
+    // Different content. Both have ink on them; if they were identical the `rotate` argument was
+    // not passed, which is the failure this case exists for.
+    CHECK(distinctBytes(a.value()) > 2);
+    CHECK(distinctBytes(b.value()) > 2);
+    CHECK(a.value().pixels != b.value().pixels);
+}
+
+TEST_CASE("a rotated page is rasterized against its rotated extent", "[render][rotation]")
+{
+    // A4 is 595x842 points. At 1.0 device pixels per point a tile at x=700 is off the right edge of
+    // the upright page and INSIDE the rotated one -- so the request that must be refused and the
+    // request that must succeed are the same request with one field changed. An implementation that
+    // computed the extent from the unrotated size would refuse both.
+    auto document = openOrFail("ordinary/text-a4.pdf");
+    PdfiumRasterizer rasterizer(*document);
+
+    RenderRequest offRight = requestFor(0, TileRect{700, 0, 64, 64}, 1.0);
+    CHECK_FALSE(rasterizer.raster(offRight));
+
+    offRight.viewRotation = rawpage::core::PageRotation::Clockwise90;
+    CHECK(rasterizer.raster(offRight));
+}

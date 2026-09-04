@@ -65,6 +65,7 @@ public:
     // Overrides as of Stage 2 T13 -- `pages()` moved onto `core::IDocumentBackend` because `ui/`
     // is handed that interface and may never name `pdf/` (Stage 2 guide issue I-08).
     const core::PageTree* pages(core::DocumentHandle document) const override;
+    const core::RepairReport* repairReport(core::DocumentHandle document) const override;
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle document) override;
     core::ITextExtractor*  textExtractor(core::DocumentHandle document) override;
@@ -72,12 +73,6 @@ public:
     core::ISigner*         signer(core::DocumentHandle document) override;
     core::IOcrEngine*      ocrEngine() override;
     core::IIndexer*        indexer() override;
-
-    // STILL beyond the interface, and now deliberately rather than accidentally: T14's message bar
-    // is the only consumer of a repair report, and a service handed to every caller ahead of the
-    // first one that reads it is the shape Stage 1 kept finding (I-34, I-42, I-46). It joins
-    // `core/backend.h` when that consumer exists, exactly as `pages()` did here.
-    const core::RepairReport* repairReport(core::DocumentHandle document) const;
 
 private:
     struct Open;

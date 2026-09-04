@@ -91,6 +91,40 @@ struct DeviceRect {
 // --- The only bridge ---------------------------------------------------------------------
 enum class PageRotation { None = 0, Clockwise90 = 90, Half = 180, Clockwise270 = 270 };
 
+// True when this rotation exchanges a rectangle's width and height. Named rather than compared
+// inline, because "is it 90 or 270" is asked in six places across three layers and a missing `||`
+// in one of them is a landscape page laid out portrait.
+constexpr bool swapsAxes(PageRotation rotation) noexcept
+{
+    return rotation == PageRotation::Clockwise90 || rotation == PageRotation::Clockwise270;
+}
+
+// `quarterTurns` clockwise, negative for counter-clockwise, any magnitude. The modulo is written
+// to be correct for negatives -- C++'s `%` yields a negative remainder for a negative left operand,
+// so a bare `% 4` turns one press of Rotate Counter-Clockwise into an out-of-range value.
+constexpr PageRotation rotateBy(PageRotation base, int quarterTurns) noexcept
+{
+    const int turns = ((static_cast<int>(base) / 90 + quarterTurns) % 4 + 4) % 4;
+    switch (turns) {
+    case 1: return PageRotation::Clockwise90;
+    case 2: return PageRotation::Half;
+    case 3: return PageRotation::Clockwise270;
+    default: return PageRotation::None;
+    }
+}
+
+// The single rotation equivalent to applying `first` and then `second`.
+//
+// STAGE 2 T14 USES THIS FOR THE ONE PLACE TWO ROTATIONS MEET: a page carries its own `/Rotate`, and
+// the *view* may be rotated on top of it (`Ctrl+Shift+=`). Those are different things owned by
+// different layers — the first is the document's and survives a save, the second is this session's
+// and does not — and the geometry needs their sum. Adding the degrees and hoping is the trap: 270 +
+// 180 is 450, which is not a `PageRotation`.
+constexpr PageRotation combine(PageRotation first, PageRotation second) noexcept
+{
+    return rotateBy(first, static_cast<int>(second) / 90);
+}
+
 // Carries everything a conversion needs, so none of it can be assumed.
 //
 // `dpi` is the PHYSICAL dpi of the monitor the tile will be drawn on, not a nominal 96:

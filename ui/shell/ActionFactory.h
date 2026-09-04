@@ -10,6 +10,10 @@
 //   * the label is `ActionId.def`'s, resolved through the catalog -- so a button and the tool
 //     finder and a menu entry for one command cannot disagree about its name;
 //   * `triggered` has EXACTLY ONE receiver, and it dispatches through `ActionRegistry`;
+//   * a REGISTERED action that is currently refused says which kind of disabled it is -- Stage 1's
+//     I-53, built at Stage 2 T14. `tooltipFor()` below is the one place that decides, and
+//     `refresh()` re-asks it, because enablement changes while the window is open and a tooltip
+//     computed once at construction would be a sentence about a state that has passed.
 //   * an action the registry does not know is created DISABLED with a tooltip saying it is not
 //     built yet, rather than omitted. A missing button reads as a bug in the ribbon; a greyed one
 //     that says why reads as a stage. Stage 1 declares 358 ids and registers a handful, so this is
@@ -91,6 +95,13 @@ public:
     // Re-reads enablement and check state from the registry for every action this factory made.
     // Called when document state changes; at Stage 1 that is only ever composition time.
     void refresh();
+
+    // The tooltip an action should be showing RIGHT NOW. Three answers, and the distinction is
+    // Stage 1's I-53: a declared-but-unregistered command is about this BUILD, a
+    // registered-but-refused one is about this DOCUMENT, and an available one says what it does.
+    // Static and taking the registry, so a case can ask the question without a widget.
+    static QString tooltipFor(const core::ActionRegistry& registry, core::ActionId id,
+                              const QString& label);
 
     // ---------------------------------------------------------------------------------------
     // THE ONE NON-COMMAND ACTION SURFACE, named here so it is impossible to find by accident.

@@ -174,8 +174,18 @@ public:
     const PresentationOptions& options() const noexcept { return options_; }
     void setOptions(PresentationOptions options) noexcept { options_ = options; }
 
+    // `viewRotation` is the SESSION's extra quarter-turn (`Ctrl+Shift+=`, Stage 2 T14), not the
+    // page's own `/Rotate` -- the two are different things owned by different layers, and the
+    // document never learns about this one. It rotates the whole layout: every page swaps its
+    // width and height at 90 and 270, so the content extent, the column width and the scrollbars
+    // all follow, and each `PageSlot::rotation` comes out as the COMBINED rotation so the
+    // point mapping below needs no second argument.
+    //
+    // Defaulted, and safe to default because the default is the identity: every caller written
+    // before T14 means none, and means it correctly.
     PageLayout layout(const PageTree& tree, LayoutMode mode, const Resolution& resolution,
-                      int currentPage = 0) const;
+                      int currentPage = 0,
+                      PageRotation viewRotation = PageRotation::None) const;
 
     // The spread a page belongs to, as the page indices in COLUMN order (left column first in LTR)
     // with -1 for an empty column. Exposed because `ui/viewer/ViewportController` (T13) pages by

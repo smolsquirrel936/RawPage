@@ -74,6 +74,14 @@ public:
 
     int pageCount() const;
 
+    // Whether a password was asked for on the way in. Set by `MainWindow::openFiles()`, which is
+    // the only thing that knows: the backend does not report encryption separately and does not
+    // need to -- the callback was invoked, so the file was protected. `MessageBar` reads this, and
+    // Stage 10's `core/doc/Permissions` is what replaces it with something that can say WHAT the
+    // protection allows rather than only that there was some.
+    bool isProtected() const noexcept { return protected_; }
+    void setProtected(bool value) noexcept { protected_ = value; }
+
     PageView* view() const noexcept { return view_; }
 
     // The tab's text and the window title's `%1`: the file's name, derived rather than stored, so
@@ -85,6 +93,7 @@ private:
     QString path_;
     core::DocumentHandle handle_;
     core::Revision revision_ = core::Revision::initial();
+    bool protected_ = false;
     PageView* view_ = nullptr;
 };
 

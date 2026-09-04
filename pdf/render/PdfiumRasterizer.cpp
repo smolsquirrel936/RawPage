@@ -40,7 +40,13 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
     // The page's size in device pixels, rounded UP. Rounding down loses the last row and column of
     // a page whose scaled size is fractional, which shows as a one-pixel white line along two
     // edges of every page at most zoom levels.
-    const core::PdfSize display = page->displaySize();
+    // The page's own `/Rotate` is already in `displaySize()` AND is already applied by PDFium.
+    // The VIEW rotation is ours and is passed to `FPDF_RenderPageBitmap` below as its `rotate`
+    // argument, which is additive -- so here it only swaps the extent we ask for.
+    const core::PdfSize pageSize = page->displaySize();
+    const core::PdfSize display = core::swapsAxes(request.viewRotation)
+                                      ? core::PdfSize{pageSize.height, pageSize.width}
+                                      : pageSize;
     const int pageWidth =
         std::max(1, static_cast<int>(std::ceil(display.width * request.deviceScale)));
     const int pageHeight =
@@ -116,8 +122,12 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         // the origin is NEGATIVE: that is how `FPDF_RenderPageBitmap` renders a region into a
         // smaller bitmap. Passing the tile's size as the page size scales the entire page into the
         // tile instead, putting a thumbnail of the page in every tile.
+        // `rotate` IS THE VIEW ROTATION AND NOTHING ELSE. PDFium applies the page's `/Rotate`
+        // itself, so passing the combined rotation here would rotate a landscape page twice --
+        // which reads as "rotate view is broken for some documents and fine for others", the worst
+        // shape of rendering bug because it depends on the file.
         FPDF_RenderPageBitmap(bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
-                              pageHeight, /*rotate=*/0, flags);
+                              pageHeight, static_cast<int>(request.viewRotation) / 90, flags);
 
         FPDFBitmap_Destroy(bitmap);
         FPDF_ClosePage(enginePage);

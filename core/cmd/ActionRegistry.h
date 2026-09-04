@@ -57,6 +57,18 @@ public:
         Checked checked;     // optional
         std::string_view iconName;    // res/ icon stem; empty means no icon
         std::string_view tooltipKey;  // catalog key; empty falls back to the label key
+
+        // WHY THIS COMMAND WOULD BE REFUSED, as a catalog key -- shown INSTEAD of `tooltipKey`
+        // while `enable` answers false. Added at Stage 2 T14 with Stage 1's I-53, and it is a
+        // SECOND field rather than a reuse of the one above: they are shown in mutually exclusive
+        // states and mean opposite things ("what this does" against "why it cannot"), so one field
+        // serving both would put "needs a document to be open" on an enabled button -- which is
+        // what the first attempt at I-53 actually did.
+        //
+        // Empty falls back to the generic *not available for this document*. A registration should
+        // fill it in whenever it can be more specific: "this is already the first page" is useful
+        // and the generic sentence is not, on a command that is plainly looking at a document.
+        std::string_view unavailableKey;
     };
 
     ActionRegistry() = default;
@@ -103,6 +115,10 @@ public:
     // field has been in `Registration` since T3 and nothing could read it, so a registration that
     // supplied one was silently discarding it.
     std::string_view tooltipKey(ActionId id) const;
+
+    // The registration's *why it is refused* key, or empty. Read by `ui/shell/ActionFactory` only
+    // while the action is disabled -- see `Registration::unavailableKey`.
+    std::string_view unavailableKey(ActionId id) const;
 
     std::size_t registeredCount() const { return registeredCount_; }
 

@@ -1543,6 +1543,74 @@
         <translation>%1 — RawPage</translation>
     </message>
     <message>
+        <source>shell.ribbon.tooltip.unavailable</source>
+        <translation>%1 is not available for this document.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsDocument</source>
+        <translation>%1 needs a document to be open.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.atFirstPage</source>
+        <translation>%1: this is already the first page.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.atLastPage</source>
+        <translation>%1: this is already the last page.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.dismiss</source>
+        <translation>Dismiss this message</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.details</source>
+        <translation>Details…</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.documentPrefix</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.protected</source>
+        <translation>%1 is password-protected. It was opened for reading only.</translation>
+    </message>
+    <message>
+        <source>shell.repair.detail.title</source>
+        <translation>What was repaired</translation>
+    </message>
+    <message>
+        <source>shell.repair.detail.intro</source>
+        <translation>RawPage found %1 problems in this file and repaired what it could. The codes below are diagnostic and are the same ones written to the log.</translation>
+    </message>
+    <message>
+        <source>shell.repair.detail.truncated</source>
+        <translation>… and %1 more. The full list is in the log.</translation>
+    </message>
+    <message>
+        <source>shell.password.title</source>
+        <translation>Password required</translation>
+    </message>
+    <message>
+        <source>shell.password.prompt</source>
+        <translation>%1 is password-protected. Enter its password to open it.</translation>
+    </message>
+    <message>
+        <source>shell.password.retry</source>
+        <translation>That password was not accepted. Try again for %1.</translation>
+    </message>
+    <message>
+        <source>shell.password.label</source>
+        <translation>Password</translation>
+    </message>
+    <message>
+        <source>shell.status.pageTotal</source>
+        <translation>of %1</translation>
+    </message>
+    <message>
+        <source>shell.status.zoomValue</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
         <source>shell.document.untitled</source>
         <translation>Untitled</translation>
     </message>

@@ -7,6 +7,7 @@
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/viewer/TilePresenter.h"
 
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QResizeEvent>
@@ -25,6 +26,15 @@ using core::LogSubsystem;
 // One wheel notch is 120 eighths of a degree, which is Qt's unit and not a number worth
 // rediscovering at the call site.
 constexpr double kWheelNotch = 120.0;
+
+// A screen step moves this fraction of a viewport, so the line that was at the bottom edge is still
+// on screen afterwards. Every document reader overlaps for this reason; a step of exactly 1.0 loses
+// a line per press and the loss is invisible until somebody is actually reading.
+constexpr double kScreenOverlap = 0.92;
+
+// Below this, a marquee drag is a click. Zooming to a two-pixel band would jump to 6400 % on a
+// mis-click with no obvious way back.
+constexpr int kMinMarqueePixels = 8;
 
 } // namespace
 
@@ -111,9 +121,216 @@ void PageView::setFitMode(FitMode fit)
     controller_->setFitMode(fit);
 }
 
+void PageView::zoomIn()
+{
+    controller_->zoomIn();
+}
+
+void PageView::zoomOut()
+{
+    controller_->zoomOut();
+}
+
+void PageView::setZoom(core::render::Zoom zoom)
+{
+    controller_->setFitMode(FitMode::None);
+    controller_->setZoom(zoom);
+}
+
+void PageView::firstPage()
+{
+    goToPage(0);
+}
+
+void PageView::lastPage()
+{
+    goToPage(pageCount() - 1);
+}
+
+void PageView::nextPage()
+{
+    goToPage(controller_->currentPage() + 1);
+}
+
+void PageView::prevPage()
+{
+    goToPage(controller_->currentPage() - 1);
+}
+
+void PageView::nextScreen()
+{
+    if (!core::render::isContinuous(controller_->layoutMode())) {
+        // A PAGED MODE HAS NOTHING BELOW THE CURRENT PAGE. Scrolling would move by a viewport into
+        // empty space and stop, which reads as `Page Down` being broken on the last screenful --
+        // so in Single and Two-Up the screen step IS the page step.
+        nextPage();
+        return;
+    }
+
+    // A viewport less an overlap. The overlap is not decoration: a screen step of exactly one
+    // viewport puts the line that was at the bottom edge one pixel above the top edge, and a reader
+    // loses it. Every document reader in existence overlaps for this reason.
+    const double step = std::max(1.0, controller_->viewportSize().height * kScreenOverlap);
+    controller_->scrollBy(0.0, step);
+}
+
+void PageView::prevScreen()
+{
+    if (!core::render::isContinuous(controller_->layoutMode())) {
+        prevPage();
+        return;
+    }
+    const double step = std::max(1.0, controller_->viewportSize().height * kScreenOverlap);
+    controller_->scrollBy(0.0, -step);
+}
+
+void PageView::goBackView()
+{
+    controller_->goBack();
+}
+
+void PageView::goForwardView()
+{
+    controller_->goForward();
+}
+
+void PageView::rotateViewClockwise()
+{
+    controller_->rotateView(+1);
+}
+
+void PageView::rotateViewCounterClockwise()
+{
+    controller_->rotateView(-1);
+}
+
+core::PageRotation PageView::viewRotation() const
+{
+    return controller_->viewRotation();
+}
+
+void PageView::setTool(Tool tool)
+{
+    if (tool == tool_) return;
+    tool_ = tool;
+
+    // The cursor IS the feedback at this stage -- there is no tool palette until Stage 4, so a
+    // person pressing `H` has no other way to see that anything happened.
+    switch (tool_) {
+    case Tool::Hand:
+        viewport()->setCursor(Qt::OpenHandCursor);
+        break;
+    case Tool::MarqueeZoom:
+        viewport()->setCursor(Qt::CrossCursor);
+        break;
+    case Tool::Select:
+        viewport()->setCursor(Qt::ArrowCursor);
+        break;
+    }
+
+    emit toolChanged(tool_);
+}
+
+void PageView::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() != Qt::LeftButton || tool_ == Tool::Select) {
+        QAbstractScrollArea::mousePressEvent(event);
+        return;
+    }
+
+    dragging_ = true;
+    dragStart_ = event->pos();
+    dragCurrent_ = dragStart_;
+    dragScrollOrigin_ = controller_->scroll();
+    if (tool_ == Tool::Hand) viewport()->setCursor(Qt::ClosedHandCursor);
+    event->accept();
+}
+
+void PageView::mouseMoveEvent(QMouseEvent* event)
+{
+    if (!dragging_) {
+        QAbstractScrollArea::mouseMoveEvent(event);
+        return;
+    }
+
+    dragCurrent_ = event->pos();
+
+    if (tool_ == Tool::Hand) {
+        // The page follows the hand, so the SCROLL moves the other way. Getting the sign wrong here
+        // is the classic hand-tool bug and it is not subtle to a user and completely invisible to a
+        // test that only checks that something moved -- so the case asserts the direction.
+        const double dpr = devicePixelRatioF();
+        const QPoint moved = dragCurrent_ - dragStart_;
+        controller_->setScroll(core::DevicePoint{dragScrollOrigin_.x - moved.x() * dpr,
+                                                 dragScrollOrigin_.y - moved.y() * dpr});
+    } else {
+        viewport()->update();   // the marquee rubber band
+    }
+
+    event->accept();
+}
+
+void PageView::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (!dragging_ || event->button() != Qt::LeftButton) {
+        QAbstractScrollArea::mouseReleaseEvent(event);
+        return;
+    }
+
+    dragging_ = false;
+    if (tool_ == Tool::Hand) {
+        viewport()->setCursor(Qt::OpenHandCursor);
+        event->accept();
+        return;
+    }
+
+    const QRect band = QRect(dragStart_, event->pos()).normalized();
+    dragCurrent_ = event->pos();
+    viewport()->update();
+
+    // A CLICK IS NOT A ZOOM. A marquee smaller than a few pixels is somebody clicking, and zooming
+    // to it would jump to 6400 % on a mis-click with no obvious way back.
+    if (band.width() < kMinMarqueePixels || band.height() < kMinMarqueePixels) {
+        event->accept();
+        return;
+    }
+
+    const double dpr = devicePixelRatioF();
+    const double bandWidth = std::max(1.0, band.width() * dpr);
+    const double bandHeight = std::max(1.0, band.height() * dpr);
+
+    // The zoom that makes the band fill the viewport, limited by the tighter axis so the whole band
+    // stays visible -- the same rule fit-page follows, and for the same reason.
+    const double factor = std::min(controller_->viewportSize().width / bandWidth,
+                                   controller_->viewportSize().height / bandHeight);
+
+    const core::DevicePoint centre{
+        controller_->scroll().x + (band.center().x() * dpr),
+        controller_->scroll().y + (band.center().y() * dpr)};
+
+    const core::render::Zoom target =
+        core::render::Zoom{controller_->zoom().factor * factor}.clamped();
+    const double ratio = target.factor / controller_->zoom().factor;
+
+    controller_->setFitMode(FitMode::None);
+    controller_->setZoom(target);
+    controller_->setScroll(
+        core::DevicePoint{centre.x * ratio - controller_->viewportSize().width / 2.0,
+                          centre.y * ratio - controller_->viewportSize().height / 2.0});
+    controller_->recordView();
+    event->accept();
+}
+
 void PageView::goToPage(int pageIndex)
 {
-    controller_->setCurrentPage(pageIndex);
+    if (pageCount() <= 0) return;
+
+    // CLAMPED, not refused. `nextPage()` on the last page and `prevPage()` on the first arrive
+    // here out of range every time somebody holds the key down, and refusing would be an error
+    // path taken during ordinary use.
+    const int target = std::clamp(pageIndex, 0, pageCount() - 1);
+    controller_->setCurrentPage(target);
+    pageIndex = target;
 
     if (const core::render::PageSlot* slot = engine_.layout().slotForPage(pageIndex)) {
         // The page's top, minus the margin, so the page does not sit flush against the top edge.
@@ -160,14 +377,15 @@ void PageView::refresh()
     }
 
     engine_.update(controller_->zoom(), metrics, controller_->layoutMode(),
-                   controller_->currentPage());
+                   controller_->currentPage(), controller_->viewRotation());
 
     controller_->setContentSize(engine_.layout().contentSize());
 
     updateScrollBars();
 
     presenter_->setDocument(document_, revision_, pages_);
-    presenter_->requestTiles(engine_.layout(), engine_.resolution(), controller_->visibleRect());
+    presenter_->requestTiles(engine_.layout(), engine_.resolution(), controller_->visibleRect(),
+                             controller_->viewRotation());
 
     // The page the user is actually looking at, by AREA rather than by which one starts highest --
     // see `PageLayoutEngine::dominantPage`. T14's status bar is the consumer.
@@ -289,6 +507,17 @@ void PageView::paintEvent(QPaintEvent* event)
 
     presenter_->paint(painter, engine_.layout(), engine_.resolution(), controller_->visibleRect(),
                       devicePixelRatioF());
+
+    // The marquee, on top of everything. Drawn from the palette's highlight rather than a
+    // hard-coded blue, so it is visible in both themes (convention 20).
+    if (dragging_ && tool_ == Tool::MarqueeZoom) {
+        const QRect band = QRect(dragStart_, dragCurrent_).normalized();
+        QColor fill = palette().color(QPalette::Highlight);
+        fill.setAlpha(60);
+        painter.fillRect(band, fill);
+        painter.setPen(palette().color(QPalette::Highlight));
+        painter.drawRect(band);
+    }
 }
 
 } // namespace rawpage::ui

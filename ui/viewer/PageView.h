@@ -46,6 +46,7 @@
 #include "ui/viewer/ViewportController.h"
 
 #include <QAbstractScrollArea>
+#include <QPoint>
 
 #include <memory>
 
@@ -108,20 +109,67 @@ public:
 
     void setFitMode(FitMode fit);
 
+    // ---- The §8 Viewer operations (T14) -------------------------------------------------------
+    // Each is the BEHAVIOUR behind one registered command, and each is a public method rather than
+    // a lambda inside the registration for the reason D1-7 gives about everything else: a
+    // behaviour that exists only inside a command handler cannot be driven by a test, by the
+    // Stage 14 batch runner, or by the next surface that wants it.
+    void zoomIn();
+    void zoomOut();
+    void setZoom(core::render::Zoom zoom);
+
+    void firstPage();
+    void lastPage();
+    void nextPage();
+    void prevPage();
+
+    // A screen at a time. In a continuous mode this scrolls by a viewport less an overlap, which is
+    // what every reader does so a line is never lost across the seam; in the paged modes it steps
+    // the page, because there is nothing below the current one to scroll to.
+    void nextScreen();
+    void prevScreen();
+
+    void goBackView();
+    void goForwardView();
+
+    // The SESSION's rotation, never the document's. `page.rotate` is Stage 3's and is destructive.
+    void rotateViewClockwise();
+    void rotateViewCounterClockwise();
+    core::PageRotation viewRotation() const;
+
+    // ---- The tool (T14, and only as much of it as Stage 2 owns) -------------------------------
+    // `Features.md` §8 binds `H`, `V` and `Z` in the Viewer context and `Implementation-Plan.md`
+    // lists all three under Stage 2. What Stage 2 does NOT own is `ui/viewer/ToolController` and
+    // the `ui/viewer/tools/` family — those are ○ (S4), and they are the sticky-tool state machine,
+    // the temporary-hand modifier, `Esc` cancellation and seventeen tool classes.
+    //
+    // So this is the minimum that makes the three bindings honest rather than the maximum that
+    // could be built: which tool is armed, what cursor it shows, and what a drag does. Hand pans,
+    // Marquee Zoom zooms to the dragged rectangle, and Select is the default and selects nothing
+    // until Stage 5 gives it text to select — which is stated here rather than discovered.
+    enum class Tool { Select, Hand, MarqueeZoom };
+    Tool tool() const noexcept { return tool_; }
+    void setTool(Tool tool);
+
     // Forces the layout, the scrollbars and the tile set to agree with the controller. Public
     // because a test drives it after `show()` and `activate()`, which is convention 12's rule
     // about a widget test having to drive layout itself.
     void refresh();
 
 signals:
-    // For `ui/shell/StatusBar` at T14: the page number and the zoom the user is looking at.
+    // For `ui/shell/StatusBar`: the page number and the zoom the user is looking at.
     void viewChanged(int currentPage, int pageCount, double zoomFactor);
+
+    void toolChanged(Tool tool);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void scrollContentsBy(int dx, int dy) override;
     void wheelEvent(QWheelEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
     bool event(QEvent* event) override;
 
 private:
@@ -151,6 +199,12 @@ private:
     // rather than a queued re-run: the outer call reads the controller AFTER each setter, so it
     // already sees whatever the inner one would have acted on.
     bool refreshing_ = false;
+
+    Tool tool_ = Tool::Select;
+    bool dragging_ = false;
+    QPoint dragStart_;          // widget coordinates
+    QPoint dragCurrent_;
+    core::DevicePoint dragScrollOrigin_;
 };
 
 } // namespace rawpage::ui

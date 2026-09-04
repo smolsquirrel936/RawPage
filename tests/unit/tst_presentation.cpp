@@ -20,6 +20,7 @@ using rawpage::core::DevicePoint;
 using rawpage::core::DeviceRect;
 using rawpage::core::DeviceSize;
 using rawpage::core::Page;
+using rawpage::core::PageRotation;
 using rawpage::core::PageTree;
 using rawpage::core::PdfPoint;
 using rawpage::core::PdfRect;
@@ -378,4 +379,48 @@ TEST_CASE("render presentation reports the slots a viewport touches", "[core][re
     // page, which would keep a page painted after it had been scrolled away.
     const DeviceRect past{DevicePoint{0.0, 100 * kH}, DeviceSize{kW, 20.0}};
     CHECK(layout.slotsIntersecting(past).empty());
+}
+
+// =============================================================================================
+// The VIEW rotation -- Stage 2 T14.
+// =============================================================================================
+
+TEST_CASE("a rotated view rotates the whole layout, not only the tiles", "[presentation]")
+{
+    const PageTree tree = uniformTree(4);
+    const PagePresentation presentation(bare());
+    const Resolution resolution = unitScale();
+
+    const PageLayout upright =
+        presentation.layout(tree, LayoutMode::SingleContinuous, resolution, 0);
+    const PageLayout turned = presentation.layout(tree, LayoutMode::SingleContinuous, resolution, 0,
+                                                  PageRotation::Clockwise90);
+
+    REQUIRE(upright.pageSlots().size() == turned.pageSlots().size());
+
+    // EVERY PAGE SWAPPED, which means the content extent swapped with it: four A4 pages stacked are
+    // tall and narrow, and four quarter-turned ones are short and wide. A rotation that reached the
+    // rasterizer and not the layout would leave the scrollbars, the fit and the page rectangles all
+    // describing a page that is no longer that shape.
+    CHECK(turned.contentSize().width > upright.contentSize().width);
+    CHECK(turned.contentSize().height < upright.contentSize().height);
+
+    const DeviceSize first = upright.pageSlots().front().rect.size;
+    const DeviceSize firstTurned = turned.pageSlots().front().rect.size;
+    CHECK_THAT(firstTurned.width, Catch::Matchers::WithinAbs(first.height, 1e-9));
+    CHECK_THAT(firstTurned.height, Catch::Matchers::WithinAbs(first.width, 1e-9));
+
+    // AND THE SLOT CARRIES THE COMBINED ROTATION, not the page's own. `PageLayout::toDocument()`
+    // builds a `PageTransform` from it, so a mapping that used only `/Rotate` would put a click on
+    // a rotated view at the wrong point of the page -- at Stage 5 that is text selection picking
+    // the wrong words, and at Stage 6 an annotation landing sideways.
+    CHECK(upright.pageSlots().front().rotation == PageRotation::None);
+    CHECK(turned.pageSlots().front().rotation == PageRotation::Clockwise90);
+
+    // 180 is not a swap. A `!= None` test passes the case above and fails here.
+    const PageLayout half = presentation.layout(tree, LayoutMode::SingleContinuous, resolution, 0,
+                                                PageRotation::Half);
+    CHECK_THAT(half.contentSize().width,
+               Catch::Matchers::WithinAbs(upright.contentSize().width, 1e-9));
+    CHECK(half.pageSlots().front().rotation == PageRotation::Half);
 }

@@ -59,6 +59,8 @@ class ActionFactory;
 class DocumentTabBar;
 class DocumentWindow;
 class LogPane;
+class MessageBar;
+class PageView;
 class PreferencesDialog;
 class QuickAccessToolbar;
 class Ribbon;
@@ -162,6 +164,17 @@ public:
     PreferencesDialog*  preferences() const { return preferences_; }
     PreferencesDialog*  showPreferences();
     StatusBar*          statusBar() const { return status_; }
+    MessageBar*         messageBar() const { return messageBar_; }
+
+    // The one place a `QAction` is constructed (D1-7). Exposed for the suite, which needs an action
+    // the FACTORY built in order to assert what `refresh()` does to it -- a hand-made `QAction`
+    // could not be built anyway, because `layer-lint`'s `bare-qaction` rule is non-escapable.
+    ActionFactory*      actionFactory() const { return actionFactory_.get(); }
+
+    // The viewer of the tab in front, or null when there is no document. Every §8 Viewer command
+    // resolves through here at DISPATCH time -- convention 14: a handler that captured a view
+    // would act for a tab that has since been closed or torn off into another window.
+    PageView*           currentView() const;
     ThemeManager*       theme() const { return theme_.get(); }
 
 protected:
@@ -211,6 +224,27 @@ private:
     // updating three of the four is how a title bar ends up naming a closed document.
     void updateDocumentChrome();
 
+    // Pushes the current view's page number and zoom into the status bar, and re-asks
+    // `ActionFactory` for every action's enabled state and tooltip (I-53). One function, because
+    // the three move together: a page changes, the Next Page button greys out, and its tooltip has
+    // to stop saying "not available for this document" and start saying why.
+    void updateViewChrome();
+
+    // Raises the banners a document's own condition earns -- repaired, protected. Called on every
+    // tab change, because the condition belongs to the tab and not to the window.
+    void showDocumentConditions(DocumentWindow* document);
+
+    // The §8 Viewer commands. Separate from `registerActions()` only because that function was
+    // already 250 lines: the registration mechanism, the once-per-registry guard and the
+    // resolve-at-dispatch rule are all identical and all argued there.
+    void registerViewerActions();
+
+    // The two Viewer commands that ask the user a question. Both are refused where there is no one
+    // to ask (convention 16, Stage 1's I-23), and both end in the same `PageView` call a chord or
+    // the status bar's page box would take -- one behaviour, three routes.
+    void promptForZoom();
+    void promptForPage();
+
     // `file.open`'s dialog. A modal file picker is the one place Stage 1 asks the user a question,
     // and it collects a parameter and calls `openFiles` -- no document logic, per the standing rule
     // about dialogs.
@@ -257,6 +291,7 @@ private:
     SidebarDock* sidebar_ = nullptr;
     LogPane*     logPane_ = nullptr;
     StatusBar*   status_ = nullptr;
+    MessageBar*  messageBar_ = nullptr;
 
     // Created on first use rather than with the window: three quarters of sessions never open it,
     // and building three pages and a 248-row table for every window that might be torn off is a

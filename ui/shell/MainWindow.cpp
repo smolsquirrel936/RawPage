@@ -13,7 +13,10 @@
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentTabBar.h"
+#include "ui/dialogs/PasswordDialog.h"
 #include "ui/shell/DocumentWindow.h"
+#include "ui/shell/MessageBar.h"
+#include "ui/viewer/PageView.h"
 #include "ui/shell/QuickAccessToolbar.h"
 #include "ui/shell/Ribbon.h"
 #include "ui/shell/RibbonModel.h"
@@ -27,6 +30,7 @@
 
 #include <QEvent>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QGuiApplication>
 #include <QFileInfo>
 #include <QFont>
@@ -148,6 +152,13 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
 
     status_ = new StatusBar(this);
     setStatusBar(status_);
+
+    // The page box has been an input with no consumer since T9. This is the consumer -- and it goes
+    // through `goToPage`, which is the same path the `nav.goToPage` command takes, rather than
+    // through a second implementation that could scroll somewhere slightly different.
+    connect(status_, &StatusBar::pageRequested, this, [this](int oneBased) {
+        if (PageView* view = currentView()) view->goToPage(oneBased - 1);
+    });
 
     sidebar_ = new SidebarDock(services_.actions, this);
     addDockWidget(Qt::LeftDockWidgetArea, sidebar_);
@@ -385,6 +396,12 @@ void MainWindow::buildCentralSurface()
     tabs_ = new DocumentTabBar(documentColumn);
     documentLayout->addWidget(tabs_);
 
+    // BETWEEN THE TAB STRIP AND THE PAGE (S2 T14). Above the strip it would be a statement about
+    // the window, and it is a statement about the document in front -- which is also why
+    // `updateDocumentChrome()` clears it on every tab change. It hides itself when empty.
+    messageBar_ = new MessageBar(documentColumn);
+    documentLayout->addWidget(messageBar_);
+
     documents_ = new QStackedWidget;
     documents_->setObjectName(QStringLiteral("documentStack"));
 
@@ -474,6 +491,25 @@ DocumentWindow* MainWindow::openDocument(const QString& absolutePath, core::Docu
 void MainWindow::adoptDocument(DocumentWindow* document, int index)
 {
     if (!document || !documents_ || !tabs_) return;
+
+    // THE VIEW TELLS THE CHROME, and it has to: the status bar's page number changes when the user
+    // SCROLLS, which no command and no tab change goes through. Without this the numbers were
+    // correct exactly once, when the tab was adopted, and then stayed there while the document
+    // moved under them -- which is worse than the em dash, because it is a confident wrong answer.
+    //
+    // Connected here rather than in `DocumentWindow` because a tab is re-adopted by another window
+    // on a re-dock, and this window is the one whose status bar must follow.
+    //
+    // DISCONNECT THEN CONNECT, and not `Qt::UniqueConnection`: **Qt refuses a unique connection to
+    // a lambda** -- "Unique connection requires the slot to be a pointer to a member function of a
+    // QObject subclass" -- and it refuses it with an `ASSERT` that fail-fasts the process rather
+    // than with a warning, so the mistake reads as 42 unrelated suites dying at once. The explicit
+    // disconnect does the same job and says what it is doing.
+    if (PageView* view = document->view()) {
+        disconnect(view, &PageView::viewChanged, this, nullptr);
+        connect(view, &PageView::viewChanged, this,
+                [this](int, int, double) { updateViewChrome(); });
+    }
 
     const int at = (index < 0 || index > documentCount()) ? documentCount() : index;
     documents_->insertWidget(at, document);
@@ -602,14 +638,365 @@ void MainWindow::updateDocumentChrome()
                            : catalog::translate(catalog::key::WindowTitle));
 
     if (status_) {
-        // The status bar has been built and DISABLED since T9 because there was no document. There
-        // is one now -- and it is a stub with no pages, so what it reports is the file's name and
-        // the em dash for a page count that does not exist. Reporting "1 of 1" would be inventing
-        // a page, which is the one thing a stub must not do.
+        // The status bar was built DISABLED at T9 because there was no document, and it stayed
+        // that way through T13 because a page on screen is not the same as a page COUNTED. It is
+        // counted now: `updateViewChrome()` below fills in the real numbers, and the em dash comes
+        // back when the last tab closes rather than being replaced by a guess.
         status_->setDocumentPresent(current != nullptr);
         status_->setMessage(current ? current->title()
                                     : catalog::translate(catalog::key::StatusNoDocument));
     }
+
+    if (messageBar_) {
+        // THE BANNER BELONGS TO THE TAB, not to the window. A "this file was repaired" banner left
+        // on screen over the document that replaced it is worse than no banner: it is a false
+        // statement about the file the user is now looking at, and Stage 3 forces a Save-As on
+        // exactly that statement.
+        messageBar_->clear();
+        if (current) showDocumentConditions(current);
+    }
+
+    updateViewChrome();
+}
+
+void MainWindow::promptForZoom()
+{
+    PageView* view = currentView();
+    if (!view) return;
+
+    // THE DIALOG COLLECTS A PARAMETER AND NOTHING ELSE -- the standing rule about dialogs, and the
+    // reason this is four lines. `QInputDialog` supplies its own translated chrome; the prompt is
+    // ours and comes from the action's own label, so the box and the command cannot disagree.
+    bool accepted = false;
+    const int percent = QInputDialog::getInt(
+        this, catalog::translateAction(core::ActionId::ViewZoomTo),
+        catalog::translateAction(core::ActionId::ViewZoomTo),
+        qRound(view->controller().zoom().factor * 100.0),
+        qRound(core::render::Zoom::kMin * 100.0), qRound(core::render::Zoom::kMax * 100.0), 1,
+        &accepted);
+    if (!accepted) return;
+
+    view->setZoom(core::render::Zoom::percent(percent));
+    updateViewChrome();
+}
+
+void MainWindow::promptForPage()
+{
+    PageView* view = currentView();
+    if (!view || view->pageCount() <= 0) return;
+
+    bool accepted = false;
+    const int page = QInputDialog::getInt(
+        this, catalog::translateAction(core::ActionId::NavGoToPage),
+        catalog::translateAction(core::ActionId::NavGoToPage),
+        view->controller().currentPage() + 1, 1, view->pageCount(), 1, &accepted);
+    if (!accepted) return;
+
+    // ONE-BASED AS TYPED, zero-based in the model -- the same conversion the status bar's page box
+    // makes, and it is here rather than inside `goToPage` so there is exactly one convention in
+    // `core/` and exactly one place each surface converts.
+    view->goToPage(page - 1);
+    updateViewChrome();
+}
+
+void MainWindow::registerViewerActions()
+{
+    // THE §8 VIEWER TABLE, or the subset `Implementation-Plan.md` § Stage 2 lists. The rest of that
+    // table -- `Ctrl+4` Reflow, `Ctrl+R` rotate PAGES, `S`, `Ctrl+B`, `Ctrl+E`, `Ctrl+L`, `Ctrl+U`,
+    // `Ctrl+'`, `Ctrl+;`, `Ctrl+Alt+C`, `Ctrl+.`/`Ctrl+,`, `Ctrl+]`/`Ctrl+[` -- belongs to Stages 3
+    // to 13 and stays `NotFound`, which deliberately leaves the key unconsumed. That list is in
+    // `Stage2-Rendering-Plan.md` §10 and is not re-decided here.
+    //
+    // EVERY HANDLER RESOLVES THE VIEW AT DISPATCH TIME, for convention 14's reason in its sharpest
+    // form yet: a handler capturing a `PageView` would act on a tab that has since been closed or
+    // torn off into a different window, and the registry is one object shared by every window.
+    const auto registerView = [this](ActionId id, void (PageView::*method)(),
+                                     core::ActionRegistry::Enable enable = {},
+                                     std::string_view unavailableKey = {}) {
+        if (services_.actions.isRegistered(id)) return;
+
+        core::ActionRegistry::Registration registration;
+        registration.handler = [method](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (PageView* view = window->currentView()) {
+                (view->*method)();
+                window->updateViewChrome();
+            }
+        };
+        registration.enable = std::move(enable);
+        registration.unavailableKey = unavailableKey;
+
+        const core::Result<void> registered =
+            services_.actions.register_(id, std::move(registration));
+        if (registered) return;
+        const std::string_view name = core::actionStringId(id);
+        RAWPAGE_LOG_ERROR(LogSubsystem::Ui)
+            << "viewer action registration refused for"
+            << QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()))
+            << "--" << registered.error().messageKey;
+    };
+
+    // A view is the precondition for every one of these. It is also I-53's SUBJECT: with no
+    // document these are registered and refused, which is the kind of disabled that said nothing at
+    // all until this task -- and now says "needs a document to be open" rather than the generic
+    // sentence, because the registration names a reason.
+    const auto hasView = [] {
+        MainWindow* window = activeShell();
+        return window != nullptr && window->currentView() != nullptr
+               && window->currentView()->pageCount() > 0;
+    };
+
+    // --- Zoom -----------------------------------------------------------------------------------
+    registerView(ActionId::ViewZoomIn, &PageView::zoomIn, hasView,
+                 "shell.tooltip.needsDocument");
+    registerView(ActionId::ViewZoomOut, &PageView::zoomOut, hasView,
+                 "shell.tooltip.needsDocument");
+
+    const auto registerFit = [this, hasView](ActionId id, FitMode fit) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [fit](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (PageView* view = window->currentView()) {
+                view->setFitMode(fit);
+                view->refresh();
+                window->updateViewChrome();
+            }
+        };
+        registration.enable = hasView;
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    registerFit(ActionId::ViewFitPage, FitMode::Page);
+    registerFit(ActionId::ViewFitWidth, FitMode::Width);
+    registerFit(ActionId::ViewFitVisible, FitMode::Visible);
+
+    // ACTUAL SIZE IS NOT A FIT. It is 100 % at the monitor's PHYSICAL DPI -- a ruler on the glass
+    // agreeing with the ruler on the page -- which is what `DpiPolicy` takes three inputs for, and
+    // it is a fixed zoom rather than a mode that survives a resize.
+    if (!services_.actions.isRegistered(ActionId::ViewActualSize)) {
+        core::ActionRegistry::Registration actualSize;
+        actualSize.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (PageView* view = window->currentView()) {
+                view->setZoom(core::render::Zoom::actualSize());
+                window->updateViewChrome();
+            }
+        };
+        actualSize.enable = hasView;
+        actualSize.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewActualSize, std::move(actualSize));
+    }
+
+    // `view.zoomTo` raises a dialog, so it is DISABLED WHERE THERE IS NO USER -- convention 16, and
+    // Stage 1's I-23: a modal `exec()` under the offscreen platform is shown to nobody and never
+    // returns, which stopped a whole `ctest` run dead with no failure and no output.
+    if (!services_.actions.isRegistered(ActionId::ViewZoomTo)) {
+        core::ActionRegistry::Registration zoomTo;
+        zoomTo.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            window->promptForZoom();
+        };
+        zoomTo.enable = [hasView] { return hasView() && canPromptTheUser(); };
+        zoomTo.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewZoomTo, std::move(zoomTo));
+    }
+
+    // --- Navigation -----------------------------------------------------------------------------
+    // The two page steps carry their OWN tooltip reason. "Not available for this document" is true
+    // of Next Page on the last page and is not the useful thing to say; `unavailableKey` exists
+    // exactly so a registration can be more specific than the generic sentence, and this is the
+    // first pair of commands in the product to use it. It is a SEPARATE field from `tooltipKey`
+    // because the two are shown in mutually exclusive states and say opposite things -- one field
+    // serving both put "needs a document to be open" on every enabled Viewer button, which is what
+    // the first attempt at I-53 in this task actually did.
+    const auto notLastPage = [] {
+        MainWindow* window = activeShell();
+        const PageView* view = window ? window->currentView() : nullptr;
+        return view != nullptr && view->controller().currentPage() < view->pageCount() - 1;
+    };
+    const auto notFirstPage = [] {
+        MainWindow* window = activeShell();
+        const PageView* view = window ? window->currentView() : nullptr;
+        return view != nullptr && view->controller().currentPage() > 0;
+    };
+
+    registerView(ActionId::NavFirstPage, &PageView::firstPage, notFirstPage,
+                 "shell.tooltip.atFirstPage");
+    registerView(ActionId::NavLastPage, &PageView::lastPage, notLastPage,
+                 "shell.tooltip.atLastPage");
+    registerView(ActionId::NavNextPage, &PageView::nextPage, notLastPage,
+                 "shell.tooltip.atLastPage");
+    registerView(ActionId::NavPrevPage, &PageView::prevPage, notFirstPage,
+                 "shell.tooltip.atFirstPage");
+
+    // A SCREEN STEP IS NOT A PAGE STEP and is enabled on the last page: there is usually more of it
+    // below the fold. Giving it `notLastPage` would grey out `Page Down` halfway down the last page.
+    registerView(ActionId::NavNextScreen, &PageView::nextScreen, hasView,
+                 "shell.tooltip.needsDocument");
+    registerView(ActionId::NavPrevScreen, &PageView::prevScreen, hasView,
+                 "shell.tooltip.needsDocument");
+
+    registerView(ActionId::NavPrevView, &PageView::goBackView, [] {
+        MainWindow* window = activeShell();
+        const PageView* view = window ? window->currentView() : nullptr;
+        return view != nullptr && view->controller().canGoBack();
+    }, "shell.tooltip.needsDocument");
+    registerView(ActionId::NavNextView, &PageView::goForwardView, [] {
+        MainWindow* window = activeShell();
+        const PageView* view = window ? window->currentView() : nullptr;
+        return view != nullptr && view->controller().canGoForward();
+    }, "shell.tooltip.needsDocument");
+
+    if (!services_.actions.isRegistered(ActionId::NavGoToPage)) {
+        core::ActionRegistry::Registration goTo;
+        goTo.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (window) window->promptForPage();
+        };
+        goTo.enable = [hasView] { return hasView() && canPromptTheUser(); };
+        goTo.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::NavGoToPage, std::move(goTo));
+    }
+
+    // --- The view's rotation, which is NOT the document's --------------------------------------
+    registerView(ActionId::ViewRotateViewCw, &PageView::rotateViewClockwise, hasView,
+                 "shell.tooltip.needsDocument");
+    registerView(ActionId::ViewRotateViewCcw, &PageView::rotateViewCounterClockwise, hasView,
+                 "shell.tooltip.needsDocument");
+
+    // --- Layout modes ---------------------------------------------------------------------------
+    // Each is a TOGGLE reporting its own state, so the ribbon renders a check mark saying which
+    // arrangement is in force -- `ActionFactory` reads `checked` for that, and `isToggle` decides
+    // checkability (I-21).
+    const auto registerMode = [this, hasView](ActionId id, core::render::LayoutMode mode) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [mode](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (PageView* view = window->currentView()) {
+                view->setLayoutMode(mode);
+                window->updateViewChrome();
+            }
+        };
+        registration.checked = [mode] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->controller().layoutMode() == mode;
+        };
+        registration.enable = hasView;
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    registerMode(ActionId::ViewSinglePage, core::render::LayoutMode::Single);
+    registerMode(ActionId::ViewContinuous, core::render::LayoutMode::SingleContinuous);
+    registerMode(ActionId::ViewTwoUp, core::render::LayoutMode::TwoUpContinuous);
+
+    // `Ctrl+Shift+H` TOGGLES between paged and continuous rather than selecting one, which is what
+    // its §8 row says ("toggle single-page <-> continuous scrolling") and is a different command
+    // from the three above.
+    if (!services_.actions.isRegistered(ActionId::ViewTogglePageMode)) {
+        core::ActionRegistry::Registration toggle;
+        toggle.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            PageView* view = window->currentView();
+            if (!view) return;
+
+            using core::render::LayoutMode;
+            const LayoutMode now = view->controller().layoutMode();
+            view->setLayoutMode(core::render::isContinuous(now)
+                                    ? (core::render::isTwoUp(now) ? LayoutMode::TwoUp
+                                                                  : LayoutMode::Single)
+                                    : (core::render::isTwoUp(now) ? LayoutMode::TwoUpContinuous
+                                                                  : LayoutMode::SingleContinuous));
+            window->updateViewChrome();
+        };
+        toggle.enable = hasView;
+        toggle.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewTogglePageMode, std::move(toggle));
+    }
+
+    // --- The three tools, and only as much of them as Stage 2 owns ------------------------------
+    // `ui/viewer/ToolController` and the `ui/viewer/tools/` family are ○ (S4) -- the sticky-tool
+    // state machine, the temporary-hand modifier, `Esc` cancellation and seventeen tool classes.
+    // What `Implementation-Plan.md` § Stage 2 lists is the three BINDINGS, and what makes them
+    // honest is `PageView::setTool`: a cursor, and what a drag does. See `PageView.h`.
+    const auto registerTool = [this, hasView](ActionId id, PageView::Tool tool) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [tool](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (PageView* view = window->currentView()) {
+                view->setTool(tool);
+                window->updateViewChrome();
+            }
+        };
+        registration.checked = [tool] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->tool() == tool;
+        };
+        registration.enable = hasView;
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    registerTool(ActionId::ToolHand, PageView::Tool::Hand);
+    registerTool(ActionId::ToolSelect, PageView::Tool::Select);
+    registerTool(ActionId::ToolMarqueeZoom, PageView::Tool::MarqueeZoom);
+}
+
+void MainWindow::showDocumentConditions(DocumentWindow* document)
+{
+    if (!messageBar_ || !document || !document->handle().isValid()) return;
+
+    // THE REPAIR REPORT IS NOT REACHABLE FROM `ui/` YET, AND THAT IS ISSUE I-08 REPEATING ITSELF
+    // EXACTLY AS T13 PREDICTED. `repairReport()` is declared on the concrete
+    // `pdf::DocumentBackendImpl`, which `ui/` may never name -- the same position `pages()` was in
+    // before T13 moved it onto `core::IDocumentBackend`. T14 makes the same two-line move, at this
+    // first consumer rather than speculatively, which is the rule that produced the finding.
+    if (const core::RepairReport* report = services_.backend.repairReport(document->handle())) {
+        messageBar_->showRepairReport(*report, document->title(), this);
+    }
+
+    if (document->isProtected()) {
+        MessageBar::Message protectedMessage;
+        protectedMessage.kind = MessageBar::Kind::Protected;
+        protectedMessage.text = catalog::translate(catalog::key::MessageBarProtected)
+                                    .arg(document->title());
+        messageBar_->showMessage(std::move(protectedMessage));
+    }
+}
+
+PageView* MainWindow::currentView() const
+{
+    DocumentWindow* document = currentDocument();
+    return document ? document->view() : nullptr;
+}
+
+void MainWindow::updateViewChrome()
+{
+    if (status_) {
+        if (const PageView* view = currentView()) {
+            status_->setPageState(view->controller().currentPage(), view->pageCount());
+            status_->setZoom(view->controller().zoom().factor);
+        }
+    }
+
+    // EVERY ACTION IS RE-ASKED, not only the ones that obviously moved. Enablement predicates read
+    // the active window's state, so opening a document changes the answer for commands nothing in
+    // this function mentions -- and `refresh()` re-computes the TOOLTIP too, which is I-53's half:
+    // a control that has just become available must stop saying it is not.
+    if (actionFactory_) actionFactory_->refresh();
 }
 
 void MainWindow::buildAutoHideStrips()
@@ -947,6 +1334,9 @@ void MainWindow::registerActions()
     // command stays a visible, disabled button saying it is not built yet, which is the same
     // honest state the other ~340 ids are in.
 
+    // --- The §8 Viewer commands (S2 T14) ----------------------------------------------------
+    registerViewerActions();
+
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a
     // name and a suffix and reads not one byte (D1-2, guide case A-58). It is registered here
@@ -1080,10 +1470,6 @@ void MainWindow::openFiles(const QStringList& paths)
         // rather than with a guess from its name. Deciding whether bytes are a PDF is
         // `IDocumentBackend::open()`'s question and nowhere else's.
         //
-        // No password callback yet: the prompt is a dialog, and dialogs are T14's. An encrypted
-        // file therefore refuses here by name today, which is the honest state rather than a
-        // silent empty tab -- and it is why the callback is a parameter rather than something the
-        // backend reaches for.
         // ALREADY OPEN IN THIS WINDOW? Then the backend is not asked at all, and that is a change
         // T13 made deliberately: T9 opened first and discovered the duplicate afterwards, which
         // was harmless while the handle was thrown away and is a leaked engine handle now that a
@@ -1093,8 +1479,22 @@ void MainWindow::openFiles(const QStringList& paths)
             continue;
         }
 
+        // THE PASSWORD PROMPT (T14), which the T9 comment here said was a dialog and therefore
+        // T14's. The callback is built PER FILE, so a handoff of six encrypted documents names
+        // each one rather than asking the same anonymous question six times -- and it answers
+        // `std::nullopt` immediately when there is nobody to ask, which is `Cancelled` rather than
+        // a failure and is what stops a headless run from hanging on a modal nobody can see
+        // (Stage 1's I-23).
+        int passwordAsks = 0;
+        const core::PasswordCallback prompt =
+            [&passwordAsks, callback = PasswordDialog::callbackFor(info.fileName(), this)](
+                int attempt) {
+                ++passwordAsks;
+                return callback(attempt);
+            };
+
         const core::Result<core::DocumentHandle> opened =
-            services_.backend.open(info.absoluteFilePath(), nullptr);
+            services_.backend.open(info.absoluteFilePath(), prompt);
         if (!opened) {
             RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
                 << "open: backend refused" << info.absoluteFilePath() << "--"
@@ -1110,7 +1510,12 @@ void MainWindow::openFiles(const QStringList& paths)
         // worse than a short one.
         services_.recentFiles.note(info.absoluteFilePath());
 
-        openDocument(info.absoluteFilePath(), opened.value());
+        // Whether the file was ENCRYPTED is not something the backend reports separately, and it
+        // does not need to be: the callback was asked, so it was. That is the honest signal rather
+        // than a second query, and it is why the counter exists.
+        DocumentWindow* document = openDocument(info.absoluteFilePath(), opened.value());
+        if (document && passwordAsks > 0) document->setProtected(true);
+        updateDocumentChrome();
         RAWPAGE_LOG_INFO(LogSubsystem::Ui)
             << "open: accepted" << info.absoluteFilePath() << "as handle"
             << static_cast<int>(opened.value().id);

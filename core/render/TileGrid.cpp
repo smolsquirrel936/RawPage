@@ -69,23 +69,29 @@ TileGrid::TileGrid(Config config) noexcept : config_(config)
     if (config_.prefetchRings < 0) config_.prefetchRings = 0;
 }
 
-TileRect TileGrid::pageBounds(const Page& page, const Resolution& resolution) noexcept
+TileRect TileGrid::pageBounds(const Page& page, const Resolution& resolution,
+                              PageRotation viewRotation) noexcept
 {
     // The RASTER scale, not the presented one. A capped resolution rasterizes fewer pixels and
     // paints them larger; tiling the presented size would ask the rasterizer for pixels the cap
     // exists to avoid producing.
     const double scale = resolution.rasterScale();
     const PdfSize size = page.displaySize();
-    return TileRect{0, 0, deviceExtent(size.width, scale), deviceExtent(size.height, scale)};
+
+    // The view's quarter-turn on top of the page's own. `displaySize()` has already applied
+    // `/Rotate`; this swaps again at 90 and 270, which is what makes a rotated A4 page 842 wide.
+    const double width = swapsAxes(viewRotation) ? size.height : size.width;
+    const double height = swapsAxes(viewRotation) ? size.width : size.height;
+    return TileRect{0, 0, deviceExtent(width, scale), deviceExtent(height, scale)};
 }
 
 TileSet TileGrid::tilesFor(const Page& page, const Resolution& resolution, const TileRect& viewport,
-                           const std::vector<TileRect>& held) const
+                           const std::vector<TileRect>& held, PageRotation viewRotation) const
 {
     TileSet out;
 
     const int tile = sanitizedTileSize(config_.tileSize);
-    const TileRect bounds = pageBounds(page, resolution);
+    const TileRect bounds = pageBounds(page, resolution, viewRotation);
     if (bounds.isEmpty()) {
         // A page with no extent has no tiles, so everything held for it is stale. Returning an
         // empty set instead would leak every tile of a page that has just been rotated to nothing

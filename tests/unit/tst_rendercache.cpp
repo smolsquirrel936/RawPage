@@ -348,3 +348,26 @@ TEST_CASE("render cache's disk tier refuses rather than pretends when unusable",
     CHECK_FALSE(store.lookup(one).has_value());
     CHECK(store.entryCount() == 0);
 }
+
+TEST_CASE("two view rotations of one tile are different cache entries", "[core][render]")
+{
+    // Stage 2 T14. `viewRotation` joined `RenderRequest` at T14 and had to join its EQUALITY and
+    // its HASH in the same change -- a key that compared equal for two rotations would serve the
+    // upright tile to the rotated view, which is D2-12's named failure with no symptom but a
+    // command that appears not to work.
+    RenderCache cache;
+
+    RenderRequest upright = requestFor(kDocA, 0, 0, Revision::initial());
+    RenderRequest turned = upright;
+    turned.viewRotation = rawpage::core::PageRotation::Clockwise90;
+
+    REQUIRE(upright != turned);
+    CHECK(std::hash<RenderRequest>{}(upright) != std::hash<RenderRequest>{}(turned));
+
+    cache.put(upright, tileOf(64 * 64 * 4));
+    CHECK(cache.lookup(upright).has_value());
+
+    // THE ROTATED VIEW MISSES, which is the whole point.
+    CHECK_FALSE(cache.lookup(turned).has_value());
+    CHECK(cache.entryCount() == 1);
+}

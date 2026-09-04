@@ -125,6 +125,12 @@ bool ActionRegistry::isToggle(ActionId id) const
     return slot.occupied && static_cast<bool>(slot.registration.checked);
 }
 
+std::string_view ActionRegistry::unavailableKey(ActionId id) const
+{
+    const Slot& slot = slots_[static_cast<std::size_t>(id)];
+    return slot.occupied ? slot.registration.unavailableKey : std::string_view{};
+}
+
 std::string_view ActionRegistry::tooltipKey(ActionId id) const
 {
     const auto index = static_cast<std::size_t>(id);

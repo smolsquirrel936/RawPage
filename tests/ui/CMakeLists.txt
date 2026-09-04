@@ -37,6 +37,13 @@ add_executable(rawpage_ui_tests
     # it asserts anything that depends on it (I-36).
     tst_viewport.cpp
     tst_pageview.cpp
+
+    # S2 T14 -- the §8 Viewer commands, and the chrome that reports on the document. Every case in
+    # tst_viewercommands drives the CHORD through ShortcutBinder rather than dispatching an id,
+    # because "the command is implemented" and "the key reaches it" are different claims and I-42
+    # is what happens when only the first is checked.
+    tst_viewercommands.cpp
+    tst_documentchrome.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

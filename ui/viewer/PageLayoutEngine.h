@@ -93,7 +93,12 @@ public:
     // Recomputes the layout for this state. Returns true when the RESULT changed -- not when the
     // inputs did -- so a caller can skip a repaint that would draw the same thing.
     bool update(core::render::Zoom zoom, ScreenMetrics metrics, core::render::LayoutMode mode,
-                int currentPage);
+                int currentPage, core::PageRotation viewRotation = core::PageRotation::None);
+
+    // The rotation the cached layout was built with. `TilePresenter` needs it to key its requests,
+    // and reading it back from here rather than being handed it again is what stops the layout and
+    // the tiles being computed for two different rotations for one frame.
+    core::PageRotation viewRotation() const noexcept { return viewRotation_; }
 
     const core::render::PageLayout& layout() const noexcept { return layout_; }
     const core::render::Resolution& resolution() const noexcept { return resolution_; }
@@ -116,6 +121,7 @@ private:
     core::render::PagePresentation presentation_;
     core::render::PageLayout layout_;
     core::render::Resolution resolution_;
+    core::PageRotation viewRotation_ = core::PageRotation::None;
 };
 
 } // namespace rawpage::ui

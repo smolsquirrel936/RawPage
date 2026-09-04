@@ -36,6 +36,7 @@
 #ifndef RAWPAGE_CORE_RENDER_RENDERREQUEST_H
 #define RAWPAGE_CORE_RENDER_RENDERREQUEST_H
 
+#include "core/Geometry.h"
 #include "core/backend.h"
 #include "core/doc/Revision.h"
 
@@ -107,6 +108,17 @@ struct RenderRequest {
 
     RenderFlags flags = RenderFlags::None;
 
+    // THE VIEW ROTATION, and it is NOT the page's own (Stage 2 T14). A page carries `/Rotate` in
+    // the file and the rasterizer already honours it; this is the extra quarter-turn the user asked
+    // for with `Ctrl+Shift+=`, which belongs to this session and never to the document.
+    //
+    // It is part of the KEY because a rotated tile is different pixels. Leaving it out would mean
+    // rotating the view served the unrotated tiles straight back out of the cache — a stale-tile
+    // bug with no error, no failing test and no symptom except that the command appears not to
+    // work. That is D2-12's argument, arriving for the first time on a field the original design
+    // did not have.
+    PageRotation viewRotation = PageRotation::None;
+
     // Layer visibility, as the set of optional-content group numbers that are OFF. Empty is the
     // ordinary case and hashes to nothing; Stage 4 populates it. It is part of the key because two
     // renders of one tile with different layers hidden are different pixels.
@@ -126,7 +138,7 @@ struct RenderRequest {
     {
         return a.document == b.document && a.pageIndex == b.pageIndex && a.tile == b.tile
                && a.deviceScale == b.deviceScale && a.revision == b.revision && a.flags == b.flags
-               && a.hiddenLayers == b.hiddenLayers;
+               && a.viewRotation == b.viewRotation && a.hiddenLayers == b.hiddenLayers;
     }
     friend bool operator!=(const RenderRequest& a, const RenderRequest& b) noexcept
     {
@@ -163,6 +175,8 @@ struct std::hash<rawpage::core::render::RenderRequest> {
         seed = mix(seed, std::hash<rawpage::core::Revision>{}(request.revision));
         seed = mix(seed, static_cast<std::size_t>(
                           static_cast<std::uint32_t>(request.flags)));
+        seed = mix(seed, static_cast<std::size_t>(
+                          static_cast<int>(request.viewRotation)));
         for (const long long layer : request.hiddenLayers)
             seed = mix(seed, std::hash<long long>{}(layer));
         return seed;

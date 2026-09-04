@@ -16,6 +16,7 @@
 #include <vector>
 
 using rawpage::core::Page;
+using rawpage::core::PageRotation;
 using rawpage::core::PdfPoint;
 using rawpage::core::PdfRect;
 using rawpage::core::PdfSize;
@@ -251,4 +252,45 @@ TEST_CASE("render tilegrid sanitizes a nonsense configuration", "[core][render]"
     const Page page = a4Page();
     const TileSet set = zero.tilesFor(page, atPointScale(), TileRect{0, 0, 100, 100});
     CHECK_FALSE(set.visible.empty());
+}
+
+// =============================================================================================
+// The VIEW rotation -- Stage 2 T14.
+// =============================================================================================
+
+TEST_CASE("a rotated view swaps the page's tile bounds", "[tilegrid]")
+{
+    // A4 is taller than it is wide; a quarter-turn makes it wider than it is tall. The page's own
+    // `/Rotate` is already inside `displaySize()`, so this is the SECOND rotation on top of it --
+    // and `TileGrid` has to see it, or the tiles are laid out for a page of the previous shape and
+    // the right-hand third of a rotated page is never asked for.
+    const Page page = a4Page();
+    const Resolution resolution = atPointScale();
+
+    const TileRect upright = TileGrid::pageBounds(page, resolution);
+    const TileRect turned =
+        TileGrid::pageBounds(page, resolution, PageRotation::Clockwise90);
+
+    CHECK(turned.width == upright.height);
+    CHECK(turned.height == upright.width);
+
+    // 180 is not a swap, which is the case a `!= None` test would get wrong.
+    const TileRect halfTurn = TileGrid::pageBounds(page, resolution, PageRotation::Half);
+    CHECK(halfTurn.width == upright.width);
+    CHECK(halfTurn.height == upright.height);
+
+    // And the tile SET follows: a viewport covering the whole rotated page must cover the rotated
+    // extent, not the upright one.
+    const TileGrid grid;
+    const TileSet set = grid.tilesFor(page, resolution, turned, {}, PageRotation::Clockwise90);
+    REQUIRE_FALSE(set.visible.empty());
+
+    int right = 0;
+    int bottom = 0;
+    for (const TileRect& tile : set.visible) {
+        right = std::max(right, tile.x + tile.width);
+        bottom = std::max(bottom, tile.y + tile.height);
+    }
+    CHECK(right == turned.width);
+    CHECK(bottom == turned.height);
 }

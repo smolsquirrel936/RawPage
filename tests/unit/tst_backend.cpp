@@ -70,6 +70,7 @@ public:
     // back, and an empty `PageTree` returned instead would let a caller believe it was looking at
     // a zero-page document rather than at nothing.
     const core::PageTree* pages(core::DocumentHandle) const override { return nullptr; }
+    const core::RepairReport* repairReport(core::DocumentHandle) const override { return nullptr; }
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }

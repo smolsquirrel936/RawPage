@@ -106,6 +106,14 @@ std::set<int> TilePresenter::heldPages() const
     return pages;
 }
 
+std::vector<RenderRequest> TilePresenter::heldRequests() const
+{
+    std::vector<RenderRequest> out;
+    out.reserve(tiles_.size());
+    for (const auto& [request, held] : tiles_) out.push_back(request);
+    return out;
+}
+
 void TilePresenter::clear()
 {
     cancelAll();
@@ -119,7 +127,8 @@ void TilePresenter::cancelAll()
 }
 
 RenderRequest TilePresenter::requestFor(int pageIndex, const TileRect& tile,
-                                        const core::render::Resolution& resolution) const
+                                        const core::render::Resolution& resolution,
+                                        core::PageRotation viewRotation) const
 {
     RenderRequest request;
     request.document = document_;
@@ -131,12 +140,18 @@ RenderRequest TilePresenter::requestFor(int pageIndex, const TileRect& tile,
     // pixels the cap exists to avoid.
     request.deviceScale = resolution.rasterScale();
     request.revision = revision_;
+
+    // PART OF THE KEY. A rotated tile is different pixels, so a request that omitted this would be
+    // served the unrotated tile straight out of the cache -- the rotate command appearing to do
+    // nothing, with no error and no failing test (D2-12's argument, on a field T10 did not have).
+    request.viewRotation = viewRotation;
     return request;
 }
 
 void TilePresenter::requestTiles(const core::render::PageLayout& layout,
                                  const core::render::Resolution& resolution,
-                                 const core::DeviceRect& viewport)
+                                 const core::DeviceRect& viewport,
+                                 core::PageRotation viewRotation)
 {
     if (!document_.isValid() || pages_ == nullptr) return;
 
@@ -173,10 +188,10 @@ void TilePresenter::requestTiles(const core::render::PageLayout& layout,
             if (request.pageIndex == slot.pageIndex) held.push_back(request.tile);
 
         const core::render::TileSet tiles =
-            grid_.tilesFor(*page, resolution, pageViewport, held);
+            grid_.tilesFor(*page, resolution, pageViewport, held, viewRotation);
 
         auto ask = [&](const TileRect& tile, RenderPriority priority) {
-            const RenderRequest request = requestFor(slot.pageIndex, tile, resolution);
+            const RenderRequest request = requestFor(slot.pageIndex, tile, resolution, viewRotation);
             wanted[request] = 1;
             if (tiles_.count(request) != 0 || tickets_.count(request) != 0) return;
 

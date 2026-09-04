@@ -17,6 +17,7 @@
 #include "core/backend.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageTree.h"
+#include "core/doc/RepairReport.h"
 
 #include <QString>
 #include <QStringList>
@@ -85,6 +86,16 @@ public:
         const auto found = trees.find(handle.id);
         return found == trees.end() ? nullptr : found->second.get();
     }
+
+    // A REAL, EMPTY report by default -- which is the state "this file needed no repair", and is
+    // what makes "opening a clean file shows no bar" assertable. A case that wants the banner
+    // fills `repairs` in, and one that wants a backend with no report at all clears it.
+    const core::RepairReport* repairReport(core::DocumentHandle handle) const override
+    {
+        return trees.count(handle.id) != 0 ? &repairs : nullptr;
+    }
+
+    core::RepairReport repairs;
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }

@@ -170,8 +170,17 @@ std::vector<int> PagePresentation::spreadFor(int pageIndex, int pageCount, Layou
 }
 
 PageLayout PagePresentation::layout(const PageTree& tree, LayoutMode mode,
-                                    const Resolution& resolution, int currentPage) const
+                                    const Resolution& resolution, int currentPage,
+                                    PageRotation viewRotation) const
 {
+    // The view's quarter-turn, applied to every size this function reads. It is a lambda rather
+    // than four `if`s because the layout asks for a page's size in four places -- the row height,
+    // the column width, the slot, and the document's widest page -- and three of four would be a
+    // document whose scrollbars disagree with its pages.
+    const auto viewed = [viewRotation](PdfSize size) {
+        return swapsAxes(viewRotation) ? PdfSize{size.height, size.width} : size;
+    };
+
     PageLayout out;
     out.mode_ = mode;
     out.presentedScale_ = sanitizedScale(resolution.presentedScale());
@@ -189,7 +198,7 @@ PageLayout PagePresentation::layout(const PageTree& tree, LayoutMode mode,
     // One column width for the whole document -- see the header. `largestDisplaySize()` measures
     // widest and tallest independently, which is the right answer here for the same reason it is
     // the right answer there.
-    const double columnWidth = tree.largestDisplaySize().width * scale;
+    const double columnWidth = viewed(tree.largestDisplaySize()).width * scale;
     const double columnStride = columnWidth + spreadGap;
     const double contentWidth = 2.0 * margin + (twoUp ? columnWidth * 2.0 + spreadGap : columnWidth);
 
@@ -219,7 +228,7 @@ PageLayout PagePresentation::layout(const PageTree& tree, LayoutMode mode,
         double rowHeight = 0.0;
         for (const int index : pages.column) {
             if (index < 0) continue;
-            rowHeight = std::max(rowHeight, tree.displaySize(index).height * scale);
+            rowHeight = std::max(rowHeight, viewed(tree.displaySize(index)).height * scale);
         }
 
         for (int column = 0; column < 2; ++column) {
@@ -228,7 +237,7 @@ PageLayout PagePresentation::layout(const PageTree& tree, LayoutMode mode,
             const Page* page = tree.at(index);
             if (page == nullptr) continue;
 
-            const PdfSize display = page->displaySize();
+            const PdfSize display = viewed(page->displaySize());
             const double width = display.width * scale;
             const double height = display.height * scale;
 
@@ -243,7 +252,11 @@ PageLayout PagePresentation::layout(const PageTree& tree, LayoutMode mode,
             slot.pageIndex = index;
             slot.rect = DeviceRect{DevicePoint{x, y}, DeviceSize{width, height}};
             slot.cropBox = page->cropBox();
-            slot.rotation = page->rotation();
+            // THE COMBINED ROTATION, not the page's. `PageLayout::toDocument()` builds a
+            // `PageTransform` from this, and a mapping that used only `/Rotate` would put a click
+            // on a rotated view at the wrong point of the page -- which at Stage 5 is text
+            // selection picking the wrong words, and at Stage 6 an annotation landing sideways.
+            slot.rotation = combine(page->rotation(), viewRotation);
             out.slots_.push_back(slot);
             laidOutAny = true;
         }

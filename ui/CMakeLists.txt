@@ -59,6 +59,14 @@ add_library(rawpage_ui STATIC
     shell/DocumentTabBar.h
     shell/DocumentTabBar.cpp
 
+    # The document-condition banner -- S2 T14. It says something true about the FILE that the file
+    # cannot say: repaired, protected, signed, has a form. A persistent bar rather than a status
+    # message because a repaired document stays repaired, and Stage 3 forces its first save to
+    # Save-As on exactly that statement -- a banner the user missed is a banner that let them
+    # overwrite an original.
+    shell/MessageBar.h
+    shell/MessageBar.cpp
+
     # The keyboard -- T13. ShortcutBinder is the ONLY path from a key press to a command, and the
     # only place a QKeySequence is turned into a core/cmd/Chord: core/ may not name a QtGui type,
     # which is why the binding model is first-party and the conversion happens at this boundary.
@@ -96,6 +104,13 @@ add_library(rawpage_ui STATIC
     dialogs/ShortcutsPage.cpp
     dialogs/PreferencesDialog.h
     dialogs/PreferencesDialog.cpp
+
+    # S2 T14. The password prompt is a DIALOG and the protected banner is not: the prompt is a
+    # question the engine asks mid-open and cannot continue without, the banner is a statement about
+    # a document that is already open. It refuses to raise itself where there is nobody to ask
+    # (Stage 1's I-23), which is what keeps a headless run from hanging on a modal.
+    dialogs/PasswordDialog.h
+    dialogs/PasswordDialog.cpp
 )
 
 # ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before

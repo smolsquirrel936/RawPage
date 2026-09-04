@@ -152,6 +152,18 @@ void ViewportController::setLayoutMode(core::render::LayoutMode mode)
     emitChanged();
 }
 
+void ViewportController::setViewRotation(core::PageRotation rotation)
+{
+    if (rotation == viewRotation_) return;
+    viewRotation_ = rotation;
+    emitChanged();
+}
+
+void ViewportController::rotateView(int quarterTurns)
+{
+    setViewRotation(core::rotateBy(viewRotation_, quarterTurns));
+}
+
 void ViewportController::setPageCount(int count)
 {
     const int clamped = std::max(0, count);

@@ -71,19 +71,22 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // Twenty-three, and named. Stage 1 declares 361 ids; an id that is declared and UNREGISTERED
+    // FORTY-EIGHT, and named. 361 ids are declared; an id that is declared and UNREGISTERED
     // renders as a visible, disabled control saying it is not built yet, which is the honest state.
-    // Registering a stub handler for the other 338 would make every one of them look available.
+    // Registering a stub handler for the other 313 would make every one of them look available.
     //
-    // Nineteen until 2026-08-31, when three joined in one day, each because a manual walk reached
-    // for something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
+    // Nineteen at Stage 1 T14. Three joined on 2026-08-31, each because a manual walk reached for
+    // something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
     // `ui.qatMoveLeft` / `ui.qatMoveRight` (I-43), and `ui.qatLock`, which arrived with
-    // drag-to-reorder. Those three are the only ids Stage 1 has ADDED to the 358 the plan declared.
+    // drag-to-reorder. Those three are the only ids Stage 1 ADDED to the 358 the plan declared.
+    // **Twenty-five more at Stage 2 T14**: the §8 Viewer subset `Implementation-Plan.md` § Stage 2
+    // lists, and not one id beyond it -- the rest of that table belongs to Stages 3 to 13 and stays
+    // unregistered, which is asserted below rather than assumed.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
-    // fifth registration is added by accident, and "the window registers exactly what it can
+    // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 23);
+    CHECK(fixture.actions.registeredCount() == 48);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -116,6 +119,28 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::FilePreferences));
     CHECK(fixture.actions.isRegistered(core::ActionId::PaneLog));
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::LogOpenFolder));
+
+    // S2 T14's twenty-five: the §8 Viewer subset. Spot-checked across all four groups it covers --
+    // zoom, navigation, the view's own rotation, the layout modes and the three tools -- rather
+    // than listed in full, because the COUNT above is what makes the set exact and a second copy of
+    // the list here would be a copy of `registerViewerActions()` rather than a check on it.
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewZoomIn));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewFitWidth));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewActualSize));
+    CHECK(fixture.actions.isRegistered(core::ActionId::NavNextPage));
+    CHECK(fixture.actions.isRegistered(core::ActionId::NavGoToPage));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewRotateViewCw));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewTwoUp));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ToolHand));
+
+    // AND THE REST OF THE §8 VIEWER TABLE IS NOT REGISTERED, which is the half that keeps the
+    // subset honest. `Stage2-Rendering-Plan.md` §10 names these as Stages 3 to 13's, and a stage
+    // that implements MOST of a context's table invites someone to complete it -- so the absence is
+    // an assertion rather than a note.
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ViewReflow));        // S13
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageRotate));        // S3, destructive
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));      // S4
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));    // S6
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op. `file.save` is one of the ~340 that are declared and

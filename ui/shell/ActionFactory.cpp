@@ -46,15 +46,7 @@ RawPageAction* ActionFactory::create(ActionId id, QObject* parent)
         action->setEnabled(registry_.isEnabled(id));
         action->setChecked(registry_.isChecked(id));
 
-        // The registration's own tooltip key, which `Registration` has carried since T3 with
-        // nothing able to read it. Empty falls back to the label, as that field's comment says --
-        // and a fallback is what an action with no separate tooltip should have, rather than a
-        // tooltip repeating its own label.
-        const std::string_view tooltipKey = registry_.tooltipKey(id);
-        if (!tooltipKey.empty()) {
-            action->setToolTip(catalog::translate(
-                QString::fromUtf8(tooltipKey.data(), static_cast<qsizetype>(tooltipKey.size()))));
-        }
+        action->setToolTip(tooltipFor(registry_, id, action->text()));
     } else {
         // DECLARED BUT NOT REGISTERED. Stage 1 declares 358 ids and registers what the shell can
         // actually service, so this is the ordinary case for most of the ribbon. The button is
@@ -62,8 +54,7 @@ RawPageAction* ActionFactory::create(ActionId id, QObject* parent)
         // the ribbon's real width and collapse behaviour a fiction until Stage 13, which is exactly
         // the thing T10 exists to get right early.
         action->setEnabled(false);
-        action->setToolTip(catalog::translate(catalog::key::RibbonTooltipUnregistered)
-                               .arg(action->text()));
+        action->setToolTip(tooltipFor(registry_, id, action->text()));
     }
 
     // EXACTLY ONE CONNECTION, always the same one. `RawPageAction::triggeredReceiverCount()` reads
@@ -92,6 +83,41 @@ RawPageAction* ActionFactory::create(ActionId id, QObject* parent)
     return action;
 }
 
+QString ActionFactory::tooltipFor(const core::ActionRegistry& registry, core::ActionId id,
+                                 const QString& label)
+{
+    // 1. NOT BUILT. About this build, and the only one of the three Stage 1 ever produced.
+    if (!registry.isRegistered(id))
+        return catalog::translate(catalog::key::RibbonTooltipUnregistered).arg(label);
+
+    const auto resolve = [](std::string_view key) {
+        return key.empty() ? QString()
+                           : catalog::translate(QString::fromUtf8(
+                                 key.data(), static_cast<qsizetype>(key.size())));
+    };
+
+    // 2. BUILT AND REFUSED RIGHT NOW. About this DOCUMENT, and it is I-53's missing half: at
+    // Stage 1 this case was nearly theoretical (338 of 361 ids were unregistered, so almost every
+    // disabled control a person met was the explained kind) and a real document makes commands
+    // CONDITIONALLY available, which is the kind that said nothing at all.
+    //
+    // The registration's own `tooltipKey` names the SPECIFIC reason when it has one -- "this is
+    // already the first page" rather than "not available for this document" -- and the generic
+    // sentence is the fallback. Falling back to the LABEL instead, which is what an available
+    // action does, would put the command's own name in a tooltip explaining why it is greyed out.
+    if (!registry.isEnabled(id)) {
+        const QString why = resolve(registry.unavailableKey(id));
+        return why.isEmpty() ? catalog::translate(catalog::key::RibbonTooltipUnavailable).arg(label)
+                             : why.arg(label);
+    }
+
+    // 3. AVAILABLE. The registration's own tooltip if it named one, and otherwise the label --
+    // never the *unavailable* key, which is the opposite statement and which the first attempt at
+    // this function put on every enabled Viewer button by reusing one field for both.
+    const QString tooltip = resolve(registry.tooltipKey(id));
+    return tooltip.isEmpty() ? label : tooltip;
+}
+
 void ActionFactory::refresh()
 {
     for (const QPointer<RawPageAction>& action : made_) {
@@ -99,6 +125,12 @@ void ActionFactory::refresh()
         if (!registry_.isRegistered(action->id())) continue;
         action->setEnabled(registry_.isEnabled(action->id()));
         action->setChecked(registry_.isChecked(action->id()));
+
+        // THE TOOLTIP IS RE-ASKED, not computed once at construction. Enablement changes while the
+        // window is open -- a document opens, the last tab closes -- and I-53's whole point is that
+        // the tooltip says which kind of disabled the control is. One computed at build time would
+        // be a sentence about a state that has passed, which is worse than the generic one.
+        action->setToolTip(tooltipFor(registry_, action->id(), action->text()));
     }
 }
 

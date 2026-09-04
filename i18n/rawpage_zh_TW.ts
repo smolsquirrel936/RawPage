@@ -1543,6 +1543,74 @@
         <translation>%1 — RawPage</translation>
     </message>
     <message>
+        <source>shell.ribbon.tooltip.unavailable</source>
+        <translation>%1 不適用於此文件。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsDocument</source>
+        <translation>%1 需要先開啟文件。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.atFirstPage</source>
+        <translation>%1：已經是第一頁。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.atLastPage</source>
+        <translation>%1：已經是最後一頁。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.dismiss</source>
+        <translation>關閉此訊息</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.details</source>
+        <translation>詳細資料…</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.documentPrefix</source>
+        <translation>%1：%2</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.protected</source>
+        <translation>%1 受密碼保護，僅以唯讀方式開啟。</translation>
+    </message>
+    <message>
+        <source>shell.repair.detail.title</source>
+        <translation>修復內容</translation>
+    </message>
+    <message>
+        <source>shell.repair.detail.intro</source>
+        <translation>RawPage 在此檔案中發現 %1 個問題，並已盡可能修復。下列代碼為診斷用途，與記錄檔中的代碼相同。</translation>
+    </message>
+    <message>
+        <source>shell.repair.detail.truncated</source>
+        <translation>…另有 %1 項。完整清單請見記錄檔。</translation>
+    </message>
+    <message>
+        <source>shell.password.title</source>
+        <translation>需要密碼</translation>
+    </message>
+    <message>
+        <source>shell.password.prompt</source>
+        <translation>%1 受密碼保護。請輸入密碼以開啟。</translation>
+    </message>
+    <message>
+        <source>shell.password.retry</source>
+        <translation>密碼不正確。請重新輸入 %1 的密碼。</translation>
+    </message>
+    <message>
+        <source>shell.password.label</source>
+        <translation>密碼</translation>
+    </message>
+    <message>
+        <source>shell.status.pageTotal</source>
+        <translation>／共 %1 頁</translation>
+    </message>
+    <message>
+        <source>shell.status.zoomValue</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
         <source>shell.document.untitled</source>
         <translation>未命名</translation>
     </message>

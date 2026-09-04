@@ -81,6 +81,42 @@ RAWPAGE_SHELL_STRING(RibbonOverflowTooltip,  "ribbon.overflow.tooltip")
 // per action would be 358 facts nobody updates when a plan moves.
 RAWPAGE_SHELL_STRING(RibbonTooltipUnregistered, "ribbon.tooltip.unregistered")
 
+// The OTHER kind of disabled -- STAGE 1'S I-53, finally built at Stage 2 T14. A control that is
+// registered and currently refused says something different from one that is not built: the first
+// is about this document, the second is about this build, and the fix a user reaches for is
+// different for each. Stage 1 built only the second, and the distinction was alive everywhere
+// except on the surface (`dispatch` separates `Unavailable` from `NotFound`, the log prints them
+// under different keys, `ShortcutBinder` consumes the key for one and not the other).
+//
+// `%1` is the command's own label. A registration may name a MORE SPECIFIC reason through
+// `ActionRegistry::Registration::tooltipKey`, and the three below are Stage 2's -- the generic one
+// is what a registration that named none falls back to, rather than the label, which would say
+// nothing at all.
+RAWPAGE_SHELL_STRING(RibbonTooltipUnavailable,  "shell.ribbon.tooltip.unavailable")
+RAWPAGE_SHELL_STRING(TooltipNeedsDocument,      "shell.tooltip.needsDocument")
+RAWPAGE_SHELL_STRING(TooltipAtFirstPage,        "shell.tooltip.atFirstPage")
+RAWPAGE_SHELL_STRING(TooltipAtLastPage,         "shell.tooltip.atLastPage")
+
+// --- The message bar and the password prompt (S2 T14) --------------------------------------------
+RAWPAGE_SHELL_STRING(MessageBarDismiss,         "shell.messageBar.dismiss")
+RAWPAGE_SHELL_STRING(MessageBarDetails,         "shell.messageBar.details")
+RAWPAGE_SHELL_STRING(MessageBarDocumentPrefix,  "shell.messageBar.documentPrefix")
+RAWPAGE_SHELL_STRING(MessageBarProtected,       "shell.messageBar.protected")
+RAWPAGE_SHELL_STRING(RepairDetailTitle,         "shell.repair.detail.title")
+RAWPAGE_SHELL_STRING(RepairDetailIntro,         "shell.repair.detail.intro")
+RAWPAGE_SHELL_STRING(RepairDetailTruncated,     "shell.repair.detail.truncated")
+RAWPAGE_SHELL_STRING(PasswordTitle,             "shell.password.title")
+RAWPAGE_SHELL_STRING(PasswordPrompt,            "shell.password.prompt")
+RAWPAGE_SHELL_STRING(PasswordRetry,             "shell.password.retry")
+RAWPAGE_SHELL_STRING(PasswordLabel,             "shell.password.label")
+
+// The status bar's page total and its zoom FIGURE (S2 T14). `shell.status.zoom` already exists and
+// is the word "Zoom" beside the box; this is the number in it, and it needs a key of its own because
+// a percent sign is not the same character in every locale and does not sit on the same side of the
+// digits. `%1` is the page count and the zoom percentage respectively.
+RAWPAGE_SHELL_STRING(StatusPageTotal,           "shell.status.pageTotal")
+RAWPAGE_SHELL_STRING(StatusZoomValue,           "shell.status.zoomValue")
+
 // --- The Quick Access Toolbar (T11) ------------------------------------------------------------
 // Note what is NOT here: "Add to Quick Access Toolbar", "Remove from …" and the placement item
 // itself. Those are COMMANDS -- `ui.qatAdd`, `ui.qatRemove`, `ui.qatPlacement` -- and a command's

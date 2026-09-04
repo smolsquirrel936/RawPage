@@ -93,7 +93,8 @@ public:
     // in CONTENT space -- presented device pixels, the space `PageLayout` produces.
     void requestTiles(const core::render::PageLayout& layout,
                       const core::render::Resolution& resolution,
-                      const core::DeviceRect& viewport);
+                      const core::DeviceRect& viewport,
+                      core::PageRotation viewRotation = core::PageRotation::None);
 
     // Paints into `painter`, whose coordinate system is the WIDGET's (logical pixels, origin at the
     // viewport's top-left). `devicePixelRatio` converts, and is the one place the two spaces meet.
@@ -115,6 +116,14 @@ public:
     // viewport's worth -- which passes any count bound loose enough not to be brittle. What is
     // actually claimed is that page 0's tiles are GONE, and only a set of pages can say so.
     std::set<int> heldPages() const;
+
+    // THE KEYS THEMSELVES. Added when a negative control refused to fire: a case asserting that
+    // rotating the view "re-keyed the tiles" was really asserting that new tiles were requested,
+    // which is true anyway because a rotated page has a different shape and therefore different
+    // tile rectangles. Only the key can say whether the rotation is IN the key -- and if it is not,
+    // the rotated view is served the upright pixels out of the cache with no error and no symptom
+    // beyond a command that appears not to work (D2-12).
+    std::vector<core::render::RenderRequest> heldRequests() const;
 
     // Filled in by the most recent `paint()`. `placeholders` is the count of tiles that were asked
     // for and had not arrived -- the difference between "a page is on screen" and "the whole page
@@ -145,7 +154,8 @@ private:
 
     void cancelAll();
     core::render::RenderRequest requestFor(int pageIndex, const core::render::TileRect& tile,
-                                           const core::render::Resolution& resolution) const;
+                                           const core::render::Resolution& resolution,
+                                           core::PageRotation viewRotation) const;
 
     core::render::RenderScheduler& scheduler_;
     core::render::TileGrid grid_;

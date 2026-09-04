@@ -8,10 +8,11 @@
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, and T7 … T13's on 2026-09-04.**
-> **79 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> **80 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
-> case for, and **A-79** added at T13 — see I-09) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-47, A-52 … A-56, A-60 and A-75 … A-79 are
+> case for, **A-79** at T13 — see I-09 — and **A-80** at T14, for a view rotation this guide was
+> written before anyone noticed the render path could not carry) and **10 manual** (M-01 … M-10), of
+> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-47, A-52 … A-60 and A-75 … A-80 are
 > green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61 and A-62 are 🟡 — the half an
 > automated run can reach is green and the other half is named, with its owner**: a real mid-session
@@ -24,9 +25,12 @@
 > **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through in the same change. The
-> **None of the ten manual cases has been walked**, and as of T13 **the first four are walkable for the
-> first time** — there is a page on screen to look at. `rawpage.exe <a corpus file>` opens it.
-> The issue log holds **nine** entries. **I-01** (S3) — two
+> **None of the ten manual cases has been walked**, and as of T13 **the first four are walkable** —
+> there is a page on screen to look at; `rawpage.exe <a corpus file>` opens it. **T14 makes them worth
+> walking**: the §8 Viewer chords work, the status bar reports real numbers, and a repaired file says
+> so. M-05 … M-10 still need golden baselines (T17), fonts (T16), the settings keys (T15) or
+> Dr. Memory.
+> The issue log holds **ten** entries. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
@@ -290,6 +294,8 @@ and the case that closes it.
 | Scrolling a large document stays responsive | A-36, A-37, A-68, **M-04** |
 | Mixed-DPI dragging is correct | A-28, A-29, A-60, A-61, **M-01**, **M-02** |
 | *(plan T13)* **A page is on screen** | A-52, A-53, **A-79**, **M-03** — and the three are complementary rather than redundant: A-52 asserts the geometry the layout gave the widget (without which A-53 is green and worthless), A-53 asserts real pixels through the real viewer over a FAKE rasterizer (`ui/` may not link an engine — D1-4), A-79 asserts real pixels from the REAL engine through the real scheduler with no widget, and **only M-03 sees the two halves meet on glass** |
+| *(plan T14)* **Every §8 Viewer chord dispatches** | A-55's second half, **A-80** for the rotation, and `ui.every Stage 2 Viewer chord dispatches from the viewer`, which walks all 23 — with its companion asserting the other seven are still `NotImplemented` |
+| *(plan T14, D2-10)* A disabled registered command says **why** | **A-59**, four cases; and **M-04** for a person actually reading it, which no offscreen run can do |
 | *(plan T13, D2-8)* `KeyContext::Viewer` resolves, and only in the viewer | A-55, **A-56** — the negative is the one that tests context resolution; a chord that fired everywhere would pass A-55 |
 | **A2 has a recorded verdict with numbers** | A-68, **M-04**, §3 |
 | *(plan §13)* The engine boundary holds | A-03, A-10 … A-12, A-45 |
@@ -1339,9 +1345,15 @@ real `MainWindow` with a real open document. It asserts the OUTSIDE as well: foc
 answers `Global`, which is what makes the inside mean something. And a child widget created inside the
 view inherits `Viewer` without declaring anything — the declaration is on the view itself, so Stage 4's
 overlays, rulers and tool widgets get it for free.
-The dispatch half needed a registered command and Stage 2 registers the Viewer commands at **T14**, so the
-case registers `ToolHand` itself and says so at the assertion (convention 19): an unregistered id resolves
-to `NotImplemented` in both contexts and would prove nothing about the route.
+**Completed at T14, and the case was rewritten rather than extended.** At T13 it registered `ToolHand`
+itself and said so at the assertion (convention 19), because nothing did; T14 registers it for real, so
+the case now ASSERTS the registration and observes `PageView::tool()` — an effect rather than a counter,
+which is what distinguishes *the command ran* from *the command did something*. Re-registering would
+have been refused (property 3) and would have gone on watching the case's own lambda.
+**And the whole subset is covered at T14 by `ui.every Stage 2 Viewer chord dispatches from the viewer`**,
+which walks all 23 chords `Implementation-Plan.md` § Stage 2 lists and requires each to be `Dispatched`
+or `Unavailable` — never `NotImplemented` — with a companion case asserting the other seven are still
+`NotImplemented` and leave the key unconsumed.
 **Negative control run:** removing the `declareContext` call from `PageView`'s constructor reddens this
 case and A-56.
 **If it fails** S2 — and note that until T13 this answering `Global` was *correct*, so a regression
@@ -1362,24 +1374,123 @@ Stage 1's I-54 is the reason, and it is quoted at the assertion: nine green `[to
 frozen application because every one typed at the one address a real keystroke does not reach.
 **If it fails** S2.
 
-**A-57 · The status bar shows real numbers** ☐
+**A-57 · The status bar shows real numbers** ✅ **2026-09-04 (T14)**
 **Expect** Page *n* of *N* with the real total; the zoom label tracks the viewport. The em dash Stage 1
 showed for a stub is gone **because there are pages now**, not because it was replaced by a guess.
-**If it fails** S3.
+**Result 2026-09-04.** `ui.the status bar shows the real page total and the real zoom` asserts the em
+dash BEFORE the document and the count after, against the document's own page count rather than a
+literal — which is what "because there are pages now" means — and asserts **the dash comes back when
+the last tab closes**, rather than the previous document's figure staying on screen over an empty
+window. A second case covers the page box, which has been an input with no consumer since T9: a number
+inside the document navigates, and one outside it **puts the current page back** rather than leaving the
+box holding a value nothing acted on, because an empty box or one still reading "4000" leaves the user
+unsure whether it worked.
+**One defect of this task's own, found here rather than by a person:** nothing told the chrome when the
+VIEW moved. The numbers were correct exactly once, when the tab was adopted, and then stayed there while
+the document scrolled under them — a confident wrong answer, which is worse than the em dash.
+`PageView::viewChanged` is now connected in `adoptDocument`, and **not with `Qt::UniqueConnection`**:
+Qt refuses a unique connection to a lambda and refuses it with an `ASSERT` that fail-fasts the process,
+so the mistake read as 42 unrelated suites dying at once rather than as one wrong argument.
+**Negative control run:** dropping that connection reddens both status-bar cases. **If it fails** S3.
 
-**A-58 · The message bar surfaces a repair report** ☐
+**A-58 · The message bar surfaces a repair report** ✅ **2026-09-04 (T14)**
 **Expect** Opening a `corpus/malformed/` file shows a message bar naming what was reconstructed, with
-a route to the detail; opening a clean file shows **no** bar. **If it fails** S2 — a repaired file that
-says nothing is how an original gets destroyed at Stage 3.
+a route to the detail; opening a clean file shows **no** bar.
+**Result 2026-09-04.** Both halves, and the second is the one that would be lost by a bar saying *no
+repairs were needed*: a sentence nobody needs, which would make the real banner unremarkable. The fake
+backend returns an **empty** report for a clean file, which is the state *this needed nothing* and is
+not the same as no report at all — so `ui.a clean file shows no message bar at all` is asserting the
+distinction rather than the absence of a backend.
+The banner's text is the report's OWN summary, resolved from `RepairReport::summaryKey()` and its
+arguments — never a sentence invented in `ui/`, and never one invented in `core/`, which holds no
+user-facing English. The case checks the resolved text contains the document's name and does **not**
+contain the raw key.
+**The route to the detail, and the trade made there.** `RepairKind`'s names are declared ASCII, stable
+and **non-localized** by their own header: they are diagnostic codes, they are what the log holds, and
+translating thirteen xref-internals codes would put a different string in front of every bug reporter.
+So the detail view localizes the FRAME — a title and a sentence saying what the list is — and prints the
+codes as codes beside the object number and offset. Convention 5 is satisfied because nothing here is an
+English literal in a source file: the codes come from `repairKindName()`, which is a function.
+**A third case covers the half that is not about repair at all:** the banner is cleared on every tab
+change, because the condition belongs to the tab and a *this was repaired* banner left over the document
+that replaced it is a false statement about the file in front of the user — and Stage 3 forces a Save-As
+on exactly that statement. What that case does NOT cover is a per-document report re-appearing on a tab
+switch back, because the fake cannot answer differently per handle; that is the real backend's and is
+manual case M-03's.
+**Negative control run:** raising the banner for an empty report reddens two cases.
+**If it fails** S2 — a repaired file that says nothing is how an original gets destroyed at Stage 3.
 
 **A-59 · A registered-but-unavailable command says WHY — Stage 1's I-53, finally**
-☐ **Goal** D2-10. **Steps** With no document open, hover a **registered** command that is refused
+✅ **2026-09-04 (T14)** **Goal** D2-10. **Steps** With no document open, hover a **registered** command that is refused
 (needs a document). Then hover a **declared-but-unregistered** one.
 **Expect** Two *different* tooltips: *"not available for this document"* versus *"arrives in Stage N"*.
 Stage 1 built only the second (`Stage1-AppShell-Plan.md` §5.1).
 **Note the route:** Stage 1's M-12 found that **no ribbon control can show the first case** — all nine
 registered ribbon ids are unconditionally enabled — so this case must reach it through the tool finder
-or the toolbar. **If it fails** S3.
+or the toolbar.
+**Result 2026-09-04, and the route is a third one the case did not anticipate.** T14 does not put the
+twenty-five Viewer commands on the ribbon either, so the automated half reaches the distinction through
+`ActionFactory::tooltipFor()` — the one place that decides — and through an action the factory built.
+That is a back door and the suite names it: **what is NOT covered is a person hovering a real control
+and reading the sentence**, which is manual case M-04's, and which is reachable now in a way it was not
+at Stage 1 because opening and closing a document changes twenty-five commands' enablement while the
+window is up.
+Three answers are asserted and, crucially, asserted to DIFFER: *declared but not implemented* (about
+this build), *not available for this document* (about this document), and the plain label when the
+command is available. A fourth case covers the specific reason: **"not available for this document" is
+true of Next Page on the last page and is not the useful thing to say**, so the two page steps carry
+`shell.tooltip.atFirstPage` / `atLastPage` and the pair swaps over as the current page moves. And a
+fifth asserts the tooltip is **re-asked** when a document opens — one computed at construction would be
+a sentence about a state that has passed.
+**One finding, `I-10`.** Stage 1's I-53 note said the mechanism already existed as
+`Registration::tooltipKey`. It did not: that field is the tooltip an **enabled** control shows, and
+reusing it for the refusal reason put *needs a document to be open* on every enabled Viewer button. The
+two are shown in mutually exclusive states and say opposite things, so `unavailableKey` is a second
+field.
+**Negative control run:** collapsing the two kinds back into one — Stage 1's actual behaviour — reddens
+three cases. **If it fails** S3.
+
+**A-80 · Rotating the VIEW turns the layout, the tiles and their keys**
+✅ **2026-09-04 (T14)** — **a case this guide did not list**, added with T14.
+**Goal** `Ctrl+Shift+=` / `Ctrl+Shift+-` are in `Implementation-Plan.md` § Stage 2's own binding list,
+and this guide was written before anyone noticed that **nothing in the render path could carry a view
+rotation**: `RenderRequest` had no field for one, `TileGrid` no way to swap a page's bounds,
+`PagePresentation` no parameter, and `PdfiumRasterizer` a hard-coded `rotate=0`. A command that needed
+four layers extended deserves a case rather than a line in a status block.
+**Read the distinction first:** the page's own `/Rotate` belongs to the DOCUMENT and survives a save;
+the view rotation belongs to this SESSION and never reaches the file. Rotating pages destructively is
+`page.rotate`, is Stage 3's, and stays unregistered — which the Viewer-subset case asserts.
+**Steps** `ctest -R "rotat"`, plus `ui.rotating the view rotates the layout and re-keys the tiles`.
+**Expect**, in four layers:
+
+- **The arithmetic.** `rotateBy` is correct for NEGATIVE turns — C++'s `%` yields a negative remainder,
+  so a bare `% 4` makes one press of Rotate Counter-Clockwise fall through to `None` and the command
+  silently does nothing in one direction only. `combine` adds two rotations without producing 450
+  degrees, and is commutative, which it must be: a landscape page in a rotated view and a rotated view
+  over a landscape page are the same thing on screen.
+- **The geometry.** `TileGrid::pageBounds` swaps at 90 and 270 and **not at 180** — a `!= None` test
+  passes the first and fails the second — and `PagePresentation` swaps every page, so the content
+  extent, the column width and the scrollbars all follow. Each `PageSlot::rotation` comes out as the
+  COMBINED rotation, because `PageLayout::toDocument()` builds its `PageTransform` from it and a
+  mapping using only `/Rotate` puts a click on a rotated view at the wrong point of the page — at
+  Stage 5 that is text selection picking the wrong words.
+- **The key.** `viewRotation` is part of `RenderRequest`'s equality **and its hash**, so two rotations
+  of one tile are two cache entries. Without it the rotated view is served the upright pixels straight
+  out of the cache: a command that appears not to work, with no error and no failing test (D2-12).
+- **The engine.** `FPDF_RenderPageBitmap`'s `rotate` argument carries the VIEW rotation **and nothing
+  else** — PDFium applies `/Rotate` itself, so passing the combined value would rotate a landscape page
+  twice, which reads as *rotate view is broken for some documents and fine for others*, the worst shape
+  of rendering bug because it depends on the file.
+
+**Result 2026-09-04.** Green in all four. **Negative control run, and one of the three refused to
+fire:** removing the `rotate` argument reddens the engine case, and dropping `viewRotation` from
+`RenderRequest`'s equality reddens the cache case — but making `TilePresenter` stop putting the rotation
+in its requests changed nothing, because a rotated page has a different shape and therefore different
+tile rectangles, so new tiles were requested either way and the case was counting requests rather than
+reading keys. `TilePresenter::heldRequests()` exists because of that, and the case now asserts every
+held key carries the rotation.
+**If it fails** S2 — and the first question is which of the four layers, because three of them fail
+invisibly.
 
 ### 5.10 Platform
 
@@ -1734,7 +1845,7 @@ was. If a row here turns out to be wrong, that is itself a finding.
 
 | Looks broken | Is |
 |---|---|
-| Most ribbon buttons are still disabled | Correct. Registration goes from 23 to roughly 45 of 361 |
+| Most ribbon buttons are still disabled | Correct. Registration went from **23 to 48 of 361** at T14, and **none of the 25 new ones is on the ribbon** — they are chords and a status-bar box. The ribbon's own share grows at Stages 3 to 13 |
 | `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y` do nothing and **do not consume the key** | Correct — `NotFound` deliberately leaves the key unconsumed. Stage 3 |
 | A repaired file opens rather than refusing | Correct, and the point of `XrefRepair`. Stage 3 forces its first save to Save-As |
 | The COS reader **declines** an encrypted file while the viewer **opens** it | Correct — D2-6. Two different components with two different jobs |
@@ -1742,8 +1853,14 @@ was. If a row here turns out to be wrong, that is itself a finding.
 | The sidebar has no thumbnails or bookmarks pane | Stage 4 |
 | `WinAcceleratedSurface` does nothing | Correct — declared, unimplemented, and the interface census (A-46) says so |
 | Zoom at 6400 % is not sharper than at 1600 % | Likely correct — `pageDisplay/maxRenderResolution` clamps it. Check the setting before reporting |
-| **The status bar's page total is still an em dash, with a page on screen** | Correct at T13 — the status bar gets real numbers at **T14**. "1 of 1 at 100 %" over a document nothing has counted is the lie T9 refused to tell, and T13 did not start telling it |
-| **Every §8 Viewer chord does nothing** — `Ctrl+0`, `Ctrl+=`, `Page Down`, `Home` | Correct at T13. `KeyContext::Viewer` now RESOLVES (D2-8, the first context the product has ever resolved to) and the commands it resolves to are registered at **T14**, so each one is `NotFound` and leaves the key unconsumed. **`Ctrl`+wheel does zoom**, because a gesture is not a chord |
+| ~~The status bar's page total is still an em dash~~ | **Fixed at T14** — real numbers, and the dash now means *there is no document*. A dash WITH a document open is a finding |
+| ~~Every §8 Viewer chord does nothing~~ | **Fixed at T14** for the 23 chords Stage 2 owns. The other seven — `Ctrl+4`, `Ctrl+R`, `S`, `Ctrl+B`, `Ctrl+E`, `Ctrl+L`, `Ctrl+U` — are still `NotFound` and still leave the key unconsumed, which is correct and is asserted |
+| **`H`, `V` and `Z` arm a tool but `Select` selects nothing** | Correct. Stage 2 owns the three BINDINGS; the tool state machine and its seventeen tool classes are `ui/viewer/ToolController` at **Stage 4**, and text to select arrives at **Stage 5** |
+| **Rotate View turns the page and Save would still write it upright** | Correct, and the distinction is deliberate: the view rotation belongs to this session and never reaches the file. Rotating pages destructively is `page.rotate`, is **Stage 3's**, and is unregistered |
+| **The repair detail dialog shows codes like `ObjectOffsetWrong` rather than sentences** | Correct — those are diagnostic codes, are what the log holds, and are what a bug report should quote. The frame around them IS translated |
+| **A protected document opens read-only and the banner says so** | Correct at Stage 2. Permissions are `core/doc/Permissions` at **Stage 10**; today the banner reports only that a password was asked for |
+| ~~The status bar's page total is still an em dash, with a page on screen~~ | Correct at T13 — the status bar gets real numbers at **T14**. "1 of 1 at 100 %" over a document nothing has counted is the lie T9 refused to tell, and T13 did not start telling it |
+| ~~Every §8 Viewer chord does nothing~~ *(T13's row, kept for a walker who read it)* | Was correct at T13. `KeyContext::Viewer` resolved and nothing was registered; **T14 registered 25 commands** and the row above replaces this one |
 | Anti-aliasing, line weight and the resolution cap cannot be changed | Correct — the sixteen `pageDisplay/` and `performance/` keys land at **T15**, and until then `DpiPolicy::Limits` and `RenderCache::Config` are the defaults' only home |
 | A page appears a moment after the tab does, rather than with it | Correct, and it is D10's whole promise: the UI thread never rasterizes. The sheet and its border are drawn immediately and the tiles land on top |
 | **A missing embedded font renders in something else, silently** | Correct at T13 — PDFium's own substitution. **Our** policy, and a case that names the substitute, is **T16** (A-66). Do not grade M-03's typography before then |
@@ -1775,9 +1892,13 @@ document means **Stage 1's**, and says so where it appears.
 | **I-07** | S3 | **`platform/platform.h` described `MonitorInfo`'s geometry as *device-independent pixels*, and it is PHYSICAL pixels.** Found at **T12** by the first implementation of `IDisplayTopology`, measuring the P-1 rig: Windows lays the virtual desktop out in physical pixels, so the 4K panel at 150 % occupies a 3840×2160 rectangle and not a 2560×1440 one. **The DIP reading is exactly what a DPI-UNAWARE process is handed** — virtualized figures that are self-consistent and wrong — so the field comment described the failure mode as if it were the specification, and guide case A-60 expects the physical figures. A header comment is not a rule, but it is what the next implementer reads: this one would have produced a `WinDisplayTopology` that divided by the scale factor and agreed with itself. Corrected in the same change as the file, with `processIsPerMonitorAware()` added so a caller can say which kind of answer it is getting. | ✅ **Closed 2026-09-04 at T12** |
 | **I-08** | S2 | **`IDocumentBackend::pages()` was declared on the CONCRETE backend, where `ui/` could never reach it.** T9 added `pages()` and `repairReport()` to `pdf::DocumentBackendImpl` with a comment saying `ui/` would reach them *"through the backend it was handed, which is still a `core::` type"*. That is not achievable and could not have been: `ui/` is handed a `core::IDocumentBackend&`, `ui/` may never name `pdf/` (the linker enforces it — `rawpage_ui` links neither `rawpage_cos` nor `rawpage_pdfium`), and a `dynamic_cast` to the concrete type would be the layering violation the whole boundary exists to prevent. It was invisible at T9 because **nothing in `ui/` needed a page tree until there was a viewer**: `openFiles()` asked the backend whether the bytes were a PDF, threw the handle away, and never asked what was in the file. T13 is the first task that needs it, and it is where the gap became reachable rather than theoretical. **Fixed by moving the declaration onto `core::IDocumentBackend`**: opening a document and saying what is in it are the same responsibility, and `open()` already returns a handle that means nothing without it. `repairReport()` deliberately stays on the concrete type until **T14**, its first consumer — a service handed to every caller ahead of the first that reads it is the shape Stage 1 found five times (I-34, I-42, I-43, I-46, I-47). | ✅ **Closed 2026-09-04 at T13** |
 | **I-09** | S3 | **The one render arrangement the product actually runs was the one arrangement nothing tested.** Raised at **T13** while writing the composition root: the adapter that turns a `RenderRequest`'s `DocumentHandle` back into an engine was a class private to `CompositionRoot.cpp`, and every suite that could have driven it fakes one end of the path — `tests/unit` and `tests/ui` may not link an engine at all (D2-2, D1-4), and `tests/render`'s existing cases call `PdfiumRasterizer` with no scheduler. Not a defect in any of them; a gap between them, and the same shape as Stage 1's built-but-unreachable findings. **Fixed by making it `app/BackendRasterizer.h`**, a header naming only `core/` types, so `tests/render/tst_renderpipeline.cpp` (case **A-79**) drives the shipped class rather than a second copy that could agree with a mistake in it. | ✅ **Closed 2026-09-04 at T13** |
+| **I-10** | S3 | **Stage 1's I-53 named a mechanism that does not do what the note said it did.** I-53 recorded that the *registered-but-currently-refused* tooltip was unbuilt and that "the mechanism to fill it in exists and is unused — a `tooltipKey` on the registration". Building it at **T14** found that `Registration::tooltipKey` is the tooltip an **ENABLED** control shows: reusing it for the refusal reason put *needs a document to be open* on every enabled Viewer button, which is a worse sentence than the one I-53 was about. The two are shown in mutually exclusive states and say opposite things — *what this does* against *why it cannot* — so one field cannot serve both. **Fixed with a second field**, `Registration::unavailableKey`, read only while the action is disabled. The finding is worth the entry not for its size but for its shape: **a deferral's note about how it will be fixed is a guess made by someone who did not build it**, and this one was carried through a stage boundary and two documents as though it were a design. | ✅ **Closed 2026-09-04 at T14** |
 
-**One S2 open — I-02 (T7/T16) — plus two S3 open, I-04 (T14) and I-06 (JBIG2). Six closed: I-01 and
-I-03 before any code, I-05 at T11, I-07 at T12, and I-08 and I-09 at T13.**
+**One S2 open — I-02 (T7/T16) — plus two S3 open, I-04 (T16) and I-06 (JBIG2). Seven closed: I-01 and
+I-03 before any code, I-05 at T11, I-07 at T12, I-08 and I-09 at T13, and I-10 at T14.**
+**I-04 moves from T14 to T16**: it is the `orphan-key`/referenced-key gate rule, T14 had no reason to
+touch `i18n-lint` and did not, and a task tag that quietly passes is how an item becomes permanent. Its
+owner is now the next task that edits that tool.
 
 **I-08 is the one to read before T14.** It is not interesting as a bug — a declaration in the wrong
 place, moved — but as a demonstration that **a boundary comment claiming a route is not the same as the
@@ -1796,7 +1917,7 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-79 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-80 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.

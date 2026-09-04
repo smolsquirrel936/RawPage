@@ -10,7 +10,7 @@ Windows-first desktop PDF editor modeled on Right PDF Professional. The design l
 
 ### Where the work is right now — read this first
 
-**Stage 1 is COMPLETE and signed off. Stage 2 is under way: T1–T13 of 18 are done** — the engine
+**Stage 1 is COMPLETE and signed off. Stage 2 is under way: T1–T14 of 18 are done** — the engine
 boundary (`core/backend.h`), PDFium made permanent behind `pdf/render/PdfiumInit`, **risk A2
 measured: `go`** (all three on 2026-09-01), **the corpus: 60 generated files** and **`pdf/cos/Lexer`
 — the first token of PDF this project has ever read for itself** (both 2026-09-02),
@@ -31,18 +31,28 @@ says 144. T13 shipped **`ui/viewer/`** — `ViewportController`, `PageLayoutEngi
 `PageView` — and **`DocumentWindow` stopped being D1-2's stub**. `PageView` is **the first widget in
 the product to declare a `KeyContext`** (D2-8), so `ShortcutBinder::activeContext()` answers something
 other than `Global` for the first time in the product's history.
-**Next action: Stage 2 T14** — the §8 Viewer commands, the status bar's real page numbers, `MessageBar`
-with the repair report and the password prompt, and **I-53's `tooltipKey`** (D2-10). Everything T13 put
-on screen is currently reachable only by scrollbar, wheel and `Ctrl`+wheel: **not one Viewer chord is
-registered**, and the status bar still shows Stage 1's em dash. Live status, task by task and
+**And T14 on the same day: THE KEYBOARD MOVES THE PAGE.** The §8 Viewer subset is registered — **23 of
+361 ids becomes 48** — the status bar reports real page numbers and a real zoom and its page box
+navigates, `ui/shell/MessageBar` raises the repair report and the protected banner, a password prompt
+exists, and **Stage 1's I-53 is closed**: a disabled control now says which KIND of disabled it is.
+**Next action: Stage 2 T15**, the sixteen settings keys — eleven `pageDisplay/` and five
+`performance/`, each a `SettingsKeys.def` row and therefore an automatic Preferences editor with no
+widget code (convention 17), taking the shipped groups from three of 26 to five. It inherits four
+constants that are currently their defaults' only home and must become rows in the same change:
+`DpiPolicy::Limits::maxRenderDpi` (2400), `RenderCache::Config::memoryCapBytes` (256 MiB) and
+`diskCapBytes` (0 — D2-14 says the disk tier ships off until T18 MEASURES whether it earns its place),
+and `RenderScheduler::Config::workerCount` (1 — I-05's answer). It also owns **the battery throttle**,
+which T12 built the interface for and deliberately did not wire: `performance/throttleOnBattery` is the
+switch, and `setActiveWorkerLimit()` clamps to `[1, workerCount]`, so the wire is only testable once
+`performance/renderWorkers` can make the count differ. Live status, task by task and
 deviation by deviation, lives in the **Stage 1 and Stage 2 status blocks** in
 `claude-plan/Implementation-Plan.md` — those blocks are the authority, and this section is their
 summary. The table below is Stage 1's, updated where Stage 2 has already moved a number.
 
 | | |
 |---|---|
-| **Tests** | **598/598** on `x64-debug` and `x64-release` as of Stage 2 T13, with **one explicitly SKIPPED** — the battery case, on a desktop that has none, which is guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* requirement honoured rather than a gap (66 at the end of Stage 0; 334 at Stage 1 T15, +5 from the M-03 fixes, +2 from the M-04 fixes, +2 from M-05's, +4 from M-06's, +6 from M-11's I-47, I-49, I-50, I-52 and the toolbar lock, +1 from M-12's I-54, giving Stage 1's final 354; then +13 at Stage 2 T1 — 6 `unit.` backend cases, 5 `gates.headless_assert.*` and 2 `gates.layer_lint.*`; +16 at T2 — 4 `render.`, 5 `gates.layer_lint.fpdf*` and 7 `gates.pdfium_pin.*`; +1 at T3, the A2 probe; +3 at T4, the `gates.corpus.*` trio; +25 at T5; +31 at T6; +29 at T7 — 13 `unit.cos filters`, 14 `unit.cos xref` and 2 `gates.license_audit.undeclared_transitive_*`; +20 at T8 — 12 `unit.cos repair` and 8 `unit.doc`; **+34 at T9** — 22 `render.` over the document and the rasterizer, 11 `unit.` over `Page`/`PageTree`/`RenderRequest`, and one `ui.` for A-47); **+18 at T10** — 4 `unit.` over `DpiPolicy`, 7 over `TileGrid` and 7 over `PagePresentation`, every one of them headless; **+17 at T11** — 6 `unit.` over `RenderCache` and its two tiers, 11 over `RenderScheduler`; **+9 at T12** — 5 `platform.` over `WinDisplayTopology` and 4 over `WinPowerSession`, one of which is the skip; and **+28 at T13** — 13 `ui.` over `ViewportController` and `PageLayoutEngine` with no window at all, 10 `ui.` over `PageView` and `TilePresenter`, 2 `ui.` for `KeyContext::Viewer` and its negative, 1 net in the tab suite where A-57's stub case became two, and 2 `render.` for the real engine on the real scheduler); the bare `gates` preset is **90/90** with no Qt. Plus **two benchmarks**, `bench.ribbon.tab_switch` and — since S2 · T3 — `bench.render.a2_probe`; this line read *"one benchmark"* until 2026-09-03, having missed the second for the same reason the target-count heading below did. A bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
-| **Gates** | `layer-lint` clean at **247 files / 1,622 includes**, **8** live filesystem-write waivers — the two new ones both in `core/render/DiskTileStore.cpp`, one write and one delete, because every deletion in that file is funnelled through a single helper to keep the census at two; `license-audit` clean at **20 components** — 17 until T7 taught it to enumerate the RESOLVED CLOSURE rather than the declared manifest (I-02); `i18n-lint` clean at **163 files / 2 catalogs, 0 waivers** (it scans `pdf/` and `platform/` from T2 — see I-04). **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Tests** | **623/623** on `x64-debug` and `x64-release` as of Stage 2 T14, with **one explicitly SKIPPED** — the battery case, on a desktop that has none, which is guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* requirement honoured rather than a gap (66 at the end of Stage 0; 334 at Stage 1 T15, +5 from the M-03 fixes, +2 from the M-04 fixes, +2 from M-05's, +4 from M-06's, +6 from M-11's I-47, I-49, I-50, I-52 and the toolbar lock, +1 from M-12's I-54, giving Stage 1's final 354; then +13 at Stage 2 T1 — 6 `unit.` backend cases, 5 `gates.headless_assert.*` and 2 `gates.layer_lint.*`; +16 at T2 — 4 `render.`, 5 `gates.layer_lint.fpdf*` and 7 `gates.pdfium_pin.*`; +1 at T3, the A2 probe; +3 at T4, the `gates.corpus.*` trio; +25 at T5; +31 at T6; +29 at T7 — 13 `unit.cos filters`, 14 `unit.cos xref` and 2 `gates.license_audit.undeclared_transitive_*`; +20 at T8 — 12 `unit.cos repair` and 8 `unit.doc`; **+34 at T9** — 22 `render.` over the document and the rasterizer, 11 `unit.` over `Page`/`PageTree`/`RenderRequest`, and one `ui.` for A-47); **+18 at T10** — 4 `unit.` over `DpiPolicy`, 7 over `TileGrid` and 7 over `PagePresentation`, every one of them headless; **+17 at T11** — 6 `unit.` over `RenderCache` and its two tiers, 11 over `RenderScheduler`; **+9 at T12** — 5 `platform.` over `WinDisplayTopology` and 4 over `WinPowerSession`, one of which is the skip; **+28 at T13** — 13 `ui.` over `ViewportController` and `PageLayoutEngine` with no window at all, 10 `ui.` over `PageView` and `TilePresenter`, 2 `ui.` for `KeyContext::Viewer` and its negative, 1 net in the tab suite where A-57's stub case became two, and 2 `render.` for the real engine on the real scheduler; and **+25 at T14** — 9 `ui.` over the §8 Viewer commands, 9 `ui.` over the status bar, the message bar and I-53's tooltips, 5 `unit.` over the rotation arithmetic and its cache key, and 2 `render.` over the engine's `rotate` argument); the bare `gates` preset is **90/90** with no Qt. Plus **two benchmarks**, `bench.ribbon.tab_switch` and — since S2 · T3 — `bench.render.a2_probe`; this line read *"one benchmark"* until 2026-09-03, having missed the second for the same reason the target-count heading below did. A bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
+| **Gates** | `layer-lint` clean at **253 files / 1,697 includes**, **8** live filesystem-write waivers — the two new ones both in `core/render/DiskTileStore.cpp`, one write and one delete, because every deletion in that file is funnelled through a single helper to keep the census at two; `license-audit` clean at **20 components** — 17 until T7 taught it to enumerate the RESOLVED CLOSURE rather than the declared manifest (I-02); `i18n-lint` clean at **167 files / 2 catalogs, 0 waivers** (it scans `pdf/` and `platform/` from T2 — see I-04). **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**. T15 **re-measured R-9 against the shipped ribbon** rather than against T2's throwaway spike — p95 **0.471 ms** against a 16.667 ms budget, over 192 real controls, with a control proving the instrument was live. Both figures stand in `Tech-Stack-Plan.md` §3.3; the second is the one that is a claim about the product. **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
 | **Issue log** | I-01…I-55 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** **I-54 (S2)**: the tool finder took only the **first character** of a query **and lost its blinking caret** — one report, two mechanisms, because opening a `Qt::Popup` takes both the keyboard and the window activation away from the widget behind it. Keys: a popup is a WINDOW, so once it opened Qt delivered every further keystroke to it rather than to the search box, and a `QListWidget` spent them on its own keyboard search; Backspace went the same way, so a mistyped query could not be corrected. Caret: a `QLineEdit` in a **deactivated** window stops painting its cursor whether or not it still holds focus. **Fixed in two rounds** — the first addressed the keys only, and the user found the caret still gone by using the repaired build, I-45's lesson for the third time. `setFocusPolicy(Qt::NoFocus)` had carried the comment *“typing stays in the box”* since T11 and could never have made it true: focus policy picks a widget **within** a window, and this is about which **window** the keyboard talks to. `eventFilter` now keeps Up/Down/PageUp/PageDown/Enter and forwards the rest to the line edit, and the list carries `WA_ShowWithoutActivating` and a focus proxy back to the box — with `Qt::NoFocus`, **all three of the things `QCompleter` does with its own popup**, which this widget is in all but name. **The third defect this one popup has produced** (I-44, I-45), and nine green `[toolfinder]` cases missed all of it because every one types at `searchBox()` — the one address a real keystroke does not reach while the list is up: convention 19's back door, I-34's and I-43's shape. **Raised by the user after M-12 was already signed off**, which re-opened and re-closed the no-open-S2 box. **I-53** is not a defect: plan §5.1's *registered-but-disabled* tooltip was never built — an unregistered control says it is not implemented, one that is merely unavailable says nothing — and the user's call was **planned absence, Stage 2**, since 338 of 361 ids are unregistered and the few registered-and-disabled ones are refused for reasons visible on screen. **I-50 (S3)**: only the 22 *enabled* commands could be added to the toolbar — Qt sends no input event to a disabled widget, so right-clicking any of the other 338 did nothing — and the toolbar's own empty space offered an `Add` that could never be enabled. `Ribbon::contextMenuEvent` now resolves the position with `childAt()`, which does return disabled children, and the menu is keyed on what is under the cursor. **I-51 (S3)**: the startup line printed the DROPPED override count as the applied one, so a session that applied a remap perfectly logged `0 of 1 user overrides applied` — a wrong diagnostic that sent its reader hunting a defect that was not there. **I-52 (S3)**: a defect in the drag feature two hours old — a slot among the buttons is not an index into the layout, so a drop past the last button landed on the stretch and the button jumped to the far right edge. **I-49 (S2)**: **every** Quick Access Toolbar customization made the toolbar vanish — a widget built with a parent that is already on screen starts hidden, and a hidden widget is an empty layout item, so add/remove/reorder/reset each produced invisible buttons and a 4-pixel strip. `ui.resetCustomization` rebuilt it invisibly too, so restarting was the only way back. Nine `[qat]` cases missed it because every one asks the command LIST, which stays correct for a row nobody can see — the sixth time this stage has been caught by that (I-34, I-42, I-43, I-46, I-47). **I-47 (S2)**: every preference lived only in memory until a **clean** shutdown — `Settings::sync()` was called from one place, `CompositionRoot`'s teardown — so a crash or a kill lost settings the user had watched take effect, which the no-OK-button Preferences dialog makes worse rather than better. Now flushed on every change, with teardown as a backstop. Missed by the suite because every settings case called `sync()` itself: convention 19's back door again. **I-48** is not a defect: two of M-11's steps tested things that do not exist — a recent-files surface (declared, unregistered, no UI: the **fifth** built-but-unreachable capability after I-34, I-42, I-43, I-46) and a window-geometry restore, which is `SessionState` at Stage 4. **I-46** is not a defect but is worth knowing: **nothing in the product can register the PDF file association** — all four calls are implemented and tested, and the only callers are the tests, which is this stage's recurring shape for the fourth time (I-34, I-42, I-43). The user's call was **planned absence, Stage 14/15**; M-07 walks against a hand-made Windows association, and its *Pre* now also names the `windeployqt` step it had always needed. **I-45 (S2)** is the one to remember: it was a **regression in I-44's own fix** — dismissing the list on any `FocusOut` closed it in the same turn it opened, because showing a `Qt::Popup` *is* a focus change, so no search showed anything. Found by the user re-walking the repaired build within the hour, and invisible to the case added with I-44 because offscreen that focus change does not happen. **I-44 (S2, and the worst defect this stage has produced)**: a tool-finder query that matched nothing **froze the application** — the result list is a `Qt::Popup` window holding the mouse grab, the *"nothing matched"* message is itself a row so the list still showed, and `Esc`, an outside click and `Enter` all failed to put it away. Force-close was the only exit. Three exits added, each independently missing, plus `FocusOut`/`WindowDeactivate`. **I-43 (S3)**: reordering the Quick Access Toolbar could not be done by a person — `moveCommand` public since T11, the order persisted since T11, **three documents calling it shipped**, and no menu item, no drag and no `ActionId` to reach it; the only caller was a test that called the method. I-34's shape, and the third instance this stage. Fixed with `ui.qatMoveLeft` / `ui.qatMoveRight`, each disabled at the end it cannot move towards, and the case asserted the **route** (the real context menu offers them) as well as the dispatch, with a control for each. **Superseded hours later in the same walk**: the user asked for drag-to-reorder, so `buildMenu` dropped both items and `ui.qatLock` joined them — the two commands stay **registered and unlisted** (the tool finder and flow K still reach them), and the case's route half was *inverted rather than deleted*, now asserting they are registered **and absent from the menu**. Those three ids are **the only ones Stage 1 has added to the plan's 358**, giving 361 declared and 23 registered. **I-42 (S2)**: pressing `Alt` did nothing in any locale — the ribbon has *drawn* key tips since T10 and nothing ever asked it to, because `AppRibbonKeyTips` was bound to `Alt` and never registered. **R-5 had been recorded as met against the T2 spike**, whose handler the shipped ribbon never inherited — I-36's shape again. Registered (the **twentieth** id), and the tip letters moved out of the tab titles into a `ribbon.keytip.*` catalog family, because the first-character scheme gave `zh-TW` 常 建 編 註 組 表 保 檢 — untypable, with 表 claimed twice. **I-41 (S2)**: Qt's native `windows11` style paints control text from the colour scheme **it** derives from Windows and ignores the application palette, so the dark theme was in force for every `QLabel` and for **no** `QToolButton` — the ribbon, the toolbar and the tool finder. Measured on a light OS with the dark palette installed: an enabled button's glyph was `#1f1f1f` on a `#1f1f1f` background, a disabled one `#181b1f`. `apply()` now calls `QStyleHints::setColorScheme()` as well, `Unknown` for follow-system so the OS keeps the decision. Found only because the I-40 fix below did not work — the token table was the one place anyone had looked. **I-40 (S3)**: in dark mode the shell's **disabled** text could not be read — and disabled text is most of this shell, since 358 commands are declared and 19 registered. Measured 3.05 dark and **2.54 light**, so the light theme two manual passes had already signed off was the worse of the two; both raised (4.77 / 3.87 against the window), with a new case measuring every text token against the surface it is painted on, in both themes, and asserting disabled stays under half the enabled ratio so it still reads as disabled. **Not an accessibility criterion** — that left the product on 2026-08-23 — but whether the ribbon can be read. **I-39 (S3)**: the auto-hide edge strip stayed on screen beside the pane it had just summoned — true since T9, and invisible until I-37 made a peek something a person could perform, because every earlier case reached `peek()` in a fixture where visibility was not the subject. **I-37 (S3)**: an auto-hidden sidebar could be revealed only by *clicking* the edge strip, never by reaching for it — closed by the user's decision to move the product to the guide rather than the guide to the product, so the strip now peeks on `QEvent::Enter` and still answers a click. **I-38** is not a defect: `general/touchMode` is stored and read by nothing, and the user's call was **planned absence, Stage 14** — it is now a row in the guide's §1 and in `Stage1-AppShell-Plan.md` §11 rather than an open issue, and M-04's steps no longer ask for it. **I-36 (S2)**: opening M-04 found that **no ribbon tab was ever drawn** — `QSizePolicy::Ignored` tells QBoxLayout the tab bar's width preference is not a number, and next to a separate `addStretch(1)` the spacer took the whole strip, so the `QTabBar` was laid out **0 px wide at every window size** from T10 onward. Eleven green ribbon cases missed it because each asked the bar what it *contained* and none asked what the **layout gave it**; fixed, with a case and its control. **I-33, I-34 and I-35 were raised by the user's M-03 walk on 2026-08-30 and are Stage 1's first findings in the PRODUCT rather than in the harness** — every earlier one was a test, a gate, a document or the CI. **I-34 (S2)**: re-docking a tab into another window could not be performed by a person, because `DocumentTabBar` reported the gesture at the instant the 40 px threshold was crossed rather than at the release, giving the drag one sample to land on a ~25 px strip; the branch it fed was correct and had never been driven by test or by hand. **I-33 (S3)**: tearing a window's ONLY tab out left the original with no tabs, because `detachDocument` guarded the index but never the count. **I-35 (S3)**: a window emptied by re-docking its last tab away stayed open — reachable only *after* I-34 was fixed, which is why a repaired case is re-walked rather than signed off on the strength of the repair. All fixed the same day — five cases, five negative controls, 339/339. I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
 | **Manual pass** | **M-01 ✅ signed off 2026-08-23; M-02 ✅** — signed off 2026-08-23 for the ribbon, then **re-walked in full on 2026-08-30** against the shipped shell: all four steps including the mid-session scale change and the re-login, **no findings**, which retired R-6's last scoping note and satisfied precondition P-1 outright. **M-03 ✅ walked and signed off 2026-08-30**, in full — and it found **I-33, I-34 and I-35**, the stage's first three defects in the product, all fixed and the case re-walked before sign-off. **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and T14 made all three real, which is what let that re-walk happen as written. **M-04 ✅ walked and signed off 2026-08-30**, after **three passes and four findings**, each repair making the next defect reachable: it stopped at step 1 because no View tab existed to click (**I-36**); the second pass, on the repaired build, produced **I-37** and **I-38**; fixing I-37 created a gesture that had never existed, and walking *that* found **I-39**. None was a regression — two had shipped since T9 and T10, green in CI throughout. **M-05 ✅ walked and signed off 2026-08-31** — mis-listed as unwalkable until 2026-08-30, then it found **I-40** and **I-41**, the second only because the first fix changed nothing a person could see. **M-06 ✅ walked and signed off 2026-08-31**, the longest walk of the stage: every surface in `zh-TW`, the editorial review of 29 unfinished entries, and four defects — **I-42** (`Alt` raised no key tips in any locale), **I-44** (a query matching nothing froze the application), **I-45** (the fix for it closed the list in the same turn it opened) and **I-43**, which surfaced here and belongs to M-11. **M-07 ✅ walked and signed off 2026-08-31** — flow B end to end by hand, all five steps, one process throughout, both awkward filenames correct. **M-11 ✅ signed off 2026-08-31**, the case that found the most: **I-47**, **I-49**, **I-50**, **I-51**, **I-52** — the last a defect in a fix made hours earlier during the same walk — plus the drag-to-reorder and lock feature the user asked for mid-case. **M-12 ✅ walked and signed off 2026-08-31 — the last case of the stage.** No S1: nothing claimed to have saved, printed or undone anything, the stub tab did not pretend to be a document, and **no chord was intercepted by the window manager, the IME or the platform before Qt saw it**, which is the one thing in that case no synthetic key event could have established. Its one finding, **I-53**, was disposed of as a planned absence. **All nine walkable cases are now ✅** — M-01 … M-07, M-11 and M-12; M-08 was withdrawn with accessibility and M-09 and M-10 are not walkable |
@@ -55,18 +65,18 @@ mark a manual case** — every one of these was walked and signed off by the use
 
 ### Stage 2 — where it is, and what its next task inherits
 
-**Next action: Stage 2 T14** — the §8 Viewer commands, `StatusBar`'s real page numbers and zoom,
-`ui/shell/MessageBar` (which does not exist) carrying the repair report and the password prompt, and
-**I-53's `tooltipKey`** (D2-10). It inherits a page on screen and **not one command that acts on it**:
-every §8 Viewer chord resolves in the right context and then finds nothing registered, which is
-`NotFound` and deliberately leaves the key unconsumed. Two things T14 should know before it starts.
-**The route exists and is proven** — `PageView` declares `KeyContext::Viewer`, guide case A-56 shows a
-`Viewer`-bound chord dispatching in the viewer and *not* from the tool finder's search box, and the
-case had to register `ToolHand` itself to show it, saying so at the assertion. And **`repairReport()`
-is sitting in exactly the position `pages()` was in before T13** — declared on the concrete
-`pdf::DocumentBackendImpl`, where `ui/` cannot reach it (issue **I-08**); the message bar is the
-consumer that will find that out, and moving it onto `core::IDocumentBackend` is a two-line change
-made deliberately at its first caller rather than speculatively now.
+**Next action: Stage 2 T15**, the sixteen settings keys — eleven `pageDisplay/` and five
+`performance/`. Each is a `SettingsKeys.def` row and therefore an automatic Preferences editor with no
+widget code (convention 17), taking the shipped groups from three of 26 to five. **Four constants are
+currently their defaults' only home and must become rows in the same change**, each with its value
+preserved: `DpiPolicy::Limits::maxRenderDpi` = 2400, `RenderCache::Config::memoryCapBytes` = 256 MiB,
+`diskCapBytes` = **0** — D2-14 is explicit that the disk tier ships off until T18 MEASURES whether it
+earns its place, so the row must land at 0 and not at "something sensible" — and
+`RenderScheduler::Config::workerCount` = **1**, which is I-05's answer and not a placeholder. T15 also
+owns **the battery throttle T12 built the interface for and deliberately did not wire**:
+`performance/throttleOnBattery` is the switch, `setActiveWorkerLimit()` clamps to `[1, workerCount]`,
+and the wire only becomes testable once `performance/renderWorkers` can make that count differ — which
+is why guide case A-62 is 🟡 rather than green.
 Stage 2 is where documents start being opened, parsed and drawn — and where **I-53** stops being
 theoretical (see below). **Stage 2's `T1`…`T18` are a different namespace from Stage 0's and
 Stage 1's `T1`…`T15`** — always say which stage.
@@ -308,6 +318,48 @@ from T1, and `rawpage.exe` opens a real PDF. Six things bind what comes next:
   refused **with the reason the engine gave**. Existence stays the shell's own check, because *"no
   such file"* and *"not a PDF"* are different messages.
 
+**T14 SHIPPED THE COMMANDS, THE CHROME AND STAGE 1'S LAST OPEN QUESTION (2026-09-04).** Registration
+goes from **23 of 361 ids to 48**. Five things bind what comes next:
+
+- **The §8 Viewer subset is exact, and its complement is asserted.** The 23 chords
+  `Implementation-Plan.md` § Stage 2 lists dispatch; the other seven in that table — `Ctrl+4`,
+  `Ctrl+R`, `S`, `Ctrl+B`, `Ctrl+E`, `Ctrl+L`, `Ctrl+U` — stay `NotImplemented` and **leave the key
+  unconsumed**, which a case walks rather than a comment describing. A stage that implements *most* of
+  a context's table invites someone to complete it, so the census is a number (48, never "about 48")
+  and the absences are checks.
+- **THE VIEW ROTATION NEEDED FOUR LAYERS EXTENDED, and that is the thing to know before touching the
+  render path.** `Ctrl+Shift+=` was in this stage's binding list from the start and **nothing could
+  carry a rotation**: `RenderRequest` had no field, `TileGrid` no way to swap a page's bounds,
+  `PagePresentation` no parameter, `PdfiumRasterizer` a hard-coded `rotate=0`. `viewRotation` is now
+  part of `RenderRequest`'s **equality and its hash** (D2-12 — without both, the rotated view is served
+  the upright tiles out of the cache and the command silently appears not to work), `core/Geometry.h`
+  has `rotateBy`/`combine`/`swapsAxes`, and **`FPDF_RenderPageBitmap`'s `rotate` carries the VIEW
+  rotation only** — PDFium applies `/Rotate` itself, so passing the combined value rotates a landscape
+  page twice. **The page's rotation belongs to the document and survives a save; the view's belongs to
+  the session and never reaches the file.** `page.rotate` is Stage 3's and is unregistered.
+- **`H`, `V` and `Z` are registered and `ui/viewer/ToolController` is NOT built.**
+  `Implementation-Plan.md` lists the three bindings for Stage 2 and the FileMap tags the tool state
+  machine, the sticky-tool mode, the temporary-hand modifier, `Esc` cancellation and seventeen tool
+  classes ○ (S4). So `PageView` holds which tool is armed, its cursor and what a drag does — Hand pans,
+  Marquee Zoom zooms to the dragged rectangle, and **Select selects nothing until Stage 5 gives it
+  text**. Stage 4 subsumes this; it does not inherit a half-built state machine.
+- **I-53 IS CLOSED, AND ITS OWN NOTE ABOUT HOW WAS WRONG (issue I-10).** Stage 1 recorded that the
+  mechanism already existed as `ActionRegistry::Registration::tooltipKey`. It does not: that field is
+  the tooltip an **enabled** control shows, so reusing it put *"needs a document to be open"* on every
+  enabled Viewer button. `unavailableKey` is a second field, read only while the action is disabled,
+  and `ActionFactory::tooltipFor()` is the one place that decides between the three answers — not
+  built / not available now / what it does. `refresh()` re-asks it, because enablement changes while
+  the window is open. **The lesson is bigger than the field**: a deferral's note about how it will be
+  fixed is a guess by someone who did not build it, and this one crossed a stage boundary and two
+  documents looking like a design.
+- **The message bar's detail view localizes the FRAME and prints `RepairKind` as a CODE**, deliberately.
+  Those names are declared ASCII, stable and non-localized by `core/doc/RepairReport.h`; they are what
+  the log holds and what a bug report should quote, and translating thirteen xref-internals codes would
+  put a different string in front of every reporter. The banner itself is the report's own
+  `summaryKey()` plus arguments — never a sentence from `core/`, which holds no user-facing English.
+  **The banner is cleared on every tab change**: the condition belongs to the tab, and Stage 3 forces a
+  Save-As on exactly that statement.
+
 **PDFIUM CANNOT BE CALLED FROM TWO THREADS AT ONCE, AND T11 SETTLED WHAT TO DO ABOUT IT.** Measured
 at T3 by the A2 probe — eight workers, each with its **own `FPDF_DOCUMENT` and own `FPDF_PAGE`**,
 which is exactly the confinement `D2-9` specifies, and they corrupt the heap; **1 worker exits 0, and
@@ -413,23 +465,28 @@ things about T1 bind what comes next:
 
 Its two planning documents were written before any of that code, which is the workflow's intended
 state: `Stage2-Rendering-Plan.md` (decisions **D2-1 … D2-14**, tasks **T1 … T18**, preconditions
-**P-1 … P-4**, all four closed) and `Stage2-Rendering-Testing-Guide.md` (**79 automated**, **10
-manual** cases), both dated 2026-08-31 — the seventy-ninth added at T13 (see **I-09**). **As of T13
-the automated cases through A-56 have results, plus A-60 … A-62** — A-28 … A-34 at T10, A-36 … A-41
-at T11, **A-39's widget half and A-52 … A-56 at T13**, **A-60 at T12**. **A-61 and A-62 are 🟡, and
+**P-1 … P-4**, all four closed) and `Stage2-Rendering-Testing-Guide.md` (**80 automated**, **10
+manual** cases), both dated 2026-08-31 — the seventy-ninth added at T13 (see **I-09**) and the
+eightieth at T14, for a view rotation the guide was written before anyone noticed the render path
+could not carry. **As of T14 the automated cases through A-60 have results, plus A-61 and A-62** — A-28 … A-34 at T10, A-36 … A-41
+at T11, **A-39's widget half and A-52 … A-56 at T13**, **A-60 at T12**, and **A-57 … A-59 plus the
+new A-80 at T14**. **A-61 and A-62 are 🟡, and
 each names the half it does not claim**: a real mid-session scale change is manual case M-02's, and
 the battery throttle is T15's, because the settings key it names does not exist yet.
-**The first four manual cases became walkable at T13** — there is a page on screen; M-05 … M-10 still
-need golden baselines (T17), fonts (T16), the settings keys (T15) or Dr. Memory. Four cases are Linux
+**The first four manual cases became walkable at T13 and are worth walking after T14** — there is a
+page on screen, the §8 Viewer chords move it, the status bar counts it and a repaired file says so.
+M-05 … M-10 still need golden baselines (T17), fonts (T16), the settings keys (T15) or Dr. Memory. Four cases are Linux
 jobs this machine does not run (**A-04, A-24, A-25, A-26**) and are recorded as such rather than as
-pending. The guide's issue log holds **nine**, of which **three are open**: **I-02** (S2, T7/T16 —
+pending. The guide's issue log holds **ten**, of which **three are open**: **I-02** (S2, T7/T16 —
 `license-audit` inventories the declared manifest rather than the resolved closure), **I-04** (S3,
-T14) and **I-06** (S3 — JBIG2 is declared and decodes nothing). Closed: **I-01** and **I-03** (S3,
+**re-tagged T16** at T14, because T14 had no reason to touch `i18n-lint` and a task tag that quietly
+passes is how an item becomes permanent) and **I-06** (S3 — JBIG2 is declared and decodes nothing). Closed: **I-01** and **I-03** (S3,
 before any code), **I-05** (S2, at T11 — the arrangement D2-9 left open), **I-07** (S3, at T12 — a
 `platform.h` comment that described the DPI-unaware failure mode as the specification), and **I-08**
-(S2) and **I-09** (S3) at T13.
+(S2) and **I-09** (S3) at T13, and **I-10** (S3) at T14 — I-53's own note about how it would be
+fixed named a mechanism that does not do what the note said it did.
 
-**M-12 produced one finding, disposed of as a planned absence rather than fixed.** **I-53**: plan
+**M-12 produced one finding, deferred at Stage 1 and CLOSED AT STAGE 2 T14.** **I-53**: plan
 §5.1 (`Stage1-AppShell-Plan.md`) requires a disabled control to say *which kind* of disabled it is —
 *“arrives in Stage 7”* for declared-and-unregistered, *“not available for this document”* for
 registered-but-currently-refused — and **only the first was ever built**. The second says nothing at
@@ -439,13 +496,25 @@ prints them under different keys, and `ShortcutBinder` consumes the key for one 
 so this is a surface that does not say what the product knows. Deferred on the user's call because
 at Stage 1 the second kind is nearly theoretical: **338 of 361 ids are unregistered**, so almost
 every disabled control a person meets *is* the explained kind, and the few that are not are refused
-for reasons visible on screen (no document, one tab, one window). The mechanism to fill it in exists
-and is unused — a `tooltipKey` on the registration. **Stage 2 is when it becomes real.**
+for reasons visible on screen (no document, one tab, one window).
+**Closed at Stage 2 T14, and the note above about HOW was wrong** — which is issue **I-10** in the
+Stage 2 guide. "The mechanism to fill it in exists and is unused — a `tooltipKey` on the
+registration" is not true: that field is the tooltip an **enabled** control shows, and reusing it put
+*"needs a document to be open"* on every enabled Viewer button. The fix is a SECOND field,
+`Registration::unavailableKey`, read only while the action is disabled, with
+`ActionFactory::tooltipFor()` as the one place that chooses between the three answers and
+`refresh()` re-asking it whenever enablement moves. **The lesson outlives the field: a deferral's
+note about how it will be fixed is a guess by whoever did not build it**, and this one crossed a
+stage boundary and two documents looking like a design.
+T14 also made the second kind ordinary rather than theoretical, exactly as the deferral predicted:
+25 of the 48 registered ids are Viewer commands whose availability depends on the document and the
+current page.
 
 **Two routes named in M-12's own steps did not exist**, found while preparing the walk: there is no
 File menu — `file.close` and `file.closeAll` appear in **none** of the 192 ribbon controls — and
-**the ribbon can never show the registered-but-disabled case**, because only nine of the 23
-registered ids have a ribbon control and all nine are unconditionally enabled. Reaching that case
+**the ribbon can never show the registered-but-disabled case**, because only nine of the (then 23,
+now 48) registered ids have a ribbon control and all nine are unconditionally enabled — **still true
+after T14**, whose twenty-five additions are chords and a status-bar box. Reaching that case
 takes the tool finder or a hand-edited `ui/qatCommands`. The guide's §7 caveat row now says so.
 
 **CI is green on all four jobs** (run 32785493072), and **the `windows` job ran for the first time in
@@ -480,8 +549,10 @@ order.
   live in both directions — an older file migrates and is restamped, a **newer** file is read for
   what we understand and left byte-identical.
 - **`tools/i18n-lint/` + `i18n/` (T6, extended T8/T9/T10/T11/T12, and S2 T7/T8/T9/T13)** — the third gate, and `rawpage_en.ts` /
-  `rawpage_zh_TW.ts` at **565 keys each** — re-counted at every task that touches them rather than
-  carried forward: 361 `action.*` + **33 `shell.*`** + 70 `ribbon.*`
+  `rawpage_zh_TW.ts` at **582 keys each** — re-counted at every task that touches them rather than
+  carried forward: 361 `action.*` + **50 `shell.*`** (T14 added seventeen: the message bar, the repair
+  detail view, the password prompt, the status bar's two figures and I-53's four tooltip reasons) +
+  70 `ribbon.*`
   (nine of them the 2026-08-31 `ribbon.keytip.*` access keys) + 62 generated `prefs.*` + **39
   `error.*`** (T7 added nine for the filters and the xref, T8 six for the repair report and the
   encrypted decline, T9 five for the password prompt and the rasterizer, **T13 five** — one for a tile
@@ -494,7 +565,7 @@ order.
   shape of drift the T1 recount had just corrected — the fix for a stale number is to re-measure it,
   not to remember it harder. **T6 added `error.pdf.badObjectHeader` and `error.pdf.badObjectStream`
   in both shipped locales and moved the figure in the same change**, which is that lesson applied.
-  29 of `zh_TW`'s 565 are marked unfinished. Declared in
+  29 of `zh_TW`'s 582 are marked unfinished. Declared in
   `i18n/locales.json` with `zh_CN` and `ja` marked `"shipped": false`. The `.ts` files are compiled
   to `.qm` **beside the executable** rather than into a Qt resource, so Stage 15 can ship them
   replaceable; `LinguistTools` is a build tool and is deliberately not registered with
@@ -619,16 +690,18 @@ needs, where each page sits, what is kept and what is thrown away, and in what o
 is on (T12). What nothing can do is emit a byte: `IncrementalWriter` and `ObjectAllocator` are
 Stage 3's (D2-4). `core/doc/` holds five vocabulary types and no `Document`; `pdf/ops/` is still empty.
 
-**What is NOT there yet, so it is not reported as a defect.** **No command acts on the page** — every
-§8 Viewer chord resolves in the right context and finds nothing registered, which is `NotFound` and
-deliberately leaves the key unconsumed (**T14**). The status bar still shows Stage 1's em dash for the
-page total (**T14**), there is no `MessageBar` at all so a repaired file says nothing (**T14**), and
-none of the sixteen `pageDisplay/` and `performance/` settings keys exists, so anti-aliasing, line
-weight and the resolution cap cannot be changed (**T15**). A missing embedded font substitutes through
-**PDFium's** policy rather than ours (**T16**), and `platform::IAcceleratedSurface` is declared and
-unimplemented, so presentation is software (**T16**). What a person CAN do today: scroll with the bars
-and the wheel, and **`Ctrl`+wheel to zoom about the cursor**, because a gesture is not a chord and
-reaches the widget directly.
+**What is NOT there yet, so it is not reported as a defect.** **None of the sixteen `pageDisplay/` and
+`performance/` settings keys exists**, so anti-aliasing, line weight, the resolution cap, the layout
+mode's default and the battery throttle cannot be changed (**T15**) — which is also why guide case
+A-62 is 🟡. A missing embedded font substitutes through **PDFium's** policy rather than ours (**T16**),
+and `platform::IAcceleratedSurface` is declared and unimplemented, so presentation is software
+(**T16**). There are no golden baselines, so nothing yet says a page renders the same way twice
+(**T17**). **The seven §8 Viewer chords Stages 3 to 13 own stay `NotFound`** and deliberately leave the
+key unconsumed, and `Select` arms a tool that selects nothing until **Stage 5**. What a person CAN do
+today: open a document, scroll it, page through it with the keyboard, zoom by chord or by `Ctrl`+wheel,
+fit it four ways, rotate the view, switch between the four layout modes, type a page number in the
+status bar, pan with the hand tool, marquee-zoom, and read a banner telling them the file was
+repaired.
 
 Task by task: T1 added the engine *contract* (`core/backend.h`) and a backend implementing none of
 it; T2 `pdf/render/PdfiumInit`, the library's global state and nothing else; T4 **data** rather than
@@ -640,18 +713,26 @@ closed**; and **T9 `PdfiumDocument`, `PdfiumRasterizer` and `DocumentBackendImpl
 page was first drawn by the product rather than by a benchmark**, and where
 `pdf::createBackend()` stopped refusing every call by name; **T12 the two OS interfaces the policy
 layer was waiting on**; and **T13 `ui/viewer/` — where a rendered tile finally reaches a widget.**
-`platform/win/` holds **four** of seventeen interfaces. **`rawpage.exe` opens a window with a
+**T14 the §8 Viewer commands, the status bar's real numbers and the message bar** — where the keyboard
+first moved the page. `platform/win/` holds **four** of seventeen interfaces. **`rawpage.exe` opens a window with a
 working ribbon, a customizable toolbar, a tool finder, document tabs, a keyboard, a Preferences dialog
 and a log pane** —
 9 tabs above a sidebar, a status bar and a live theme, and **a tab per opened file showing the
-document's pages**. Most ribbon buttons are **disabled and say why**: 361 commands are declared and
-**twenty-three** are registered, which is the honest state rather than a shortcut. Each of those
-twenty-three is reachable by a person and by flow K — through the tool finder, a test, the future
-batch runner and its §8 chord — and **nine of them additionally have a ribbon button**
+document's pages**. Most ribbon buttons are **disabled and say why** — and since T14 they say **which kind** of
+disabled they are, which is Stage 1's I-53: *declared but not implemented* is about this build,
+*not available for this document* is about this document, and the two are different sentences.
+361 commands are declared and **forty-eight** are registered, which is the honest state rather than a
+shortcut. **None of T14's twenty-five is on the ribbon**: they are chords and a status-bar box, so the
+ribbon's own share of the 48 is unchanged at nine. Each of the 48
+is reachable by a person and by flow K — through the tool finder, a chord, a test and the future
+batch runner — and **nine of them additionally have a ribbon button**
 (`file.open`, `file.preferences`, `view.toggleSidebar`, `view.fullScreen`, `view.toggleRibbon`,
 `window.new`, `pane.log`, `app.toolFinder`, `ui.resetCustomization`); the rest are toolbar,
-tab-strip or context-menu commands. **Not every registered id is on the ribbon**, and the corollary
-matters for M-12: no ribbon button is ever the *registered-but-disabled* case; the other ~338 chords resolve, are refused as `NotFound`, and deliberately
+tab-strip, chord or context-menu commands. **Not every registered id is on the ribbon**, and the
+corollary is what M-12 found and T14 did not change: **no ribbon button is ever the
+*registered-but-disabled* case**, because all nine are unconditionally enabled — so a person meeting
+I-53's second tooltip meets it through the tool finder or the toolbar, and that is the route M-04
+walks. The other 313 chords resolve, are refused as `NotFound`, and deliberately
 leave the key unconsumed. `log.openFolder` is deliberately **not** registered: the folder belongs to
 `app/LogFile`, and `ui/` looks outward to exactly two files (convention 9). Because an ordinary launch runs an
 event loop, **the headless smoke test is `--dump-ui-strings`**: it composes every service, loads both
@@ -1028,7 +1109,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 598/598 as of Stage 2 T13, 1 skipped
+ctest --preset x64-release --output-on-failure        # 623/623 as of Stage 2 T14, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -1100,8 +1181,8 @@ Counted 2026-09-02; this heading read *"three"* from Stage 1 T9 until then, havi
 `rawpage_render_tests` (S2 · T2) and `rawpage_bench_render` (S2 · T3) even though the table below
 already listed the first. A fifth suite, `gates.`, has **no binary at all** — its 90 cases drive the
 gate executables and CMake itself through `cmake -P`, which is what lets the `gates` preset run it
-with no Qt and no vcpkg. Current split of the 598: `unit.` 300, `ui.` 150, `gates.` 90,
-`platform.` 28, `render.` 28, `bench.` 2. **One of the 598 is deliberately SKIPPED rather than green** —
+with no Qt and no vcpkg. Current split of the 623: `unit.` 305, `ui.` 168, `gates.` 90,
+`platform.` 28, `render.` 30, `bench.` 2. **One of the 623 is deliberately SKIPPED rather than green** —
 `platform.powersession reports the machine's power source`, on a desktop with no battery, which is
 guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* honoured.
 

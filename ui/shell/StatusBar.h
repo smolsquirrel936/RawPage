@@ -33,9 +33,21 @@ public:
     // idle looks like.
     void setMessage(const QString& text);
 
-    // Enables or disables the document-dependent controls as one group. Stage 1 only ever calls it
-    // with false; Stage 2 is the first caller with true.
+    // Enables or disables the document-dependent controls as one group. Stage 1 only ever called it
+    // with false; Stage 2 T14 is the first caller with true.
     void setDocumentPresent(bool present);
+
+    // THE REAL NUMBERS (S2 T14). `currentPage` is ZERO-BASED, as everything in `core/` is, and the
+    // box shows it one-based -- the conversion happens here and nowhere else, because a
+    // one-based page index leaking into the model is an off-by-one that reaches the tile cache.
+    //
+    // A `pageCount` of 0 puts the em dash back rather than showing "0": "1 of 0" is not a
+    // measurement, and T9 refused to print "1 of 1 at 100 %" over a stub for the same reason.
+    void setPageState(int currentPage, int pageCount);
+    void setZoom(double factor);
+
+    int  displayedPageCount() const noexcept { return pageCount_; }
+    int  displayedPage() const noexcept { return currentPage_; }
 
     // Background work. `total` of 0 means indeterminate. Hidden entirely when nothing is running --
     // a permanently-visible empty progress bar trains people to ignore the one place the
@@ -49,13 +61,25 @@ public:
     QLineEdit*    pageBox() const { return pageBox_; }
     QLabel*       pageTotal() const { return pageTotal_; }
     QLabel*       zoomLabel() const { return zoomLabel_; }
+    QLabel*       zoomValue() const { return zoomValue_; }
     QProgressBar* taskProgress() const { return taskProgress_; }
 
+signals:
+    // The page box was submitted. ONE-BASED as typed, because that is what the user typed; the
+    // receiver converts. Emitted only for a number inside the document, so a typo does not scroll
+    // anywhere -- the box is reset to the current page instead, which is the feedback.
+    void pageRequested(int oneBasedPage);
+
 private:
+    void resetPageBox();
+
     QLabel*       message_ = nullptr;
+    int           currentPage_ = 0;
+    int           pageCount_ = 0;
     QLineEdit*    pageBox_ = nullptr;
     QLabel*       pageTotal_ = nullptr;
     QLabel*       zoomLabel_ = nullptr;
+    QLabel*       zoomValue_ = nullptr;
     QProgressBar* taskProgress_ = nullptr;
 };
 

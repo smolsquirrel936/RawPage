@@ -79,6 +79,7 @@ namespace rawpage::core {
 // list is short on purpose, and it is the checkable record of what this header is waiting for.
 
 class PageTree;              // core/doc/PageTree.h        -- Stage 2 T9 (read half, D2-5)
+class RepairReport;          // core/doc/RepairReport.h    -- Stage 2 T8
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -349,6 +350,21 @@ public:
     // Null for a handle this backend did not open, or has closed. The pointee is owned by the
     // backend and is valid until `close()`.
     virtual const PageTree* pages(DocumentHandle document) const = 0;
+
+    // WHAT HAD TO BE RECONSTRUCTED TO OPEN THIS FILE, or null for a handle this backend did not
+    // open. Empty for a file that needed nothing, which is not the same as null.
+    //
+    // MOVED HERE AT T14, from `pdf::DocumentBackendImpl`, for exactly the reason `pages()` moved at
+    // T13 -- and the repetition is the point. T13 left this one on the concrete type deliberately,
+    // saying its first consumer would find out; `ui/shell/MessageBar` is that consumer, `ui/` is
+    // handed this interface and may never name `pdf/`, and the two-line move is made at the call
+    // site that needs it rather than in advance. (Stage 2 guide issue I-08.)
+    //
+    // Stage 3 reads it for a harder reason than a banner: a document whose cross-reference table
+    // was reconstructed must have its first save forced to Save-As, because appending to a file
+    // whose structure was guessed is how an original gets destroyed. `RepairReport::requiresSaveAs()`
+    // is that question and it is deliberately not `!isEmpty()`.
+    virtual const RepairReport* repairReport(DocumentHandle document) const = 0;
 
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;

@@ -125,3 +125,63 @@ TEST_CASE("page geometry can be built from user-facing units", "[tst_geometry]")
     CHECK(std::abs(a4.width - 595.2755905511812) < 1e-9);
     CHECK(std::abs(a4.height - 841.8897637795277) < 1e-9);
 }
+
+// =============================================================================================
+// Rotation arithmetic -- Stage 2 T14, for the VIEW rotation (`Ctrl+Shift+=`).
+// =============================================================================================
+
+TEST_CASE("rotateBy is correct for negative turns, which is the half that is easy to get wrong",
+          "[geometry]")
+{
+    using rawpage::core::PageRotation;
+    using rawpage::core::rotateBy;
+
+    CHECK(rotateBy(PageRotation::None, 1) == PageRotation::Clockwise90);
+    CHECK(rotateBy(PageRotation::Clockwise90, 1) == PageRotation::Half);
+    CHECK(rotateBy(PageRotation::Clockwise270, 1) == PageRotation::None);
+
+    // C++'s `%` yields a NEGATIVE remainder for a negative left operand, so a bare `% 4` turns one
+    // press of Rotate Counter-Clockwise into an out-of-range value -- which is a `switch` falling
+    // through to `None` and a command that silently does nothing in one direction only.
+    CHECK(rotateBy(PageRotation::None, -1) == PageRotation::Clockwise270);
+    CHECK(rotateBy(PageRotation::Clockwise90, -1) == PageRotation::None);
+    CHECK(rotateBy(PageRotation::None, -5) == PageRotation::Clockwise270);
+
+    // Four turns in either direction is the identity, from every starting point.
+    for (const PageRotation from : {PageRotation::None, PageRotation::Clockwise90,
+                                    PageRotation::Half, PageRotation::Clockwise270}) {
+        CHECK(rotateBy(from, 4) == from);
+        CHECK(rotateBy(from, -4) == from);
+        CHECK(rotateBy(from, 0) == from);
+    }
+}
+
+TEST_CASE("combine adds two rotations without ever producing 450 degrees", "[geometry]")
+{
+    using rawpage::core::PageRotation;
+    using rawpage::core::combine;
+    using rawpage::core::swapsAxes;
+
+    // THE TRAP THIS FUNCTION EXISTS FOR: a page carries its own `/Rotate` and the view may be
+    // turned on top of it, and adding the degrees gives 270 + 180 = 450, which is not a
+    // `PageRotation`. Stage 2 T14 is the first place two rotations meet.
+    CHECK(combine(PageRotation::Clockwise270, PageRotation::Half) == PageRotation::Clockwise90);
+    CHECK(combine(PageRotation::Clockwise90, PageRotation::Clockwise270) == PageRotation::None);
+    CHECK(combine(PageRotation::None, PageRotation::Half) == PageRotation::Half);
+    CHECK(combine(PageRotation::Half, PageRotation::Half) == PageRotation::None);
+
+    // Commutative, which it must be: a landscape page in a rotated view and a rotated view over a
+    // landscape page are the same thing on screen.
+    for (const PageRotation a : {PageRotation::None, PageRotation::Clockwise90,
+                                 PageRotation::Half, PageRotation::Clockwise270}) {
+        for (const PageRotation b : {PageRotation::None, PageRotation::Clockwise90,
+                                     PageRotation::Half, PageRotation::Clockwise270}) {
+            CHECK(combine(a, b) == combine(b, a));
+        }
+    }
+
+    CHECK(swapsAxes(PageRotation::Clockwise90));
+    CHECK(swapsAxes(PageRotation::Clockwise270));
+    CHECK_FALSE(swapsAxes(PageRotation::None));
+    CHECK_FALSE(swapsAxes(PageRotation::Half));
+}

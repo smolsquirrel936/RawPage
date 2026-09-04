@@ -13,7 +13,7 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T13 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
+> **Status:** 🟡 **T1–T14 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
 > finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
 > on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
 > byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
@@ -41,7 +41,15 @@
 > all closed the same day: **I-07** (a `platform.h` comment that described the DPI-unaware failure mode
 > as the specification), **I-08** (`pages()` declared where `ui/` could never reach it) and **I-09** (the
 > one render arrangement the product actually runs had no case). 37 new cases; six negative controls run,
-> **one of which refused to fail and the CASE was fixed**.** Written 2026-08-31,
+> **one of which refused to fail and the CASE was fixed**.
+> **T14, also 2026-09-04: THE KEYBOARD MOVES THE PAGE.** The §8 Viewer subset is registered — 23 of 361
+> ids becomes 48 — the status bar reports real page numbers and a real zoom, `MessageBar` raises the
+> repair report and the protected banner, and Stage 1's **I-53 is closed**. It cost more than its
+> description: `Ctrl+Shift+=` is in this stage's own binding list and **nothing in the render path could
+> carry a view rotation**, so `RenderRequest`, `TileGrid`, `PagePresentation` and `PdfiumRasterizer` were
+> all extended and `core/Geometry.h` gained the rotation arithmetic. 25 new cases and a new guide case,
+> **A-80**; six more negative controls, and again **one refused to fail**. One finding, **I-10**: I-53's
+> own note about how it would be fixed named a mechanism that does not do what the note said it did.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -182,7 +190,8 @@ wrong stage tag, and are lockstep debt — §10.
 | `ui/viewer/PageView.{h,cpp}`, `TilePresenter.{h,cpp}`, `PageLayoutEngine.{h,cpp}`, `ViewportController.{h,cpp}` | §3.14 ✅ (S2 · T13) | T13 |
 | `app/BackendRasterizer.h` | §3.8 ✅ **(S2 · T13)** — **a second row this manifest did not list.** It was a class private to `CompositionRoot.cpp` and the consequence was issue **I-09**: the one arrangement the shipped product runs — the real engine, reached through the real backend, on a worker the real scheduler owns — was the one arrangement no suite could reach, because `tests/unit` and `tests/ui` may not link an engine (D2-2, D1-4) and `tests/render` had no scheduler. As a header naming only `core/` types, case **A-79** drives the shipped class rather than a copy | T13 |
 | `ui/shell/DocumentWindow.{h,cpp}` — **the D1-2 stub replaced** | §3.13 🟡 (S1 T12 stub, S2 · T13 the viewer) — **not a new file and not in this manifest**, because the plan's §2 ledger already said T13 replaces its placeholder canvas and *"the emptiness was the feature; do not preserve it"* | T13 |
-| `ui/shell/MessageBar.{h,cpp}` | §3.13 ○ (S2) | T14 |
+| `ui/shell/MessageBar.{h,cpp}` | §3.13 ✅ (S2 · T14) | T14 |
+| `ui/dialogs/PasswordDialog.{h,cpp}` | §3.13 ✅ **(S2 · T14)** — **a third row this manifest did not list.** D2-6 makes the password callback the whole of Stage 2's encryption story and this plan grouped "the password prompt" with the message bar; building it found they are different surfaces answering different questions — the prompt is modal by necessity because `open()` cannot continue without it, the banner is a persistent statement about a document that is already open | T14 |
 | `pdf/render/GlyphCache.{h,cpp}`, `FontResolverBridge.{h,cpp}` | §3.10 ○ (S2) | T16 |
 | `tests/golden/`, `tools/golden-update/` | §3.17 ⚠️ *(`tests/golden/` has a row; the tool does not)* | T17 |
 | `tests/bench/bench_render.cpp` | §3.17 🟡 (S2 · T3; T18 completes it) | T3, T18 |
@@ -472,12 +481,22 @@ to existing documents and are made when this plan is written.
   gained the narrowed `FPDF_` rule at T2 and its test-target table gained `rawpage_render_tests`;
   **the fourth CI job's prefixes are still owed**, and `platform.` and `render.` both grew at T12 and
   T13 without CI being told.
+- ~~🟡 **`ui/shell/MessageBar` is ○ (S2).**~~ **Paid at T14**, with `ui/dialogs/PasswordDialog` added
+  beside it as a row this §4 did not list — the third such file this stage, after `WinMessageWindow`
+  (T12) and `app/BackendRasterizer.h` (T13). Three in three tasks is worth noticing: a manifest written
+  before the code is a good manifest and is not a complete one, and the pattern each time has been the
+  same — a shared mechanism two named files both need, or a seam that only becomes visible when
+  something tries to test it.
+
 - **`Features.md` §8's Viewer table gains no rows and must gain none.** Stage 2 handles the subset
   `Implementation-Plan.md` lists; `Ctrl+4` (Reflow), `Ctrl+R` (rotate **pages**), `S`, `Ctrl+B`,
   `Ctrl+E`, `Ctrl+L`, `Ctrl+U`, `Ctrl+'`, `Ctrl+;`, `Ctrl+Alt+C`, `Ctrl+.`/`Ctrl+,` and
   `Ctrl+]`/`Ctrl+[` belong to Stages 3–13 and stay `NotFound` — which, per Stage 1's convention,
   deliberately leaves the key unconsumed. Recorded here because a stage that implements *most* of a
-  context's table invites someone to complete it.
+  context's table invites someone to complete it. **Held at T14, and asserted rather than trusted**:
+  the registration census is exact (48, not "about 48"), a case walks the 23 chords this stage owns and
+  a companion case walks seven of the ones it does not, requiring each to be `NotImplemented` and to
+  leave the key unconsumed.
 - **`Implementation-Plan.md` § Stage 2's component list needs two corrections in the same change as
   this plan**: `PagePresentation`'s signature names `PageTree` and `RenderCache::invalidate` names
   `Scope`/`Revision`, all three of which that document assigns to Stage 3 (**D2-5**); and the

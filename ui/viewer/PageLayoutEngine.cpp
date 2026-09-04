@@ -107,25 +107,30 @@ void PageLayoutEngine::setOptions(core::render::PresentationOptions options)
 }
 
 bool PageLayoutEngine::update(Zoom zoom, ScreenMetrics metrics, core::render::LayoutMode mode,
-                              int currentPage)
+                              int currentPage, core::PageRotation viewRotation)
 {
     const core::render::DpiPolicy policy;
     const core::render::Resolution resolution =
         policy.resolve(zoom, metrics.scale, metrics.physical);
 
+    const bool rotationMoved = viewRotation != viewRotation_;
+    viewRotation_ = viewRotation;
+
     if (tree_ == nullptr) {
-        const bool changed = !layout_.isEmpty() || resolution != resolution_;
+        const bool changed = !layout_.isEmpty() || resolution != resolution_ || rotationMoved;
         layout_ = core::render::PageLayout{};
         resolution_ = resolution;
         return changed;
     }
 
-    core::render::PageLayout next = presentation_.layout(*tree_, mode, resolution, currentPage);
+    core::render::PageLayout next =
+        presentation_.layout(*tree_, mode, resolution, currentPage, viewRotation);
 
     // Compared by RESULT rather than by input. Two different current pages produce the same
     // continuous layout, and a repaint triggered by that difference would re-render the visible
     // tiles of a 900-page document every time the status bar's page number ticked over.
-    const bool changed = resolution != resolution_ || next.mode() != layout_.mode()
+    const bool changed = rotationMoved || resolution != resolution_
+                         || next.mode() != layout_.mode()
                          || next.contentSize() != layout_.contentSize()
                          || next.pageSlots().size() != layout_.pageSlots().size()
                          || (!next.pageSlots().empty() && !layout_.pageSlots().empty()
@@ -147,7 +152,8 @@ Zoom PageLayoutEngine::zoomForFit(FitMode fit, core::DeviceSize viewportSize, in
     const core::Page* target = tree_->at(page);
     if (target == nullptr) return current;
 
-    const core::PdfSize box = fitTarget(*target, fit);
+    core::PdfSize box = fitTarget(*target, fit);
+    if (core::swapsAxes(viewRotation_)) box = core::PdfSize{box.height, box.width};
     if (box.width <= 0.0 || box.height <= 0.0) return current;
     if (viewportSize.width <= 0.0 || viewportSize.height <= 0.0) return current;
 

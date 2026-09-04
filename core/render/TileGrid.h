@@ -43,6 +43,7 @@
 #ifndef RAWPAGE_CORE_RENDER_TILEGRID_H
 #define RAWPAGE_CORE_RENDER_TILEGRID_H
 
+#include "core/Geometry.h"
 #include "core/render/DpiPolicy.h"
 #include "core/render/RenderRequest.h"
 
@@ -91,9 +92,15 @@ public:
 
     // The page's size in RASTER device pixels at `resolution` -- `Resolution::rasterScale()`, not
     // the presented scale: these are the pixels a rasterizer produces, and a capped resolution
-    // produces fewer of them and paints them larger. Rotation is already accounted for, because
-    // `Page::displaySize()` is post-rotation.
-    static TileRect pageBounds(const Page& page, const Resolution& resolution) noexcept;
+    // produces fewer of them and paints them larger. The PAGE's own rotation is already accounted
+    // for, because `Page::displaySize()` is post-rotation.
+    //
+    // `viewRotation` is the session's extra quarter-turn on top of that (Stage 2 T14) and it
+    // SWAPS THE BOUNDS at 90 and 270. Defaulted, because the overwhelming majority of callers --
+    // and every case written before T14 -- mean none, and a defaulted parameter that changes an
+    // answer is only safe when its default is the identity. It is here.
+    static TileRect pageBounds(const Page& page, const Resolution& resolution,
+                               PageRotation viewRotation = PageRotation::None) noexcept;
 
     // `viewport` is in the SAME space: raster device pixels within this page, origin at the page's
     // top-left. The caller translates a global viewport into page-local coordinates; a rect that
@@ -102,7 +109,8 @@ public:
     // `held` is what the caller already has tiles for, and produces `evict`. Passing an empty
     // vector is the ordinary first-paint case.
     TileSet tilesFor(const Page& page, const Resolution& resolution, const TileRect& viewport,
-                     const std::vector<TileRect>& held = {}) const;
+                     const std::vector<TileRect>& held = {},
+                     PageRotation viewRotation = PageRotation::None) const;
 
 private:
     Config config_{};

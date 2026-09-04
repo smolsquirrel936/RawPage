@@ -637,31 +637,34 @@ TEST_CASE("a Viewer chord does not fire from the tool finder's search box", "[co
     ui::PageView* view = window.currentDocument()->view();
     REQUIRE(view != nullptr);
 
-    // REGISTERED FOR THIS CASE. T14 registers the Viewer commands for real; what T13 owes is that
-    // the CONTEXT routes to them, and a case cannot observe a route to something unregistered --
-    // an unregistered id resolves to `NotImplemented` in both contexts and would prove nothing.
-    int handDispatches = 0;
-    REQUIRE(fixture.actions.register_(core::ActionId::ToolHand,
-                                      [&handDispatches](core::KeyContext) { ++handDispatches; }));
+    // THE PRODUCT'S OWN REGISTRATION, as of T14. This case registered `ToolHand` itself at T13,
+    // saying at the assertion that it had to because nothing did -- and T14 registering it for
+    // real is what turns the case from a test of the ROUTE into a test of the route AND its
+    // effect. The registration is now asserted rather than performed: a case that re-registered
+    // would be refused (property 3) and, worse, would be observing its own lambda again.
+    REQUIRE(fixture.actions.isRegistered(core::ActionId::ToolHand));
+    REQUIRE(view->tool() == ui::PageView::Tool::Select);
 
     ShortcutBinder binder(fixture.actions, fixture.keyBindings, &window);
     const std::optional<core::Chord> h = core::Chord::parse("H");
     REQUIRE(h.has_value());
 
-    // In the viewer it dispatches.
+    // In the viewer it dispatches, AND THE VIEWER CHANGES -- the observable effect rather than a
+    // counter, which is what distinguishes "the command ran" from "the command did something".
     view->setFocus();
     REQUIRE(binder.activeContext() == core::KeyContext::Viewer);
     CHECK(binder.activate(*h) == ShortcutBinder::Outcome::Dispatched);
-    CHECK(handDispatches == 1);
+    CHECK(view->tool() == ui::PageView::Tool::Hand);
 
     // IN THE SEARCH BOX IT DOES NOT. `H` has no Global and no Common row, so the resolution finds
     // nothing and the key is deliberately left unconsumed -- which is what lets the line edit type
     // an `h`.
+    view->setTool(ui::PageView::Tool::Select);
     window.toolFinder()->searchBox()->setFocus();
     REQUIRE(binder.activeContext() == core::KeyContext::Global);
     CHECK(binder.activate(*h) == ShortcutBinder::Outcome::NoBinding);
     CHECK_FALSE(ShortcutBinder::consumes(binder.activate(*h)));
-    CHECK(handDispatches == 1);
+    CHECK(view->tool() == ui::PageView::Tool::Select);
 
     // AND THE KEY REALLY REACHES THE FIELD. Stage 1's I-54 is the warning attached to this case:
     // that defect existed because every tool-finder case typed at `searchBox()`, the one address a
@@ -673,5 +676,5 @@ TEST_CASE("a Viewer chord does not fire from the tool finder's search box", "[co
     press.ignore();
     QCoreApplication::sendEvent(&window, &press);
     CHECK_FALSE(press.isAccepted());
-    CHECK(handDispatches == 1);
+    CHECK(view->tool() == ui::PageView::Tool::Select);
 }
