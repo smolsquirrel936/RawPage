@@ -29,6 +29,7 @@
 #include "core/backend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
+#include "core/render/DiskTileStore.h"
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
 #include "core/settings/RecentFiles.h"
@@ -114,6 +115,16 @@ public:
 
 private:
     void applyLoggingSettings();
+
+    // `performance/tileCacheMB` and `diskCacheMB`, re-read whenever that group changes. The caches
+    // ARE resizable while the application runs -- a person told the cache is too large expects the
+    // next scroll to obey. `renderWorkers` is not: the pool's threads are created once, so that row
+    // says "takes effect at next launch" and this function does not pretend otherwise.
+    void applyPerformanceSettings();
+
+    // The battery throttle (`performance/throttleOnBattery`), driven by
+    // `platform::IPowerSession`. Computes the worker limit and hands it to the scheduler.
+    void applyPowerThrottle();
 
     Options options_;
 

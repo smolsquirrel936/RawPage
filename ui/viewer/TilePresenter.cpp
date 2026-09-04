@@ -38,6 +38,33 @@ QRectF contentRectFor(const core::render::PageSlot& slot, const TileRect& tile, 
                   tile.width * upscale, tile.height * upscale);
 }
 
+// The checkerboard `pageDisplay/transparencyGrid` paints under a page. Two greys rather than
+// grey-and-white, because a white square is indistinguishable from an opaque white page -- which is
+// the one thing this option exists to tell apart.
+void paintTransparencyGrid(QPainter& painter, const QRectF& rect)
+{
+    constexpr int kSquare = 8;
+    const QColor light(0xd8, 0xd8, 0xd8);
+    const QColor dark(0xb4, 0xb4, 0xb4);
+
+    painter.save();
+    painter.setClipRect(rect);
+    painter.fillRect(rect, light);
+
+    // Anchored to the RECT rather than to the widget, so the pattern does not crawl across the page
+    // as the view scrolls -- a checkerboard that moves under a stationary page reads as a rendering
+    // fault rather than as a background.
+    const int originX = static_cast<int>(std::floor(rect.left()));
+    const int originY = static_cast<int>(std::floor(rect.top()));
+    for (int y = 0; y < static_cast<int>(std::ceil(rect.height())) + kSquare; y += kSquare) {
+        for (int x = 0; x < static_cast<int>(std::ceil(rect.width())) + kSquare; x += kSquare) {
+            if (((x / kSquare) + (y / kSquare)) % 2 == 0) continue;
+            painter.fillRect(QRectF(originX + x, originY + y, kSquare, kSquare), dark);
+        }
+    }
+    painter.restore();
+}
+
 } // namespace
 
 QColor TilePresenter::pageBackground()
@@ -99,6 +126,16 @@ void TilePresenter::setDocument(core::DocumentHandle document, core::Revision re
     pages_ = pages;
 }
 
+void TilePresenter::setRenderFlags(core::render::RenderFlags flags)
+{
+    flags_ = flags;
+}
+
+void TilePresenter::setPrefetchPages(int pages)
+{
+    prefetchPages_ = std::max(0, pages);
+}
+
 std::set<int> TilePresenter::heldPages() const
 {
     std::set<int> pages;
@@ -145,6 +182,7 @@ RenderRequest TilePresenter::requestFor(int pageIndex, const TileRect& tile,
     // served the unrotated tile straight out of the cache -- the rotate command appearing to do
     // nothing, with no error and no failing test (D2-12's argument, on a field T10 did not have).
     request.viewRotation = viewRotation;
+    request.flags = flags_;
     return request;
 }
 
@@ -161,15 +199,47 @@ void TilePresenter::requestTiles(const core::render::PageLayout& layout,
     // how the eviction set becomes an action rather than a report.
     std::unordered_map<RenderRequest, char> wanted;
 
-    for (const core::render::PageSlot& slot : layout.slotsIntersecting(viewport)) {
+    // THE VISIBLE PAGES, PLUS `performance/prefetchPages` ON EACH SIDE. The extra pages are asked
+    // for at `Prefetch` priority, which starves under scrolling and is supposed to: speculative work
+    // that runs instead of visible work is the defect, not the starvation (`RenderScheduler`).
+    //
+    // Extending the VIEWPORT rectangle instead would have been one line and wrong: `prefetchPages`
+    // counts pages, and a viewport grown by a page's height covers a different number of pages in a
+    // document of mixed page sizes -- which `corpus/ordinary/mixed-page-sizes.pdf` exists to be.
+    std::vector<core::render::PageSlot> wantedSlots = layout.slotsIntersecting(viewport);
+    if (prefetchPages_ > 0 && !wantedSlots.empty()) {
+        const int firstVisible = wantedSlots.front().pageIndex;
+        const int lastVisible = wantedSlots.back().pageIndex;
+        for (int step = 1; step <= prefetchPages_; ++step) {
+            if (const core::render::PageSlot* before = layout.slotForPage(firstVisible - step))
+                wantedSlots.push_back(*before);
+            if (const core::render::PageSlot* after = layout.slotForPage(lastVisible + step))
+                wantedSlots.push_back(*after);
+        }
+    }
+
+    for (const core::render::PageSlot& slot : wantedSlots) {
         const core::Page* page = pages_->at(slot.pageIndex);
         if (page == nullptr) continue;
 
-        // The viewport, clipped to this page and moved into the page's own RASTER space.
-        const double left = std::max(viewport.left(), slot.rect.left()) - slot.rect.left();
-        const double top = std::max(viewport.top(), slot.rect.top()) - slot.rect.top();
-        const double right = std::min(viewport.right(), slot.rect.right()) - slot.rect.left();
-        const double bottom = std::min(viewport.bottom(), slot.rect.bottom()) - slot.rect.top();
+        // A PREFETCHED PAGE IS NOT IN THE VIEWPORT AT ALL, so clipping the viewport to it yields an
+        // empty rectangle and the loop below would skip it. What it wants instead is the page's own
+        // bounds -- everything of it, at prefetch priority.
+        const bool offscreen = slot.rect.bottom() <= viewport.top()
+                               || slot.rect.top() >= viewport.bottom();
+
+        // The viewport, clipped to this page and moved into the page's own RASTER space -- or the
+        // whole page, for one that is being prefetched from outside the viewport entirely.
+        const double left = offscreen ? 0.0
+                                      : std::max(viewport.left(), slot.rect.left()) - slot.rect.left();
+        const double top = offscreen ? 0.0
+                                     : std::max(viewport.top(), slot.rect.top()) - slot.rect.top();
+        const double right = offscreen
+                                 ? slot.rect.size.width
+                                 : std::min(viewport.right(), slot.rect.right()) - slot.rect.left();
+        const double bottom = offscreen
+                                  ? slot.rect.size.height
+                                  : std::min(viewport.bottom(), slot.rect.bottom()) - slot.rect.top();
         if (right <= left || bottom <= top) continue;
 
         const TileRect pageViewport{
@@ -199,7 +269,9 @@ void TilePresenter::requestTiles(const core::render::PageLayout& layout,
             if (ticket.isValid()) tickets_[request] = ticket;
         };
 
-        for (const TileRect& tile : tiles.visible) ask(tile, RenderPriority::Visible);
+        const RenderPriority priority =
+            offscreen ? RenderPriority::Prefetch : RenderPriority::Visible;
+        for (const TileRect& tile : tiles.visible) ask(tile, priority);
         for (const TileRect& tile : tiles.prefetch) ask(tile, RenderPriority::Prefetch);
     }
 
@@ -221,7 +293,8 @@ void TilePresenter::requestTiles(const core::render::PageLayout& layout,
 
 void TilePresenter::paint(QPainter& painter, const core::render::PageLayout& layout,
                           const core::render::Resolution& resolution,
-                          const core::DeviceRect& viewport, double devicePixelRatio) const
+                          const core::DeviceRect& viewport, double devicePixelRatio,
+                          bool transparencyGrid) const
 {
     lastPaint_ = PaintStats{};
 
@@ -244,7 +317,8 @@ void TilePresenter::paint(QPainter& painter, const core::render::PageLayout& lay
         // THE SHEET FIRST, then the tiles on top. A page whose tiles have not arrived is still a
         // page-shaped white rectangle with a border rather than a hole -- see the header on why a
         // missing tile is drawn and not skipped.
-        painter.fillRect(sheetWidget, pageBackground());
+        if (transparencyGrid) paintTransparencyGrid(painter, sheetWidget);
+        else                  painter.fillRect(sheetWidget, pageBackground());
         painter.setPen(QColor(0x80, 0x80, 0x80));
         painter.drawRect(sheetWidget.adjusted(-0.5, -0.5, 0.5, 0.5));
         ++lastPaint_.pagesDrawn;

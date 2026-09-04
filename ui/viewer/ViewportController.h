@@ -47,21 +47,12 @@
 
 namespace rawpage::ui {
 
-// What the viewport is being fitted to, or `None` for a zoom the user chose outright.
-//
-// The four are Features.md 1.2's, and `Page` versus `Visible` is a real distinction rather than two
-// names for one thing: `Page` fits the MediaBox -- the sheet -- and `Visible` fits the CropBox,
-// which is what is actually drawn. On a document whose CropBox equals its MediaBox they agree, and
-// on a trimmed page they do not.
-enum class FitMode {
-    None,
-    Page,
-    Width,
-    Height,
-    Visible,
-};
-
-const char* fitModeName(FitMode mode) noexcept;
+// `FitMode` MOVED TO `core/render/DpiPolicy.h` AT S2 T15, because `pageDisplay/defaultZoom` is a
+// settings key and `SettingsKeys.def` may only name `core/` types. It is used unqualified below
+// through this using-declaration rather than aliased with a `using FitMode = ...`: an alias in a
+// second namespace is a second name for one type, and the next reader has to find out which is
+// which. `core::render::FitMode` is the type.
+using core::render::FitMode;
 
 class ViewportController : public QObject {
     Q_OBJECT

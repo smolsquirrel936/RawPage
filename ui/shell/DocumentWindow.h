@@ -84,6 +84,17 @@ public:
 
     PageView* view() const noexcept { return view_; }
 
+    // Reads the preferences a VIEW obeys and hands them to it. Public because it is what a case
+    // drives after changing a setting, and because a settings change and a document open take the
+    // same path rather than two that could differ (S2 T15).
+    //
+    // **TWO GROUPS, NOT ONE.** The eleven `pageDisplay/` keys, plus `performance/prefetchPages` --
+    // which is a `performance/` key by its own nature and is read by the viewer all the same. The
+    // first version of this subscribed to `PageDisplay` alone and the prefetch preference reached
+    // nothing; the case that found it is `ui.performance/prefetchPages asks for pages beyond the
+    // viewport`, which is why it asserts a HELD PAGE COUNT rather than that the value was stored.
+    void applyViewSettings();
+
     // The tab's text and the window title's `%1`: the file's name, derived rather than stored, so
     // there is no second copy to disagree with the path after a rename.
     QString title() const;
@@ -95,6 +106,11 @@ private:
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;
     PageView* view_ = nullptr;
+
+    // The `Settings` subscription, released in the destructor. Convention 10: a subscriber that
+    // outlives the object it was installed for is a call into freed memory, and `Settings` outlives
+    // every tab by construction -- it belongs to the composition root.
+    int settingsSubscription_ = 0;
 };
 
 } // namespace rawpage::ui

@@ -44,7 +44,43 @@
 #ifndef RAWPAGE_CORE_RENDER_DPIPOLICY_H
 #define RAWPAGE_CORE_RENDER_DPIPOLICY_H
 
+#include <optional>
+#include <string_view>
+
 namespace rawpage::core::render {
+
+// What the viewport is being fitted to, or `None` for a zoom the user chose outright.
+//
+// MOVED HERE FROM `ui/viewer/ViewportController.h` AT STAGE 2 T15, and the move is the point rather
+// than tidiness: `pageDisplay/defaultZoom` is a settings key, `core/settings/SettingsKeys.def` may
+// only name `core/` types, and the alternative was a second enum in `core/` listing four of these
+// five values — two lists that agree until the first Friday, which is the shape `ActionId.def`'s
+// rule 3 and `SettingsKeys.def`'s rule 2 both exist to prevent.
+//
+// It belongs beside `Zoom` in any case: a fit IS a zoom, computed from a page and a viewport
+// instead of chosen, and `ui/viewer/PageLayoutEngine::zoomForFit()` is a policy question rather
+// than a widget one.
+//
+// The four are Features.md 1.2's, and `Page` versus `Visible` is a real distinction rather than two
+// names for one thing: `Page` fits the MediaBox -- the sheet -- and `Visible` fits the CropBox,
+// which is what is actually drawn. On a document whose CropBox equals its MediaBox they agree, and
+// on a trimmed page they do not.
+//
+// `None` reads as "no fitting", which as a DEFAULT ZOOM means 100 % -- and that is why the settings
+// row defaults to it: a settings task must not silently change what the product does.
+enum class FitMode {
+    None,
+    Page,
+    Width,
+    Height,
+    Visible,
+};
+
+// ASCII, stable, and **the token the settings file holds** -- `SettingsCodec<FitMode>` writes what
+// this returns, so a combo box cannot offer a value the file cannot store.
+const char* fitModeName(FitMode mode) noexcept;
+std::optional<FitMode> fitModeFromName(std::string_view name) noexcept;
+
 
 // The user's zoom, as a multiplier on Actual Size. 1.0 is 100 %.
 //

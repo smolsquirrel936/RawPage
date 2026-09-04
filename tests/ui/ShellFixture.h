@@ -81,6 +81,12 @@ public:
                                QLatin1String("error.render.badRequest")};
         }
 
+        // THE TRANSPARENCY FLAG IS HONOURED, because a fake that ignored it would make
+        // `pageDisplay/transparencyGrid` untestable here -- and untestable is how that option came
+        // to be implemented as a viewer-only paint in the first place, which showed nothing.
+        const bool transparent = core::render::hasFlag(
+            request.flags, core::render::RenderFlags::TransparentBackground);
+
         core::RasterImage image;
         image.width = request.tile.width;
         image.height = request.tile.height;
@@ -88,7 +94,7 @@ public:
         // PADDED ROWS. See the header: `bytesPerLine` exists so a caller cannot assume
         // `width * 4`, and a fake with tight rows would never exercise the assumption.
         image.bytesPerLine = request.tile.width * 4 + 16;
-        image.format = core::PixelFormat::Bgrx8888;
+        image.format = transparent ? core::PixelFormat::Bgra8888 : core::PixelFormat::Bgrx8888;
         image.pixels = QByteArray(static_cast<qsizetype>(image.bytesPerLine) * image.height,
                                   Qt::Uninitialized);
 
@@ -99,7 +105,11 @@ public:
                 row[x * 4 + 0] = static_cast<unsigned char>(kFakeTileBlue);
                 row[x * 4 + 1] = static_cast<unsigned char>(kFakeTileGreen);
                 row[x * 4 + 2] = static_cast<unsigned char>(kFakeTileRed);
-                row[x * 4 + 3] = 0xff;
+                // A HOLE IN THE MIDDLE when the page is rendered onto transparency, so the
+                // checkerboard behind it has somewhere to show. A real page's transparent regions
+                // are wherever its content is not; this fake's are a quarter of every tile.
+                const bool hole = transparent && (x % 4 == 0) && (y % 4 == 0);
+                row[x * 4 + 3] = hole ? 0x00 : 0xff;
             }
         }
 

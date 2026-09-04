@@ -9,9 +9,12 @@
 #include "core/settings/SettingsSchema.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QMetaObject>
+#include <QStandardPaths>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -19,6 +22,23 @@ namespace rawpage::app {
 namespace {
 
 using core::LogSubsystem;
+
+// Megabytes as the settings table spells them, to bytes as the cache counts them. One conversion,
+// in one place: a `* 1024 * 1024` written at three call sites is three chances to write `1000`.
+std::size_t megabytes(int mb)
+{
+    return mb <= 0 ? 0u : static_cast<std::size_t>(mb) * 1024u * 1024u;
+}
+
+// Where the disk tile cache lives. `%LOCALAPPDATA%\RawPage	ilecache\` -- LOCAL rather than
+// roaming, because a cache that followed a user between machines over the network would be the
+// worst of both: slow to reach and useless when it arrived. Choosing it is `app/`'s job by rule --
+// `core/render/DiskTileStore` takes a directory and names none.
+QString diskCacheDirectory()
+{
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+        .filePath(QStringLiteral("tilecache"));
+}
 
 } // namespace
 
@@ -67,6 +87,10 @@ CompositionRoot::CompositionRoot(Options options)
     }
     settingsSubscription_ = settings_->subscribe([this](const core::Settings::Change& change) {
         if (change.group == core::SettingsGroup::Logging) applyLoggingSettings();
+        if (change.group == core::SettingsGroup::PerformanceAndCache) {
+            applyPerformanceSettings();
+            applyPowerThrottle();
+        }
     });
 
     // D1-16 in both directions, said out loud at startup. "Your preferences did not take effect"
@@ -118,19 +142,40 @@ CompositionRoot::CompositionRoot(Options options)
     // `IPageRasterizer`.
     backend_ = pdf::createBackend();
 
-    // --- The render pipeline (Stage 2 T13) ----------------------------------------------------
+    // --- The render pipeline (Stage 2 T13, configured from settings at T15) -------------------
     // One cache and one scheduler for the process. Both are `core/` types and neither knows what
     // an engine is: the scheduler is handed a FACTORY, and what it makes is the adapter above.
-    renderCache_ = std::make_unique<core::render::RenderCache>();
+    //
+    // **THE CAPS COME FROM THE TABLE, not from the struct's own initializers.** T15 moved those
+    // defaults into `SettingsKeys.def` rows, and rule 2 says a default lives in exactly one place --
+    // so reading them here is what makes that true rather than aspirational.
+    core::render::RenderCache::Config cacheConfig;
+    cacheConfig.memoryCapBytes = megabytes(settings_->get(core::keys::performance::tileCacheMB));
+    cacheConfig.diskCapBytes = megabytes(settings_->get(core::keys::performance::diskCacheMB));
+    renderCache_ = std::make_unique<core::render::RenderCache>(cacheConfig);
 
-    // The disk tier stays absent. D2-14 is explicit that whether it earns its place is a
-    // MEASUREMENT T18 makes over the corpus, not a preference expressed here, and a tier switched
-    // on by default would make that measurement about itself.
+    // The disk tier is installed only when the setting asks for one, and the setting DEFAULTS TO
+    // ZERO -- D2-14 is explicit that whether it earns its place is a MEASUREMENT T18 makes over the
+    // corpus, and a tier switched on by default would make that measurement about itself.
+    // Choosing the directory is `app/`'s job: `core/` does not name a user's folders.
+    if (cacheConfig.diskCapBytes > 0) {
+        renderCache_->setDiskTier(std::make_unique<core::render::DiskTileStore>(
+            diskCacheDirectory(), cacheConfig.diskCapBytes));
+    }
+
+    core::render::RenderScheduler::Config schedulerConfig;
+
+    // ONE by default, and that is I-05's answer rather than a placeholder. The row exists because
+    // T18 re-measures A2 through this pipeline and must be able to walk the count without a
+    // rebuild; **it takes effect at the next launch**, because a worker pool's threads are made
+    // once and resizing one at runtime is a feature nothing has asked for.
+    schedulerConfig.workerCount = settings_->get(core::keys::performance::renderWorkers);
+
     renderScheduler_ = std::make_unique<core::render::RenderScheduler>(
         [backend = backend_.get()]() -> std::unique_ptr<core::IPageRasterizer> {
             return std::make_unique<BackendRasterizer>(*backend);
         },
-        renderCache_.get());
+        renderCache_.get(), schedulerConfig);
 
     // THE PUMP, AND THERE IS EXACTLY ONE OF IT. `RenderScheduler::setWakeHandler` REPLACES rather
     // than chains -- `core/Log.h`'s single sink in a second disguise (convention 18) -- so a
@@ -156,6 +201,26 @@ CompositionRoot::CompositionRoot(Options options)
     if (options_.createPlatform) {
         // THE ONLY createPlatform() CALL IN THE PROGRAM. It logs its own interface census.
         platform_ = platform::createPlatform();
+
+        // THE BATTERY THROTTLE, and this is the wire T12 built the interface for and deliberately
+        // did not connect -- because until `performance/throttleOnBattery` and
+        // `performance/renderWorkers` existed there was no configuration in which the limit could
+        // differ, and a code path no configuration can exercise is a path that rots.
+        //
+        // The subscription outlives nothing: `IPowerSession` belongs to the platform bundle this
+        // object owns, and both die here. `IPowerSession` has no `unsubscribe`, which is the same
+        // gap `IDisplayTopology` has -- and it is safe HERE and only here, because the subscriber
+        // and the subscribed-to have exactly the same lifetime. A widget doing this would be
+        // convention 10's bug.
+        if (platform_->powerSession) {
+            const core::Status subscribed = platform_->powerSession->subscribe(
+                [this](platform::IPowerSession::Event) { applyPowerThrottle(); });
+            if (!subscribed) {
+                RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+                    << "power: throttle not wired --" << subscribed.error().messageKey;
+            }
+        }
+        applyPowerThrottle();
     } else {
         // An empty bundle rather than a null pointer: every member is already null, which is the
         // vocabulary platform/platform.h defines for "not available", so a caller needs no second
@@ -207,6 +272,48 @@ Services CompositionRoot::services()
     return Services{*settings_,  *recentFiles_,     *actions_, *keyBindings_,
                     *logBuffer_, *backend_,         *renderScheduler_, *renderCache_,
                     *platform_};
+}
+
+void CompositionRoot::applyPerformanceSettings()
+{
+    if (!renderCache_ || !settings_) return;
+
+    renderCache_->setMemoryCapacityBytes(
+        megabytes(settings_->get(core::keys::performance::tileCacheMB)));
+
+    const std::size_t diskBytes = megabytes(settings_->get(core::keys::performance::diskCacheMB));
+    if (diskBytes > 0 && renderCache_->diskTier() == nullptr) {
+        // TURNED ON WHILE RUNNING. The tier is created empty, which is what it would be on a fresh
+        // launch anyway -- `DiskTileStore` empties its directory on construction, because it does
+        // not claim to survive a restart.
+        renderCache_->setDiskTier(
+            std::make_unique<core::render::DiskTileStore>(diskCacheDirectory(), diskBytes));
+    } else {
+        renderCache_->setDiskCapacityBytes(diskBytes);
+    }
+}
+
+void CompositionRoot::applyPowerThrottle()
+{
+    if (!renderScheduler_ || !settings_ || !platform_) return;
+
+    const int workers = renderScheduler_->activeWorkerLimit();
+    Q_UNUSED(workers);
+
+    const int configured = settings_->get(core::keys::performance::renderWorkers);
+    const bool throttle = settings_->get(core::keys::performance::throttleOnBattery);
+
+    // `isOnBattery()` is FALSE on a machine with no battery as well as on one running from the
+    // mains -- `platform/win/WinPowerSession` keeps the two apart on purpose, and the consequence
+    // here is that a desktop simply never throttles rather than needing a second question.
+    const bool onBattery =
+        throttle && platform_->powerSession && platform_->powerSession->isOnBattery();
+
+    // HALVED, AND NEVER BELOW ONE. `setActiveWorkerLimit` clamps to `[1, workerCount]` itself; the
+    // clamp is restated in the arithmetic because a viewer that stopped rendering on battery is a
+    // viewer that looks broken, and that is worth being true in two places.
+    const int limit = onBattery ? std::max(1, configured / 2) : configured;
+    renderScheduler_->setActiveWorkerLimit(limit);
 }
 
 void CompositionRoot::applyLoggingSettings()

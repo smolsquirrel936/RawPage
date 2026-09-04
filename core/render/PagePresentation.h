@@ -56,6 +56,7 @@
 #include "core/render/DpiPolicy.h"
 
 #include <optional>
+#include <string_view>
 #include <vector>
 
 namespace rawpage::core {
@@ -71,7 +72,10 @@ enum class LayoutMode {
     TwoUpContinuous,    // every spread stacked vertically
 };
 
+// ASCII, stable, and **the token the settings file holds** (S2 T15) -- `SettingsCodec<LayoutMode>`
+// writes what this returns, so `pageDisplay/layoutMode` cannot hold a value the enum lacks.
 const char* layoutModeName(LayoutMode mode) noexcept;
+std::optional<LayoutMode> layoutModeFromName(std::string_view name) noexcept;
 
 // True for the two modes that lay out the whole document. Named rather than compared inline,
 // because "is this mode continuous" is asked in four places and a missing `||` in one of them is a

@@ -99,6 +99,119 @@ RAWPAGE_SETTING_RANGED(documents, recentCount, int,
 RAWPAGE_SETTING(documents, recentPinned, QStringList,
                 "documents/recentPinned", "", Documents, false)
 
+
+// =============================================================================================
+// The sixteen Stage 2 keys -- Implementation-Plan.md, Stage 2 "Data / settings keys".
+//
+// Eleven `pageDisplay/` and five `performance/`, and adding them here is the WHOLE of the UI work:
+// convention 17 means `ui/dialogs/SettingsPage` `#include`s this file and builds one typed editor
+// per row, so two new Preferences pages appear with no widget code. Adding a seventeenth is a row.
+//
+// FOUR OF THESE DEFAULTS WERE ALREADY WRITTEN DOWN IN CODE, and rule 2 says a default lives in one
+// place -- so each constant below carries the value its C++ home had, and that home now says the
+// row is the owner. Changing one of them here is the way to change it; changing it there is a
+// second default that disagrees the first time anyone touches either.
+//
+//   pageDisplay/maxRenderResolution  <- DpiPolicy::Limits::maxRenderDpi      (2400)
+//   performance/tileCacheMB          <- RenderCache::Config::memoryCapBytes  (256 MiB)
+//   performance/diskCacheMB          <- RenderCache::Config::diskCapBytes    (0 -- see below)
+//   performance/renderWorkers        <- RenderScheduler::Config::workerCount (1  -- see below)
+// =============================================================================================
+
+// --- Page display ------------------------------------------------------------------------------
+// The arrangement a document opens in. `SingleContinuous` is what every reader defaults to and what
+// the viewer has done since T13; a settings task must not silently change what the product does.
+RAWPAGE_SETTING(pageDisplay, layoutMode, render::LayoutMode,
+                "pageDisplay/layoutMode", render::LayoutMode::SingleContinuous, PageDisplay, true)
+
+// The zoom a document opens at. `None` is "no fitting", which as a default means 100 % -- again the
+// behaviour the viewer already had. The other four are the fits.
+RAWPAGE_SETTING(pageDisplay, defaultZoom, render::FitMode,
+                "pageDisplay/defaultZoom", render::FitMode::None, PageDisplay, true)
+
+// Two-up asymmetries (PagePresentation, plan 5.5). A cover takes a spread of its own, shifting every
+// later pair's parity; RTL maps column 0 to the right and changes nothing else.
+RAWPAGE_SETTING(pageDisplay, showCoverInTwoUp, bool,
+                "pageDisplay/showCoverInTwoUp", false, PageDisplay, true)
+
+RAWPAGE_SETTING(pageDisplay, rtlBinding, bool,
+                "pageDisplay/rtlBinding", false, PageDisplay, true)
+
+// Features.md 1.2: "draw hairlines at their true width instead of a minimum of one pixel."
+//
+// DECLARED AND INERT -- Stage 2 guide issue I-11, a scope finding rather than a defect. PDFium's
+// `FPDF_*` render flags have no such control and always enforce the one-pixel minimum, so the ON
+// state is a thing this engine cannot be asked for. It is declared here rather than left out
+// because the setting is real, the plan lists it, and a row that is absent is indistinguishable
+// from a row nobody thought of; the guide's A-65 records the measurement that established it.
+RAWPAGE_SETTING(pageDisplay, lineWeight, bool,
+                "pageDisplay/lineWeight", false, PageDisplay, true)
+
+// The three anti-aliasing switches, each mapping to one `FPDF_RENDER_NO_SMOOTH*` flag. Default ON,
+// which is PDFium's own default and what a page has looked like since T9; turning one off is a
+// deliberate choice for a slow machine or for a golden-image comparison.
+RAWPAGE_SETTING(pageDisplay, antialiasText, bool,
+                "pageDisplay/antialiasText", true, PageDisplay, true)
+
+RAWPAGE_SETTING(pageDisplay, antialiasImages, bool,
+                "pageDisplay/antialiasImages", true, PageDisplay, true)
+
+RAWPAGE_SETTING(pageDisplay, antialiasLineArt, bool,
+                "pageDisplay/antialiasLineArt", true, PageDisplay, true)
+
+// A checkerboard behind the page instead of white, so a transparent region is visible as
+// transparent rather than as white-on-white. A viewer-side decision: the raster is unchanged and
+// the SHEET under it is what differs.
+RAWPAGE_SETTING(pageDisplay, transparencyGrid, bool,
+                "pageDisplay/transparencyGrid", false, PageDisplay, true)
+
+// The cap of Features.md 1.2 -- "trading fidelity for responsiveness". 2400 is `DpiPolicy`'s own
+// constant and is 12.5x a 192-DPI panel, so no ordinary zoom on any display this product will meet
+// is capped; the floor of 96 is one device pixel per point at 100 % and the ceiling of 4800 is
+// where one A4 tile stops fitting in a sensible allocation.
+RAWPAGE_SETTING_RANGED(pageDisplay, maxRenderResolution, int,
+                       "pageDisplay/maxRenderResolution", 2400, PageDisplay, true, 96, 4800)
+
+// Whether a bare wheel zooms instead of scrolling. Default FALSE: the wheel scrolls, and `Ctrl`
+// plus the wheel zooms, which is what every reader does. With this on the two swap over -- `Ctrl`
+// then scrolls -- rather than the wheel doing both, because a modifier that does nothing is a
+// modifier people stop trying.
+RAWPAGE_SETTING(pageDisplay, wheelZooms, bool,
+                "pageDisplay/wheelZooms", false, PageDisplay, true)
+
+// --- Performance and cache -----------------------------------------------------------------------
+// ONE, and it is I-05's answer rather than a placeholder: PDFium cannot be called from two threads
+// at once, so the shipped arrangement is one render thread with a queue. The range goes to 16 because
+// T18 re-measures A2 through this pipeline and must be able to walk the count without a rebuild --
+// and because a future non-PDFium rasterizer is not bound by that finding. **Above 1 the workers
+// serialize on `PdfiumInit`'s engine lock**; they do not go faster, and the T3 probe measured the
+// difference at 1.05x.
+RAWPAGE_SETTING_RANGED(performance, renderWorkers, int,
+                       "performance/renderWorkers", 1, PerformanceAndCache, true, 1, 16)
+
+// 256 MiB is roughly 1000 tiles of 256x256 BGRA -- a 4K viewport's worth at three zoom levels, which
+// is what makes zooming out and back in free. 16 is where the cache stops being able to hold one
+// screenful and starts costing more than it saves.
+RAWPAGE_SETTING_RANGED(performance, tileCacheMB, int,
+                       "performance/tileCacheMB", 256, PerformanceAndCache, true, 16, 4096)
+
+// ZERO, AND THE ZERO IS THE DECISION. D2-14: whether the disk tier earns its place is a MEASUREMENT
+// T18 makes over the corpus, not a preference expressed here, and a tier switched on by default
+// would make that measurement about itself. 0 means the tier is not installed at all.
+RAWPAGE_SETTING_RANGED(performance, diskCacheMB, int,
+                       "performance/diskCacheMB", 0, PerformanceAndCache, true, 0, 8192)
+
+// How many pages BEYOND the visible ones are rasterized speculatively. Counts PAGES, not tiles --
+// within a page the prefetch is `TileGrid`'s ring of tiles, which is a different knob with a
+// different unit, and conflating them is how "prefetch 2" comes to mean two tiles.
+RAWPAGE_SETTING_RANGED(performance, prefetchPages, int,
+                       "performance/prefetchPages", 1, PerformanceAndCache, true, 0, 8)
+
+// Fewer render workers while the machine is on battery. Default ON, and inert on a desktop -- which
+// `platform::IPowerSession::hasBattery()` answers, because "no battery" is not "on mains".
+RAWPAGE_SETTING(performance, throttleOnBattery, bool,
+                "performance/throttleOnBattery", true, PerformanceAndCache, true)
+
 // =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================

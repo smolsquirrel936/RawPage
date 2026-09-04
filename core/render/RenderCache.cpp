@@ -175,6 +175,20 @@ RenderCache::RenderCache(Config config)
     (void)config.diskCapBytes;
 }
 
+void RenderCache::setMemoryCapacityBytes(std::size_t bytes)
+{
+    if (memory_) memory_->setCapacityBytes(bytes);
+}
+
+void RenderCache::setDiskCapacityBytes(std::size_t bytes)
+{
+    if (bytes == 0) {
+        disk_.reset();
+        return;
+    }
+    if (disk_) disk_->setCapacityBytes(bytes);
+}
+
 void RenderCache::setDiskTier(std::unique_ptr<ITileStore> tier)
 {
     disk_ = std::move(tier);

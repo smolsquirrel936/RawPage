@@ -44,6 +44,11 @@ add_executable(rawpage_ui_tests
     # is what happens when only the first is checked.
     tst_viewercommands.cpp
     tst_documentchrome.cpp
+
+    # S2 T15 -- the two generated Preferences pages, and the sixteen keys reaching the viewer.
+    # A-65 is deliberately split: the three flags that change PIXELS are measured in tests/render
+    # over the real engine, and what is asserted here is that the preference reaches the request.
+    tst_viewsettings.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

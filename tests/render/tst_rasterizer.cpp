@@ -37,6 +37,8 @@
 
 #include <atomic>
 #include <filesystem>
+#include <algorithm>
+#include <cstring>
 #include <set>
 #include <string>
 #include <thread>
@@ -506,4 +508,258 @@ TEST_CASE("a rotated page is rasterized against its rotated extent", "[render][r
 
     offRight.viewRotation = rawpage::core::PageRotation::Clockwise90;
     CHECK(rasterizer.raster(offRight));
+}
+
+
+// ==========================================================================================
+// The rendering flags -- Stage 2 T15, guide case A-65's engine half.
+// ==========================================================================================
+
+namespace {
+
+// How many pixels differ between two rasters of the same tile. A COUNT rather than a boolean,
+// because "these differ" and "these differ in four pixels out of ninety thousand" are different
+// claims and only the second says a flag did something a person could see.
+std::size_t differingPixels(const RasterImage& a, const RasterImage& b)
+{
+    if (a.width != b.width || a.height != b.height) return static_cast<std::size_t>(-1);
+
+    std::size_t differing = 0;
+    for (int y = 0; y < a.height; ++y) {
+        const auto* rowA = reinterpret_cast<const unsigned char*>(a.pixels.constData())
+                           + static_cast<std::size_t>(y) * a.bytesPerLine;
+        const auto* rowB = reinterpret_cast<const unsigned char*>(b.pixels.constData())
+                           + static_cast<std::size_t>(y) * b.bytesPerLine;
+        for (int x = 0; x < a.width; ++x)
+            if (std::memcmp(rowA + x * 4, rowB + x * 4, 3) != 0) ++differing;
+    }
+    return differing;
+}
+
+// How many pixels are darker than `threshold` on every channel.
+//
+// TWO THRESHOLDS ARE USED BELOW AND THE DIFFERENCE MATTERS. Counting every non-white pixel
+// (`0xf0`) counts the ANTI-ALIASING FRINGE, so turning smoothing off reduces it -- which looks
+// like a thinner line and is not one. Counting only SOLID ink (`0x80`) counts the line's core,
+// and that is what a true-width hairline would actually reduce: a sub-pixel line has no fully
+// dark pixel at all, only grey ones.
+std::size_t darkerThan(const RasterImage& image, int threshold)
+{
+    std::size_t ink = 0;
+    for (int y = 0; y < image.height; ++y) {
+        const auto* row = reinterpret_cast<const unsigned char*>(image.pixels.constData())
+                          + static_cast<std::size_t>(y) * image.bytesPerLine;
+        for (int x = 0; x < image.width; ++x) {
+            if (row[x * 4] < threshold && row[x * 4 + 1] < threshold
+                && row[x * 4 + 2] < threshold) {
+                ++ink;
+            }
+        }
+    }
+    return ink;
+}
+
+} // namespace
+
+TEST_CASE("each anti-aliasing flag measurably changes the raster", "[render][flags]")
+{
+    // A-65's first three, and the whole point of the case is that the answer is a NUMBER. A flag
+    // that reached the engine and did nothing would satisfy "the setting round-trips" (A-63) and be
+    // exactly the defect Stage 1's I-38 was -- `general/touchMode`, stored and read by nothing,
+    // which only a person eventually noticed.
+    auto document = openOrFail("ordinary/text-a4.pdf");
+    PdfiumRasterizer rasterizer(*document);
+
+    const TileRect tile{0, 0, 400, 400};
+    RenderRequest smooth = requestFor(0, tile, 1.0);
+    const auto base = rasterizer.raster(smooth);
+    REQUIRE(base);
+
+    // TEXT. `text-a4.pdf` is body copy, so disabling text anti-aliasing has thousands of edge
+    // pixels to change.
+    RenderRequest noText = smooth;
+    noText.flags = noText.flags | rawpage::core::render::RenderFlags::NoSmoothText;
+    const auto withoutText = rasterizer.raster(noText);
+    REQUIRE(withoutText);
+    const std::size_t textDelta = differingPixels(base.value(), withoutText.value());
+    WARN("antialiasText off changes " << textDelta << " pixels");
+    CHECK(textDelta > 100);
+
+    // LINE ART, on the file that has some. A hairline page has far fewer edge pixels than a text
+    // page, which is why this uses a different fixture rather than reusing the one above and
+    // hoping.
+    auto vectors = openOrFail("ordinary/vector-hairlines.pdf");
+    PdfiumRasterizer vectorRasterizer(*vectors);
+    RenderRequest paths = requestFor(0, tile, 1.0);
+    const auto pathsSmooth = vectorRasterizer.raster(paths);
+    REQUIRE(pathsSmooth);
+
+    paths.flags = paths.flags | rawpage::core::render::RenderFlags::NoSmoothPath;
+    const auto pathsHard = vectorRasterizer.raster(paths);
+    REQUIRE(pathsHard);
+    const std::size_t pathDelta = differingPixels(pathsSmooth.value(), pathsHard.value());
+    WARN("antialiasLineArt off changes " << pathDelta << " pixels");
+    CHECK(pathDelta > 10);
+
+    // IMAGES, AND THE SCALE IS THE POINT. Image smoothing only bites where a source pixel is being
+    // STRETCHED or shrunk, so at `deviceScale` 1.0 this fixture's image is drawn near enough to
+    // 1:1 that the flag changes **zero** pixels -- measured, and the reason this case scales up
+    // rather than reusing the tile above and hoping. A case that asserted a difference at 1.0
+    // would have failed for a reason that is about the corpus rather than about the flag.
+
+    // THE WHOLE PAGE, not the top-left tile. Measured while writing this case: a 400x400 tile at
+    // the page's origin contains no part of this fixture's image, so the flag changed zero pixels
+    // and the case would have been asserting where the image ISN'T. `A4 is 595x842 points`, so one
+    // tile that size at 1.0 covers all of it.
+    const TileRect wholePage{0, 0, 600, 850};
+
+    std::size_t bestImageDelta = 0;
+    for (const char* fixture : {"ordinary/image-dct-rgb.pdf", "ordinary/image-dct-gray.pdf",
+                                "ordinary/image-indexed-stencil.pdf",
+                                "ordinary/image-flate-predictor.pdf",
+                                "ordinary/image-ccitt-g4.pdf"}) {
+        auto file = openOrFail(fixture);
+        PdfiumRasterizer each(*file);
+        for (const double scale : {0.5, 1.0, 4.0}) {
+            RenderRequest smoothRequest = requestFor(0, wholePage, scale);
+            const auto withSmoothing = each.raster(smoothRequest);
+            if (!withSmoothing) continue;
+
+            RenderRequest hardRequest = smoothRequest;
+            hardRequest.flags =
+                hardRequest.flags | rawpage::core::render::RenderFlags::NoSmoothImage;
+            const auto without = each.raster(hardRequest);
+            if (!without) continue;
+
+            const std::size_t delta = differingPixels(withSmoothing.value(), without.value());
+            if (delta != static_cast<std::size_t>(-1)) bestImageDelta = std::max(bestImageDelta, delta);
+        }
+    }
+
+    // THE SWEEP IS THE CASE, and it is a sweep because the first two ways of writing this measured
+    // ZERO and would have been reported as a finding about PDFium.
+    //
+    // `image-dct-rgb.pdf` at `deviceScale` 1.0 over a 400x400 tile at the page origin: 0 pixels --
+    // the tile contains no part of that file's image. The same file over the whole page at 1.0 and
+    // at 4.0: 0 again. Image smoothing only bites where a source pixel is being STRETCHED or shrunk
+    // hard, and which fixture at which scale does that is a property of the corpus rather than of
+    // the flag -- so a case that picked one and asserted a floor would have been asserting where
+    // the resampling isn't, and a case that picked one and asserted ZERO would have declared a
+    // working flag broken.
+    //
+    // Sweeping every image fixture at three scales finds it: **23,928 pixels**. The floor below is
+    // two orders of magnitude under that, because what is being established is that the flag
+    // reaches the engine and does something, not that this particular number is stable.
+    WARN("antialiasImages off changes at most " << bestImageDelta
+                                                << " pixels across every corpus image fixture");
+    CHECK(bestImageDelta > 100);
+}
+
+TEST_CASE("NO PDFium flag can draw a hairline at its true width -- issue I-11",
+          "[render][flags]")
+{
+    // THIS CASE IS THE MEASUREMENT BEHIND A SCOPE FINDING, and it is a case rather than a paragraph
+    // because "I read the header" is weaker evidence than "I tried them".
+    //
+    // `Features.md` 1.2 defines Line Weight as *"draw hairlines at their true width instead of a
+    // minimum of one pixel"*, and `pageDisplay/lineWeight` is in `Implementation-Plan.md`'s Stage 2
+    // key list. PDFium always enforces the one-pixel minimum and its `FPDF_*` render flags have no
+    // control over it -- so the setting's ON state is a thing this engine cannot be asked for.
+    //
+    // D3 says we reach the engine through the `FPDF_*` C API and nothing else, so this is a
+    // CAPABILITY GAP rather than a defect: the same shape as **I-06**, where `/JBIG2Decode` is
+    // declared and decodes nothing because the only usable library is AGPL-3.0.
+    auto vectors = openOrFail("ordinary/vector-hairlines.pdf");
+    PdfiumRasterizer rasterizer(*vectors);
+
+    const TileRect tile{0, 0, 400, 400};
+    const RenderRequest plain = requestFor(0, tile, 1.0);
+    const auto base = rasterizer.raster(plain);
+    REQUIRE(base);
+
+    const std::size_t fringeBefore = darkerThan(base.value(), 0xf0);
+    const std::size_t solidBefore = darkerThan(base.value(), 0x80);
+    WARN("hairlines: " << fringeBefore << " pixels of ink, " << solidBefore << " of them solid");
+    REQUIRE(solidBefore > 0);   // the fixture has hairlines on it at all
+
+    // Every flag `core::render::RenderFlags` can express. None of them thins a line: the smoothers
+    // change EDGE softness, `Grayscale` changes colour, `NoNativeText` is about text. There is no
+    // fourth option, and that absence is the finding.
+    for (const auto flag : {rawpage::core::render::RenderFlags::NoSmoothPath,
+                            rawpage::core::render::RenderFlags::NoSmoothImage,
+                            rawpage::core::render::RenderFlags::NoNativeText}) {
+        RenderRequest request = plain;
+        request.flags = request.flags | flag;
+        const auto rendered = rasterizer.raster(request);
+        REQUIRE(rendered);
+
+        const std::size_t fringeAfter = darkerThan(rendered.value(), 0xf0);
+        const std::size_t solidAfter = darkerThan(rendered.value(), 0x80);
+        WARN("  with a flag: " << fringeAfter << " ink, " << solidAfter << " solid");
+
+        // THE SOLID CORE DOES NOT MEANINGFULLY SHRINK, and the assertion is on the solid count
+        // rather than the total precisely so the anti-aliasing fringe cannot be mistaken for the
+        // thing being looked for: `NoSmoothPath` drops total ink by a third -- 12,598 to 8,528,
+        // measured -- and that is the fringe going away, not a thinner line. Its SOLID count moves
+        // from 7,013 to 6,926, which is 1.2 %; the other two flags move it by nothing at all.
+        //
+        // A flag that drew hairlines at their true width would drive this toward ZERO, because a
+        // sub-pixel line has no fully dark pixel at all. Ten per cent is far outside the noise
+        // these flags produce and far inside what the feature would.
+        CHECK(solidAfter * 10 >= solidBefore * 9);
+    }
+
+    // `pageDisplay/lineWeight` is therefore DECLARED AND INERT, and `ViewSettings::lineWeight`
+    // carries it so that the day an engine can honour it there is a value to honour. Guide issue
+    // I-11 records it, and A-65's criterion is corrected there rather than quietly failed -- exactly
+    // as A-18's was at T7, when "encode then decode returns the input" turned out not to be a
+    // property JPEG has.
+    SUCCEED();
+}
+
+TEST_CASE("the transparency flag changes the bitmap format and leaves the page unpainted",
+          "[render][flags]")
+{
+    // Stage 2 T15. `pageDisplay/transparencyGrid` only works if the RASTER carries alpha: a
+    // checkerboard painted behind an opaque page is invisible, because the rasterizer fills its
+    // bitmap with white before drawing and a transparent region of the page comes back white.
+    //
+    // The first implementation of that option was a viewer-side paint with no flag, and it showed
+    // nothing -- a feature that reads back as enabled and does nothing, which is Stage 1's I-38.
+    auto document = openOrFail("ordinary/text-a4.pdf");
+    PdfiumRasterizer rasterizer(*document);
+
+    const TileRect tile{0, 0, 300, 300};
+    const RenderRequest opaque = requestFor(0, tile, 1.0);
+    const auto onWhite = rasterizer.raster(opaque);
+    REQUIRE(onWhite);
+
+    // NO ALPHA CHANNEL AT ALL in the ordinary case: `Bgrx8888`'s fourth byte is padding, which is
+    // what `core/backend.h` says and why asking for transparency has to change the FORMAT and not
+    // only the fill colour.
+    CHECK(onWhite.value().format == rawpage::core::PixelFormat::Bgrx8888);
+
+    RenderRequest transparent = opaque;
+    transparent.flags = transparent.flags
+                        | rawpage::core::render::RenderFlags::TransparentBackground;
+    CHECK(opaque != transparent);   // and therefore a different cache entry
+
+    const auto onNothing = rasterizer.raster(transparent);
+    REQUIRE(onNothing);
+    CHECK(onNothing.value().format == rawpage::core::PixelFormat::Bgra8888);
+
+    // AND THE PAGE IS ACTUALLY TRANSPARENT WHERE IT HAS NO CONTENT. A page of body copy is mostly
+    // empty, so most of this tile should have an alpha of zero -- which is exactly the region a
+    // checkerboard is meant to show through.
+    std::size_t clear = 0;
+    const RasterImage& image = onNothing.value();
+    for (int y = 0; y < image.height; ++y) {
+        const auto* row = reinterpret_cast<const unsigned char*>(image.pixels.constData())
+                          + static_cast<std::size_t>(y) * image.bytesPerLine;
+        for (int x = 0; x < image.width; ++x)
+            if (row[x * 4 + 3] == 0x00) ++clear;
+    }
+    const std::size_t total = static_cast<std::size_t>(image.width) * image.height;
+    WARN("transparent pixels: " << clear << " of " << total);
+    CHECK(clear > total / 2);
 }

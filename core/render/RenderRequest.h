@@ -57,6 +57,20 @@ enum class RenderFlags : std::uint32_t {
     Grayscale = 1u << 2,     // render to grey, for print preview and low-ink modes
     NoSmoothText = 1u << 3,  // disable text antialiasing (a print path, and a golden-image lever)
     NoSmoothImage = 1u << 4,
+    NoSmoothPath = 1u << 6,  // disable antialiasing on line art -- `pageDisplay/antialiasLineArt`
+
+    // Render onto TRANSPARENT rather than onto white -- `pageDisplay/transparencyGrid`.
+    //
+    // IT HAS TO BE A RENDER FLAG, and finding that out is the whole story of the option. A
+    // checkerboard painted behind an OPAQUE page is invisible: the rasterizer fills its bitmap with
+    // white before drawing, so a transparent region of the page comes back white and covers the
+    // grid completely. Drawing the grid without this flag is a feature that reads back as enabled
+    // and shows nothing -- Stage 1's I-38 exactly, and the case that was written to assert the
+    // grid appears is what caught it.
+    //
+    // Being in the flag set puts it in the KEY, which is also right: a page rendered onto
+    // transparency is genuinely different pixels from the same page rendered onto white.
+    TransparentBackground = 1u << 7,
     NoNativeText = 1u << 5,  // never use the OS text renderer -- required for reproducible goldens
 };
 

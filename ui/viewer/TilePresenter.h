@@ -91,6 +91,18 @@ public:
 
     // Asks for everything `viewport` needs and cancels everything it no longer does. `viewport` is
     // in CONTENT space -- presented device pixels, the space `PageLayout` produces.
+    // The flags every request carries -- from `pageDisplay/antialias*` (S2 T15). They are part of
+    // `RenderRequest`'s key, so changing them does not invalidate anything: the new requests simply
+    // miss, and `PageView` drops the now-unreachable tiles explicitly.
+    void setRenderFlags(core::render::RenderFlags flags);
+    core::render::RenderFlags renderFlags() const noexcept { return flags_; }
+
+    // How many pages BEYOND those the viewport touches are requested speculatively --
+    // `performance/prefetchPages`. Counts PAGES; within a page the ring of tiles is `TileGrid`'s
+    // own `prefetchRings`, a different knob in a different unit.
+    void setPrefetchPages(int pages);
+    int prefetchPages() const noexcept { return prefetchPages_; }
+
     void requestTiles(const core::render::PageLayout& layout,
                       const core::render::Resolution& resolution,
                       const core::DeviceRect& viewport,
@@ -98,9 +110,13 @@ public:
 
     // Paints into `painter`, whose coordinate system is the WIDGET's (logical pixels, origin at the
     // viewport's top-left). `devicePixelRatio` converts, and is the one place the two spaces meet.
+    // `transparencyGrid` paints a checkerboard under the page instead of a white sheet, so a
+    // transparent region reads as transparent rather than as white-on-white. It is a VIEWER
+    // decision and not a render flag: the raster is identical either way, and what changes is what
+    // is behind it.
     void paint(QPainter& painter, const core::render::PageLayout& layout,
                const core::render::Resolution& resolution, const core::DeviceRect& viewport,
-               double devicePixelRatio) const;
+               double devicePixelRatio, bool transparencyGrid = false) const;
 
     // Drops every tile and cancels every ticket. Called when the document closes and when the
     // resolution moves far enough that nothing held is worth keeping.
@@ -159,6 +175,8 @@ private:
 
     core::render::RenderScheduler& scheduler_;
     core::render::TileGrid grid_;
+    core::render::RenderFlags flags_ = core::render::RenderFlags::Annotations;
+    int prefetchPages_ = 1;
 
     core::DocumentHandle document_;
     core::Revision revision_;

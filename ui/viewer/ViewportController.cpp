@@ -24,18 +24,6 @@ double clampTo(double value, double low, double high) noexcept
 
 } // namespace
 
-const char* fitModeName(FitMode mode) noexcept
-{
-    switch (mode) {
-    case FitMode::None: return "None";
-    case FitMode::Page: return "Page";
-    case FitMode::Width: return "Width";
-    case FitMode::Height: return "Height";
-    case FitMode::Visible: return "Visible";
-    }
-    return "None";
-}
-
 ViewportController::ViewportController(QObject* parent) : QObject(parent) {}
 
 void ViewportController::setViewportSize(core::DeviceSize size)

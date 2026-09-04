@@ -105,6 +105,69 @@ ScreenMetrics PageView::screenMetrics() const
     return metricsFor(screen(), topology_);
 }
 
+core::render::RenderFlags PageView::renderFlags() const noexcept
+{
+    using core::render::RenderFlags;
+
+    // INVERTED, and deliberately so at this boundary rather than in the settings table. The
+    // preference is *smooth text*, which is what a person turns on; the engine's flag is
+    // *no smooth text*, which is what PDFium understands. Naming the setting after the flag would
+    // put a double negative in the Preferences dialog.
+    RenderFlags flags = RenderFlags::Annotations;
+    if (!settings_.antialiasText) flags = flags | RenderFlags::NoSmoothText;
+    if (!settings_.antialiasImages) flags = flags | RenderFlags::NoSmoothImage;
+    if (!settings_.antialiasLineArt) flags = flags | RenderFlags::NoSmoothPath;
+
+    // NOT INVERTED, unlike the three above: the preference and the flag agree. Showing the grid
+    // requires the page to be rendered onto transparency, or the rasterizer's white fill covers the
+    // checkerboard and the option does nothing at all.
+    if (settings_.transparencyGrid) flags = flags | RenderFlags::TransparentBackground;
+    return flags;
+}
+
+void PageView::applySettings(const ViewSettings& settings)
+{
+    const ViewSettings previous = settings_;
+    settings_ = settings;
+
+    engine_.setDpiLimits([&] {
+        core::render::DpiPolicy::Limits limits;
+        limits.maxRenderDpi = static_cast<double>(settings_.maxRenderDpi);
+        return limits;
+    }());
+
+    core::render::PresentationOptions options = engine_.options();
+    options.showCoverInTwoUp = settings_.showCoverInTwoUp;
+    options.rtlBinding = settings_.rtlBinding;
+    engine_.setOptions(options);
+
+    if (presenter_) {
+        presenter_->setRenderFlags(renderFlags());
+        presenter_->setPrefetchPages(settings_.prefetchPages);
+    }
+
+    // ONLY ON THE FIRST APPLY. A default is what a document OPENS at; re-applying it on every
+    // change to the group would yank a person's layout back to Single Continuous because they went
+    // to Preferences to turn off image smoothing.
+    if (!settingsApplied_) {
+        settingsApplied_ = true;
+        controller_->setLayoutMode(settings_.layoutMode);
+        controller_->setFitMode(settings_.defaultZoom);
+    }
+
+    // A CHANGE TO THE RENDER FLAGS INVALIDATES NOTHING AUTOMATICALLY, because the flags are part of
+    // `RenderRequest`'s key -- so the new flags simply miss the cache and the old tiles age out.
+    // What has to happen is a re-request, which is what `refresh()` does. The old tiles are dropped
+    // explicitly rather than left to the LRU: they are now unreachable by any request this view
+    // will make, so keeping them is holding memory nothing can ever hit.
+    if (presenter_ && previous.antialiasText != settings_.antialiasText) presenter_->clear();
+    else if (presenter_ && previous.antialiasImages != settings_.antialiasImages) presenter_->clear();
+    else if (presenter_ && previous.antialiasLineArt != settings_.antialiasLineArt) presenter_->clear();
+    else if (presenter_ && previous.transparencyGrid != settings_.transparencyGrid) presenter_->clear();
+
+    refresh();
+}
+
 void PageView::setLayoutMode(core::render::LayoutMode mode)
 {
     controller_->setLayoutMode(mode);
@@ -449,7 +512,11 @@ void PageView::resizeEvent(QResizeEvent* event)
 
 void PageView::wheelEvent(QWheelEvent* event)
 {
-    if (event->modifiers().testFlag(Qt::ControlModifier)) {
+    // `pageDisplay/wheelZooms` SWAPS the two rather than making the wheel do both: with it on, a
+    // bare wheel zooms and `Ctrl`+wheel scrolls. A modifier that does nothing is a modifier people
+    // stop reaching for.
+    const bool control = event->modifiers().testFlag(Qt::ControlModifier);
+    if (control != settings_.wheelZooms) {
         const double notches = event->angleDelta().y() / kWheelNotch;
         if (std::abs(notches) < 0.01) {
             event->accept();
@@ -506,7 +573,7 @@ void PageView::paintEvent(QPaintEvent* event)
     if (!document_.isValid() || pages_ == nullptr || pages_->isEmpty()) return;
 
     presenter_->paint(painter, engine_.layout(), engine_.resolution(), controller_->visibleRect(),
-                      devicePixelRatioF());
+                      devicePixelRatioF(), settings_.transparencyGrid);
 
     // The marquee, on top of everything. Drawn from the palette's highlight rather than a
     // hard-coded blue, so it is visible in both themes (convention 20).

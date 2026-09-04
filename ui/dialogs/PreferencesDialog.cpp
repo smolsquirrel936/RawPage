@@ -36,6 +36,14 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
     // why these three and not the other 23.
     static const std::vector<SettingsGroup> pages{
         SettingsGroup::General,
+
+        // S2 T15. Two rows in this list and sixteen in `SettingsKeys.def` are the WHOLE of the
+        // Preferences work for them -- `SettingsPage` builds one typed editor per declared key
+        // (convention 17), so there is no widget code per setting and no second list saying which
+        // key belongs to which page. Five of 26 groups now ship.
+        SettingsGroup::PageDisplay,
+        SettingsGroup::PerformanceAndCache,
+
         SettingsGroup::Logging,
         SettingsGroup::Shortcuts,
     };

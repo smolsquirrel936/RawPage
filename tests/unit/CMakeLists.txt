@@ -22,7 +22,14 @@ add_executable(rawpage_tests
     tst_log.cpp
     tst_actionregistry.cpp        # Stage 1 T3
     tst_keybindings.cpp           # Stage 1 T4
-    tst_settings.cpp              # Stage 1 T5
+    tst_settings.cpp
+
+    # S2 T15 -- the sixteen pageDisplay/ and performance/ rows. Separate from tst_settings.cpp
+    # because that file tests the MECHANISM (typed get/set, clamping, migration, the codecs) and
+    # every one of its cases would pass with an empty table; this one tests the TABLE, including
+    # that the four defaults which used to live in C++ structs still agree with the rows that took
+    # them over.
+    tst_stage2settings.cpp        # Stage 2 T15 -- guide case A-63
     tst_recentfiles.cpp           # Stage 1 T5
     tst_commandline.cpp           # Stage 1 T8
     tst_logbuffer.cpp             # Stage 1 T14

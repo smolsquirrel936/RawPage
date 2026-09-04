@@ -59,11 +59,18 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
                            QString::number(request.pageIndex));
     }
 
+    // TRANSPARENT OR WHITE, and the choice reaches the bitmap's FORMAT as well as its fill.
+    // `Bgrx8888` has no alpha channel at all, so asking for a transparent background while
+    // reporting that format would hand `ui/` four bytes whose fourth is padding -- and the page
+    // would composite as opaque whatever was drawn.
+    const bool transparent =
+        core::render::hasFlag(request.flags, core::render::RenderFlags::TransparentBackground);
+
     core::RasterImage image;
     image.width = request.tile.width;
     image.height = request.tile.height;
     image.bytesPerLine = request.tile.width * 4;
-    image.format = core::PixelFormat::Bgrx8888;
+    image.format = transparent ? core::PixelFormat::Bgra8888 : core::PixelFormat::Bgrx8888;
 
     // Allocated before the lock is taken. A large allocation inside the engine lock would serialize
     // every worker on the allocator as well as on PDFium, which is the difference between a lock
@@ -80,6 +87,8 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         flags |= FPDF_RENDER_NO_SMOOTHTEXT;
     if (core::render::hasFlag(request.flags, core::render::RenderFlags::NoSmoothImage))
         flags |= FPDF_RENDER_NO_SMOOTHIMAGE;
+    if (core::render::hasFlag(request.flags, core::render::RenderFlags::NoSmoothPath))
+        flags |= FPDF_RENDER_NO_SMOOTHPATH;
     if (core::render::hasFlag(request.flags, core::render::RenderFlags::NoNativeText))
         flags |= FPDF_NO_NATIVETEXT;
 
@@ -105,18 +114,21 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         // copied out -- `FPDFBitmap_CreateEx` takes the stride, which is why `RasterImage` carries
         // one rather than assuming `width * 4` (I-03's argument, and the reason a padded buffer
         // draws diagonal garbage when a caller assumes otherwise).
-        FPDF_BITMAP bitmap =
-            FPDFBitmap_CreateEx(image.width, image.height, FPDFBitmap_BGRx,
-                                image.pixels.data(), image.bytesPerLine);
+        FPDF_BITMAP bitmap = FPDFBitmap_CreateEx(
+            image.width, image.height, transparent ? FPDFBitmap_BGRA : FPDFBitmap_BGRx,
+            image.pixels.data(), image.bytesPerLine);
         if (bitmap == nullptr) {
             FPDF_ClosePage(enginePage);
             return rasterError(core::ErrorCode::IoFailure, "error.render.failed",
                                QString::number(request.pageIndex));
         }
 
-        // White, not transparent. A page is paper; `Bgrx8888` carries no alpha, and leaving the
-        // buffer uninitialized would render text onto whatever the allocator last held.
-        FPDFBitmap_FillRect(bitmap, 0, 0, image.width, image.height, 0xFFFFFFFF);
+        // WHITE unless the transparency grid asked otherwise. A page is paper, and leaving the
+        // buffer uninitialized would render text onto whatever the allocator last held -- so the
+        // fill is unconditional and only its COLOUR moves. `0x00000000` is fully transparent
+        // black, which is what lets a viewer show what is behind an unpainted region.
+        FPDFBitmap_FillRect(bitmap, 0, 0, image.width, image.height,
+                            transparent ? 0x00000000 : 0xFFFFFFFF);
 
         // THE CALL THAT LOOKS WRONG AND IS NOT. The size arguments are the WHOLE scaled page and
         // the origin is NEGATIVE: that is how `FPDF_RenderPageBitmap` renders a region into a

@@ -173,14 +173,14 @@ TEST_CASE("the zoom ladder always moves and stops at the ends", "[viewport]")
 TEST_CASE("stepping the zoom clears the fit mode", "[viewport]")
 {
     ui::ViewportController controller;
-    controller.setFitMode(ui::FitMode::Width);
-    REQUIRE(controller.fitMode() == ui::FitMode::Width);
+    controller.setFitMode(core::render::FitMode::Width);
+    REQUIRE(controller.fitMode() == core::render::FitMode::Width);
 
     // The user chose a number, so the view is no longer fitting anything. A viewer that kept the
     // mode would snap back to fit-width on the next resize and lose the zoom that was just asked
     // for -- which reads as the zoom command not working.
     controller.zoomIn();
-    CHECK(controller.fitMode() == ui::FitMode::None);
+    CHECK(controller.fitMode() == core::render::FitMode::None);
 }
 
 // =============================================================================================
@@ -201,7 +201,7 @@ TEST_CASE("fit width and fit page account for the margins", "[viewport]")
     const ui::ScreenMetrics metrics = nominalMetrics();          // 96 DPI
     const core::DeviceSize viewport{800.0, 600.0};
 
-    const Zoom width = engine.zoomForFit(ui::FitMode::Width, viewport, 0, metrics, Zoom{1.0});
+    const Zoom width = engine.zoomForFit(core::render::FitMode::Width, viewport, 0, metrics, Zoom{1.0});
 
     // At 96 DPI an A4 page is `595.276 * 96/72` device pixels wide. Fitting 800 minus two 12-pixel
     // margins is that width over the available space -- computed here from the same inputs rather
@@ -211,13 +211,13 @@ TEST_CASE("fit width and fit page account for the margins", "[viewport]")
 
     // FIT PAGE TAKES THE SMALLER of the two, so the whole page is inside the viewport. Taking the
     // larger fits one axis and crops the other, which is what "fit page" is defined not to do.
-    const Zoom page = engine.zoomForFit(ui::FitMode::Page, viewport, 0, metrics, Zoom{1.0});
+    const Zoom page = engine.zoomForFit(core::render::FitMode::Page, viewport, 0, metrics, Zoom{1.0});
     const double expectedHeight = (600.0 - 24.0) / (kA4Height * (96.0 / 72.0));
     CHECK(nearly(page.factor, std::min(expectedWidth, expectedHeight), 1e-9));
     CHECK(page.factor < width.factor);
 
     // `None` returns what it was handed, so a caller may pass it unconditionally.
-    CHECK(engine.zoomForFit(ui::FitMode::None, viewport, 0, metrics, Zoom{0.37}) == Zoom{0.37});
+    CHECK(engine.zoomForFit(core::render::FitMode::None, viewport, 0, metrics, Zoom{0.37}) == Zoom{0.37});
 }
 
 TEST_CASE("a fit is computed against the PHYSICAL dpi, not a nominal 96", "[viewport]")
@@ -238,8 +238,8 @@ TEST_CASE("a fit is computed against the PHYSICAL dpi, not a nominal 96", "[view
     real.source = ui::ScreenMetrics::Source::Topology;
 
     const core::DeviceSize viewport{2400.0, 1400.0};
-    const Zoom withNominal = engine.zoomForFit(ui::FitMode::Width, viewport, 0, nominal, Zoom{1.0});
-    const Zoom withReal = engine.zoomForFit(ui::FitMode::Width, viewport, 0, real, Zoom{1.0});
+    const Zoom withNominal = engine.zoomForFit(core::render::FitMode::Width, viewport, 0, nominal, Zoom{1.0});
+    const Zoom withReal = engine.zoomForFit(core::render::FitMode::Width, viewport, 0, real, Zoom{1.0});
 
     CHECK(withReal.factor < withNominal.factor);
     CHECK(nearly(withNominal.factor / withReal.factor, 163.0 / 144.0, 1e-9));
@@ -256,15 +256,15 @@ TEST_CASE("a fit refuses to divide by zero and returns what it was given", "[vie
     // A viewport with no area, and a page index that does not exist. Both are ordinary states --
     // a window being created, a document being replaced -- and neither may produce an infinity
     // that propagates into `DpiPolicy` as a rasterization resolution.
-    CHECK(engine.zoomForFit(ui::FitMode::Width, core::DeviceSize{0.0, 0.0}, 0, metrics, Zoom{1.0})
+    CHECK(engine.zoomForFit(core::render::FitMode::Width, core::DeviceSize{0.0, 0.0}, 0, metrics, Zoom{1.0})
           == Zoom{1.0});
-    CHECK(engine.zoomForFit(ui::FitMode::Width, core::DeviceSize{800.0, 600.0}, 40, metrics,
+    CHECK(engine.zoomForFit(core::render::FitMode::Width, core::DeviceSize{800.0, 600.0}, 40, metrics,
                             Zoom{1.0})
           == Zoom{1.0});
 
     // And with no document at all.
     ui::PageLayoutEngine empty;
-    CHECK(empty.zoomForFit(ui::FitMode::Page, core::DeviceSize{800.0, 600.0}, 0, metrics, Zoom{2.0})
+    CHECK(empty.zoomForFit(core::render::FitMode::Page, core::DeviceSize{800.0, 600.0}, 0, metrics, Zoom{2.0})
           == Zoom{2.0});
 }
 

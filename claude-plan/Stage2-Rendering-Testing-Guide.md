@@ -7,17 +7,20 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
-> T6's on 2026-09-03, and T7 … T13's on 2026-09-04.**
-> **80 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> T6's on 2026-09-03, and T7 … T15's on 2026-09-04.**
+> **81 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
-> case for, **A-79** at T13 — see I-09 — and **A-80** at T14, for a view rotation this guide was
-> written before anyone noticed the render path could not carry) and **10 manual** (M-01 … M-10), of
-> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-47, A-52 … A-60 and A-75 … A-80 are
-> green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
-> A-46 the second half it had been waiting for since T1), and **A-61 and A-62 are 🟡 — the half an
-> automated run can reach is green and the other half is named, with its owner**: a real mid-session
-> scale change is manual case **M-02's**, and the battery throttle is **T15's**, because the settings
-> key it names does not exist yet. Every other box is still ☐. **Three are Linux jobs this machine cannot
+> case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
+> written before anyone noticed the render path could not carry, and **A-81** at T15, the
+> measurement behind I-11) and **10 manual** (M-01 … M-10), of
+> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-47, A-52 … A-60, A-63, A-64 and
+> A-75 … A-81 are green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
+> A-46 the second half it had been waiting for since T1), and **A-61, A-62 and A-65 are 🟡, each with the half it
+> does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
+> A-62's battery throttle is WIRED as of T15 and its effect is unobservable on a desktop with no
+> battery, so that case still SKIPS by name; and A-65's five toggles are three measured green, one
+> corrected (`transparencyGrid` needed a render flag, which it now has) and one the engine cannot
+> express at all (`lineWeight` — issue **I-11**). Every other box is still ☐. **Three are Linux jobs this machine cannot
 > run and none should be read as merely pending: A-04**, and **A-25** and **A-26**, whose targets
 > both exist but have never been linked or run because there is no clang here. **A-24 joins them at
 > T8** — the ASan corpus run is the same Linux job.
@@ -30,7 +33,7 @@
 > walking**: the §8 Viewer chords work, the status bar reports real numbers, and a repaired file says
 > so. M-05 … M-10 still need golden baselines (T17), fonts (T16), the settings keys (T15) or
 > Dr. Memory.
-> The issue log holds **ten** entries. **I-01** (S3) — two
+> The issue log holds **eleven** entries. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
@@ -295,6 +298,7 @@ and the case that closes it.
 | Mixed-DPI dragging is correct | A-28, A-29, A-60, A-61, **M-01**, **M-02** |
 | *(plan T13)* **A page is on screen** | A-52, A-53, **A-79**, **M-03** — and the three are complementary rather than redundant: A-52 asserts the geometry the layout gave the widget (without which A-53 is green and worthless), A-53 asserts real pixels through the real viewer over a FAKE rasterizer (`ui/` may not link an engine — D1-4), A-79 asserts real pixels from the REAL engine through the real scheduler with no widget, and **only M-03 sees the two halves meet on glass** |
 | *(plan T14)* **Every §8 Viewer chord dispatches** | A-55's second half, **A-80** for the rotation, and `ui.every Stage 2 Viewer chord dispatches from the viewer`, which walks all 23 — with its companion asserting the other seven are still `NotImplemented` |
+| *(plan T15)* The sixteen settings keys exist, round-trip, and change the render | **A-63**, **A-64**, **A-65** — and A-65 is 🟡 by CORRECTION rather than by failure: see **I-11** |
 | *(plan T14, D2-10)* A disabled registered command says **why** | **A-59**, four cases; and **M-04** for a person actually reading it, which no offscreen run can do |
 | *(plan T13, D2-8)* `KeyContext::Viewer` resolves, and only in the viewer | A-55, **A-56** — the negative is the one that tests context resolution; a chord that fired everywhere would pass A-55 |
 | **A2 has a recorded verdict with numbers** | A-68, **M-04**, §3 |
@@ -1580,21 +1584,88 @@ wire is made of is what T12 owes, and it is here. **If it fails** S3.
 
 ### 5.11 Settings, fonts, glyphs
 
-**A-63 · The sixteen keys round-trip** ☐
+**A-63 · The sixteen keys round-trip** ✅ **2026-09-04 (T15)**
 **Expect** Each `SettingsKeys.def` row gets/sets its declared type; defaults match §2's table; an
 undeclared key still does not compile (D1-10, and the negative-compile fixture still passes).
-**If it fails** S2.
+**Result 2026-09-04.** `tests/unit/tst_stage2settings.cpp`, six cases, and it is a file of its own
+rather than sixteen more in `tst_settings.cpp` because those two test different things:
+`tst_settings` tests the MECHANISM — typed get and set, clamping, migration, the codecs — and every
+one of its cases would pass over an empty table. This one tests the TABLE.
+Every value written in the round-trip case is DIFFERENT from its default, so a `get` that silently
+ignored the file would read the default back and fail — which is the failure A-63 exists for.
+**Three things beyond the round trip:**
+- **The four defaults that changed owner are asserted to still agree with the structs they came
+  from** — `DpiPolicy::Limits::maxRenderDpi`, `RenderCache::Config::memoryCapBytes` and
+  `diskCapBytes`, `RenderScheduler::Config::workerCount`. Each of those had said in its own comment
+  that the row would take over; this is what makes that a check rather than a promise.
+- **The two enums are stored as their own NAMES, and the case reads the INI's bytes.** An
+  enumerator's value changes the day somebody inserts a mode in the middle, which would silently
+  reinterpret every saved preference — `SettingsKeys.def` rule 1 is that the file is read back by
+  later versions.
+- **A nonsense value falls back rather than being invented.** `fitModeFromName` answers `nullopt`
+  for a name it does not know precisely so a typo cannot silently mean *actual size*, which is a
+  real value and therefore indistinguishable from a deliberate choice. And the ranged rows CLAMP
+  rather than refuse (rule 3): a hand-edited INI must not prevent startup.
+**Negative control run:** writing the enums as integers reddens two cases. **If it fails** S2.
 
-**A-64 · Two new Preferences groups are generated, not hand-laid-out** ☐ **Goal** Convention 17.
+**A-64 · Two new Preferences groups are generated, not hand-laid-out** ✅ **2026-09-04 (T15)**
+**Goal** Convention 17.
 **Expect** Page Display and Performance appear with one editor per key, built by `SettingsPage`
 `#include`ing the `.def`. **Five of 26 groups now ship.** No widget code was added per key.
+**Result 2026-09-04, and the diff is the evidence:** two entries in
+`PreferencesDialog::shippedPages()` and sixteen rows in `SettingsKeys.def`. Not one line of widget
+code was written for any of the sixteen.
+The case counts editors **from the table** rather than against a literal — a case asserting "11"
+would be a second copy of the row count and would go stale the day a twelfth `pageDisplay/` key is
+declared, which is convention 17's own argument turned on the test. It also asserts the two enum
+rows became COMBO BOXES and the ranged rows became SPIN BOXES: that follows from
+`SettingsEditorTraits<T>`, which is a property of the TYPE, and a page built from runtime
+descriptors could not have known it.
 **If it fails** S2 — a hand-built page means the mechanism has been bypassed and every later stage pays.
 
-**A-65 · Rendering flags visibly change the render** ☐
+**A-65 · Rendering flags visibly change the render** 🟡 **2026-09-04 (T15) — three of the five
+measured green, and the criterion is CORRECTED for the other two rather than narrowed**
 **Expect** Toggling `antialiasText`, `antialiasImages`, `antialiasLineArt`, `lineWeight` and
 `transparencyGrid` each produce a **measurably different** raster of the same page — asserted against
-golden variants, not by eye. **If it fails** S2: a setting that reads back and changes nothing is Stage
-1's I-38 repeating, and that one was only caught by a person.
+golden variants, not by eye.
+**Result 2026-09-04. The criterion turned out to be two different claims wearing one sentence**, and
+correcting it is the same call T7 made about A-18, when *encode then decode returns the input* turned
+out not to be a property JPEG has:
+
+| toggle | changes the raster? | measured |
+|---|---|---|
+| `antialiasText` | yes | **51,279 pixels** on `ordinary/text-a4.pdf` |
+| `antialiasLineArt` | yes | **9,048 pixels** on `ordinary/vector-hairlines.pdf` |
+| `antialiasImages` | yes | **23,928 pixels**, swept across every image fixture at three scales |
+| `transparencyGrid` | **yes — and finding that out is the story below** | the raster changes format and the page comes back mostly transparent |
+| `lineWeight` | **no, and it cannot** | PDFium has no such control — issue **I-11** |
+
+**Golden variants are T17's**, so the comparison is between the two rasters directly rather than
+against a baseline — which is available now and is a stronger claim than a baseline would be, since
+it cannot be satisfied by a baseline that was captured wrong.
+**The image measurement is the one to read.** Two straightforward ways of writing it measured ZERO
+and would have been reported as a finding about PDFium: `image-dct-rgb.pdf` at scale 1.0 over a
+400×400 tile at the page origin (the tile contains no part of that file's image), and the same file
+over the whole page at 1.0 and at 4.0. Image smoothing only bites where a source pixel is resampled
+hard, and **which fixture at which scale does that is a property of the corpus rather than of the
+flag** — so the case sweeps every image fixture at three scales rather than picking one and
+asserting a floor. A case that had picked one and asserted zero would have declared a working flag
+broken.
+**AND `transparencyGrid` WAS WRONG WHEN THIS RESULT WAS FIRST WRITTEN.** It was implemented as a
+viewer-side paint — a checkerboard drawn under the page, no render flag, and the note here said it
+"changes no pixel of any raster, and correctly". Writing the case that asserts the grid APPEARS is
+what showed otherwise: the rasterizer fills its bitmap with white before drawing, so a transparent
+region of the page comes back opaque white and covers the checkerboard completely. **A feature that
+reads back as enabled and displays nothing is Stage 1's I-38 exactly**, and it was one edit away
+from shipping as one.
+So `RenderFlags::TransparentBackground` exists; `PdfiumRasterizer` switches the bitmap to `BGRA` and
+fills with `0x00000000`; and the flag is part of the cache key, which is also right — a page
+rendered onto transparency is genuinely different pixels. Measured over the real engine: a tile of
+`ordinary/text-a4.pdf` comes back **more than half fully transparent**, which is the region the grid
+is meant to show through. The viewer half is asserted in `tests/ui`, where the painted result
+differs and every held request carries the flag.
+**If it fails** S2: a setting that reads back and changes nothing is Stage 1's I-38 repeating, and
+that one was only caught by a person.
 
 **A-66 · A missing embedded font substitutes through OUR policy** ☐
 **Expect** A corpus file with a missing embedded font renders, and the case **names the substitute
@@ -1605,6 +1676,31 @@ a document looks wrong on a customer's machine.
 **A-67 · `GlyphCache` hits across tiles and pages** ☐
 **Expect** Rendering two adjacent tiles of one text page rasterizes each distinct glyph once.
 **If it fails** S3.
+
+**A-81 · NO PDFium flag can draw a hairline at its true width — the measurement behind I-11**
+✅ **2026-09-04 (T15)** — **a case this guide did not list**, added with T15.
+**Goal** `Features.md` §1.2 defines Line Weight as *"draw hairlines at their true width instead of a
+minimum of one pixel"*, and `pageDisplay/lineWeight` is in `Implementation-Plan.md`'s Stage 2 key
+list. **PDFium always enforces the one-pixel minimum and has no `FPDF_*` control over it**, so the
+setting's ON state is a thing this engine cannot be asked for — and D3 says the `FPDF_*` C API is
+the only way we reach it.
+**This is a case rather than a paragraph because "I read the header" is weaker evidence than "I
+tried them"**, which is the same standard T4 applied to the corpus and T3 to the A2 probe.
+**Steps** `ctest -R "NO PDFium flag"`.
+**Expect** Over `corpus/ordinary/vector-hairlines.pdf`, every flag `core::render::RenderFlags` can
+express is applied in turn and the **solid ink coverage** does not fall.
+**The threshold is the point.** Counting every non-white pixel counts the anti-aliasing FRINGE, and
+`NoSmoothPath` reduces that by a third — 12,598 to 8,528 — which looks like a thinner line and is
+not one. Counting only pixels darker than `0x80` counts the line's CORE, and that moves from 7,013
+to 6,926: **1.2 %**. The other two flags move it by nothing at all. A flag that drew hairlines at
+their true width would drive it toward zero, because a sub-pixel line has no fully dark pixel.
+**Result 2026-09-04: green, and the finding stands.** `pageDisplay/lineWeight` is declared and
+inert — issue **I-11**, the same shape as **I-06**, where `/JBIG2Decode` is declared and decodes
+nothing because the only usable library is AGPL-3.0. `ViewSettings::lineWeight` carries the value so
+that the day an engine can honour it there is a value to honour, and `tests/ui` asserts that it
+round-trips, reaches the view and changes no render flag.
+**If it fails** S3 — and a failure here would be GOOD NEWS: it would mean a flag does thin a line,
+and I-11 should be closed rather than the case fixed.
 
 ### 5.12 The measurement, CI, and Stage 1's carry-overs
 
@@ -1861,7 +1957,9 @@ was. If a row here turns out to be wrong, that is itself a finding.
 | **A protected document opens read-only and the banner says so** | Correct at Stage 2. Permissions are `core/doc/Permissions` at **Stage 10**; today the banner reports only that a password was asked for |
 | ~~The status bar's page total is still an em dash, with a page on screen~~ | Correct at T13 — the status bar gets real numbers at **T14**. "1 of 1 at 100 %" over a document nothing has counted is the lie T9 refused to tell, and T13 did not start telling it |
 | ~~Every §8 Viewer chord does nothing~~ *(T13's row, kept for a walker who read it)* | Was correct at T13. `KeyContext::Viewer` resolved and nothing was registered; **T14 registered 25 commands** and the row above replaces this one |
-| Anti-aliasing, line weight and the resolution cap cannot be changed | Correct — the sixteen `pageDisplay/` and `performance/` keys land at **T15**, and until then `DpiPolicy::Limits` and `RenderCache::Config` are the defaults' only home |
+| ~~Anti-aliasing, line weight and the resolution cap cannot be changed~~ | **Fixed at T15** for fifteen of the sixteen keys, and the sixteenth is **I-11**: PDFium always draws a hairline at a minimum of one pixel and has no flag over it, so Line Weight is a checkbox that does nothing. Measured, not assumed — case A-81 |
+| **The Preferences dialog has five pages and `Features.md` describes 26** | Correct. A group gets a page when its keys exist; the other 21 arrive with the stages that declare their settings |
+| **`performance/renderWorkers` changes nothing until the application is restarted** | Correct, and said on the row itself: a worker pool's threads are made once. The two cache SIZES are live |
 | A page appears a moment after the tab does, rather than with it | Correct, and it is D10's whole promise: the UI thread never rasterizes. The sheet and its border are drawn immediately and the tiles land on top |
 | **A missing embedded font renders in something else, silently** | Correct at T13 — PDFium's own substitution. **Our** policy, and a case that names the substitute, is **T16** (A-66). Do not grade M-03's typography before then |
 | A benchmark's exit code is 0 on a slow machine | Correct. A benchmark **reports**; its exit code is about whether the measurement was possible |
@@ -1893,9 +1991,18 @@ document means **Stage 1's**, and says so where it appears.
 | **I-08** | S2 | **`IDocumentBackend::pages()` was declared on the CONCRETE backend, where `ui/` could never reach it.** T9 added `pages()` and `repairReport()` to `pdf::DocumentBackendImpl` with a comment saying `ui/` would reach them *"through the backend it was handed, which is still a `core::` type"*. That is not achievable and could not have been: `ui/` is handed a `core::IDocumentBackend&`, `ui/` may never name `pdf/` (the linker enforces it — `rawpage_ui` links neither `rawpage_cos` nor `rawpage_pdfium`), and a `dynamic_cast` to the concrete type would be the layering violation the whole boundary exists to prevent. It was invisible at T9 because **nothing in `ui/` needed a page tree until there was a viewer**: `openFiles()` asked the backend whether the bytes were a PDF, threw the handle away, and never asked what was in the file. T13 is the first task that needs it, and it is where the gap became reachable rather than theoretical. **Fixed by moving the declaration onto `core::IDocumentBackend`**: opening a document and saying what is in it are the same responsibility, and `open()` already returns a handle that means nothing without it. `repairReport()` deliberately stays on the concrete type until **T14**, its first consumer — a service handed to every caller ahead of the first that reads it is the shape Stage 1 found five times (I-34, I-42, I-43, I-46, I-47). | ✅ **Closed 2026-09-04 at T13** |
 | **I-09** | S3 | **The one render arrangement the product actually runs was the one arrangement nothing tested.** Raised at **T13** while writing the composition root: the adapter that turns a `RenderRequest`'s `DocumentHandle` back into an engine was a class private to `CompositionRoot.cpp`, and every suite that could have driven it fakes one end of the path — `tests/unit` and `tests/ui` may not link an engine at all (D2-2, D1-4), and `tests/render`'s existing cases call `PdfiumRasterizer` with no scheduler. Not a defect in any of them; a gap between them, and the same shape as Stage 1's built-but-unreachable findings. **Fixed by making it `app/BackendRasterizer.h`**, a header naming only `core/` types, so `tests/render/tst_renderpipeline.cpp` (case **A-79**) drives the shipped class rather than a second copy that could agree with a mistake in it. | ✅ **Closed 2026-09-04 at T13** |
 | **I-10** | S3 | **Stage 1's I-53 named a mechanism that does not do what the note said it did.** I-53 recorded that the *registered-but-currently-refused* tooltip was unbuilt and that "the mechanism to fill it in exists and is unused — a `tooltipKey` on the registration". Building it at **T14** found that `Registration::tooltipKey` is the tooltip an **ENABLED** control shows: reusing it for the refusal reason put *needs a document to be open* on every enabled Viewer button, which is a worse sentence than the one I-53 was about. The two are shown in mutually exclusive states and say opposite things — *what this does* against *why it cannot* — so one field cannot serve both. **Fixed with a second field**, `Registration::unavailableKey`, read only while the action is disabled. The finding is worth the entry not for its size but for its shape: **a deferral's note about how it will be fixed is a guess made by someone who did not build it**, and this one was carried through a stage boundary and two documents as though it were a design. | ✅ **Closed 2026-09-04 at T14** |
+| **I-11** | S3 | **`pageDisplay/lineWeight` is DECLARED AND INERT: PDFium cannot draw a hairline at its true width.** `Features.md` §1.2 defines the option as *"draw hairlines at their true width instead of a minimum of one pixel"* and `Implementation-Plan.md` lists the key among Stage 2's sixteen. Building them at **T15** found that PDFium always enforces the one-pixel minimum and exposes no `FPDF_*` flag over it — and D3 says that C API is the only way this project reaches the engine, so this is a CAPABILITY GAP rather than a defect. **Measured rather than asserted** (case **A-81**): every flag `RenderFlags` can express, applied to `corpus/ordinary/vector-hairlines.pdf`, moves the solid ink coverage by at most 1.2 % — `NoSmoothPath` reduces the total ink by a third, but that is the anti-aliasing fringe rather than the line. **The row is declared rather than left out** because the setting is real, the plan lists it, and an absent row is indistinguishable from one nobody thought of; `ViewSettings::lineWeight` carries the value so the day an engine can honour it there is a value to honour. Same shape as **I-06**. **A-65's criterion is corrected rather than narrowed**, as A-18's was at T7. | 🟡 **OPEN by decision** — raised 2026-09-04 at T15. Closed by an engine that can express it, or by the user deciding the option should be withdrawn from `Features.md` |
 
-**One S2 open — I-02 (T7/T16) — plus two S3 open, I-04 (T16) and I-06 (JBIG2). Seven closed: I-01 and
-I-03 before any code, I-05 at T11, I-07 at T12, I-08 and I-09 at T13, and I-10 at T14.**
+**One S2 open — I-02 (T7/T16) — plus three S3 open: I-04 (T16), I-06 (JBIG2) and I-11 (line
+weight). Seven closed: I-01 and I-03 before any code, I-05 at T11, I-07 at T12, I-08 and I-09 at
+T13, and I-10 at T14.**
+
+**I-06 and I-11 are the same finding twice, and the pattern is worth naming.** Both are a feature
+this document set specified, that the engine or the licence cannot deliver, found by BUILDING it
+rather than by reading about it — and both were kept as a declared-and-inert surface rather than
+deleted, so that the day the constraint lifts there is a row to fill in and a case that says what
+"filled in" would look like. Neither is a defect and neither should be triaged as one; what would be
+a defect is either of them quietly doing something that looks like the feature.
 **I-04 moves from T14 to T16**: it is the `orphan-key`/referenced-key gate rule, T14 had no reason to
 touch `i18n-lint` and did not, and a task tag that quietly passes is how an item becomes permanent. Its
 owner is now the next task that edits that tool.
@@ -1917,7 +2024,7 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-80 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-81 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.

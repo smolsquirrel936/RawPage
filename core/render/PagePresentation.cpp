@@ -70,6 +70,17 @@ bool intersects(const DeviceRect& a, const DeviceRect& b) noexcept
 
 } // namespace
 
+std::optional<LayoutMode> layoutModeFromName(std::string_view name) noexcept
+{
+    // `nullopt` for a name this function does not know -- `Settings` then falls back to the
+    // declared default and logs it, rather than a typo silently meaning "single page".
+    for (const LayoutMode mode : {LayoutMode::Single, LayoutMode::SingleContinuous,
+                                  LayoutMode::TwoUp, LayoutMode::TwoUpContinuous}) {
+        if (name == layoutModeName(mode)) return mode;
+    }
+    return std::nullopt;
+}
+
 const char* layoutModeName(LayoutMode mode) noexcept
 {
     switch (mode) {

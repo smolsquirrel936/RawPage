@@ -31,6 +31,14 @@
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
 
+// THE SETTINGS TABLE NAMES `core/render/` VOCABULARY as of Stage 2 T15 -- `pageDisplay/layoutMode`
+// is a `render::LayoutMode` and `pageDisplay/defaultZoom` is a `render::FitMode`. Both are `core/`,
+// so this widens nothing; what it avoids is a parallel pair of enums in `core/settings/` listing
+// the same values, which is `SettingsKeys.def` rule 2's argument applied to a type instead of to a
+// default. `FitMode` MOVED into `core/render/` for exactly this reason.
+#include "core/render/DpiPolicy.h"
+#include "core/render/PagePresentation.h"
+
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -314,6 +322,34 @@ template <> struct SettingsCodec<Theme> {
     static Theme fromDefault(Theme value) { return value; }
 };
 
+// The two Stage 2 enums. Both write the name their own `*Name()` function returns, so a combo box
+// cannot offer a value the file cannot hold -- and both answer `nullopt` for a name they do not
+// know, which makes `Settings` fall back to the declared default AND log it, rather than a typo in
+// a hand-edited INI silently meaning something real.
+template <> struct SettingsCodec<render::LayoutMode> {
+    static QVariant toVariant(render::LayoutMode value)
+    {
+        return QVariant(QString::fromUtf8(render::layoutModeName(value)));
+    }
+    static std::optional<render::LayoutMode> fromVariant(const QVariant& variant)
+    {
+        return render::layoutModeFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static render::LayoutMode fromDefault(render::LayoutMode value) { return value; }
+};
+
+template <> struct SettingsCodec<render::FitMode> {
+    static QVariant toVariant(render::FitMode value)
+    {
+        return QVariant(QString::fromUtf8(render::fitModeName(value)));
+    }
+    static std::optional<render::FitMode> fromVariant(const QVariant& variant)
+    {
+        return render::fitModeFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static render::FitMode fromDefault(render::FitMode value) { return value; }
+};
+
 template <> struct SettingsCodec<LogLevel> {
     static QVariant toVariant(LogLevel value) { return QVariant(QString::fromUtf8(logLevelName(value))); }
     static std::optional<LogLevel> fromVariant(const QVariant& variant)
@@ -450,6 +486,36 @@ template <> struct SettingsEditorTraits<Theme> {
             const std::string_view token = themeName(theme);
             out.push_back(SettingsChoice{std::string(token),
                                          "shell.theme." + std::string(token)});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<render::LayoutMode> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const render::LayoutMode mode :
+             {render::LayoutMode::Single, render::LayoutMode::SingleContinuous,
+              render::LayoutMode::TwoUp, render::LayoutMode::TwoUpContinuous}) {
+            const std::string token = render::layoutModeName(mode);
+            out.push_back(SettingsChoice{token, "prefs.choice.layoutMode." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<render::FitMode> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const render::FitMode mode : {render::FitMode::None, render::FitMode::Page,
+                                           render::FitMode::Width, render::FitMode::Height,
+                                           render::FitMode::Visible}) {
+            const std::string token = render::fitModeName(mode);
+            out.push_back(SettingsChoice{token, "prefs.choice.fitMode." + token});
         }
         return out;
     }

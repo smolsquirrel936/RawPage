@@ -109,7 +109,7 @@ void PageLayoutEngine::setOptions(core::render::PresentationOptions options)
 bool PageLayoutEngine::update(Zoom zoom, ScreenMetrics metrics, core::render::LayoutMode mode,
                               int currentPage, core::PageRotation viewRotation)
 {
-    const core::render::DpiPolicy policy;
+    const core::render::DpiPolicy policy(limits_);
     const core::render::Resolution resolution =
         policy.resolve(zoom, metrics.scale, metrics.physical);
 

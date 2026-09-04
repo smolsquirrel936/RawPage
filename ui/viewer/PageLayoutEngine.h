@@ -85,6 +85,12 @@ public:
     int pageCount() const noexcept;
 
     void setOptions(core::render::PresentationOptions options);
+
+    // The rendering resolution cap, from `pageDisplay/maxRenderResolution` (S2 T15). It is a
+    // `DpiPolicy::Limits` rather than a bare number because the resample tolerance travels with it,
+    // and because `DpiPolicy` is the object that owns what a limit MEANS.
+    void setDpiLimits(core::render::DpiPolicy::Limits limits) noexcept { limits_ = limits; }
+    const core::render::DpiPolicy::Limits& dpiLimits() const noexcept { return limits_; }
     const core::render::PresentationOptions& options() const noexcept
     {
         return presentation_.options();
@@ -122,6 +128,7 @@ private:
     core::render::PageLayout layout_;
     core::render::Resolution resolution_;
     core::PageRotation viewRotation_ = core::PageRotation::None;
+    core::render::DpiPolicy::Limits limits_{};
 };
 
 } // namespace rawpage::ui

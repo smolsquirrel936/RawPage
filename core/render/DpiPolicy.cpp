@@ -4,6 +4,31 @@
 #include <cmath>
 
 namespace rawpage::core::render {
+
+const char* fitModeName(FitMode mode) noexcept
+{
+    switch (mode) {
+    case FitMode::None: return "none";
+    case FitMode::Page: return "page";
+    case FitMode::Width: return "width";
+    case FitMode::Height: return "height";
+    case FitMode::Visible: return "visible";
+    }
+    return "none";
+}
+
+std::optional<FitMode> fitModeFromName(std::string_view name) noexcept
+{
+    // A NAME THIS FUNCTION DOES NOT KNOW IS `nullopt`, NOT `None`. `Settings` falls back to the
+    // declared default and LOGS the rejection; answering `None` here would make a typo in a
+    // hand-edited INI silently mean "actual size", which is a real value and therefore
+    // indistinguishable from a deliberate choice.
+    for (const FitMode mode : {FitMode::None, FitMode::Page, FitMode::Width, FitMode::Height,
+                               FitMode::Visible}) {
+        if (name == fitModeName(mode)) return mode;
+    }
+    return std::nullopt;
+}
 namespace {
 
 // The fallbacks. Every one of them is a value that draws SOMETHING readable rather than a value

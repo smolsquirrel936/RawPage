@@ -13,7 +13,7 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T14 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
+> **Status:** 🟡 **T1–T15 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
 > finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
 > on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
 > byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
@@ -49,7 +49,17 @@
 > carry a view rotation**, so `RenderRequest`, `TileGrid`, `PagePresentation` and `PdfiumRasterizer` were
 > all extended and `core/Geometry.h` gained the rotation arithmetic. 25 new cases and a new guide case,
 > **A-80**; six more negative controls, and again **one refused to fail**. One finding, **I-10**: I-53's
-> own note about how it would be fixed named a mechanism that does not do what the note said it did.** Written 2026-08-31,
+> own note about how it would be fixed named a mechanism that does not do what the note said it did.
+> **T15, the same day: the sixteen settings keys.** Sixteen rows in `SettingsKeys.def` and two
+> entries in `PreferencesDialog::shippedPages()` — **and no widget code at all**, which is
+> convention 17 doing what it was built for. Five of 26 Preferences groups now ship. Four defaults
+> changed owner from a C++ struct to a row, `FitMode` moved into `core/render/` so a settings key
+> could name it, and **one finding, I-11**: `pageDisplay/lineWeight` is declared and inert, because
+> PDFium cannot draw a hairline at its true width and has no flag over it — measured, as case
+> **A-81**. Five negative controls across nine cases, and **the case that asserts the transparency
+> grid appears is what found that the grid needed a RENDER FLAG** rather than a viewer-side paint:
+> without one, the rasterizer's white fill covers the checkerboard and the option reads back as
+> enabled while displaying nothing.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -487,6 +497,12 @@ to existing documents and are made when this plan is written.
   before the code is a good manifest and is not a complete one, and the pattern each time has been the
   same — a shared mechanism two named files both need, or a seam that only becomes visible when
   something tries to test it.
+
+- ~~🟡 **The sixteen settings keys are unwritten.**~~ **Paid at T15.** No file was added: the whole
+  change is sixteen `.def` rows, two lines in `shippedPages()`, and the wiring that reads them —
+  which is what convention 17 promises and the first time this project has cashed it at scale.
+  `FitMode` MOVED from `ui/viewer/` into `core/render/DpiPolicy.h` in the same change, because
+  `pageDisplay/defaultZoom` is a settings key and `SettingsKeys.def` may only name `core/` types.
 
 - **`Features.md` §8's Viewer table gains no rows and must gain none.** Stage 2 handles the subset
   `Implementation-Plan.md` lists; `Ctrl+4` (Reflow), `Ctrl+R` (rotate **pages**), `S`, `Ctrl+B`,

@@ -42,6 +42,7 @@
 #include "core/backend.h"
 #include "core/doc/Revision.h"
 #include "core/render/PagePresentation.h"
+#include "core/render/RenderRequest.h"
 #include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/ViewportController.h"
 
@@ -65,6 +66,37 @@ class IDisplayTopology;
 namespace rawpage::ui {
 
 class TilePresenter;
+
+// The eleven `pageDisplay/` preferences, resolved into what a viewer actually needs. Stage 2 T15.
+//
+// **A STRUCT OF PLAIN VALUES, NOT A `Settings&`.** `core/render/PresentationOptions` makes the same
+// choice and states the same reason: the composition root reads `Settings` and hands values down,
+// so a widget can be driven by a test that has no settings file, and so nothing below `app/` has to
+// know that a preference is where these came from. `ui/shell/DocumentWindow` is what reads them and
+// what re-reads them when one changes.
+//
+// The defaults here are the ones `SettingsKeys.def` declares, restated for a caller that constructs
+// one without a settings store -- **and that IS a second copy of a default**, which
+// `SettingsKeys.def` rule 2 forbids for the value a user sees. It is tolerable only because these
+// are the *absent-store* fallbacks for a test rather than the product's defaults: `DocumentWindow`
+// always overwrites every field from the table. A case asserts the two agree, so the day they drift
+// is a failure rather than a surprise.
+struct ViewSettings {
+    core::render::LayoutMode layoutMode = core::render::LayoutMode::SingleContinuous;
+    core::render::FitMode defaultZoom = core::render::FitMode::None;
+    bool showCoverInTwoUp = false;
+    bool rtlBinding = false;
+
+    bool lineWeight = false;        // declared and inert -- Stage 2 guide issue I-11
+    bool antialiasText = true;
+    bool antialiasImages = true;
+    bool antialiasLineArt = true;
+    bool transparencyGrid = false;
+
+    int maxRenderDpi = 2400;
+    bool wheelZooms = false;
+    int prefetchPages = 1;
+};
 
 class PageView : public QAbstractScrollArea {
     Q_OBJECT
@@ -102,6 +134,21 @@ public:
 
     void setLayoutMode(core::render::LayoutMode mode);
     void setPresentationOptions(core::render::PresentationOptions options);
+
+    // Applies the eleven `pageDisplay/` preferences. Called once when the document is adopted and
+    // again on every change to that group.
+    //
+    // **`layoutMode` and `defaultZoom` are applied ONLY on the first call**, which is what makes
+    // them *defaults* rather than commands: a person who has switched this tab to Two-Up and then
+    // opens Preferences to change the anti-aliasing must not have their layout yanked back. The
+    // other nine are live.
+    void applySettings(const ViewSettings& settings);
+    const ViewSettings& settings() const noexcept { return settings_; }
+
+    // The flags every tile of this view is rasterized with, derived from the settings above. Public
+    // because it is the one place three preferences become one bitmask, and a case that recomputed
+    // it would be a copy of the mapping rather than a check on it.
+    core::render::RenderFlags renderFlags() const noexcept;
 
     // Scrolls so `pageIndex` is at the top of the viewport, and records a history entry --
     // deliberate navigation, unlike a scroll (see `ViewportController::recordView`).
@@ -199,6 +246,9 @@ private:
     // rather than a queued re-run: the outer call reads the controller AFTER each setter, so it
     // already sees whatever the inner one would have acted on.
     bool refreshing_ = false;
+
+    ViewSettings settings_;
+    bool settingsApplied_ = false;
 
     Tool tool_ = Tool::Select;
     bool dragging_ = false;

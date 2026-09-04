@@ -187,6 +187,16 @@ public:
     // the disk tier needs a directory, and choosing a directory is `app/`'s job -- `core/` does not
     // name a user's folders.
     void setDiskTier(std::unique_ptr<ITileStore> tier);
+
+    // `performance/tileCacheMB` and `performance/diskCacheMB` (S2 T15), which are changed WHILE the
+    // application is running -- a person who has just been told the cache is too large expects the
+    // next scroll to obey, not the next launch. Shrinking evicts immediately; that is the tier's
+    // own `setCapacityBytes`, which is why this is two lines and not a rebuild.
+    //
+    // A disk capacity of ZERO REMOVES the tier rather than keeping an empty one, because D2-14's
+    // default is off and "installed but holding nothing" is a third state nobody asked for.
+    void setMemoryCapacityBytes(std::size_t bytes);
+    void setDiskCapacityBytes(std::size_t bytes);
     const ITileStore* diskTier() const noexcept { return disk_.get(); }
     const ITileStore& memoryTier() const noexcept { return *memory_; }
 

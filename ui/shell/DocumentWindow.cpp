@@ -2,6 +2,7 @@
 
 #include "core/Log.h"
 #include "core/doc/PageTree.h"
+#include "core/settings/Settings.h"
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
 #include "platform/platform.h"
@@ -37,14 +38,59 @@ DocumentWindow::DocumentWindow(app::Services services, QString path,
     view_ = new PageView(services_.renderScheduler, services_.platform.displayTopology.get(), this);
     column->addWidget(view_);
 
+    // THE PREFERENCES BEFORE THE DOCUMENT. `layoutMode` and `defaultZoom` are applied only on the
+    // first `applySettings` call -- they are what a document OPENS at -- so they have to be in place
+    // before there is a document to open at them.
+    applyViewSettings();
+
     // The page tree comes from the BACKEND, through `core::IDocumentBackend` -- moved onto that
     // interface at T13 for exactly this call, because `ui/` may never name `pdf/` (Stage 2 guide
     // issue I-08). Null is an ordinary answer for an invalid handle and the view draws nothing.
     view_->setDocument(handle_, revision_, services_.backend.pages(handle_));
+
+    // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
+    // who turns off image smoothing expects it off everywhere, and a tab that kept the old value
+    // until it was next touched would be a preference that appears not to have applied.
+    settingsSubscription_ = services_.settings.subscribe([this](const core::Settings::Change& change) {
+        if (change.group == core::SettingsGroup::PageDisplay
+            || change.group == core::SettingsGroup::PerformanceAndCache) {
+            applyViewSettings();
+        }
+    });
+}
+
+void DocumentWindow::applyViewSettings()
+{
+    if (!view_) return;
+
+    // ONE READ PER KEY, AND NO DEFAULTS SPELLED HERE. `Settings::get` never asks a caller for a
+    // fallback -- `SettingsKeys.def` rule 2 -- so this cannot disagree with the table.
+    const core::Settings& settings = services_.settings;
+
+    ViewSettings view;
+    view.layoutMode        = settings.get(core::keys::pageDisplay::layoutMode);
+    view.defaultZoom       = settings.get(core::keys::pageDisplay::defaultZoom);
+    view.showCoverInTwoUp  = settings.get(core::keys::pageDisplay::showCoverInTwoUp);
+    view.rtlBinding        = settings.get(core::keys::pageDisplay::rtlBinding);
+    view.lineWeight        = settings.get(core::keys::pageDisplay::lineWeight);
+    view.antialiasText     = settings.get(core::keys::pageDisplay::antialiasText);
+    view.antialiasImages   = settings.get(core::keys::pageDisplay::antialiasImages);
+    view.antialiasLineArt  = settings.get(core::keys::pageDisplay::antialiasLineArt);
+    view.transparencyGrid  = settings.get(core::keys::pageDisplay::transparencyGrid);
+    view.maxRenderDpi      = settings.get(core::keys::pageDisplay::maxRenderResolution);
+    view.wheelZooms        = settings.get(core::keys::pageDisplay::wheelZooms);
+    view.prefetchPages     = settings.get(core::keys::performance::prefetchPages);
+
+    view_->applySettings(view);
 }
 
 DocumentWindow::~DocumentWindow()
 {
+    // BEFORE ANYTHING ELSE. `Settings` belongs to the composition root and outlives every tab, so a
+    // subscription left behind is a call into a destroyed widget on the next preference change --
+    // convention 10, in the form where the caller is a settings store rather than a signal.
+    if (settingsSubscription_ != 0) services_.settings.unsubscribe(settingsSubscription_);
+
     // ORDER, and the header argues each step. Cancel first, then drain, then drop the tiles, then
     // close -- a `close()` that ran while a worker was inside this document's PDFium handle would
     // be a use-after-free in the engine, which `IDocumentBackend::close()` states as the caller's

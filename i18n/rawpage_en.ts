@@ -2112,6 +2112,114 @@
         <translation>General</translation>
     </message>
     <message>
+        <source>prefs.group.pageDisplay</source>
+        <translation>Page Display</translation>
+    </message>
+    <message>
+        <source>prefs.group.performanceCache</source>
+        <translation>Performance and Cache</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.layoutMode</source>
+        <translation>Page layout</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.defaultZoom</source>
+        <translation>Default zoom</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.showCoverInTwoUp</source>
+        <translation>Show cover page in Two-Up</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.rtlBinding</source>
+        <translation>Right-to-left binding</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.lineWeight</source>
+        <translation>Draw hairlines at their true width</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.antialiasText</source>
+        <translation>Smooth text</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.antialiasImages</source>
+        <translation>Smooth images</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.antialiasLineArt</source>
+        <translation>Smooth line art</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.transparencyGrid</source>
+        <translation>Show transparency grid</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.maxRenderResolution</source>
+        <translation>Maximum rendering resolution (DPI)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.wheelZooms</source>
+        <translation>Mouse wheel zooms instead of scrolling</translation>
+    </message>
+    <message>
+        <source>prefs.setting.performance.renderWorkers</source>
+        <translation>Render threads</translation>
+    </message>
+    <message>
+        <source>prefs.setting.performance.tileCacheMB</source>
+        <translation>Memory cache (MB)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.performance.diskCacheMB</source>
+        <translation>Disk cache (MB)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.performance.prefetchPages</source>
+        <translation>Pages to prepare ahead</translation>
+    </message>
+    <message>
+        <source>prefs.setting.performance.throttleOnBattery</source>
+        <translation>Render more slowly on battery</translation>
+    </message>
+    <message>
+        <source>prefs.choice.layoutMode.single</source>
+        <translation>Single page</translation>
+    </message>
+    <message>
+        <source>prefs.choice.layoutMode.single-continuous</source>
+        <translation>Single page, continuous</translation>
+    </message>
+    <message>
+        <source>prefs.choice.layoutMode.two-up</source>
+        <translation>Two-Up</translation>
+    </message>
+    <message>
+        <source>prefs.choice.layoutMode.two-up-continuous</source>
+        <translation>Two-Up, continuous</translation>
+    </message>
+    <message>
+        <source>prefs.choice.fitMode.none</source>
+        <translation>Actual size (100 %)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.fitMode.page</source>
+        <translation>Fit page</translation>
+    </message>
+    <message>
+        <source>prefs.choice.fitMode.width</source>
+        <translation>Fit width</translation>
+    </message>
+    <message>
+        <source>prefs.choice.fitMode.height</source>
+        <translation>Fit height</translation>
+    </message>
+    <message>
+        <source>prefs.choice.fitMode.visible</source>
+        <translation>Fit visible</translation>
+    </message>
+    <message>
         <source>prefs.group.logging</source>
         <translation>Logging</translation>
     </message>

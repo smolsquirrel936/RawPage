@@ -172,18 +172,18 @@ TEST_CASE("the zoom chords move the zoom, and the fit chords set a mode", "[view
     // which is what `FitMode` on the controller means and what a handler that computed a zoom and
     // set it would lose.
     REQUIRE(viewer.press("Ctrl+2") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->controller().fitMode() == ui::FitMode::Width);
+    CHECK(viewer.view->controller().fitMode() == core::render::FitMode::Width);
 
     REQUIRE(viewer.press("Ctrl+0") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->controller().fitMode() == ui::FitMode::Page);
+    CHECK(viewer.view->controller().fitMode() == core::render::FitMode::Page);
 
     REQUIRE(viewer.press("Ctrl+3") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->controller().fitMode() == ui::FitMode::Visible);
+    CHECK(viewer.view->controller().fitMode() == core::render::FitMode::Visible);
 
     // ACTUAL SIZE IS NOT A FIT: 100 % at the monitor's physical DPI, and a fixed zoom that does not
     // change when the window is resized.
     REQUIRE(viewer.press("Ctrl+1") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->controller().fitMode() == ui::FitMode::None);
+    CHECK(viewer.view->controller().fitMode() == core::render::FitMode::None);
     CHECK(viewer.view->controller().zoom() == core::render::Zoom::actualSize());
 }
 
