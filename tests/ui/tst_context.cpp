@@ -22,20 +22,26 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/Services.h"
-#include "tests/ui/FakeBackend.h"
+#include "tests/ui/ShellFixture.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
+#include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
+#include "ui/shell/Ribbon.h"
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/shell/SidebarDock.h"
+#include "ui/shell/ToolFinder.h"
+#include "ui/viewer/PageView.h"
 
 #include <QAction>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QShortcut>
@@ -49,20 +55,10 @@ using namespace rawpage::ui;
 
 namespace {
 
-struct Fixture {
-    QTemporaryDir         directory;
-    core::Settings        settings{QDir(directory.path()).filePath(QStringLiteral("settings.ini"))};
-    core::RecentFiles     recentFiles{settings};
-    core::ActionRegistry  actions;
-    core::KeyBindingStore keyBindings;
-    core::LogBuffer       logBuffer;
-    platform::Platform    platform;
-    uitest::FakeBackend   backend;   // T9: Services now carries the engine
-
-    app::Services services()
-    {
-        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, backend, platform};
-    }
+struct Fixture : uitest::ShellFixture {
+    // Every member and `services()` come from `tests/ui/ShellFixture.h` (S2 T13). They were seven
+    // copies of the same eight fields until `app::Services` grew a render pipeline and the copies
+    // became a seven-way edit; the header states what a fixture deliberately does NOT provide.
 };
 
 QString chordText(const core::Chord& chord)
@@ -562,4 +558,120 @@ TEST_CASE("a planted QShortcut is named separately", "[chord]")
     const QList<QString> complaints = ShortcutBinder::shortcutComplaints(&window);
     REQUIRE(complaints.size() == 1);
     CHECK(complaints.first().contains(QStringLiteral("QShortcut")));
+}
+
+// =============================================================================================
+// 5. KeyContext::Viewer -- the first context the product has ever actually resolved to.
+//    Stage 2 T13, decision D2-8. Guide cases A-55 and A-56.
+// =============================================================================================
+
+namespace {
+
+// A file the fake backend accepts. Its bytes are irrelevant here: `tests/ui` links no engine.
+QString writeOpenable(const QTemporaryDir& directory, const QString& name)
+{
+    const QString path = QDir(directory.path()).filePath(name);
+    QFile file(path);
+    REQUIRE(file.open(QIODevice::WriteOnly));
+    file.write("the fake backend decides, not these bytes");
+    file.close();
+    return QFileInfo(path).absoluteFilePath();
+}
+
+} // namespace
+
+TEST_CASE("focus inside the page view resolves to Viewer, and nowhere else does", "[context]")
+{
+    // A-55, AND IT IS A FIRST. Stage 1 shipped the whole context-resolution mechanism with nothing
+    // declaring a context, so `activeContext()` answered `Global` for every keystroke the product
+    // had ever seen -- correct then, and completely untested against a real second context. Note
+    // the consequence for a regression: this answering `Global` again would look exactly like the
+    // previous fifteen tasks' correct behaviour.
+    Fixture fixture;
+    MainWindow window(fixture.services());
+    window.resize(1000, 800);
+    window.show();
+
+    window.openFiles({writeOpenable(fixture.directory, QStringLiteral("viewer.pdf"))});
+    REQUIRE(window.documentCount() == 1);
+    QCoreApplication::processEvents();
+
+    ui::DocumentWindow* document = window.currentDocument();
+    REQUIRE(document != nullptr);
+    ui::PageView* view = document->view();
+    REQUIRE(view != nullptr);
+
+    ShortcutBinder binder(fixture.actions, fixture.keyBindings, &window);
+
+    // The chrome is still Global -- the ribbon, the toolbar, the tab strip. Only the page surface
+    // is Viewer, and asserting the outside is what makes the inside mean something.
+    window.ribbon()->setFocus();
+    CHECK(binder.activeContext() == core::KeyContext::Global);
+
+    view->setFocus();
+    CHECK(binder.activeContext() == core::KeyContext::Viewer);
+    CHECK(ShortcutBinder::contextFor(view) == core::KeyContext::Viewer);
+
+    // The declaration is on the view itself, so anything Stage 4 puts INSIDE it -- an overlay, a
+    // ruler, a tool's own widget -- inherits Viewer without having to remember to say so.
+    auto* child = new QWidget(view);
+    child->setFocusPolicy(Qt::StrongFocus);
+    child->setFocus();
+    CHECK(binder.activeContext() == core::KeyContext::Viewer);
+}
+
+TEST_CASE("a Viewer chord does not fire from the tool finder's search box", "[context]")
+{
+    // A-56, and it is the case that actually tests context resolution: a chord that fired
+    // everywhere would pass A-55 and be wrong. `H` is `tool.hand` in §8's Viewer table and a
+    // perfectly ordinary letter in a text box, which is exactly the collision the twelve
+    // deliberate ones in `Features.md` §8 are made of.
+    Fixture fixture;
+    MainWindow window(fixture.services());
+    window.resize(1000, 800);
+    window.show();
+
+    window.openFiles({writeOpenable(fixture.directory, QStringLiteral("hand.pdf"))});
+    QCoreApplication::processEvents();
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+
+    // REGISTERED FOR THIS CASE. T14 registers the Viewer commands for real; what T13 owes is that
+    // the CONTEXT routes to them, and a case cannot observe a route to something unregistered --
+    // an unregistered id resolves to `NotImplemented` in both contexts and would prove nothing.
+    int handDispatches = 0;
+    REQUIRE(fixture.actions.register_(core::ActionId::ToolHand,
+                                      [&handDispatches](core::KeyContext) { ++handDispatches; }));
+
+    ShortcutBinder binder(fixture.actions, fixture.keyBindings, &window);
+    const std::optional<core::Chord> h = core::Chord::parse("H");
+    REQUIRE(h.has_value());
+
+    // In the viewer it dispatches.
+    view->setFocus();
+    REQUIRE(binder.activeContext() == core::KeyContext::Viewer);
+    CHECK(binder.activate(*h) == ShortcutBinder::Outcome::Dispatched);
+    CHECK(handDispatches == 1);
+
+    // IN THE SEARCH BOX IT DOES NOT. `H` has no Global and no Common row, so the resolution finds
+    // nothing and the key is deliberately left unconsumed -- which is what lets the line edit type
+    // an `h`.
+    window.toolFinder()->searchBox()->setFocus();
+    REQUIRE(binder.activeContext() == core::KeyContext::Global);
+    CHECK(binder.activate(*h) == ShortcutBinder::Outcome::NoBinding);
+    CHECK_FALSE(ShortcutBinder::consumes(binder.activate(*h)));
+    CHECK(handDispatches == 1);
+
+    // AND THE KEY REALLY REACHES THE FIELD. Stage 1's I-54 is the warning attached to this case:
+    // that defect existed because every tool-finder case typed at `searchBox()`, the one address a
+    // real keystroke does not reach while the result list is up. Here the event is sent to the
+    // WINDOW, which is where a keystroke actually arrives, and the field is asked what it holds.
+    QLineEdit* box = window.toolFinder()->searchBox();
+    box->clear();
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_H, Qt::NoModifier, QStringLiteral("h"));
+    press.ignore();
+    QCoreApplication::sendEvent(&window, &press);
+    CHECK_FALSE(press.isAccepted());
+    CHECK(handDispatches == 1);
 }

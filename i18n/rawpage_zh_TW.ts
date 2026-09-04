@@ -1543,10 +1543,6 @@
         <translation>%1 — RawPage</translation>
     </message>
     <message>
-        <source>shell.document.placeholderBody</source>
-        <translation>%1 已以預留位置開啟。尚未讀取其中任何內容：PDF 引擎與頁面顯示區將於第 2 階段提供。</translation>
-    </message>
-    <message>
         <source>shell.document.untitled</source>
         <translation>未命名</translation>
     </message>
@@ -1632,6 +1628,26 @@
     <message>
         <source>error.backend.notImplemented</source>
         <translation>此版本尚無法執行該項作業：%1 尚未實作。</translation>
+    </message>
+    <message>
+        <source>error.render.documentClosed</source>
+        <translation>無法繪製該頁面：文件（%1）在準備期間已關閉。</translation>
+    </message>
+    <message>
+        <source>error.platform.displayQuery</source>
+        <translation>Windows 無法回報這部電腦的顯示器（%1）。</translation>
+    </message>
+    <message>
+        <source>error.platform.displaySubscribe</source>
+        <translation>RawPage 無法要求 Windows 回報顯示器變更（%1）。</translation>
+    </message>
+    <message>
+        <source>error.platform.powerSubscribe</source>
+        <translation>RawPage 無法要求 Windows 回報電源與工作階段變更（%1）。</translation>
+    </message>
+    <message>
+        <source>error.platform.presentationMode</source>
+        <translation>RawPage 無法在此簡報期間保持顯示器開啟（%1）。</translation>
     </message>
     <message>
         <source>error.engine.initFailed</source>

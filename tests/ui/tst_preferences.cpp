@@ -11,7 +11,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/Services.h"
-#include "tests/ui/FakeBackend.h"
+#include "tests/ui/ShellFixture.h"
 #include "core/LogBuffer.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
@@ -45,21 +45,10 @@ namespace {
 using core::ActionId;
 using core::SettingsGroup;
 
-struct Fixture {
-    QTemporaryDir         directory;
-    QString               iniPath{QDir(directory.path()).filePath(QStringLiteral("settings.ini"))};
-    core::Settings        settings{iniPath};
-    core::RecentFiles     recentFiles{settings};
-    core::ActionRegistry  actions;
-    core::KeyBindingStore keyBindings;
-    core::LogBuffer       logBuffer;
-    platform::Platform    platform;
-    uitest::FakeBackend   backend;   // T9: Services now carries the engine
-
-    app::Services services()
-    {
-        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, backend, platform};
-    }
+struct Fixture : uitest::ShellFixture {
+    // Every member and `services()` come from `tests/ui/ShellFixture.h` (S2 T13). They were seven
+    // copies of the same eight fields until `app::Services` grew a render pipeline and the copies
+    // became a seven-way edit; the header states what a fixture deliberately does NOT provide.
 };
 
 } // namespace

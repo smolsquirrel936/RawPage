@@ -15,11 +15,16 @@
 #define RAWPAGE_TESTS_UI_FAKEBACKEND_H
 
 #include "core/backend.h"
+#include "core/doc/Page.h"
+#include "core/doc/PageTree.h"
 
 #include <QString>
 #include <QStringList>
 
 #include <functional>
+#include <map>
+#include <memory>
+#include <vector>
 
 namespace rawpage::uitest {
 
@@ -32,6 +37,10 @@ public:
     // Every path `open()` was asked about, in order.
     QStringList asked;
     int closes = 0;
+
+    // How many A4 pages an accepted document has. Zero gives a document with a real handle and no
+    // pages, which is a state the viewer must survive and not a state any real PDF reaches.
+    int pagesPerDocument = 3;
 
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
     {
@@ -48,13 +57,33 @@ public:
             return core::Error{core::ErrorCode::ParseFailure,
                                QLatin1String("error.open.notPdf"), path};
         }
-        return core::DocumentHandle{static_cast<std::uint64_t>(asked.size())};
+        const core::DocumentHandle handle{static_cast<std::uint64_t>(asked.size())};
+
+        std::vector<core::Page> built;
+        built.reserve(static_cast<std::size_t>(pagesPerDocument));
+        for (int i = 0; i < pagesPerDocument; ++i) {
+            built.emplace_back(i, core::PdfRect{core::PdfPoint{0.0, 0.0},
+                                                core::PdfSize{595.276, 841.89}});
+        }
+        trees[handle.id] = std::make_unique<core::PageTree>(std::move(built));
+
+        return handle;
     }
 
-    core::Status close(core::DocumentHandle) override
+    core::Status close(core::DocumentHandle handle) override
     {
         ++closes;
+        trees.erase(handle.id);
         return {};
+    }
+
+    // A REAL `PageTree`, because the viewer's whole job is arithmetic over one -- a null here would
+    // make every layout case assert that nothing was laid out. A4 at 595.276 x 841.89 points, which
+    // is what `corpus/ordinary/` is generated at.
+    const core::PageTree* pages(core::DocumentHandle handle) const override
+    {
+        const auto found = trees.find(handle.id);
+        return found == trees.end() ? nullptr : found->second.get();
     }
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
@@ -63,6 +92,11 @@ public:
     core::ISigner* signer(core::DocumentHandle) override { return nullptr; }
     core::IOcrEngine* ocrEngine() override { return nullptr; }
     core::IIndexer* indexer() override { return nullptr; }
+
+private:
+    // `mutable` because `pages()` is const and `open()` is not: the map is the fake's storage, and
+    // the constness belongs to the interface rather than to this object's bookkeeping.
+    mutable std::map<std::uint64_t, std::unique_ptr<core::PageTree>> trees;
 };
 
 } // namespace rawpage::uitest

@@ -71,6 +71,23 @@ add_library(rawpage_ui STATIC
     # SettingsPage is the load-bearing one: it #includes core/settings/SettingsKeys.def and builds
     # a row per declared key from the same table the schema is generated from, so adding a
     # preference in a later stage is a row in that .def and no widget code at all. See its header.
+    # viewer/ -- the page surface. S2 T13, and the thing Stage 2 is named for.
+    #
+    # The split is by QUESTION rather than by size. ViewportController is arithmetic over four
+    # numbers and names no widget, so every zoom-about-the-cursor and scroll-clamp case runs with
+    # no window at all. PageLayoutEngine resolves the three inputs DpiPolicy needs -- and it is
+    # where platform::IDisplayTopology (T12) finally has a consumer. TilePresenter is the ONLY
+    # place in the product where a core::RasterImage becomes a QImage. PageView is the widget, and
+    # it is the first thing in the product to declare a KeyContext (D2-8).
+    viewer/ViewportController.h
+    viewer/ViewportController.cpp
+    viewer/PageLayoutEngine.h
+    viewer/PageLayoutEngine.cpp
+    viewer/TilePresenter.h
+    viewer/TilePresenter.cpp
+    viewer/PageView.h
+    viewer/PageView.cpp
+
     panes/LogPane.h
     panes/LogPane.cpp
     dialogs/SettingsPage.h

@@ -30,6 +30,13 @@ add_executable(rawpage_ui_tests
     tst_context.cpp
     tst_preferences.cpp   # T14
     tst_logpane.cpp       # T14
+
+    # S2 T13 -- the viewer. tst_viewport is PURE and needs no window: that is the whole reason
+    # ViewportController and PageLayoutEngine are separate objects from PageView. tst_pageview is
+    # the widget half, and every case in it asserts the geometry the layout GAVE the widget before
+    # it asserts anything that depends on it (I-36).
+    tst_viewport.cpp
+    tst_pageview.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

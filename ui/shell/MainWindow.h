@@ -42,6 +42,7 @@
 #define RAWPAGE_UI_SHELL_MAINWINDOW_H
 
 #include "app/Services.h"
+#include "core/backend.h"
 
 #include <QMainWindow>
 #include <QStringList>
@@ -84,12 +85,17 @@ public:
     void openFiles(const QStringList& paths);
 
     // ---------------------------------------------------------------------------------------
-    // Documents -- T12. Every one of these is a stub tab (D1-2): a path and a placeholder.
+    // Documents -- S1 T12, and a real one since S2 T13: a handle, a page tree and a `PageView`.
     // ---------------------------------------------------------------------------------------
-    // Adds a tab, or focuses the one that already has this path. The same document twice in one
-    // window is not a feature anyone asked for, and the path is the identity until `DocumentId`
-    // arrives with `core/doc/` at Stage 2.
-    DocumentWindow* openDocument(const QString& absolutePath);
+    // Adds a tab for a document the BACKEND HAS ALREADY OPENED, or focuses the one that already
+    // has this path. The tab takes ownership of the handle and closes it (see `DocumentWindow`),
+    // which is why the open happens in `openFiles()` and the handle is passed in rather than
+    // acquired here: a function that both opened and might discard would have to close on one of
+    // its two paths, and that is the leak.
+    //
+    // The same document twice in one window is not a feature anyone asked for, and the path is the
+    // identity until `DocumentId` arrives with the rest of `core/doc/` at Stage 3.
+    DocumentWindow* openDocument(const QString& absolutePath, core::DocumentHandle handle);
 
     int             documentCount() const;
     DocumentWindow* documentAt(int index) const;

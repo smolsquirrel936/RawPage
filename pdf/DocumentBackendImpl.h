@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <mutex>
 
 namespace rawpage::pdf {
 
@@ -61,6 +62,10 @@ public:
                                             const core::PasswordCallback& password) override;
     core::Status close(core::DocumentHandle document) override;
 
+    // Overrides as of Stage 2 T13 -- `pages()` moved onto `core::IDocumentBackend` because `ui/`
+    // is handed that interface and may never name `pdf/` (Stage 2 guide issue I-08).
+    const core::PageTree* pages(core::DocumentHandle document) const override;
+
     core::IPageRasterizer* rasterizer(core::DocumentHandle document) override;
     core::ITextExtractor*  textExtractor(core::DocumentHandle document) override;
     core::MutationSink*    mutationSink(core::DocumentHandle document) override;
@@ -68,10 +73,10 @@ public:
     core::IOcrEngine*      ocrEngine() override;
     core::IIndexer*        indexer() override;
 
-    // Beyond the interface, and deliberately: `core/backend.h` declares what every backend must
-    // do, and a page tree is not something a signer or an OCR engine has. `ui/` reaches these
-    // through the backend it was handed, which is still a `core::` type — the engine stays unnamed.
-    const core::PageTree* pages(core::DocumentHandle document) const;
+    // STILL beyond the interface, and now deliberately rather than accidentally: T14's message bar
+    // is the only consumer of a repair report, and a service handed to every caller ahead of the
+    // first one that reads it is the shape Stage 1 kept finding (I-34, I-42, I-46). It joins
+    // `core/backend.h` when that consumer exists, exactly as `pages()` did here.
     const core::RepairReport* repairReport(core::DocumentHandle document) const;
 
 private:
@@ -79,6 +84,19 @@ private:
 
     Open* find(core::DocumentHandle document);
     const Open* find(core::DocumentHandle document) const;
+
+    // GUARDS `open_` AND `nextHandle_`, and it is not defensive tidiness (Stage 2 T13).
+    // `rasterizer()` is called from the RENDER THREAD -- `RenderScheduler`'s worker asks the
+    // backend for the rasterizer named by `RenderRequest::document` -- while `open()` and `close()`
+    // are called from the UI thread. A `std::map` being rehashed by one thread and walked by
+    // another is undefined behaviour whose symptom is an intermittent crash inside the renderer,
+    // which is the least debuggable place in the program for one.
+    //
+    // WHAT THE MUTEX DOES NOT DO is keep a returned `IPageRasterizer*` alive across a `close()`.
+    // That is the caller's protocol and it is stated on `close()` below: cancel the document's
+    // jobs and let the scheduler go idle first. A lock held for the duration of a rasterization
+    // would serialize the UI thread behind a tile.
+    mutable std::mutex mutex_;
 
     std::map<std::uint64_t, std::unique_ptr<Open>> open_;
 

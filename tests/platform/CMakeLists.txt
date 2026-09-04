@@ -17,6 +17,14 @@ find_package(Catch2 3 REQUIRED)
 add_executable(rawpage_platform_tests
     main.cpp
     tst_platform.cpp
+
+    # S2 T12 -- the two interfaces the render policy layer was waiting on. Both suites drive the
+    # real WNDPROC through the object's own notification HWND rather than calling a test hook: the
+    # only synthetic part is where the message came from, and everything from DispatchMessage
+    # inward is the shipped path. Each file states at the top what it therefore does NOT cover
+    # (convention 19) -- a real scale change is manual case M-02's, and a real suspend is nobody's.
+    tst_displaytopology.cpp
+    tst_powersession.cpp
 )
 
 target_include_directories(rawpage_platform_tests PRIVATE "${CMAKE_SOURCE_DIR}")

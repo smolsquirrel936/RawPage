@@ -6,13 +6,17 @@
 > **before any Stage 2 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02.**
-> **78 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02 — and **A-76 … A-78**
-> added at T4, because the plan's *“asserted rather than assumed”* named a check the guide had no
-> case for) and **10 manual** (M-01 … M-10), of which
-> **A-01, A-03, A-05 … A-13, A-15 … A-23, A-42 … A-47 and A-75 … A-78 are green**, **A-27 and
-> A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave A-46 the second
-> half it had been waiting for since T1) — every other box is still ☐. **Three are Linux jobs this machine cannot
+> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
+> T6's on 2026-09-03, and T7 … T13's on 2026-09-04.**
+> **79 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
+> case for, and **A-79** added at T13 — see I-09) and **10 manual** (M-01 … M-10), of which
+> **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-47, A-52 … A-56, A-60 and A-75 … A-79 are
+> green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
+> A-46 the second half it had been waiting for since T1), and **A-61 and A-62 are 🟡 — the half an
+> automated run can reach is green and the other half is named, with its owner**: a real mid-session
+> scale change is manual case **M-02's**, and the battery throttle is **T15's**, because the settings
+> key it names does not exist yet. Every other box is still ☐. **Three are Linux jobs this machine cannot
 > run and none should be read as merely pending: A-04**, and **A-25** and **A-26**, whose targets
 > both exist but have never been linked or run because there is no clang here. **A-24 joins them at
 > T8** — the ASan corpus run is the same Linux job.
@@ -20,7 +24,9 @@
 > **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through in the same change. The
-> issue log holds six entries. **I-01** (S3) — two
+> **None of the ten manual cases has been walked**, and as of T13 **the first four are walkable for the
+> first time** — there is a page on screen to look at. `rawpage.exe <a corpus file>` opens it.
+> The issue log holds **nine** entries. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
@@ -283,6 +289,8 @@ and the case that closes it.
 | Golden baselines committed | A-48, A-49, A-50 |
 | Scrolling a large document stays responsive | A-36, A-37, A-68, **M-04** |
 | Mixed-DPI dragging is correct | A-28, A-29, A-60, A-61, **M-01**, **M-02** |
+| *(plan T13)* **A page is on screen** | A-52, A-53, **A-79**, **M-03** — and the three are complementary rather than redundant: A-52 asserts the geometry the layout gave the widget (without which A-53 is green and worthless), A-53 asserts real pixels through the real viewer over a FAKE rasterizer (`ui/` may not link an engine — D1-4), A-79 asserts real pixels from the REAL engine through the real scheduler with no widget, and **only M-03 sees the two halves meet on glass** |
+| *(plan T13, D2-8)* `KeyContext::Viewer` resolves, and only in the viewer | A-55, **A-56** — the negative is the one that tests context resolution; a chord that fired everywhere would pass A-55 |
 | **A2 has a recorded verdict with numbers** | A-68, **M-04**, §3 |
 | *(plan §13)* The engine boundary holds | A-03, A-10 … A-12, A-45 |
 | *(plan §13)* O7 and O10 resolved | A-70; A-24 + A-25 + A-26 + **M-09** |
@@ -1012,8 +1020,8 @@ reddens.
 and keeping a cancelled one each redden this one. **If it fails** S1 — the second half is how a stale tile
 reaches the screen.
 
-**A-39 · A `PageView` destroyed with tiles in flight does not crash** 🟡 **`core/` half done
-2026-09-04 (T11); the widget half is T13's**
+**A-39 · A `PageView` destroyed with tiles in flight does not crash** ✅ **`core/` half 2026-09-04
+(T11); widget half 2026-09-04 (T13)**
 **Goal** Convention 10 (`CLAUDE.md`) in its threaded form — Stage 1's I-12 was an S1 segfault of
 exactly this shape, a lambda outliving the widget that installed it.
 **Steps** Open, scroll to enqueue, close the tab while four tiles are in flight. Repeat 50 times.
@@ -1023,7 +1031,18 @@ is that the **scheduler** survives being destroyed mid-flight: 50 rounds of cons
 destroy without waiting. The destructor stops and JOINS before any member the workers hold is destroyed.
 **The widget half — the tab closed while its tiles are in the queue — is T13's and is not covered here**,
 and neither is a data race: this toolchain has no TSan (risk R7), so a race that happens not to fire in
-fifty rounds would pass. **If it fails** S1.
+fifty rounds would pass.
+**Result 2026-09-04 (T13), the widget half.** `ui.a page view destroyed with tiles in flight does not
+crash` opens a 20-page document into a real `MainWindow` with the scheduler **PAUSED**, so the jobs are
+queued and never start — which makes *in flight* a state the case HOLDS rather than a race it hopes to
+hit. The window is then destroyed. `TilePresenter`'s destructor unsubscribes **by token** and cancels
+every ticket, and the case asserts `pendingCount() == 0` afterwards and then, on resume,
+`cancelledBeforeStart > 0` with `started == 0` — the rasterizer was never entered.
+A second case covers the ordinary close: `ui.closing a tab closes its handle and drops its tiles`
+asserts all three steps of `DocumentWindow`'s protocol, because a viewer that only cancelled would keep a
+closed document's megabytes for the life of the process.
+**Negative control run:** removing `renderCache.dropDocument()` and the `backend.close()` from that
+destructor reddens both close cases. The TSan caveat above still stands. **If it fails** S1.
 
 **A-40 · `tst_rendercache` — LRU and the cap** ✅ **2026-09-04 (T11)**
 **Expect** Eviction is least-recently-used; total held bytes stay under `performance/tileCacheMB`;
@@ -1199,6 +1218,30 @@ consumer `app/Services.h` has been saying since T1 that it was waiting for.
 **Negative control run:** ignoring the backend's refusal reddens both halves of the UI case.
 **If it fails** S2.
 
+**A-79 · The REAL engine on the REAL scheduler — the assembly nothing was testing**
+✅ **2026-09-04 (T13)** — **a case this guide did not list**, added with T13 for the reason below.
+**Goal** Three suites touch the render path and each fakes one end of it: `tests/unit` drives the
+scheduler and the cache over a fake rasterizer (it may not link an engine — D2-2); `tests/ui` drives
+`PageView` and `TilePresenter` over a fake, for D1-4's reason; and the rest of `tests/render` calls
+`PdfiumRasterizer` directly with no scheduler. **So the one arrangement the shipped product actually
+runs — the real PDFium rasterizer, reached through the real backend by `app::BackendRasterizer`, on a
+worker thread the real `RenderScheduler` owns — was the arrangement nothing exercised.** That is the shape
+Stage 1 kept finding under other names (I-34, I-42, I-43, I-46): every piece tested, the assembly not.
+**Steps** `ctest -R render.pipeline`.
+**Expect** `ordinary/text-a4.pdf` opens through `pdf::createBackend()`; `TileGrid` produces the page's
+visible tiles; every one is enqueued on a scheduler built with the **shipped factory** (`workerCount`
+defaulting to 1, which is I-05's answer and not a test's convenience); all of them come back, none fails,
+the cache holds them, and at least one tile carries **more than one colour** — a text page has ink on it,
+and a blank buffer would satisfy every other assertion.
+**And the adapter's other branch:** a request for a document that has been closed is refused by name
+(`error.render.documentClosed`, `Unavailable`) rather than dereferencing a null rasterizer. In the product
+that branch is reached only if `DocumentWindow`'s close protocol is not followed; building the failure
+deliberately is what makes the recovery real rather than assumed.
+**It drives `app::BackendRasterizer` itself, not a copy** — which is why that class became a header in
+`app/` rather than staying private to `CompositionRoot.cpp` (issue **I-09**).
+**What it still does not cover:** there is no widget here. *A page is on screen* is A-53's claim over a
+fake, and the two halves meeting on glass is the manual pass. **If it fails** S1.
+
 ### 5.8 Golden images
 
 **A-48 · Baselines at 96 / 144 / 192 DPI over the corpus** ☐ **Steps** `ctest -R render.golden`
@@ -1226,38 +1269,98 @@ far. The two mechanisms are complementary and this case proves the ordering. **I
 > gave the widget, **then** assert the consequence. A case that asks a viewer what it contains while
 > the layout gives it zero pixels is green and worthless.
 
-**A-52 · The layout gives `PageView` real pixels**
-☐ **Steps** `show()` under `offscreen`, then `activate()` **every** layout level (convention 12), then
+**A-52 · The layout gives `PageView` real pixels** ✅ **2026-09-04 (T13)**
+**Steps** `show()` under `offscreen`, then `activate()` **every** layout level (convention 12), then
 read `PageView::size()`.
 **Expect** Non-zero, and matching the window's central area within the scrollbar allowance. **Assert
 the size the widget actually got before asserting anything that depends on it** — `resize(240)`
 returning 1044 px is a finding, not a failed assertion.
+**Result 2026-09-04.** `ui.the layout gives the page view real pixels`: a 1200x900 `MainWindow` with one
+open document, `show()`n offscreen and every layout level `activate()`d, gives the viewer **more than
+400x300** and never more than the window. The controller is then asserted to have been told the SAME size
+in device pixels — `viewport()->width() * devicePixelRatioF()` — because the two spaces are equal only at
+100 % and an implementation that confused them is correct on this machine and two-thirds size on the P-1
+rig's 4K panel. Two further cases assert what depends on it: the content size grows with the page count
+and (to within the non-scaling margins) doubles with the zoom, and the scrollbars are ranged in LOGICAL
+pixels and reach the end of the document.
+**One of those is weaker here than it looks:** the scrollbar case cannot fail on a 100 % monitor, because
+the device-pixel ratio the offscreen platform reports is 1.0 and the two spaces coincide. It is a real
+assertion on a scaled monitor and a tautology here; manual case M-01 is where it means something.
 **If it fails** S1 — and it is the failure that hid for six days at Stage 1.
 
-**A-53 · A page is actually painted**
-☐ **Steps** `QWidget::grab()` after tiles have been delivered.
+**A-53 · A page is actually painted** ✅ **2026-09-04 (T13)**
+**Steps** `QWidget::grab()` after tiles have been delivered.
 **Expect** The returned image is **not** uniform background: page-shaped content with a page border at
 the expected rect. **This is the case that distinguishes "tiles were requested" from "a page is on
-screen"**, and it is the whole reason §1's rule exists. **If it fails** S1.
+screen"**, and it is the whole reason §1's rule exists.
+**Result 2026-09-04, and read the fake's colour choice as part of the case.** `tests/ui` may not link the
+engine (D1-4), so the rasterizer is a fake — and a fake that returned WHITE would make the two claims
+indistinguishable, because `TilePresenter` already paints a white sheet under every page before any tile
+arrives. The fake fills a flat blue nothing else in the viewer draws, so the grabbed image containing it
+can only be true if the request was built, queued, run, delivered, converted to a `QImage` and painted at
+the right rectangle. The case additionally asserts the grab is **not uniform** (the sheet and its border
+are there too), and that `lastPaint()` reports pages and tiles drawn with **zero placeholders**.
+The fake also pads its rows — `bytesPerLine > width * 4` — because PDFium happens to return tight rows, so
+the stride assumption `core::RasterImage` exists to prevent would otherwise never be exercised anywhere.
+**Its negative control is a case of its own**: a `PageView` with no document must NOT contain that colour.
+**Negative control run:** commenting out `painter.drawImage` reddens this case and nothing else.
+**What is still owed and by whom:** the REAL engine reaching a real widget. `tests/render` now drives the
+real PDFium rasterizer through the real `RenderScheduler` and the shipped `app::BackendRasterizer`
+(`render.the shipped rasterizer factory renders real tiles on a real worker`, added at T13 because that
+assembly had no case at all), and `tests/ui` drives the real widget over a fake. **The two halves meeting
+on glass is the manual pass**, M-03. **If it fails** S1.
 
-**A-54 · `tst_viewport` — scroll and zoom** ☐
+**A-54 · `tst_viewport` — scroll and zoom** ✅ **2026-09-04 (T13)**
 **Expect** Scroll offsets clamp at document bounds; zoom about the cursor keeps the point under the
-cursor fixed; page-at-a-time paging snaps to boundaries. **If it fails** S2.
+cursor fixed; page-at-a-time paging snaps to boundaries.
+**Result 2026-09-04.** Thirteen cases, **every one of them with no window at all** — which is the whole
+reason `ViewportController` and `PageLayoutEngine` are separate objects from `PageView`. The clamp is
+asserted at both ends, for a document smaller than the viewport (maximum **zero**, not negative — a
+negative maximum lets the page drift off the top edge, which reads as content that cannot be reached) and
+for a document that just got shorter. Zoom-about-a-point is asserted as an **equality rather than a
+tolerance**, because the content space scales uniformly and the answer is exact; its negative control is
+an anchor at the origin, where a correct implementation moves nothing and one that used a position where
+it wanted a ratio moves something.
+**Two things A-54 does not name and that are here anyway:** the fit arithmetic — including that it is
+computed against the **physical** DPI, so the P-1 rig's 163-DPI panel and the nominal 144 differ by
+exactly 163/144 — and the view history, which records deliberate navigation and **not** scrolling, a
+distinction asserted rather than described because a history that captured every wheel notch is a Back
+button that goes back one notch.
+**Page-at-a-time paging is NOT covered and is T14's**: `NavNextScreen` and `NavPrevScreen` are §8 Viewer
+commands and nothing registers them yet. Recorded rather than left to look covered.
+**Negative control run:** dropping the ratio from `zoomAbout` reddens the zoom case. **If it fails** S2.
 
 **A-55 · `KeyContext::Viewer` is declared and resolves — the first time in the product's history**
-☐ **Goal** D2-8. **Steps** Focus inside `PageView`; ask `ShortcutBinder::activeContext()`.
+✅ **2026-09-04 (T13)** **Goal** D2-8. **Steps** Focus inside `PageView`; ask
+`ShortcutBinder::activeContext()`.
 **Expect** `Viewer`. Then a `Viewer`-bound chord dispatches its Viewer command.
+**Result 2026-09-04.** `ui.focus inside the page view resolves to Viewer, and nowhere else does`, over a
+real `MainWindow` with a real open document. It asserts the OUTSIDE as well: focus on the ribbon still
+answers `Global`, which is what makes the inside mean something. And a child widget created inside the
+view inherits `Viewer` without declaring anything — the declaration is on the view itself, so Stage 4's
+overlays, rulers and tool widgets get it for free.
+The dispatch half needed a registered command and Stage 2 registers the Viewer commands at **T14**, so the
+case registers `ToolHand` itself and says so at the assertion (convention 19): an unregistered id resolves
+to `NotImplemented` in both contexts and would prove nothing about the route.
+**Negative control run:** removing the `declareContext` call from `PageView`'s constructor reddens this
+case and A-56.
 **If it fails** S2 — and note that until T13 this answering `Global` was *correct*, so a regression
 here looks exactly like the previous fifteen tasks' correct behaviour.
 
 **A-56 · …and the negative: a Viewer chord does NOT fire from the tool finder's search box**
-☐ **Goal** The case that actually tests context resolution. A chord that fires everywhere would pass
+✅ **2026-09-04 (T13)** **Goal** The case that actually tests context resolution. A chord that fires everywhere would pass
 A-55 and be wrong.
 **Steps** Focus the tool finder's search box; press a `Viewer`-only chord.
 **Expect** The Viewer command does **not** run; the key reaches the line edit, through Qt's own
-`ShortcutOverride` handshake (convention 15). **If it fails** S2 — and Stage 1's I-54 is the warning:
-that defect existed because every case typed at `searchBox()`, the one address a real keystroke does
-not reach.
+`ShortcutOverride` handshake (convention 15).
+**Result 2026-09-04.** The chord is **`H`** — `tool.hand` in §8's Viewer table and a perfectly ordinary
+letter in a text box, which is exactly the collision the twelve deliberate ones in `Features.md` §8 are
+made of. In the viewer it dispatches; in the search box the resolution finds nothing (`H` has no Global
+and no Common row), the outcome is `NoBinding`, `consumes()` is false, and the dispatch counter has not
+moved. **The last third of the case sends the key event to the WINDOW rather than to `searchBox()`** —
+Stage 1's I-54 is the reason, and it is quoted at the assertion: nine green `[toolfinder]` cases missed a
+frozen application because every one typed at the one address a real keystroke does not reach.
+**If it fails** S2.
 
 **A-57 · The status bar shows real numbers** ☐
 **Expect** Page *n* of *N* with the real total; the zoom label tracks the viewport. The em dash Stage 1
@@ -1281,21 +1384,88 @@ or the toolbar. **If it fails** S3.
 ### 5.10 Platform
 
 **A-60 · `WinDisplayTopology` sees the real rig — and this is what makes the rig trustworthy**
-☐ **Steps** `ctest -R platform.displaytopology` on the P-1 machine.
+✅ **2026-09-04 (T12)** **Steps** `ctest -R platform.displaytopology` on the P-1 machine.
 **Expect** **Two** monitors: one 3840×2160 at **150 %**, one 2560×1440 at **100 %**. Physical pixels
 and scale factor reported separately.
-**If it fails** S2 — **and treat a disagreement with §2's rig table as a finding about the case, not
-about the rig, until proven otherwise**: the table's figures came from a query whose DPI awareness is
-unknown, and a DPI-unaware caller is handed virtualized numbers that are self-consistent and wrong.
+**Result 2026-09-04 — measured, and it AGREES with §2's rig table for the first time through the
+product's own query:**
 
-**A-61 · The `changed` signal fires on a mid-session scale change** ☐
+| id | pixels | scale | physical DPI |
+|---|---|---|---|
+| `\\.\DISPLAY1` | 3840×2160 at (0,0) | **150 %** | **163** |
+| `\\.\DISPLAY2` | 2560×1440 at (3840,353) | **100 %** | **108** |
+
+**The physical DPI column is the point of the whole task.** `96 * scale` says 144 and 96; the glass says
+163 and 108. Every caller of `DpiPolicy` passed the nominal figure before T12, which is a 13 % error on
+the 4K panel — and `DpiPolicy` takes three inputs precisely because *Actual Size means 100 % at the
+physical DPI*.
+**The precondition is asserted rather than assumed**, which is what this case's own warning demanded:
+`processIsPerMonitorAware()` is a `REQUIRE` at the top, and `tests/platform/main.cpp` sets per-monitor-v2
+awareness before `QCoreApplication` exists — without it Windows would have handed this suite 2560×1440 at
+100 % for the 4K panel, self-consistently and wrongly.
+**The rig half SKIPS BY NAME on any other machine**, printing what it did see, so a one-monitor CI runner
+reports *not applicable* rather than passing vacuously; the structural half (every monitor has an id,
+positive pixels, a plausible scale and a believable physical DPI, and exactly one is primary) runs
+everywhere. **A raw DPI outside 48…1200 is not believed** and falls back to the effective one — EDID is
+user-supplied data in the sense that matters, and a physical DPI of 4 propagates into `DpiPolicy` as a
+rasterization resolution.
+**One finding, I-07:** `platform/platform.h` documented `MonitorInfo`'s geometry as *device-independent
+pixels* and it is physical pixels — the DIP reading is what a DPI-UNAWARE process is handed. Corrected in
+the same change. **If it fails** S2 — **and treat a disagreement with §2's rig table as a finding about
+the case, not about the rig, until proven otherwise**.
+
+**A-61 · The `changed` signal fires on a mid-session scale change** 🟡 **automated half
+2026-09-04 (T12); the real scale change is manual case M-02's**
 **Expect** Changing a monitor's scale in Windows Settings emits `changed` once, with the new topology.
-**If it fails** S2 — this is what M-02 needs in order to be a product test rather than a Windows test.
+**Result 2026-09-04, and what is and is not claimed.** No automated run can change a monitor's scale
+factor, so **the half that says "emits `changed` once on a real scale change" is M-02's and is not
+claimed here.** What is claimed is the two halves that make that observation meaningful and that no
+manual pass can check precisely:
 
-**A-62 · `WinPowerSession` reports battery and throttles** ☐
+1. **A notification carrying no actual change is SUPPRESSED.** `WM_DISPLAYCHANGE` and `WM_SETTINGCHANGE`
+   are sent to the object's real `HWND` — `SendMessageW` runs the shipped `WNDPROC` synchronously, so the
+   only synthetic part is where the message came from — and `changed` does not fire. That is what makes
+   A-61's *"once"* achievable at all: one scale change in the Settings app produces several of these
+   messages, and `WM_SETTINGCHANGE` is broadcast for a great many things that are not displays. The case
+   asserts the **suppression counter moved by exactly two**, which is the control proving the messages
+   arrived rather than the window never having existed (convention 7).
+2. **`sameTopology()` — the predicate the suppression is built on — answers false for every field a real
+   change moves**, the scale factor first among them: a monitor whose pixels and position did not move but
+   whose scale did is precisely M-02's gesture, and an implementation comparing only geometry would
+   answer *same* and never fire however correct the message plumbing was.
+
+**Also asserted:** `subscribe()` ADDS rather than replaces. The interface's signature — one handler, no
+token — invites the other implementation, and Stage 4's session-state consumer would then silently unhook
+the render policy.
+**`subscribe()` has no product caller yet, and that is a decision rather than an oversight.**
+`ui/viewer/PageView` re-reads the topology on Qt's own `ScreenChangeInternal` /
+`DevicePixelRatioChange`, because a widget is told by Qt when its own monitor moves, and
+`IDisplayTopology` has **no `unsubscribe`** — so a per-window subscription would dangle when a torn-off
+window is closed (convention 10). The subscription's real consumer is something that cares about the whole
+desktop: `core/settings/SessionState` at Stage 4. **If it fails** S2.
+
+**A-62 · `WinPowerSession` reports battery and throttles** 🟡 **the interface 2026-09-04 (T12);
+the throttle is T15's**
 **Expect** Battery state readable; with `performance/throttleOnBattery` set and the machine on battery,
 the effective worker count drops. On a desktop, the case reports *not applicable* **explicitly** rather
-than passing vacuously. **If it fails** S3.
+than passing vacuously.
+**Result 2026-09-04.** The P-1 machine is a desktop with **no battery**, and the case says so and
+**SKIPS** — `platform.powersession reports the machine's power source` is the one skipped test in the
+whole run, which is this criterion's own wording honoured rather than a green tick over an untested
+policy. It still asserts what a desktop CAN answer: `hasBattery()` is false and `isOnBattery()` is false
+with it, because *no battery* is not *running on battery*, and an implementation reading `ACLineStatus`
+alone would report a UPS-backed desktop as unplugged during a blip.
+The event path is driven for real through the object's own `HWND`: suspend, resume, AC, DC, **a UPS
+(source 2), which reports as MAINS** — throttling the renderer for the length of a power blip is a visible
+stutter bought for nothing — and session lock and unlock, seven events in order. Its negative control is
+its own case: a power-setting broadcast for a GUID this object did not register for, a truncated payload
+and a null payload each deliver nothing, and then the same message correctly addressed delivers one.
+Presentation mode is asserted idempotent and released on destruction.
+**THE THROTTLE ITSELF IS NOT CLAIMED AND IS T15's.** This criterion's second clause names
+`performance/throttleOnBattery`, a settings key that does not exist until T15, and
+`RenderScheduler::setActiveWorkerLimit()` clamps to `[1, workerCount]` where `workerCount` is **1** — so
+wiring it now would build a code path no configuration could make behave differently. The interface the
+wire is made of is what T12 owes, and it is here. **If it fails** S3.
 
 ### 5.11 Settings, fonts, glyphs
 
@@ -1380,6 +1550,23 @@ been automated is a defect in this guide — say so and I will move it.**
 
 **Walk M-01 and M-02 first**, before the fidelity cases: a DPI bug makes every subsequent judgement
 about rendering quality unreliable, and you would be grading the wrong thing.
+
+**WALKABLE AS OF 2026-09-04 (T13): M-01, M-02, M-03 and M-04.** There is a page on screen — open one
+with `.\build\x64-release\bin\rawpage.exe corpus\ordinary\text-a4.pdf`, or any other corpus file.
+Two things about the state you will be walking, so a planned absence is not reported as a defect:
+
+- **There is no zoom UI and no page-number box yet.** The status bar still shows Stage 1's em dash, and
+  the §8 Viewer chords (`Ctrl+=`, `Ctrl+0`, `Page Down`, `Home`…) resolve to `NotFound` and deliberately
+  leave the key unconsumed — **the Viewer commands and the status bar are T14's**, the sixteen settings
+  keys are T15's. What works today without a command: the scrollbars and the mouse wheel, and
+  **`Ctrl`+wheel zooms about the cursor**, because that is a gesture rather than a chord and reaches the
+  widget directly.
+- **The anti-aliasing and line-weight toggles M-03 asks you to flip do not exist yet** — those are
+  `pageDisplay/` keys at T15. Walk M-03's comparison half now if you like; its toggle half is not
+  reachable and is not a finding.
+
+M-05 … M-10 remain unwalkable: they need golden baselines (T17), fonts (T16), the settings keys (T15) or
+Dr. Memory.
 
 ---
 
@@ -1555,6 +1742,11 @@ was. If a row here turns out to be wrong, that is itself a finding.
 | The sidebar has no thumbnails or bookmarks pane | Stage 4 |
 | `WinAcceleratedSurface` does nothing | Correct — declared, unimplemented, and the interface census (A-46) says so |
 | Zoom at 6400 % is not sharper than at 1600 % | Likely correct — `pageDisplay/maxRenderResolution` clamps it. Check the setting before reporting |
+| **The status bar's page total is still an em dash, with a page on screen** | Correct at T13 — the status bar gets real numbers at **T14**. "1 of 1 at 100 %" over a document nothing has counted is the lie T9 refused to tell, and T13 did not start telling it |
+| **Every §8 Viewer chord does nothing** — `Ctrl+0`, `Ctrl+=`, `Page Down`, `Home` | Correct at T13. `KeyContext::Viewer` now RESOLVES (D2-8, the first context the product has ever resolved to) and the commands it resolves to are registered at **T14**, so each one is `NotFound` and leaves the key unconsumed. **`Ctrl`+wheel does zoom**, because a gesture is not a chord |
+| Anti-aliasing, line weight and the resolution cap cannot be changed | Correct — the sixteen `pageDisplay/` and `performance/` keys land at **T15**, and until then `DpiPolicy::Limits` and `RenderCache::Config` are the defaults' only home |
+| A page appears a moment after the tab does, rather than with it | Correct, and it is D10's whole promise: the UI thread never rasterizes. The sheet and its border are drawn immediately and the tiles land on top |
+| **A missing embedded font renders in something else, silently** | Correct at T13 — PDFium's own substitution. **Our** policy, and a case that names the substitute, is **T16** (A-66). Do not grade M-03's typography before then |
 | A benchmark's exit code is 0 on a slow machine | Correct. A benchmark **reports**; its exit code is about whether the measurement was possible |
 | **Edge and Chrome render our corpus identically to us** | **Expected, and not evidence of anything.** Both use PDFium, the library we link — a match is two copies of one engine agreeing. Use Acrobat Reader, SumatraPDF or Firefox (P-4) |
 | **Double-clicking a PDF opens RawPage rather than a viewer** | Correct — the `.pdf` association was hand-made during Stage 1's M-07 walk (its I-46). Open a reference with right-click → *Open with* |
@@ -1580,8 +1772,20 @@ document means **Stage 1's**, and says so where it appears.
 | **I-04** | S3 | **Nothing compares a catalog key a source REFERENCES against the catalogs, and eighteen referenced keys have no entry.** Found at T2 the moment the engine layer named its first key: `error.engine.initFailed` was reported as an `orphan-key` — a key nothing references — while being referenced by the file that had just been written, because `pdf/` was not in `i18n-lint`'s `scannedPaths`. Neither was `platform/`, which names **eleven** keys. **Fixing the paths was the easy half and it is done** (`pdf/` and `platform/` added; the gate went from 79 files to 90 and the false note is gone). **The real half is that no rule asks the question at all**: `missing-key` compares the shipped catalogs *against each other*, `action-label` covers `action.*` from `ActionId.def`, and `orphan-key` is the INVERSE — a catalog key nothing references — so a key a source names and no catalog defines is invisible from both directions. Measured 2026-09-01 by diffing every quoted `error.*`/`shell.*`/`ribbon.*`/`prefs.*` literal in `core/`, `ui/`, `app/`, `pdf/` and `platform/` against `rawpage_en.ts`: **eighteen** are missing — `error.action.{unknown,unavailable,alreadyRegistered,noHandler}` and `error.shortcut.{unknownAction,invalidChord,widgetNative}` from **`core/`, which has been scanned since T6**, plus `error.shell.*` (3) and `error.singleInstance.*` (8) from `platform/`. **Latent today rather than visible**: only `error.open.*` and `error.customization.*` currently reach a surface, and both exist — an unresolved key would render as its own key text, which is what makes this S3 now and **S2 the moment `MessageBar` starts showing engine errors**. Owned by **T14**, which builds that surface, with **A-14** as its case; the fix is an `unknown-key` rule keyed on the declared catalog families (so `settings.ini` and `pdfium.dll` are not mistaken for keys) plus the eighteen rows. **Not fixed at T2 on purpose**: writing eighteen error messages in two locales is a design act that belongs with the surface that shows them, and T2 is the engine boundary. | 🟡 **Open** — the scanned-path half fixed 2026-09-01; the rule and the eighteen keys owned by **T14** |
 | **I-05** | S2 | **PDFium cannot be called from two threads at once, and per-document confinement does not help — so D2-9's “thread-confined per worker” is false and D10's “worker pool” cannot be eight PDFium threads.** Found at **T3**, by the A2 probe, on its first run — which is the entire argument for measuring early rather than after T13. Eight workers, **each with its own `FPDF_DOCUMENT` and its own `FPDF_PAGE`**, crash. Measured by walking the worker count rather than asserted: **1 worker exits 0; 2, 4 and 8 all die with `STATUS_HEAP_CORRUPTION` (0xC0000374)** inside the render call, and before the pages were preloaded they died inside `FPDF_LoadPage` (stack captured under `gdb`). What PDFium shares between threads is **process-global** — its font mapper and glyph caches — not per-document, so confining a document to a worker confines the wrong thing. Reproducible on demand: `rawpage_bench_render.exe 8 --unsafe-parallel`, because a finding that needs a source edit to reproduce is one that gets re-litigated. **A2 IS UNAFFECTED AND IS `go`**: the constraint is a throughput ceiling, not a latency one — per-tile p95 is 0.532 ms against a 16.667 ms budget, and eight workers behind one engine lock retire **1.05×** the tiles per second of one worker. The engine is fast; it is simply not parallel. **What D10 actually promises is untouched** — *the UI thread never parses or rasterizes* — and two arrangements keep it: **one render thread with a queue**, or **N workers serialized on one engine lock**. Neither was chosen there, deliberately: that is `RenderScheduler`'s shape and it belonged to **T11**. **T11 CHOSE ONE RENDER THREAD WITH A QUEUE, on 2026-09-04**, and corrected D2-9's wording in the same change. The choice was made on the measurement rather than on taste: the 5 % the second arrangement buys is not worth a concurrency bug when the engine is already 30x inside the frame budget, and one consumer makes cancellation — which plan §5.3 calls *the feature* — provable rather than probable, and makes PDFium's single-threadedness structural rather than a discipline every future caller has to remember. `RenderScheduler::Config::workerCount` remains and defaults to **1**, each worker taking its **own** `IPageRasterizer` from a factory, because T18 re-measures A2 through this pipeline and must be able to walk the count without a rebuild, and because a future non-PDFium rasterizer is not bound by this finding. The engine lock in `PdfiumInit` stays: it is correct under either arrangement and it is what **A-45** passes on. Also flagged forward: **T16**'s font work and **Stage 5**'s text extraction inherit the same constraint, since both call the engine from the same global state. | ✅ **Closed 2026-09-04 at T11** — raised 2026-09-01 at T3 |
 | **I-06** | S3 | **`/JBIG2Decode` is DECLARED AND DECODES NOTHING, and `/CCITTFaxDecode` with `K > 0` is implemented against no fixture.** Two gaps in T7's nine filters, raised by building them rather than by running anything. **JBIG2 is the substantive one, and three facts forced it, each established rather than assumed.** (1) **There is no permissible library**: the one usable open-source JBIG2 decoder is Ghostscript's `jbig2dec`, which is **AGPL-3.0** — `Tech-Stack-Plan.md` **D4** forbids any GPL or AGPL dependency outright and `license-audit` enforces it mechanically, so linking it is a build failure rather than a trade-off to weigh. PDFium has its own decoder and is behind the `FPDF_` boundary `layer-lint` forbids `pdf/cos/` from crossing (D2-9), which is half of D3. (2) **There is no corpus fixture** — checked against `corpus/PROVENANCE.md`, not remembered: `corpus/` has DCT, JPX, CCITT G3, CCITT G4, Flate, LZW and RunLength images and **no JBIG2 file at all**, and **D2-11** says in as many words that *a construct the corpus never contains is a construct nothing in this project ever renders*. (3) **Nothing in Stage 2 would call it** — rendering goes through PDFium, which decodes JBIG2 itself; the first real consumer is Stage 8's image export. Together those are exactly the argument **D2-4** already accepted for `CryptFilter`: *building it here produces a file that cannot be tested and will be rewritten*. **What was built instead** is a declared filter that returns `Unsupported` under its own catalog key `error.pdf.filterJbig2` — never an empty buffer, which would reach the image pipeline as a blank page indistinguishable from a page that is genuinely blank (convention 6's argument about silent stubs, one layer down from `platform/`). The refusal is asserted by `tst_cos_filters`, through the ordinary filter chain as well as directly, so a registry that never dispatched to it would not pass. **The cost of finishing it, recorded so the estimate is not rediscovered:** an MQ arithmetic decoder, segment headers, and generic region decoding for templates 0–3 with TPGDON — roughly 450 lines — **plus** a first-party `corpus/jbig2enc.py`, since every corpus file is generated by us (D2-11). Symbol dictionaries and text regions are more again. **The honest sequencing is corpus first, decoder second**, because the decoder cannot be believed without the fixture. **The CCITT half is smaller**: `K > 0` (mixed one- and two-dimensional Group 3) is implemented — it is the same machinery as the other two plus one flag bit — and has no corpus file, so it is exercised only for *does not crash on nonsense*. Named at the assertion rather than left for a reader to assume covered (convention 19). **S3 rather than S2** because nothing in Stage 2 through Stage 7 calls either path and both refuse audibly; it becomes S2 at **Stage 8**, when image export needs to read what it is exporting. **Raised at T7 by the author of the filters**, and recorded rather than absorbed because `Stage2-Rendering-Plan.md` §12 says an overrun is said out loud rather than quietly narrowing the corpus. | 🟡 **Open** — a scope finding, not a defect. Owner unassigned; the natural home is Stage 8 |
+| **I-07** | S3 | **`platform/platform.h` described `MonitorInfo`'s geometry as *device-independent pixels*, and it is PHYSICAL pixels.** Found at **T12** by the first implementation of `IDisplayTopology`, measuring the P-1 rig: Windows lays the virtual desktop out in physical pixels, so the 4K panel at 150 % occupies a 3840×2160 rectangle and not a 2560×1440 one. **The DIP reading is exactly what a DPI-UNAWARE process is handed** — virtualized figures that are self-consistent and wrong — so the field comment described the failure mode as if it were the specification, and guide case A-60 expects the physical figures. A header comment is not a rule, but it is what the next implementer reads: this one would have produced a `WinDisplayTopology` that divided by the scale factor and agreed with itself. Corrected in the same change as the file, with `processIsPerMonitorAware()` added so a caller can say which kind of answer it is getting. | ✅ **Closed 2026-09-04 at T12** |
+| **I-08** | S2 | **`IDocumentBackend::pages()` was declared on the CONCRETE backend, where `ui/` could never reach it.** T9 added `pages()` and `repairReport()` to `pdf::DocumentBackendImpl` with a comment saying `ui/` would reach them *"through the backend it was handed, which is still a `core::` type"*. That is not achievable and could not have been: `ui/` is handed a `core::IDocumentBackend&`, `ui/` may never name `pdf/` (the linker enforces it — `rawpage_ui` links neither `rawpage_cos` nor `rawpage_pdfium`), and a `dynamic_cast` to the concrete type would be the layering violation the whole boundary exists to prevent. It was invisible at T9 because **nothing in `ui/` needed a page tree until there was a viewer**: `openFiles()` asked the backend whether the bytes were a PDF, threw the handle away, and never asked what was in the file. T13 is the first task that needs it, and it is where the gap became reachable rather than theoretical. **Fixed by moving the declaration onto `core::IDocumentBackend`**: opening a document and saying what is in it are the same responsibility, and `open()` already returns a handle that means nothing without it. `repairReport()` deliberately stays on the concrete type until **T14**, its first consumer — a service handed to every caller ahead of the first that reads it is the shape Stage 1 found five times (I-34, I-42, I-43, I-46, I-47). | ✅ **Closed 2026-09-04 at T13** |
+| **I-09** | S3 | **The one render arrangement the product actually runs was the one arrangement nothing tested.** Raised at **T13** while writing the composition root: the adapter that turns a `RenderRequest`'s `DocumentHandle` back into an engine was a class private to `CompositionRoot.cpp`, and every suite that could have driven it fakes one end of the path — `tests/unit` and `tests/ui` may not link an engine at all (D2-2, D1-4), and `tests/render`'s existing cases call `PdfiumRasterizer` with no scheduler. Not a defect in any of them; a gap between them, and the same shape as Stage 1's built-but-unreachable findings. **Fixed by making it `app/BackendRasterizer.h`**, a header naming only `core/` types, so `tests/render/tst_renderpipeline.cpp` (case **A-79**) drives the shipped class rather than a second copy that could agree with a mistake in it. | ✅ **Closed 2026-09-04 at T13** |
 
-**One S2 open — I-02 (T7/T16) — plus one S3 open, I-04 (T14). Two S3 closed, and I-05 closed at T11.**
+**One S2 open — I-02 (T7/T16) — plus two S3 open, I-04 (T14) and I-06 (JBIG2). Six closed: I-01 and
+I-03 before any code, I-05 at T11, I-07 at T12, and I-08 and I-09 at T13.**
+
+**I-08 is the one to read before T14.** It is not interesting as a bug — a declaration in the wrong
+place, moved — but as a demonstration that **a boundary comment claiming a route is not the same as the
+route existing**, which is convention 19's rule applied to a header instead of to a test. The comment was
+written at T9 by someone who had checked that `PageTree` is a `core::` type and had not checked that
+`ui/` is handed the interface rather than the class. It stayed true-looking for nine days because nothing
+in `ui/` had any reason to ask. **T14 has the same shape waiting in it:** `repairReport()` is in exactly
+the position `pages()` was, and the message bar is the consumer that will find out.
 
 **I-05 was the one to read before T10 and T11, and it is now closed by them.** It was never a defect in code anybody wrote: it was a measurement that contradicted a decision two documents had already made, found by the probe D2-1 put at T3 precisely so that it would be found before `RenderScheduler` was built on top of it. Stage 1's lesson was that a spike's figure says nothing about the product; this stage's is that a spike can also say something the product's *design* had assumed away — **and that the design then has to be changed rather than worked around**, which is what T11 did.
 
@@ -1592,7 +1796,7 @@ document means **Stage 1's**, and says so where it appears.
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-78 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-79 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.

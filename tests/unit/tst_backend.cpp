@@ -66,6 +66,11 @@ public:
     {
         return core::notImplementedError(BackendInterface::DocumentBackend, "close");
     }
+    // Null, like every other accessor: a backend that opens nothing has no page tree to hand
+    // back, and an empty `PageTree` returned instead would let a caller believe it was looking at
+    // a zero-page document rather than at nothing.
+    const core::PageTree* pages(core::DocumentHandle) const override { return nullptr; }
+
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }
     core::MutationSink* mutationSink(core::DocumentHandle) override { return nullptr; }

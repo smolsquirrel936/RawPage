@@ -35,6 +35,11 @@ class KeyBindingStore;
 class LogBuffer;
 class RecentFiles;
 class Settings;
+
+namespace render {
+class RenderCache;
+class RenderScheduler;
+}
 }
 
 namespace rawpage::platform {
@@ -63,6 +68,22 @@ struct Services {
     // `core/backend.h`, so handing it to `ui/` widens nothing -- `ui/` looks outward to exactly two
     // files (convention 9) and this is not a third.
     core::IDocumentBackend& backend;
+
+    // THE RENDER PIPELINE, and it arrived at T13 with `ui/viewer/PageView` -- the note at the top
+    // of this file predicted the scheduler and not the cache, so the second one is argued here
+    // rather than slipped in.
+    //
+    // `ui/viewer/TilePresenter` enqueues into the scheduler and takes a ready-subscription from it.
+    // The **cache** is a second service because closing a document has to drop its tiles, and
+    // nothing else can: the scheduler holds a `RenderCache*` privately and has no
+    // "forget this document" of its own, so a viewer that only cancelled would leave a closed
+    // document's megabytes resident for the life of the process. `DocumentWindow`'s destructor is
+    // the one caller.
+    //
+    // Both are `core::` types, so this widens nothing -- `ui/` still looks outward to exactly two
+    // files (convention 9).
+    core::render::RenderScheduler& renderScheduler;
+    core::render::RenderCache&     renderCache;
 
     // The OS bundle, whose own members are null wherever an interface is not implemented yet.
     // `unimplementedInterfaces()` names them, so a Stage 1 window can print what it cannot do

@@ -61,13 +61,27 @@ using core::Status;
 // Deliberately plain: no OS handle, no COM pointer, no Qt GUI type. What crosses this boundary is
 // data, in both directions -- the same rule the PDFium boundary follows for the same reason.
 
+// CORRECTED AT STAGE 2 T12, when the first implementation measured it (Stage 2 guide issue I-07).
+// The geometry below was documented as *device-independent* pixels and is not: Windows lays the
+// virtual desktop out in PHYSICAL pixels, so a 3840x2160 panel driven at 150 % occupies a
+// 3840x2160 rectangle and not a 2560x1440 one. The DIP reading is what a DPI-UNAWARE process is
+// handed -- virtualized figures that are self-consistent and wrong -- and describing the field that
+// way would have made the virtualized answer look like the specified one. Guide case A-60 expects
+// the physical figures, and `WinDisplayTopology::processIsPerMonitorAware()` is what lets a caller
+// say whether it is being told them.
 struct MonitorInfo {
     QString id;                  // stable across a session; the OS device name
-    int     x = 0;               // virtual-desktop coordinates, in device-independent pixels
+    int     x = 0;               // virtual-desktop coordinates, in PHYSICAL device pixels
     int     y = 0;
-    int     width = 0;
+    int     width = 0;           // the panel's real pixel width, not its logical one
     int     height = 0;
-    double  scaleFactor = 1.0;   // 1.0 = 96 DPI
+    double  scaleFactor = 1.0;   // device pixels per logical pixel: 1.5 at 150 %
+
+    // The dots per inch of GLASS, which is a different question from the scale factor and is not
+    // derivable from it -- see `platform/win/WinDisplayTopology.h`. It is what
+    // `core/render/DpiPolicy` means by `PhysicalDpi`, and the reason that class takes three inputs
+    // rather than two. Falls back to the effective DPI (`96 * scaleFactor`) when the panel reports
+    // nothing believable, which is the approximation every caller used before T12.
     int     physicalDpi = 96;
     bool    primary = false;
 };

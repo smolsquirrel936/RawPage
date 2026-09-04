@@ -106,10 +106,11 @@ RAWPAGE_SHELL_STRING(ToolFinderNoResults,    "shell.toolFinder.noResults")
 RAWPAGE_SHELL_STRING(ToolFinderUnavailable,  "shell.toolFinder.unavailable")
 
 // --- Documents and their tabs (T12) --------------------------------------------------------------
-// A stub tab says what it is. `Features.md` describes a start page and a page surface; neither is
-// here, and a blank tab would read as a document that failed to open rather than as a stage that
-// has not arrived -- which is the same call the central placeholder made at T9.
-RAWPAGE_SHELL_STRING(DocumentPlaceholderBody, "shell.document.placeholderBody")
+// `shell.document.placeholderBody` was HERE and is GONE, removed at Stage 2 T13 along with the stub
+// it described ("... the PDF engine and the page surface arrive with Stage 2"). A key whose text
+// promises a stage that has arrived is worse than no key: it is a sentence the product would still
+// be showing after the thing it apologizes for exists. Removed from both shipped catalogs in the
+// same change, which is what takes the catalog count from 561 to 560.
 RAWPAGE_SHELL_STRING(DocumentUntitled,        "shell.document.untitled")
 RAWPAGE_SHELL_STRING(TabStripHint,            "shell.tab.stripHint")
 

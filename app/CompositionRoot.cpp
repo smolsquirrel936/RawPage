@@ -1,11 +1,15 @@
 #include "app/CompositionRoot.h"
 
+#include "app/BackendRasterizer.h"
 #include "app/CrashHandler.h"
 
 #include "pdf/BackendFactory.h"
 
+#include "core/render/RenderRequest.h"
 #include "core/settings/SettingsSchema.h"
 
+#include <QCoreApplication>
+#include <QMetaObject>
 #include <QtGlobal>
 
 #include <string>
@@ -114,6 +118,41 @@ CompositionRoot::CompositionRoot(Options options)
     // `IPageRasterizer`.
     backend_ = pdf::createBackend();
 
+    // --- The render pipeline (Stage 2 T13) ----------------------------------------------------
+    // One cache and one scheduler for the process. Both are `core/` types and neither knows what
+    // an engine is: the scheduler is handed a FACTORY, and what it makes is the adapter above.
+    renderCache_ = std::make_unique<core::render::RenderCache>();
+
+    // The disk tier stays absent. D2-14 is explicit that whether it earns its place is a
+    // MEASUREMENT T18 makes over the corpus, not a preference expressed here, and a tier switched
+    // on by default would make that measurement about itself.
+    renderScheduler_ = std::make_unique<core::render::RenderScheduler>(
+        [backend = backend_.get()]() -> std::unique_ptr<core::IPageRasterizer> {
+            return std::make_unique<BackendRasterizer>(*backend);
+        },
+        renderCache_.get());
+
+    // THE PUMP, AND THERE IS EXACTLY ONE OF IT. `RenderScheduler::setWakeHandler` REPLACES rather
+    // than chains -- `core/Log.h`'s single sink in a second disguise (convention 18) -- so a
+    // `PageView` that installed its own would silence every other view the moment a second tab
+    // opened. The composition root owns it, and `deliverReady()` fans out to every subscriber.
+    //
+    // The wake is called FROM A WORKER and must not touch the scheduler, so all it does is post.
+    pumpAlive_ = std::make_shared<bool>(true);
+    renderScheduler_->setWakeHandler(
+        [scheduler = renderScheduler_.get(), alive = std::weak_ptr<bool>(pumpAlive_)] {
+            if (QCoreApplication::instance() == nullptr) return;
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(),
+                [scheduler, alive] {
+                    // The flag is what makes a post that outlived this object harmless rather
+                    // than a use-after-free on a scheduler that no longer exists.
+                    if (alive.expired()) return;
+                    scheduler->deliverReady();
+                },
+                Qt::QueuedConnection);
+        });
+
     if (options_.createPlatform) {
         // THE ONLY createPlatform() CALL IN THE PROGRAM. It logs its own interface census.
         platform_ = platform::createPlatform();
@@ -127,6 +166,19 @@ CompositionRoot::CompositionRoot(Options options)
 
 CompositionRoot::~CompositionRoot()
 {
+    // THE RENDER PIPELINE GOES FIRST, and the order inside it matters twice over. Dropping the
+    // wake handler stops new posts; releasing `pumpAlive_` makes any post already in Qt's queue a
+    // no-op; destroying the scheduler joins its worker, which is what guarantees no thread is
+    // inside `BackendRasterizer` -- and therefore inside the backend -- when the backend is
+    // destroyed further down.
+    if (renderScheduler_) {
+        renderScheduler_->setWakeHandler(nullptr);
+        pumpAlive_.reset();
+        renderScheduler_->cancelAll();
+        renderScheduler_.reset();
+    }
+    renderCache_.reset();
+
     // THE WRITE. `Settings` accumulates dirty keys and commits them on sync(), which nothing called
     // until T8 -- so before this line the recent-files list and every preference were correct for
     // the life of the process and gone at the end of it (issue I-14). Found by running the flow,
@@ -152,8 +204,9 @@ CompositionRoot::~CompositionRoot()
 
 Services CompositionRoot::services()
 {
-    return Services{*settings_, *recentFiles_, *actions_,  *keyBindings_,
-                    *logBuffer_, *backend_,     *platform_};
+    return Services{*settings_,  *recentFiles_,     *actions_, *keyBindings_,
+                    *logBuffer_, *backend_,         *renderScheduler_, *renderCache_,
+                    *platform_};
 }
 
 void CompositionRoot::applyLoggingSettings()

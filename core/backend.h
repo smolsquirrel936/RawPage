@@ -78,6 +78,8 @@ namespace rawpage::core {
 // creates it. A forward declaration is how an interface is declared ahead of its vocabulary; the
 // list is short on purpose, and it is the checkable record of what this header is waiting for.
 
+class PageTree;              // core/doc/PageTree.h        -- Stage 2 T9 (read half, D2-5)
+
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
 }
@@ -327,6 +329,26 @@ public:
     virtual Result<DocumentHandle> open(const QString& path, const PasswordCallback& password) = 0;
 
     virtual Status close(DocumentHandle document) = 0;
+
+    // THE DOCUMENT'S PAGE STRUCTURE, added at Stage 2 T13 -- and the reason it is on the interface
+    // rather than on the concrete backend is worth stating, because it was on the concrete backend
+    // first (Stage 2 guide issue I-08).
+    //
+    // T9 put `pages()` on `pdf::DocumentBackendImpl` with a comment saying `ui/` would reach it
+    // "through the backend it was handed, which is still a `core::` type". That was not achievable:
+    // `ui/` is handed a `core::IDocumentBackend&`, `ui/` may never name `pdf/`, and a
+    // `dynamic_cast` to the concrete type would be the layering violation the whole boundary
+    // exists to prevent. So T13 -- the first task with a viewer that needs to know how many pages
+    // there are and how big they are -- moves the declaration here.
+    //
+    // A page tree is not something a signer or an OCR engine has, which was the original argument
+    // for keeping it off this header. But this is `IDocumentBackend`, not one of the six
+    // sub-interfaces: opening a document and saying what is in it are the same responsibility, and
+    // `open()` already returns a handle that means nothing without it.
+    //
+    // Null for a handle this backend did not open, or has closed. The pointee is owned by the
+    // backend and is valid until `close()`.
+    virtual const PageTree* pages(DocumentHandle document) const = 0;
 
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;

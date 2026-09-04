@@ -55,9 +55,9 @@ three jobs, verdicts **A5** and **A6** recorded in ②.
 **Stage 1 is COMPLETE — every Definition-of-Done item closed as of 2026-08-31**, the manual walk
 included. All fifteen tasks, all nine walkable manual cases signed off by the user, no open issue.
 
-**Stage 2 is under way — T1 … T11 of 18 are complete**, the most recent five on 2026-09-04. Its
+**Stage 2 is under way — T1 … T13 of 18 are complete**, the most recent seven on 2026-09-04, and **T13 is the one the stage is named for: a page is on screen.** Its
 execution plan ([⑤](./Stage2-Rendering-Plan.md) — decisions **D2-1…D2-14**, tasks **T1…T18**) and its
-testing guide ([⑥](./Stage2-Rendering-Testing-Guide.md) — **78 automated**, **10 manual** cases) were
+testing guide ([⑥](./Stage2-Rendering-Testing-Guide.md) — **79 automated**, **10 manual** cases) were
 both written on 2026-08-31, **before any Stage 2 code**, per ④ §5. It carries the **A2** go/no-go and
 owns **O7** and **O10**. Writing them corrected two stage tags in ③ that disagreed with ④ — the
 guide's **I-01**.
@@ -75,19 +75,19 @@ Stage 3.
 
 | | |
 |---|---|
-| Tests | **561/561** on `x64-debug` and `x64-release`, measured 2026-09-04; the bare `gates` preset **90/90** with no Qt. Split: `unit.` 300, `ui.` 124, `gates.` 90, `platform.` 19, `render.` 26, `bench.` 2. The per-task history and every deviation live in ④'s Stage 2 block, which is the authority |
-| Gates | `layer-lint` **209 files / 1,320 includes** with **six** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **136 files / 2 catalogs / 0 waivers**. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, not a gate |
+| Tests | **598/598** on `x64-debug` and `x64-release`, measured 2026-09-04 at Stage 2 T13 (one test explicitly **SKIPPED**: the battery case, on a desktop that has none — that is A-62's own *"not applicable, explicitly"* requirement rather than a gap); the bare `gates` preset **90/90** with no Qt. Split: `unit.` 300, `ui.` 150, `gates.` 90, `platform.` 28, `render.` 28, `bench.` 2 |
+| Gates | `layer-lint` **247 files / 1,622 includes** with **eight** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **163 files / 2 catalogs / 0 waivers** (measured 2026-09-04). **Three live**, not four — `mutation-lint` is Stage 3's |
 | Verdicts | **A3 = `go, with named custom work`** and **A2's probe = `go`** (both in ②'s §3.3, per criterion). A2's *product* figure is still owed at T18 — D2-1 measures it twice on purpose |
-| Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user; the roster and what each found are in Stage 1's ⑥ §6. **Stage 2's ten manual cases have not been walked** — none of them is reachable until there is a viewer to look at |
-| Issues | Stage 1: **I-01…I-55, none open** — the full log is in Stage 1's ⑥ §8. Stage 2: **six**, of which three are open — **I-05** (PDFium cannot be called from two threads at once) was closed at T11 by choosing one render thread with a queue. **I-02** (the licence gate's closure, half-closed at T7), **I-04** (no rule compares a referenced catalog key against the catalogs), **I-06** (JBIG2 is declared and decodes nothing — no permissible library, no corpus fixture) are open. Each stage's ⑥ §8 owns its own |
+| Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user; the roster and what each found are in Stage 1's ⑥ §6. **Stage 2's ten manual cases have not been walked, and the first four became walkable at T13** — there is a page on screen. M-05 … M-10 still need golden baselines (T17), fonts (T16), the settings keys (T15) or Dr. Memory |
+| Issues | Stage 1: **I-01…I-55, none open** — the full log is in Stage 1's ⑥ §8. Stage 2: **nine**, of which **three are open** — **I-02** (S2, the licence gate's resolved closure, T7/T16), **I-04** (S3, referenced-key checking, T14) and **I-06** (S3, JBIG2 is declared and decodes nothing). Six are closed, most recently **I-07** at T12 and **I-08** and **I-09** at T13 |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
 ribbon spike (`tools/spike-ribbon/`, **deleted at T10, as planned**); the action layer — `ActionId` (**361** declared
 actions), `ActionRegistry`, `Chord`, `KeyBindingStore` (240 bindings seeded from ① §8); the typed
 settings store (`core/settings/`, where an undeclared key does not compile); the third gate
-(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **561 keys each** (measured 2026-09-04); the OS boundary
-(`platform/platform.h`, seventeen interfaces declared, two implemented); the composition root that
+(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **565 keys each** (measured 2026-09-04); the OS boundary
+(`platform/platform.h`, seventeen interfaces declared, **four** implemented since S2 T12); the composition root that
 wires all of it together (`app/`); the application frame (`ui/shell/`); since T14, the Preferences
 surface and the log (`ui/dialogs/`, `ui/panes/`, `core/LogBuffer`, `app/LogFile`); and since T15
 `tests/bench/`, which holds the one A3 criterion that is a number rather than a judgement.
@@ -111,7 +111,7 @@ later stage is a table row and no widget code), a Shortcuts page that writes a r
 binding store and the settings file, and a log pane over an in-memory buffer and a rolling file under
 `%LOCALAPPDATA%`. Most controls are **disabled and say why** — **361** commands are declared and
 the **twenty-three** this window can service are registered.
-**Stage 2 is in progress — T1–T11 of 18** — and stages 3–16 are `⚪ not started`.
+**Stage 2 is in progress — T1–T13 of 18** — and stages 3–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
 record is ① → *Removed from scope*; every other document cross-references it.

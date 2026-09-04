@@ -1,6 +1,8 @@
 #include "platform/win/PlatformFactory.h"
 
 #include "core/Log.h"
+#include "platform/win/WinDisplayTopology.h"
+#include "platform/win/WinPowerSession.h"
 #include "platform/win/WinShellIntegration.h"
 #include "platform/win/WinSingleInstanceBus.h"
 
@@ -23,7 +25,18 @@ std::unique_ptr<Platform> createWindowsPlatform(const PlatformOptions& options)
     platform->shellIntegration =
         std::make_unique<WinShellIntegration>(options.executablePath, options.registryRoot);
 
-    // Every other slot stays null, and the count is LOGGED rather than left implicit. "Fifteen of
+    // Stage 2 T12. Neither of these is a policy: `WinDisplayTopology` reports what the monitors
+    // are and `WinPowerSession` reports what the machine is running on, and what to DO about either
+    // belongs to `core/render/DpiPolicy` and `core/render/RenderScheduler` respectively. That split
+    // is what `platform/`'s "makes no policy decisions" rule means in practice here -- the throttle
+    // arithmetic, in particular, is deliberately not in this layer.
+    //
+    // Both are constructed unconditionally and neither creates a window until something subscribes,
+    // so a diagnostic run that never asks pays for nothing.
+    platform->displayTopology = std::make_unique<WinDisplayTopology>();
+    platform->powerSession = std::make_unique<WinPowerSession>();
+
+    // Every other slot stays null, and the count is LOGGED rather than left implicit. "Thirteen of
     // seventeen interfaces are not built yet" is a fact a later stage should be able to see in a
     // support log without reading this file.
     const std::vector<std::string_view> missing = unimplementedInterfaces(*platform);

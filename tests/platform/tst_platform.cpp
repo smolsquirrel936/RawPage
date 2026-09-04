@@ -86,7 +86,11 @@ TEST_CASE("an empty bundle reports every interface as unimplemented", "[platform
     CHECK(unimplementedInterfaces(empty).size() == kPlatformInterfaceCount);
 }
 
-TEST_CASE("the Windows bundle implements exactly the two Stage 1 interfaces", "[platform]")
+// FOUR AS OF STAGE 2 T12, and the number is in the name on purpose. This case is the census, and a
+// census whose title says "two" while its body says four is the shape of drift the T1 recount was
+// written to stop. Stage 1 wired `ISingleInstanceBus` and `IShellIntegration`; T12 adds
+// `IDisplayTopology` and `IPowerSession` -- the two the render policy layer was waiting on.
+TEST_CASE("the Windows bundle implements exactly the four interfaces built so far", "[platform]")
 {
     win::PlatformOptions options;
     options.executablePath = QStringLiteral("C:/nowhere/rawpage.exe");
@@ -97,15 +101,19 @@ TEST_CASE("the Windows bundle implements exactly the two Stage 1 interfaces", "[
 
     CHECK(platform->singleInstanceBus != nullptr);
     CHECK(platform->shellIntegration != nullptr);
+    CHECK(platform->displayTopology != nullptr);
+    CHECK(platform->powerSession != nullptr);
 
     const std::vector<std::string_view> missing = unimplementedInterfaces(*platform);
-    CHECK(missing.size() == kPlatformInterfaceCount - 2);
+    CHECK(missing.size() == kPlatformInterfaceCount - 4);
 
-    // Named, not just counted: a bundle that implemented two DIFFERENT interfaces would satisfy a
+    // Named, not just counted: a bundle that implemented four DIFFERENT interfaces would satisfy a
     // count and would mean the factory wired the wrong things.
     for (const std::string_view name : missing) {
         CHECK(name != "ISingleInstanceBus");
         CHECK(name != "IShellIntegration");
+        CHECK(name != "IDisplayTopology");
+        CHECK(name != "IPowerSession");
     }
 }
 

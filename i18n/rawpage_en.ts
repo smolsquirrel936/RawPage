@@ -1543,10 +1543,6 @@
         <translation>%1 — RawPage</translation>
     </message>
     <message>
-        <source>shell.document.placeholderBody</source>
-        <translation>%1 is open as a stub. Nothing has been read from it: the PDF engine and the page surface arrive with Stage 2.</translation>
-    </message>
-    <message>
         <source>shell.document.untitled</source>
         <translation>Untitled</translation>
     </message>
@@ -1632,6 +1628,26 @@
     <message>
         <source>error.backend.notImplemented</source>
         <translation>This build cannot do that yet: %1 is not implemented.</translation>
+    </message>
+    <message>
+        <source>error.render.documentClosed</source>
+        <translation>That page could not be drawn: the document (%1) was closed while it was being prepared.</translation>
+    </message>
+    <message>
+        <source>error.platform.displayQuery</source>
+        <translation>Windows could not report this computer's monitors (%1).</translation>
+    </message>
+    <message>
+        <source>error.platform.displaySubscribe</source>
+        <translation>RawPage could not ask Windows to report monitor changes (%1).</translation>
+    </message>
+    <message>
+        <source>error.platform.powerSubscribe</source>
+        <translation>RawPage could not ask Windows to report power and session changes (%1).</translation>
+    </message>
+    <message>
+        <source>error.platform.presentationMode</source>
+        <translation>RawPage could not keep the display awake for this presentation (%1).</translation>
     </message>
     <message>
         <source>error.engine.initFailed</source>

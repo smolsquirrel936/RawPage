@@ -447,16 +447,26 @@ int MainWindow::indexOfPath(const QString& absolutePath) const
     return -1;
 }
 
-DocumentWindow* MainWindow::openDocument(const QString& absolutePath)
+DocumentWindow* MainWindow::openDocument(const QString& absolutePath, core::DocumentHandle handle)
 {
     if (const int existing = indexOfPath(absolutePath); existing >= 0) {
         // The same path twice in one window would give the user two identical tabs and no way to
         // tell them apart. Focusing the one already there is what every editor does.
+        //
+        // `openFiles()` checks for this BEFORE it asks the backend, so this branch is reached only
+        // by a direct caller -- and a handle arriving here would leak, since nothing would ever own
+        // it. Closing it is the honest recovery rather than an assertion nobody would see.
+        if (handle.isValid()) {
+            RAWPAGE_LOG_DEBUG(LogSubsystem::Ui)
+                << "open: already open in this window; releasing the duplicate handle for"
+                << absolutePath;
+            services_.backend.close(handle);
+        }
         activateDocument(existing);
         return documentAt(existing);
     }
 
-    auto* document = new DocumentWindow(absolutePath);
+    auto* document = new DocumentWindow(services_, absolutePath, handle);
     adoptDocument(document);
     return document;
 }
@@ -1074,6 +1084,15 @@ void MainWindow::openFiles(const QStringList& paths)
         // file therefore refuses here by name today, which is the honest state rather than a
         // silent empty tab -- and it is why the callback is a parameter rather than something the
         // backend reaches for.
+        // ALREADY OPEN IN THIS WINDOW? Then the backend is not asked at all, and that is a change
+        // T13 made deliberately: T9 opened first and discovered the duplicate afterwards, which
+        // was harmless while the handle was thrown away and is a leaked engine handle now that a
+        // tab owns one. Focusing the existing tab is also what the user meant.
+        if (const int existing = indexOfPath(info.absoluteFilePath()); existing >= 0) {
+            activateDocument(existing);
+            continue;
+        }
+
         const core::Result<core::DocumentHandle> opened =
             services_.backend.open(info.absoluteFilePath(), nullptr);
         if (!opened) {
@@ -1091,7 +1110,7 @@ void MainWindow::openFiles(const QStringList& paths)
         // worse than a short one.
         services_.recentFiles.note(info.absoluteFilePath());
 
-        openDocument(info.absoluteFilePath());
+        openDocument(info.absoluteFilePath(), opened.value());
         RAWPAGE_LOG_INFO(LogSubsystem::Ui)
             << "open: accepted" << info.absoluteFilePath() << "as handle"
             << static_cast<int>(opened.value().id);

@@ -30,6 +30,7 @@ std::array<bool, core::kBackendInterfaceCount> DocumentBackendImpl::implementedI
     return implemented;
 }
 
+// Both `find` overloads require `mutex_` to be held; every public entry point below takes it.
 DocumentBackendImpl::Open* DocumentBackendImpl::find(core::DocumentHandle document)
 {
     const auto found = open_.find(document.id);
@@ -57,6 +58,7 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
     entry->document = std::move(document).value();
     entry->rasterizer = std::make_unique<render::PdfiumRasterizer>(*entry->document);
 
+    const std::lock_guard<std::mutex> guard(mutex_);
     const core::DocumentHandle handle{nextHandle_++};
     RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
         << "backend: opened" << path << "as handle" << static_cast<int>(handle.id) << "with"
@@ -65,8 +67,13 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
     return handle;
 }
 
+// THE CALLER'S PROTOCOL, because a mutex cannot express it: before closing, cancel the document's
+// outstanding render jobs and let the scheduler go idle. `rasterizer()` hands out a pointer into
+// the entry this call destroys, and a worker holding one across the destruction is a use-after-free
+// inside PDFium. `ui/shell/DocumentWindow`'s destructor is the one caller and it does exactly that.
 core::Status DocumentBackendImpl::close(core::DocumentHandle document)
 {
+    const std::lock_guard<std::mutex> guard(mutex_);
     const auto found = open_.find(document.id);
     if (found == open_.end()) {
         // Closing a handle that is not open is a caller error worth naming, not a silent success:
@@ -83,6 +90,8 @@ core::Status DocumentBackendImpl::close(core::DocumentHandle document)
 
 core::IPageRasterizer* DocumentBackendImpl::rasterizer(core::DocumentHandle document)
 {
+    // CALLED FROM THE RENDER THREAD. See the mutex's note in the header.
+    const std::lock_guard<std::mutex> guard(mutex_);
     Open* entry = find(document);
     return entry ? entry->rasterizer.get() : nullptr;
 }
@@ -114,12 +123,14 @@ core::IIndexer* DocumentBackendImpl::indexer()
 
 const core::PageTree* DocumentBackendImpl::pages(core::DocumentHandle document) const
 {
+    const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
     return entry ? &entry->document->pages() : nullptr;
 }
 
 const core::RepairReport* DocumentBackendImpl::repairReport(core::DocumentHandle document) const
 {
+    const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
     return entry ? &entry->document->repairReport() : nullptr;
 }

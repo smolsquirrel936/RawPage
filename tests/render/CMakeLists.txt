@@ -26,6 +26,12 @@ add_executable(rawpage_render_tests
     tst_pdfiumdoc.cpp             # Stage 2 T9 -- guide cases A-42 and A-43
     tst_rasterizer.cpp            # Stage 2 T9 -- guide cases A-44, A-45, A-46's second half,
                                   #               and A-47's engine half
+    tst_renderpipeline.cpp        # Stage 2 T13 -- the REAL engine on the REAL scheduler, through
+                                  #   app/BackendRasterizer. Every other suite fakes one end of
+                                  #   this: tests/unit and tests/ui fake the rasterizer (they may
+                                  #   not link an engine), and the other cases here call the
+                                  #   rasterizer with no scheduler. The assembly the product
+                                  #   actually runs had no case until this file.
 )
 
 # The corpus, by absolute source path -- the same mechanism tests/unit uses and for the same

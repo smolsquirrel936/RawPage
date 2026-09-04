@@ -1,53 +1,91 @@
-// The unit a document tab represents -- and at Stage 1 it is deliberately a stub. Decision D1-2.
+// The unit a document tab represents.
 //
 // ---------------------------------------------------------------------------------------------
-// WHAT THIS CLASS DOES NOT HAVE, AND WHY THAT IS THE POINT.
+// THE STUB IS GONE (Stage 2 T13). WHAT IT WAS FOR, AND WHAT REPLACED IT.
 //
-// No `Document`. No `CommandJournal`. No page number, no zoom, no selection, no pane set, no
-// per-document settings. It holds a PATH and the widgets that say what will be here later, and
-// `Architecture-FileMap.md` §3.13 already describes what it becomes: the owner of the document, its
-// journal, the viewer, the split container and the panes.
+// At Stage 1 this class held a path and two labels and nothing else -- decision D1-2, whose
+// argument was that the shell's genuinely hard parts (tear-off, re-dock, reorder, close, overflow,
+// the Explorer -> single-instance -> `openFiles` handoff) are STRUCTURAL, cheap to get right before
+// a real document hangs off them and expensive to reshape afterwards. The risk it accepted in
+// return was that the stub would calcify.
 //
-// D1-2 exists because the shell's genuinely hard parts -- tear-off and re-dock, reorder, close,
-// overflow, the Explorer -> single-instance -> `openFiles` handoff -- are STRUCTURAL, and they are
-// cheap to get right now and expensive to reshape once a real document hangs off them. The risk it
-// names in return is that the stub calcifies: that Stage 2 inherits a shape built for a placeholder.
-// The guard against that is this file staying empty of state, which guide case A-57 checks -- so
-// every member below is either the path or a widget showing the path.
+// It did not. This class now holds exactly what `Architecture-FileMap.md` §3.13 said it would grow:
+// the open document's handle, its revision, and the viewer. What it still does NOT hold is a
+// `CommandJournal`, a split container or a pane set -- Stages 3 and 4 -- because Stage 2 has no
+// mutation of any kind and a journal with nothing to record would be a member built ahead of its
+// first caller.
 //
 // ---------------------------------------------------------------------------------------------
-// NOTHING HERE READS THE FILE.
+// IT OWNS THE HANDLE, AND CLOSING IT IS A THREE-STEP PROTOCOL RATHER THAN A CALL.
 //
-// `MainWindow::openFiles` checks that a path exists and ends in `.pdf`, and that is the whole of it
-// (guide case A-58). Deciding whether bytes are a PDF is `IDocumentBackend`'s job at Stage 2, and a
-// content check inside `ui/` would pre-empt a boundary that is much harder to reclaim than to hold.
-// This class never opens the file at all: it names it.
+// A `DocumentHandle` is the backend's; this class is what closes it, because the tab is what the
+// user closes and a tab torn off into another window takes its document with it. The destructor
+// must do three things in order, and the order is not decoration:
+//
+//   1. **Cancel this document's render jobs and wait for the scheduler to go idle.** A worker
+//      inside `FPDF_RenderPageBitmap` on a document that is about to be destroyed is a
+//      use-after-free in PDFium, and `IDocumentBackend::close()` says so at its declaration.
+//   2. **Drop the document's tiles from the cache.** Nothing else can: `RenderScheduler` holds the
+//      cache privately and has no "forget this document" of its own, so a closed 900-page file
+//      would otherwise keep its megabytes for the life of the process.
+//   3. **Close the handle.**
+//
+// Guide case A-39 is exactly this sequence -- *a `PageView` destroyed with tiles in flight* -- and
+// its `core/` half was already green at T11 with the widget half owed here.
 
 #ifndef RAWPAGE_UI_SHELL_DOCUMENTWINDOW_H
 #define RAWPAGE_UI_SHELL_DOCUMENTWINDOW_H
+
+#include "app/Services.h"
+#include "core/backend.h"
+#include "core/doc/Revision.h"
 
 #include <QString>
 #include <QWidget>
 
 namespace rawpage::ui {
 
+class PageView;
+
 class DocumentWindow : public QWidget {
     Q_OBJECT
 
 public:
-    explicit DocumentWindow(QString path, QWidget* parent = nullptr);
+    // `handle` must be an OPEN document from `services.backend`; this class takes over closing it.
+    // An invalid handle is legitimate and yields an empty viewer -- which is what a test that only
+    // cares about the tab strip passes.
+    // `Services` is taken BY VALUE, as `MainWindow` takes it. It is a bundle of references and
+    // copying it costs nothing; holding a reference to one would dangle the moment a caller passed
+    // a temporary, which every fixture in `tests/ui` does and which segfaulted the first run of
+    // this class's own case.
+    DocumentWindow(app::Services services, QString path, core::DocumentHandle handle,
+                   QWidget* parent = nullptr);
+    ~DocumentWindow() override;
 
-    // The absolute path this tab stands for. The identity of a document at Stage 1 IS its path --
-    // `core/doc/DocumentId` arrives with `core/doc/` at Stage 2, and inventing a placeholder id here
-    // would be a member Stage 2 has to remove rather than fill in.
+    // The absolute path this tab stands for.
     const QString& path() const { return path_; }
+
+    core::DocumentHandle handle() const noexcept { return handle_; }
+
+    // The revision this tab's document is at. `Revision::initial()` for every document Stage 2 can
+    // open, because Stage 2 has no mutation -- it moves at Stage 3, and every tile key carries it
+    // so that nothing rendered before a change can be shown after one (D2-12).
+    core::Revision revision() const noexcept { return revision_; }
+
+    int pageCount() const;
+
+    PageView* view() const noexcept { return view_; }
 
     // The tab's text and the window title's `%1`: the file's name, derived rather than stored, so
     // there is no second copy to disagree with the path after a rename.
     QString title() const;
 
 private:
+    app::Services services_;
     QString path_;
+    core::DocumentHandle handle_;
+    core::Revision revision_ = core::Revision::initial();
+    PageView* view_ = nullptr;
 };
 
 } // namespace rawpage::ui

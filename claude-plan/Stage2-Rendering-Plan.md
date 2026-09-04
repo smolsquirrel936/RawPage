@@ -13,7 +13,7 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T11 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
+> **Status:** 🟡 **T1–T13 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
 > finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
 > on 2026-09-02: 60 files, all generated, all with a provenance row, all regenerating
 > byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
@@ -31,7 +31,17 @@
 > `PdfiumRasterizer` and the real `DocumentBackendImpl`, which took the backend census from 0 of 7
 > to 2 of 7 and closed **A-46**. `openFiles()` now asks the backend instead of the suffix (A-47,
 > replacing Stage 1's A-58), and `pdf::createBackend()` moved into `rawpage_pdfium` because a
-> backend that opens documents is the engine. **T10 and T11 on 2026-09-04**: `core/render/` — `DpiPolicy`, `TileGrid` and `PagePresentation` at T10, then `RenderCache` with its two tiers and `RenderScheduler` at T11. **T11 closes I-05 by choosing the arrangement D2-9 left open: ONE render thread with a queue**, and D2-9's row below is corrected in the same change, as that decision said it would be. 35 new cases, all headless, and eight negative controls run.** Written 2026-08-31,
+> backend that opens documents is the engine. **T10 and T11 on 2026-09-04**: `core/render/` — `DpiPolicy`, `TileGrid` and `PagePresentation` at T10, then `RenderCache` with its two tiers and `RenderScheduler` at T11. **T11 closes I-05 by choosing the arrangement D2-9 left open: ONE render thread with a queue**, and D2-9's row below is corrected in the same change, as that decision said it would be. 35 new cases, all headless, and eight negative controls run.
+> **T12 and T13, the same day: `WinDisplayTopology` and `WinPowerSession`, and then A PAGE ON SCREEN.**
+> T12 takes the Windows bundle from two of seventeen interfaces to four and gives `DpiPolicy` its third
+> input for real — the P-1 rig's 4K panel measures **163 DPI of glass at 150 %** where the nominal
+> `96 * scale` every caller had been passing says 144. T13 builds `ui/viewer/` and **`DocumentWindow`
+> stops being D1-2's stub**; `PageView` is the first widget in the product to declare a `KeyContext`
+> (D2-8), so `activeContext()` answers something other than `Global` for the first time. Three findings,
+> all closed the same day: **I-07** (a `platform.h` comment that described the DPI-unaware failure mode
+> as the specification), **I-08** (`pages()` declared where `ui/` could never reach it) and **I-09** (the
+> one render arrangement the product actually runs had no case). 37 new cases; six negative controls run,
+> **one of which refused to fail and the CASE was fixed**.** Written 2026-08-31,
 > immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
 > task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
 > block is the authority.
@@ -166,8 +176,12 @@ wrong stage tag, and are lockstep debt — §10.
 | `core/render/RenderRequest.h` | §3.4 ✅ **(S2 · T9, brought forward from T10)** — `IPageRasterizer::raster()` takes one and T9's exit criterion is a rasterized page | T9 |
 | `core/render/RenderScheduler.{h,cpp}`, `RenderCache.{h,cpp}` | §3.4 ✅ (S2 · T11) | T11 |
 | `core/render/DiskTileStore.{h,cpp}` | §3.4 ✅ **(S2 · T11)** — **a row this manifest did not list**, added with the file. D2-14 requires the disk tier to exist behind the same interface as the memory tier, and a tier whose I/O lived inside `RenderCache.cpp` could not be constructed against a temporary directory by a test, nor keep its two `layer-lint` write waivers away from the pure half | T11 |
-| `platform/win/WinDisplayTopology.{h,cpp}`, `WinPowerSession.{h,cpp}`, `WinFontResolver.{h,cpp}`, `WinAcceleratedSurface.{h,cpp}` | §3.12 ⚠️ *(no rows — the header declares the interfaces; the implementations have none)* | T12, T16 |
-| `ui/viewer/PageView.{h,cpp}`, `TilePresenter.{h,cpp}`, `PageLayoutEngine.{h,cpp}`, `ViewportController.{h,cpp}` | §3.14 ○ (S2) | T13 |
+| `platform/win/WinDisplayTopology.{h,cpp}`, `WinPowerSession.{h,cpp}` | §3.12 ✅ (S2 · T12) — the rows existed tagged ○ and the ○ → ✅ flip is what was owed | T12 |
+| `platform/win/WinMessageWindow.{h,cpp}` | §3.12 ✅ **(S2 · T12)** — **a row this manifest did not list**, added with the file. Both T12 interfaces need the same hidden top-level window, because on Windows a notification IS a window message and neither class may own a `QWidget`; written twice, the second copy is where the missing `UnregisterClass` lives. It also carries the load-bearing note that a message-only window — the obvious choice — does **not** receive broadcasts and would register successfully and silently never fire. Same shape as `DiskTileStore` at T11 | T12 |
+| `platform/win/WinFontResolver.{h,cpp}`, `WinAcceleratedSurface.{h,cpp}` | §3.12 ○ (S2) | T16 |
+| `ui/viewer/PageView.{h,cpp}`, `TilePresenter.{h,cpp}`, `PageLayoutEngine.{h,cpp}`, `ViewportController.{h,cpp}` | §3.14 ✅ (S2 · T13) | T13 |
+| `app/BackendRasterizer.h` | §3.8 ✅ **(S2 · T13)** — **a second row this manifest did not list.** It was a class private to `CompositionRoot.cpp` and the consequence was issue **I-09**: the one arrangement the shipped product runs — the real engine, reached through the real backend, on a worker the real scheduler owns — was the one arrangement no suite could reach, because `tests/unit` and `tests/ui` may not link an engine (D2-2, D1-4) and `tests/render` had no scheduler. As a header naming only `core/` types, case **A-79** drives the shipped class rather than a copy | T13 |
+| `ui/shell/DocumentWindow.{h,cpp}` — **the D1-2 stub replaced** | §3.13 🟡 (S1 T12 stub, S2 · T13 the viewer) — **not a new file and not in this manifest**, because the plan's §2 ledger already said T13 replaces its placeholder canvas and *"the emptiness was the feature; do not preserve it"* | T13 |
 | `ui/shell/MessageBar.{h,cpp}` | §3.13 ○ (S2) | T14 |
 | `pdf/render/GlyphCache.{h,cpp}`, `FontResolverBridge.{h,cpp}` | §3.10 ○ (S2) | T16 |
 | `tests/golden/`, `tools/golden-update/` | §3.17 ⚠️ *(`tests/golden/` has a row; the tool does not)* | T17 |
@@ -431,6 +445,9 @@ to existing documents and are made when this plan is written.
   `WinAcceleratedSurface` each have a §3.12 row already, so what is owed is the ○ → ✅ flip at **T12**
   and **T16**, not the rows themselves. Stage 1 T7 set the precedent of adding an
   implementation's row in the same change as the implementation.
+  **Half paid at T12**: `WinDisplayTopology` and `WinPowerSession` are ✅, and `WinMessageWindow` — a
+  file this plan's §4 did not list — got a row of its own in the same change. `WinFontResolver` and
+  `WinAcceleratedSurface` remain ○ and are **T16's**.
 - ~~**`tools/golden-update/` has no row**, though `tests/golden/` does.~~ **Stale — re-measured
   2026-09-02: §3.17 has one, tagged ○ (S2). The ○ → ✅ flip is T17's.**
 - ~~**`cmake/PdfiumAssert.cmake` has no row**, though `cmake/ToolchainAssert.cmake` does.~~ **Paid at
@@ -440,13 +457,21 @@ to existing documents and are made when this plan is written.
   retired risk still reading as open is how a later reader re-does settled work — applies equally to
   a half-answered one, which is why the row says which half. A risk that has been retired but
   still reads as open is how a later reader re-does settled work.
+- ~~🟡 **`ui/viewer/`'s four rows are ○ (S2).**~~ **Paid at T13**, all four flipped in the same change
+  as the code — and two rows the manifest did not list were added with their files, `app/BackendRasterizer.h`
+  (issue **I-09**) and `platform/win/WinMessageWindow` at T12. `ui/shell/DocumentWindow`'s row moved from
+  the D1-2 stub's description to what it now is.
+
 - 🟡 **`CLAUDE.md`'s "Still no document code" paragraph** — *"nothing in `core/doc/`, `pdf/cos/`,
   `pdf/render/`, `pdf/ops/`, or `ui/viewer/`"* — is false after T13 and must be rewritten, not
   amended. **Rewritten twice already rather than left to rot at T18**: at T2 for `pdf/render/`, and
   at T5, when `pdf/cos/` stopped being empty and the sentence had to name what the lexer does *not*
-  know as well as what it does. It is still owed a final rewrite at T13. The same file's gate table
+  know as well as what it does. **Rewritten at T13, which is the rewrite it was waiting for**: `ui/viewer/` is no longer empty, so the
+  sentence now says what is on screen and what is deliberately not (no zoom command, no status-bar
+  number, no settings key — T14 and T15). The same file's gate table
   gained the narrowed `FPDF_` rule at T2 and its test-target table gained `rawpage_render_tests`;
-  **the fourth CI job's prefixes are still owed.**
+  **the fourth CI job's prefixes are still owed**, and `platform.` and `render.` both grew at T12 and
+  T13 without CI being told.
 - **`Features.md` §8's Viewer table gains no rows and must gain none.** Stage 2 handles the subset
   `Implementation-Plan.md` lists; `Ctrl+4` (Reflow), `Ctrl+R` (rotate **pages**), `S`, `Ctrl+B`,
   `Ctrl+E`, `Ctrl+L`, `Ctrl+U`, `Ctrl+'`, `Ctrl+;`, `Ctrl+Alt+C`, `Ctrl+.`/`Ctrl+,` and

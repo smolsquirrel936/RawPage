@@ -29,6 +29,8 @@
 #include "core/backend.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
+#include "core/render/RenderCache.h"
+#include "core/render/RenderScheduler.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
@@ -91,6 +93,16 @@ public:
     // Stage 2 T9 gives `MainWindow::openFiles()` a reason to.
     core::IDocumentBackend& backend() { return *backend_; }
 
+    // THE RENDER PIPELINE (Stage 2 T13). One cache and one scheduler for the whole process, which
+    // is O7's "shared between documents" arrangement built so the question can be MEASURED --
+    // `RenderCache` counts cross-document evictions precisely so T18 can answer it with a number
+    // rather than a preference (D2-14).
+    //
+    // The scheduler is destroyed FIRST of the three (see the destructor): its worker holds a
+    // rasterizer that reaches into the backend, and the backend must outlive it.
+    core::render::RenderCache&     renderCache() { return *renderCache_; }
+    core::render::RenderScheduler& renderScheduler() { return *renderScheduler_; }
+
     // How many per-user shortcut overrides were read out of settings.ini and accepted. A key naming
     // an ActionId that no longer exists is dropped with a log line rather than retained silently --
     // `core::Settings::droppedShortcutKeyCount()` counts those, and the two numbers together are
@@ -117,6 +129,16 @@ private:
     std::unique_ptr<LogFile>               logFile_;
     std::unique_ptr<platform::Platform>    platform_;
     std::unique_ptr<core::IDocumentBackend> backend_;
+
+    std::unique_ptr<core::render::RenderCache>     renderCache_;
+    std::unique_ptr<core::render::RenderScheduler> renderScheduler_;
+
+    // THE WAKE PUMP'S LIFE FLAG. `RenderScheduler`'s wake handler is called FROM A WORKER and
+    // posts `deliverReady()` onto the UI thread; a post already in Qt's event queue when this
+    // object is destroyed would run against a dead scheduler. The queued lambda captures a weak
+    // reference to this flag and does nothing when it has expired -- convention 10's rule in the
+    // form where the subscriber is a posted event rather than a signal connection.
+    std::shared_ptr<bool> pumpAlive_;
 
     int         settingsSubscription_ = 0;
     std::size_t droppedOverrides_ = 0;

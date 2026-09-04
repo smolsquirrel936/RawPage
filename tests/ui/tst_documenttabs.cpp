@@ -20,7 +20,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/Services.h"
-#include "tests/ui/FakeBackend.h"
+#include "tests/ui/ShellFixture.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/LogBuffer.h"
 #include "core/cmd/KeyBindingStore.h"
@@ -30,6 +30,7 @@
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentTabBar.h"
 #include "ui/shell/DocumentWindow.h"
+#include "ui/viewer/PageView.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/Ribbon.h"
 #include "ui/shell/StatusBar.h"
@@ -49,20 +50,10 @@ namespace {
 
 using core::ActionId;
 
-struct Fixture {
-    QTemporaryDir         directory;
-    core::Settings        settings{QDir(directory.path()).filePath(QStringLiteral("settings.ini"))};
-    core::RecentFiles     recentFiles{settings};
-    core::ActionRegistry  actions;
-    core::KeyBindingStore keyBindings;
-    core::LogBuffer       logBuffer;
-    platform::Platform    platform;
-    uitest::FakeBackend   backend;   // T9: Services now carries the engine
-
-    app::Services services()
-    {
-        return app::Services{settings, recentFiles, actions, keyBindings, logBuffer, backend, platform};
-    }
+struct Fixture : uitest::ShellFixture {
+    // Every member and `services()` come from `tests/ui/ShellFixture.h` (S2 T13). They were seven
+    // copies of the same eight fields until `app::Services` grew a render pipeline and the copies
+    // became a seven-way edit; the header states what a fixture deliberately does NOT provide.
 
     // A file that IS named `.pdf` and is NOT a PDF. D1-2 says the shell checks the name and never
     // the bytes, so a stub tab must open for this -- that is guide case A-58's whole point, and a
@@ -80,28 +71,63 @@ struct Fixture {
 
 } // namespace
 
-TEST_CASE("a stub DocumentWindow holds a path and nothing else", "[tabs]")
+// A-57 WAS "the stub holds a path and nothing else", and it is rewritten rather than deleted --
+// the stub was D1-2's deliberate emptiness and Stage 2 T13's job was to fill it, so a case still
+// guarding the emptiness would be asserting that this task did not happen. What replaces it is the
+// contract that took its place: the tab OWNS the open document and closes it, and it carries a
+// viewer rather than a label.
+TEST_CASE("a DocumentWindow owns its handle, carries a viewer, and closes on destruction", "[tabs]")
 {
-    // A-57, D1-2's guard against the stub calcifying. What can be checked mechanically is that the
-    // class adds no state of its own to QWidget's meta-object and that everything it reports is
-    // derived from the path it was given; that no MEMBER Stage 2 would have to remove exists is a
-    // claim about the header, and the header is where it is made. Saying so is more useful than a
-    // test that pretends otherwise.
-    ui::DocumentWindow document(QStringLiteral("C:/documents/quarterly report.pdf"));
+    Fixture fixture;
 
-    CHECK(document.path() == QStringLiteral("C:/documents/quarterly report.pdf"));
-    CHECK(document.title() == QStringLiteral("quarterly report.pdf"));
+    const core::Result<core::DocumentHandle> opened =
+        fixture.backend.open(QStringLiteral("C:/documents/quarterly report.pdf"), nullptr);
+    REQUIRE(opened);
 
-    // No Q_PROPERTY, no slot, no signal of its own: the meta-object is QWidget's plus the class
-    // name. A `Document` or a `CommandJournal` arriving as a property is the shape this catches.
-    CHECK(ui::DocumentWindow::staticMetaObject.propertyCount()
-          == QWidget::staticMetaObject.propertyCount());
-    CHECK(ui::DocumentWindow::staticMetaObject.methodCount()
-          == QWidget::staticMetaObject.methodCount());
+    {
+        ui::DocumentWindow document(fixture.services(),
+                                    QStringLiteral("C:/documents/quarterly report.pdf"),
+                                    opened.value());
 
-    // A path with no file name still names itself something rather than rendering an empty tab.
-    ui::DocumentWindow nameless{QString()};
-    CHECK(nameless.title() == ui::catalog::translate(ui::catalog::key::DocumentUntitled));
+        CHECK(document.path() == QStringLiteral("C:/documents/quarterly report.pdf"));
+        CHECK(document.title() == QStringLiteral("quarterly report.pdf"));
+        CHECK(document.handle() == opened.value());
+
+        // A REAL VIEWER, over the fake backend's real `PageTree`. The label the stub used to show
+        // is gone, and so is the catalog key that promised "the page surface arrives with Stage 2".
+        REQUIRE(document.view() != nullptr);
+        CHECK(document.pageCount() == fixture.backend.pagesPerDocument);
+        CHECK(document.view()->pageCount() == fixture.backend.pagesPerDocument);
+
+        // Stage 2 has no mutation of any kind, so every document it opens is at the initial
+        // revision -- and the tile keys carry it precisely so that cannot silently stop being true
+        // (D2-12).
+        CHECK(document.revision() == core::Revision::initial());
+
+        CHECK(fixture.backend.closes == 0);
+    }
+
+    // THE DESTRUCTOR CLOSED IT. Before T13 nothing did: `openFiles()` opened a handle, logged it
+    // and dropped it on the floor, which was harmless while a handle was an integer and is an
+    // engine document with a file mapping now.
+    CHECK(fixture.backend.closes == 1);
+}
+
+TEST_CASE("a DocumentWindow with no valid handle is still a usable empty tab", "[tabs]")
+{
+    Fixture fixture;
+
+    // The negative control for the case above: no handle means no close, and the viewer draws
+    // nothing rather than dereferencing a null page tree.
+    {
+        ui::DocumentWindow nameless(fixture.services(), QString(), core::DocumentHandle{});
+        CHECK(nameless.title() == ui::catalog::translate(ui::catalog::key::DocumentUntitled));
+        CHECK(nameless.pageCount() == 0);
+        REQUIRE(nameless.view() != nullptr);
+        CHECK(nameless.view()->pageCount() == 0);
+    }
+
+    CHECK(fixture.backend.closes == 0);
 }
 
 TEST_CASE("opening a file gives it a tab and opening it twice does not", "[tabs]")
