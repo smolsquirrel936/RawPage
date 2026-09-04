@@ -85,11 +85,37 @@ add_library(rawpage_core STATIC
     doc/PageTree.h
     doc/PageTree.cpp
 
-    # render/ -- the rendering POLICY layer. RenderRequest is T10's by the plan and is built at T9
+    # render/ -- the rendering POLICY layer. RenderRequest was T10's by the plan and was built at T9
     # because IPageRasterizer::raster() takes one and T9's exit criterion is a rasterized page;
-    # core/backend.h has carried a forward declaration of it since T1. DpiPolicy, TileGrid and
-    # PagePresentation are still T10's, and are built ON this.
+    # core/backend.h has carried a forward declaration of it since T1.
+    #
+    # NO RASTERIZATION HAPPENS HERE (Architecture-FileMap.md 3.4's own heading). These files decide
+    # what to rasterize, at what resolution, where to put the result and what to throw away; the
+    # pixels are pdf/render/'s. That is what keeps the whole policy layer testable with no display
+    # and no engine, which is the property rawpage_assert_headless() exists to hold.
     render/RenderRequest.h
+
+    # T10 -- the arithmetic. All three are pure and all three are tested headless.
+    render/DpiPolicy.h
+    render/DpiPolicy.cpp
+    render/TileGrid.h
+    render/TileGrid.cpp
+    render/PagePresentation.h
+    render/PagePresentation.cpp
+
+    # T11 -- the cache and the scheduler. RenderCache is pure and single-threaded by construction
+    # (only the pumping thread touches it); RenderScheduler owns the worker threads, and its header
+    # is where issue I-05 is closed -- ONE render thread with a queue, chosen on T3's measurement.
+    #
+    # DiskTileStore is a file the plan's 4 manifest does not list, and it is here because D2-14
+    # requires the disk tier to exist behind the same interface as the memory tier. It is the ONLY
+    # file in core/render/ that writes to disk and it carries two layer-lint waivers for it.
+    render/RenderCache.h
+    render/RenderCache.cpp
+    render/DiskTileStore.h
+    render/DiskTileStore.cpp
+    render/RenderScheduler.h
+    render/RenderScheduler.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

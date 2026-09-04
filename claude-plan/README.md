@@ -55,7 +55,7 @@ three jobs, verdicts **A5** and **A6** recorded in ②.
 **Stage 1 is COMPLETE — every Definition-of-Done item closed as of 2026-08-31**, the manual walk
 included. All fifteen tasks, all nine walkable manual cases signed off by the user, no open issue.
 
-**Stage 2 is under way — T1 … T9 of 18 are complete**, the most recent three on 2026-09-04. Its
+**Stage 2 is under way — T1 … T11 of 18 are complete**, the most recent five on 2026-09-04. Its
 execution plan ([⑤](./Stage2-Rendering-Plan.md) — decisions **D2-1…D2-14**, tasks **T1…T18**) and its
 testing guide ([⑥](./Stage2-Rendering-Testing-Guide.md) — **78 automated**, **10 manual** cases) were
 both written on 2026-08-31, **before any Stage 2 code**, per ④ §5. It carries the **A2** go/no-go and
@@ -66,17 +66,20 @@ guide's **I-01**.
 `go` (T3), the 60-file generated corpus (T4), and then the whole first-party COS reader — lexer,
 object model, parser, nine filters, cross-reference engine and repair scanner (T5–T8) — which meets
 the **Stage 2 exit criterion** on Windows: every one of the 24 `corpus/malformed/` files yields a
-report and never a crash. **T9 opened a document and drew a page.** What is still missing is
-everything that puts a rendered tile on screen: `core/render/` policy (T10), the scheduler and cache
-(T11), and `ui/viewer/` (T13).
+report and never a crash. **T9 opened a document and drew a page**, and **T10 and T11 built the whole
+of `core/render/`** — resolution policy, tiling, page layout, the two-tier cache and the scheduler.
+T11 also **closed I-05**, choosing the arrangement D2-9 had left open: one render thread with a queue,
+on the measurement that eight workers behind the engine lock buy 5 %. What is still missing is the
+thing that puts a rendered tile on screen: `ui/viewer/` (T13). Nothing yet WRITES a PDF byte — that is
+Stage 3.
 
 | | |
 |---|---|
-| Tests | **526/526** on `x64-debug` and `x64-release`, measured 2026-09-04; the bare `gates` preset **90/90** with no Qt. Split: `unit.` 265, `ui.` 124, `gates.` 90, `platform.` 19, `render.` 26, `bench.` 2. The per-task history and every deviation live in ④'s Stage 2 block, which is the authority |
+| Tests | **561/561** on `x64-debug` and `x64-release`, measured 2026-09-04; the bare `gates` preset **90/90** with no Qt. Split: `unit.` 300, `ui.` 124, `gates.` 90, `platform.` 19, `render.` 26, `bench.` 2. The per-task history and every deviation live in ④'s Stage 2 block, which is the authority |
 | Gates | `layer-lint` **209 files / 1,320 includes** with **six** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **136 files / 2 catalogs / 0 waivers**. **Three live**, not four — `mutation-lint` is Stage 3. `tools/ribbon-validate` is a build step, not a gate |
 | Verdicts | **A3 = `go, with named custom work`** and **A2's probe = `go`** (both in ②'s §3.3, per criterion). A2's *product* figure is still owed at T18 — D2-1 measures it twice on purpose |
 | Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user; the roster and what each found are in Stage 1's ⑥ §6. **Stage 2's ten manual cases have not been walked** — none of them is reachable until there is a viewer to look at |
-| Issues | Stage 1: **I-01…I-55, none open** — the full log is in Stage 1's ⑥ §8. Stage 2: **six**, of which **I-02** (the licence gate's closure, half-closed at T7), **I-04** (no rule compares a referenced catalog key against the catalogs), **I-05** (PDFium cannot be called from two threads at once) and **I-06** (JBIG2 is declared and decodes nothing — no permissible library, no corpus fixture) are open. Each stage's ⑥ §8 owns its own |
+| Issues | Stage 1: **I-01…I-55, none open** — the full log is in Stage 1's ⑥ §8. Stage 2: **six**, of which three are open — **I-05** (PDFium cannot be called from two threads at once) was closed at T11 by choosing one render thread with a queue. **I-02** (the licence gate's closure, half-closed at T7), **I-04** (no rule compares a referenced catalog key against the catalogs), **I-06** (JBIG2 is declared and decodes nothing — no permissible library, no corpus fixture) are open. Each stage's ⑥ §8 owns its own |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
@@ -108,7 +111,7 @@ later stage is a table row and no widget code), a Shortcuts page that writes a r
 binding store and the settings file, and a log pane over an in-memory buffer and a rolling file under
 `%LOCALAPPDATA%`. Most controls are **disabled and say why** — **361** commands are declared and
 the **twenty-three** this window can service are registered.
-**Stage 2 is in progress — T1–T9 of 18** — and stages 3–16 are `⚪ not started`.
+**Stage 2 is in progress — T1–T11 of 18** — and stages 3–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
 record is ① → *Removed from scope*; every other document cross-references it.

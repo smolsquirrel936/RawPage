@@ -28,10 +28,11 @@
 > **I-03** (S3, closed at T1) — three `QImage` signatures in `Implementation-Plan.md`'s Stage 2
 > component list that `core/` cannot name, found by writing the interface they describe.
 > **I-04** (S3, open, T14) — no rule compares a key a source *references* against the catalogs, and
-> eighteen referenced keys have no entry. **I-05** (S2, open, T11) — **PDFium cannot be called from
-> two threads at once**, so D2-9's per-worker thread confinement is not sufficient and D10's worker
-> pool cannot be eight PDFium threads. Found by the T3 probe on its first run, which is what that
-> probe is for. **I-06** (S3, open, added at T7) — a **scope finding rather than a defect**:
+> eighteen referenced keys have no entry. **I-05** (S2, **closed at T11**) — **PDFium cannot be
+> called from two threads at once**, so D2-9's per-worker thread confinement was not sufficient and
+> D10's worker pool could not be eight PDFium threads. Found by the T3 probe on its first run, which
+> is what that probe is for, and closed on 2026-09-04 when T11 chose the replacement arrangement —
+> **one render thread with a queue** — and corrected D2-9 in the same change. **I-06** (S3, open, added at T7) — a **scope finding rather than a defect**:
 > `/JBIG2Decode` is declared and decodes nothing, because the only usable library is AGPL-3.0 (D4
 > forbids it), the corpus has no JBIG2 file, and nothing in Stage 2 would call it — which is D2-4's
 > own argument for `CryptFilter`. It refuses under its own catalog key rather than returning a blank
@@ -857,43 +858,108 @@ success by doing nothing.
 
 ### 5.5 Render policy — pure, and therefore all headless
 
-**A-28 · `tst_dpipolicy` — `resolve()`**
-☐ **Steps** `ctest -R unit.dpipolicy`
+**A-28 · `tst_dpipolicy` — `resolve()`** ✅ **2026-09-04 (T10)**
+**Steps** `ctest -R "render dpipolicy"`
 **Expect** **Actual Size is 100 % at the monitor's physical DPI** ([`Features.md` §1.2](./Features.md#12-page-display)),
 not 100 % of a logical pixel. The 150 % and 100 % rig values both resolve correctly, and so do 175 %
-and 350 %, which the rig cannot produce on demand. **If it fails** S2 — this is the file most likely to
-be the root cause of a blurry-text bug.
+and 350 %, which the rig cannot produce on demand.
+**Result 2026-09-04** All four, plus the case the rig can never produce at all: **a 157-DPI panel that
+Windows drives at 150 %**, where Actual Size must rasterize at 157 rather than 144. That is why `resolve()`
+takes three inputs and not two — the OS scale factor is carried out separately as a device-pixel ratio and
+**never reaches the raster DPI**. The commodity desktop has `physicalDpi == 96 * scale`, so the two are
+indistinguishable there; **the control is two monitors with the same glass and different scale factors**,
+which must produce identical pixels. Without it the case passes against an implementation that multiplies by
+the scale as well.
+**Negative control run:** letting the scale into the raster DPI reddens the control and six other lines.
+**If it fails** S2 — this is the file most likely to be the root cause of a blurry-text bug.
 
-**A-29 · `requiresRerender()` across the threshold, in both directions**
-☐ **Steps** One step above and one step below the threshold, increasing and decreasing.
+**A-29 · `requiresRerender()` across the threshold, in both directions** ✅ **2026-09-04 (T10)**
+**Steps** One step above and one step below the threshold, increasing and decreasing.
 **Expect** Re-render above, resample below, **and the answer is the same going up as coming down** —
 hysteresis here means a monitor drag that re-rasterizes one way and not the other.
+**Result 2026-09-04** Symmetric **by construction rather than by luck**: the predicate divides the larger
+DPI by the smaller, so the ratio is the same number whichever way the move went. A formulation such as
+`(target - current) / current` is not symmetric, and the asymmetry it introduces is invisible in a
+one-directional test. Tolerance 2 %, asserted at 1 % (resample) and 3 % (re-render) in both directions.
+**A fourth clause fell out of the design and is asserted:** a change of PRESENTATION alone — same glass
+DPI, different OS scale factor — is **not** a re-render, because the pixels are identical and only the
+ratio they are painted at differs. Without that case the separation `resolve()` makes could be deleted with
+everything still green.
 **If it fails** S2: wrong in one direction is blurry text on every monitor move, wrong in the other is a
 stutter on every one.
 
-**A-30 · The extremes: 8 % and 6400 %**
-☐ **Expect** Both resolve to a sane device resolution, clamped by `pageDisplay/maxRenderResolution`; no
+**A-30 · The extremes: 8 % and 6400 %** ✅ **2026-09-04 (T10)**
+**Expect** Both resolve to a sane device resolution, clamped by `pageDisplay/maxRenderResolution`; no
 overflow, no zero, no allocation proportional to the square of the zoom.
+**Result 2026-09-04** Both, and the last clause is the one with teeth. **The cap carries a compensating
+`upscale`**: 6400 % on a 192-DPI monitor asks for 12,288 DPI and is capped at 2,400, and `dpi * upscale`
+must reproduce the request exactly — capping without it silently shrinks the page, which reads as a zoom
+bug rather than as a cap. **No allocation proportional to the square of the zoom** is `TileGrid`'s half and
+is asserted there (A-31): at that resolution an A4 page is 19,833 x 28,067 device pixels and the returned
+set is bounded by the VIEWPORT, with a same-viewport-coarser-page comparison as the control. A separate
+case feeds NaN, infinity, zero and negative values through every input and requires a usable resolution
+out of all of them — this runs on every paint, from a scale factor the OS supplied and a zoom a settings
+file supplied, and a zero here divides three files away.
 **If it fails** S2 — 6400 % of an A4 page at 192 DPI is where an integer overflow lives.
 
-**A-31 · `tst_tilegrid` — visible, prefetch, evict**
-☐ **Expect** The three sets are disjoint; the visible set covers the viewport exactly with no gap and
+**A-31 · `tst_tilegrid` — visible, prefetch, evict** ✅ **2026-09-04 (T10)**
+**Expect** The three sets are disjoint; the visible set covers the viewport exactly with no gap and
 no unnecessary tile; the prefetch set honours `performance/prefetchPages`; a tile that left the
-viewport moves to evict. **If it fails** S2.
+viewport moves to evict.
+**Result 2026-09-04** All four. *No gap and no overlap* is asserted as an **area identity** rather than by
+eye — twelve rectangles that tile a page have exactly the page's area, and any gap or overlap changes the
+sum — and no tile is allowed to hang off the page, which is invisible otherwise because a rasterizer
+returns off-page pixels as white. Disjointness is checked by insertion into a set, so a duplicate WITHIN a
+set fails too.
+**ONE CLAUSE WAS CORRECTED RATHER THAN MET.** `performance/prefetchPages` counts **pages**, and `TileGrid`
+sees one page: deciding *which* pages to ask about belongs to `ui/viewer/PageLayoutEngine` at T13. Within a
+page the knob is a ring of tiles, `TileGrid::Config::prefetchRings`, and that is what this case asserts.
+Both halves are real and they are not the same number; naming only the first would have left the tile ring
+undecided and unmeasured.
+**AND THE CASE ITSELF WAS WRONG FIRST TIME, which the control found.** Replacing floor division with
+truncation — the actual defect the code guards against — reddened **nothing**: a viewport starting above a
+page clamps its first row to 0 either way, so only the LAST index tells the two apart. Two assertions were
+added for a viewport entirely off the page on each axis, and with truncation restored those are the only
+lines in the suite that redden. Convention 7 catching a case rather than a defect.
+**If it fails** S2.
 
-**A-32 · `tst_presentation` — all four layout modes** ☐
+**A-32 · `tst_presentation` — all four layout modes** ✅ **2026-09-04 (T10)**
 **Expect** Single, Single Continuous, Two-Up, Two-Up Continuous each produce page rects in document
-order with correct gaps, and page-rect ↔ document-point mapping round-trips. **If it fails** S2.
+order with correct gaps, and page-rect ↔ document-point mapping round-trips.
+**Result 2026-09-04** Four modes that behave as four, which took a signature change: `layout()` takes a
+**current page**, because Single and Two-Up show ONE page or ONE spread and without it they are
+indistinguishable from their continuous twins. The round trip is asserted over three probe points per page,
+**none of them the centre** — a dropped y-flip or a dropped CropBox offset is exact at the centre of a
+symmetric page and wrong everywhere else — across a plain page, a page whose CropBox origin is not (0,0),
+and a page rotated 90°. A point in a gap belongs to **no** page rather than to the nearest one.
+**If it fails** S2.
 
-**A-33 · Cover page shifts every subsequent pair's parity**
-☐ **Steps** Two-Up with `showCoverInTwoUp` on, over an odd page count.
-**Expect** Page 1 alone, then 2–3, 4–5. Off: 1–2, 3–4. **If it fails** S2 — this is where the
-off-by-one lives.
+**A-33 · Cover page shifts every subsequent pair's parity** ✅ **2026-09-04 (T10)**
+**Steps** Two-Up with `showCoverInTwoUp` on, over an odd page count.
+**Expect** Page 1 alone, then 2–3, 4–5. Off: 1–2, 3–4.
+**Result 2026-09-04** Asserted **twice over**, as page numbers in spreads and again through the rectangles,
+because a layout whose parity is wrong still produces plausible rectangles and comparing coordinates alone
+would let it through. The cover is alone **and it is a recto** — the left column of the first spread stays
+empty rather than the page sliding across — which is the entire reason a person turns the option on; the
+same rule puts a lone final page in the left column with the right one blank. **With the control**: with the
+cover off, page 1 shares its row with page 2, without which the case is satisfied by a layout that always
+puts page 1 alone.
+**Negative controls run:** removing the parity shift reddens the spread assertions; putting the cover in the
+verso column reddens the geometry half. **If it fails** S2 — this is where the off-by-one lives.
 
-**A-34 · RTL binding swaps the spread without changing page order**
-☐ **Expect** With `rtlBinding` on, page 2 is on the **right** of the 2–3 spread and page 3 on the left;
+**A-34 · RTL binding swaps the spread without changing page order** ✅ **2026-09-04 (T10)**
+**Expect** With `rtlBinding` on, page 2 is on the **right** of the 2–3 spread and page 3 on the left;
 the document order is unchanged. Combined with a cover page and an odd count, all three interact —
-and the corpus has a file for exactly that. **If it fails** S2.
+and the corpus has a file for exactly that.
+**Result 2026-09-04** All three at once, over five pages with the cover on. RTL maps column 0 to the right
+and changes **nothing else**: `pageSlots()` still walks pages 0–4 in order and the vertical stacking is
+still 1 | 2–3 | 4–5, so the document order is asserted rather than assumed. The mirrored cover — a recto
+in LTR, so the left column in RTL — is the one place the column swap is visible on a spread holding one page.
+**And the case asserts what RTL does NOT do**: in the single modes there is one column and nothing to swap,
+so a layout that mirrored them (the tempting wrong reading, that RTL does something everywhere) would push
+every page against the right edge for no reason.
+**Negative control run:** removing the column swap reddens four assertions here and nothing else in the
+suite. **If it fails** S2.
 
 **A-35 · `RenderRequest` equality is the cache key, and it is a value type**
 ☐ **Goal** D2-12. **Steps** A static assertion that it holds no pointer and no handle; a runtime case
@@ -905,38 +971,102 @@ mutation* the default behaviour. Neither has any symptom a person would attribut
 
 ### 5.6 Scheduler and cache
 
-**A-36 · A cancelled request is never started**
-☐ **Goal** The stage's headline behaviour. **Steps** Enqueue, cancel before a worker picks it up,
+**A-36 · A cancelled request is never started** ✅ **2026-09-04 (T11)**
+**Goal** The stage's headline behaviour. **Steps** Enqueue, cancel before a worker picks it up,
 with the pool paused.
 **Expect** The rasterizer is **never entered** for that request — asserted by a counting fake
 `IPageRasterizer`, not by observing that no image arrived.
+**Result 2026-09-04** The pool is PAUSED, so the cancel provably beats the worker rather than racing it — a
+case that enqueued and cancelled quickly would pass on a fast machine and fail on a loaded runner for a
+reason nobody could act on. The rasterizer's entry count is **0**, and `cancelledBeforeStart` is 1. **With
+the control**: an uncancelled request IS started, without which the case is satisfied by a scheduler whose
+workers never run at all.
 **Back door named:** this drives `RenderScheduler` directly and therefore proves the *destination*.
 **It does not prove that scrolling reaches it** — that is **M-04**, and it is manual because
 perceived smoothness has no offscreen proxy. (Rule 1, §1.)
+**Negative control run:** making `cancel` mark the job instead of dequeuing it reddens this case and A-37.
 **If it fails** S2.
 
-**A-37 · Duplicate requests coalesce**
-☐ **Expect** Two viewports over one tile produce **one** rasterization. **If it fails** S3 — twice the
-work, correct output.
+**A-37 · Duplicate requests coalesce** ✅ **2026-09-04 (T11)**
+**Expect** Two viewports over one tile produce **one** rasterization.
+**Result 2026-09-04** One job, **two tickets**, and that split is the point: cancelling one holder must not
+take the other's pixels, and the job goes only when no ticket is left on it. Both directions are asserted.
+**One behaviour beyond the case**: a VISIBLE request landing on a queued prefetch **raises** the job's
+priority, or a tile that scrolled into view waits behind every prefetch already queued — nothing looks
+broken and the page simply fills in from the wrong end. **If it fails** S3 — twice the work, correct output.
 
-**A-38 · Delivery is on the UI thread, and a superseded delivery is dropped**
-☐ **Expect** `ready` fires on the UI thread; a result arriving for a cancelled or `Revision`-superseded
-request is dropped rather than cached. **If it fails** S1 — the second half is how a stale tile reaches
-the screen.
+**A-38 · Delivery is on the UI thread, and a superseded delivery is dropped** ✅ **2026-09-04 (T11)**
+**Expect** `ready` fires on the UI thread; a result arriving for a cancelled or `Revision`-superseded
+request is dropped rather than cached.
+**Result 2026-09-04** The first half is asserted **more strongly than it is written**, because offscreen
+there is no UI thread: **no subscriber is ever entered from a worker**, checked by recording the thread id
+at every callback, with the data-free wake handler as the control proving a worker thread existed at all.
+That is also what lets `RenderCache` be lock-free — only the pumping thread touches it.
+**THE SECOND HALF FOUND A HOLE IN THIS SUITE RATHER THAN IN THE CODE.** The first pass covered a request
+superseded while QUEUED and one superseded after it had FINISHED, and a control that kept superseded results
+passed — because a job cancelled or superseded **while running** takes a third path that no case could
+reach: everything else had either not started or already finished. A latch in the fake rasterizer now holds
+a tile inside the engine so a case can act mid-flight, and both branches have a case. With them, the control
+reddens.
+**Negative controls run:** delivering from the worker thread reddens four cases; keeping a superseded result
+and keeping a cancelled one each redden this one. **If it fails** S1 — the second half is how a stale tile
+reaches the screen.
 
-**A-39 · A `PageView` destroyed with tiles in flight does not crash**
-☐ **Goal** Convention 10 (`CLAUDE.md`) in its threaded form — Stage 1's I-12 was an S1 segfault of
+**A-39 · A `PageView` destroyed with tiles in flight does not crash** 🟡 **`core/` half done
+2026-09-04 (T11); the widget half is T13's**
+**Goal** Convention 10 (`CLAUDE.md`) in its threaded form — Stage 1's I-12 was an S1 segfault of
 exactly this shape, a lambda outliving the widget that installed it.
 **Steps** Open, scroll to enqueue, close the tab while four tiles are in flight. Repeat 50 times.
-**Expect** No crash, no use-after-free under `x64-debug`. **If it fails** S1.
+**Expect** No crash, no use-after-free under `x64-debug`.
+**Result 2026-09-04, and what it does NOT cover.** There is no `PageView` until T13, so what is provable now
+is that the **scheduler** survives being destroyed mid-flight: 50 rounds of construct, enqueue eight tiles,
+destroy without waiting. The destructor stops and JOINS before any member the workers hold is destroyed.
+**The widget half — the tab closed while its tiles are in the queue — is T13's and is not covered here**,
+and neither is a data race: this toolchain has no TSan (risk R7), so a race that happens not to fire in
+fifty rounds would pass. **If it fails** S1.
 
-**A-40 · `tst_rendercache` — LRU and the cap** ☐
+**A-40 · `tst_rendercache` — LRU and the cap** ✅ **2026-09-04 (T11)**
 **Expect** Eviction is least-recently-used; total held bytes stay under `performance/tileCacheMB`;
-the disk tier honours `diskCacheMB`. **If it fails** S2.
+the disk tier honours `diskCacheMB`.
+**Result 2026-09-04** All three. The LRU case **touches an entry before the eviction**, without which it
+would pass equally against a first-in-first-out cache — a different policy that agrees on an untouched
+sequence. The cap is in **bytes**, not entries: a cache that counted tiles would hold ten 4-megapixel tiles
+as happily as ten small ones. A tile larger than the whole cap is **refused rather than admitted**, because
+admitting it evicts everything to store one tile that the next insertion evicts — a cache that holds nothing
+and reports 0 %, indistinguishable from one that is merely cold.
+**The disk tier is real and is OFF by default** (D2-14: whether it earns its place is T18's measurement).
+Its case runs against a `QTemporaryDir`, checks that an evicted tile's **file** goes with its index entry —
+a tier that forgot one and left the other would grow the directory without bound while reporting a cap it
+was honouring — and compares the recovered **payload**, which is what would catch a store serving the wrong
+file. A promoted disk hit is lifted back into memory. **What it does not claim**: the tier does not survive
+a restart; its index is in memory and the directory is purged on construction.
+**O7's instrumentation is built with the cache rather than at T18** (D2-14), and the number that answers O7
+— `crossDocumentEvictions` — has a case **and its control**: a document evicting its own tiles is not
+cross-document contention and must not be counted as such, or the number only measures how full the cache
+is. **If it fails** S2.
 
-**A-41 · `Scope`/`Revision` invalidation, and a stale tile is never served**
-☐ **Expect** `invalidate(Scope, Revision)` drops exactly the tiles the scope names and no others; a
-lookup for an older `Revision` **misses**. **If it fails** S1 — this is the mechanism that makes
+**A-41 · `Scope`/`Revision` invalidation, and a stale tile is never served** ✅ **2026-09-04 (T11)**
+**Expect** `invalidate(Scope, Revision)` drops exactly the tiles the scope names and no others; a
+lookup for an older `Revision` **misses**.
+**Result 2026-09-04, and the half that is not obvious is the one that had to be built.** A `RenderRequest`
+carries a `Revision` and its equality IS the key (D2-12) — so a cache that only DROPPED would lose every
+tile the moment a revision moved, and `Scope` would buy nothing at all: rotating page 3 of a 900-page
+document would re-render all 900, with nothing wrong on screen and no test failing. So invalidation does two
+things: it drops what the scope touches and **re-keys the rest to the new revision**. The Expect's second
+clause then holds structurally rather than by a second check — after a re-key there is no entry at the old
+revision to find.
+**`invalidate()` takes a `DocumentHandle` the signature above omits**, and that is a correction rather than
+an addition: a `Scope` names pages and objects and says nothing about which document they belong to, while
+**O7** leaves open whether one cache serves several — `RenderRequest` carries a handle precisely so two
+documents can share one. Without it, invalidating this document's page 3 drops page 3 of every open
+document, which the case asserts from the other side.
+An **object** scope drops conservatively (every page of its document), which is `core/doc/Scope`'s widening
+rule exercised from its intended caller: a wasted repaint is the correct failure direction, a stale tile is
+not.
+**Negative controls run:** removing the re-key reddens this case; removing the document filter reddens it
+too — the first attempt at that control was aimed at a line that was not the filter and passed, which is
+worth recording, because a control that does not fail for the right reason proves nothing.
+**If it fails** S1 — this is the mechanism that makes
 Stage 3's mutations safe, and Stage 2 is where it must already be right.
 
 ### 5.7 The engine
@@ -1448,12 +1578,12 @@ document means **Stage 1's**, and says so where it appears.
 | **I-03** | S3 | **Three signatures this document set had written for Stage 2 name `QImage`, and none of them could have been built as written.** `Implementation-Plan.md` § Stage 2's component list gives `PdfiumRasterizer` `Result<QImage> raster(const RenderRequest&)`, `RenderCache` `std::optional<QImage> lookup(...)` and `RenderScheduler` `Signal<RenderRequest, QImage> ready` — but `IPageRasterizer` is declared in `core/backend.h`, `RenderCache` and `RenderScheduler` are `core/render/`, and **`core/` may not name a QtGui type**: it links `Qt6::Core` only, `layer-lint`'s `core` layer has listed `QImage` in `denyExternal` since Stage 0, and CLAUDE.md convention 3 is the standing rule (it is why `core/cmd/Chord` is first-party rather than a `QKeySequence`). Found at **T1**, by writing the interface the list describes. **Not a conflict anyone had to adjudicate**: plan **D2-9** already says the tile pipeline carries *buffers and callbacks only*, so the component sketch was the loose statement of a settled rule rather than a rival decision. Fixed in `core/backend.h` with `core::RasterImage` — width, height, **stride**, pixel format and bytes, with the stride carried rather than computed because a rasterizer may align its rows and a consumer assuming `width * 4` on a padded buffer draws diagonal garbage. `ui/` wraps those bytes in a `QImage` at the far side, where QtGui is allowed, and the wrap is free: both formats are the little-endian BGRA layout `QImage::Format_ARGB32` and `Format_RGB32` consume. `Implementation-Plan.md`'s three rows were corrected in the same change. **T10 and T11 inherit the correction**, and **A-44 is unaffected** — the raster suite links `rawpage_pdfium` and may hold a `QImage` of its own. S3 because it was a documentation slip that the gate would have caught the moment anyone typed it. | ✅ **Closed 2026-09-01** at T1, in the header that declares the interface | 
 
 | **I-04** | S3 | **Nothing compares a catalog key a source REFERENCES against the catalogs, and eighteen referenced keys have no entry.** Found at T2 the moment the engine layer named its first key: `error.engine.initFailed` was reported as an `orphan-key` — a key nothing references — while being referenced by the file that had just been written, because `pdf/` was not in `i18n-lint`'s `scannedPaths`. Neither was `platform/`, which names **eleven** keys. **Fixing the paths was the easy half and it is done** (`pdf/` and `platform/` added; the gate went from 79 files to 90 and the false note is gone). **The real half is that no rule asks the question at all**: `missing-key` compares the shipped catalogs *against each other*, `action-label` covers `action.*` from `ActionId.def`, and `orphan-key` is the INVERSE — a catalog key nothing references — so a key a source names and no catalog defines is invisible from both directions. Measured 2026-09-01 by diffing every quoted `error.*`/`shell.*`/`ribbon.*`/`prefs.*` literal in `core/`, `ui/`, `app/`, `pdf/` and `platform/` against `rawpage_en.ts`: **eighteen** are missing — `error.action.{unknown,unavailable,alreadyRegistered,noHandler}` and `error.shortcut.{unknownAction,invalidChord,widgetNative}` from **`core/`, which has been scanned since T6**, plus `error.shell.*` (3) and `error.singleInstance.*` (8) from `platform/`. **Latent today rather than visible**: only `error.open.*` and `error.customization.*` currently reach a surface, and both exist — an unresolved key would render as its own key text, which is what makes this S3 now and **S2 the moment `MessageBar` starts showing engine errors**. Owned by **T14**, which builds that surface, with **A-14** as its case; the fix is an `unknown-key` rule keyed on the declared catalog families (so `settings.ini` and `pdfium.dll` are not mistaken for keys) plus the eighteen rows. **Not fixed at T2 on purpose**: writing eighteen error messages in two locales is a design act that belongs with the surface that shows them, and T2 is the engine boundary. | 🟡 **Open** — the scanned-path half fixed 2026-09-01; the rule and the eighteen keys owned by **T14** |
-| **I-05** | S2 | **PDFium cannot be called from two threads at once, and per-document confinement does not help — so D2-9's “thread-confined per worker” is false and D10's “worker pool” cannot be eight PDFium threads.** Found at **T3**, by the A2 probe, on its first run — which is the entire argument for measuring early rather than after T13. Eight workers, **each with its own `FPDF_DOCUMENT` and its own `FPDF_PAGE`**, crash. Measured by walking the worker count rather than asserted: **1 worker exits 0; 2, 4 and 8 all die with `STATUS_HEAP_CORRUPTION` (0xC0000374)** inside the render call, and before the pages were preloaded they died inside `FPDF_LoadPage` (stack captured under `gdb`). What PDFium shares between threads is **process-global** — its font mapper and glyph caches — not per-document, so confining a document to a worker confines the wrong thing. Reproducible on demand: `rawpage_bench_render.exe 8 --unsafe-parallel`, because a finding that needs a source edit to reproduce is one that gets re-litigated. **A2 IS UNAFFECTED AND IS `go`**: the constraint is a throughput ceiling, not a latency one — per-tile p95 is 0.532 ms against a 16.667 ms budget, and eight workers behind one engine lock retire **1.05×** the tiles per second of one worker. The engine is fast; it is simply not parallel. **What D10 actually promises is untouched** — *the UI thread never parses or rasterizes* — and two arrangements keep it: **one render thread with a queue**, or **N workers serialized on one engine lock**. Neither is chosen here, deliberately: that is `RenderScheduler`'s shape and it belongs to **T11**, with **A-45** as its case and **D2-9**'s wording to be corrected in the same change. Also flagged forward: **T16**'s font work and **Stage 5**'s text extraction inherit the same constraint, since both call the engine from the same global state. | 🟡 **Open** — raised 2026-09-01 at T3, owned by **T11**, which must choose the arrangement and correct D2-9 |
+| **I-05** | S2 | **PDFium cannot be called from two threads at once, and per-document confinement does not help — so D2-9's “thread-confined per worker” is false and D10's “worker pool” cannot be eight PDFium threads.** Found at **T3**, by the A2 probe, on its first run — which is the entire argument for measuring early rather than after T13. Eight workers, **each with its own `FPDF_DOCUMENT` and its own `FPDF_PAGE`**, crash. Measured by walking the worker count rather than asserted: **1 worker exits 0; 2, 4 and 8 all die with `STATUS_HEAP_CORRUPTION` (0xC0000374)** inside the render call, and before the pages were preloaded they died inside `FPDF_LoadPage` (stack captured under `gdb`). What PDFium shares between threads is **process-global** — its font mapper and glyph caches — not per-document, so confining a document to a worker confines the wrong thing. Reproducible on demand: `rawpage_bench_render.exe 8 --unsafe-parallel`, because a finding that needs a source edit to reproduce is one that gets re-litigated. **A2 IS UNAFFECTED AND IS `go`**: the constraint is a throughput ceiling, not a latency one — per-tile p95 is 0.532 ms against a 16.667 ms budget, and eight workers behind one engine lock retire **1.05×** the tiles per second of one worker. The engine is fast; it is simply not parallel. **What D10 actually promises is untouched** — *the UI thread never parses or rasterizes* — and two arrangements keep it: **one render thread with a queue**, or **N workers serialized on one engine lock**. Neither was chosen there, deliberately: that is `RenderScheduler`'s shape and it belonged to **T11**. **T11 CHOSE ONE RENDER THREAD WITH A QUEUE, on 2026-09-04**, and corrected D2-9's wording in the same change. The choice was made on the measurement rather than on taste: the 5 % the second arrangement buys is not worth a concurrency bug when the engine is already 30x inside the frame budget, and one consumer makes cancellation — which plan §5.3 calls *the feature* — provable rather than probable, and makes PDFium's single-threadedness structural rather than a discipline every future caller has to remember. `RenderScheduler::Config::workerCount` remains and defaults to **1**, each worker taking its **own** `IPageRasterizer` from a factory, because T18 re-measures A2 through this pipeline and must be able to walk the count without a rebuild, and because a future non-PDFium rasterizer is not bound by this finding. The engine lock in `PdfiumInit` stays: it is correct under either arrangement and it is what **A-45** passes on. Also flagged forward: **T16**'s font work and **Stage 5**'s text extraction inherit the same constraint, since both call the engine from the same global state. | ✅ **Closed 2026-09-04 at T11** — raised 2026-09-01 at T3 |
 | **I-06** | S3 | **`/JBIG2Decode` is DECLARED AND DECODES NOTHING, and `/CCITTFaxDecode` with `K > 0` is implemented against no fixture.** Two gaps in T7's nine filters, raised by building them rather than by running anything. **JBIG2 is the substantive one, and three facts forced it, each established rather than assumed.** (1) **There is no permissible library**: the one usable open-source JBIG2 decoder is Ghostscript's `jbig2dec`, which is **AGPL-3.0** — `Tech-Stack-Plan.md` **D4** forbids any GPL or AGPL dependency outright and `license-audit` enforces it mechanically, so linking it is a build failure rather than a trade-off to weigh. PDFium has its own decoder and is behind the `FPDF_` boundary `layer-lint` forbids `pdf/cos/` from crossing (D2-9), which is half of D3. (2) **There is no corpus fixture** — checked against `corpus/PROVENANCE.md`, not remembered: `corpus/` has DCT, JPX, CCITT G3, CCITT G4, Flate, LZW and RunLength images and **no JBIG2 file at all**, and **D2-11** says in as many words that *a construct the corpus never contains is a construct nothing in this project ever renders*. (3) **Nothing in Stage 2 would call it** — rendering goes through PDFium, which decodes JBIG2 itself; the first real consumer is Stage 8's image export. Together those are exactly the argument **D2-4** already accepted for `CryptFilter`: *building it here produces a file that cannot be tested and will be rewritten*. **What was built instead** is a declared filter that returns `Unsupported` under its own catalog key `error.pdf.filterJbig2` — never an empty buffer, which would reach the image pipeline as a blank page indistinguishable from a page that is genuinely blank (convention 6's argument about silent stubs, one layer down from `platform/`). The refusal is asserted by `tst_cos_filters`, through the ordinary filter chain as well as directly, so a registry that never dispatched to it would not pass. **The cost of finishing it, recorded so the estimate is not rediscovered:** an MQ arithmetic decoder, segment headers, and generic region decoding for templates 0–3 with TPGDON — roughly 450 lines — **plus** a first-party `corpus/jbig2enc.py`, since every corpus file is generated by us (D2-11). Symbol dictionaries and text regions are more again. **The honest sequencing is corpus first, decoder second**, because the decoder cannot be believed without the fixture. **The CCITT half is smaller**: `K > 0` (mixed one- and two-dimensional Group 3) is implemented — it is the same machinery as the other two plus one flag bit — and has no corpus file, so it is exercised only for *does not crash on nonsense*. Named at the assertion rather than left for a reader to assume covered (convention 19). **S3 rather than S2** because nothing in Stage 2 through Stage 7 calls either path and both refuse audibly; it becomes S2 at **Stage 8**, when image export needs to read what it is exporting. **Raised at T7 by the author of the filters**, and recorded rather than absorbed because `Stage2-Rendering-Plan.md` §12 says an overrun is said out loud rather than quietly narrowing the corpus. | 🟡 **Open** — a scope finding, not a defect. Owner unassigned; the natural home is Stage 8 |
 
-**Two S2 open — I-02 (T7/T16) and I-05 (T11) — plus one S3 open, I-04 (T14). Two S3 closed.**
+**One S2 open — I-02 (T7/T16) — plus one S3 open, I-04 (T14). Two S3 closed, and I-05 closed at T11.**
 
-**I-05 is the one to read before touching T10 or T11.** It is not a defect in code anybody wrote: it is a measurement that contradicts a decision two documents had already made, found by the probe D2-1 put at T3 precisely so that it would be found before `RenderScheduler` was built on top of it. Stage 1's lesson was that a spike's figure says nothing about the product; this stage's first is that a spike can also say something the product's *design* had assumed away.
+**I-05 was the one to read before T10 and T11, and it is now closed by them.** It was never a defect in code anybody wrote: it was a measurement that contradicted a decision two documents had already made, found by the probe D2-1 put at T3 precisely so that it would be found before `RenderScheduler` was built on top of it. Stage 1's lesson was that a spike's figure says nothing about the product; this stage's is that a spike can also say something the product's *design* had assumed away — **and that the design then has to be changed rather than worked around**, which is what T11 did.
 
 ---
 
@@ -1481,6 +1611,6 @@ Stage 2 is done when **all** of these hold. This is
    product's figure is T18's and is still owed. Recorded with it: the probe's own limits — one page,
    one non-embedded font, no images or transparency — and **I-05**.
 9. ☐ **O7 and O10 resolved** in `Implementation-Plan.md` §8.
-10. ☐ No open S1 or S2 in §8. **I-02 (T7/T16) and I-05 (T11) are open now** and both must be closed before sign-off; **I-04** is S3 and is owned by T14.
+10. ☐ No open S1 or S2 in §8. **I-05 was closed at T11 on 2026-09-04**; **I-02 (T7/T16) is the one S2 still open** and must be closed before sign-off; **I-04** is S3 and is owned by T14.
 11. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
     `Implementation-Plan.md` Stage 2 status block updated to reality, deviations included.

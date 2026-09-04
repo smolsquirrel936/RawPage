@@ -36,6 +36,11 @@ add_executable(rawpage_tests
     tst_xrefrepair.cpp            # Stage 2 T8  -- guide cases A-21 and A-22, the exit criterion
     tst_docvocabulary.cpp         # Stage 2 T8  -- core/doc/Revision and Scope (D2-5)
     tst_pagetree.cpp              # Stage 2 T9  -- core/doc/Page, PageTree, RenderRequest
+    tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30
+    tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
+    tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34
+    tst_rendercache.cpp           # Stage 2 T11 -- guide cases A-40, A-41
+    tst_renderscheduler.cpp       # Stage 2 T11 -- guide cases A-36, A-37, A-38, A-39's core/ half
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
