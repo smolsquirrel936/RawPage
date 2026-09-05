@@ -34,6 +34,16 @@ corpus/*.py     text eol=lf diff=python merge
 corpus/*.md     text eol=lf merge
 corpus/*.json   text eol=lf merge
 
+# ...and golden/ is no longer only data either, for exactly the same reason and with the same fix.
+# Stage 2 T17 put manifest.json (which cases are baselined, hand-authored), captured.json (what the
+# capture measured) and two Markdown records in there, and `golden/** binary` would mark all four
+# binary -- so the file that says WHY a baseline moved would be the one file a reviewer cannot read
+# in a diff. That is precisely the defect T4 found here and fixed three lines above; finding it
+# again in the next directory is what a rule written once and applied twice looks like. The .png
+# baselines stay binary, which is the half that matters.
+golden/*.json   text eol=lf merge
+golden/*.md     text eol=lf merge
+
 *.pdf   binary
 *.fdf   binary
 *.xfdf  binary

@@ -7,14 +7,16 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
-> T6's on 2026-09-03, T7 … T15's on 2026-09-04, and T16's on 2026-09-05.**
-> **81 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's on 2026-09-06.**
+> **82 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
-> written before anyone noticed the render path could not carry, and **A-81** at T15, the
-> measurement behind I-11) and **10 manual** (M-01 … M-10), of
-> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-47, A-52 … A-60, A-63, A-64, A-66 and
-> A-75 … A-81 are green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
+> written before anyone noticed the render path could not carry, **A-81** at T15, the
+> measurement behind I-11, and **A-82** at T17 — I-13's tripwire, because this guide was written
+> before the font bridge existed and nothing in it stopped that finding from being re-made
+> silently) and **10 manual** (M-01 … M-10), of
+> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-51, A-52 … A-60, A-63, A-64, A-66 and
+> A-75 … A-82 are green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61, A-62, A-65 and A-67 are 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
 > A-62's battery throttle is WIRED as of T15 and its effect is unobservable on a desktop with no
@@ -35,9 +37,15 @@
 > there is a page on screen to look at; `rawpage.exe <a corpus file>` opens it. **T14 makes them worth
 > walking**: the §8 Viewer chords work, the status bar reports real numbers, and a repaired file says
 > so, and **T16 makes M-03's typography half gradeable for the first time** — a missing font now
-> substitutes through our policy and the log names the face. M-05 … M-10 still need golden baselines
-> (T17) or Dr. Memory.
-> The issue log holds **thirteen** entries and **none of them is an open S2**. **I-01** (S3) — two
+> substitutes through our policy and the log names the face. **NINE OF THE TEN ARE WALKABLE as of
+> T17, and §6's own list of what blocks them was four tasks stale until this task re-read it**: it
+> said M-05 … M-10 needed *"golden baselines (T17), fonts (T16), the settings keys (T15) or
+> Dr. Memory"*, and not one of those six cases is about a golden baseline — M-05 and M-06 were
+> waiting on T15's layout and zoom keys, M-07 and M-08 on T9's opening and T14's message bar and
+> password prompt, and M-10 on T14's chords. All of those shipped. **Only M-09 is still blocked**,
+> and only because Dr. Memory is not installed here.
+> The issue log holds **fifteen** entries and **none of them is an open S2** — **I-14 and I-15**
+> were raised and closed at T17, both in the golden harness rather than in the product. **I-01** (S3) — two
 > `Architecture-FileMap.md` stage tags that disagreed with `Implementation-Plan.md`, **found by reading
 > rather than by running**, confirmed with the user and **closed the same day**. **I-02** (S2, **open**)
 > — found by *running* precondition **P-3**'s vcpkg dry-run: both features resolve, and the resolved
@@ -315,7 +323,7 @@ and the case that closes it.
 | *(plan T4)* Every file has a provenance row, and regenerates byte-identically | **A-76, A-77**, with **A-78** as the control |
 | No ASan finding on the portable COS run | A-24 |
 | No Dr. Memory finding on the raster run | **M-09** |
-| Golden baselines committed | A-48, A-49, A-50 |
+| Golden baselines committed | **A-48, A-49, A-50 — all ✅ 2026-09-06 (T17)**, plus **A-51**'s runtime half and **A-82**. 198 images over 56 corpus files at three resolutions; the tool refuses to regenerate without a stated reason; a perturbed render fails with an expected/actual/diff triple |
 | Scrolling a large document stays responsive | A-36, A-37, A-68, **M-04** |
 | Mixed-DPI dragging is correct | A-28, A-29, A-60, A-61, **M-01**, **M-02** |
 | *(plan T13)* **A page is on screen** | A-52, A-53, **A-79**, **M-03** — and the three are complementary rather than redundant: A-52 asserts the geometry the layout gave the widget (without which A-53 is green and worthless), A-53 asserts real pixels through the real viewer over a FAKE rasterizer (`ui/` may not link an engine — D1-4), A-79 asserts real pixels from the REAL engine through the real scheduler with no widget, and **only M-03 sees the two halves meet on glass** |
@@ -1291,24 +1299,96 @@ fake, and the two halves meeting on glass is the manual pass. **If it fails** S1
 
 ### 5.8 Golden images
 
-**A-48 · Baselines at 96 / 144 / 192 DPI over the corpus** ☐ **Steps** `ctest -R render.golden`
+> **Read `golden/README.md` beside the images before reading these five cases.** It owns what a
+> green run claims (*the product rasterizes our own corpus the same way it did when the baselines
+> were captured*), what it does not (*correctness*, and *anything about real-world PDFs*), the split
+> between the hand-authored `manifest.json` and the tool-written `captured.json`, and the two
+> reproducibility hazards that would otherwise be discovered rather than known — the OS text
+> renderer, and a substituted face. The cases below record results; that file records meaning.
+
+**A-48 · Baselines at 96 / 144 / 192 DPI over the corpus** ✅ **2026-09-06 (T17)**
+**Steps** `ctest -R render.golden`
 **Expect** Every page within the perceptual threshold of its baseline. **If it fails** S2, and the
 first question is whether the baseline or the renderer moved — A-05 is what makes that answerable.
+**Result 2026-09-06.** Three cases, one per resolution — `render.golden.golden baselines match at
+96 / 144 / 192 dpi` — over **198 baselines: 56 corpus files, 66 pages, three resolutions**. All
+green, and the margin is the number worth recording: a re-render of the unchanged corpus differs
+from its baselines in **zero pixels**, so the whole of both thresholds is headroom rather than a
+budget already spent. Each case additionally asserts `compared > 0`, because *"0 compared, 0
+failed"* is a passing run over nothing.
+**What the green means, in the words §9.7 requires:** *consistent with our own generated corpus*,
+never *rendering is correct*. Asserted here rather than assumed as well: **every corpus file is a
+baseline case or an excluded row with a stated reason** (61 = 56 + 5), checked in both directions,
+so a corpus file added at a later stage cannot silently have no baseline — `corpus/make-corpus.py
+--check-provenance`'s rule in a second subject.
 
 **A-49 · A perturbed render fails, and writes a diff image**
-☐ **Goal** D2-13, and convention 7 — a golden suite that cannot fail is decorative.
+✅ **2026-09-06 (T17)** **Goal** D2-13, and convention 7 — a golden suite that cannot fail is
+decorative.
 **Steps** Perturb one render flag; run.
 **Expect** Failure naming the file and page, **with a diff image written beside the expected and
 actual**. **If it fails** S2: "golden mismatch, 0.7 % of pixels" is not a bug report.
+**Result 2026-09-06, and the first version of this case PASSED WHEN IT SHOULD HAVE FAILED.** The
+perturbation is `RenderFlags::Grayscale`, and the page it was first aimed at was
+`ordinary/text-a4.pdf` — black ink on white paper, where greying the render is the **identity**.
+171 of the 198 baselines are grey in every pixel, so the comparison was working perfectly and the
+control was measuring nothing. Repointed at `ordinary/image-dct-rgb.pdf`, one of the 27 that carry
+colour: the comparison now reports **165,413 differing pixels of 891,662**, the failure sentence
+names the worst channel delta and the coordinates of the first bad pixel, and
+`<build>/golden-failures/` receives `-expected.png`, `-actual.png` and `-diff.png` with the changed
+regions in red over a ghost of the render. **A second case is its control in the other direction** —
+the same file, page and DPI without the flag — because a comparison that answered *different* to
+everything would have made this one green too. That pair is convention 7's own requirement, met by a
+case that first failed to meet it: T11's finding a second time.
 
-**A-50 · `golden-update` refuses without `--reason`** ☐ **Goal** D2-3.
+**A-50 · `golden-update` refuses without `--reason`** ✅ **2026-09-06 (T17)** **Goal** D2-3.
 **Expect** Refused, with a message saying why. With `--reason`, the baseline regenerates and the reason
 is available to the commit. **If it fails** S2 — the mechanism `Implementation-Plan.md` §2 names has no
 teeth without this.
+**Result 2026-09-06.** `render.golden.golden-update refuses to regenerate a baseline without a
+stated reason` drives the executable as a child process. A bare invocation exits **2** with a
+diagnostic naming `--reason` and citing D2-3; a second invocation carrying only `--filter` is
+refused identically **and leaves `captured.json`'s timestamp untouched**, because a refusal that had
+already rewritten half the tree before deciding would satisfy every other assertion here. **The
+control supplies a reason** and a filter matching nothing: the run gets *past* the D2-3 check and
+stops with a different diagnostic and **exit 1** — 2 means *I will not*, 1 means *I tried and could
+not* — which is what makes it a control rather than a second copy of the assertion above. The
+reason itself lands in `golden/captured.json`, in an append-only `golden/UPDATES.md`, and in a
+ready-to-paste commit block: a **reviewed file** rather than only a commit message, because a commit
+message can be amended and a squash can lose it.
 
-**A-51 · A PDFium version change is visible to the golden suite** ☐
+**A-51 · A PDFium version change is visible to the golden suite** ✅ **2026-09-06 (T17)**
 **Expect** With A-05's pin edited, the golden suite does not merely fail — configure never gets that
 far. The two mechanisms are complementary and this case proves the ordering. **If it fails** S3.
+**Result 2026-09-06.** The configure-time half is A-05's and is unchanged
+(`cmake/PdfiumAssert.cmake`, PA-1 … PA-5). What T17 added is the half configure **cannot** see:
+`golden/captured.json` records the engine the baselines were made against, and `render.golden.the
+baselines were captured against the PDFium this build is pinned to` compares it with
+`pdf::render::version()`. In the ordinary case it can never fire, and that is the point — reaching
+it means the `pdfium.dll` beside the executable was replaced *after* the build, which is exactly the
+reader `pdf/render/PdfiumInit.h`'s `version()` comment is written for, and which would otherwise
+show up as pixel drift across all 198 baselines at once and be diagnosed as a rendering regression.
+Verified by setting the recorded version to `999.0.0.0` and watching the case fail by name.
+
+**A-82 · No baseline depends on an installed face unless it says so** ✅ **2026-09-06 (T17)**
+**Goal** Convention 22, and **I-13**'s tripwire. *(Added at T17 — the eighty-second case. This guide
+was written before the font bridge existed, so nothing in it kept I-13's finding from being re-made
+silently.)*
+**Steps** `ctest -R "render.golden.only the declared"`.
+**Expect** Every substitution `golden/captured.json` recorded is `standard-declined` or
+`none-available` — both engine-internal and identical on every machine — **except** on the cases
+`golden/manifest.json` declares `machineDependent`.
+**Result 2026-09-06, and it earned its place on the first capture run.** The expected
+machine-dependent case is `ordinary/font-not-embedded.pdf`. The capture found a **second**:
+`malformed/bad-name-hex-escape.pdf` resolves `Helve -> Segoe UI [substituted]`, because the broken
+`#`-escape the file is named for truncates `/Helvetica` to `/Helve`, which is not a standard-14 name
+— so the bridge matches a real installed face instead of declining to PDFium's own copy. Nothing
+predicted it; the manifest says so because the capture said so first. Both cases are compared only
+where this machine resolves the same faces the capture did, and **skipped by name** elsewhere
+(A-62's rule, second subject) rather than reported as a rendering regression.
+**Why this is a numbered case rather than a comment:** if the base-14 decline is ever removed, all
+198 baselines move at once and the failure reads as a renderer regression. This names the cause in
+one line. **If it fails** S2.
 
 ### 5.9 The viewer — `rawpage_ui_tests`, offscreen
 
@@ -1849,22 +1929,46 @@ been automated is a defect in this guide — say so and I will move it.**
 **Walk M-01 and M-02 first**, before the fidelity cases: a DPI bug makes every subsequent judgement
 about rendering quality unreliable, and you would be grading the wrong thing.
 
-**WALKABLE AS OF 2026-09-04 (T13): M-01, M-02, M-03 and M-04.** There is a page on screen — open one
-with `.\build\x64-release\bin\rawpage.exe corpus\ordinary\text-a4.pdf`, or any other corpus file.
+**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** There is a page on
+screen — open one with `.\build\x64-release\bin\rawpage.exe corpus\ordinary\text-a4.pdf`, or any
+other corpus file — the §8 Viewer chords move it, the status bar counts it, the four layout modes
+and the zoom presets are reachable, a repaired file raises a banner, an encrypted one prompts, and a
+missing font substitutes through our own policy.
+
+**This block said something different until T17 re-read it, and the correction is worth keeping.**
+From T13 to T16 it read *“WALKABLE AS OF 2026-09-04 (T13): M-01, M-02, M-03 and M-04”*, followed by
+two “does not exist yet” notes about the status bar and the anti-aliasing toggles and the line
+*“M-05 … M-10 remain unwalkable: they need golden baselines (T17), fonts (T16), the settings keys
+(T15) or Dr. Memory.”* Every clause of that was true when it was written and three of the four
+blockers were cleared within two days — and **none of the six cases was ever about a golden
+baseline at all**. What they were actually waiting for:
+
+| Case | Was waiting for | Shipped |
+|---|---|---|
+| M-05 — the four layout modes, cover page, RTL | `pageDisplay/layoutMode` and `Ctrl+Shift+H`/`Ctrl+Shift+T` | T14, T15 |
+| M-06 — zoom extremes | the zoom box, the four fits, `maxRenderDpi` as a settings row | T14, T15 |
+| M-07 — open every corpus file | documents that open, and a message bar that reports the repair | T9, T14 |
+| M-08 — an encrypted document | the password prompt | T14 |
+| M-10 — the Viewer keyboard by hand | the 23 §8 Viewer chords | T14 |
+| M-09 — Dr. Memory over the raster path | **nothing this project builds.** Still blocked |
+
+The lesson is the one Stage 1 kept re-learning and CLAUDE.md's T16 note states outright: **a
+deferral's note about what will unblock it is a guess by whoever had not yet built the thing**, and
+a stale one reads as a plan for four tasks because nobody re-derives a sentence that already looks
+settled. It was found by asking what T17 had actually unblocked, and finding the honest answer was
+*nothing, and also five other tasks had*.
+
 Two things about the state you will be walking, so a planned absence is not reported as a defect:
 
-- **There is no zoom UI and no page-number box yet.** The status bar still shows Stage 1's em dash, and
-  the §8 Viewer chords (`Ctrl+=`, `Ctrl+0`, `Page Down`, `Home`…) resolve to `NotFound` and deliberately
-  leave the key unconsumed — **the Viewer commands and the status bar are T14's**, the sixteen settings
-  keys are T15's. What works today without a command: the scrollbars and the mouse wheel, and
-  **`Ctrl`+wheel zooms about the cursor**, because that is a gesture rather than a chord and reaches the
-  widget directly.
-- **The anti-aliasing and line-weight toggles M-03 asks you to flip do not exist yet** — those are
-  `pageDisplay/` keys at T15. Walk M-03's comparison half now if you like; its toggle half is not
-  reachable and is not a finding.
+- **Seven §8 Viewer chords deliberately do nothing** — `Ctrl+4`, `Ctrl+R`, `S`, `Ctrl+B`, `Ctrl+E`,
+  `Ctrl+L`, `Ctrl+U` — and they leave the key **unconsumed**, which is T14's decision and is walked
+  by a case rather than described by a comment. They belong to Stages 3 to 13.
+- **Line Weight is a checkbox that does nothing**, and that is issue **I-11** rather than a defect:
+  PDFium always draws a hairline at a minimum of one pixel and exposes no flag over it. The other
+  four `pageDisplay/` toggles M-03 asks you to flip do change pixels.
 
-M-05 … M-10 remain unwalkable: they need golden baselines (T17), fonts (T16), the settings keys (T15) or
-Dr. Memory.
+**M-09 remains unwalkable** — it needs Dr. Memory or Application Verifier, which is not on this
+machine and is the whole reason that case is manual.
 
 ---
 
@@ -2084,11 +2188,23 @@ document means **Stage 1's**, and says so where it appears.
 | **I-10** | S3 | **Stage 1's I-53 named a mechanism that does not do what the note said it did.** I-53 recorded that the *registered-but-currently-refused* tooltip was unbuilt and that "the mechanism to fill it in exists and is unused — a `tooltipKey` on the registration". Building it at **T14** found that `Registration::tooltipKey` is the tooltip an **ENABLED** control shows: reusing it for the refusal reason put *needs a document to be open* on every enabled Viewer button, which is a worse sentence than the one I-53 was about. The two are shown in mutually exclusive states and say opposite things — *what this does* against *why it cannot* — so one field cannot serve both. **Fixed with a second field**, `Registration::unavailableKey`, read only while the action is disabled. The finding is worth the entry not for its size but for its shape: **a deferral's note about how it will be fixed is a guess made by someone who did not build it**, and this one was carried through a stage boundary and two documents as though it were a design. | ✅ **Closed 2026-09-04 at T14** |
 | **I-11** | S3 | **`pageDisplay/lineWeight` is DECLARED AND INERT: PDFium cannot draw a hairline at its true width.** `Features.md` §1.2 defines the option as *"draw hairlines at their true width instead of a minimum of one pixel"* and `Implementation-Plan.md` lists the key among Stage 2's sixteen. Building them at **T15** found that PDFium always enforces the one-pixel minimum and exposes no `FPDF_*` flag over it — and D3 says that C API is the only way this project reaches the engine, so this is a CAPABILITY GAP rather than a defect. **Measured rather than asserted** (case **A-81**): every flag `RenderFlags` can express, applied to `corpus/ordinary/vector-hairlines.pdf`, moves the solid ink coverage by at most 1.2 % — `NoSmoothPath` reduces the total ink by a third, but that is the anti-aliasing fringe rather than the line. **The row is declared rather than left out** because the setting is real, the plan lists it, and an absent row is indistinguishable from one nobody thought of; `ViewSettings::lineWeight` carries the value so the day an engine can honour it there is a value to honour. Same shape as **I-06**. **A-65's criterion is corrected rather than narrowed**, as A-18's was at T7. | 🟡 **OPEN by decision** — raised 2026-09-04 at T15. Closed by an engine that can express it, or by the user deciding the option should be withdrawn from `Features.md` |
 | **I-12** | S3 | **T16's *Done when* asked for vcpkg's `text` feature to be turned on, and the measurement in the same clause says not to.** The clause reads *“vcpkg's `text` feature turned on, and the LGPL source-offer row for `libiconv`”* — and then, in its own *Done when* column, *“`objdump -p` confirms which of the transitive DLLs actually ship”*. Building T16 ran that check and it answers the first half: **`rawpage.exe` links nothing from `text`.** PDFium statically bundles its own FreeType, and the substitution bridge reaches the OS through **DirectWrite** and hands the engine the face's BYTES, so freetype has no caller; harfbuzz, icu and hunspell belong to Stages 5 and 13 by that feature's own description. Turning it on would have built four ports, downloaded ICU, and put a **GPL `iconv.exe`** into `installed/<triplet>/tools/` eleven stages before anything links the library — to satisfy a clause whose evidence says the opposite. **`Tech-Stack-Plan.md` §6.2 already said “Stage 5 for `text`”**, and that document owns the stack. **So T16 did the OTHER thing the plan's §10 offered**: it split `text` into `fonts`, `shaping` and `spelling`, one per owning stage, verified all three resolve, and measured that `fonts` + `shaping` pull neither hunspell nor libiconv. **Recorded as an issue rather than absorbed** because a task that quietly does less than its plan says is indistinguishable from a task that forgot, and because the *reason* — build-is-not-link, and a licence hazard that travels with the build rather than with the link — is the part a later stage needs. | ✅ **Closed 2026-09-05 at T16** — a scope correction, recorded in `vcpkg.json`, `Tech-Stack-Plan.md` §6.2 and the Stage 2 plan's §10 in the same change |
+| **I-14** | S3 | **THE GOLDEN CAPTURE RECORDED NO FONT SUBSTITUTIONS FOR THE ONE CORPUS FILE WHOSE PURPOSE IS TO HAVE THEM — and nothing failed.** T17's `golden::renderPage` marks the font-bridge log, renders, and keeps the rows that appeared in between, so that each baseline records which faces it resolved and the suite can skip a `machineDependent` case on a machine that resolves differently. The first version took the mark **after** `PdfiumDocument::open()` returned. **PDFium resolves some fonts while opening**, and `ordinary/font-not-embedded.pdf`'s two absent families are among them, so every row it produced fell outside the window and its capture record came back empty. **The symptom was silence in both directions**: the baseline images were correct, the comparison passed, and the machine-dependence guard those rows feed was simply never armed — so the first CI run on a box with different fonts would have reported a rendering regression, which is the exact failure `CLAUDE.md`'s own T17 note warned about by name. Found by **reading the data the tool produced** rather than by a failing assertion: 61 files' worth of capture records, and the one file expected to carry substitutions carried none. Fixed by sampling before the open, which also revealed the finding A-82 now guards — `malformed/bad-name-hex-escape.pdf` substitutes too. **Same shape as Stage 1's I-29**: a measurement whose every figure was its own bug, caught by disbelieving a result rather than by anything going red. | ✅ **Closed 2026-09-06 at T17**, in the same change as the code that found it |
+| **I-15** | S3 | **THE GOLDEN SUITE'S PERTURBATION CONTROL PASSED WHILE MEASURING NOTHING.** Guide case **A-49** requires a deliberately perturbed render to FAIL the comparison, which is convention 7 applied to the golden machinery itself — a suite that cannot fail is decorative. The perturbation is `RenderFlags::Grayscale` and the page it was first aimed at was `ordinary/text-a4.pdf`, which is black ink on white paper: **greying a grey page is the identity**, so the control reported zero differing pixels and CHECK_FALSE(passes) failed. It failed LOUDLY, which is the only reason this is an S3 and not the shape of I-14 — had the assertion been written the other way round it would have been a control that agreed with everything forever. The underlying fact is a property of this corpus that nobody had counted: **171 of the 198 baselines have R == G == B in every pixel**, which is also why they are stored as eight-bit grey. Repointed at `ordinary/image-dct-rgb.pdf`, one of the 27 that carry colour: 165,413 differing pixels of 891,662. **A second case is now its control in the other direction** — same file, same page, same DPI, no flag — because a comparison that answered *different* to everything would have made the first one green too. | ✅ **Closed 2026-09-06 at T17** |
 | **I-13** | **S2** | **THE FONT BRIDGE SUBSTITUTED A SYSTEM FACE FOR THE BASE-14 FONTS, changing how every page of every existing document renders.** Found at **T16 by the control case, not by the case the task was written around.** A-66 asks whether the substitution bridge RUNS; the control beside it asks whether it runs when it should NOT, and that one measured `mapFontCalls() == 2` on `corpus/ordinary/text-a4.pdf` with **Helvetica resolved to Segoe UI**. Every file in this project that touched the subject — the bridge's header, the policy's header, this guide's own A-66 wording — had said that Helvetica, Times, Courier, Symbol and ZapfDingbats are required of every conforming reader, that PDFium carries its own metric-compatible Foxit copies, and that a font hook would therefore never be asked about them. **PDFium asks about them.** `FPDF_SetSystemFontInfo` is consulted for EVERY unembedded font and the engine uses its own faces only when the hook declines. **The consequence is out of proportion to the fix.** T16's subject is documents that render *wrongly today* — a font named and not embedded — and without the decline it would have changed the appearance of every page of every document that names a standard face, which is most of them, in a task nobody would think to look at for that. It would also have invalidated `tests/golden/`'s baselines at **T17** before they were captured, and the substitution is not neutral: Segoe UI is not metric-compatible with Helvetica, whereas PDFium's copy is and is identical on every machine. **Fixed with `core::render::isStandardFontName()`**, checked against the NORMALIZED family so that `Times-BoldItalic` reduces to `Times`, and deliberately NOT listing `Arial`, `TimesNewRoman` or `Courier New` — those are real installed families that a resolver should match exactly, and declining them would refuse a font we can serve perfectly. **The lesson is convention 7's, in the form it takes when the thing being verified is a NEW mechanism**: a case that proves a mechanism runs is half of proving it runs when it should, and nothing in the criterion this task was given called for the other half. | ✅ **Closed 2026-09-05 at T16**, in the same change as the code that found it — raised and closed by the same run |
 
 **NO S2 IS OPEN. Two S3 remain — I-06 (JBIG2) and I-11 (line weight) — and both are open BY
-DECISION rather than pending. Eleven closed: I-01 and I-03 before any code, I-05 at T11, I-07 at
-T12, I-08 and I-09 at T13, I-10 at T14, and I-02, I-04, I-12 and I-13 at T16.**
+DECISION rather than pending. Thirteen closed: I-01 and I-03 before any code, I-05 at T11, I-07 at
+T12, I-08 and I-09 at T13, I-10 at T14, I-02, I-04, I-12 and I-13 at T16, and **I-14 and I-15 at
+T17**.**
+
+**I-14 and I-15 are both T17's own harness, raised and closed in the same change**, which is the
+fourth task in this stage where the finding was the verification rather than the product. They are
+worth reading as a pair because they failed in opposite directions: **I-15 went red on its first
+run** — a control that could not fail, doing exactly what convention 7 says a control must do —
+while **I-14 stayed green and recorded nothing**, and was found only by reading the data the tool had
+produced and noticing that the one file expected to carry font substitutions carried none. The
+second is the dangerous kind, and the only defence against it is looking at the output rather than
+at the exit code.
 
 **I-06 and I-11 are the same finding twice, and the pattern is worth naming.** Both are a feature
 this document set specified, that the engine or the licence cannot deliver, found by BUILDING it
@@ -2124,14 +2240,17 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-81 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-82 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
 4. ☐ `ctest` green across all five Windows targets, every prior stage included.
 5. ☐ `portable-asan` clean over the whole corpus parse; `portable-fuzz` green for 10 minutes on **two**
    targets that demonstrably exist.
-6. ☐ Golden baselines committed; `tests/roundtrip/` **not applicable** and recorded as such.
+6. ✅ **Golden baselines committed 2026-09-06 (T17)** — 198 images, 56 corpus files, 66 pages, at
+   96 / 144 / 192 DPI, with `golden/manifest.json` declaring what is captured and why, and
+   `golden/captured.json` recording the engine and the fonts it was captured against.
+   `tests/roundtrip/` **not applicable** and recorded as such: nothing in Stage 2 writes a byte.
 7. ☐ **The corpus limitation is written into the sign-off, not merely known.** `Implementation-Plan.md`'s
    Stage 2 status block states in those words that the golden suite's green is **consistency against our
    own generated output**, not **fidelity to real-world PDFs** (plan §13.6). An unqualified *"every

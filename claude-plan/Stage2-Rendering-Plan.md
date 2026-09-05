@@ -13,9 +13,10 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T16 of 18 complete** — T1–T3 on 2026-09-01, T4 and T5 on 2026-09-02,
-> T6 on 2026-09-03, T7…T15 on 2026-09-04, T16 on 2026-09-05. **T17** (golden images) and **T18**
-> (A2 re-measured through the shipped pipeline, the carry-overs, CI, and doc lockstep) remain.
+> **Status:** 🟡 **T1–T17 of 18 complete** — T1–T3 on 2026-09-01, T4 and T5 on 2026-09-02,
+> T6 on 2026-09-03, T7…T15 on 2026-09-04, T16 on 2026-09-05, T17 on 2026-09-06. **T18** alone
+> remains (A2 re-measured through the shipped pipeline, the carry-overs, CI, and doc lockstep), and
+> it writes no new file.
 > Written 2026-08-31, immediately after Stage 1 signed off and before any Stage 2 code existed.
 >
 > **This file is a plan, not a progress log.** Stage 2's live status — task by task, deviation by
@@ -169,7 +170,7 @@ wrong stage tag, and are lockstep debt — §10.
 | `pdf/render/GlyphCache.{h,cpp}`, `FontResolverBridge.{h,cpp}` | §3.10 ✅ (S2 · T16) — and `GlyphCache` is **not** what its name says: PDFium caches glyphs, this caches the FACE DATA behind the substitution hook, which is the correction to guide case A-67 | T16 |
 | `core/render/FontSubstitution.{h,cpp}` | §3.4 ✅ **(S2 · T16)** — **a row this manifest did not list**, added with the file on the precedent `DiskTileStore` set at T11. WHICH face substitutes is policy and `platform/win/` makes none, so the ordered candidate list is in `core/` — which is also what makes it assertable with no display, no Windows and no engine. Fourth such file this stage after `WinMessageWindow` (T12), `app/BackendRasterizer.h` (T13) and `PasswordDialog` (T14) | T16 |
 | `corpus/ordinary/font-not-embedded.pdf` | §3.18 ✅ **(S2 · T16)** — **a corpus file this manifest did not list**, and A-66 needs it: every other text fixture uses a base-14 face or an embedded `/FontFile2`, and neither reaches a font resolver | T16 |
-| `tests/golden/`, `tools/golden-update/` | §3.17 ⚠️ *(`tests/golden/` has a row; the tool does not)* | T17 |
+| `tests/golden/`, `tools/golden-update/` | §3.17 ✅ **(S2 · T17)** — both rows flipped ○ → ✅ in the same change as the code, and the ⚠️ this row carried (*“the tool does not have one”*) was already stale when it was written: re-measured 2026-09-02, §3.17 has had a row for `tools/golden-update/` all along. T17 also added **five data rows** the manifest did not list — `golden/manifest.json`, `golden/captured.json`, `golden/README.md`, `golden/UPDATES.md` and `golden/**` — on the `WinMessageWindow` / `FontSubstitution` precedent | T17 |
 | `tests/bench/bench_render.cpp` | §3.17 🟡 (S2 · T3; T18 completes it) | T3, T18 |
 | `tests/fuzz/` | §3.17 ✅ (S2 · T5, T6) — the stage retag was made when this plan was written | T5, T6 |
 
@@ -301,7 +302,7 @@ Stage 1 T2's ordering argument applied to the second go/no-go.
 | **T14** | The Viewer commands, the status bar, the message bar | T13 | The §8 Viewer bindings registered; `StatusBar` gets real page numbers and zoom; `MessageBar` with the repair report and the password prompt; **I-53's `tooltipKey`** (D2-10) | Every §8 Viewer chord dispatches; a `Viewer` chord does **not** fire from the tool finder's search box; a disabled registered command says *why* |
 | **T15** | The sixteen settings keys | T14 | Eleven `pageDisplay/`, five `performance/`, each a `SettingsKeys.def` row and therefore an automatic editor (convention 17); two new Preferences groups | Changing anti-aliasing, line weight or the resolution cap visibly changes rendering; every key round-trips |
 | **T16** | Fonts and glyphs | T13 | ✅ **2026-09-05.** `GlyphCache`, `FontResolverBridge`, `WinFontResolver`, plus `core/render/FontSubstitution` and a thirtieth corpus file, neither of which this plan listed. **The `text` feature was SPLIT rather than turned on** — see the deviation below and issue **I-12** — and I-02's Stage 2 half is closed by the `objdump` measurement rather than by a source offer. **I-04 closed** as well, with the `unknown-key` rule and the eighteen keys it found | ✅ Met, and the substitute is NAMED: `corpus/ordinary/font-not-embedded.pdf` resolves its serif font to **Times New Roman** and its sans to **Segoe UI**, through `FontResolverBridge` → `WinFontResolver` → `FontSubstitution`. `objdump -p` on the built `rawpage.exe` names **eighteen** DLLs — seventeen from before plus `DWrite.dll`, an OS library — and **not one** comes from the `text` ports |
-| **T17** | Golden images | T13, T16 | `tests/golden/` at 96/144/192 DPI over the corpus; `tools/golden-update` with its mandatory `--reason` (D2-3, D2-13); a diff image on failure | Baselines committed; a deliberately perturbed render fails with a diff image; `golden-update` without `--reason` refuses |
+| **T17** | Golden images | T13, T16 | ✅ **2026-09-06.** `tests/golden/` at 96/144/192 DPI over the corpus — **198 baselines, 56 files, 66 pages**, a **fifth test target** because the PNG codec needs QtGui and `tests/render` deliberately links no Qt GUI library; `tools/golden-update` with its mandatory `--reason` (D2-3, D2-13) plus `--survey`, `--check-manifest` and `--explain`; a diff image on failure. `golden/manifest.json` declares, `golden/captured.json` measures | ✅ Baselines committed; a deliberately perturbed render fails **with a diff image**; `golden-update` without `--reason` refuses with **exit 2** and a diagnostic citing D2-3. **Two findings, both S3 and both in T17's own harness** — I-15 (a perturbation control aimed at a page the perturbation could not change) and I-14 (a capture window that recorded no font substitutions for the one file whose purpose is to have them, silently) |
 | **T18** | **A2 re-measured**, carry-overs, CI, doc lockstep | all | `bench_render` through the **shipped** pipeline (D2-1, second half); O7 and O10 resolved in `Implementation-Plan.md` §8; `--list-actions` and the alias fixture (D2-10); CI gains `render.` and the fuzz smoke run; every §4 row flipped and §10's debt paid | The product's own A2 figure recorded beside the probe's; **A-25 and A-26 finally have results**; `Implementation-Plan.md` Stage 2 status block reflects reality, deviations included |
 
 ---
@@ -447,7 +448,11 @@ to existing documents and are made when this plan is written.
   has always put accelerated presentation at Stage 4 *if A2 says it is needed* and nothing has yet said
   so. A row that says which stage owns it is paid; a row that says ○ (S2) after Stage 2 ends is debt.
 - ~~**`tools/golden-update/` has no row**, though `tests/golden/` does.~~ **Stale — re-measured
-  2026-09-02: §3.17 has one, tagged ○ (S2). The ○ → ✅ flip is T17's.**
+  2026-09-02: §3.17 has one, tagged ○ (S2). PAID AT T17**, which flipped both rows ○ → ✅ and added
+  five `golden/` data rows the manifest had never listed. Worth keeping as a two-line history: the
+  item was raised as a missing row, was already false when raised, and was finally closed by the task
+  that made it true — which is the same *a claim written by whoever had not built the thing* shape
+  as **I-10** and as §6's stale walkability list, in its mildest form.
 - ~~**`cmake/PdfiumAssert.cmake` has no row**, though `cmake/ToolchainAssert.cmake` does.~~ **Paid at
   T2**, in the same change as the assertion itself (D2-3).
 - 🟡 **`Tech-Stack-Plan.md` §3.3 gained A2's PROBE verdict at T3 and **R5** is struck through; the

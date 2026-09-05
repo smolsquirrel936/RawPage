@@ -197,6 +197,12 @@ if(NOT RAWPAGE_GATES_ONLY)
         # otherwise put PDFium into the headless closure. Windows only, and it needs no display.
         add_subdirectory(tests/render)
 
+        # The golden-image suite (Stage 2 T17). A fifth target rather than three more files in
+        # tests/render, because it needs QtGui for the PNG codec and tests/render's separateness
+        # rests on it linking no Qt GUI library at all -- see tests/golden/CMakeLists.txt. Its
+        # CTest cases stay inside the `render.` prefix.
+        add_subdirectory(tests/golden)
+
         # The measurements. One benchmark today -- A3's criterion R-9, the only one of the eight
         # that is a number rather than a judgement -- and Stage 2's per-tile render latency joins
         # it. Windows only, because it links rawpage_ui; and a bench under ASan would be a

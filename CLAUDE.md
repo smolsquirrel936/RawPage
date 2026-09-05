@@ -10,7 +10,7 @@ Windows-first desktop PDF editor modeled on Right PDF Professional. The design l
 
 ### Where the work is right now — read this first
 
-**Stage 1 is COMPLETE and signed off. Stage 2 is under way: T1–T16 of 18 are done** — the engine
+**Stage 1 is COMPLETE and signed off. Stage 2 is under way: T1–T17 of 18 are done** — the engine
 boundary (`core/backend.h`), PDFium made permanent behind `pdf/render/PdfiumInit`, **risk A2
 measured: `go`** (all three on 2026-09-01), **the corpus: 60 generated files** (61 from T16) and **`pdf/cos/Lexer`
 — the first token of PDF this project has ever read for itself** (both 2026-09-02),
@@ -50,17 +50,30 @@ whether the bridge runs when it should NOT measured the product substituting **S
 Helvetica** on every page of every document, because PDFium asks its hook about the base-14 faces too
 and four files in this project had said it would not — issue **I-13**, the stage's only S2 in the
 product, raised and closed in the same run.
-**Next action: Stage 2 T17**, the golden images — `tests/golden/` at 96/144/192 DPI over the corpus,
-`tools/golden-update` with its mandatory `--reason` (D2-3, D2-13), and a diff image on failure. It
-inherits three things worth knowing, and the first is a near miss. **T16's issue I-13 would have
-moved every baseline T17 is about to capture**: the font bridge was substituting Segoe UI for
-Helvetica on every page of every document, and it was caught by a control case a day before the
-baselines existed rather than a week after. **The corpus is 61 files now, not 60** — `ordinary/` has a
-thirtieth, `font-not-embedded.pdf`. And **the substitution path is deterministic only as far as the
-machine is**: the base-14 faces come from PDFium's own bundled copies and are identical everywhere,
-but a substituted face is whatever that box has installed, so a golden baseline over
-`font-not-embedded.pdf` is a baseline about **this machine's fonts**. That has to be said in the
-baseline's own metadata or the first CI run on a different box reports a rendering regression.
+**T17 SHIPPED THE GOLDEN IMAGES ON 2026-09-06: 198 COMMITTED BASELINES SAY A PAGE RENDERS THE SAME
+WAY TWICE.** `tests/golden/` at 96/144/192 DPI over 56 corpus files and 66 pages, `tools/golden-update`
+with its mandatory `--reason` (D2-3, D2-13), and a diff image on failure. **All three warnings this
+paragraph carried into the task turned out to matter, and one of them was incomplete.** The corpus is
+61 files. I-13 would indeed have moved every baseline, and did not, because a control case caught it a
+day early. And the substitution path is machine-dependent — but **the file this paragraph named was
+not the only one**: `malformed/bad-name-hex-escape.pdf` substitutes too, because its broken `#`-escape
+truncates `/Helvetica` to `/Helve`, which is not a standard-14 name. The capture found it; nobody
+predicted it. Both are marked `machineDependent` in `golden/manifest.json`, their capture-time faces
+are recorded in `golden/captured.json`, and the suite **skips such a case by name** on a machine that
+resolves differently rather than reporting a rendering regression — which is exactly the failure this
+paragraph warned about, avoided by the mechanism it asked for.
+
+**Next action: Stage 2 T18** — the last task, and it writes no new file. It owes: **A2 re-measured
+through the SHIPPED pipeline** (D2-1's second half — the probe's 0.532 ms says *is this physically
+possible*, only `RenderScheduler` + `RenderCache` + `PdfiumRasterizer` end to end says *is the product
+fast*, and Stage 1's R-9 is the lesson written down in advance); **the `render.` prefix added to CI's
+non-empty check** in `.github/workflows/ci.yml`, which is one word and is the only prefix of the six
+still outside it — a build that dropped the 50 engine-linked cases would today still report *100 %
+tests passed*; **O7 and O10 resolved** in `Implementation-Plan.md` §8; and document lockstep. Two
+things it inherits: **`golden/` is 13.1 MB of committed binary data**, so anything that changes what
+the rasterizer emits changes 198 files at once and must go through `golden-update --reason`; and
+**A-24, A-25 and A-26 remain Linux jobs this machine cannot run**, recorded as such rather than as
+pending.
 Live status, task by task and
 deviation by deviation, lives in the **Stage 1 and Stage 2 status blocks** in
 `claude-plan/Implementation-Plan.md` — those blocks are the authority, and this section is their
@@ -68,8 +81,8 @@ summary. The table below is Stage 1's, updated where Stage 2 has already moved a
 
 | | |
 |---|---|
-| **Tests** | **677/677** on `x64-debug` and `x64-release` as of Stage 2 T16, with **one explicitly SKIPPED** — the battery case, on a desktop that has none, which is guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* requirement honoured rather than a gap (66 at the end of Stage 0; 334 at Stage 1 T15, +5 from the M-03 fixes, +2 from the M-04 fixes, +2 from M-05's, +4 from M-06's, +6 from M-11's I-47, I-49, I-50, I-52 and the toolbar lock, +1 from M-12's I-54, giving Stage 1's final 354; then +13 at Stage 2 T1 — 6 `unit.` backend cases, 5 `gates.headless_assert.*` and 2 `gates.layer_lint.*`; +16 at T2 — 4 `render.`, 5 `gates.layer_lint.fpdf*` and 7 `gates.pdfium_pin.*`; +1 at T3, the A2 probe; +3 at T4, the `gates.corpus.*` trio; +25 at T5; +31 at T6; +29 at T7 — 13 `unit.cos filters`, 14 `unit.cos xref` and 2 `gates.license_audit.undeclared_transitive_*`; +20 at T8 — 12 `unit.cos repair` and 8 `unit.doc`; **+34 at T9** — 22 `render.` over the document and the rasterizer, 11 `unit.` over `Page`/`PageTree`/`RenderRequest`, and one `ui.` for A-47); **+18 at T10** — 4 `unit.` over `DpiPolicy`, 7 over `TileGrid` and 7 over `PagePresentation`, every one of them headless; **+17 at T11** — 6 `unit.` over `RenderCache` and its two tiers, 11 over `RenderScheduler`; **+9 at T12** — 5 `platform.` over `WinDisplayTopology` and 4 over `WinPowerSession`, one of which is the skip; **+28 at T13** — 13 `ui.` over `ViewportController` and `PageLayoutEngine` with no window at all, 10 `ui.` over `PageView` and `TilePresenter`, 2 `ui.` for `KeyContext::Viewer` and its negative, 1 net in the tab suite where A-57's stub case became two, and 2 `render.` for the real engine on the real scheduler; **+25 at T14** — 9 `ui.` over the §8 Viewer commands, 9 `ui.` over the status bar, the message bar and I-53's tooltips, 5 `unit.` over the rotation arithmetic and its cache key, and 2 `render.` over the engine's `rotate` argument; and **+18 at T15** — 6 `unit.` over the sixteen rows and their codecs, 9 `ui.` over the two generated Preferences pages and the keys reaching the viewer, and 4 `render.` measuring what the flags actually do to pixels -- three anti-aliasing figures, and the transparency flag that this task discovered it needed; **and +35 at T16** -- 17 `unit.` over the substitution policy with no display and no engine, 7 `platform.` over `WinFontResolver`, 7 `render.` over the whole chain through PDFium, and 4 `gates.` -- 2 `layer_lint` for the `pdf-render` widening and its control, 2 `i18n_lint` for the new `unknown-key` rule); the bare `gates` preset is **94/94** with no Qt. Plus **two benchmarks**, `bench.ribbon.tab_switch` and — since S2 · T3 — `bench.render.a2_probe`; this line read *"one benchmark"* until 2026-09-03, having missed the second for the same reason the target-count heading below did. A bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
-| **Gates** | `layer-lint` clean at **266 files / 1,811 includes**, **8** live filesystem-write waivers — the two new ones both in `core/render/DiskTileStore.cpp`, one write and one delete, because every deletion in that file is funnelled through a single helper to keep the census at two; `license-audit` clean at **20 components** — 17 until T7 taught it to enumerate the RESOLVED CLOSURE rather than the declared manifest (I-02), and **T16 closed that issue** by measuring with `objdump -p` that Stage 2 links none of the `text` ports at all, then splitting that feature into `fonts` / `shaping` / `spelling` so the GPL `iconv.exe` enters the tree at Stage 13 rather than here; `i18n-lint` clean at **175 files / 2 catalogs, 0 waivers**, and it has a **fourth rule from T16 — `unknown-key`, which BLOCKS**: a catalog key a source names and no catalog defines. It is anchored on five declared `keyFamilies` rather than on every dotted literal, because the scanner's idea of a key is generous on purpose and a blocking rule over that set would fail the build on `settings.ini`. It found the eighteen keys **I-04** had predicted, in the same four files. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Tests** | **687/687** on `x64-debug` and `x64-release` as of Stage 2 T17, with **one explicitly SKIPPED** — the battery case, on a desktop that has none, which is guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* requirement honoured rather than a gap (66 at the end of Stage 0; 334 at Stage 1 T15, +5 from the M-03 fixes, +2 from the M-04 fixes, +2 from M-05's, +4 from M-06's, +6 from M-11's I-47, I-49, I-50, I-52 and the toolbar lock, +1 from M-12's I-54, giving Stage 1's final 354; then +13 at Stage 2 T1 — 6 `unit.` backend cases, 5 `gates.headless_assert.*` and 2 `gates.layer_lint.*`; +16 at T2 — 4 `render.`, 5 `gates.layer_lint.fpdf*` and 7 `gates.pdfium_pin.*`; +1 at T3, the A2 probe; +3 at T4, the `gates.corpus.*` trio; +25 at T5; +31 at T6; +29 at T7 — 13 `unit.cos filters`, 14 `unit.cos xref` and 2 `gates.license_audit.undeclared_transitive_*`; +20 at T8 — 12 `unit.cos repair` and 8 `unit.doc`; **+34 at T9** — 22 `render.` over the document and the rasterizer, 11 `unit.` over `Page`/`PageTree`/`RenderRequest`, and one `ui.` for A-47); **+18 at T10** — 4 `unit.` over `DpiPolicy`, 7 over `TileGrid` and 7 over `PagePresentation`, every one of them headless; **+17 at T11** — 6 `unit.` over `RenderCache` and its two tiers, 11 over `RenderScheduler`; **+9 at T12** — 5 `platform.` over `WinDisplayTopology` and 4 over `WinPowerSession`, one of which is the skip; **+28 at T13** — 13 `ui.` over `ViewportController` and `PageLayoutEngine` with no window at all, 10 `ui.` over `PageView` and `TilePresenter`, 2 `ui.` for `KeyContext::Viewer` and its negative, 1 net in the tab suite where A-57's stub case became two, and 2 `render.` for the real engine on the real scheduler; **+25 at T14** — 9 `ui.` over the §8 Viewer commands, 9 `ui.` over the status bar, the message bar and I-53's tooltips, 5 `unit.` over the rotation arithmetic and its cache key, and 2 `render.` over the engine's `rotate` argument; and **+18 at T15** — 6 `unit.` over the sixteen rows and their codecs, 9 `ui.` over the two generated Preferences pages and the keys reaching the viewer, and 4 `render.` measuring what the flags actually do to pixels -- three anti-aliasing figures, and the transparency flag that this task discovered it needed; **and +35 at T16** -- 17 `unit.` over the substitution policy with no display and no engine, 7 `platform.` over `WinFontResolver`, 7 `render.` over the whole chain through PDFium, and 4 `gates.` -- 2 `layer_lint` for the `pdf-render` widening and its control, 2 `i18n_lint` for the new `unknown-key` rule); **and +10 at T17** — all of them `render.golden.*`, which is a fifth test target inside the `render.` prefix: three baseline comparisons (one per resolution), the perturbation control and its own control in the other direction, the manifest/corpus coverage check, A-51's runtime half, I-13's tripwire, the tiled-composition check, and the case that drives `golden-update` to prove its refusal; the bare `gates` preset is **94/94** with no Qt — unchanged, because nothing in T17 runs without Qt or an engine. Plus **two benchmarks**, `bench.ribbon.tab_switch` and — since S2 · T3 — `bench.render.a2_probe`; this line read *"one benchmark"* until 2026-09-03, having missed the second for the same reason the target-count heading below did. A bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
+| **Gates** | `layer-lint` clean at **270 files / 1,865 includes** (T17's four: `tests/golden/GoldenSuite.{h,cpp}`, `tests/golden/tst_golden.cpp` and `tools/golden-update/main.cpp` — none of which needed a waiver, because `tools/` and `tests/` are already permitted filesystem writers), **8** live filesystem-write waivers — the two new ones both in `core/render/DiskTileStore.cpp`, one write and one delete, because every deletion in that file is funnelled through a single helper to keep the census at two; `license-audit` clean at **20 components** — 17 until T7 taught it to enumerate the RESOLVED CLOSURE rather than the declared manifest (I-02), and **T16 closed that issue** by measuring with `objdump -p` that Stage 2 links none of the `text` ports at all, then splitting that feature into `fonts` / `shaping` / `spelling` so the GPL `iconv.exe` enters the tree at Stage 13 rather than here; `i18n-lint` clean at **175 files / 2 catalogs, 0 waivers**, and it has a **fourth rule from T16 — `unknown-key`, which BLOCKS**: a catalog key a source names and no catalog defines. It is anchored on five declared `keyFamilies` rather than on every dotted literal, because the scanner's idea of a key is generous on purpose and a blocking rule over that set would fail the build on `settings.ini`. It found the eighteen keys **I-04** had predicted, in the same four files. **Three gates live**, not four — see the gate table below, and the number has now survived two tools arriving in `tools/` that are not gates: `tools/ribbon-validate` is a build step, and **`tools/golden-update` (S2 · T17) is a data PRODUCER**. Both return early for the gate and portable configurations, so `tools/` still builds with no Qt at all; the RULE over what `golden-update` writes is a CTest suite, `render.golden.*`, not a fourth gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**. T15 **re-measured R-9 against the shipped ribbon** rather than against T2's throwaway spike — p95 **0.471 ms** against a 16.667 ms budget, over 192 real controls, with a control proving the instrument was live. Both figures stand in `Tech-Stack-Plan.md` §3.3; the second is the one that is a claim about the product. **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
 | **Issue log** | I-01…I-55 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** **I-54 (S2)**: the tool finder took only the **first character** of a query **and lost its blinking caret** — one report, two mechanisms, because opening a `Qt::Popup` takes both the keyboard and the window activation away from the widget behind it. Keys: a popup is a WINDOW, so once it opened Qt delivered every further keystroke to it rather than to the search box, and a `QListWidget` spent them on its own keyboard search; Backspace went the same way, so a mistyped query could not be corrected. Caret: a `QLineEdit` in a **deactivated** window stops painting its cursor whether or not it still holds focus. **Fixed in two rounds** — the first addressed the keys only, and the user found the caret still gone by using the repaired build, I-45's lesson for the third time. `setFocusPolicy(Qt::NoFocus)` had carried the comment *“typing stays in the box”* since T11 and could never have made it true: focus policy picks a widget **within** a window, and this is about which **window** the keyboard talks to. `eventFilter` now keeps Up/Down/PageUp/PageDown/Enter and forwards the rest to the line edit, and the list carries `WA_ShowWithoutActivating` and a focus proxy back to the box — with `Qt::NoFocus`, **all three of the things `QCompleter` does with its own popup**, which this widget is in all but name. **The third defect this one popup has produced** (I-44, I-45), and nine green `[toolfinder]` cases missed all of it because every one types at `searchBox()` — the one address a real keystroke does not reach while the list is up: convention 19's back door, I-34's and I-43's shape. **Raised by the user after M-12 was already signed off**, which re-opened and re-closed the no-open-S2 box. **I-53** is not a defect: plan §5.1's *registered-but-disabled* tooltip was never built — an unregistered control says it is not implemented, one that is merely unavailable says nothing — and the user's call was **planned absence, Stage 2**, since 338 of 361 ids are unregistered and the few registered-and-disabled ones are refused for reasons visible on screen. **I-50 (S3)**: only the 22 *enabled* commands could be added to the toolbar — Qt sends no input event to a disabled widget, so right-clicking any of the other 338 did nothing — and the toolbar's own empty space offered an `Add` that could never be enabled. `Ribbon::contextMenuEvent` now resolves the position with `childAt()`, which does return disabled children, and the menu is keyed on what is under the cursor. **I-51 (S3)**: the startup line printed the DROPPED override count as the applied one, so a session that applied a remap perfectly logged `0 of 1 user overrides applied` — a wrong diagnostic that sent its reader hunting a defect that was not there. **I-52 (S3)**: a defect in the drag feature two hours old — a slot among the buttons is not an index into the layout, so a drop past the last button landed on the stretch and the button jumped to the far right edge. **I-49 (S2)**: **every** Quick Access Toolbar customization made the toolbar vanish — a widget built with a parent that is already on screen starts hidden, and a hidden widget is an empty layout item, so add/remove/reorder/reset each produced invisible buttons and a 4-pixel strip. `ui.resetCustomization` rebuilt it invisibly too, so restarting was the only way back. Nine `[qat]` cases missed it because every one asks the command LIST, which stays correct for a row nobody can see — the sixth time this stage has been caught by that (I-34, I-42, I-43, I-46, I-47). **I-47 (S2)**: every preference lived only in memory until a **clean** shutdown — `Settings::sync()` was called from one place, `CompositionRoot`'s teardown — so a crash or a kill lost settings the user had watched take effect, which the no-OK-button Preferences dialog makes worse rather than better. Now flushed on every change, with teardown as a backstop. Missed by the suite because every settings case called `sync()` itself: convention 19's back door again. **I-48** is not a defect: two of M-11's steps tested things that do not exist — a recent-files surface (declared, unregistered, no UI: the **fifth** built-but-unreachable capability after I-34, I-42, I-43, I-46) and a window-geometry restore, which is `SessionState` at Stage 4. **I-46** is not a defect but is worth knowing: **nothing in the product can register the PDF file association** — all four calls are implemented and tested, and the only callers are the tests, which is this stage's recurring shape for the fourth time (I-34, I-42, I-43). The user's call was **planned absence, Stage 14/15**; M-07 walks against a hand-made Windows association, and its *Pre* now also names the `windeployqt` step it had always needed. **I-45 (S2)** is the one to remember: it was a **regression in I-44's own fix** — dismissing the list on any `FocusOut` closed it in the same turn it opened, because showing a `Qt::Popup` *is* a focus change, so no search showed anything. Found by the user re-walking the repaired build within the hour, and invisible to the case added with I-44 because offscreen that focus change does not happen. **I-44 (S2, and the worst defect this stage has produced)**: a tool-finder query that matched nothing **froze the application** — the result list is a `Qt::Popup` window holding the mouse grab, the *"nothing matched"* message is itself a row so the list still showed, and `Esc`, an outside click and `Enter` all failed to put it away. Force-close was the only exit. Three exits added, each independently missing, plus `FocusOut`/`WindowDeactivate`. **I-43 (S3)**: reordering the Quick Access Toolbar could not be done by a person — `moveCommand` public since T11, the order persisted since T11, **three documents calling it shipped**, and no menu item, no drag and no `ActionId` to reach it; the only caller was a test that called the method. I-34's shape, and the third instance this stage. Fixed with `ui.qatMoveLeft` / `ui.qatMoveRight`, each disabled at the end it cannot move towards, and the case asserted the **route** (the real context menu offers them) as well as the dispatch, with a control for each. **Superseded hours later in the same walk**: the user asked for drag-to-reorder, so `buildMenu` dropped both items and `ui.qatLock` joined them — the two commands stay **registered and unlisted** (the tool finder and flow K still reach them), and the case's route half was *inverted rather than deleted*, now asserting they are registered **and absent from the menu**. Those three ids are **the only ones Stage 1 has added to the plan's 358**, giving 361 declared and 23 registered. **I-42 (S2)**: pressing `Alt` did nothing in any locale — the ribbon has *drawn* key tips since T10 and nothing ever asked it to, because `AppRibbonKeyTips` was bound to `Alt` and never registered. **R-5 had been recorded as met against the T2 spike**, whose handler the shipped ribbon never inherited — I-36's shape again. Registered (the **twentieth** id), and the tip letters moved out of the tab titles into a `ribbon.keytip.*` catalog family, because the first-character scheme gave `zh-TW` 常 建 編 註 組 表 保 檢 — untypable, with 表 claimed twice. **I-41 (S2)**: Qt's native `windows11` style paints control text from the colour scheme **it** derives from Windows and ignores the application palette, so the dark theme was in force for every `QLabel` and for **no** `QToolButton` — the ribbon, the toolbar and the tool finder. Measured on a light OS with the dark palette installed: an enabled button's glyph was `#1f1f1f` on a `#1f1f1f` background, a disabled one `#181b1f`. `apply()` now calls `QStyleHints::setColorScheme()` as well, `Unknown` for follow-system so the OS keeps the decision. Found only because the I-40 fix below did not work — the token table was the one place anyone had looked. **I-40 (S3)**: in dark mode the shell's **disabled** text could not be read — and disabled text is most of this shell, since 358 commands are declared and 19 registered. Measured 3.05 dark and **2.54 light**, so the light theme two manual passes had already signed off was the worse of the two; both raised (4.77 / 3.87 against the window), with a new case measuring every text token against the surface it is painted on, in both themes, and asserting disabled stays under half the enabled ratio so it still reads as disabled. **Not an accessibility criterion** — that left the product on 2026-08-23 — but whether the ribbon can be read. **I-39 (S3)**: the auto-hide edge strip stayed on screen beside the pane it had just summoned — true since T9, and invisible until I-37 made a peek something a person could perform, because every earlier case reached `peek()` in a fixture where visibility was not the subject. **I-37 (S3)**: an auto-hidden sidebar could be revealed only by *clicking* the edge strip, never by reaching for it — closed by the user's decision to move the product to the guide rather than the guide to the product, so the strip now peeks on `QEvent::Enter` and still answers a click. **I-38** is not a defect: `general/touchMode` is stored and read by nothing, and the user's call was **planned absence, Stage 14** — it is now a row in the guide's §1 and in `Stage1-AppShell-Plan.md` §11 rather than an open issue, and M-04's steps no longer ask for it. **I-36 (S2)**: opening M-04 found that **no ribbon tab was ever drawn** — `QSizePolicy::Ignored` tells QBoxLayout the tab bar's width preference is not a number, and next to a separate `addStretch(1)` the spacer took the whole strip, so the `QTabBar` was laid out **0 px wide at every window size** from T10 onward. Eleven green ribbon cases missed it because each asked the bar what it *contained* and none asked what the **layout gave it**; fixed, with a case and its control. **I-33, I-34 and I-35 were raised by the user's M-03 walk on 2026-08-30 and are Stage 1's first findings in the PRODUCT rather than in the harness** — every earlier one was a test, a gate, a document or the CI. **I-34 (S2)**: re-docking a tab into another window could not be performed by a person, because `DocumentTabBar` reported the gesture at the instant the 40 px threshold was crossed rather than at the release, giving the drag one sample to land on a ~25 px strip; the branch it fed was correct and had never been driven by test or by hand. **I-33 (S3)**: tearing a window's ONLY tab out left the original with no tabs, because `detachDocument` guarded the index but never the count. **I-35 (S3)**: a window emptied by re-docking its last tab away stayed open — reachable only *after* I-34 was fixed, which is why a repaired case is re-walked rather than signed off on the strength of the repair. All fixed the same day — five cases, five negative controls, 339/339. I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
 | **Manual pass** | **M-01 ✅ signed off 2026-08-23; M-02 ✅** — signed off 2026-08-23 for the ribbon, then **re-walked in full on 2026-08-30** against the shipped shell: all four steps including the mid-session scale change and the re-login, **no findings**, which retired R-6's last scoping note and satisfied precondition P-1 outright. **M-03 ✅ walked and signed off 2026-08-30**, in full — and it found **I-33, I-34 and I-35**, the stage's first three defects in the product, all fixed and the case re-walked before sign-off. **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and T14 made all three real, which is what let that re-walk happen as written. **M-04 ✅ walked and signed off 2026-08-30**, after **three passes and four findings**, each repair making the next defect reachable: it stopped at step 1 because no View tab existed to click (**I-36**); the second pass, on the repaired build, produced **I-37** and **I-38**; fixing I-37 created a gesture that had never existed, and walking *that* found **I-39**. None was a regression — two had shipped since T9 and T10, green in CI throughout. **M-05 ✅ walked and signed off 2026-08-31** — mis-listed as unwalkable until 2026-08-30, then it found **I-40** and **I-41**, the second only because the first fix changed nothing a person could see. **M-06 ✅ walked and signed off 2026-08-31**, the longest walk of the stage: every surface in `zh-TW`, the editorial review of 29 unfinished entries, and four defects — **I-42** (`Alt` raised no key tips in any locale), **I-44** (a query matching nothing froze the application), **I-45** (the fix for it closed the list in the same turn it opened) and **I-43**, which surfaced here and belongs to M-11. **M-07 ✅ walked and signed off 2026-08-31** — flow B end to end by hand, all five steps, one process throughout, both awkward filenames correct. **M-11 ✅ signed off 2026-08-31**, the case that found the most: **I-47**, **I-49**, **I-50**, **I-51**, **I-52** — the last a defect in a fix made hours earlier during the same walk — plus the drag-to-reorder and lock feature the user asked for mid-case. **M-12 ✅ walked and signed off 2026-08-31 — the last case of the stage.** No S1: nothing claimed to have saved, printed or undone anything, the stub tab did not pretend to be a document, and **no chord was intercepted by the window manager, the IME or the platform before Qt saw it**, which is the one thing in that case no synthetic key event could have established. Its one finding, **I-53**, was disposed of as a planned absence. **All nine walkable cases are now ✅** — M-01 … M-07, M-11 and M-12; M-08 was withdrawn with accessibility and M-09 and M-10 are not walkable |
@@ -82,18 +95,20 @@ mark a manual case** — every one of these was walked and signed off by the use
 
 ### Stage 2 — where it is, and what its next task inherits
 
-**Next action: Stage 2 T15**, the sixteen settings keys — eleven `pageDisplay/` and five
-`performance/`. Each is a `SettingsKeys.def` row and therefore an automatic Preferences editor with no
-widget code (convention 17), taking the shipped groups from three of 26 to five. **Four constants are
-currently their defaults' only home and must become rows in the same change**, each with its value
-preserved: `DpiPolicy::Limits::maxRenderDpi` = 2400, `RenderCache::Config::memoryCapBytes` = 256 MiB,
-`diskCapBytes` = **0** — D2-14 is explicit that the disk tier ships off until T18 MEASURES whether it
-earns its place, so the row must land at 0 and not at "something sensible" — and
-`RenderScheduler::Config::workerCount` = **1**, which is I-05's answer and not a placeholder. T15 also
-owns **the battery throttle T12 built the interface for and deliberately did not wire**:
-`performance/throttleOnBattery` is the switch, `setActiveWorkerLimit()` clamps to `[1, workerCount]`,
-and the wire only becomes testable once `performance/renderWorkers` can make that count differ — which
-is why guide case A-62 is 🟡 rather than green.
+**This section's own “next action” line was two days and two tasks stale when T17 read it** — it
+still said *Next action: Stage 2 T15, the sixteen settings keys*, which shipped on 2026-09-04. The
+live pointer is the one at the top of this file (**T18**), and the paragraphs below are a per-task
+record rather than a queue. That is the same failure mode as the Stage 2 guide's §6 walkability list
+and as the plan's `golden-update` debt item, both of which T17 also found stale: **a forward-looking
+sentence goes out of date silently, because nothing re-derives a claim that already looks settled.**
+
+**What T18 still owes**, so this section has one live line rather than none: **A2 re-measured through
+the shipped pipeline** (D2-1's second half); **`render` added to CI's non-empty-prefix loop** in
+`.github/workflows/ci.yml`, one word, and the only one of the six prefixes still outside it;
+**D2-14's disk-tier decision** — `performance/diskCacheBytes` ships at **0** and T18 is where it is
+MEASURED whether the tier earns its place; **O7 and O10** resolved in `Implementation-Plan.md` §8;
+and document lockstep.
+
 Stage 2 is where documents start being opened, parsed and drawn — and where **I-53** stops being
 theoretical (see below). **Stage 2's `T1`…`T18` are a different namespace from Stage 0's and
 Stage 1's `T1`…`T15`** — always say which stage.
@@ -467,6 +482,75 @@ along, and that document owns the stack. **I-04** closed the same day: `i18n-lin
 `unknown-key` rule found the eighteen referenced-but-undefined catalog keys a hand-diff had predicted
 four tasks earlier, and they are now written in both shipped locales.
 
+**T17 MADE “IT RENDERS THE SAME WAY TWICE” A FAILING TEST RATHER THAN AN OPINION (2026-09-06).**
+`golden/` holds **198 reference rasters** over 56 corpus files and 66 pages at 96 / 144 / 192 DPI;
+`tests/golden/` is a **fifth test target** and `tools/golden-update/` is a second non-gate tool.
+Seven things bind what comes next:
+
+- **THE SPLIT IS DECLARATION vs MEASUREMENT, and both files are needed.** `golden/manifest.json` is
+  hand-authored and reviewed like code — which files, which pages, which resolutions, which are
+  machine-dependent, which are excluded and **why**, and the two thresholds D2-13 requires to be
+  *stated*. `golden/captured.json` is written by the tool and never by hand — the PDFium version, the
+  timestamp, the `--reason`, and the faces each page actually resolved. That is
+  `cmake/PdfiumAssert.cmake`'s asymmetry in a second subject: **expected values in the file a person
+  edits, found values where the machine put them, and the asymmetry is the check.**
+- **`--reason` IS THE POINT OF THE TOOL, and the refusal is a test.** A golden baseline is a claim
+  about one rasterizer, so the cheapest way to make a rendering regression vanish is to re-capture it
+  from the code that broke it — after which the suite is green and the diff shows only binary files.
+  No reason, no regeneration: exit 2, with a diagnostic citing D2-3. The reason lands in
+  `captured.json`, in an append-only `golden/UPDATES.md` **and** in a paste-ready commit block — a
+  reviewed file rather than only a commit message, because a message can be amended and a squash can
+  lose it.
+- **A FIFTH TEST TARGET, AND QtGui IS WHY.** The suite reads and writes PNGs, `tests/render`'s whole
+  separateness rests on it linking no Qt GUI library, and folding a codec in would have retired *the
+  engine needs no display* with every test still passing. Its prefix is `render.golden.` — **inside**
+  `render.`, so CI's non-empty check covers it the moment T18 adds that word. And
+  `tools/golden-update` **compiles `tests/golden/GoldenSuite.cpp` in** rather than reimplementing the
+  render, the codec or the comparison: two copies would have the tool writing files the suite could
+  not read, and the failure would look like a rendering regression instead of two programs
+  disagreeing. Same argument `tools/ribbon-validate` records for the ribbon schema.
+- **TWO CASES ARE MACHINE-DEPENDENT AND ONLY ONE WAS PREDICTED.** `ordinary/font-not-embedded.pdf`
+  names families installed nowhere, so what is drawn is whatever `FontSubstitution` found **here**.
+  The capture found a second: `malformed/bad-name-hex-escape.pdf` resolves `Helve -> Segoe UI`,
+  because the broken `#`-escape it is named for truncates `/Helvetica` to `/Helve`, which is not a
+  standard-14 name. Both are declared in the manifest, their capture-time faces recorded, and the
+  suite **skips such a case by name** where this machine resolves differently — A-62's *report not
+  applicable explicitly rather than pass vacuously*, second subject. **Guide case A-82 is the
+  tripwire**: if T16's base-14 decline is ever removed, all 198 baselines move at once, and that case
+  names the cause in one line instead of leaving it to read as a renderer regression.
+- **THE THRESHOLD IS TWO NUMBERS, NOT ONE, AND THE MEASURED MARGIN IS THE WHOLE BUDGET.**
+  Antialiasing drift is many pixels each off by a little; a real regression is either many pixels or
+  a few off by a lot, and one number loose enough to absorb the first accepts the second. On this
+  machine a re-render of the unchanged corpus differs from its baselines in **zero pixels** at all
+  three resolutions, so both budgets are headroom for a future PDFium's rounding rather than slack
+  already spent.
+- **BOTH FINDINGS WERE IN T17'S OWN HARNESS, AND THEY FAILED IN OPPOSITE DIRECTIONS.** **I-15** went
+  red on its first run: the perturbation control greys a render to prove the comparison CAN fail, and
+  it was aimed at a black-on-white text page, where greying is the identity — 171 of the 198
+  baselines are grey in every pixel. **I-14 stayed green and recorded nothing**: the capture marks the
+  font-bridge log, renders, and keeps what appeared in between, and the mark was taken *after*
+  `open()` — but PDFium resolves some fonts while opening, so the one file whose purpose is to have
+  substitutions recorded none and the machine-dependence guard was never armed. **The second kind is
+  the dangerous one**, and the only defence against it is reading the output rather than the exit
+  code — Stage 1's I-29 exactly.
+- **THE GOLDEN GREEN IS A NARROWER CLAIM THAN IT LOOKS, and every place that quotes it says so.**
+  *The product rasterizes our own generated corpus the same way it did at capture.* Not *correctly* —
+  a baseline captured from a wrong renderer is green forever, which is what manual case M-03 exists
+  for — and nothing at all about real-world PDFs, because every corpus file is ours (D2-11).
+  `golden/README.md` owns that wording; the sign-off (§9.7) is required to repeat it rather than let
+  *"every corpus file renders correctly"* stand.
+
+**T17 ALSO FOUND THREE STALE FORWARD-LOOKING CLAIMS AND CORRECTED ALL THREE**, which is worth more
+than any one of them. The Stage 2 guide's §6 said M-05 … M-10 were blocked on *golden baselines
+(T17)* — **none of those six cases is about a baseline**, and five had been unblocked by T9, T14 and
+T15; **nine of the ten manual cases are walkable**, and only M-09 (Dr. Memory) is not. This file's own
+Stage 2 section still said *Next action: T15*. And the Stage 2 plan carried a debt item saying
+`tools/golden-update/` had no FileMap row, which had already been struck through as *stale* and was
+finally paid by the task that made the row true. All three are the shape **I-10** named at T14: **a
+sentence about what will happen later, written by whoever had not done it, that nothing re-derives
+because it already reads as settled.** The countermeasure is the one T16 used on the interface count
+and T1 on the catalog census — re-measure rather than remember.
+
 **PDFIUM CANNOT BE CALLED FROM TWO THREADS AT ONCE, AND T11 SETTLED WHAT TO DO ABOUT IT.** Measured
 at T3 by the A2 probe — eight workers, each with its **own `FPDF_DOCUMENT` and own `FPDF_PAGE`**,
 which is exactly the confinement `D2-9` specifies, and they corrupt the heap; **1 worker exits 0, and
@@ -592,9 +676,16 @@ once and read once across tiles, pages and documents, is measured green.
 page on screen, the §8 Viewer chords move it, the status bar counts it, a repaired file says so, the
 `pageDisplay/` toggles M-03 asks a walker to flip now exist, and **M-03's typography half is
 gradeable for the first time**, since a missing font now substitutes through our policy rather than
-the engine's. M-05 … M-10 still need golden baselines (T17) or Dr. Memory. Four cases are Linux
-jobs this machine does not run (**A-04, A-24, A-25, A-26**) and are recorded as such rather than as
-pending. The guide's issue log holds **thirteen**, of which **two are open and both are open BY DECISION**:
+the engine's. **NINE OF THE TEN ARE WALKABLE as of T17, and the guide's own list of what blocked them
+was four tasks stale until T17 re-read it**: it said M-05 … M-10 needed *golden baselines (T17), fonts
+(T16), the settings keys (T15) or Dr. Memory*, and **not one of those six cases is about a golden
+baseline**. M-05 and M-06 were waiting on T15's layout and zoom keys, M-07 and M-08 on T9's opening
+and T14's message bar and password prompt, and M-10 on T14's chords — all shipped. **Only M-09 is
+still blocked**, and only because Dr. Memory is not installed here. The lesson is the one this file
+records against I-10: *a deferral's note about what will unblock it is a guess by whoever had not
+built the thing*, and a stale one reads as a plan for as long as nobody re-derives it. Four cases are
+Linux jobs this machine does not run (**A-04, A-24, A-25, A-26**) and are recorded as such rather
+than as pending. The guide's issue log holds **fifteen**, of which **two are open and both are open BY DECISION**:
 **I-06** (S3 — JBIG2 is declared and decodes nothing, because the only usable library is AGPL-3.0)
 and **I-11** (S3, raised at T15 — line weight is declared and inert, because PDFium cannot draw a
 hairline at its true width). **I-06 and I-11 are the same finding twice**: a feature this document
@@ -822,6 +913,17 @@ order.
   LOGICAL pixels**; the conversion lives in exactly two places and is equal on a 100 % monitor, which
   is why the offscreen suite cannot catch getting it wrong and manual case M-01 can.
 
+- **The golden images (S2 · T17)** — `tests/golden/{GoldenSuite.h,GoldenSuite.cpp,tst_golden.cpp}`,
+  `tools/golden-update/`, and `golden/` itself: **198 reference rasters, 56 corpus files, 66 pages, at
+  96 / 144 / 192 DPI**, plus a hand-authored `manifest.json`, a tool-written `captured.json`, a
+  `README.md` that owns what a green run claims, and an append-only `UPDATES.md`. Three things about
+  it are worth knowing before touching it. The render, the PNG codec and the comparison live in ONE
+  file that both binaries compile in, because a producer and a consumer that disagree about *the
+  same* fail as a rendering regression rather than as the disagreement they are. The comparison is
+  **perceptual with two stated thresholds** — area and gross — because antialiasing drift and a
+  shifted glyph cannot be separated by one number. And **regenerating a baseline requires
+  `--reason`**, refusing with exit 2 otherwise: that refusal is the whole of D2-3, and a CTest case
+  drives the executable to prove it happens.
 - **The measurement, the two-process check, and the CI that runs them (T15)** — `tests/bench/`
   (`bench_ribbon`, A3's R-9: **p95 0.471 ms** against a 16.667 ms frame budget, reported in three
   phases and carrying **its own control**, because the `layout` phase reads 0.000 ms and a zero has
@@ -847,8 +949,11 @@ declared and unimplemented, so presentation is software — and that is now **St
 it is needed*, rather than T16's, because A2's probe is thirty times inside the frame budget. A
 missing embedded font **does** substitute through our own policy as of T16 and the log names the
 face — what is absent is any UI for it: no message-bar row, no font-substitution dialog, so a person
-sees the page and only the log sees the reason. There are no golden baselines, so nothing yet says a
-page renders the same way twice (**T17**). **`pageDisplay/lineWeight` is a checkbox that does nothing** and that is measured rather
+sees the page and only the log sees the reason. **Golden baselines EXIST as of T17** — 198 of them,
+so a page rendering differently from last week is now a failing test rather than something nobody
+notices — but read what that green claims before quoting it: *the product rasterizes our own
+generated corpus the same way it did at capture*, never *rendering is correct* and never anything
+about real-world PDFs (D2-11; `golden/README.md` owns the wording). **`pageDisplay/lineWeight` is a checkbox that does nothing** and that is measured rather
 than overlooked — issue **I-11**, because PDFium has no control that draws a hairline at its true
 width. **The seven §8 Viewer chords Stages 3 to 13 own stay `NotFound`** and deliberately leave the
 key unconsumed, and `Select` arms a tool that selects nothing until **Stage 5**. What a person CAN do
@@ -869,8 +974,10 @@ page was first drawn by the product rather than by a benchmark**, and where
 layer was waiting on**; and **T13 `ui/viewer/` — where a rendered tile finally reaches a widget.**
 **T14 the §8 Viewer commands, the status bar's real numbers and the message bar** — where the keyboard
 first moved the page — **T15 the sixteen settings keys**, where the Preferences dialog started
-changing what is drawn, and **T16 the font substitution bridge**, where the product stopped letting
-the engine decide what a missing font looks like. `platform/win/` holds **five** of seventeen
+changing what is drawn, **T16 the font substitution bridge**, where the product stopped letting
+the engine decide what a missing font looks like, and **T17 the golden images** — `tests/golden/`,
+`tools/golden-update/` and 198 committed reference rasters, where *the page looked right* stopped
+being a judgement anyone had to make twice. `platform/win/` holds **five** of seventeen
 interfaces. **`rawpage.exe` opens a window with a
 working ribbon, a customizable toolbar, a tool finder, document tabs, a keyboard, a Preferences dialog
 and a log pane** —
@@ -1281,7 +1388,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 677/677 as of Stage 2 T16, 1 skipped
+ctest --preset x64-release --output-on-failure        # 687/687 as of Stage 2 T17, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -1310,6 +1417,22 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 
 The three gates can also be run one at a time, and each has an `--explain` that prints its rules and
 its live waivers — that census is how anyone notices waivers creeping from a handful to a hundred:
+
+The golden baselines are data, and like the corpus they are **checked** like code — but unlike the
+corpus they are **produced** by a tool rather than by a generator, and that tool refuses to run
+without a stated reason (D2-3). `golden/README.md` owns the details; the four modes are:
+
+```powershell
+.\build\x64-release\bin\golden-update.exe --explain          # thresholds, census, paths, the machine-dependent cases
+.\build\x64-release\bin\golden-update.exe --check-manifest    # every corpus file is a case or an excluded row, both ways
+.\build\x64-release\bin\golden-update.exe --survey            # open every corpus file, print a measured manifest skeleton
+.\build\x64-release\bin\golden-update.exe --reason "why the baselines moved"   # WITHOUT THIS IT REFUSES, exit 2
+```
+
+**Regenerating baselines is not a routine step and must never be the fix for a red suite.** A golden
+baseline is a claim about one rasterizer; re-capturing it from the code that changed it turns a
+rendering regression into a new reference and the diff then shows nothing but binary files. Read the
+diff image `<build>/golden-failures/` holds first.
 
 Two checks that are neither a `ctest` case nor a gate, and each has a recorded reason for not being one:
 
@@ -1348,13 +1471,15 @@ A-04 rather than pending boxes. `tests/fuzz/CMakeLists.txt` fails configure when
 wrong — **1 at T5, 2 from T6** — because "ten minutes with no crashes" is passed trivially by a
 target that builds nothing.
 
-**Four test targets and two benchmarks, and the split is load-bearing rather than organizational.**
-Counted 2026-09-02; this heading read *"three"* from Stage 1 T9 until then, having missed
-`rawpage_render_tests` (S2 · T2) and `rawpage_bench_render` (S2 · T3) even though the table below
-already listed the first. A fifth suite, `gates.`, has **no binary at all** — its 90 cases drive the
+**FIVE test targets and two benchmarks, and the split is load-bearing rather than organizational.**
+Counted 2026-09-02 and re-counted at S2 · T17, which added the fifth: this heading read *"three"*
+from Stage 1 T9 until 2026-09-02, having missed `rawpage_render_tests` (S2 · T2) and
+`rawpage_bench_render` (S2 · T3) even though the table below already listed the first — so the count
+is re-measured with the target rather than remembered afterwards. A fifth suite, `gates.`, has **no binary at all** — its 90 cases drive the
 gate executables and CMake itself through `cmake -P`, which is what lets the `gates` preset run it
-with no Qt and no vcpkg. Current split of the 677: `unit.` 328, `ui.` 178, `gates.` 94,
-`platform.` 35, `render.` 40, `bench.` 2. **One of the 677 is deliberately SKIPPED rather than green** —
+with no Qt and no vcpkg. Current split of the 687: `unit.` 328, `ui.` 178, `gates.` 94,
+`render.` 50, `platform.` 35, `bench.` 2 — `render.` gained T17's ten `render.golden.*`, which are a
+separate BINARY inside the same PREFIX, deliberately: the prefix is what CI's non-empty check reads. **One of the 677 is deliberately SKIPPED rather than green** —
 `platform.powersession reports the machine's power source`, on a desktop with no battery, which is
 guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* honoured.
 
@@ -1364,6 +1489,7 @@ guide case A-62's own *"report not applicable explicitly rather than pass vacuou
 | `rawpage_platform_tests` | `rawpage_core`, `rawpage_platform` | `platform.` | **Windows only** (S1 · T7) |
 | `rawpage_ui_tests` | `rawpage_core`, `rawpage_ui` | `ui.` | **Windows only**, `QT_QPA_PLATFORM=offscreen` (D1-4). **Arrived at T9**, not the plan's T15, on the precedent `tests/platform` set at T7. It installs `rawpage_en.qm` so the widgets are exercised against real text rather than their own catalog keys. **From S2 · T13 every fixture comes from `tests/ui/ShellFixture.h`** — seven copies of the same eight fields became a seven-way edit the moment `app::Services` grew a render pipeline — and that header supplies the FAKE rasterizer the viewer suite runs on, since this target may not link an engine. Its tile colour is chosen so that *a page is on screen* is distinguishable from *a white sheet was drawn*, and it pads its rows so the `bytesPerLine` assumption is exercised somewhere |
 | `rawpage_render_tests` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium`, **`rawpage_platform`** (S2 · T16) | `render.` | **Windows only** (S2 · T2). **From S2 · T13 it also holds the only case that drives the REAL engine through the REAL scheduler** (`tst_renderpipeline.cpp`, guide A-79): every other suite fakes one end of that path — `tests/unit` and `tests/ui` may not link an engine, and the rest of this target calls the rasterizer with no scheduler — so the assembly the product actually runs had no case at all until then (issue **I-09**), which is why `app::BackendRasterizer` is a header rather than a class private to `CompositionRoot.cpp`. It links the ENGINE, which is the whole reason it is a separate target: the raster suite is the pressure that would otherwise put PDFium into the headless closure and destroy what `rawpage_assert_headless()` proves. It needs **no display** — there is no Qt GUI object in it — which is how "initializing PDFium does not require a display" is established rather than assumed. **From S2 · T9 it also holds the SHIPPED BACKEND's census**, which `tests/unit/tst_backend.cpp` used to assert: `pdf::createBackend()` moved into `rawpage_pdfium` when it started returning something that opens documents, and the headless suite may not link that. The portable half of A-46 stays in `tests/unit` over a test backend defined in that file. **`rawpage_platform` joined the link line at T16, and it is I-09's finding a second time**: the font chain is PDFium → `FontResolverBridge` → `WinFontResolver` → `core/render/FontSubstitution`, three libraries deep, and no existing target could hold more than one link of it — `tests/unit` may link neither engine nor OS layer, `tests/platform` may not link the engine. Adding the OS layer to a Windows-only, engine-linking target costs nothing of what this target's separateness protects, which is that **`tests/unit`** links no engine and no display |
+| `rawpage_golden_tests` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium`, `rawpage_platform`, **QtGui** | `render.golden.` | **Windows only** (S2 · T17). **The fifth target, and QtGui is why it is one**: it reads and writes the 198 PNG baselines in `golden/`, and `tests/render`'s separateness rests on that target linking no Qt GUI library at all — which is how *the engine needs no display* is established rather than assumed. Folding a codec into it would have retired that property with every test still passing, which is the same pressure `tests/unit` met at Stage 1 T7 and T9 and this target meets from a fourth side. It needs no display either: `QImage` is a raster class and Qt's PNG handler is built into QtGui rather than being a plugin, so no `QGuiApplication` exists here. **Its CTest prefix is inside `render.`** on purpose — a sixth prefix would have to be remembered separately by CI's non-empty check. It compiles `tests/golden/GoldenSuite.cpp`, which `tools/golden-update` also compiles in, so the producer and the consumer of `golden/` cannot disagree about what a render is, how it is encoded, or what *the same* means |
 | `rawpage_bench_ribbon` | `rawpage_core`, `rawpage_ui` | `bench.` | **Windows only**, offscreen (T15). Not a test target and the difference is load-bearing: a test asserts and fails, **a benchmark reports, and its exit code is about whether the measurement was *possible*** — never about whether the machine was fast, or a loaded runner turns a green build red for a reason unrelated to the change. It is registered with CTest anyway, because a benchmark nobody runs is one that has stopped compiling by the time its number matters |
 | `rawpage_bench_render` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium` | `bench.` | **Windows only** (S2 · T3), and it creates **no Qt GUI object at all** — which is how "the engine needs no display" is established rather than assumed. A2's probe figure, and the run that found **I-05**. It takes an optional path, so any corpus file can be put through the real engine by hand; `8 --unsafe-parallel` reproduces the heap corruption on demand, because a finding that needs a source edit to reproduce is one that gets re-litigated |
 

@@ -16,6 +16,12 @@ add_subdirectory(i18n-lint)      # Stage 1 T6 -- the third gate
 # depends on, so a bad resource fails the build rather than the gate run. See its main.cpp.
 add_subdirectory(ribbon-validate)
 
+# The second non-gate target here, and it arrives on ribbon-validate's precedent (Stage 2 T17):
+# golden/'s reference rasters are PRODUCED by a tool and ENFORCED by a CTest suite, so the producer
+# links Qt, PDFium and the platform layer and its own CMakeLists returns early for the gate and
+# portable configurations. `checks` still runs three gates and says three.
+add_subdirectory(golden-update)
+
 # tools/spike-ribbon -- the A3 go/no-go spike (Stage 1 T2) -- was DELETED at T10, exactly as D1-1
 # said it would be. Its durable outputs were the verdict (`go, with named custom work`, recorded in
 # Tech-Stack-Plan.md 3.3), the three named pieces of custom work, and issue I-05 -- all of which now
@@ -29,4 +35,5 @@ add_subdirectory(ribbon-validate)
 # into this file: both were built by hand, which is what a throwaway is.
 
 # tools/mutation-lint  -> Stage 3 (needs Command)
-# tools/golden-update  -> Stage 2 (needs a rasterizer)
+# tools/golden-update  -> shipped at Stage 2 T17; the line that stood here said "needs a
+#                         rasterizer", and T9 was where it got one.
