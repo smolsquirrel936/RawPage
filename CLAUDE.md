@@ -540,6 +540,21 @@ Seven things bind what comes next:
   `golden/README.md` owns that wording; the sign-off (§9.7) is required to repeat it rather than let
   *"every corpus file renders correctly"* stand.
 
+**T17 ALSO FOUND A FOUR-DAY-OLD DEFECT INSIDE T4'S OWN FIX — issue I-16, and it was found by
+looking at T17's own commit rather than by looking for it.** `.gitattributes` marks `corpus/**` and
+`golden/**` `binary`, which is right for the `.pdf` and `.png` data. T4 pulled the generators back
+out with `text eol=lf … merge` — but **`binary` is a MACRO for `-text -diff -merge`**, so coming
+back out takes all three words, and the `.md` and `.json` lines supply two. So `corpus/PROVENANCE.md`
+had been committing as `Bin 23443 -> 24421 bytes` ever since, **inside the fix whose own comment says
+in the present tense that it stopped that**; only `corpus/*.py` escaped, and by accident, because
+`diff=python` sets the attribute as a side effect of choosing a driver. T17 wrote its `golden/*.json`
+lines with the same two words, committed, and watched `golden/manifest.json` land as `Bin` in the
+commit that had just explained at length why it must not. All four lines now spell `diff` out, and
+because the attribute is applied when a diff is RENDERED rather than when a blob is stored, **every
+past commit became readable in the same change** — T16's `PROVENANCE.md` edit now shows as
+`1 insertion(+)`. **The lesson is not about git**: a fix is verified by observing the thing it was
+supposed to change, and this one was verified by reading its own diff.
+
 **T17 ALSO FOUND THREE STALE FORWARD-LOOKING CLAIMS AND CORRECTED ALL THREE**, which is worth more
 than any one of them. The Stage 2 guide's §6 said M-05 … M-10 were blocked on *golden baselines
 (T17)* — **none of those six cases is about a baseline**, and five had been unblocked by T9, T14 and

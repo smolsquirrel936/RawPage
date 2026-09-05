@@ -24,6 +24,17 @@
 corpus/**   binary
 golden/**   binary
 
+# `diff` IS SPELLED OUT ON EVERY LINE BELOW, AND ITS ABSENCE IS WHY THIS BLOCK EXISTS TWICE.
+# `binary` is a MACRO for `-text -diff -merge`, so pulling a file back out of it takes all three
+# words. T4's fix supplied `text` and `merge` and not `diff` -- which restored correct line endings
+# and stopped `git` from refusing to merge, and left `git diff` still printing `Bin 23443 -> 24421
+# bytes` for corpus/PROVENANCE.md and corpus/*.json. That is exactly the outcome the note below says
+# it fixed, for two of the three file types it names; only `corpus/*.py` escaped, because
+# `diff=python` sets the attribute as a side effect of choosing a driver. Found at Stage 2 T17, when
+# golden/manifest.json was committed with the same two words and landed as `Bin` in the same way
+# (issue **I-16** in Stage2-Rendering-Testing-Guide.md). The attribute is applied when a diff is
+# RENDERED, not when a blob is stored, so adding the word here fixes every past commit as well.
+
 # ...but corpus/ is no longer only data. Stage 2 T4 put the GENERATORS in there too, and
 # `corpus/** binary` marks them binary as well -- so `git diff` shows nothing for several
 # thousand lines of Python and Markdown, and a change to a generator cannot be reviewed. The
@@ -31,8 +42,8 @@ golden/**   binary
 # out; the .pdf data below stays binary, which is the part that actually matters (a PDF xref
 # stores absolute byte offsets, and CRLF injection shifts every one of them).
 corpus/*.py     text eol=lf diff=python merge
-corpus/*.md     text eol=lf merge
-corpus/*.json   text eol=lf merge
+corpus/*.md     text eol=lf diff merge
+corpus/*.json   text eol=lf diff merge
 
 # ...and golden/ is no longer only data either, for exactly the same reason and with the same fix.
 # Stage 2 T17 put manifest.json (which cases are baselined, hand-authored), captured.json (what the
@@ -41,8 +52,8 @@ corpus/*.json   text eol=lf merge
 # in a diff. That is precisely the defect T4 found here and fixed three lines above; finding it
 # again in the next directory is what a rule written once and applied twice looks like. The .png
 # baselines stay binary, which is the half that matters.
-golden/*.json   text eol=lf merge
-golden/*.md     text eol=lf merge
+golden/*.json   text eol=lf diff merge
+golden/*.md     text eol=lf diff merge
 
 *.pdf   binary
 *.fdf   binary
