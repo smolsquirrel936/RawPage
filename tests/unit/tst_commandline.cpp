@@ -175,6 +175,7 @@ TEST_CASE("help is a kind of intent, not an error", "[commandline]")
     const QString help = rawpage::app::CommandLine::helpText();
     CHECK(help.contains(QStringLiteral("--lang")));
     CHECK(help.contains(QStringLiteral("--dump-ui-strings")));
+    CHECK(help.contains(QStringLiteral("--list-actions")));
     for (const QString& diagnostic : rawpage::app::CommandLine::diagnosticSwitches())
         CHECK(help.contains(diagnostic));
 }
@@ -200,4 +201,33 @@ TEST_CASE("dump-ui-strings is a flag and composes with lang", "[commandline]")
     CHECK(parsed.value().dumpUiStrings);
     CHECK(parsed.value().locale == QStringLiteral("zh-TW"));
     CHECK(parsed.value().kind == rawpage::app::Intent::Kind::RunGui);
+}
+
+TEST_CASE("list-actions is a flag the parser recognises", "[commandline]")
+{
+    // STAGE 1 GUIDE CASE A-25's first half, and the reason it is worth a case of its own: that case
+    // was recorded at Stage 1 T15 as *NOT RUN -- the switch it names does not exist*, while SIX
+    // documents described the diagnostic as though it did. It was half of issue **I-32**. Carried
+    // here by D2-10 and built at Stage 2 T18.
+    //
+    // What this asserts is the PARSE. What the switch prints needs a registry with commands in it,
+    // which needs a `MainWindow`, which is `tests/ui`'s and `app/main.cpp`'s -- said here rather
+    // than left for a reader to assume this case covers the whole switch (convention 19).
+    const auto parsed = parse(argumentsOf({QStringLiteral("--list-actions")}));
+    REQUIRE(parsed);
+    CHECK(parsed.value().listActions);
+    CHECK(parsed.value().kind == rawpage::app::Intent::Kind::RunGui);
+    CHECK_FALSE(parsed.value().dumpUiStrings);
+
+    // THE CONTROL: an ordinary run must not set it. Without this the case would pass against a
+    // parser that set the flag unconditionally, which is the shape a one-line boolean invites.
+    const auto plain = parse(argumentsOf({QStringLiteral("a.pdf")}));
+    REQUIRE(plain);
+    CHECK_FALSE(plain.value().listActions);
+
+    // ...and it is not a diagnostic. `--version` and friends are answered by main.cpp BEFORE Qt is
+    // composed; this one needs the composed application and a window, so it must not be in that
+    // list or it would be answered too early and report every id unregistered.
+    CHECK_FALSE(rawpage::app::CommandLine::diagnosticSwitches().contains(
+        QStringLiteral("--list-actions")));
 }

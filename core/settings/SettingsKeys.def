@@ -198,6 +198,23 @@ RAWPAGE_SETTING_RANGED(performance, tileCacheMB, int,
 // ZERO, AND THE ZERO IS THE DECISION. D2-14: whether the disk tier earns its place is a MEASUREMENT
 // T18 makes over the corpus, not a preference expressed here, and a tier switched on by default
 // would make that measurement about itself. 0 means the tier is not installed at all.
+//
+// **T18 MADE THE MEASUREMENT AND THE ANSWER IS NO -- the default stays 0 by evidence rather than by
+// inertia.** `tests/bench/bench_pipeline` phase 4 runs the same workload twice, differing only in
+// whether a `DiskTileStore` is attached: eight documents, two passes, 144 dpi.
+//
+//     memory only   0 % hit rate    47 ms    0.118 ms/tile
+//     with disk    50 % hit rate   102 ms    0.254 ms/tile
+//
+// The tier does exactly what a cache is supposed to do -- the hit rate goes from nothing to half --
+// and the workload gets **more than twice as slow**. The reason is not a defect in `DiskTileStore`:
+// a tile costs about a quarter of a millisecond to RE-RENDER, and no disk round trip beats that.
+// A second tier that raises the hit rate and the wall clock together is not a cache, it is a slower
+// way to get the same pixels.
+//
+// The row stays, the code stays, and the range stays -- a user on a machine where rendering is far
+// more expensive than this one's may still want it, and Stage 5's text extraction changes the
+// workload. What is settled is the DEFAULT, and it is settled with a number.
 RAWPAGE_SETTING_RANGED(performance, diskCacheMB, int,
                        "performance/diskCacheMB", 0, PerformanceAndCache, true, 0, 8192)
 

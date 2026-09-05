@@ -55,7 +55,7 @@ three jobs, verdicts **A5** and **A6** recorded in ②.
 **Stage 1 is COMPLETE — every Definition-of-Done item closed as of 2026-08-31**, the manual walk
 included. All fifteen tasks, all nine walkable manual cases signed off by the user, no open issue.
 
-**Stage 2 is under way — T1 … T16 of 18 are complete**, nine of them on 2026-09-04 and T16 on 2026-09-05. **T13 is the one the stage is named for — a page is on screen — T14 is where the keyboard moves it, T15 is where the Preferences dialog changes what is drawn, and T16 is where a missing font stops being the engine's decision.** Its
+**Stage 2 is CODE COMPLETE — all eighteen tasks done, the last two on 2026-09-06**, nine of them on 2026-09-04. **T13 is the one the stage is named for — a page is on screen — T14 is where the keyboard moves it, T15 is where the Preferences dialog changes what is drawn, T16 is where a missing font stops being the engine's decision, T17 is where 198 committed baselines make *it renders the same way twice* a failing test rather than an opinion, and T18 is where A2 was measured through the product and came back `go` at 1.18× headroom against the probe's 31×.** The stage is **not signed off**: the manual walk is the user's. Its
 execution plan ([⑤](./Stage2-Rendering-Plan.md) — decisions **D2-1…D2-14**, tasks **T1…T18**) and its
 testing guide ([⑥](./Stage2-Rendering-Testing-Guide.md) — **82 automated**, **10 manual** cases) were
 both written on 2026-08-31, **before any Stage 2 code**, per ④ §5. It carries the **A2** go/no-go and
@@ -78,7 +78,7 @@ golden suite (T17) and A2's product figure (T18). Nothing yet WRITES a PDF byte 
 
 | | |
 |---|---|
-| Tests | **687/687** on `x64-debug` and `x64-release`, measured 2026-09-06 at Stage 2 T17 (one test explicitly **SKIPPED**: the battery case, on a desktop that has none); the bare `gates` preset **94/94** with no Qt. Split: `unit.` 328, `ui.` 178, `gates.` 94, `render.` 50, `platform.` 35, `bench.` 2 — `render.` gained T17's ten `render.golden.*`, which live inside that prefix on purpose |
+| Tests | **696/696** on `x64-debug` and `x64-release`, measured 2026-09-06 at Stage 2 T18 (one test explicitly **SKIPPED**: the battery case, on a desktop that has none); the bare `gates` preset **94/94** with no Qt. Split: `unit.` 336, `ui.` 178, `gates.` 94, `render.` 50, `platform.` 35, `bench.` 3 — `render.` gained T17's ten `render.golden.*`, which live inside that prefix on purpose, **and CI's non-empty check finally reads `render` as of T18** |
 | Gates | `layer-lint` **266 files / 1,811 includes** with **eight** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **175 files / 2 catalogs / 0 waivers** and a fourth rule since T16 — `unknown-key`, which BLOCKS (measured 2026-09-05). **Three live**, not four — `mutation-lint` is Stage 3's |
 | Verdicts | **A3 = `go, with named custom work`** and **A2's probe = `go`** (both in ②'s §3.3, per criterion). A2's *product* figure is still owed at T18 — D2-1 measures it twice on purpose |
 | Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user. **Stage 2's ten manual cases have not been walked; the first four became walkable at T13 and are worth walking after T16** — a page is on screen, the §8 Viewer chords move it, the chrome reports on it, and the `pageDisplay/` toggles exist. **T16 makes M-03's typography half gradeable** — a missing font now substitutes through our policy and the log names the face. M-05 … M-10 still need golden baselines (T17) or Dr. Memory |
@@ -115,7 +115,7 @@ later stage is a table row and no widget code), a Shortcuts page that writes a r
 binding store and the settings file, and a log pane over an in-memory buffer and a rolling file under
 `%LOCALAPPDATA%`. Most controls are **disabled and say why** — **361** commands are declared and
 the **twenty-three** this window can service are registered.
-**Stage 2 is in progress — T1–T17 of 18** — and stages 3–16 are `⚪ not started`.
+**Stage 2 is CODE COMPLETE — all eighteen tasks done 2026-09-06, awaiting its manual walk** — and stages 3–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
 record is ① → *Removed from scope*; every other document cross-references it.

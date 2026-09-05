@@ -104,3 +104,53 @@ set_tests_properties(bench.render.a2_probe PROPERTIES
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+
+# =========================================================================================
+# rawpage_bench_pipeline -- A2's PRODUCT figure, and O7's and D2-14's numbers. Stage 2 T18.
+# =========================================================================================
+#
+# A SECOND BINARY RATHER THAN A REWRITE OF bench_render, and the comment above on that target said
+# the opposite: *"T18 rewrites this file to drive the shipped scheduler, and this line goes with
+# it."* Rewriting it would have destroyed two things worth more than the tidiness.
+#
+#   1. **The probe stops being reproducible.** D2-1 says BOTH figures stand in Tech-Stack-Plan.md
+#      §3.3 -- the probe's answers *is this physically possible*, this one answers *is the product
+#      fast*, and a document citing a number nobody can re-take is a document citing folklore.
+#   2. **`--unsafe-parallel` is I-05's reproducer.** bench_render's own header records the rule that
+#      a finding needing a source edit to reproduce is one that gets re-litigated. Deleting the
+#      program that reproduces the heap corruption would make I-05 exactly that.
+#
+# So bench_render keeps its subject and its raw `pdfium` link line, and this target takes the other
+# question.
+#
+# IT DOES NOT LINK RAW PDFIUM, WHICH IS THE STRUCTURAL HALF OF WHAT IT MEASURES. bench_render is
+# deliberately below the facade; this one is behind it, so it cannot name an `FPDF_` symbol even by
+# accident. A "measurement of the product's render path" that could reach past the boundary would be
+# a measurement of something the product does not do.
+add_executable(rawpage_bench_pipeline bench_pipeline.cpp)
+
+target_include_directories(rawpage_bench_pipeline PRIVATE "${CMAKE_SOURCE_DIR}")
+
+target_link_libraries(rawpage_bench_pipeline PRIVATE
+    rawpage_core
+    rawpage_cos
+    rawpage_pdfium
+)
+
+# QtCore only: this binary creates no GUI object, which is how "the render pipeline needs no
+# display" stays a thing the build establishes rather than a thing a comment asserts.
+rawpage_link_qt(rawpage_bench_pipeline Core)
+
+target_compile_definitions(rawpage_bench_pipeline PRIVATE
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
+
+rawpage_common_flags(rawpage_bench_pipeline)
+
+# Registered with CTest on the same terms as the other two: it must not rot, and its exit code is
+# about whether the MEASUREMENT WAS POSSIBLE -- the engine started, documents opened, tiles arrived
+# -- never about whether the machine was fast.
+add_test(NAME bench.render.a2_product COMMAND rawpage_bench_pipeline)
+set_tests_properties(bench.render.a2_product PROPERTIES
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)

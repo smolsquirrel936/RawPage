@@ -15,7 +15,7 @@
 > | | |
 > |---|---|
 > | **Automated, green** | **71 of 73**, every one ticked against evidence re-verified on 2026-08-25 — see §5's reconciliation note for which evidence covers which case. `ctest` **334/334** on both presets (328 at T14); the bare `gates` preset **66/66** with no Qt; `checks` clean on **three** gates at 141 files / 930 includes, i18n-lint 78 files / 2 catalogs / 0 waivers. **A-85's figure: p95 = 0.471 ms against R-9's 16.667 ms budget**, with a control proving the instrument was live. **A-80 closed** on run 32785493072 — four jobs green, and **the `windows` job ran for the first time in the project's history** at 334/334 (`gates` 52/52, `portable-asan` 196/196) |
-> | **Automated, cannot run — 2 of 73** | **A-25** names a `rawpage.exe --list-actions` switch that **does not exist** and never has; **A-26** needs an alias fixture that was never written, for a mechanism (`RAWPAGE_ACTION_ALIAS`) that is real code with **zero rows and no test**. Neither is a product defect and neither is closed: both are marked in place with what *is* covered by other means, and **both are carried to Stage 2**. Until T15 this row did not exist and both cases were counted as green (**I-32**) |
+> | ~~**Automated, cannot run — 2 of 73**~~ **✅ BOTH RUN AND PASSED 2026-09-06, at Stage 2 T18** | **A-25** named a `rawpage.exe --list-actions` switch that did not exist and never had; **A-26** needed an alias fixture that was never written, for a mechanism (`RAWPAGE_ACTION_ALIAS`) that was real code with **zero rows and no test**. Neither was a product defect and neither was closed at Stage 1: both were marked in place with what *was* covered by other means, and **both were carried to Stage 2 by D2-10**, which gave them an owning task rather than leaving them as deferrals with none. **T18 built both.** `--list-actions` reports 361 declared / 48 registered / 313 unregistered, with the *owning-stage* half of its criterion corrected rather than dropped; `tests/unit/tst_actionalias.cpp` drives the alias algorithm over a synthetic table built by the real macro, and found that the two cases in `tst_actionregistry.cpp` that were meant to cover it **loop over an empty array and assert nothing**. Until T15 this row did not exist and both cases were counted as green (**I-32**) |
 > | **Manual** | **M-01 ✅** and **M-02 ✅** walked and signed off by the user — M-01 on 2026-08-23, M-02 on 2026-08-23 for the ribbon and **re-walked in full on 2026-08-30** (all four steps, no findings). **M-03 ✅ walked and signed off 2026-08-30**, and it is the case that proved the manual half earns its place: it found **I-33, I-34 and I-35** — the stage's first three defects in the *product* — where `tst_documenttabs.cpp` had asserted everything those gestures end in and stayed green throughout. **M-12's keyboard walk became walkable at T13** — every §8 Global chord now reaches its command, and what the harness structurally cannot see is a chord the window manager or the platform eats before Qt sees it, which is exactly what that walk is for. **M-11 became fully walkable at T14**, and so did **M-02's non-ribbon half** — its steps name the sidebar, a floating pane **and Preferences**, and T14 made all three real, so that case could be re-walked as written rather than partially. **That re-walk happened on 2026-08-30 and M-02 is now ✅.** **M-04 ✅ walked and signed off 2026-08-30**, after three passes and four findings — each repair making the next defect reachable: **I-36** (S2) stopped it at its own first step — there was no View tab to click, because the ribbon's whole tab strip had been laid out zero pixels wide since T10 — then **I-37** (S3), an auto-hidden pane that only a click could reveal, and **I-38**, a `touchMode` switch that reads back and does nothing, which the user reclassified as a planned absence rather than a defect. The case was re-walked from step 1 after I-36, per M-03's rule. **M-05 ✅ walked and signed off 2026-08-31** — mis-listed as unwalkable until 2026-08-30, then it produced **I-40** (S3, unreadable disabled text in both themes, light the worse of the two) and **I-41** (S2, the native style painting control text from its own colour scheme and ignoring the palette), the second found only because the first fix changed nothing on screen. **M-06 ✅ signed off 2026-08-31** after four defects — **I-42**, **I-44**, **I-45** and, surfacing here but owned by M-11, **I-43**. **M-07 ✅ walked and signed off 2026-08-31** — it became walkable the same day, once two unstated preconditions were dealt with (**I-46**). **M-11 ✅ signed off 2026-08-31** and it found the most of any case in the stage: **I-47**, **I-49**, **I-50**, **I-51** and **I-52**, the last of them a defect in a fix made during the walk, plus the drag-and-lock feature the user asked for mid-case. **M-12 ✅ walked and signed off 2026-08-31 — the last one.** It produced **I-53**, which the user disposed of as a planned absence rather than a defect: plan §5.1's *registered-but-disabled* tooltip was never built, and at Stage 1 that kind of disabled is nearly theoretical. **All twelve walkable manual cases are now ✅** — M-08 was withdrawn with accessibility, and M-09 and M-10 are not walkable because the code they test does not exist |
 >
 > **Issue log: I-01 … I-35. None open.** The last three were the user's M-03 walk on 2026-08-30 and
@@ -437,8 +437,8 @@ cannot tell a user "that does not exist" from "that is not available right now".
 ☑ **Goal** Generated from `ActionId.def` (D1-6), so this is really a test that the generator and the
 table agree. **Expect** No id with an empty label key. **If it fails** S2.
 
-**A-25 · The declared-versus-registered split is reported, not hidden** — ❌ **NOT RUN. The switch it
-names does not exist.** *(T15)*
+**A-25 · The declared-versus-registered split is reported, not hidden** — ✅ **RUN AND PASSED
+2026-09-06, at Stage 2 T18** *(was ❌ NOT RUN at T15: the switch it named did not exist)*
 ☐ **Goal** **361** declared and **23** registered as of 2026-08-31 (358/19 at T14; I-42 registered one, I-43 declared and registered two, and `ui.qatLock` arrived with drag-to-reorder). *(Both figures in this case were wrong
 until T15: it said "327 declared, ~60–80 registered" — the first a stale count, the second the plan's
 original forecast, never re-measured. The real gap is more than twice as wide as the case claimed.)*
@@ -449,33 +449,108 @@ vocabulary is `--version`, `--print-dpi-awareness`, `--print-args`, `--crash-tes
 **Expect** Every id listed with its state: registered, or declared-with-owning-stage.
 **If it fails** S3 — but this list is what stops a later stage silently forgetting to register
 something it declared.
-**Result — the case cannot run, and that is the finding (I-32).** The *property* is not unverified:
-`--dump-ui-strings` proves all 360 ids resolve to a catalog label, `tst_actionregistry` proves an
-unregistered id is refused with a distinct code, and the ribbon renders the split as disabled buttons.
-What is missing is the **census in one place**, which is the half that stops a later stage silently
-forgetting to register what it declared — and that gap grows with every stage. **Carried to Stage 2**
-rather than closed here: adding a CLI verb belongs with the vocabulary `Features.md` §9.6 owns, and
-inventing one at T15 to make a checkbox tickable is the shape of thing this guide exists to catch.
+**Result at T15 — the case could not run, and that was the finding (I-32).** The *property* was not
+unverified: `--dump-ui-strings` proves every id resolves to a catalog label, `tst_actionregistry`
+proves an unregistered id is refused with a distinct code, and the ribbon renders the split as
+disabled buttons. What was missing is the **census in one place**, which is the half that stops a
+later stage silently forgetting to register what it declared — and that gap grows with every stage.
+**Carried to Stage 2** rather than closed there: adding a CLI verb belongs with the vocabulary
+`Features.md` §9.6 owns, and inventing one at T15 to make a checkbox tickable is the shape of thing
+this guide exists to catch.
 
-**A-26 · A renamed `ActionId` still resolves through its alias — D1-16** — ❌ **NOT RUN. The mechanism
-exists and has never been exercised.** *(T15)*
+**Result 2026-09-06 — ✅, built at Stage 2 T18 under D2-10.**
+`rawpage.exe --list-actions` prints a tab-separated census and exits 0:
+
+```
+# actions   361 declared   48 registered   313 unregistered
+# columns   state   stringId   defaultContext   labelKey
+declared    file.new          Global   action.file.new
+registered  file.open         Global   action.file.open
+...
+```
+
+The three figures agree exactly with the counts this document set has been carrying by hand since
+T14, which is the first time they have been produced by the program rather than by a person.
+
+**HALF OF THE CRITERION IS CORRECTED RATHER THAN QUIETLY DROPPED**, which is the call T7 made about
+Stage 2's A-18, T15 about A-65 and T16 about A-67. *"Declared-with-owning-stage"* is not printed and
+will not be: `ActionId.def` has no stage column, and adding one to 361 rows would put a second copy
+of the roadmap in a table no reader of `Implementation-Plan.md` would think to update — rule 2's *a
+fact lives in exactly one place*, broken 361 times. Stage ownership lives in `Implementation-Plan.md`
+and `Architecture-FileMap.md`. What this switch is actually for is the other direction, and the state
+plus the count are the whole of it.
+
+**One thing worth recording about where it had to go.** Unlike `--dump-ui-strings`, this needs the
+**window**: commands are registered in `MainWindow`'s constructor, once per registry (convention 14),
+so a dump taken after composition but before a window would report 361 declared and 0 registered —
+confidently wrong, which is worse than absent. `tests/unit` covers the parse and says at the
+assertion that it does not cover the output (convention 19).
+
+**And the mechanism was already there.** `ActionRegistry::allActions()` shipped at Stage 1 T3 with a
+comment saying in as many words that it *"backs `--list-actions`"*, a test, and the tool finder as
+its only callers. That is I-34's shape for the sixth time — a capability that is real, tested, and
+reachable by no person — and it is why the fix was a switch rather than a feature.
+
+**A-26 · A renamed `ActionId` still resolves through its alias — D1-16** — ✅ **RUN AND PASSED
+2026-09-06, at Stage 2 T18** *(was ❌ NOT RUN at T15: the mechanism existed and had never been
+exercised)*
 ☐ **Goal** Saved shortcuts and QAT entries key off the *string* id, so a rename in a later stage
 must not silently discard a user's customization.
-**Pre** A fixture with `RAWPAGE_ACTION_ALIAS("old.string.id", NewEnumerator)`. **There is no such
-fixture, and `ActionId.def` declares zero alias rows.** The macro is implemented — `ActionId.h`
-defines it twice, once to count and once to build the table — so the mechanism is real code that
-nothing has ever run.
-**Result — not run, and recorded rather than quietly skipped (I-32).** Stage 1 renames nothing, so
-there is no alias to write and the case has had no subject; that is why it was never reached. But
-D1-16's whole argument is that the *first* rename must not be the first exercise of the path, and by
-that argument an untested alias table is exactly as useful as no alias table. This is I-15's lesson
-in its purest form: a mechanism nobody has seen work. **Carried to Stage 2**, which should plant a
-throwaway alias row and a fixture rather than wait for a real rename in Stage 7.
-**Steps** Write a `shortcuts/` entry and a QAT entry under the **old** string, then load.
-**Expect** Both resolve to `NewEnumerator`; the alias is reported by `--list-actions`; **no alias row
-is ever removed** — the fixture asserts that deleting one breaks the load, which is the property that
-keeps aliases permanent.
+**Pre** A fixture with `RAWPAGE_ACTION_ALIAS("old.string.id", NewEnumerator)` —
+`tests/unit/fixtures/ActionAliasFixture.def` as of T18.
+**Result at T15 — not run, and recorded rather than quietly skipped (I-32).** Stage 1 renames
+nothing, so there was no alias to write and the case had no subject. But D1-16's whole argument is
+that the *first* rename must not be the first exercise of the path, and by that argument an untested
+alias table is exactly as useful as no alias table — I-15's lesson in its purest form: a mechanism
+nobody has seen work. **Carried to Stage 2**, which should plant a throwaway alias row and a fixture
+rather than wait for a real rename in Stage 7.
+**Steps** Drive the resolution algorithm over a synthetic alias table built by the real macro.
+**Expect** A retired spelling resolves and reports as retired; a live id outranks an alias of the
+same spelling; with no aliases the retired spellings resolve to nothing.
 **If it fails** S2 — a rename that silently drops customizations is discovered by a user, not by us.
+
+**Result 2026-09-06 — ✅, at Stage 2 T18 under D2-10. `tests/unit/tst_actionalias.cpp`, seven cases,
+all green.**
+
+**The fixture is a separate `.def`, and NOT rows in `core/cmd/ActionId.def`, on purpose.** An alias
+row asserts *this name used to mean that action*, and those strings are written into users' settings
+files; none of ours ever did, so putting three there would be fiction in a shipped table. Instead
+`core/cmd/ActionId.h` splits the algorithm out as
+`actionFromStringIdIn(descriptors, aliases, stringId)` with the shipped functions as one-line
+wrappers, and the test builds a real table with the real macro over
+`tests/unit/fixtures/ActionAliasFixture.def`. Three rows: an ordinary retirement, a **second**
+spelling of the same action (two renames deep), and — the one that could not be written in the
+shipped table at all — an alias that **collides with a live id**.
+
+**THE PREVIOUS COVERAGE WAS WORSE THAN NONE, AND THAT IS THE FINDING HERE.** `tst_actionregistry.cpp`
+has carried two cases named for this subject since T3, and every assertion in both sits inside
+`for (const ActionAlias& alias : kActionAliases)` — **a loop over an empty array**. They passed, they
+were counted in the total, and they asserted nothing. Its neighbour *"a live id always wins over an
+alias of the same spelling"* walked all 361 live ids and found each of them, which is true whatever
+the alias path does. Convention 7's failure in its quietest form: not a control that fails for the
+wrong reason, but a case whose body never runs.
+
+**Two controls were run and both fired as COMPILE ERRORS**, because the fixture's assertions are
+`STATIC_REQUIRE`:
+
+- reversing the resolution order — alias table first — gives
+  `error: static assertion failed: resolve("file.open") == ActionId::FileOpen`. That assertion could
+  not have existed before this fixture, because there was no colliding alias for a live id to lose
+  to;
+- emptying the fixture reddens the row-count check, which is what stops this suite from becoming the
+  vacuous loop it replaced.
+
+A third control found something worth stating rather than hiding: rewiring a shipped wrapper to read
+an **empty** alias table reddens **nothing**, because `kActionAliases` *is* empty, so the two
+spellings are the same function for every input that exists today. That case is therefore **latent**,
+becomes live the moment a real rename lands, and its own file says so.
+
+**What is still not covered, and it is named at the assertion (convention 19): the four consumers.**
+`KeyBindingStore::load`, `ui/shell/UiCustomization`, `core/settings/SettingsSchema` and
+`ui/shell/RibbonModel` all call the shipped wrappers over the shipped table, and with zero rows there
+is nothing there for them to resolve. **The first real rename is still the first time those four
+paths meet an alias.** What is no longer true is that it would also be the first time the algorithm
+underneath them met one — and the algorithm is where D1-16's argument actually lives.
 
 ### 5.4 Key bindings — `tst_keybindings`
 

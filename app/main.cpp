@@ -30,6 +30,7 @@
 #include "app/SingleInstance.h"
 
 #include "core/Log.h"
+#include "core/cmd/ActionRegistry.h"
 #include "core/settings/SettingsSchema.h"
 
 #include "pdf/render/PdfiumInit.h"
@@ -322,6 +323,60 @@ int main(int argc, char** argv)
 
     // --- The window --------------------------------------------------------------------------
     ui::MainWindow window(root.services());
+
+    if (intent.listActions) {
+        // STAGE 1 GUIDE CASE A-25, and it needs the window rather than only the services: commands
+        // are registered in `MainWindow`'s constructor, once per registry (convention 14). Taken
+        // before one exists, this dump would report every id unregistered -- a diagnostic that is
+        // confidently wrong, which is worse than one that does not exist.
+        //
+        // WHAT IT PRINTS, AND WHAT A-25 ASKED FOR THAT IS NOT HERE. The case says *"every id listed
+        // with its state: registered, or declared-with-owning-stage"*. The state is here; the
+        // OWNING STAGE is not, and that half of the criterion is CORRECTED rather than quietly
+        // dropped -- the same call T7 made about A-18, T15 about A-65 and T16 about A-67.
+        //
+        // `ActionId.def` carries no stage column, and adding one to 361 rows would put a second
+        // copy of the roadmap in a table that no reader of `Implementation-Plan.md` would ever
+        // think to update -- rule 2's *a fact lives in exactly one place*, broken 361 times. Stage
+        // ownership lives in `Implementation-Plan.md` and `Architecture-FileMap.md`, and what this
+        // dump is actually for is the other direction: it is the list that stops a later stage
+        // silently forgetting to register something it declared, and for that the state and the
+        // count are the whole of it.
+        //
+        // Tab-separated and untranslated: it is a developer diagnostic, and
+        // `tools/i18n-lint/rules.json` puts console output out of scope because a translated
+        // support transcript cannot be read back.
+        const core::ActionRegistry& registry = root.services().actions;
+        const std::vector<core::ActionRegistry::ActionState> states = registry.allActions();
+
+        std::size_t registered = 0;
+        for (const core::ActionRegistry::ActionState& state : states)
+            if (state.registered) ++registered;
+
+        writeLine(QStringLiteral("# actions\t%1 declared\t%2 registered\t%3 unregistered")
+                      .arg(states.size())
+                      .arg(registered)
+                      .arg(states.size() - registered));
+        writeLine(QStringLiteral("# columns\tstate\tstringId\tdefaultContext\tlabelKey"));
+
+        for (const core::ActionRegistry::ActionState& state : states) {
+            writeLine(QStringLiteral("%1\t%2\t%3\t%4")
+                          .arg(state.registered ? QStringLiteral("registered")
+                                                : QStringLiteral("declared"))
+                          .arg(QString::fromUtf8(core::actionStringId(state.id).data(),
+                                                 static_cast<qsizetype>(
+                                                     core::actionStringId(state.id).size())))
+                          .arg(QString::fromUtf8(
+                              core::keyContextName(core::actionDefaultContext(state.id)).data(),
+                              static_cast<qsizetype>(
+                                  core::keyContextName(core::actionDefaultContext(state.id))
+                                      .size())))
+                          .arg(QString::fromUtf8(core::actionLabelKey(state.id).data(),
+                                                 static_cast<qsizetype>(
+                                                     core::actionLabelKey(state.id).size()))));
+        }
+        return static_cast<int>(app::ExitCode::Ok);
+    }
 
     if (role && role.value() == app::SingleInstance::Role::Primary) {
         const core::Status listening = instance.listen([&window](const QStringList& files) {

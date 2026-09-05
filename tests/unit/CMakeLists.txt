@@ -21,6 +21,11 @@ add_executable(rawpage_tests
     tst_geometry.cpp
     tst_log.cpp
     tst_actionregistry.cpp        # Stage 1 T3
+    tst_actionalias.cpp           # Stage 2 T18 -- Stage 1 guide case A-26, finally run. The alias
+                                  #   MECHANISM has had zero rows since T3, and the two cases in
+                                  #   tst_actionregistry that were meant to cover it loop over an
+                                  #   empty array. This drives the resolution algorithm with real
+                                  #   rows from tests/unit/fixtures/ActionAliasFixture.def (D2-10).
     tst_keybindings.cpp           # Stage 1 T4
     tst_settings.cpp
 

@@ -13,10 +13,17 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T17 of 18 complete** — T1–T3 on 2026-09-01, T4 and T5 on 2026-09-02,
-> T6 on 2026-09-03, T7…T15 on 2026-09-04, T16 on 2026-09-05, T17 on 2026-09-06. **T18** alone
-> remains (A2 re-measured through the shipped pipeline, the carry-overs, CI, and doc lockstep), and
-> it writes no new file.
+> **Status:** ✅ **ALL EIGHTEEN TASKS COMPLETE** — T1–T3 on 2026-09-01, T4 and T5 on 2026-09-02,
+> T6 on 2026-09-03, T7…T15 on 2026-09-04, T16 on 2026-09-05, T17 and T18 on 2026-09-06. The
+> stage's own **sign-off** is not this document's to give: it needs the manual walk, which is the
+> user's (`Stage2-Rendering-Testing-Guide.md` §9).
+>
+> **T18 wrote two files after all**, against its own prediction that it would write none:
+> `tests/bench/bench_pipeline.cpp` and `tests/unit/tst_actionalias.cpp`, plus a `.def` fixture.
+> The prediction was made when the task was believed to be measurement and paperwork; A2's product
+> figure needs a program to produce it, and D2-10's two carry-overs need code. Recorded rather than
+> smoothed over: **a forward-looking sentence about a task nobody has started is a guess**, which is
+> this stage's most-repeated finding (I-10, and §6 of the guide, and this file's own debt list).
 > Written 2026-08-31, immediately after Stage 1 signed off and before any Stage 2 code existed.
 >
 > **This file is a plan, not a progress log.** Stage 2's live status — task by task, deviation by
@@ -303,7 +310,7 @@ Stage 1 T2's ordering argument applied to the second go/no-go.
 | **T15** | The sixteen settings keys | T14 | Eleven `pageDisplay/`, five `performance/`, each a `SettingsKeys.def` row and therefore an automatic editor (convention 17); two new Preferences groups | Changing anti-aliasing, line weight or the resolution cap visibly changes rendering; every key round-trips |
 | **T16** | Fonts and glyphs | T13 | ✅ **2026-09-05.** `GlyphCache`, `FontResolverBridge`, `WinFontResolver`, plus `core/render/FontSubstitution` and a thirtieth corpus file, neither of which this plan listed. **The `text` feature was SPLIT rather than turned on** — see the deviation below and issue **I-12** — and I-02's Stage 2 half is closed by the `objdump` measurement rather than by a source offer. **I-04 closed** as well, with the `unknown-key` rule and the eighteen keys it found | ✅ Met, and the substitute is NAMED: `corpus/ordinary/font-not-embedded.pdf` resolves its serif font to **Times New Roman** and its sans to **Segoe UI**, through `FontResolverBridge` → `WinFontResolver` → `FontSubstitution`. `objdump -p` on the built `rawpage.exe` names **eighteen** DLLs — seventeen from before plus `DWrite.dll`, an OS library — and **not one** comes from the `text` ports |
 | **T17** | Golden images | T13, T16 | ✅ **2026-09-06.** `tests/golden/` at 96/144/192 DPI over the corpus — **198 baselines, 56 files, 66 pages**, a **fifth test target** because the PNG codec needs QtGui and `tests/render` deliberately links no Qt GUI library; `tools/golden-update` with its mandatory `--reason` (D2-3, D2-13) plus `--survey`, `--check-manifest` and `--explain`; a diff image on failure. `golden/manifest.json` declares, `golden/captured.json` measures | ✅ Baselines committed; a deliberately perturbed render fails **with a diff image**; `golden-update` without `--reason` refuses with **exit 2** and a diagnostic citing D2-3. **Two findings, both S3 and both in T17's own harness** — I-15 (a perturbation control aimed at a page the perturbation could not change) and I-14 (a capture window that recorded no font substitutions for the one file whose purpose is to have them, silently) |
-| **T18** | **A2 re-measured**, carry-overs, CI, doc lockstep | all | `bench_render` through the **shipped** pipeline (D2-1, second half); O7 and O10 resolved in `Implementation-Plan.md` §8; `--list-actions` and the alias fixture (D2-10); CI gains `render.` and the fuzz smoke run; every §4 row flipped and §10's debt paid | The product's own A2 figure recorded beside the probe's; **A-25 and A-26 finally have results**; `Implementation-Plan.md` Stage 2 status block reflects reality, deviations included |
+| **T18** | **A2 re-measured**, carry-overs, CI, doc lockstep | all | ✅ **2026-09-06.** `tests/bench/bench_pipeline` — a SECOND binary, not a rewrite of `bench_render`, because the probe's figure must stay reproducible and `--unsafe-parallel` is I-05's reproducer — driving the shipped scheduler and cache over the whole corpus; **O7 and O10 resolved**; **D2-14 answered** (the disk tier does not ship); `--list-actions` and `tests/unit/tst_actionalias.cpp` for D2-10's two carry-overs; **`render` added to CI's non-empty-prefix loop** and a **`portable-fuzz` job** added, which is what finally gives A-25 and A-26 results; §10's debt paid. **A2 = `go`, p95 14.18 ms against 16.667 ms — 1.18× headroom, against the probe's 31×, and the gap between those two numbers is the whole reason D2-1 asked for both.** | ~~`bench_render` through the **shipped** pipeline (D2-1, second half); O7 and O10 resolved in `Implementation-Plan.md` §8; `--list-actions` and the alias fixture (D2-10); CI gains `render.` and the fuzz smoke run; every §4 row flipped and §10's debt paid~~ — all done. **One thing in this row was ambiguous and both readings turned out to be owed: “A-25 and A-26”.** D2-10's are **Stage 1's** (the `--list-actions` switch and the alias fixture); the *Done when* column's are naturally read as **Stage 2's** (the two fuzz targets). All four were addressed, which is luck rather than clarity — the collision `CLAUDE.md`'s *Citing a label* section warns about, in this document's own task table. | ✅ The product's own A2 figure recorded beside the probe's; **all four A-25/A-26 cases have results** — Stage 1's two ✅ and Stage 2's two 🟡 (they build and run seeded on every push; the ten-minute soak is Stage 3's); `Implementation-Plan.md` Stage 2 status block reflects reality, deviations included |
 
 ---
 
@@ -455,11 +462,13 @@ to existing documents and are made when this plan is written.
   as **I-10** and as §6's stale walkability list, in its mildest form.
 - ~~**`cmake/PdfiumAssert.cmake` has no row**, though `cmake/ToolchainAssert.cmake` does.~~ **Paid at
   T2**, in the same change as the assertion itself (D2-3).
-- 🟡 **`Tech-Stack-Plan.md` §3.3 gained A2's PROBE verdict at T3 and **R5** is struck through; the
-  PRODUCT's figure is still owed by T18 (D2-1).** The original wording of this item — that a
-  retired risk still reading as open is how a later reader re-does settled work — applies equally to
-  a half-answered one, which is why the row says which half. A risk that has been retired but
-  still reads as open is how a later reader re-does settled work.
+- ~~🟡 **`Tech-Stack-Plan.md` §3.3 gained A2's PROBE verdict at T3 and **R5** is struck through; the
+  PRODUCT's figure is still owed by T18 (D2-1).**~~ **PAID AT T18, 2026-09-06.** §3.3 now carries both
+  figures with the distinction between them stated at the point of use — service time versus queued
+  latency — and R5's row records the product's number as the one that is a claim about the product.
+  The original wording of this item was that a retired risk still reading as open is how a later
+  reader re-does settled work; the half-answered case turned out to be worse, because **the probe's
+  31× headroom read as comfort that the product does not have.** The product's margin is 1.18×.
 - ~~🟡 **`ui/viewer/`'s four rows are ○ (S2).**~~ **Paid at T13**, all four flipped in the same change
   as the code — and two rows the manifest did not list were added with their files, `app/BackendRasterizer.h`
   (issue **I-09**) and `platform/win/WinMessageWindow` at T12. `ui/shell/DocumentWindow`'s row moved from
@@ -484,6 +493,13 @@ to existing documents and are made when this plan is written.
   `.github/workflows/ci.yml` fixes it and it is T18's**, with the rest of this stage's CI work.
   `tests/render/CMakeLists.txt` carried a comment asserting the opposite — that the loop already
   extended to it — which was corrected at T16 in the same sweep that found this.
+  **PAID AT T18, 2026-09-06**, and it was one word: `render` joins the loop, which now also covers
+  T17's `render.golden.*` because that prefix lives deliberately inside `render.`. The summary job's
+  *what did not run* list gained `render.*` in the same change, and both A2 figures are surfaced in
+  the log beside the R-9 one — a number buried in a passing `ctest` line is a number nobody reads,
+  and D2-1's point is that the two must be read together. **A fourth CI job also arrived**,
+  `portable-fuzz`, which is a debt this list never named: A-25 and A-26 had been recorded as *Linux
+  jobs* since T5 and T6 and **no Linux fuzz job existed**.
 - ~~🟡 **`ui/shell/MessageBar` is ○ (S2).**~~ **Paid at T14**, with `ui/dialogs/PasswordDialog` added
   beside it as a row this §4 did not list — the third such file this stage, after `WinMessageWindow`
   (T12) and `app/BackendRasterizer.h` (T13). Three in three tasks is worth noticing: a manifest written

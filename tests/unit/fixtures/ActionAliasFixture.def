@@ -1,0 +1,52 @@
+// A SYNTHETIC ALIAS TABLE, so that D1-16's rename path is exercised by real rows built by the real
+// macro. Stage 2 T18, decision D2-10; Stage 1 guide case A-26.
+//
+// ===============================================================================================
+// WHY THIS FILE EXISTS RATHER THAN THREE ROWS IN core/cmd/ActionId.def
+// ===============================================================================================
+//
+// `RAWPAGE_ACTION_ALIAS` has been live code with **zero rows** since Stage 1 T3. Nothing has been
+// renamed, so nothing has ever resolved through it -- and D1-16's whole argument is that the FIRST
+// rename must not be the first exercise of the path, because by then a user's saved shortcuts and
+// Quick Access Toolbar entries are what is at stake.
+//
+// Adding rows to the shipped `ActionId.def` would fix that by writing fiction into a table whose
+// strings are persisted to users' settings files: an alias says *this name used to mean that
+// action*, and none of them did. So the rows live here, the resolution algorithm takes its tables
+// as spans (`actionFromStringIdIn`, `core/cmd/ActionId.h`), and the shipped functions are one-line
+// wrappers over the shipped arrays.
+//
+// ===============================================================================================
+// THE ROWS, AND WHAT EACH ONE IS FOR
+// ===============================================================================================
+//
+// Each names a REAL enumerator, so the fixture cannot drift away from the action table: delete
+// `ViewToggleSidebar` and this file stops compiling, which is the correct outcome and is exactly
+// what a table of dead strings would not do.
+//
+//   1. An ordinary retirement -- an old spelling that must still resolve, and must report as
+//      retired so a settings rewrite can migrate the key while still honouring the old name on the
+//      next load.
+//   2. A SECOND alias onto the SAME action. Renaming twice is the ordinary shape of a long-lived
+//      product, and both spellings have to keep working; a mechanism that only tolerates one hop is
+//      one nobody discovers until the second rename.
+//   3. A row whose old spelling COLLIDES with a live id. This is the one that cannot be written in
+//      the shipped table at all, and it is the case the resolution ORDER exists for: live table
+//      first, alias table second. Without a row like this, "a live id wins over an alias of the
+//      same spelling" is a sentence no test can distinguish from its opposite.
+
+// 1. The ordinary retirement.
+RAWPAGE_ACTION_ALIAS("view.sidebar.toggle", ViewToggleSidebar)
+
+// 2. A second, older spelling of the same action -- two renames deep.
+RAWPAGE_ACTION_ALIAS("shell.toggleSidebar", ViewToggleSidebar)
+
+// 3. THE COLLISION. `file.open` is a live id; this row claims it as a retired spelling of something
+//    else entirely. Resolution must ignore it and answer `FileOpen`, because a live action always
+//    outranks an alias -- and `actionStringIdIsRetiredIn` must answer false for the same reason.
+RAWPAGE_ACTION_ALIAS("file.open", ViewFullScreen)
+
+// Undefined unconditionally, exactly as `core/cmd/ActionId.def` ends. An includer defines the macro
+// it wants, includes this, and gets a clean slate back -- without which the second include in
+// `tst_actionalias.cpp` warns about a redefinition, which is how this line came to be written.
+#undef RAWPAGE_ACTION_ALIAS

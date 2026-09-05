@@ -15,6 +15,7 @@
 #include "core/cmd/KeyContext.h"
 
 #include <array>
+#include <span>
 #include <cstddef>
 #include <optional>
 #include <string_view>
@@ -85,23 +86,74 @@ constexpr std::string_view actionStringId(ActionId id) { return actionDescriptor
 constexpr KeyContext actionDefaultContext(ActionId id) { return actionDescriptor(id).defaultContext; }
 constexpr std::string_view actionLabelKey(ActionId id) { return actionDescriptor(id).labelKey; }
 
+// ---------------------------------------------------------------------------------------
+// THE RESOLUTION ALGORITHM, SEPARATED FROM THE SHIPPED TABLE -- Stage 2 T18, decision D2-10
+// ---------------------------------------------------------------------------------------
+// The two functions below take their tables as spans, and the two beneath them are the shipped
+// table's one-line wrappers. That split exists for exactly one reason and it is a testing one.
+//
+// **`kActionAliases` HAS ZERO ROWS AND HAS HAD SINCE THE MACRO WAS WRITTEN.** Nothing has been
+// renamed yet, so the alias path is live code that has never executed -- which is Stage 1's guide
+// case **A-26** (`Stage1-AppShell-Testing-Guide.md` §5), recorded there as *not run: the mechanism
+// exists and has never been exercised*, and carried to this stage by **D2-10**. The case's own
+// suite made the position worse rather than better: its assertions are inside
+// `for (const ActionAlias& alias : kActionAliases)`, a loop over an empty array, so it passed
+// while asserting nothing at all -- convention 7's failure in its quietest form.
+//
+// A row cannot simply be added to `ActionId.def` to fix that: an alias for a rename that never
+// happened is fiction in a table that is written to users' settings files. So the ALGORITHM is
+// made drivable with a table a test supplies, and `tests/unit/tst_actionalias.cpp` drives it with
+// real rows built by the real `RAWPAGE_ACTION_ALIAS` macro over
+// `tests/unit/fixtures/ActionAliasFixture.def`.
+//
+// **What that still does not cover (convention 19):** the *consumers*. `KeyBindingStore::load`,
+// `UiCustomization`, `SettingsSchema` and `RibbonModel` all call the shipped wrappers over the
+// shipped table, and with zero rows there is nothing for them to resolve. The first real rename is
+// still the first time those four paths meet an alias -- but it will no longer be the first time
+// the algorithm underneath them does, which is the half D1-16's argument actually turns on.
+
+constexpr std::optional<ActionId> actionFromStringIdIn(
+    std::span<const ActionDescriptor> descriptors, std::span<const ActionAlias> aliases,
+    std::string_view stringId)
+{
+    // LIVE TABLE FIRST, ALIAS TABLE SECOND, and the order is the contract rather than an
+    // implementation detail: if an alias row is ever written for a name that later comes back as a
+    // real action, the real one must win or the resurrected id is unreachable.
+    for (const ActionDescriptor& descriptor : descriptors)
+        if (descriptor.stringId == stringId) return descriptor.id;
+
+    for (const ActionAlias& alias : aliases)
+        if (alias.oldStringId == stringId) return alias.id;
+
+    return std::nullopt;
+}
+
+constexpr bool actionStringIdIsRetiredIn(std::span<const ActionDescriptor> descriptors,
+                                         std::span<const ActionAlias> aliases,
+                                         std::string_view stringId)
+{
+    for (const ActionDescriptor& descriptor : descriptors)
+        if (descriptor.stringId == stringId) return false;
+
+    for (const ActionAlias& alias : aliases)
+        if (alias.oldStringId == stringId) return true;
+
+    return false;
+}
+
 // Resolves a string id, INCLUDING a retired one through its alias row. This is the function every
 // persistence path must use -- `shortcuts/<context>/<action>` on load, and the QAT customization
 // blob -- because it is the only one that honours a rename.
 //
-// A linear scan over 327 entries, deliberately. It runs at load time and on a `--list-actions`
+// A linear scan over the whole table, deliberately. It runs at load time and on a `--list-actions`
 // dump, not per keystroke: chord lookup goes through `KeyBindingStore`'s own index. A sorted table
 // plus binary search would need the .def rows kept in string order, which would fight rule 4's
 // grouping by Features.md section and make every future insertion a merge conflict.
+// *(This comment said "over 327 entries" until T18 re-measured it. `kActionCount` is the figure and
+// is always right; a number spelled out in prose beside it can only ever go stale.)*
 constexpr std::optional<ActionId> actionFromStringId(std::string_view stringId)
 {
-    for (const ActionDescriptor& descriptor : kActions)
-        if (descriptor.stringId == stringId) return descriptor.id;
-
-    for (const ActionAlias& alias : kActionAliases)
-        if (alias.oldStringId == stringId) return alias.id;
-
-    return std::nullopt;
+    return actionFromStringIdIn(kActions, kActionAliases, stringId);
 }
 
 // True when the string resolves only through an alias row -- i.e. it is a retired spelling. Callers
@@ -109,13 +161,7 @@ constexpr std::optional<ActionId> actionFromStringId(std::string_view stringId)
 // the old one on the next load.
 constexpr bool actionStringIdIsRetired(std::string_view stringId)
 {
-    for (const ActionDescriptor& descriptor : kActions)
-        if (descriptor.stringId == stringId) return false;
-
-    for (const ActionAlias& alias : kActionAliases)
-        if (alias.oldStringId == stringId) return true;
-
-    return false;
+    return actionStringIdIsRetiredIn(kActions, kActionAliases, stringId);
 }
 
 } // namespace rawpage::core

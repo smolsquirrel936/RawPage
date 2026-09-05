@@ -74,6 +74,21 @@ struct Intent {
     // Chinese is any good is manual case M-06 and this switch cannot tell you.
     bool        dumpUiStrings = false;
 
+    // --list-actions: print every declared ActionId with its registration state and exit.
+    // Stage 1 guide case **A-25**, carried here by **D2-10** and built at Stage 2 T18.
+    //
+    // The case was recorded at Stage 1 T15 as *NOT RUN -- the switch it names does not exist*, and
+    // it was the second half of issue **I-32**: six documents described a diagnostic that had never
+    // been written, while `ActionRegistry::allActions()` -- the function whose own comment says it
+    // *"backs --list-actions"* -- shipped at T3 with a test and the tool finder as its only
+    // callers. Stage 1 found that shape five times under other names (I-34, I-42, I-43, I-46,
+    // I-47): a capability that is real, tested, and reachable from no person.
+    //
+    // Unlike --dump-ui-strings this one needs the WINDOW, not just the services: registration
+    // happens in `MainWindow`'s constructor (convention 14, once per registry), so a dump taken
+    // before one exists would report 361 declared and 0 registered and be worse than no dump.
+    bool        listActions = false;
+
     // Which diagnostic, when kind == Diagnostic.
     QString     diagnostic;
 };

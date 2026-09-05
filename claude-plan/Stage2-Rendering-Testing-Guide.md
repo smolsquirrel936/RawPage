@@ -7,7 +7,8 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
-> T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's on 2026-09-06.**
+> T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
+> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; the manual half is untouched and is yours.**
 > **82 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
@@ -15,8 +16,9 @@
 > measurement behind I-11, and **A-82** at T17 — I-13's tripwire, because this guide was written
 > before the font bridge existed and nothing in it stopped that finding from being re-made
 > silently) and **10 manual** (M-01 … M-10), of
-> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-51, A-52 … A-60, A-63, A-64, A-66 and
-> A-75 … A-82 are green**, **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
+> which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
+> A-75 … A-82 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
+> rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61, A-62, A-65 and A-67 are 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
 > A-62's battery throttle is WIRED as of T15 and its effect is unobservable on a desktop with no
@@ -30,9 +32,15 @@
 > both exist but have never been linked or run because there is no clang here. **A-24 joins them at
 > T8** — the ASan corpus run is the same Linux job.
 > **The Stage 2 exit criterion (A-21) is met on Windows as of T8** and is owed its ASan half.
-> **A2 has its first recorded verdict: `go`** (the probe; the product's is T18's — D2-1), in
+> **A2 IS SETTLED ON BOTH OF D2-1's MEASUREMENTS — `go`.** The probe (T3, raw PDFium): p95
+> **0.532 ms** of service time. The product (T18, through the shipped scheduler and cache): p95
+> **14.18 ms** of queued latency against 16.667 ms — **1.18× headroom where the probe reported 31×**,
+> which is not a regression but the difference between timing the engine and timing the product, and
+> is the entire reason D2-1 asked for two figures. Both are in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
-> risk **R5** struck through in the same change. The
+> risk **R5** struck through and now closed out. **O7, O10 and D2-14 are answered at T18 by
+> measurement rather than by preference** — one shared cache, the portable sanitizer route, and no
+> disk tier. The
 > **None of the ten manual cases has been walked**, and as of T13 **the first four are walkable** —
 > there is a page on screen to look at; `rawpage.exe <a corpus file>` opens it. **T14 makes them worth
 > walking**: the §8 Viewer chords work, the status bar reports real numbers, and a repaired file says
@@ -873,7 +881,8 @@ Linux too — `VCPKG_MANIFEST_FEATURES` is set for `_portable` as well as `_wind
 ### 5.4 Fuzzing — the preset's first real targets
 
 **A-25 · `fuzz_cos_lexer` builds and runs 10 minutes clean**
-☐ **WRITTEN AT T5; NOT RUN — this is a Linux/clang job, like A-04.**
+🟡 **WRITTEN AT T5. A CI JOB EXISTS AS OF T18 and the target now BUILDS AND RUNS on every
+push — seeded, for 60 seconds, not for ten minutes. The build half is closed; the soak is not.**
 **Goal** `portable-fuzz` has been wired since Stage 0 with its preset description saying **"NO
 TARGETS EXIST until Stage 2"**. **Steps** Build on `portable-fuzz`; run seeded from `corpus/malformed/`:
 `./bin/fuzz_cos_lexer corpus/malformed -max_total_time=600`.
@@ -888,8 +897,28 @@ construction** — say so rather than letting the green count imply otherwise.
 **If it fails** S1 if it crashes; **S2 if it fails to build** — a preset that has never built anything
 has not been proven to build anything, which is Stage 1's I-30 in a different costume.
 
+**State 2026-09-06 (T18) — THE JOB EXISTS, AND THAT IS THE HALF THAT WAS MISSING.** From T5 to T17
+this case was recorded as *"a Linux job, like A-04"* — honestly, and with a gap nobody had named:
+**there was no Linux job.** `.github/workflows/ci.yml` had `gates`, `windows` and `portable-asan`,
+and nothing that ran clang. A deferral whose owner is *"a job"* and whose job does not exist is a
+deferral with no owner, which is I-30's shape exactly — a coverage claim resting on infrastructure
+nobody had checked was there. T18 added the **`portable-fuzz`** job: it installs clang, configures
+the preset (where **A-27**'s target-count assertion has teeth), builds both targets, **asserts each
+binary was actually linked before running it** — because *"it did not crash"* is also what a missing
+file produces if nobody looks — and runs each seeded from `corpus/malformed/`.
+**The S2 half is closed: the preset builds, measurably, on every push.**
+**🟡 THE TEN MINUTES IS NOT CLOSED, and the number here is 60 seconds per target on purpose.** A
+ten-minute soak on every push costs twenty minutes of wall time to re-cover ground the previous push
+already covered, and would make the slowest job in the pipeline the one that finds least. What the
+short run establishes is that the driver starts, reads the seed corpus and executes the body — which
+is what turns *"the target exists"* into *"the target runs"*. A real soak belongs on a schedule, and
+that is **Stage 3's** to add along with `tests/roundtrip/`; recorded here rather than left implicit,
+because the difference between a smoke test and a fuzz campaign is exactly the kind of thing a green
+tick makes invisible.
+
 **A-26 · `fuzz_cos_parser` — the primary target — same**
-☐ **WRITTEN AT T6; NOT RUN — a Linux/clang job, like A-04 and A-25.**
+🟡 **WRITTEN AT T6. BUILDS AND RUNS SEEDED ON EVERY PUSH as of T18; the ten-minute soak is
+still owed — see A-25, which carries the reasoning for both.**
 **Steps** As A-25, against `./bin/fuzz_cos_parser`. **Expect** As A-25.
 **State 2026-09-03** The target **exists** (`tests/fuzz/fuzz_cos_parser.cpp`) and this machine has
 no clang, so neither the link nor the run has happened. The same two substitutes-that-are-not stand
@@ -902,6 +931,9 @@ is a hang, the one failure a fuzzer reports badly), **the depth bound** — meas
 walk, because a recursive one would be the very bug it is looking for — and **span containment**,
 which is not a crash here but becomes someone else's memory inside a saved PDF once Stage 3's
 writer starts copying those bytes. **If it fails** S1.
+**State 2026-09-06 (T18)** As A-25: the `portable-fuzz` CI job builds this target, asserts it was
+linked, and runs it for 60 seconds seeded from `corpus/malformed/` on every push. Being the
+**primary** target, it is the one whose soak matters most — and the soak is the half still owed.
 
 **A-27 · The fuzz targets actually exist in the build graph**
 ✅ **closed at T6 — and moved from a manual enumeration to an assertion at T5**
@@ -2251,8 +2283,14 @@ Stage 2 is done when **all** of these hold. This is
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
 4. ☐ `ctest` green across all five Windows targets, every prior stage included.
-5. ☐ `portable-asan` clean over the whole corpus parse; `portable-fuzz` green for 10 minutes on **two**
-   targets that demonstrably exist.
+5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets
+   that demonstrably exist. **Half done 2026-09-06 at T18**, and the half is the one that was
+   missing: **a Linux fuzz job now exists**. Until T18, A-25 and A-26 were recorded as *"Linux
+   jobs"* and there was no Linux fuzz job in `ci.yml` at all — a deferral whose owner did not
+   exist, which is I-30's shape. Both targets now build, are asserted to have LINKED before being
+   run, and run seeded from `corpus/malformed/` on every push. **The 10 minutes is deliberately not
+   run per-push** (60 s each): a soak belongs on a schedule, and is Stage 3's to add. `portable-asan`
+   is unchanged and still runs the corpus parse.
 6. ✅ **Golden baselines committed 2026-09-06 (T17)** — 198 images, 56 corpus files, 66 pages, at
    96 / 144 / 192 DPI, with `golden/manifest.json` declaring what is captured and why, and
    `golden/captured.json` recording the engine and the fonts it was captured against.
@@ -2261,13 +2299,43 @@ Stage 2 is done when **all** of these hold. This is
    Stage 2 status block states in those words that the golden suite's green is **consistency against our
    own generated output**, not **fidelity to real-world PDFs** (plan §13.6). An unqualified *"every
    corpus file renders correctly"* overstates the evidence.
-8. 🟡 **A2 has a recorded verdict with numbers** — the probe's and the product's — in
-   `Tech-Stack-Plan.md` §3.3, with risk **R5** struck through in the same change. **Half done
-   2026-09-01:** the probe's figure is recorded (`go` — p95 **0.532 ms** against 16.667 ms, 8 workers
-   behind an engine lock; 1,849 tiles/s against one worker's 1,769) and R5 is struck through. The
-   product's figure is T18's and is still owed. Recorded with it: the probe's own limits — one page,
+8. ✅ **A2 has a recorded verdict with numbers** — the probe's and the product's — in
+   `Tech-Stack-Plan.md` §3.3, with risk **R5** struck through in the same change. **Probe
+   2026-09-01:** `go` — p95 **0.532 ms** against 16.667 ms, 8 workers behind an engine lock;
+   1,849 tiles/s against one worker's 1,769. Recorded with it: the probe's own limits — one page,
    one non-embedded font, no images or transparency — and **I-05**.
-9. ☐ **O7 and O10 resolved** in `Implementation-Plan.md` §8.
+   **Product 2026-09-06 at T18: `go`, p95 14.18 ms against 16.667 ms — 1.18× headroom**, over a
+   1920×1080 viewport at A2's own 288 dpi, through the shipped scheduler and cache, at a per-tile
+   **cost** of 0.356 ms. **The two are different quantities and the gap between 31× and 1.18× is
+   the entire reason D2-1 asked for both**: the probe times service inside the engine lock, the
+   product figure times queued latency from `enqueue()` to delivery. The comparable pair is the
+   probe's 0.532 ms and this run's 0.356 ms per-tile cost, and those agree — the engine did not get
+   slower, the queue got counted. Also recorded there: a whole page at 288 dpi is **43.9 ms**, three
+   frames, which is why tiles stream rather than pages and why prefetch is a Stage 4 subject.
+9. ✅ **O7 and O10 resolved** in `Implementation-Plan.md` §8, both on 2026-09-06 at T18 and both
+   by evidence rather than preference.
+   **O7 — one SHARED cache.** Eight documents open at once, two passes each: at the shipped 256 MiB
+   cap, **50 % hit rate and zero cross-document evictions**; at 24 MiB, **0 % hits and 297 of 297
+   evictions cross-document**. Sharing is free until the cap is too small and catastrophic after,
+   so **the lever is the cap and not the topology** — and the cap is already a settings row.
+   `RenderCache::crossDocumentEvictions()` was built with the cache at T11 for exactly this, which
+   is the only reason the question could be answered with a number.
+   **O10 — the portable route, both presets, and NO second Windows toolchain.** What settled it is
+   that the route stopped being a plan: `portable-fuzz` is a CI job as of this task. An
+   `x64-clang-asan` preset would buy `platform/win/` and `ui/` coverage at the price of a second
+   toolchain pin, which is what TA-1…TA-9 exist to prevent. The residual gap is **manual case
+   M-09**, and it is named rather than closed.
+10. ✅ **D2-14 answered 2026-09-06 at T18: the disk tier does NOT ship.** *(Added to this checklist
+    at T18. The plan made the measurement a T18 deliverable and §13's checklist never listed it —
+    a decision with an owning task and no sign-off box is one that can be quietly skipped.)* Same
+    workload twice, differing only in whether a `DiskTileStore` is attached: **memory only, 0 %
+    hits, 0.118 ms/tile; with disk, 50 % hits, 0.254 ms/tile.** The tier does exactly what a cache
+    is supposed to do and makes the work **more than twice as slow** — because a tile costs about a
+    quarter of a millisecond to re-render, and no disk round trip beats that. A second tier that
+    raises the hit rate and the wall clock together is not a cache. `performance/diskCacheMB` stays
+    at **0**, by evidence rather than by inertia, and the row, the code and the range all stay:
+    a machine where rendering is far more expensive may still want it, and Stage 5 changes the
+    workload.
 10. ☐ **No open S1 or S2 in §8 — MET as of T16, 2026-09-05.** I-05 closed at T11, **I-02 at T16** (the closure measurement and the `text` split), and **I-13** — this stage's only S2 found in the product — raised and closed within the same run. **I-04** and **I-12** are S3 and closed at T16 too. The two S3 that remain, **I-06** (JBIG2) and **I-11** (line weight), are open BY DECISION rather than pending: each is a feature the engine or the licence cannot deliver, kept as a declared-and-inert surface so the day the constraint lifts there is a row to fill in.
 11. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
     `Implementation-Plan.md` Stage 2 status block updated to reality, deviations included.

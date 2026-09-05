@@ -176,11 +176,21 @@ jobs:
       # mechanically, before the run rather than after it.
       #
       # This is what Stage1-AppShell-Plan.md's T15 means by "tests/ui/ into the CI windows job".
+      #
+      # `render` JOINED THE LIST AT T18, and its absence is worth recording rather than quietly
+      # fixing. `rawpage_render_tests` arrived at Stage 2 T2 and this loop was never told, so for
+      # sixteen tasks the ONE suite that links the engine was the one suite whose disappearance CI
+      # could not notice -- a build that dropped it would still have reported "100 % tests passed"
+      # over 50 fewer cases, which is precisely the failure this loop exists to catch. Found at T16
+      # by re-measuring a comment in `tests/render/CMakeLists.txt` that asserted the opposite.
+      #
+      # `render.golden.*` (T17) lives inside the `render.` prefix deliberately, so it is covered by
+      # this line rather than needing a sixth entry somebody would have to remember.
       - name: A-82 -- the Windows-only suites are present
         shell: pwsh
         run: |
           $listed = ctest --preset x64-release -N
-          foreach ($prefix in 'unit', 'ui', 'platform', 'bench') {
+          foreach ($prefix in 'unit', 'ui', 'platform', 'render', 'bench') {
             $count = ($listed | Select-String -Pattern "^\s*Test\s+#\d+:\s+$prefix\." ).Count
             if ($count -eq 0) { throw "no '$prefix.' cases are registered -- the suite is missing, not passing" }
             Write-Host "$prefix. : $count case(s)"
@@ -197,6 +207,16 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: .\build\x64-release\bin\rawpage_bench_ribbon.exe
+
+      # A2's two figures, for the same reason: a number buried in a passing ctest line is a number
+      # nobody reads, and D2-1's whole point is that the two must be read TOGETHER. The probe says
+      # what PDFium costs; the product run says what the product costs, and they are different
+      # quantities -- service time versus queued latency -- which each program's output states.
+      - name: A2 -- the probe figure and the product figure
+        shell: pwsh
+        run: |
+          .\build\x64-release\bin\rawpage_bench_render.exe
+          .\build\x64-release\bin\rawpage_bench_pipeline.exe
 
       # The cheapest possible check that the CRT still matches Qt's (Tech-Stack-Plan.md 9).
       - name: Verify linkage
@@ -267,7 +287,86 @@ jobs:
         run: ctest --preset portable-asan
 
   # =====================================================================================
-  # 4. The coverage this run did NOT have.
+  # 4. libFuzzer over the COS reader (guide cases A-25 and A-26). Stage 2 T18.
+  #
+  # THESE TWO CASES HAVE BEEN "NOT RUN" SINCE T5 AND T6, and the reason was always the same and
+  # always honest: MinGW GCC has no libFuzzer and there is no clang on the development machine, so
+  # `portable-fuzz` could be configured and never linked. They were recorded as **Linux jobs** beside
+  # A-04 rather than as pending boxes -- and then no Linux job existed to run them, which is the
+  # difference between a deferral with an owner and a deferral without one. This job is the owner.
+  #
+  # TEN MINUTES IS THE GUIDE'S FIGURE, and it is not run here. A fuzz target's value is in long
+  # soaks, and a ten-minute soak on every push would make the slowest job in the pipeline the one
+  # that finds least. What this job establishes is the thing A-25's own "If it fails" clause calls
+  # **S2**: *it builds*. A preset that has never built anything has not been proven to build
+  # anything -- Stage 1's I-30 in a different costume, and the exact failure this project has already
+  # had once. The short seeded run on top is a smoke test: it proves the driver starts, reads the
+  # corpus, and executes the body, which is what turns "the target exists" into "the target runs".
+  #
+  # `tests/fuzz/CMakeLists.txt` fails configure on the wrong target count (A-27), so an empty fuzz
+  # graph stops this job rather than passing it -- which is the half a "no crashes" check cannot
+  # supply for itself.
+  # =====================================================================================
+  portable-fuzz:
+    name: Portable libFuzzer (Linux, clang)
+    needs: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools, clang and QtCore
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang qt6-base-dev
+
+      - name: Export VCPKG_ROOT
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-linux-fuzz-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-linux-fuzz-
+
+      # A-27 has teeth HERE: the target-count assertion is at configure time, so a fuzz graph that
+      # had quietly become empty stops this step instead of producing two green "no crashes" runs
+      # over nothing.
+      - name: Configure
+        run: cmake --preset portable-fuzz
+
+      - name: Build the fuzz targets
+        run: cmake --build --preset portable-fuzz
+
+      # A-25's S2 half, made mechanical: the binaries exist and are executable. Checked before they
+      # are run, because "it did not crash" is also what a missing file produces if nobody looks.
+      - name: A-25 / A-26 -- both targets linked
+        run: |
+          for target in fuzz_cos_lexer fuzz_cos_parser; do
+            path="build/portable-fuzz/bin/$target"
+            if [ ! -x "$path" ]; then
+              echo "::error::$path was not built -- a preset that has never linked anything has not been proven to link anything"
+              exit 1
+            fi
+            echo "$target: linked"
+          done
+
+      # The smoke run, seeded from corpus/malformed/ -- a good seed set because every file in it is
+      # a VALID document with one named fault, so the fuzzer starts from inputs that already reach
+      # deep into the reader rather than from random bytes bouncing off the header check.
+      #
+      # 60 seconds each, not the guide's 600. The long soak is a scheduled job's work, and asking
+      # for it on every push buys ten minutes of wall time per run to re-cover ground the previous
+      # run already covered. `-error_exitcode=1` is explicit: libFuzzer's default already exits
+      # non-zero on a crash, and saying so is cheaper than the day somebody wonders.
+      - name: A-25 -- fuzz_cos_lexer, seeded
+        run: ./build/portable-fuzz/bin/fuzz_cos_lexer corpus/malformed -max_total_time=60 -error_exitcode=1
+
+      - name: A-26 -- fuzz_cos_parser, the primary target, seeded
+        run: ./build/portable-fuzz/bin/fuzz_cos_parser corpus/malformed -max_total_time=60 -error_exitcode=1
+
+  # =====================================================================================
+  # 5. The coverage this run did NOT have.
   #
   # The `windows` job is gated on a repository variable, and an ungated job is skipped rather
   # than failed -- which GitHub renders as a grey tick beside two green ones. Read quickly, a
@@ -282,7 +381,7 @@ jobs:
   # =====================================================================================
   coverage-report:
     name: Coverage actually obtained
-    needs: [gates, portable-asan]
+    needs: [gates, portable-asan, portable-fuzz]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -296,6 +395,7 @@ jobs:
             echo "|---|---|"
             echo "| \`gates\` | ${{ needs.gates.result }} |"
             echo "| \`portable-asan\` | ${{ needs['portable-asan'].result }} |"
+            echo "| \`portable-fuzz\` | ${{ needs['portable-fuzz'].result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "${{ vars.RAWPAGE_HAS_WINDOWS_RUNNER }}" = "true" ]; then
@@ -312,7 +412,8 @@ jobs:
             echo ""
             echo "- \`ui.*\` — the widget suite (D1-4)"
             echo "- \`platform.*\` — the Win32 layer"
-            echo "- \`bench.*\` — the A-85 / R-9 figure"
+            echo "- \`render.*\` — the engine suite AND \`render.golden.*\`, the 198 baselines"
+            echo "- \`bench.*\` — the A-85 / R-9 figure and BOTH A2 figures"
             echo "- \`gates.wrong_compiler.*\` — the toolchain pin (Windows-only by design)"
             echo "- the real-configuration gate run, which is the only place \`qt-modules.txt\`"
             echo "  and \`compiler-plugins.txt\` exist, so the Qt Charts and GCC-plugin checks"
@@ -324,4 +425,4 @@ jobs:
             echo "is registered. Guide case **A-80** stays open until it has run."
           } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "::warning title=No Windows coverage::RAWPAGE_HAS_WINDOWS_RUNNER is unset, so the windows job was skipped. ui.*, platform.*, bench.* and the wrong-compiler fixtures did not run. Guide case A-80 stays open."
+          echo "::warning title=No Windows coverage::RAWPAGE_HAS_WINDOWS_RUNNER is unset, so the windows job was skipped. ui.*, platform.*, render.*, bench.* and the wrong-compiler fixtures did not run. Guide case A-80 stays open."
