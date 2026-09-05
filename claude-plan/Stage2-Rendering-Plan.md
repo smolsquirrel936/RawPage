@@ -13,56 +13,19 @@
 > | The locked stack, the PDFium boundary rule, risk **A2**, decision **D10** | [`Tech-Stack-Plan.md` §2, §3.3, §4.3, §6](./Tech-Stack-Plan.md#2-decisions-confirmed) |
 > | How Stage 2 is verified | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) — written from this plan, **before** the code |
 >
-> **Status:** 🟡 **T1–T15 of 18 complete. T1–T3 on 2026-09-01 — T3's probe recorded A2 as `go` while
-> finding that D2-9's per-worker thread confinement is not sufficient (I-05) — and T4, the corpus,
-> on 2026-09-02: 60 files (**61 from T16**), all generated, all with a provenance row, all regenerating
-> byte-identically under `gates.corpus.reproducible`. **T5 followed the same day**: `pdf/cos/Lexer`,
-> the first token of PDF this project has ever read for itself, and `portable-fuzz`'s first target.
-> **T6 on 2026-09-03**: `CosObject` + `Parser` — the first PDF *object*, the identity-preserving
-> span Stage 3's byte-identical save rests on, the `/Length` recovery with A-17's control, and the
-> preset's SECOND target, which took `RAWPAGE_EXPECTED_FUZZ_TARGETS` from 1 to 2 exactly as T5 said
-> it would. **Neither fuzz target has ever been RUN**, that being a Linux job, and both are recorded
-> as such rather than as pending. **T7 and T8 on 2026-09-04**: the nine filters and `XrefTable`,
-> then `XrefRepair` with `RepairReport`, `Revision` and `Scope` — which meets the **Stage 2 exit
-> criterion** on Windows (every `corpus/malformed/` file yields a report and never a crash) and
-> leaves its ASan half owed to the Linux job. T7 raised **I-06**, a scope finding: `/JBIG2Decode`
-> is declared and decodes nothing, because the only usable library is AGPL-3.0 and the corpus has
-> no JBIG2 file. **T9 the same day: a document OPENS and a page is DRAWN** — `PdfiumDocument`,
-> `PdfiumRasterizer` and the real `DocumentBackendImpl`, which took the backend census from 0 of 7
-> to 2 of 7 and closed **A-46**. `openFiles()` now asks the backend instead of the suffix (A-47,
-> replacing Stage 1's A-58), and `pdf::createBackend()` moved into `rawpage_pdfium` because a
-> backend that opens documents is the engine. **T10 and T11 on 2026-09-04**: `core/render/` — `DpiPolicy`, `TileGrid` and `PagePresentation` at T10, then `RenderCache` with its two tiers and `RenderScheduler` at T11. **T11 closes I-05 by choosing the arrangement D2-9 left open: ONE render thread with a queue**, and D2-9's row below is corrected in the same change, as that decision said it would be. 35 new cases, all headless, and eight negative controls run.
-> **T12 and T13, the same day: `WinDisplayTopology` and `WinPowerSession`, and then A PAGE ON SCREEN.**
-> T12 takes the Windows bundle from two of seventeen interfaces to four and gives `DpiPolicy` its third
-> input for real — the P-1 rig's 4K panel measures **163 DPI of glass at 150 %** where the nominal
-> `96 * scale` every caller had been passing says 144. T13 builds `ui/viewer/` and **`DocumentWindow`
-> stops being D1-2's stub**; `PageView` is the first widget in the product to declare a `KeyContext`
-> (D2-8), so `activeContext()` answers something other than `Global` for the first time. Three findings,
-> all closed the same day: **I-07** (a `platform.h` comment that described the DPI-unaware failure mode
-> as the specification), **I-08** (`pages()` declared where `ui/` could never reach it) and **I-09** (the
-> one render arrangement the product actually runs had no case). 37 new cases; six negative controls run,
-> **one of which refused to fail and the CASE was fixed**.
-> **T14, also 2026-09-04: THE KEYBOARD MOVES THE PAGE.** The §8 Viewer subset is registered — 23 of 361
-> ids becomes 48 — the status bar reports real page numbers and a real zoom, `MessageBar` raises the
-> repair report and the protected banner, and Stage 1's **I-53 is closed**. It cost more than its
-> description: `Ctrl+Shift+=` is in this stage's own binding list and **nothing in the render path could
-> carry a view rotation**, so `RenderRequest`, `TileGrid`, `PagePresentation` and `PdfiumRasterizer` were
-> all extended and `core/Geometry.h` gained the rotation arithmetic. 25 new cases and a new guide case,
-> **A-80**; six more negative controls, and again **one refused to fail**. One finding, **I-10**: I-53's
-> own note about how it would be fixed named a mechanism that does not do what the note said it did.
-> **T15, the same day: the sixteen settings keys.** Sixteen rows in `SettingsKeys.def` and two
-> entries in `PreferencesDialog::shippedPages()` — **and no widget code at all**, which is
-> convention 17 doing what it was built for. Five of 26 Preferences groups now ship. Four defaults
-> changed owner from a C++ struct to a row, `FitMode` moved into `core/render/` so a settings key
-> could name it, and **one finding, I-11**: `pageDisplay/lineWeight` is declared and inert, because
-> PDFium cannot draw a hairline at its true width and has no flag over it — measured, as case
-> **A-81**. Five negative controls across nine cases, and **the case that asserts the transparency
-> grid appears is what found that the grid needed a RENDER FLAG** rather than a viewer-side paint:
-> without one, the rasterizer's white fill covers the checkerboard and the option reads back as
-> enabled while displaying nothing.** Written 2026-08-31,
-> immediately after Stage 1 signed off and before any Stage 2 code existed. This file is a plan, not a progress log — Stage 2's live status, task by
-> task and deviation by deviation, is the Stage 2 status block in `Implementation-Plan.md`, and that
-> block is the authority.
+> **Status:** 🟡 **T1–T16 of 18 complete** — T1–T3 on 2026-09-01, T4 and T5 on 2026-09-02,
+> T6 on 2026-09-03, T7…T15 on 2026-09-04, T16 on 2026-09-05. **T17** (golden images) and **T18**
+> (A2 re-measured through the shipped pipeline, the carry-overs, CI, and doc lockstep) remain.
+> Written 2026-08-31, immediately after Stage 1 signed off and before any Stage 2 code existed.
+>
+> **This file is a plan, not a progress log.** Stage 2's live status — task by task, deviation by
+> deviation, issue by issue — is the **Stage 2 status block in
+> [`Implementation-Plan.md`](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering)**,
+> and that block is the authority. A per-task narrative lived here until Stage 2 T16 and was removed
+> then, having done exactly what a second copy does: T16 updated the task table in §6 and the manifest
+> in §4 and left the header above it reading *"T1–T15 complete"*, so one file disagreed with itself in
+> three places. Nothing was lost in the removal — 97 of its 98 distinctive facts were already in the
+> authority, and the one that was not (T16's negative controls) was moved there first.
 >
 > **Label scoping, because two namespaces collide across stages.** `T1`…`T18` here are **Stage 2**
 > tasks and are unrelated to Stage 0's or Stage 1's `T1`…`T15`; this document always writes
