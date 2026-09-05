@@ -507,6 +507,15 @@ to existing documents and are made when this plan is written.
   gained the narrowed `FPDF_` rule at T2 and its test-target table gained `rawpage_render_tests`;
   **the fourth CI job's prefixes are still owed**, and `platform.` and `render.` both grew at T12 and
   T13 without CI being told.
+  **Re-measured at T16, and the gap is narrower and worse than this item said.** The summary job's
+  *what did not run* list names `ui.*`, `platform.*` and `bench.*` and omits `render.*`. And the
+  **windows job's non-empty-prefix loop names `unit`, `ui`, `platform`, `bench` — and not
+  `render`**: so the one suite that links the engine is the one suite whose disappearance CI would
+  not notice, and a build that dropped it would still report *100 % tests passed* over 40 fewer
+  cases. That is precisely the failure the loop exists to catch. **One word in
+  `.github/workflows/ci.yml` fixes it and it is T18's**, with the rest of this stage's CI work.
+  `tests/render/CMakeLists.txt` carried a comment asserting the opposite — that the loop already
+  extended to it — which was corrected at T16 in the same sweep that found this.
 - ~~🟡 **`ui/shell/MessageBar` is ○ (S2).**~~ **Paid at T14**, with `ui/dialogs/PasswordDialog` added
   beside it as a row this §4 did not list — the third such file this stage, after `WinMessageWindow`
   (T12) and `app/BackendRasterizer.h` (T13). Three in three tasks is worth noticing: a manifest written

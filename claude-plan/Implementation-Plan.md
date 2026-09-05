@@ -76,13 +76,14 @@ writes PDF bytes.** Four gates hold it, and every gate that exists runs in CI on
 
 | Gate | Fails the build when… |
 |---|---|
-| `tools/layer-lint` | an include crosses a layer boundary outward; `FPDF_` appears outside `pdf/`; a filesystem write appears outside `pdf/` and `core/settings/` |
+| `tools/layer-lint` | an include crosses a layer boundary outward; a PDFium call **or handle** is named outside **`pdf/render/`** (narrowed from `pdf/` at S2 · T2); a filesystem write appears outside `pdf/`, `core/settings/`, `tools/` and `tests/`; a path is read out of `argv` outside `app/main.cpp`; a `QAction` is constructed outside `ui/shell/ActionFactory.cpp`; an OS header reaches `platform/platform.h` or an engine/QtGui include reaches `core/backend.h`. `rules.json` is the executable form |
 | `tools/mutation-lint` | a `Command` subclass is not in `CommandRegistry`, or lacks a serialize round-trip test, or lacks a revert test |
-| `tools/i18n-lint` | a user-facing literal is not wrapped in `tr()`, or a shipped locale is missing a catalog key |
-| `tools/license-audit` | any dependency's SPDX identifier is outside the allowlist (this is what mechanically enforces the no-GPL rule) |
+| `tools/i18n-lint` | a user-facing literal is not wrapped in `tr()`; a shipped locale is missing a catalog key; an `ActionId` has no `action.*` entry; or — from S2 · T16, issue I-04 — **a source names a catalog key that no catalog defines** (`unknown-key`, anchored on the five declared families so a file name is not mistaken for a key). `orphan-key` is the one rule that reports rather than blocks |
+| `tools/license-audit` | any dependency's SPDX identifier is outside the allowlist (this is what mechanically enforces the no-GPL rule) — and from S2 · T7 it audits the **resolved closure**, enumerating every installed port's SBOM rather than only what `vcpkg.json` declares (issue I-02) |
 
-`cmake --build --target checks` runs all four, and **CI runs `checks` before compiling**, so a
-layering violation fails in seconds rather than after a full build.
+`cmake --build --target checks` runs **the three that exist, and says three** — a target claiming
+four while running three is the failure these gates exist to prevent, one level up — and **CI runs
+`checks` before compiling**, so a layering violation fails in seconds rather than after a full build.
 
 ### 1.4 Standing policy across stages
 
@@ -777,7 +778,9 @@ monitors at different scaling.
   `filters/{Flate,LZW,Ascii85,AsciiHex,RunLength,Dct,Jpx,Ccitt,Jbig2}` — **nine**; `CryptFilter` goes to Stage 10 with the `StandardSecurityHandler` whose key it needs (D2-4).
 - `pdf/render/PdfiumInit`, `PdfiumDocument` (`Result<Handle> open(path, PasswordCb)`),
   `PdfiumRasterizer` (`Result<RasterImage> raster(const RenderRequest&)`), `GlyphCache`,
-  `FontResolverBridge`.
+  `FontResolverBridge` — **plus `core/render/FontSubstitution`, which this list did not name.**
+  *Which* face substitutes is policy and `platform/win/` makes none, so the candidate list is a
+  `core/` file; that is also what makes it assertable with no display and no engine (T16).
   **The three signatures above said `QImage` until 2026-09-01 and could not have been built as
   written** — `QImage` is QtGui, `core/` links `Qt6::Core` only and `layer-lint` has denied it there
   since Stage 0, so an interface declared in `core/backend.h` cannot name one. `core::RasterImage`
@@ -789,7 +792,11 @@ monitors at different scaling.
 - `ui/viewer/PageView`, `TilePresenter`, `PageLayoutEngine`, `ViewportController`.
 - `ui/shell/MessageBar`.
 - `platform/win/WinDisplayTopology` (`QVector<MonitorInfo> monitors() const`, `Signal<> changed`),
-  `WinAcceleratedSurface`, `WinFontResolver`, `WinPowerSession`.
+  `WinFontResolver`, `WinPowerSession` — **three, not four.** `WinAcceleratedSurface` was moved to
+  **Stage 4** at T16 rather than built, on the Stage 2 guide's own terms: accelerated presentation
+  is Stage 4's *if A2 says it is needed*, and A2's probe is p95 0.532 ms against a 16.667 ms budget.
+  Its `platform::Platform` member stays null, which is the vocabulary `platform.h` defines for *not
+  built*, and the interface census asserts it rather than letting a stub pretend.
 - `tests/golden/`, `tests/bench/`, `corpus/` (including `corpus/malformed/`), `tools/golden-update/`.
 
 **Key bindings handled** — from [`Features.md` §8 → Viewer](./Features.md#viewer-review-mode)

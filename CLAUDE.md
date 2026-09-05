@@ -640,19 +640,31 @@ now 48) registered ids have a ribbon control and all nine are unconditionally en
 after T14**, whose twenty-five additions are chords and a status-bar box. Reaching that case
 takes the tool finder or a hand-edited `ui/qatCommands`. The guide's §7 caveat row now says so.
 
-**CI is green on all four jobs** (run 32785493072), and **the `windows` job ran for the first time in
-the project's history** — 334/334 there, `gates` 52/52, `portable-asan` 196/196. Its absence was never
+**CI was green on all four jobs at the end of Stage 1** (run 32785493072), and that run is **the
+first time the `windows` job had ever executed** — 334/334 there, `gates` 52/52, `portable-asan`
+196/196. **Those three figures are a record of that run and not the current counts**, which are
+677 / 94 / (portable unmeasured since); a figure quoted from a named run is history, and re-reading
+it as status is how a stale number survives. Its absence was never
 the missing runner every document had assumed: one had been online since 2026-08-17, and the block was
 a variable **name** mismatch (`RECTO_HAS_WINDOWS_RUNNER` set, `RAWPAGE_HAS_WINDOWS_RUNNER` read —
 **I-30**). Three quarters of the test surface had therefore never been exercised by CI at all; it has
 now, and it was green first time. A fourth job, `coverage-report`, names in every run summary what
 went unexercised when the Windows job does not run, so a skipped job cannot again be misread as
 coverage.
+**One prefix is still outside CI's non-empty check, and it is the engine one.** The windows job
+asserts that `unit.`, `ui.`, `platform.` and `bench.` are each non-empty; **`render.` was never
+added** when that target arrived at Stage 2 T2, so a build that dropped the 40 cases which link
+PDFium would still report *100 % tests passed*. One word in `.github/workflows/ci.yml`, owned by
+**T18** with the rest of this stage's CI work.
 
 **Nothing is carried forward**: I-19 was paid off at T11, A-58 closed at T12, A-53 at T13, I-26…I-28
 each in the same change as the code that found them, and I-29 and I-30 the same way at T15.
 `core/CoreModule.cpp` — the last Stage 0 placeholder in `core/` — was deleted at T15, and **every file
-in the tree now has an `Architecture-FileMap.md` row**. Nothing is implemented ahead of the plan's task
+in the tree has an `Architecture-FileMap.md` row** — re-verified mechanically at T16 over all 338
+source files, which is how the one gap was found: **`tests/render/` had had no row since the target
+was created at T2**, because a test directory is the one thing no product file's definition of done
+points at. Added, along with a re-count of the map's own census — **118 ✅, 14 🟡, 150 ○, 1 ⤵** —
+whose summary paragraph had been frozen at Stage 1 T7 and still said *"no document code exists yet"*. Nothing is implemented ahead of the plan's task
 order.
 
 ### What now exists as code
@@ -1046,6 +1058,21 @@ catalogs and exits 0 without creating a window.
    changed is a rendered widget read back by hand. (**I-41**, found because the previous fix — a
    correct one to a real defect — changed nothing on screen.)
 
+22. **A case proving a mechanism FIRES is half of proving it fires WHEN IT SHOULD — and the criterion
+   will not ask for the other half.** Stage 2's guide gave T16 one sentence: *a missing embedded font
+   substitutes through our policy, proven by a case that names the substitute*. That case passed. The
+   case beside it — asking what happens to a font that is **not** missing — measured the product
+   replacing **Helvetica with Segoe UI on every page of every document**, because PDFium consults its
+   font hook for the base-14 faces too and four files in this project had written down that it would
+   not (**S2 · I-13**). The defect was in the half nobody had specified, it would have changed how
+   every existing document renders, and it would have been baked into the golden baselines one task
+   later. This is convention 7 pointed at a different target: 7 says a control must fail for the right
+   reason, and this says **a new mechanism needs a control at all**, written from *what must stay
+   untouched* rather than from the criterion. The three T16 shipped are the shape — a base-14 font, an
+   embedded font, and the hook uninstalled entirely.
+   *(Stage 2 T16. The other half of the lesson is I-10's: the four files that said it could not happen
+   were each repeating a claim written by somebody who had not built the thing.)*
+
 ### Accessibility is OUT OF SCOPE (2026-08-23)
 
 Removed from the product entirely on the user's instruction — **not deferred**. The single record is
@@ -1336,7 +1363,7 @@ guide case A-62's own *"report not applicable explicitly rather than pass vacuou
 | `rawpage_tests` | `rawpage_core`, `rawpage_cos` | `unit.` | Windows + `portable-asan`. It also compiles **three** `app/` translation units **in** rather than linking them — `CommandLine.cpp` (a pure `QStringList` → intent parse), `LogFile.cpp` (QtCore and nothing else) and `SingleInstance.cpp` (T15; names only `core/` and the interface header `platform/platform.h`) — and compiling rather than linking is what keeps the assertion below true. `rawpage_assert_headless()` — in `cmake/RawPageHeadless.cmake` since Stage 2 T1 — **fails configure** if this ever links `rawpage_ui`, `rawpage_platform` or **`rawpage_pdfium`**, directly or transitively; that assertion is the standing proof that `core/` needs no display and no engine, and `tests/gates/fixtures/headless-assert/` is the five-case fixture proving it fires — with the control proving it does not fire on a clean closure. **From S2 · T5 it also holds the COS reader's suite**: `rawpage_cos` contains `pdf/cos/Lexer` and, from T6, `CosObject` + `Parser`, and `tst_cos_lexer` / `tst_cos_parser` reach `corpus/` through a `RAWPAGE_CORPUS_DIR` compile definition — the same mechanism as `RAWPAGE_FEATURES_MD`, and for the same reason: a test that guessed a relative path would pass or fail on whatever working directory CTest happened to use |
 | `rawpage_platform_tests` | `rawpage_core`, `rawpage_platform` | `platform.` | **Windows only** (S1 · T7) |
 | `rawpage_ui_tests` | `rawpage_core`, `rawpage_ui` | `ui.` | **Windows only**, `QT_QPA_PLATFORM=offscreen` (D1-4). **Arrived at T9**, not the plan's T15, on the precedent `tests/platform` set at T7. It installs `rawpage_en.qm` so the widgets are exercised against real text rather than their own catalog keys. **From S2 · T13 every fixture comes from `tests/ui/ShellFixture.h`** — seven copies of the same eight fields became a seven-way edit the moment `app::Services` grew a render pipeline — and that header supplies the FAKE rasterizer the viewer suite runs on, since this target may not link an engine. Its tile colour is chosen so that *a page is on screen* is distinguishable from *a white sheet was drawn*, and it pads its rows so the `bytesPerLine` assumption is exercised somewhere |
-| `rawpage_render_tests` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium` | `render.` | **Windows only** (S2 · T2). **From S2 · T13 it also holds the only case that drives the REAL engine through the REAL scheduler** (`tst_renderpipeline.cpp`, guide A-79): every other suite fakes one end of that path — `tests/unit` and `tests/ui` may not link an engine, and the rest of this target calls the rasterizer with no scheduler — so the assembly the product actually runs had no case at all until then (issue **I-09**), which is why `app::BackendRasterizer` is a header rather than a class private to `CompositionRoot.cpp`. It links the ENGINE, which is the whole reason it is a separate target: the raster suite is the pressure that would otherwise put PDFium into the headless closure and destroy what `rawpage_assert_headless()` proves. It needs **no display** — there is no Qt GUI object in it — which is how "initializing PDFium does not require a display" is established rather than assumed. **From S2 · T9 it also holds the SHIPPED BACKEND's census**, which `tests/unit/tst_backend.cpp` used to assert: `pdf::createBackend()` moved into `rawpage_pdfium` when it started returning something that opens documents, and the headless suite may not link that. The portable half of A-46 stays in `tests/unit` over a test backend defined in that file |
+| `rawpage_render_tests` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium`, **`rawpage_platform`** (S2 · T16) | `render.` | **Windows only** (S2 · T2). **From S2 · T13 it also holds the only case that drives the REAL engine through the REAL scheduler** (`tst_renderpipeline.cpp`, guide A-79): every other suite fakes one end of that path — `tests/unit` and `tests/ui` may not link an engine, and the rest of this target calls the rasterizer with no scheduler — so the assembly the product actually runs had no case at all until then (issue **I-09**), which is why `app::BackendRasterizer` is a header rather than a class private to `CompositionRoot.cpp`. It links the ENGINE, which is the whole reason it is a separate target: the raster suite is the pressure that would otherwise put PDFium into the headless closure and destroy what `rawpage_assert_headless()` proves. It needs **no display** — there is no Qt GUI object in it — which is how "initializing PDFium does not require a display" is established rather than assumed. **From S2 · T9 it also holds the SHIPPED BACKEND's census**, which `tests/unit/tst_backend.cpp` used to assert: `pdf::createBackend()` moved into `rawpage_pdfium` when it started returning something that opens documents, and the headless suite may not link that. The portable half of A-46 stays in `tests/unit` over a test backend defined in that file. **`rawpage_platform` joined the link line at T16, and it is I-09's finding a second time**: the font chain is PDFium → `FontResolverBridge` → `WinFontResolver` → `core/render/FontSubstitution`, three libraries deep, and no existing target could hold more than one link of it — `tests/unit` may link neither engine nor OS layer, `tests/platform` may not link the engine. Adding the OS layer to a Windows-only, engine-linking target costs nothing of what this target's separateness protects, which is that **`tests/unit`** links no engine and no display |
 | `rawpage_bench_ribbon` | `rawpage_core`, `rawpage_ui` | `bench.` | **Windows only**, offscreen (T15). Not a test target and the difference is load-bearing: a test asserts and fails, **a benchmark reports, and its exit code is about whether the measurement was *possible*** — never about whether the machine was fast, or a loaded runner turns a green build red for a reason unrelated to the change. It is registered with CTest anyway, because a benchmark nobody runs is one that has stopped compiling by the time its number matters |
 | `rawpage_bench_render` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium` | `bench.` | **Windows only** (S2 · T3), and it creates **no Qt GUI object at all** — which is how "the engine needs no display" is established rather than assumed. A2's probe figure, and the run that found **I-05**. It takes an optional path, so any corpus file can be put through the real engine by hand; `8 --unsafe-parallel` reproduces the heap corruption on demand, because a finding that needs a source edit to reproduce is one that gets re-litigated |
 

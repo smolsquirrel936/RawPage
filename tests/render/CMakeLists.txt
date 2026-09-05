@@ -15,9 +15,15 @@
 # one -- is a thing this suite establishes rather than assumes, by running in a process that has no
 # QGuiApplication at all.
 #
-# The `render.` prefix is new, and CI's T15-era assertion that a registered prefix is never EMPTY
-# extends to it: a target that fails to build subtracts cases from a run still reporting
-# "100% tests passed".
+# THE `render.` PREFIX IS NOT YET ASSERTED BY CI, and this comment claimed the opposite until it was
+# checked at T16. `.github/workflows/ci.yml`'s non-empty-prefix loop names `unit`, `ui`, `platform`
+# and `bench`; `render` was never added when this target arrived at T2, so a target that failed to
+# build would subtract 40 cases from a run still reporting "100% tests passed" -- which is the exact
+# failure that loop exists to catch, in the one suite that links the engine.
+#
+# It is a one-word fix and it belongs to **T18**, which owns this stage's CI work (see
+# `Stage2-Rendering-Plan.md` 10, where the same gap is recorded against the summary job's prefix
+# list). Written here as well as there because this is the file whose absence would be missed.
 
 find_package(Catch2 3 REQUIRED)
 

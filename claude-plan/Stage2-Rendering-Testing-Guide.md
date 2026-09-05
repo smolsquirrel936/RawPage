@@ -100,8 +100,15 @@
 - **A page on screen**, scrollable and zoomable, in all four layout modes, at each monitor's physical
   DPI, surviving a drag between monitors at different scaling.
 - The **§8 Viewer key bindings** listed in `Implementation-Plan.md` § Stage 2, and the first
-  `KeyContext` declaration the product has ever had.
-- **A2 has a recorded verdict with numbers**, and **O7** and **O10** are resolved.
+  `KeyContext` declaration the product has ever had. **Met at T14** — 23 of 361 registered ids
+  became 48, and the seven chords later stages own stay `NotFound` and leave the key unconsumed,
+  which a case walks rather than a comment describing.
+- **A missing embedded font substitutes through OUR policy and the product can name the face**
+  (T16). Not in the original list, and it is what A-66 is for.
+- **A2 has a recorded verdict with numbers**, and **O7** and **O10** are resolved. **Neither is done:**
+  A2's probe figure is recorded (`go`, p95 0.532 ms) and the PRODUCT's is T18's — D2-1 measures it
+  twice on purpose — and both open decisions are owned by T18, which reads T11's cache
+  instrumentation. As of T16 they are correctly still open in `Implementation-Plan.md` §8.
 
 ### Out of scope — do NOT file these as bugs
 
@@ -111,7 +118,7 @@ Reporting one costs a triage cycle and, worse, invites someone to build it early
 | Not a bug this stage | Arrives at |
 |---|---|
 | **Nothing can be changed or saved.** `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+R` (rotate pages) do nothing and consume no key | Stage 3 |
-| No text selection, no copy, no search, no `Ctrl+F` | Stage 5 |
+| No text selection, no copy, no search, no `Ctrl+F` — the **Select** tool arms and selects nothing, which is deliberate rather than broken (T14) | Stage 5 |
 | No annotations, forms, security editing, signatures, or export | Stages 6–11 |
 | No split views, rulers, grid, guides, full screen, presentation, or session restore. `Ctrl+U`, `Ctrl+'`, `Ctrl+;`, `Ctrl+L` are unregistered | Stage 4 |
 | No thumbnails, bookmarks or destinations pane — the sidebar still holds nothing document-shaped | Stage 4 |
@@ -121,7 +128,8 @@ Reporting one costs a triage cycle and, worse, invites someone to build it early
 | Twenty-one of 26 Preferences groups are still absent; five ship after T15 | Stage 14 |
 | `general/touchMode` still reads back and does nothing (Stage 1's I-38) | Stage 14 |
 | **No icons anywhere.** Still true, still deliberate | when there are assets |
-| Most of the 361 declared commands are still disabled and say so. Registration goes from 23 to roughly 45 | per feature stage |
+| **A substituted font is chosen and logged, and no surface says so.** Since T16 the substitution is ours and `FontResolverBridge` records the face; what does not exist is any way for a person to see it — no message-bar row, no font-substitution dialog. The page looks right or it does not, and only the log says why | Stage 14, with the rest of the document-properties surface |
+| Most of the 361 declared commands are still disabled and say so — and since T14 they say **which kind** of disabled (Stage 1's I-53). Registration went from 23 to **48** at T14; *roughly 45* was this row's estimate before the count existed | per feature stage |
 
 ### What this corpus cannot tell us
 

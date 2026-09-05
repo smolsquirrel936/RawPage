@@ -390,8 +390,13 @@ rawpage/
   its own two interface headers. It **never** includes `ui/`, `pdf/`, `platform/win/`, `QtWidgets`,
   `QtGui`, PDFium, or any OS header. `tools/layer-lint` enforces the allowlist, so extending it is a
   deliberate act, not a drift.
-- `core/` reaches the PDF engine only through `core/backend.h`, which declares
-  `IDocumentBackend`, `IPageRasterizer`, `ITextExtractor`, `ISigner`, `IOcrEngine`, `IIndexer`.
+- `core/` reaches the PDF engine only through `core/backend.h`, which declares **seven** interfaces
+  (Stage 2 T1, decision D2-7): `IDocumentBackend`, `IPageRasterizer`, `ITextExtractor`,
+  **`MutationSink`**, `ISigner`, `IOcrEngine`, `IIndexer`. This list read six until it was checked
+  against the header at Stage 2 T16 — `MutationSink` is the one every mutating stage from Stage 3
+  onward is built on, and it is the one that was missing. An unimplemented interface returns an
+  `Unsupported` `Result` naming itself and the method, never a silent success; **two of the seven
+  are implemented** as of Stage 2.
 - `core/` reaches the OS only through `platform/platform.h`.
 - `pdf/` implements `core/backend.h`. It is the **only** place a `FPDF_*` symbol or a PDF byte write
   may appear. It does not know `ui/` or `core/`'s concrete classes exist beyond the interface header.
@@ -405,8 +410,15 @@ rawpage/
   at runtime or by tests.
 
 This is machine-checked, not trusted: `tools/layer-lint` fails CI on any include that crosses a
-boundary the wrong way, on any `FPDF_` outside `pdf/`, and on any filesystem write outside `pdf/`
-and `core/settings/`.
+boundary the wrong way; on a PDFium call **or handle** named outside **`pdf/render/`** — narrowed
+from `pdf/` at Stage 2 T2, because `pdf/cos/` is first-party by rule; on a filesystem write outside
+`pdf/`, `core/settings/`, `tools/` and `tests/`; on a path read out of `argv` outside
+`app/main.cpp`; and on a `QAction` constructed outside `ui/shell/ActionFactory.cpp`. **One narrowing
+of the rule above is real and cannot be read off this diagram**: `pdf/render/` may include
+`platform/platform.h` and the rest of `pdf/` may not (Stage 2 T16), because PDFium's font mapper is
+a process-global hook and that file is where the two boundaries meet.
+[`tools/layer-lint/rules.json`](../tools/layer-lint/rules.json) is the executable form of all of it
+and is the copy that cannot go stale.
 
 ### 4.3 What Qt gives us for free, versus what needs platform code
 
@@ -546,13 +558,22 @@ onto changed content.
 ### 5.6 How it stays enforced
 
 Four independent gates, because a convention that depends on reviewer attention will not survive
-a hundred stages:
+a hundred stages. **Three of the four are live; `mutation-lint` is Stage 3's, because it checks a
+`Command` registry that does not exist yet** — and the `checks` target says *three* rather than
+four, which is what keeps an unbuilt gate from reading as a passing one.
 
-1. **`tools/layer-lint`** (CI, blocking) — fails on: any `FPDF_` symbol outside `pdf/`; any
-   `QFile`/`std::ofstream`/`CreateFile` write outside `pdf/` and `core/settings/`; any `#include`
-   of `ui/` from `core/` or `pdf/`; any `#include` of `pdf/` or `platform/win/` from `ui/` or
-   `core/`.
-2. **`tools/mutation-lint`** (CI, blocking) — every `Command` subclass must be listed in
+1. **`tools/layer-lint`** (CI, blocking) — fails on: a PDFium call **or handle** named outside
+   **`pdf/render/`** (narrowed from `pdf/` at Stage 2 T2, because `pdf/cos/` is first-party by rule
+   and is half of what the portable presets build on Linux); any
+   `QFile`/`std::ofstream`/`CreateFile` write outside `pdf/`, `core/settings/`, `tools/` and
+   `tests/` — the last two because a gate and a test fixture write by definition; a path read out of
+   `argv` outside `app/main.cpp`; a `QAction` constructed outside `ui/shell/ActionFactory.cpp`; an
+   OS header in `platform/platform.h`; an engine or QtGui include in `core/backend.h`; any
+   `#include` of `ui/` from `core/` or `pdf/`; and any `#include` of `pdf/` or `platform/win/` from
+   `ui/` or `core/`. **[`tools/layer-lint/rules.json`](../tools/layer-lint/rules.json) is the
+   executable form and the copy that cannot go stale** — this list is a summary and has already
+   drifted from it once (corrected at Stage 2 T16).
+2. **`tools/mutation-lint`** (CI, blocking) — **Stage 3.** Every `Command` subclass must be listed in
    `core/cmd/CommandRegistry.cpp`; every registered command must have a round-trip
    serialize/deserialize test and a revert test. A new command with no test fails the build.
 3. **A reversibility property test** (unit) — for each registered command, over the corpus:
@@ -563,9 +584,11 @@ a hundred stages:
 
 ### 5.7 Build-time check
 
-`cmake --build --target checks` runs `layer-lint`, `mutation-lint`, `i18n-lint` (D6), and
-`license-audit` (§8). CI runs `checks` **before** compiling, so a layering violation fails in
-seconds rather than after a full build.
+`cmake --build --target checks` runs the gates that exist — **`layer-lint`, `license-audit` (§8) and
+`i18n-lint` (D6), and it prints *three*** — and gains `mutation-lint` at Stage 3. A target that
+claimed four while running three would be the exact failure these gates exist to prevent, one level
+up. CI runs `checks` **before** compiling, so a layering violation fails in seconds rather than
+after a full build.
 
 ---
 
