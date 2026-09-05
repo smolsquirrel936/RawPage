@@ -40,6 +40,15 @@ const std::vector<std::string> kSpdxAllowlist = {
     // already here. Added with the row in spdx-map.json and the Tech-Stack-Plan.md 8.2 line,
     // in one change, because this list's own comment says it is the only copy.
     "0BSD",
+    // bzip2-1.0.6 -- bzip2, which arrives transitively with `freetype` under the `fonts`
+    // feature (Stage 5; NOT Stage 2 -- see vcpkg.json's split comment and issue I-02).
+    // THE IDENTIFIER IS NAMED AFTER A VERSION AND THE PORT IS 1.0.8, and that is not a
+    // mistake to correct: SPDX names the licence after the release whose text it is.
+    // BSD-style permissive -- retain the notice, no endorsement, no copyleft, no
+    // source-disclosure obligation. Added at Stage 2 T16 with the row in spdx-map.json and
+    // the Tech-Stack-Plan.md 8.2 line, in one change, because this list's own comment says
+    // it is the only copy.
+    "bzip2-1.0.6",
     "Apache-2.0",
     "Zlib",
     "BSL-1.0",

@@ -31,6 +31,31 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error"],
+
+  "$comment-keyFamilies": [
+    "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
+    "key a source REFERENCES against the catalogs: missing-key compares the shipped catalogs against",
+    "each other, action-label covers action.* from ActionId.def, and orphan-key is the INVERSE",
+    "question. So a key a source names and no catalog defines was invisible from both directions,",
+    "and eighteen of them shipped.",
+    "",
+    "WHY A FAMILY LIST RATHER THAN 'EVERY DOTTED LITERAL'. The scanner's notion of a catalog key is",
+    "deliberately generous, because an over-broad reference set makes orphan-key QUIETER and",
+    "orphan-key is a note. unknown-key is the opposite: it BLOCKS, so the same generosity would",
+    "report settings.ini, pdfium.dll, rawpage_en.qm and every dotted path in the tree as a missing",
+    "translation. Anchoring on the five declared families is what makes it precise enough to fail a",
+    "build on.",
+    "",
+    "A reference ENDING IN A DOT is a namespace and is skipped by both rules: several families are",
+    "built from a table at runtime -- one key per KeyContext, per settings path, per log subsystem --",
+    "so the whole key appears in no source and only the prefix does (T14, issue I-27).",
+    "",
+    "Adding a family here is how a new catalog namespace becomes enforced. Leaving one out is a",
+    "silent gap, which is why the list is short and why it lives beside scannedPaths rather than in",
+    "the tool."
+  ],
+
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],
 
   "$comment-scannedPaths": [
@@ -47,10 +72,8 @@
     "Adding them changes what the LITERAL rule covers as well, which is the half that matters going",
     "forward: pdf/cos/ produces a named error for every malformation it survives, from T5 onward.",
     "",
-    "It does NOT close the gap issue I-04 records. Nothing here compares a key a source REFERENCES",
-    "against the catalogs -- orphan-key is the inverse question and is a note -- so eighteen keys",
-    "referenced by shipped code still have no catalog entry, four of them in core/, which has been",
-    "scanned since T6. Scanning more directories does not find them; a rule does."],
+    "It did NOT close the gap issue I-04 records -- `keyFamilies` above and the unknown-key rule did,",
+    "at T16. Scanning more directories never finds a key nobody defines; a rule does."],
 
   "$comment-scanned": [
     "core/ is scanned even though it has no tr() and no QObject. That is the point: core/ must hold",

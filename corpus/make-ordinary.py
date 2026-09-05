@@ -851,6 +851,101 @@ def latin_embedded():
     return pdf.serialize(catalog, pb.info_object(pdf, "RawPage corpus: embedded Latin subset"))
 
 
+def _absent_widths(first, last):
+    """A plausible, NON-UNIFORM width for each code.
+
+    The widths must vary, and finding that out cost a debugging session at S2 · T16: with every
+    /Widths entry equal, PDFium concludes the font is MONOSPACED and sets `FXFONT_FF_FIXEDPITCH` in
+    the `pitch_family` it passes to the font hook — so both of this file's fonts were resolved down
+    the fixed-pitch branch and both came back as Consolas, which made the serif bit in /Flags
+    unobservable. The engine is right to infer it; the fixture was wrong to invite it.
+
+    The shape below is a crude Latin metric — narrow for i/l/j and punctuation, wide for m/w/M/W —
+    computed rather than tabulated so that it stays reproducible byte for byte."""
+    narrow = set(b"iljtfI.,;:'|!()[]{}")
+    wide = set(b"mwMW@")
+    widths = []
+    for code in range(first, last + 1):
+        if code in narrow:
+            widths.append(278)
+        elif code in wide:
+            widths.append(889)
+        elif chr(code).isupper():
+            widths.append(667)
+        else:
+            widths.append(500)
+    return widths
+
+
+def _absent_font(pdf, ps_name, flags):
+    """A font the document NAMES and does not embed: a /FontDescriptor with no /FontFile of any
+    kind. That is not damage -- it is what every producer emits when the author's font was not
+    licensed for embedding, and it is the single most common reason a PDF looks different on two
+    machines.
+
+    The /BaseFont carries a six-capital subset tag even though nothing is subset, because real
+    files do: a producer that subsets and then fails to embed leaves the tag behind. It is here so
+    that `core::render::normalizeBaseFontName` is exercised end to end rather than only by its own
+    unit case."""
+    descriptor = pdf.add(pb.dictionary([
+        (b"/Type", b"/FontDescriptor"), (b"/FontName", pb.name(ps_name)),
+        (b"/Flags", pb.num(flags)), (b"/FontBBox", pb.rect(-200, -250, 1000, 900)),
+        (b"/ItalicAngle", b"0"), (b"/Ascent", b"880"), (b"/Descent", b"-250"),
+        (b"/CapHeight", b"700"), (b"/StemV", b"80"), (b"/MissingWidth", b"500")]))
+    first, last = 32, 126
+    return pdf.add(pb.dictionary([
+        (b"/Type", b"/Font"), (b"/Subtype", b"/TrueType"),
+        (b"/BaseFont", pb.name(ps_name)),
+        (b"/FirstChar", pb.num(first)), (b"/LastChar", pb.num(last)),
+        (b"/Widths", pb.array([pb.num(w) for w in _absent_widths(first, last)])),
+        (b"/Encoding", pb.dictionary([(b"/Type", b"/Encoding"),
+                                      (b"/BaseEncoding", b"/WinAnsiEncoding")])),
+        (b"/FontDescriptor", pb.ref(descriptor))]))
+
+
+@generator("font-not-embedded.pdf")
+def font_not_embedded():
+    """Two fonts the document names and does not embed -- one serif, one sans -- so that whatever
+    renders them had to CHOOSE something.
+
+    THIS IS THE FILE GUIDE CASE A-66 NEEDS, and it exists because none of the other 29 could serve.
+    Every other text fixture uses either a base-14 face -- which every conforming reader is obliged
+    to have, so PDFium answers from its own bundled Foxit copies and no substitution happens at all
+    -- or an embedded /FontFile2, where the outlines are in the file. A missing font is a third
+    thing, and it is the only one that reaches a font resolver.
+
+    The two /BaseFont names are deliberately absent from every machine on earth, so the substitute
+    is never accidentally the requested face: `RawPageAbsentSerif` and `RawPageAbsentSans` are ours
+    and are not installed anywhere. The /Flags differ in exactly one bit -- serif (2) -- which is
+    the input `core::render::substitutionCandidates` branches on, so a resolver that ignored the
+    descriptor and always answered the same family produces a visibly identical pair of lines and
+    fails the case.
+    """
+    pdf = pb.Pdf()
+    regular = pb.base14(pdf, "Helvetica")
+    bold = pb.base14(pdf, "Helvetica-Bold")
+
+    # 34 = serif (2) + nonsymbolic (32); 32 = nonsymbolic alone.
+    serif = _absent_font(pdf, "RAWPGA+RawPageAbsentSerif", 34)
+    sans = _absent_font(pdf, "RAWPGB+RawPageAbsentSans", 32)
+
+    content = b"\n".join([
+        _label("font-not-embedded.pdf - two fonts named, neither embedded"),
+        pb.show_text(48, 700, 9, "the two lines below name fonts this file does not carry:"),
+        pb.show_text(48, 650, 28, "Serif substitution sample", b"/F3"),
+        pb.show_text(48, 600, 28, "Sans substitution sample", b"/F4"),
+        pb.show_text(48, 540, 9, "and the same text in base-14 Helvetica, which is never substituted:"),
+        pb.show_text(48, 500, 28, "Serif substitution sample"),
+    ]) + b"\n"
+    contents = pb.content_stream(pdf, content)
+    resources = pb.dictionary([
+        (b"/Font", pb.dictionary([(b"/F1", pb.ref(regular)), (b"/F2", pb.ref(bold)),
+                                  (b"/F3", pb.ref(serif)), (b"/F4", pb.ref(sans))]))])
+    catalog, _, _ = pb.simple_document(
+        pdf, [lambda parent: pb.page(parent, pb.A4, contents, resources)])
+    return pdf.serialize(catalog, pb.info_object(pdf, "RawPage corpus: fonts named, not embedded"))
+
+
 # ---------------------------------------------------------------------------------------------
 # Interactive structure
 # ---------------------------------------------------------------------------------------------

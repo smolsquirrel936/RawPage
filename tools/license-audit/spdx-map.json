@@ -58,6 +58,31 @@
       "noticeRequired": false
     },
 
+    "brotli": {
+      "spdx": "MIT",
+      "origin": "vcpkg",
+      "upstream": "https://github.com/google/brotli",
+      "election": "TRANSITIVE, not declared: brotli arrives with `freetype`, which arrives with the `fonts` feature (Stage 5 -- NOT Stage 2; see I-02 and vcpkg.json's split comment). Verified 2026-08-31 against upstream LICENSE, which is standard MIT text. This row exists so the no-GPL rule is enforced with NO installed tree as well as with one, and so the first run after Stage 5 turns `fonts` on is a pass rather than a discovery.",
+      "noticeRequired": false
+    },
+
+    "bzip2": {
+      "spdx": "bzip2-1.0.6",
+      "origin": "vcpkg",
+      "upstream": "https://sourceware.org/bzip2/",
+      "election": "TRANSITIVE, not declared: bzip2 1.0.8 arrives with `freetype` (Stage 5). Its SPDX identifier is `bzip2-1.0.6` -- the licence is named after the version that introduced its current text, which is why the identifier and the version do not match and why that is not a mistake to correct. BSD-style permissive, verified 2026-08-31 against upstream LICENSE: retain the notice, no endorsement, no copyleft and no source-disclosure obligation. NOTE for Stage 15: vcpkg installs the port as `bzip2[core,tool]`, so a `bzip2.exe` lands in installed/<triplet>/tools/. That one is harmless -- it is under the same permissive licence as the library -- but the SAME SHAPE is a real hazard for libiconv below.",
+      "noticeRequired": false
+    },
+
+    "libiconv": {
+      "spdx": "LGPL-3.0",
+      "origin": "vcpkg",
+      "upstream": "https://www.gnu.org/software/libiconv/",
+      "sourceOffer": "TODO-BEFORE-RELEASE, AND NOT BEFORE STAGE 13: host the exact GNU libiconv source and any patch we apply, alongside the Qt and Hunspell offers, and link all three from About -> Third-Party Notices. Nothing links libiconv before Stage 13 -- confirmed at Stage 2 T16 with `objdump -p` on the built rawpage.exe, which imports none of it -- so the obligation is not live today and this row is the record that it becomes live with the `spelling` feature.",
+      "election": "TRANSITIVE, not declared: libiconv's ONLY parent is `hunspell` (measured with `vcpkg depend-info`, 2026-08-31, after I-02 first mis-attributed it to icu), which arrives with the `spelling` feature at Stage 13. vcpkg declares its licence `null` because THE PACKAGE IS SPLIT and no single SPDX expression describes it: the portfile says, verbatim, that the libiconv and libcharset LIBRARIES are under LGPL and that the iconv PROGRAM and the documentation are under GPL. What we would link is the library, LGPL-2.1-or-later, which D4 permits; as with Hunspell, an `or later` grant is taken specifically as LGPL-3.0 so that ONE obligation model covers Qt, Hunspell and this. WHAT WE MUST NEVER SHIP is the GPL `iconv.exe`, which vcpkg_copy_tool_dependencies installs into installed/<triplet>/tools/libiconv/bin/. That is not a breach and no stage packages anything yet -- D4 forbids a GPL DEPENDENCY, not a GPL binary in a toolchain directory -- and it becomes one the moment Stage 15's MSI/MSIX work sweeps a tools/ directory. Stage 2 T16 split vcpkg.json's `text` feature partly for this: the port now enters the tree at Stage 13 rather than at Stage 2.",
+      "noticeRequired": false
+    },
+
     "freetype": {
       "spdx": "FTL",
       "origin": "vcpkg",

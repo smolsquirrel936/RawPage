@@ -57,15 +57,47 @@
       ]
     },
 
-    "text": {
-      "description": "Glyph rasterization, complex-script shaping, collation, spelling (Stages 2, 5, 13)",
+    "$comment-text-split": [
+      "`text` WAS ONE FEATURE UNTIL STAGE 2 T16 AND IS NOW THREE. It was declared at Stage 0 as",
+      "'Glyph rasterization, complex-script shaping, collation, spelling (Stages 2, 5, 13)' -- one",
+      "group spanning three stages -- and Stage2-Rendering-Plan.md 10 recorded that this was too",
+      "coarse for T16 and asked that task to split it or to record why not.",
+      "",
+      "T16 SPLIT IT, and the reason is not tidiness. Turning `text` on would BUILD hunspell, which is",
+      "libiconv's only parent (measured with `vcpkg depend-info`, 2026-08-31, issue I-02) -- and the",
+      "libiconv port installs a GPL `iconv.exe` into installed/<triplet>/tools/. That is not a breach",
+      "and Stage 2 packages nothing, but it becomes one the moment Stage 15's MSI/MSIX work sweeps a",
+      "tools/ directory, and it would have entered the tree eleven stages before anything linked the",
+      "library. Three features means Stage 13 turns spelling on and nothing before it does.",
+      "",
+      "STAGE 2 TURNS ON NONE OF THEM, which is the second half of the split and is a measurement",
+      "rather than an omission: PDFium bundles its own FreeType, and T16's font substitution reaches",
+      "the OS through DirectWrite and hands PDFium the face's BYTES, so nothing in Stage 2 links",
+      "freetype either. Confirmed the way T16's own Done-when clause requires -- `objdump -p` on the",
+      "built rawpage.exe names eighteen DLLs and not one of them comes from these three features."
+    ],
+
+    "fonts": {
+      "description": "Glyph rasterization for a first-party text pipeline (Stage 5 onward; NOT Stage 2 -- PDFium bundles its own FreeType and T16 resolves faces through DirectWrite)",
       "dependencies": [
         {
           "name": "freetype",
           "$comment": "Dual FTL / GPL-2.0. We elect FTL -- recorded explicitly in THIRD-PARTY.md."
-        },
+        }
+      ]
+    },
+
+    "shaping": {
+      "description": "Complex-script shaping and collation (Stage 5)",
+      "dependencies": [
         "harfbuzz",
-        "icu",
+        "icu"
+      ]
+    },
+
+    "spelling": {
+      "description": "Spell checking (Stage 13). PULLS libiconv, which is LGPL and whose port also installs a GPL iconv.exe into the vcpkg tree -- see I-02 and the split comment above",
+      "dependencies": [
         {
           "name": "hunspell",
           "$comment": "Tri-licensed 'MPL-1.1 OR LGPL-2.1-or-later OR GPL-2.0-or-later'. We ELECT the LGPL branch and, because that grant is '2.1 OR LATER', take it specifically as LGPL-3.0 -- the same licence as Qt, so one obligation model covers both: dynamic linking, user-replaceable binaries, a corresponding-source offer. The election and its reasoning are owned by tools/license-audit/spdx-map.json and reproduced in THIRD-PARTY.md; this comment must not drift from them again (I-21)."

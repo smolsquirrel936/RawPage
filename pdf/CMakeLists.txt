@@ -176,6 +176,16 @@ add_library(rawpage_pdfium STATIC
     render/PdfiumRasterizer.h
     render/PdfiumRasterizer.cpp
 
+    # T16: font substitution on OUR side of the engine boundary. FontResolverBridge is the
+    # FPDF_SYSFONTINFO hook -- PDFium asks, platform::IFontResolver answers, and every substitution
+    # is logged and readable, which is the whole of guide case A-66. GlyphCache holds the face data
+    # behind it; read its header before the name misleads you, because PDFium rasterizes and caches
+    # the GLYPHS and this caches the FILES.
+    render/GlyphCache.h
+    render/GlyphCache.cpp
+    render/FontResolverBridge.h
+    render/FontResolverBridge.cpp
+
     # The backend itself, and the factory that vends it. Both are in THIS library rather than in
     # rawpage_cos for the reason at the top of the rawpage_cos block: they need the engine.
     DocumentBackendImpl.h

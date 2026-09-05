@@ -32,6 +32,16 @@ public:
     bool isExcluded(const std::string& repoRelativePath) const;
     bool isScannableExtension(const std::filesystem::path& path) const;
 
+    // The catalog namespaces the `unknown-key` rule is anchored on -- "action", "shell", "error"
+    // and the rest. See rules.json: the scanner's idea of a key is deliberately generous because
+    // orphan-key only reports, and a BLOCKING rule over the same set would fail the build on
+    // settings.ini and pdfium.dll.
+    const std::vector<std::string>& keyFamilies() const { return keyFamilies_; }
+
+    // Whether a reference is one this project is responsible for translating: its first
+    // dot-separated segment is a declared family, and it is not a namespace prefix.
+    bool isCatalogKey(const std::string& reference) const;
+
     // The one escapable rule (Stage1-AppShell-Plan.md 5.6). `unwrapped-literal` is a heuristic, so
     // it gets the same inline waiver shape layer-lint already uses -- and the same --explain census,
     // because an escape hatch nobody can see is an escape hatch that becomes the norm.
@@ -46,6 +56,7 @@ private:
     std::vector<std::string> excluded_;
     std::vector<std::string> extensions_;
     std::vector<std::string> escapableKinds_;
+    std::vector<std::string> keyFamilies_;
     std::filesystem::path    sourcePath_;
 };
 

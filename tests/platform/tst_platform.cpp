@@ -86,11 +86,16 @@ TEST_CASE("an empty bundle reports every interface as unimplemented", "[platform
     CHECK(unimplementedInterfaces(empty).size() == kPlatformInterfaceCount);
 }
 
-// FOUR AS OF STAGE 2 T12, and the number is in the name on purpose. This case is the census, and a
-// census whose title says "two" while its body says four is the shape of drift the T1 recount was
-// written to stop. Stage 1 wired `ISingleInstanceBus` and `IShellIntegration`; T12 adds
-// `IDisplayTopology` and `IPowerSession` -- the two the render policy layer was waiting on.
-TEST_CASE("the Windows bundle implements exactly the four interfaces built so far", "[platform]")
+// FIVE AS OF STAGE 2 T16, and the number is in the name on purpose. This case is the census, and a
+// census whose title says "two" while its body says five is the shape of drift the T1 recount was
+// written to stop. Stage 1 wired `ISingleInstanceBus` and `IShellIntegration`; T12 added
+// `IDisplayTopology` and `IPowerSession` -- the two the render policy layer was waiting on -- and
+// T16 adds `IFontResolver`.
+//
+// `IAcceleratedSurface` is NOT among them and the omission is deliberate rather than pending: the
+// Stage 2 guide's caveat table puts accelerated presentation at Stage 4, *if A2 says it is needed*,
+// and a null member is the vocabulary platform.h defines for "not built" (convention 6).
+TEST_CASE("the Windows bundle implements exactly the five interfaces built so far", "[platform]")
 {
     win::PlatformOptions options;
     options.executablePath = QStringLiteral("C:/nowhere/rawpage.exe");
@@ -103,17 +108,22 @@ TEST_CASE("the Windows bundle implements exactly the four interfaces built so fa
     CHECK(platform->shellIntegration != nullptr);
     CHECK(platform->displayTopology != nullptr);
     CHECK(platform->powerSession != nullptr);
+    CHECK(platform->fontResolver != nullptr);
+
+    // Still null, and asserted rather than assumed -- see the note above the case.
+    CHECK(platform->acceleratedSurface == nullptr);
 
     const std::vector<std::string_view> missing = unimplementedInterfaces(*platform);
-    CHECK(missing.size() == kPlatformInterfaceCount - 4);
+    CHECK(missing.size() == kPlatformInterfaceCount - 5);
 
-    // Named, not just counted: a bundle that implemented four DIFFERENT interfaces would satisfy a
+    // Named, not just counted: a bundle that implemented five DIFFERENT interfaces would satisfy a
     // count and would mean the factory wired the wrong things.
     for (const std::string_view name : missing) {
         CHECK(name != "ISingleInstanceBus");
         CHECK(name != "IShellIntegration");
         CHECK(name != "IDisplayTopology");
         CHECK(name != "IPowerSession");
+        CHECK(name != "IFontResolver");
     }
 }
 

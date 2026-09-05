@@ -48,6 +48,8 @@ add_executable(rawpage_tests
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34
     tst_rendercache.cpp           # Stage 2 T11 -- guide cases A-40, A-41
     tst_renderscheduler.cpp       # Stage 2 T11 -- guide cases A-36, A-37, A-38, A-39's core/ half
+    tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
+                                  #   face substitutes, asserted with no engine and no Windows
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #

@@ -55,7 +55,7 @@ three jobs, verdicts **A5** and **A6** recorded in ②.
 **Stage 1 is COMPLETE — every Definition-of-Done item closed as of 2026-08-31**, the manual walk
 included. All fifteen tasks, all nine walkable manual cases signed off by the user, no open issue.
 
-**Stage 2 is under way — T1 … T15 of 18 are complete**, the most recent nine on 2026-09-04. **T13 is the one the stage is named for — a page is on screen — T14 is where the keyboard moves it, and T15 is where the Preferences dialog changes what is drawn.** Its
+**Stage 2 is under way — T1 … T16 of 18 are complete**, nine of them on 2026-09-04 and T16 on 2026-09-05. **T13 is the one the stage is named for — a page is on screen — T14 is where the keyboard moves it, T15 is where the Preferences dialog changes what is drawn, and T16 is where a missing font stops being the engine's decision.** Its
 execution plan ([⑤](./Stage2-Rendering-Plan.md) — decisions **D2-1…D2-14**, tasks **T1…T18**) and its
 testing guide ([⑥](./Stage2-Rendering-Testing-Guide.md) — **81 automated**, **10 manual** cases) were
 both written on 2026-08-31, **before any Stage 2 code**, per ④ §5. It carries the **A2** go/no-go and
@@ -63,41 +63,45 @@ owns **O7** and **O10**. Writing them corrected two stage tags in ③ that disag
 guide's **I-01**.
 
 **Where Stage 2 has got to**: the engine boundary and the pinned PDFium (T1–T2), A2's probe verdict
-`go` (T3), the 60-file generated corpus (T4), and then the whole first-party COS reader — lexer,
+`go` (T3), the 60-file generated corpus (T4; 61 since T16), and then the whole first-party COS reader — lexer,
 object model, parser, nine filters, cross-reference engine and repair scanner (T5–T8) — which meets
 the **Stage 2 exit criterion** on Windows: every one of the 24 `corpus/malformed/` files yields a
 report and never a crash. **T9 opened a document and drew a page**, and **T10 and T11 built the whole
 of `core/render/`** — resolution policy, tiling, page layout, the two-tier cache and the scheduler.
 T11 also **closed I-05**, choosing the arrangement D2-9 had left open: one render thread with a queue,
 on the measurement that eight workers behind the engine lock buy 5 %. What is still missing is the
-thing that puts a rendered tile on screen: `ui/viewer/` (T13). Nothing yet WRITES a PDF byte — that is
-Stage 3.
+thing that puts a rendered tile on screen: `ui/viewer/` (T13). **T13, T14 and T15 built it, the
+keyboard for it and the settings that change it**, and **T16 took font substitution off the engine and
+put it behind `platform::IFontResolver`** — which found this stage's only S2 in the product, the base-14
+faces being replaced with system fonts on every page of every document. What is still missing is the
+golden suite (T17) and A2's product figure (T18). Nothing yet WRITES a PDF byte — that is Stage 3.
 
 | | |
 |---|---|
-| Tests | **642/642** on `x64-debug` and `x64-release`, measured 2026-09-04 at Stage 2 T15 (one test explicitly **SKIPPED**: the battery case, on a desktop that has none); the bare `gates` preset **90/90** with no Qt. Split: `unit.` 311, `ui.` 178, `gates.` 90, `platform.` 28, `render.` 33, `bench.` 2 |
-| Gates | `layer-lint` **255 files / 1,745 includes** with **eight** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **167 files / 2 catalogs / 0 waivers** (measured 2026-09-04). **Three live**, not four — `mutation-lint` is Stage 3's |
+| Tests | **677/677** on `x64-debug` and `x64-release`, measured 2026-09-05 at Stage 2 T16 (one test explicitly **SKIPPED**: the battery case, on a desktop that has none); the bare `gates` preset **94/94** with no Qt. Split: `unit.` 328, `ui.` 178, `gates.` 94, `platform.` 35, `render.` 40, `bench.` 2 |
+| Gates | `layer-lint` **266 files / 1,811 includes** with **eight** filesystem-write waivers, `license-audit` clean at **20 components** and 4 Qt modules, `i18n-lint` **175 files / 2 catalogs / 0 waivers** and a fourth rule since T16 — `unknown-key`, which BLOCKS (measured 2026-09-05). **Three live**, not four — `mutation-lint` is Stage 3's |
 | Verdicts | **A3 = `go, with named custom work`** and **A2's probe = `go`** (both in ②'s §3.3, per criterion). A2's *product* figure is still owed at T18 — D2-1 measures it twice on purpose |
-| Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user. **Stage 2's ten manual cases have not been walked; the first four became walkable at T13 and are worth walking after T15** — a page is on screen, the §8 Viewer chords move it, the chrome reports on it, and the `pageDisplay/` toggles exist. M-05 … M-10 still need golden baselines (T17), fonts (T16) or Dr. Memory |
-| Issues | Stage 1: **I-01…I-55, none open** — and **I-53, the one deferred rather than fixed, was closed at Stage 2 T14**. Stage 2: **eleven**, of which **four are open** — **I-02** (S2, the licence gate's resolved closure, T7/T16), **I-04** (S3, referenced-key checking, re-tagged T16), **I-06** (S3, JBIG2 declared and decoding nothing) and **I-11** (S3, line weight declared and inert — PDFium cannot draw a hairline at its true width). Seven closed, most recently **I-10** at T14 |
+| Manual | **All nine walkable Stage 1 cases ✅**, every one signed off by the user. **Stage 2's ten manual cases have not been walked; the first four became walkable at T13 and are worth walking after T16** — a page is on screen, the §8 Viewer chords move it, the chrome reports on it, and the `pageDisplay/` toggles exist. **T16 makes M-03's typography half gradeable** — a missing font now substitutes through our policy and the log names the face. M-05 … M-10 still need golden baselines (T17) or Dr. Memory |
+| Issues | Stage 1: **I-01…I-55, none open** — and **I-53, the one deferred rather than fixed, was closed at Stage 2 T14**. Stage 2: **thirteen**, of which **two are open and both by decision** — **I-06** (S3, JBIG2 declared and decoding nothing, because the only usable library is AGPL-3.0) and **I-11** (S3, line weight declared and inert — PDFium cannot draw a hairline at its true width). **Eleven closed, four of them at T16**: **I-02** (S2, the licence closure, answered by an `objdump -p` measurement and a vcpkg feature split), **I-04** (S3, referenced-key checking — the `unknown-key` rule found the eighteen keys it predicted), **I-12** (S3, the `text` feature T16 was told to enable and measured it should not) and **I-13** (**S2**, the font bridge substituting Segoe UI for Helvetica on every page of every document, found by a control nobody had asked for) |
 
 What exists as code: Stage 0's toolchain, gates and CI; the four `core/` vocabulary headers; the entry
 point with per-monitor-v2 DPI and a crash handler whose dumps symbolize end to end; the throwaway A3
 ribbon spike (`tools/spike-ribbon/`, **deleted at T10, as planned**); the action layer — `ActionId` (**361** declared
 actions), `ActionRegistry`, `Chord`, `KeyBindingStore` (240 bindings seeded from ① §8; **48 of the 361 ids registered** as of S2 T14); the typed
 settings store (`core/settings/`, where an undeclared key does not compile); the third gate
-(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **609 keys each** (measured 2026-09-04); the OS boundary
-(`platform/platform.h`, seventeen interfaces declared, **four** implemented since S2 T12); the composition root that
+(`tools/i18n-lint/`) with the `en` and `zh-TW` catalogs at **629 keys each** (measured 2026-09-05); the OS boundary
+(`platform/platform.h`, seventeen interfaces declared, **five** implemented since S2 T16); the composition root that
 wires all of it together (`app/`); the application frame (`ui/shell/`); since T14, the Preferences
 surface and the log (`ui/dialogs/`, `ui/panes/`, `core/LogBuffer`, `app/LogFile`); and since T15
 `tests/bench/`, which holds the one A3 criterion that is a number rather than a judgement.
 
-**The reader is complete and a page can be drawn; nothing WRITES yet.** `pdf/cos/` holds the whole
+**The reader is complete and a page is on screen; nothing WRITES yet.** `pdf/cos/` holds the whole
 first-party COS reader — tokenizer, object model, grammar, nine filters, cross-reference engine and
-repair scanner — and `pdf/render/` opens documents and rasterizes tiles through the pinned PDFium.
-`core/doc/` holds five vocabulary types and no `Document`; `pdf/ops/` and `ui/viewer/` are still
-empty, so **a rendered tile has nowhere to be shown** until T13. Nothing anywhere can emit a PDF
-byte: the incremental writer is Stage 3's. Meanwhile **`rawpage.exe`
+repair scanner — and `pdf/render/` opens documents, rasterizes tiles through the pinned PDFium, and
+since **T16** answers the engine's font-substitution callback from `platform::IFontResolver` rather
+than letting it decide. `core/doc/` holds five vocabulary types and no `Document`; **`ui/viewer/` has
+held four classes since T13**, so a rendered tile reaches a widget; `pdf/ops/` is still empty. Nothing
+anywhere can emit a PDF byte: the incremental writer is Stage 3's. Meanwhile **`rawpage.exe`
 opens a window with a working ribbon**: 9 tabs, 49 groups and 192 controls, every one of them
 built from `res/ribbon.json` and dispatching through `ActionRegistry`, above a sidebar, a status bar
 and a live theme. T11 added a **customizable Quick Access Toolbar** whose every operation is itself a
@@ -111,7 +115,7 @@ later stage is a table row and no widget code), a Shortcuts page that writes a r
 binding store and the settings file, and a log pane over an in-memory buffer and a rolling file under
 `%LOCALAPPDATA%`. Most controls are **disabled and say why** — **361** commands are declared and
 the **twenty-three** this window can service are registered.
-**Stage 2 is in progress — T1–T15 of 18** — and stages 3–16 are `⚪ not started`.
+**Stage 2 is in progress — T1–T16 of 18** — and stages 3–16 are `⚪ not started`.
 
 **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
 record is ① → *Removed from scope*; every other document cross-references it.

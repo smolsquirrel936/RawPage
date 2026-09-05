@@ -10,9 +10,9 @@ Windows-first desktop PDF editor modeled on Right PDF Professional. The design l
 
 ### Where the work is right now — read this first
 
-**Stage 1 is COMPLETE and signed off. Stage 2 is under way: T1–T15 of 18 are done** — the engine
+**Stage 1 is COMPLETE and signed off. Stage 2 is under way: T1–T16 of 18 are done** — the engine
 boundary (`core/backend.h`), PDFium made permanent behind `pdf/render/PdfiumInit`, **risk A2
-measured: `go`** (all three on 2026-09-01), **the corpus: 60 generated files** and **`pdf/cos/Lexer`
+measured: `go`** (all three on 2026-09-01), **the corpus: 60 generated files** (61 from T16) and **`pdf/cos/Lexer`
 — the first token of PDF this project has ever read for itself** (both 2026-09-02),
 **`pdf/cos/CosObject` + `Parser` — the first PDF OBJECT** (2026-09-03), and **the nine filters,
 `XrefTable`, then `XrefRepair` with `RepairReport`, `Revision` and `Scope`** (2026-09-04), which
@@ -40,22 +40,36 @@ landed as sixteen `SettingsKeys.def` rows and two entries in `PreferencesDialog:
 with **no widget code at all** — convention 17 cashed at scale for the first time. Five of 26
 Preferences groups now ship, four defaults moved from a C++ struct into the table that now owns
 them, and the battery throttle T12 built the interface for is finally wired.
-**Next action: Stage 2 T16**, fonts and glyphs — `pdf/render/GlyphCache`, `FontResolverBridge`,
-`platform/win/WinFontResolver`, vcpkg's `text` feature, **and the LGPL source-offer row for
-`libiconv`** (I-02). It inherits two things worth knowing. **A missing embedded font currently
-substitutes through PDFium's own policy and nothing says which face it chose** — the exit criterion
-is a case that NAMES the substitute, which is what proves our bridge ran rather than the engine's
-default. And **`platform/platform.h`'s `IFontResolver` is one of the thirteen still-null members**,
-so T16 takes the Windows bundle from four of seventeen to five (six with `WinAcceleratedSurface`, if
-it also lands). Live status, task by task and
+**And T16 on 2026-09-05: A MISSING FONT NOW SUBSTITUTES THROUGH OUR OWN POLICY, AND THE PRODUCT CAN
+SAY WHICH FACE IT CHOSE.** `pdf/render/FontResolverBridge` installs PDFium's `FPDF_SYSFONTINFO` hook,
+`platform/win/WinFontResolver` takes the Windows bundle to **five of seventeen** interfaces, and the
+decision of *which* face — the part that is policy rather than an OS query — sits in
+`core/render/FontSubstitution`, where `tests/unit` can assert it with no display, no Windows and no
+engine linked. **The finding was not in the case the task was written around.** A control asking
+whether the bridge runs when it should NOT measured the product substituting **Segoe UI for
+Helvetica** on every page of every document, because PDFium asks its hook about the base-14 faces too
+and four files in this project had said it would not — issue **I-13**, the stage's only S2 in the
+product, raised and closed in the same run.
+**Next action: Stage 2 T17**, the golden images — `tests/golden/` at 96/144/192 DPI over the corpus,
+`tools/golden-update` with its mandatory `--reason` (D2-3, D2-13), and a diff image on failure. It
+inherits three things worth knowing, and the first is a near miss. **T16's issue I-13 would have
+moved every baseline T17 is about to capture**: the font bridge was substituting Segoe UI for
+Helvetica on every page of every document, and it was caught by a control case a day before the
+baselines existed rather than a week after. **The corpus is 61 files now, not 60** — `ordinary/` has a
+thirtieth, `font-not-embedded.pdf`. And **the substitution path is deterministic only as far as the
+machine is**: the base-14 faces come from PDFium's own bundled copies and are identical everywhere,
+but a substituted face is whatever that box has installed, so a golden baseline over
+`font-not-embedded.pdf` is a baseline about **this machine's fonts**. That has to be said in the
+baseline's own metadata or the first CI run on a different box reports a rendering regression.
+Live status, task by task and
 deviation by deviation, lives in the **Stage 1 and Stage 2 status blocks** in
 `claude-plan/Implementation-Plan.md` — those blocks are the authority, and this section is their
 summary. The table below is Stage 1's, updated where Stage 2 has already moved a number.
 
 | | |
 |---|---|
-| **Tests** | **642/642** on `x64-debug` and `x64-release` as of Stage 2 T15, with **one explicitly SKIPPED** — the battery case, on a desktop that has none, which is guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* requirement honoured rather than a gap (66 at the end of Stage 0; 334 at Stage 1 T15, +5 from the M-03 fixes, +2 from the M-04 fixes, +2 from M-05's, +4 from M-06's, +6 from M-11's I-47, I-49, I-50, I-52 and the toolbar lock, +1 from M-12's I-54, giving Stage 1's final 354; then +13 at Stage 2 T1 — 6 `unit.` backend cases, 5 `gates.headless_assert.*` and 2 `gates.layer_lint.*`; +16 at T2 — 4 `render.`, 5 `gates.layer_lint.fpdf*` and 7 `gates.pdfium_pin.*`; +1 at T3, the A2 probe; +3 at T4, the `gates.corpus.*` trio; +25 at T5; +31 at T6; +29 at T7 — 13 `unit.cos filters`, 14 `unit.cos xref` and 2 `gates.license_audit.undeclared_transitive_*`; +20 at T8 — 12 `unit.cos repair` and 8 `unit.doc`; **+34 at T9** — 22 `render.` over the document and the rasterizer, 11 `unit.` over `Page`/`PageTree`/`RenderRequest`, and one `ui.` for A-47); **+18 at T10** — 4 `unit.` over `DpiPolicy`, 7 over `TileGrid` and 7 over `PagePresentation`, every one of them headless; **+17 at T11** — 6 `unit.` over `RenderCache` and its two tiers, 11 over `RenderScheduler`; **+9 at T12** — 5 `platform.` over `WinDisplayTopology` and 4 over `WinPowerSession`, one of which is the skip; **+28 at T13** — 13 `ui.` over `ViewportController` and `PageLayoutEngine` with no window at all, 10 `ui.` over `PageView` and `TilePresenter`, 2 `ui.` for `KeyContext::Viewer` and its negative, 1 net in the tab suite where A-57's stub case became two, and 2 `render.` for the real engine on the real scheduler; **+25 at T14** — 9 `ui.` over the §8 Viewer commands, 9 `ui.` over the status bar, the message bar and I-53's tooltips, 5 `unit.` over the rotation arithmetic and its cache key, and 2 `render.` over the engine's `rotate` argument; and **+18 at T15** — 6 `unit.` over the sixteen rows and their codecs, 9 `ui.` over the two generated Preferences pages and the keys reaching the viewer, and 4 `render.` measuring what the flags actually do to pixels -- three anti-aliasing figures, and the transparency flag that this task discovered it needed); the bare `gates` preset is **90/90** with no Qt. Plus **two benchmarks**, `bench.ribbon.tab_switch` and — since S2 · T3 — `bench.render.a2_probe`; this line read *"one benchmark"* until 2026-09-03, having missed the second for the same reason the target-count heading below did. A bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
-| **Gates** | `layer-lint` clean at **255 files / 1,745 includes**, **8** live filesystem-write waivers — the two new ones both in `core/render/DiskTileStore.cpp`, one write and one delete, because every deletion in that file is funnelled through a single helper to keep the census at two; `license-audit` clean at **20 components** — 17 until T7 taught it to enumerate the RESOLVED CLOSURE rather than the declared manifest (I-02); `i18n-lint` clean at **167 files / 2 catalogs, 0 waivers** (it scans `pdf/` and `platform/` from T2 — see I-04). **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
+| **Tests** | **677/677** on `x64-debug` and `x64-release` as of Stage 2 T16, with **one explicitly SKIPPED** — the battery case, on a desktop that has none, which is guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* requirement honoured rather than a gap (66 at the end of Stage 0; 334 at Stage 1 T15, +5 from the M-03 fixes, +2 from the M-04 fixes, +2 from M-05's, +4 from M-06's, +6 from M-11's I-47, I-49, I-50, I-52 and the toolbar lock, +1 from M-12's I-54, giving Stage 1's final 354; then +13 at Stage 2 T1 — 6 `unit.` backend cases, 5 `gates.headless_assert.*` and 2 `gates.layer_lint.*`; +16 at T2 — 4 `render.`, 5 `gates.layer_lint.fpdf*` and 7 `gates.pdfium_pin.*`; +1 at T3, the A2 probe; +3 at T4, the `gates.corpus.*` trio; +25 at T5; +31 at T6; +29 at T7 — 13 `unit.cos filters`, 14 `unit.cos xref` and 2 `gates.license_audit.undeclared_transitive_*`; +20 at T8 — 12 `unit.cos repair` and 8 `unit.doc`; **+34 at T9** — 22 `render.` over the document and the rasterizer, 11 `unit.` over `Page`/`PageTree`/`RenderRequest`, and one `ui.` for A-47); **+18 at T10** — 4 `unit.` over `DpiPolicy`, 7 over `TileGrid` and 7 over `PagePresentation`, every one of them headless; **+17 at T11** — 6 `unit.` over `RenderCache` and its two tiers, 11 over `RenderScheduler`; **+9 at T12** — 5 `platform.` over `WinDisplayTopology` and 4 over `WinPowerSession`, one of which is the skip; **+28 at T13** — 13 `ui.` over `ViewportController` and `PageLayoutEngine` with no window at all, 10 `ui.` over `PageView` and `TilePresenter`, 2 `ui.` for `KeyContext::Viewer` and its negative, 1 net in the tab suite where A-57's stub case became two, and 2 `render.` for the real engine on the real scheduler; **+25 at T14** — 9 `ui.` over the §8 Viewer commands, 9 `ui.` over the status bar, the message bar and I-53's tooltips, 5 `unit.` over the rotation arithmetic and its cache key, and 2 `render.` over the engine's `rotate` argument; and **+18 at T15** — 6 `unit.` over the sixteen rows and their codecs, 9 `ui.` over the two generated Preferences pages and the keys reaching the viewer, and 4 `render.` measuring what the flags actually do to pixels -- three anti-aliasing figures, and the transparency flag that this task discovered it needed; **and +35 at T16** -- 17 `unit.` over the substitution policy with no display and no engine, 7 `platform.` over `WinFontResolver`, 7 `render.` over the whole chain through PDFium, and 4 `gates.` -- 2 `layer_lint` for the `pdf-render` widening and its control, 2 `i18n_lint` for the new `unknown-key` rule); the bare `gates` preset is **94/94** with no Qt. Plus **two benchmarks**, `bench.ribbon.tab_switch` and — since S2 · T3 — `bench.render.a2_probe`; this line read *"one benchmark"* until 2026-09-03, having missed the second for the same reason the target-count heading below did. A bench reports a figure and its exit code is about whether the measurement was *possible*, never whether the machine was fast |
+| **Gates** | `layer-lint` clean at **266 files / 1,811 includes**, **8** live filesystem-write waivers — the two new ones both in `core/render/DiskTileStore.cpp`, one write and one delete, because every deletion in that file is funnelled through a single helper to keep the census at two; `license-audit` clean at **20 components** — 17 until T7 taught it to enumerate the RESOLVED CLOSURE rather than the declared manifest (I-02), and **T16 closed that issue** by measuring with `objdump -p` that Stage 2 links none of the `text` ports at all, then splitting that feature into `fonts` / `shaping` / `spelling` so the GPL `iconv.exe` enters the tree at Stage 13 rather than here; `i18n-lint` clean at **175 files / 2 catalogs, 0 waivers**, and it has a **fourth rule from T16 — `unknown-key`, which BLOCKS**: a catalog key a source names and no catalog defines. It is anchored on five declared `keyFamilies` rather than on every dotted literal, because the scanner's idea of a key is generous on purpose and a blocking rule over that set would fail the build on `settings.ini`. It found the eighteen keys **I-04** had predicted, in the same four files. **Three gates live**, not four — see the gate table below. `tools/ribbon-validate` is a build step, not a gate |
 | **Verdicts recorded** | **A3 = `go, with named custom work`**. T15 **re-measured R-9 against the shipped ribbon** rather than against T2's throwaway spike — p95 **0.471 ms** against a 16.667 ms budget, over 192 real controls, with a control proving the instrument was live. Both figures stand in `Tech-Stack-Plan.md` §3.3; the second is the one that is a claim about the product. **`-municode` = not adopted**; A5, A6, A7 from Stage 0 |
 | **Issue log** | I-01…I-55 in `Stage1-AppShell-Testing-Guide.md` §8. **None open.** **I-54 (S2)**: the tool finder took only the **first character** of a query **and lost its blinking caret** — one report, two mechanisms, because opening a `Qt::Popup` takes both the keyboard and the window activation away from the widget behind it. Keys: a popup is a WINDOW, so once it opened Qt delivered every further keystroke to it rather than to the search box, and a `QListWidget` spent them on its own keyboard search; Backspace went the same way, so a mistyped query could not be corrected. Caret: a `QLineEdit` in a **deactivated** window stops painting its cursor whether or not it still holds focus. **Fixed in two rounds** — the first addressed the keys only, and the user found the caret still gone by using the repaired build, I-45's lesson for the third time. `setFocusPolicy(Qt::NoFocus)` had carried the comment *“typing stays in the box”* since T11 and could never have made it true: focus policy picks a widget **within** a window, and this is about which **window** the keyboard talks to. `eventFilter` now keeps Up/Down/PageUp/PageDown/Enter and forwards the rest to the line edit, and the list carries `WA_ShowWithoutActivating` and a focus proxy back to the box — with `Qt::NoFocus`, **all three of the things `QCompleter` does with its own popup**, which this widget is in all but name. **The third defect this one popup has produced** (I-44, I-45), and nine green `[toolfinder]` cases missed all of it because every one types at `searchBox()` — the one address a real keystroke does not reach while the list is up: convention 19's back door, I-34's and I-43's shape. **Raised by the user after M-12 was already signed off**, which re-opened and re-closed the no-open-S2 box. **I-53** is not a defect: plan §5.1's *registered-but-disabled* tooltip was never built — an unregistered control says it is not implemented, one that is merely unavailable says nothing — and the user's call was **planned absence, Stage 2**, since 338 of 361 ids are unregistered and the few registered-and-disabled ones are refused for reasons visible on screen. **I-50 (S3)**: only the 22 *enabled* commands could be added to the toolbar — Qt sends no input event to a disabled widget, so right-clicking any of the other 338 did nothing — and the toolbar's own empty space offered an `Add` that could never be enabled. `Ribbon::contextMenuEvent` now resolves the position with `childAt()`, which does return disabled children, and the menu is keyed on what is under the cursor. **I-51 (S3)**: the startup line printed the DROPPED override count as the applied one, so a session that applied a remap perfectly logged `0 of 1 user overrides applied` — a wrong diagnostic that sent its reader hunting a defect that was not there. **I-52 (S3)**: a defect in the drag feature two hours old — a slot among the buttons is not an index into the layout, so a drop past the last button landed on the stretch and the button jumped to the far right edge. **I-49 (S2)**: **every** Quick Access Toolbar customization made the toolbar vanish — a widget built with a parent that is already on screen starts hidden, and a hidden widget is an empty layout item, so add/remove/reorder/reset each produced invisible buttons and a 4-pixel strip. `ui.resetCustomization` rebuilt it invisibly too, so restarting was the only way back. Nine `[qat]` cases missed it because every one asks the command LIST, which stays correct for a row nobody can see — the sixth time this stage has been caught by that (I-34, I-42, I-43, I-46, I-47). **I-47 (S2)**: every preference lived only in memory until a **clean** shutdown — `Settings::sync()` was called from one place, `CompositionRoot`'s teardown — so a crash or a kill lost settings the user had watched take effect, which the no-OK-button Preferences dialog makes worse rather than better. Now flushed on every change, with teardown as a backstop. Missed by the suite because every settings case called `sync()` itself: convention 19's back door again. **I-48** is not a defect: two of M-11's steps tested things that do not exist — a recent-files surface (declared, unregistered, no UI: the **fifth** built-but-unreachable capability after I-34, I-42, I-43, I-46) and a window-geometry restore, which is `SessionState` at Stage 4. **I-46** is not a defect but is worth knowing: **nothing in the product can register the PDF file association** — all four calls are implemented and tested, and the only callers are the tests, which is this stage's recurring shape for the fourth time (I-34, I-42, I-43). The user's call was **planned absence, Stage 14/15**; M-07 walks against a hand-made Windows association, and its *Pre* now also names the `windeployqt` step it had always needed. **I-45 (S2)** is the one to remember: it was a **regression in I-44's own fix** — dismissing the list on any `FocusOut` closed it in the same turn it opened, because showing a `Qt::Popup` *is* a focus change, so no search showed anything. Found by the user re-walking the repaired build within the hour, and invisible to the case added with I-44 because offscreen that focus change does not happen. **I-44 (S2, and the worst defect this stage has produced)**: a tool-finder query that matched nothing **froze the application** — the result list is a `Qt::Popup` window holding the mouse grab, the *"nothing matched"* message is itself a row so the list still showed, and `Esc`, an outside click and `Enter` all failed to put it away. Force-close was the only exit. Three exits added, each independently missing, plus `FocusOut`/`WindowDeactivate`. **I-43 (S3)**: reordering the Quick Access Toolbar could not be done by a person — `moveCommand` public since T11, the order persisted since T11, **three documents calling it shipped**, and no menu item, no drag and no `ActionId` to reach it; the only caller was a test that called the method. I-34's shape, and the third instance this stage. Fixed with `ui.qatMoveLeft` / `ui.qatMoveRight`, each disabled at the end it cannot move towards, and the case asserted the **route** (the real context menu offers them) as well as the dispatch, with a control for each. **Superseded hours later in the same walk**: the user asked for drag-to-reorder, so `buildMenu` dropped both items and `ui.qatLock` joined them — the two commands stay **registered and unlisted** (the tool finder and flow K still reach them), and the case's route half was *inverted rather than deleted*, now asserting they are registered **and absent from the menu**. Those three ids are **the only ones Stage 1 has added to the plan's 358**, giving 361 declared and 23 registered. **I-42 (S2)**: pressing `Alt` did nothing in any locale — the ribbon has *drawn* key tips since T10 and nothing ever asked it to, because `AppRibbonKeyTips` was bound to `Alt` and never registered. **R-5 had been recorded as met against the T2 spike**, whose handler the shipped ribbon never inherited — I-36's shape again. Registered (the **twentieth** id), and the tip letters moved out of the tab titles into a `ribbon.keytip.*` catalog family, because the first-character scheme gave `zh-TW` 常 建 編 註 組 表 保 檢 — untypable, with 表 claimed twice. **I-41 (S2)**: Qt's native `windows11` style paints control text from the colour scheme **it** derives from Windows and ignores the application palette, so the dark theme was in force for every `QLabel` and for **no** `QToolButton` — the ribbon, the toolbar and the tool finder. Measured on a light OS with the dark palette installed: an enabled button's glyph was `#1f1f1f` on a `#1f1f1f` background, a disabled one `#181b1f`. `apply()` now calls `QStyleHints::setColorScheme()` as well, `Unknown` for follow-system so the OS keeps the decision. Found only because the I-40 fix below did not work — the token table was the one place anyone had looked. **I-40 (S3)**: in dark mode the shell's **disabled** text could not be read — and disabled text is most of this shell, since 358 commands are declared and 19 registered. Measured 3.05 dark and **2.54 light**, so the light theme two manual passes had already signed off was the worse of the two; both raised (4.77 / 3.87 against the window), with a new case measuring every text token against the surface it is painted on, in both themes, and asserting disabled stays under half the enabled ratio so it still reads as disabled. **Not an accessibility criterion** — that left the product on 2026-08-23 — but whether the ribbon can be read. **I-39 (S3)**: the auto-hide edge strip stayed on screen beside the pane it had just summoned — true since T9, and invisible until I-37 made a peek something a person could perform, because every earlier case reached `peek()` in a fixture where visibility was not the subject. **I-37 (S3)**: an auto-hidden sidebar could be revealed only by *clicking* the edge strip, never by reaching for it — closed by the user's decision to move the product to the guide rather than the guide to the product, so the strip now peeks on `QEvent::Enter` and still answers a click. **I-38** is not a defect: `general/touchMode` is stored and read by nothing, and the user's call was **planned absence, Stage 14** — it is now a row in the guide's §1 and in `Stage1-AppShell-Plan.md` §11 rather than an open issue, and M-04's steps no longer ask for it. **I-36 (S2)**: opening M-04 found that **no ribbon tab was ever drawn** — `QSizePolicy::Ignored` tells QBoxLayout the tab bar's width preference is not a number, and next to a separate `addStretch(1)` the spacer took the whole strip, so the `QTabBar` was laid out **0 px wide at every window size** from T10 onward. Eleven green ribbon cases missed it because each asked the bar what it *contained* and none asked what the **layout gave it**; fixed, with a case and its control. **I-33, I-34 and I-35 were raised by the user's M-03 walk on 2026-08-30 and are Stage 1's first findings in the PRODUCT rather than in the harness** — every earlier one was a test, a gate, a document or the CI. **I-34 (S2)**: re-docking a tab into another window could not be performed by a person, because `DocumentTabBar` reported the gesture at the instant the 40 px threshold was crossed rather than at the release, giving the drag one sample to land on a ~25 px strip; the branch it fed was correct and had never been driven by test or by hand. **I-33 (S3)**: tearing a window's ONLY tab out left the original with no tabs, because `detachDocument` guarded the index but never the count. **I-35 (S3)**: a window emptied by re-docking its last tab away stayed open — reachable only *after* I-34 was fixed, which is why a repaired case is re-walked rather than signed off on the strength of the repair. All fixed the same day — five cases, five negative controls, 339/339. I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-21** and **I-22** at T11 and **I-23** at T12 — all three by running something new against the product; **I-24** and **I-25** at T13, and both of those were the *harness* rather than the product — a case that asserted the opposite of what it meant, and a gate that flagged a diagnostic string; **I-26…I-28** at T14 — a remap that *added* a chord instead of replacing one (found by the first caller that ever remapped for a user), a gate about to report forty notes nobody could act on, and a log file that could not name the binary that wrote it; and **I-29 and I-30** at T15, again the harness and its infrastructure rather than the product — a benchmark whose every printed figure was its own argument-evaluation bug, and (the S2) **a CI job that had never run because two systems had to agree on a variable name and nothing checked that they did**. *(Stage 1 now has its own I-15 and I-16; prose citing “I-15's lesson” or “I-20” means **Stage 0's** — the guide's §8 header says so.)* |
 | **Manual pass** | **M-01 ✅ signed off 2026-08-23; M-02 ✅** — signed off 2026-08-23 for the ribbon, then **re-walked in full on 2026-08-30** against the shipped shell: all four steps including the mid-session scale change and the re-login, **no findings**, which retired R-6's last scoping note and satisfied precondition P-1 outright. **M-03 ✅ walked and signed off 2026-08-30**, in full — and it found **I-33, I-34 and I-35**, the stage's first three defects in the product, all fixed and the case re-walked before sign-off. **M-03 became walkable at T12 and M-12 at T13. T14 made M-11 fully walkable and unblocked M-02's non-ribbon half** — its steps name the sidebar, a floating pane *and Preferences*, and T14 made all three real, which is what let that re-walk happen as written. **M-04 ✅ walked and signed off 2026-08-30**, after **three passes and four findings**, each repair making the next defect reachable: it stopped at step 1 because no View tab existed to click (**I-36**); the second pass, on the repaired build, produced **I-37** and **I-38**; fixing I-37 created a gesture that had never existed, and walking *that* found **I-39**. None was a regression — two had shipped since T9 and T10, green in CI throughout. **M-05 ✅ walked and signed off 2026-08-31** — mis-listed as unwalkable until 2026-08-30, then it found **I-40** and **I-41**, the second only because the first fix changed nothing a person could see. **M-06 ✅ walked and signed off 2026-08-31**, the longest walk of the stage: every surface in `zh-TW`, the editorial review of 29 unfinished entries, and four defects — **I-42** (`Alt` raised no key tips in any locale), **I-44** (a query matching nothing froze the application), **I-45** (the fix for it closed the list in the same turn it opened) and **I-43**, which surfaced here and belongs to M-11. **M-07 ✅ walked and signed off 2026-08-31** — flow B end to end by hand, all five steps, one process throughout, both awkward filenames correct. **M-11 ✅ signed off 2026-08-31**, the case that found the most: **I-47**, **I-49**, **I-50**, **I-51**, **I-52** — the last a defect in a fix made hours earlier during the same walk — plus the drag-to-reorder and lock feature the user asked for mid-case. **M-12 ✅ walked and signed off 2026-08-31 — the last case of the stage.** No S1: nothing claimed to have saved, printed or undone anything, the stub tab did not pretend to be a document, and **no chord was intercepted by the window manager, the IME or the platform before Qt saw it**, which is the one thing in that case no synthetic key event could have established. Its one finding, **I-53**, was disposed of as a planned absence. **All nine walkable cases are now ✅** — M-01 … M-07, M-11 and M-12; M-08 was withdrawn with accessibility and M-09 and M-10 are not walkable |
@@ -158,8 +172,8 @@ four classes and `DocumentWindow` stops being D1-2's stub. Six things bind what 
   loose enough not to be brittle. `TilePresenter::heldPages()` exists because of it, and the case now
   asserts the **first page's tiles are gone**. Convention 7, met by its own rule.
 
-**T4 shipped the corpus (2026-09-02): 60 files, all generated, all reproducible.** `corpus/` now
-holds **29 `ordinary/`**, **24 `malformed/`** with one named fault each, **5 `encrypted/`** across
+**T4 shipped the corpus (2026-09-02): 60 files, all generated, all reproducible — 61 since T16.** `corpus/` now
+holds **30 `ordinary/`** (`font-not-embedded.pdf` joined at T16, because none of the other 29 could reach a font resolver), **24 `malformed/`** with one named fault each, **5 `encrypted/`** across
 revisions 2/3/4/6, and the two Stage 0 / T3 seeds — plus `PROVENANCE.md`, which gives every one of
 them a row. Four things about T4 bind what comes next:
 
@@ -207,9 +221,9 @@ has been opened. Four things bind what comes next:
 - **`portable-fuzz` has its first target and has still never been run.** `fuzz_cos_lexer` exists;
   there is no clang on this machine, so **A-25's ten clean minutes is unrun and is recorded as a Linux
   job beside A-04** — not as pending. What keeps it honest meanwhile: its body lives in
-  `tests/fuzz/LexerFuzzBody.h` and `tst_cos_lexer` replays all 60 corpus files through the *same*
+  `tests/fuzz/LexerFuzzBody.h` and `tst_cos_lexer` replays all 61 corpus files through the *same*
   function (38 produce a note), and the entry point is compile-checked on Windows every run. **Neither
-  is fuzzing** — 60 known files find nothing new by construction. `tests/fuzz/CMakeLists.txt` now
+  is fuzzing** — 61 known files find nothing new by construction. `tests/fuzz/CMakeLists.txt` now
   **fails configure on the wrong target count** (1 at T5, **2 since T6**), which is A-27's *"zero is a
   failure, not a pass"* made structural.
 
@@ -243,7 +257,7 @@ below — and five things it settled bind what came after:
   asserts that gap** rather than describing it, so it closes when T7's Flate closes it.
 - **`portable-fuzz` now has both its targets and has still never been run.** `fuzz_cos_parser` is
   the primary one, `RAWPAGE_EXPECTED_FUZZ_TARGETS` went 1 → 2 exactly as T5 said it would, and
-  **A-27 is closed**. A-25 and A-26 are Linux jobs beside A-04, not pending boxes. Replaying 60
+  **A-27 is closed**. A-25 and A-26 are Linux jobs beside A-04, not pending boxes. Replaying 61
   known files through `ParserFuzzBody.h` is **not fuzzing** and the suite says so at the assertion.
 
 **T7 and T8 shipped the rest of the reader (2026-09-04), and the Stage 2 exit criterion with it.**
@@ -398,6 +412,61 @@ things bind what comes next:
   `0x00000000`, and being in the flag set puts it in the cache KEY — which is also right, because a
   page rendered onto transparency is genuinely different pixels.
 
+**T16 PUT FONT SUBSTITUTION ON OUR SIDE OF THE ENGINE BOUNDARY (2026-09-05).** The Windows bundle
+goes from **four of seventeen** interfaces to **five**. Six things bind what comes next:
+
+- **THE BASE-14 FONTS REACH THE HOOK, AND FOUR FILES IN THIS PROJECT SAID THEY WOULD NOT — issue
+  I-13, and it is the thing to remember from this task.** Helvetica, Times, Courier, Symbol and
+  ZapfDingbats are required of every conforming reader and PDFium carries metric-compatible Foxit
+  copies, so the bridge's header, the policy's header and the guide's own A-66 wording all said a
+  font hook would never be asked about them. `FPDF_SetSystemFontInfo` is consulted for **every**
+  unembedded font, and the engine falls back to its own faces only when the hook declines. Measured
+  on the first run: **Helvetica → Segoe UI**, on every page of every corpus file. `bridgeMapFont`
+  now declines the five standard families by name. **Found by the CONTROL** — the case asking
+  whether the bridge runs when it should not — which nothing in A-66's criterion called for
+  (convention 7).
+- **THE POLICY IS IN `core/` AND THE OS QUERY IS IN `platform/`, and that split is what makes the
+  claim testable.** `platform/win/` makes no policy decisions; *which* family stands in for a
+  missing serif Traditional-Chinese face is nothing but policy, and the same judgement on every
+  operating system. So `core/render/FontSubstitution` holds the ordered candidate list, the
+  `/BaseFont` normalization and the base-14 predicate — and all eighteen of its cases run in
+  `tests/unit`, with no display, no Windows and no engine linked. `WinFontResolver` answers only
+  *is it installed here, and what file backs it*.
+- **`pdf/render/` MAY NOW INCLUDE `platform/platform.h`, and the NARROWING is the point.** The font
+  hook is where the engine boundary and the OS boundary physically meet. The permission is a new
+  **`pdf-render`** `layer-lint` layer entry — not a widening of `pdf` — so `pdf/cos/` does not
+  inherit it: that layer is portable BY RULE and is half of what `portable-asan` and `portable-fuzz`
+  build on Linux. Same mechanism as T2's narrowing of the `FPDF_` rule, and the control was verified
+  by putting the permission on the wrong layer and watching the case fail.
+- **DIRECTWRITE, NOT GDI AND NOT `QFontDatabase`, for two separate reasons.** `FontMatch::filePath`
+  is the load-bearing field, because PDFium's hook is handed BYTES and GDI cannot say which FILE a
+  face came from. And `QFontDatabase` is QtGui, which `platform/platform.h` may never name. The
+  system collection is **refreshed on every query** — installing a font to fix a document is the
+  ordinary case — and family names are read back in **en-us**, because on a Traditional-Chinese
+  Windows the same family also has a Chinese name and a PDF names its fonts in Latin.
+- **`GlyphCache` IS NOT A CACHE OF GLYPHS**, and its header says so in its first paragraph. PDFium
+  rasterizes and caches glyphs, inside the process-global state D2-9 confines to `PdfiumInit`;
+  nothing in `pdf/render/` ever sees a glyph bitmap. What this owns is the FACE FILE, read once and
+  served to every later ask — 18 MB per CJK collection that does not come off the disk on the render
+  thread. **Guide case A-67's criterion is corrected rather than narrowed**, which is the call T7
+  made about A-18 and T15 about A-65.
+- **THE TEARDOWN ORDER IS A CORRECTNESS ARGUMENT, not a tidy-up.** `FontResolverBridge::uninstall()`
+  runs in `CompositionRoot`'s destructor **after** the scheduler is joined and **before** the
+  platform bundle is destroyed. Too early is a race on PDFium's globals while a worker is inside
+  `FPDF_RenderPageBitmap`; too late is a use-after-free on a resolver that is gone. Either half
+  alone is a crash inside the engine, in a stack frame nobody recognizes.
+
+**T16 ALSO CLOSED THE STAGE'S LAST TWO CARRIED ISSUES, AND ONE OF THEM BY NOT DOING WHAT ITS PLAN
+SAID.** T16's *Done when* asked for vcpkg's `text` feature to be turned on — and the `objdump -p`
+check in the same clause says Stage 2 links none of it: PDFium bundles its own FreeType and the
+bridge reaches the OS through DirectWrite. `rawpage.exe` imports **eighteen** DLLs and not one comes
+from those ports. So the feature was **split** into `fonts`, `shaping` and `spelling`, one per owning
+stage (**I-12**), which also moves the GPL `iconv.exe` the `libiconv` port installs out of the tree
+until Stage 13 and closes **I-02**. `Tech-Stack-Plan.md` §6.2 had said *Stage 5 for `text`* all
+along, and that document owns the stack. **I-04** closed the same day: `i18n-lint`'s new
+`unknown-key` rule found the eighteen referenced-but-undefined catalog keys a hand-diff had predicted
+four tasks earlier, and they are now written in both shipped locales.
+
 **PDFIUM CANNOT BE CALLED FROM TWO THREADS AT ONCE, AND T11 SETTLED WHAT TO DO ABOUT IT.** Measured
 at T3 by the A2 probe — eight workers, each with its **own `FPDF_DOCUMENT` and own `FPDF_PAGE`**,
 which is exactly the confinement `D2-9` specifies, and they corrupt the heap; **1 worker exits 0, and
@@ -506,31 +575,39 @@ state: `Stage2-Rendering-Plan.md` (decisions **D2-1 … D2-14**, tasks **T1 … 
 **P-1 … P-4**, all four closed) and `Stage2-Rendering-Testing-Guide.md` (**81 automated**, **10
 manual** cases), both dated 2026-08-31 — the seventy-ninth added at T13 (see **I-09**), the
 eightieth at T14 for a view rotation the guide was written before anyone noticed the render path
-could not carry, and the eighty-first at T15, the measurement behind **I-11**.
+could not carry, and the eighty-first at T15, the measurement behind **I-11**. **T16 added no case**,
+and that is deliberate: A-66 and A-67 were already written for it. What it added instead is a
+*control* beside A-66 — the case asking whether the font bridge runs when it should NOT — which is
+what found **I-13**. A control lives with its case; numbering every one would number half the suite.
 **As of T15 the automated cases through A-65 have results** — A-28 … A-34 at T10, A-36 … A-41
 at T11, **A-39's widget half and A-52 … A-56 at T13**, **A-60 at T12**, **A-57 … A-59 plus the
-new A-80 at T14**, and **A-63 … A-65 plus A-81 at T15**. **A-61, A-62 and A-65 are 🟡, and
-each names the half it does not claim**: a real mid-session scale change is manual case M-02's;
-A-62's throttle is wired as of T15 and its EFFECT is unobservable on a desktop with no battery, so
-that case still skips by name; and A-65's five toggles are three measured green, one corrected and
-one the engine cannot express (**I-11**).
-**The first four manual cases became walkable at T13 and are worth walking after T15** — there is a
-page on screen, the §8 Viewer chords move it, the status bar counts it, a repaired file says so, and
-the `pageDisplay/` toggles M-03 asks a walker to flip now exist. M-05 … M-10 still need golden
-baselines (T17), fonts (T16) or Dr. Memory. Four cases are Linux
+new A-80 at T14**, **A-63 … A-65 plus A-81 at T15**, and **A-66 and A-67 at T16**. **A-61, A-62,
+A-65 and A-67 are 🟡, and each names the half it does not claim**: a real mid-session scale change is
+manual case M-02's; A-62's throttle is wired as of T15 and its EFFECT is unobservable on a desktop
+with no battery, so that case still skips by name; A-65's five toggles are three measured green, one
+corrected and one the engine cannot express (**I-11**); and A-67 asks for a count of glyph
+rasterizations, which happen on PDFium's side of the boundary — what IS ours, the face being mapped
+once and read once across tiles, pages and documents, is measured green.
+**The first four manual cases became walkable at T13 and are worth walking after T16** — there is a
+page on screen, the §8 Viewer chords move it, the status bar counts it, a repaired file says so, the
+`pageDisplay/` toggles M-03 asks a walker to flip now exist, and **M-03's typography half is
+gradeable for the first time**, since a missing font now substitutes through our policy rather than
+the engine's. M-05 … M-10 still need golden baselines (T17) or Dr. Memory. Four cases are Linux
 jobs this machine does not run (**A-04, A-24, A-25, A-26**) and are recorded as such rather than as
-pending. The guide's issue log holds **eleven**, of which **four are open**: **I-02** (S2, T7/T16 —
-`license-audit` inventories the declared manifest rather than the resolved closure), **I-04** (S3,
-**re-tagged T16** at T14, because T14 had no reason to touch `i18n-lint` and a task tag that quietly
-passes is how an item becomes permanent), **I-06** (S3 — JBIG2 is declared and decodes nothing) and
-**I-11** (S3, raised at T15 — line weight is declared and inert, because PDFium cannot draw a
+pending. The guide's issue log holds **thirteen**, of which **two are open and both are open BY DECISION**:
+**I-06** (S3 — JBIG2 is declared and decodes nothing, because the only usable library is AGPL-3.0)
+and **I-11** (S3, raised at T15 — line weight is declared and inert, because PDFium cannot draw a
 hairline at its true width). **I-06 and I-11 are the same finding twice**: a feature this document
 set specified that the engine or the licence cannot deliver, found by BUILDING it, and kept as a
-declared-and-inert surface so that the day the constraint lifts there is a row to fill in. Closed: **I-01** and **I-03** (S3,
-before any code), **I-05** (S2, at T11 — the arrangement D2-9 left open), **I-07** (S3, at T12 — a
-`platform.h` comment that described the DPI-unaware failure mode as the specification), and **I-08**
-(S2) and **I-09** (S3) at T13, and **I-10** (S3) at T14 — I-53's own note about how it would be
-fixed named a mechanism that does not do what the note said it did.
+declared-and-inert surface so that the day the constraint lifts there is a row to fill in.
+Closed: **I-01** and **I-03** (S3, before any code), **I-05** (S2, at T11 — the arrangement D2-9 left
+open), **I-07** (S3, at T12 — a `platform.h` comment that described the DPI-unaware failure mode as
+the specification), **I-08** (S2) and **I-09** (S3) at T13, **I-10** (S3) at T14 — I-53's own note
+about how it would be fixed named a mechanism that does not do what the note said it did — and
+**four at T16**: **I-02** (S2, the licence closure, answered by measurement rather than by a source
+offer), **I-04** (S3, the `unknown-key` rule and the eighteen keys it found), **I-12** (S3, T16's
+*Done when* asked for the `text` feature and the measurement in the same clause said not to) and
+**I-13** (**S2**, the base-14 substitution — see below).
 
 **M-12 produced one finding, deferred at Stage 1 and CLOSED AT STAGE 2 T14.** **I-53**: plan
 §5.1 (`Stage1-AppShell-Plan.md`) requires a disabled control to say *which kind* of disabled it is —
@@ -595,7 +672,8 @@ order.
   live in both directions — an older file migrates and is restamped, a **newer** file is read for
   what we understand and left byte-identical.
 - **`tools/i18n-lint/` + `i18n/` (T6, extended T8/T9/T10/T11/T12, and S2 T7/T8/T9/T13)** — the third gate, and `rawpage_en.ts` /
-  `rawpage_zh_TW.ts` at **609 keys each** — re-counted at every task that touches them rather than
+  `rawpage_zh_TW.ts` at **629 keys each** (T16 added twenty: the eighteen **I-04** had predicted and
+  two for the font resolver) — re-counted at every task that touches them rather than
   carried forward: 361 `action.*` + **50 `shell.*`** (T14 added seventeen: the message bar, the repair
   detail view, the password prompt, the status bar's two figures and I-53's four tooltip reasons) +
   70 `ribbon.*`
@@ -604,10 +682,13 @@ order.
   or from the enum's own token — which is how `ui.every key on a shipped page has a label the
   catalog can resolve` caught two of them spelled wrong, `prefs.choice.layoutMode.twoUp` for the
   table's `two-up` and `prefs.group.performanceAndCache` for the derivation's
-  `performanceCache`) + **39
+  `performanceCache`) + **59
   `error.*`** (T7 added nine for the filters and the xref, T8 six for the repair report and the
   encrypted decline, T9 five for the password prompt and the rasterizer, **T13 five** — one for a tile
-  whose document closed while it was queued, four for the T12 platform interfaces).
+  whose document closed while it was queued, four for the T12 platform interfaces, and **T16 twenty**:
+  two for the font resolver, and the eighteen that `core/cmd/` and `platform/win/` had been NAMING
+  since Stage 1 with no catalog entry anywhere — issue **I-04**, and the new `unknown-key` rule is
+  what found them).
   **T13 also DELETED a key**, which is the first time this project has: `shell.document.placeholderBody`
   said *"the PDF engine and the page surface arrive with Stage 2"*, and a key that apologizes for
   something that now exists is worse than no key — so `shell.*` went from 34 to 33 in the same change
@@ -616,13 +697,13 @@ order.
   shape of drift the T1 recount had just corrected — the fix for a stale number is to re-measure it,
   not to remember it harder. **T6 added `error.pdf.badObjectHeader` and `error.pdf.badObjectStream`
   in both shipped locales and moved the figure in the same change**, which is that lesson applied.
-  29 of `zh_TW`'s 609 are marked unfinished. Declared in
+  29 of `zh_TW`'s 629 are marked unfinished — the twenty T16 added are all finished, because an error message nobody can read is not an error message. Declared in
   `i18n/locales.json` with `zh_CN` and `ja` marked `"shipped": false`. The `.ts` files are compiled
   to `.qm` **beside the executable** rather than into a Qt resource, so Stage 15 can ship them
   replaceable; `LinguistTools` is a build tool and is deliberately not registered with
   `rawpage_link_qt`, because `qt-modules.txt` is the LINK closure `license-audit` audits.
-- **`platform/` (T7, and S2 · T12)** — `platform.h` declaring all **seventeen** OS interfaces (the figure was
-  carried as fifteen until T7 measured it), `PlatformFactory`, and **four** implementations.
+- **`platform/` (T7, and S2 · T12, T16)** — `platform.h` declaring all **seventeen** OS interfaces (the figure was
+  carried as fifteen until T7 measured it), `PlatformFactory`, and **five** implementations.
   Stage 1's two: `WinSingleInstanceBus` (D1-11 — `Local\` mutex, a named pipe whose name carries the
   session id, and `AllowSetForegroundWindow` from the secondary) and `WinShellIntegration` (per-user
   PDF association only). **Stage 2 T12's two**: `WinDisplayTopology`, which reports each monitor's
@@ -631,8 +712,14 @@ order.
   message; and `WinPowerSession`, where **"no battery" is a distinct answer from "on mains"** and a
   UPS reports as mains. Both sit on `WinMessageWindow`, a hidden **top-level** window (not
   `HWND_MESSAGE`, which receives no broadcasts) because on Windows a notification is a window message
-  and `platform/` may not own a `QWidget`. An unimplemented interface is a **null member**, never a
-  silent stub. `tests/platform/` is a third test target, for the reason D1-4 gives about `ui/`.
+  and `platform/` may not own a `QWidget`. **Stage 2 T16's one**: `WinFontResolver`, over DirectWrite
+  — chosen because `FontMatch::filePath` is what PDFium's hook needs and GDI cannot name the file a
+  face came from, and because `QFontDatabase` is QtGui, which this header may never touch. It answers
+  *what is installed*; *what to prefer* is `core/render/FontSubstitution`, because this layer makes no
+  policy decisions. An unimplemented interface is a **null member**, never a
+  silent stub — **`IAcceleratedSurface` is still one of them**, deliberately: the Stage 2 guide puts
+  accelerated presentation at Stage 4 *if A2 says it is needed*, and A2's probe is thirty times inside
+  the frame budget. `tests/platform/` is a third test target, for the reason D1-4 gives about `ui/`.
 - **`app/` (T8)** — `CommandLine` (a pure `QStringList` → intent parse, with **no `argc/argv`
   overload and a compile fixture proving it**), `Services.h`, `CompositionRoot` (the only caller of
   `platform::createPlatform()`; also owns the logging settings and the `Settings::sync()` on
@@ -733,8 +820,8 @@ order.
   registered command — and that is what the task is. `core/CoreModule.cpp` was deleted, as its own
   comment had asked since Stage 0.
 
-**THE WHOLE READ PATH IS CONNECTED: A DOCUMENT OPENS AND A PAGE IS ON SCREEN. Nothing writes, and
-nothing yet ACTS on what is shown.** `pdf/cos/` holds a tokenizer, an object model, a grammar, nine
+**THE WHOLE READ PATH IS CONNECTED: A DOCUMENT OPENS AND A PAGE IS ON SCREEN, IN FONTS THIS PROJECT
+CHOSE. Nothing writes, and nothing yet ACTS on what is shown.** `pdf/cos/` holds a tokenizer, an object model, a grammar, nine
 filters, the cross-reference engine and the repair scanner — it can open a damaged PDF and hand back
 any object by number. `pdf/render/` opens documents and rasterizes tiles. **`core/render/` decides
 everything about a tile except its pixels**: the resolution to rasterize at, which tiles a viewport
@@ -743,11 +830,13 @@ needs, where each page sits, what is kept and what is thrown away, and in what o
 is on (T12). What nothing can do is emit a byte: `IncrementalWriter` and `ObjectAllocator` are
 Stage 3's (D2-4). `core/doc/` holds five vocabulary types and no `Document`; `pdf/ops/` is still empty.
 
-**What is NOT there yet, so it is not reported as a defect.** A missing embedded font substitutes
-through **PDFium's** policy rather than ours and nothing says which face it chose (**T16**), and
-`platform::IAcceleratedSurface` is declared and unimplemented, so presentation is software
-(**T16**). There are no golden baselines, so nothing yet says a page renders the same way twice
-(**T17**). **`pageDisplay/lineWeight` is a checkbox that does nothing** and that is measured rather
+**What is NOT there yet, so it is not reported as a defect.** `platform::IAcceleratedSurface` is
+declared and unimplemented, so presentation is software — and that is now **Stage 4's**, *if A2 says
+it is needed*, rather than T16's, because A2's probe is thirty times inside the frame budget. A
+missing embedded font **does** substitute through our own policy as of T16 and the log names the
+face — what is absent is any UI for it: no message-bar row, no font-substitution dialog, so a person
+sees the page and only the log sees the reason. There are no golden baselines, so nothing yet says a
+page renders the same way twice (**T17**). **`pageDisplay/lineWeight` is a checkbox that does nothing** and that is measured rather
 than overlooked — issue **I-11**, because PDFium has no control that draws a hairline at its true
 width. **The seven §8 Viewer chords Stages 3 to 13 own stay `NotFound`** and deliberately leave the
 key unconsumed, and `Select` arms a tool that selects nothing until **Stage 5**. What a person CAN do
@@ -758,7 +847,7 @@ repaired.
 
 Task by task: T1 added the engine *contract* (`core/backend.h`) and a backend implementing none of
 it; T2 `pdf/render/PdfiumInit`, the library's global state and nothing else; T4 **data** rather than
-code (`corpus/` is 60 generated files and their generators); T5 `pdf/cos/Lexer`; T6 `CosObject` +
+code (`corpus/` is 61 generated files and their generators); T5 `pdf/cos/Lexer`; T6 `CosObject` +
 `Parser`; T7 the nine filters and `XrefTable`; T8 `XrefRepair` with the first three `core/doc/`
 types; **T10 the arithmetic — `DpiPolicy`, `TileGrid`, `PagePresentation`** — and **T11 `RenderCache`
 with its `MemoryTileStore` and `DiskTileStore` tiers plus `RenderScheduler`, which is where I-05 was
@@ -767,8 +856,10 @@ page was first drawn by the product rather than by a benchmark**, and where
 `pdf::createBackend()` stopped refusing every call by name; **T12 the two OS interfaces the policy
 layer was waiting on**; and **T13 `ui/viewer/` — where a rendered tile finally reaches a widget.**
 **T14 the §8 Viewer commands, the status bar's real numbers and the message bar** — where the keyboard
-first moved the page — and **T15 the sixteen settings keys**, where the Preferences dialog started
-changing what is drawn. `platform/win/` holds **four** of seventeen interfaces. **`rawpage.exe` opens a window with a
+first moved the page — **T15 the sixteen settings keys**, where the Preferences dialog started
+changing what is drawn, and **T16 the font substitution bridge**, where the product stopped letting
+the engine decide what a missing font looks like. `platform/win/` holds **five** of seventeen
+interfaces. **`rawpage.exe` opens a window with a
 working ribbon, a customizable toolbar, a tool finder, document tabs, a keyboard, a Preferences dialog
 and a log pane** —
 9 tabs above a sidebar, a status bar and a live theme, and **a tab per opened file showing the
@@ -1136,8 +1227,8 @@ live.** `checks` runs the three that exist and says three — if it ever *claims
 
 Two rules are escapable, both with an inline marker **on the same line as the match** — not the line
 above — and both censused by that gate's `--explain`: `// layer-lint: allow-filesystem-write(reason)`
-(**six** waivers exist — three in `app/CrashHandler.cpp`, two in `app/LogFile.cpp` for the rolling log file and its retention, one on the named-pipe `CreateFileW` in
-`platform/win/WinSingleInstanceBus.cpp`) and `// i18n-lint: allow-literal(reason)` (none yet). `--explain` distinguishes a waiver that **silenced something** from one that did not, which is
+(**eight** waivers exist, and this line read *six* until it was re-measured at T16 — three in `app/CrashHandler.cpp`, two in `app/LogFile.cpp` for the rolling log file and its retention, one on the named-pipe `CreateFileW` in
+`platform/win/WinSingleInstanceBus.cpp`, and **two in `core/render/DiskTileStore.cpp` since T11**, one write and one delete, the second because every deletion in that file goes through a single helper to keep the census at two. The Gates row above has said eight since T11; this sentence had not been re-measured, which is the drift the T1 recount was written to stop) and `// i18n-lint: allow-literal(reason)` (none yet). `--explain` distinguishes a waiver that **silenced something** from one that did not, which is
 Stage 0's I-20 written into the tool rather than remembered.
 
 Plus the standing conventions:
@@ -1163,7 +1254,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 642/642 as of Stage 2 T15, 1 skipped
+ctest --preset x64-release --output-on-failure        # 677/677 as of Stage 2 T16, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -1171,7 +1262,7 @@ verification dependency and deliberately **not** a build one (`cmake --build` ne
 run as `gates.corpus.*` in the `gates` preset; by hand:
 
 ```powershell
-python corpus/make-corpus.py                     # regenerate all 60 files
+python corpus/make-corpus.py                     # regenerate all 61 files
 python corpus/make-corpus.py --verify            # they regenerate BYTE-IDENTICALLY (D2-11, S2 T4)
 python corpus/make-corpus.py --check-provenance  # every file has a PROVENANCE.md row, and vice versa
 python corpus/make-corpus.py --self-test         # the negative control: each detection must fire
@@ -1235,8 +1326,8 @@ Counted 2026-09-02; this heading read *"three"* from Stage 1 T9 until then, havi
 `rawpage_render_tests` (S2 · T2) and `rawpage_bench_render` (S2 · T3) even though the table below
 already listed the first. A fifth suite, `gates.`, has **no binary at all** — its 90 cases drive the
 gate executables and CMake itself through `cmake -P`, which is what lets the `gates` preset run it
-with no Qt and no vcpkg. Current split of the 642: `unit.` 311, `ui.` 178, `gates.` 90,
-`platform.` 28, `render.` 33, `bench.` 2. **One of the 642 is deliberately SKIPPED rather than green** —
+with no Qt and no vcpkg. Current split of the 677: `unit.` 328, `ui.` 178, `gates.` 94,
+`platform.` 35, `render.` 40, `bench.` 2. **One of the 677 is deliberately SKIPPED rather than green** —
 `platform.powersession reports the machine's power source`, on a desktop with no battery, which is
 guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* honoured.
 

@@ -1718,6 +1718,86 @@
         <translation>RawPage could not keep the display awake for this presentation (%1).</translation>
     </message>
     <message>
+        <source>error.action.unknown</source>
+        <translation>No such command: %1.</translation>
+    </message>
+    <message>
+        <source>error.action.unavailable</source>
+        <translation>%1 is not available right now.</translation>
+    </message>
+    <message>
+        <source>error.action.alreadyRegistered</source>
+        <translation>%1 is already registered.</translation>
+    </message>
+    <message>
+        <source>error.action.noHandler</source>
+        <translation>%1 was registered without anything to run.</translation>
+    </message>
+    <message>
+        <source>error.shortcut.unknownAction</source>
+        <translation>That shortcut names a command this build does not have.</translation>
+    </message>
+    <message>
+        <source>error.shortcut.invalidChord</source>
+        <translation>That key combination cannot be read.</translation>
+    </message>
+    <message>
+        <source>error.shortcut.widgetNative</source>
+        <translation>%1 is reserved by Windows and cannot be reassigned.</translation>
+    </message>
+    <message>
+        <source>error.shell.registry</source>
+        <translation>Windows refused the change to the file associations (%1).</translation>
+    </message>
+    <message>
+        <source>error.shell.noExecutablePath</source>
+        <translation>RawPage could not determine its own location, so it cannot register itself.</translation>
+    </message>
+    <message>
+        <source>error.shell.defaultAppsUi</source>
+        <translation>Windows would not open the Default Apps settings page (%1).</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.alreadyClaimed</source>
+        <translation>Another copy of RawPage is already running.</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.claimFailed</source>
+        <translation>RawPage could not check whether another copy is running (%1).</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.notPrimary</source>
+        <translation>This copy of RawPage is not the one that accepts files from others.</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.noHandler</source>
+        <translation>RawPage was asked to accept files before it was ready to.</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.listenFailed</source>
+        <translation>RawPage could not listen for files from other copies (%1).</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.primaryCannotForward</source>
+        <translation>This copy of RawPage is the primary one and has nowhere to forward to.</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.notClaimed</source>
+        <translation>RawPage has not yet decided whether it is the primary copy.</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.forwardFailed</source>
+        <translation>RawPage could not hand the file to the copy that is already running (%1).</translation>
+    </message>
+    <message>
+        <source>error.font.collectionUnavailable</source>
+        <translation>The list of installed fonts could not be read, so missing fonts will be substituted by the PDF engine instead.</translation>
+    </message>
+    <message>
+        <source>error.font.noSubstitute</source>
+        <translation>No installed font could stand in for &quot;%1&quot;.</translation>
+    </message>
+    <message>
         <source>error.engine.initFailed</source>
         <translation>The PDF engine could not be started (error %1).</translation>
     </message>

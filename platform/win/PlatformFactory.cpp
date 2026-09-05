@@ -2,6 +2,7 @@
 
 #include "core/Log.h"
 #include "platform/win/WinDisplayTopology.h"
+#include "platform/win/WinFontResolver.h"
 #include "platform/win/WinPowerSession.h"
 #include "platform/win/WinShellIntegration.h"
 #include "platform/win/WinSingleInstanceBus.h"
@@ -36,7 +37,18 @@ std::unique_ptr<Platform> createWindowsPlatform(const PlatformOptions& options)
     platform->displayTopology = std::make_unique<WinDisplayTopology>();
     platform->powerSession = std::make_unique<WinPowerSession>();
 
-    // Every other slot stays null, and the count is LOGGED rather than left implicit. "Thirteen of
+    // Stage 2 T16, and the same split again: this reports WHAT IS INSTALLED, and WHICH face to
+    // prefer is `core/render/FontSubstitution`. Constructed unconditionally and costing nothing
+    // until asked -- the DirectWrite factory is created on the first `resolve()`, not here, so a
+    // `--dump-ui-strings` run never touches the system font collection.
+    //
+    // `acceleratedSurface` is deliberately still null. The Stage 2 guide's caveat table says
+    // presentation stays software until Stage 4 decides whether A2 needs otherwise, and a stub that
+    // reported `isAvailable() == false` would be indistinguishable from a real implementation on a
+    // machine with no GPU -- which is convention 6's whole argument for a null member.
+    platform->fontResolver = std::make_unique<WinFontResolver>();
+
+    // Every other slot stays null, and the count is LOGGED rather than left implicit. "Twelve of
     // seventeen interfaces are not built yet" is a fact a later stage should be able to see in a
     // support log without reading this file.
     const std::vector<std::string_view> missing = unimplementedInterfaces(*platform);

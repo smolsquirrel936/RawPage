@@ -263,7 +263,9 @@ this assumption existed to check.
 |---|---|
 | `tests` (default) | catch2 3.15.3 |
 | `codecs` | zlib 1.3.2#2 · libjpeg-turbo 3.2.0 · libpng 1.6.58 · openjpeg 2.5.4 · tiff 4.7.2 |
-| `text` | freetype 2.14.3 · harfbuzz 14.3.1 · icu 78.3#2 · hunspell 1.7.3 |
+| ~~`text`~~ → **`fonts`** | freetype 2.14.3 (pulls brotli 1.2.0, bzip2 1.0.8, libpng) |
+| **`shaping`** | harfbuzz 14.3.1 · icu 78.3#2 |
+| **`spelling`** | hunspell 1.7.3 (**pulls libiconv 1.19** — its only parent) |
 | `crypto` | openssl 3.6.3 |
 | `ocr` | leptonica 1.87.0 · tesseract 5.5.2 |
 
@@ -271,9 +273,23 @@ this assumption existed to check.
 graph closes and a version exists for the triplet; only the default set was actually **built**
 (catch2 → `libCatch2.a`, installed and consumed through the preset). ICU and OpenSSL are the two with
 a reputation for failing under MinGW, and neither has been compiled here. Each remaining group is
-built when its stage switches the feature on — Stage 2 for `codecs`, Stage 5 for `text`, Stage 10 for
-`crypto`, Stage 16 for `ocr` — and **that** is when A5 is fully closed for it. Recording this as a
-flat pass would be the overclaim A5 exists to prevent.
+built when its stage switches the feature on — Stage 2 for `codecs`, Stage 5 for `fonts` and
+`shaping`, Stage 10 for `crypto`, Stage 13 for `spelling`, Stage 16 for `ocr` — and **that** is when
+A5 is fully closed for it. Recording this as a flat pass would be the overclaim A5 exists to prevent.
+
+**`text` BECAME THREE FEATURES AT STAGE 2 T16**, and the split is a licensing decision rather than a
+tidy-up. One group spanning *“Stages 2, 5, 13”* meant that the first stage to need a font would build
+**hunspell**, which is `libiconv`'s only parent — and the libiconv port installs a **GPL `iconv.exe`**
+into `installed/<triplet>/tools/`. That is not a breach and nothing is packaged before Stage 15, but
+it would have put a GPL binary in the tree eleven stages before anything linked the library, waiting
+for a packaging step that sweeps `tools/`. Split, `fonts` + `shaping` pull **neither hunspell nor
+libiconv** — measured with a dry-run, not reasoned from the graph — and all three resolve clean on
+`x64-mingw-dynamic`.
+**Stage 2 turns on none of the three**, which is where the row above changed from what the Stage 2
+plan's T16 clause asked for: PDFium bundles its own FreeType and T16's font substitution reaches the
+OS through DirectWrite, handing the engine the face's bytes, so nothing in Stage 2 links freetype
+either. `objdump -p` on the built `rawpage.exe` names eighteen DLLs and not one of them comes from
+these ports. This table already said **Stage 5 for `text`**, and it was right.
 
 Two operational facts fell out of the measurement and are load-bearing for CI:
 
@@ -800,13 +816,18 @@ silently disappeared from the register is a defect at any stage; one that is wri
 unfinished is not. §8.3 is where it stops being acceptable — the release gate below turns each entry
 into a URL that must resolve and serve the exact shipped version.
 The build fails if a dependency's SPDX identifier is not on the allowlist
-(`BSD-2-Clause, BSD-3-Clause, MIT, 0BSD, Apache-2.0, Zlib, BSL-1.0, Unicode-DFS-2016, FTL, LGPL-3.0,
-libpng-2.0, libtiff, IJG, MS-RL, ZPL-2.1, GPL-3.0-or-later WITH GCC-exception-3.1`) — which is what
-mechanically enforces D4. **`0BSD` was added at Stage 2 T7** with `liblzma`, which arrives
-transitively with `tiff` under the `codecs` feature; it is BSD-2-Clause with the attribution
-requirement removed, so it is strictly more permissive than two entries already here. That same task
-made the gate audit the **resolved closure** rather than the declared manifest (issue **I-02**), so
-a transitively-installed port can no longer reach the tree without a verdict.
+(`BSD-2-Clause, BSD-3-Clause, MIT, 0BSD, bzip2-1.0.6, Apache-2.0, Zlib, BSL-1.0, Unicode-DFS-2016,
+FTL, LGPL-3.0, libpng-2.0, libtiff, IJG, MS-RL, ZPL-2.1, GPL-3.0-or-later WITH
+GCC-exception-3.1`) — which is what mechanically enforces D4. **`0BSD` was added at Stage 2 T7** with
+`liblzma`, which arrives transitively with `tiff` under the `codecs` feature; it is BSD-2-Clause with
+the attribution requirement removed, so it is strictly more permissive than two entries already here.
+That same task made the gate audit the **resolved closure** rather than the declared manifest (issue
+**I-02**), so a transitively-installed port can no longer reach the tree without a verdict.
+**`bzip2-1.0.6` was added at Stage 2 T16**, with rows for `brotli`, `bzip2` and `libiconv` — the three
+ports the `text` feature would have pulled — even though **Stage 2 links none of them**, which
+`objdump -p` on the built executable measured rather than assumed. The rows are here so that the first
+run after Stage 5 turns `fonts` on is a pass rather than a discovery. The identifier is named after
+bzip2 1.0.6 while the port is 1.0.8, and that mismatch is SPDX's convention rather than an error.
 The last entry is the GCC runtime and is allowed **only** in that exact
 expression: bare `GPL-3.0-or-later` is a build failure, so dropping the exception (by adding a
 non-free compiler plugin, or by pulling a differently-licensed runtime) fails the audit rather than

@@ -65,6 +65,24 @@ rawpage_add_gate_test(NAME gates.layer_lint.fpdf_in_cos
 # A-12: the HANDLE, in core/, with three spellings in one struct. No FPDF_ call appears anywhere in
 # that fixture -- which is the point: a type can hold the engine's object graph without ever calling
 # it, and that is the leak the boundary exists to prevent.
+# --- T16's widening, and the narrowing that is the point of it -------------------------
+# `pdf/render/` may include platform/platform.h from Stage 2 T16, because FontResolverBridge is
+# where the engine boundary and the OS boundary physically meet -- PDFium's font hook asks, and
+# platform::IFontResolver answers (guide case A-66). The widening is on a `pdf-render` layer entry
+# rather than on `pdf`, so that pdf/cos/ does NOT inherit it: that layer is portable BY RULE and is
+# half of what portable-asan and portable-fuzz build on Linux.
+#
+# The two cases below are the same shape as D2-9's pair above, and for the same reason: a rules file
+# that had put the permission on `pdf` instead of on `pdf-render` passes the control and fails
+# nothing, so the control alone would not notice.
+rawpage_add_gate_test(NAME gates.layer_lint.cos_includes_platform
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/cos-includes-platform --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "platform/platform.h")
+
+rawpage_add_gate_test(NAME gates.layer_lint.pdf_render_may_include_platform
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/pdf-render-may-include-platform --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
 rawpage_add_gate_test(NAME gates.layer_lint.fpdf_handle_outside_render
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/fpdf-handle-outside-render --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "fpdf-handle")
@@ -439,6 +457,23 @@ rawpage_add_gate_test(NAME gates.i18n_lint.namespace_reference_covers_generated_
     EXPECT_EXIT 0
     EXPECT_MATCH "note: orphan-key: prefs.window.title"
     EXPECT_NOT_MATCH "orphan-key: prefs.context.Viewer")
+
+# T16 -- issue I-04's rule, and it is BLOCKING where orphan-key is a note. One fixture carries four
+# references and exactly one is the defect, because the three that must NOT fire are what the rule's
+# precision consists of: a key that IS defined, a namespace reference ending in a dot, and a dotted
+# literal that is a file name. Anchoring on the declared `keyFamilies` is what separates them, and a
+# rule that fired on every dotted literal would fail this build on settings.ini.
+rawpage_add_gate_test(NAME gates.i18n_lint.unknown_key
+    COMMAND ${IL} --root ${IL_FIX}/unknown-key --rules ${IL_RULES}
+    EXPECT_EXIT 1
+    EXPECT_MATCH "unknown-key: error.font.missingFace"
+    EXPECT_NOT_MATCH "unknown-key: error.font.noSubstitute")
+
+rawpage_add_gate_test(NAME gates.i18n_lint.unknown_key_ignores_namespaces_and_filenames
+    COMMAND ${IL} --root ${IL_FIX}/unknown-key --rules ${IL_RULES}
+    EXPECT_EXIT 1
+    EXPECT_NOT_MATCH "unknown-key: error.repair."
+    EXPECT_NOT_MATCH "unknown-key: settings.ini")
 
 # A-17, transplanted from Stage 0's I-20. The waiver must waive...
 rawpage_add_gate_test(NAME gates.i18n_lint.waiver_applies

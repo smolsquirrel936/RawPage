@@ -116,6 +116,14 @@ add_library(rawpage_core STATIC
     render/DiskTileStore.cpp
     render/RenderScheduler.h
     render/RenderScheduler.cpp
+
+    # T16: WHICH face stands in for a font a document names and does not embed. It is in core/ and
+    # not in platform/win/ because platform/ makes no policy decisions and this is nothing but
+    # policy -- an ordered list of families, the same judgement on every operating system. The
+    # consequence is that guide case A-66's claim ("our policy, not the engine's") is asserted by
+    # tests/unit with no display, no Windows and no PDFium linked.
+    render/FontSubstitution.h
+    render/FontSubstitution.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

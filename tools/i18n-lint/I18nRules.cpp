@@ -53,6 +53,7 @@ I18nRules I18nRules::loadFromFile(const std::filesystem::path& path)
     rules.scanned_ = root["scannedPaths"].asStringList();
     rules.excluded_ = root["exclude"].asStringList();
     rules.escapableKinds_ = root["escapableKinds"].asStringList();
+    rules.keyFamilies_ = root["keyFamilies"].asStringList();
 
     // Each of these is load-bearing, and an empty one turns a rule into a rule that cannot fire.
     // A gate that silently checks nothing is worse than no gate, because it is reported as green.
@@ -67,6 +68,13 @@ I18nRules I18nRules::loadFromFile(const std::filesystem::path& path)
     if (rules.scanned_.empty()) {
         throw std::runtime_error("no scannedPaths declared in " + path.string()
                                  + " -- no source file would be examined");
+    }
+    if (rules.keyFamilies_.empty()) {
+        // The same argument as the three above, and it is the newest of them: unknown-key is
+        // anchored entirely on this list, so an empty one is a rule that reports nothing while the
+        // gate still prints "clean" (issue I-04).
+        throw std::runtime_error("no keyFamilies declared in " + path.string()
+                                 + " -- the unknown-key rule could never fire");
     }
 
     return rules;
@@ -93,6 +101,23 @@ bool I18nRules::isScannableExtension(const std::filesystem::path& path) const
     const std::string ext = path.extension().string();
     for (const std::string& candidate : extensions_) {
         if (ext == candidate) return true;
+    }
+    return false;
+}
+
+bool I18nRules::isCatalogKey(const std::string& reference) const
+{
+    // A trailing dot is a NAMESPACE reference covering every key beneath it -- several families are
+    // built from a table at runtime, so the whole key is a literal nowhere (T14, issue I-27). It is
+    // not a key and must not be looked up as one.
+    if (reference.empty() || reference.back() == '.') return false;
+
+    const std::size_t dot = reference.find('.');
+    if (dot == std::string::npos) return false;
+
+    const std::string family = reference.substr(0, dot);
+    for (const std::string& candidate : keyFamilies_) {
+        if (candidate == family) return true;
     }
     return false;
 }

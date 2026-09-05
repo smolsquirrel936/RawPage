@@ -25,6 +25,11 @@ add_executable(rawpage_platform_tests
     # (convention 19) -- a real scale change is manual case M-02's, and a real suspend is nobody's.
     tst_displaytopology.cpp
     tst_powersession.cpp
+
+    # S2 T16 -- the fifth interface. This suite owns "is it installed here and what file backs it";
+    # the ordered candidate list it walks is core/render/FontSubstitution's and is asserted by
+    # tests/unit with no display at all, and the chain through PDFium is tests/render's.
+    tst_fontresolver.cpp
 )
 
 target_include_directories(rawpage_platform_tests PRIVATE "${CMAKE_SOURCE_DIR}")

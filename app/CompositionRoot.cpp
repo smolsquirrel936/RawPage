@@ -4,6 +4,7 @@
 #include "app/CrashHandler.h"
 
 #include "pdf/BackendFactory.h"
+#include "pdf/render/FontResolverBridge.h"
 
 #include "core/render/RenderRequest.h"
 #include "core/settings/SettingsSchema.h"
@@ -221,6 +222,29 @@ CompositionRoot::CompositionRoot(Options options)
             }
         }
         applyPowerThrottle();
+
+        // THE FONT HOOK (Stage 2 T16). Installed here because this is where both halves exist at
+        // once: the platform bundle owns the resolver and `pdf/render/` owns the engine, and
+        // `app/` is the only layer permitted to name either concretely.
+        //
+        // ORDER IS LOAD-BEARING IN BOTH DIRECTIONS. It goes in AFTER the bundle is built, because
+        // the bridge borrows the resolver rather than owning it; and `uninstall()` runs in the
+        // destructor BEFORE the bundle is destroyed, because PDFium keeps the pointer and calls
+        // back into it while rendering. A hook left installed over a freed resolver is a
+        // use-after-free inside the engine, reported as a crash in a stack frame nobody recognizes.
+        //
+        // A failure here is NOT fatal and is deliberately not treated as one: without the hook,
+        // PDFium substitutes with its own internal policy exactly as it did before T16. The page
+        // still renders; what is lost is our say in which face it uses and the log line naming it,
+        // which is why this warns rather than refusing to start.
+        if (platform_->fontResolver) {
+            const core::Status hooked =
+                pdf::render::FontResolverBridge::install(*platform_->fontResolver);
+            if (!hooked) {
+                RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+                    << "font: substitution stays with the engine --" << hooked.error().messageKey;
+            }
+        }
     } else {
         // An empty bundle rather than a null pointer: every member is already null, which is the
         // vocabulary platform/platform.h defines for "not available", so a caller needs no second
@@ -243,6 +267,15 @@ CompositionRoot::~CompositionRoot()
         renderScheduler_.reset();
     }
     renderCache_.reset();
+
+    // THE FONT HOOK COMES OUT HERE, and the position between those two statements is the whole of
+    // the correctness argument. PDFium holds a pointer to a callback table whose `MapFont` reads
+    // `platform_->fontResolver`, and that resolver dies with the bundle when this object's members
+    // are destroyed below. So it must come out BEFORE the bundle -- and AFTER the scheduler has
+    // been joined, because `FPDF_SetSystemFontInfo` writes engine globals and a worker inside
+    // `FPDF_RenderPageBitmap` may be reading them. Either half alone is a crash: too early is a
+    // race on PDFium's globals, too late is a use-after-free on a resolver that is gone.
+    pdf::render::FontResolverBridge::uninstall();
 
     // THE WRITE. `Settings` accumulates dirty keys and commits them on sync(), which nothing called
     // until T8 -- so before this line the recent-files list and every preference were correct for

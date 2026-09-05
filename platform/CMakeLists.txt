@@ -43,6 +43,14 @@ add_library(rawpage_platform STATIC
     win/WinDisplayTopology.cpp
     win/WinPowerSession.h
     win/WinPowerSession.cpp
+
+    # S2 T16 -- the fifth of the seventeen. It answers WHAT IS INSTALLED and deliberately not WHAT
+    # TO PREFER: the ordered candidate list is core/render/FontSubstitution, because this layer
+    # makes no policy decisions and substitution is almost entirely policy. WinAcceleratedSurface
+    # is NOT here -- see the guide's caveat table: presentation stays software until Stage 4 decides
+    # it is needed, and a null member is the vocabulary platform.h defines for that.
+    win/WinFontResolver.h
+    win/WinFontResolver.cpp
 )
 
 target_include_directories(rawpage_platform PUBLIC "${CMAKE_SOURCE_DIR}")
@@ -55,6 +63,11 @@ target_link_libraries(rawpage_platform PUBLIC rawpage_core)
 # for the notification window; shcore for GetDpiForMonitor -- which is the ONLY way to obtain a
 # monitor's real DPI separately from its scale factor (S2 T12) -- and wtsapi32 for session lock and
 # unlock notifications.
-target_link_libraries(rawpage_platform PRIVATE shell32 advapi32 user32 shcore wtsapi32)
+# dwrite for the system font collection and, crucially, for the FILE that backs a face --
+# GDI can enumerate families but cannot name their files, and platform::FontMatch::filePath is
+# what makes a match usable by a rasterizer that is handed bytes (S2 T16). ole32 comes with it:
+# DWriteCreateFactory hands back COM interfaces.
+target_link_libraries(rawpage_platform PRIVATE shell32 advapi32 user32 shcore wtsapi32
+                                                dwrite ole32)
 
 rawpage_common_flags(rawpage_platform)

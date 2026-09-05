@@ -27,6 +27,13 @@ const char* kWhyOrphanKey =
     "reporting forty of those every run is how a note nobody can act on teaches people to skip the "
     "whole rule.";
 
+const char* kWhyUnknownKey =
+    "A source names a catalog key that no shipped catalog defines. The key is what ui/ looks up, so "
+    "the surface renders the key text itself -- \"error.font.noSubstitute\" in a message bar. This is "
+    "the INVERSE of orphan-key and neither rule sees what the other does: orphan-key asks whether a "
+    "catalog entry is referenced, missing-key compares the catalogs against each other, and "
+    "action-label covers only the action.* family. Issue I-04.";
+
 const char* kWhyActionLabel =
     "An ActionId with no action.* catalog entry renders as a button with no label. ActionId.def "
     "carries the catalog key as its own column precisely so this can be checked without a compiler.";
@@ -121,6 +128,28 @@ std::vector<Finding> check(const Inputs& inputs)
                 findings.push_back(Finding{inputs.actionDefPath.generic_string(), 0, "action-label",
                                            "no catalog entry for " + key, kWhyActionLabel, true});
             }
+        }
+
+        // --- unknown-key (BLOCKING) -----------------------------------------------------------
+        //
+        // The question issue I-04 found that nothing asked: does every catalog key a SOURCE names
+        // actually exist? It is anchored on the declared families rather than on every dotted
+        // literal, because the scanner's notion of a key is deliberately generous for orphan-key's
+        // sake and a blocking rule over that set would fail on settings.ini and pdfium.dll.
+        //
+        // It is checked against the SOURCE catalog (`en`), which is the one the key IS: missing-key
+        // already reports a key present in en and absent from a shipped locale, so checking every
+        // catalog here would report each gap twice under two rule names.
+        std::set<std::string> unknown;   // deduped: one finding per key, not one per call site
+        for (const KeyReference& reference : inputs.sources.keyReferences) {
+            if (!inputs.rules.isCatalogKey(reference.key)) continue;
+            if (source->contains(reference.key)) continue;
+            if (!unknown.insert(reference.key).second) continue;
+
+            findings.push_back(Finding{reference.file, reference.line, "unknown-key",
+                                       reference.key + " is named by this source and defined by no "
+                                                       "catalog",
+                                       kWhyUnknownKey, true});
         }
 
         // --- orphan-key (S3: reported, never blocking) -----------------------------------------
@@ -225,6 +254,13 @@ void explain(const Inputs& inputs, std::ostream& out)
 
     out << "\nwrappers -- a literal inside one of these is legitimate\n";
     for (const std::string& wrapper : inputs.rules.wrappers()) out << "  " << wrapper << ")\n";
+
+    // The unknown-key rule is anchored entirely on this list, so a family missing from it is a
+    // namespace nothing checks -- a silent gap, and therefore one --explain has to show. Same
+    // argument as the waiver census: a rule's blind spot must be visible without reading the tool.
+    out << "\ncatalog families -- unknown-key checks a reference only if it starts with one\n  ";
+    for (const std::string& family : inputs.rules.keyFamilies()) out << family << ".* ";
+    out << "\n";
 
     // D1-14 made visible. A silent skip is indistinguishable from a forgotten locale, which is
     // exactly the distinction that decision exists to keep in view.

@@ -1718,6 +1718,86 @@
         <translation>RawPage 無法在此簡報期間保持顯示器開啟（%1）。</translation>
     </message>
     <message>
+        <source>error.action.unknown</source>
+        <translation>沒有這個命令：%1。</translation>
+    </message>
+    <message>
+        <source>error.action.unavailable</source>
+        <translation>%1 目前無法使用。</translation>
+    </message>
+    <message>
+        <source>error.action.alreadyRegistered</source>
+        <translation>%1 已經註冊過了。</translation>
+    </message>
+    <message>
+        <source>error.action.noHandler</source>
+        <translation>%1 註冊時沒有可執行的內容。</translation>
+    </message>
+    <message>
+        <source>error.shortcut.unknownAction</source>
+        <translation>該快速鍵指向此版本沒有的命令。</translation>
+    </message>
+    <message>
+        <source>error.shortcut.invalidChord</source>
+        <translation>無法解讀該按鍵組合。</translation>
+    </message>
+    <message>
+        <source>error.shortcut.widgetNative</source>
+        <translation>%1 由 Windows 保留，無法重新指派。</translation>
+    </message>
+    <message>
+        <source>error.shell.registry</source>
+        <translation>Windows 拒絕變更檔案關聯（%1）。</translation>
+    </message>
+    <message>
+        <source>error.shell.noExecutablePath</source>
+        <translation>RawPage 無法判斷自身位置，因此無法註冊。</translation>
+    </message>
+    <message>
+        <source>error.shell.defaultAppsUi</source>
+        <translation>Windows 無法開啟「預設應用程式」設定頁（%1）。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.alreadyClaimed</source>
+        <translation>另一份 RawPage 已在執行中。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.claimFailed</source>
+        <translation>RawPage 無法檢查是否已有另一份程式在執行（%1）。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.notPrimary</source>
+        <translation>此 RawPage 並非接收其他程式檔案的那一份。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.noHandler</source>
+        <translation>RawPage 尚未就緒即被要求接收檔案。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.listenFailed</source>
+        <translation>RawPage 無法接聽來自其他複本的檔案（%1）。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.primaryCannotForward</source>
+        <translation>此 RawPage 是主要複本，沒有可轉送的對象。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.notClaimed</source>
+        <translation>RawPage 尚未確定自己是否為主要複本。</translation>
+    </message>
+    <message>
+        <source>error.singleInstance.forwardFailed</source>
+        <translation>RawPage 無法將檔案交給已在執行的複本（%1）。</translation>
+    </message>
+    <message>
+        <source>error.font.collectionUnavailable</source>
+        <translation>無法讀取已安裝的字型清單，因此缺少的字型將改由 PDF 引擎替代。</translation>
+    </message>
+    <message>
+        <source>error.font.noSubstitute</source>
+        <translation>沒有任何已安裝的字型可以替代「%1」。</translation>
+    </message>
+    <message>
         <source>error.engine.initFailed</source>
         <translation>無法啟動 PDF 引擎（錯誤 %1）。</translation>
     </message>

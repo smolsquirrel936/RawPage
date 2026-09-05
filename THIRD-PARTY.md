@@ -16,13 +16,13 @@ Project: rawpage 0.1.0
 | tiff | 4.7.2 | `libtiff` | vcpkg | codecs | licence text | https://libtiff.gitlab.io/libtiff/ |
 | libpng | 1.6.58 | `libpng-2.0` | vcpkg | codecs | licence text | https://www.libpng.org/pub/png/libpng.html |
 | openssl | *(not resolved)* | `Apache-2.0` | vcpkg | crypto | licence text, NOTICE not checked | https://www.openssl.org/ |
+| freetype | *(not resolved)* | `FTL` | vcpkg | fonts | licence text | https://freetype.org/ |
 | tesseract | *(not resolved)* | `Apache-2.0` | vcpkg | ocr | licence text, NOTICE not checked | https://github.com/tesseract-ocr/tesseract |
 | leptonica | *(not resolved)* | `BSD-2-Clause` | vcpkg | ocr | licence text | https://github.com/DanBloomberg/leptonica |
+| harfbuzz | *(not resolved)* | `MIT` | vcpkg | shaping | licence text | https://harfbuzz.github.io/ |
+| icu | *(not resolved)* | `Unicode-DFS-2016` | vcpkg | shaping | licence text | https://icu.unicode.org/ |
+| hunspell | *(not resolved)* | `LGPL-3.0` | vcpkg | spelling | licence text | https://github.com/hunspell/hunspell |
 | catch2 | 3.15.3 | `BSL-1.0` | vcpkg | tests | licence text | https://github.com/catchorg/Catch2 |
-| freetype | *(not resolved)* | `FTL` | vcpkg | text | licence text | https://freetype.org/ |
-| harfbuzz | *(not resolved)* | `MIT` | vcpkg | text | licence text | https://harfbuzz.github.io/ |
-| icu | *(not resolved)* | `Unicode-DFS-2016` | vcpkg | text | licence text | https://icu.unicode.org/ |
-| hunspell | *(not resolved)* | `LGPL-3.0` | vcpkg | text | licence text | https://github.com/hunspell/hunspell |
 | liblzma | 5.8.3 | `0BSD` | vcpkg | (transitive) | licence text | https://tukaani.org/xz/ |
 | vcpkg-cmake | 2025-08-07 | `MIT` | vcpkg | (transitive) | licence text | git+https://github.com/microsoft/vcpkg@16b9390dfeaca6df7288ba3f827e40e48e5fc942 |
 | vcpkg-cmake-config | 2026-07-21 | `MIT` | vcpkg | (transitive) | licence text | git+https://github.com/microsoft/vcpkg@51befcb03097f8d19c1c59f9ec3625e69d85322a |

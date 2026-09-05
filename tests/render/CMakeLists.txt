@@ -26,6 +26,10 @@ add_executable(rawpage_render_tests
     tst_pdfiumdoc.cpp             # Stage 2 T9 -- guide cases A-42 and A-43
     tst_rasterizer.cpp            # Stage 2 T9 -- guide cases A-44, A-45, A-46's second half,
                                   #               and A-47's engine half
+    tst_fontbridge.cpp            # Stage 2 T16 -- guide cases A-66 and A-67. The ONLY suite that
+                                  #   drives PDFium -> FontResolverBridge -> WinFontResolver ->
+                                  #   core/render/FontSubstitution end to end, for the reason
+                                  #   below about rawpage_platform.
     tst_renderpipeline.cpp        # Stage 2 T13 -- the REAL engine on the REAL scheduler, through
                                   #   app/BackendRasterizer. Every other suite fakes one end of
                                   #   this: tests/unit and tests/ui fake the rasterizer (they may
@@ -42,10 +46,24 @@ target_compile_definitions(rawpage_render_tests PRIVATE
 
 target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
+# rawpage_platform JOINED AT T16, and it is worth saying why rather than letting a link line grow.
+#
+# The font chain has three links in three libraries -- PDFium, pdf/render/FontResolverBridge and
+# platform/win/WinFontResolver -- and no existing target could hold more than one of them:
+# tests/unit may link neither the engine nor the OS layer (rawpage_assert_headless(), D2-2),
+# tests/platform may not link the engine, and this target had no OS layer. So the arrangement the
+# product actually runs was, once again, the one arrangement no suite could reach. That is issue
+# I-09 exactly -- the finding that made app/BackendRasterizer a header at T13 -- and the answer is
+# the same one: give the suite the real assembly rather than a copy of it.
+#
+# It does NOT weaken what this target's separateness protects. The property being protected is that
+# tests/unit links no engine and no display; adding the OS layer to a Windows-only, engine-linking
+# target costs nothing of that. Both of these libraries are already in the shipped executable.
 target_link_libraries(rawpage_render_tests PRIVATE
     rawpage_core
     rawpage_cos
     rawpage_pdfium
+    rawpage_platform
     Catch2::Catch2WithMain
 )
 
