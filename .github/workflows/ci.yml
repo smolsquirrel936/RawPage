@@ -152,6 +152,19 @@ jobs:
           g++ -dumpmachine
           if ((g++ -dumpversion) -ne '13.1.0') { throw "expected GCC 13.1.0" }
 
+      # PDFium is NOT a vcpkg port -- there is no port -- and nothing under third_party/pdfium/
+      # is committed except its README (.gitignore). So a fresh checkout has no engine, and
+      # `cmake --preset x64-release` fails in rawpage_assert_pdfium() (PA-1) before anything is
+      # compiled. That failure is the assertion doing its job; what was missing is this step.
+      #
+      # ADDED 2026-09-06, after the engine had been in the tree since T2 (2026-09-01) with no CI
+      # run in between -- the Windows job had never once configured against Stage 2's code. The
+      # script verifies the pinned SHA-256 and generates the GNU import library upstream does not
+      # ship; it is idempotent, so on a self-hosted runner it is a no-op after the first run.
+      - name: Fetch the pinned PDFium
+        shell: pwsh
+        run: .\scripts\fetch-pdfium.ps1
+
       # No vcpkg cache step here: a self-hosted runner keeps %LOCALAPPDATA%\vcpkg\archives
       # between runs already, so an actions/cache round-trip would upload and re-download
       # what is sitting on the disk it is running from.

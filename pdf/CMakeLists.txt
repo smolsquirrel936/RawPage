@@ -125,6 +125,24 @@ target_link_libraries(rawpage_cos PUBLIC rawpage_core PRIVATE ZLIB::ZLIB JPEG::J
 
 rawpage_strict(rawpage_cos)           # -Werror: no warning survives in pdf/ either
 
+# --- THE PORTABLE SUBSET STOPS HERE ----------------------------------------------------
+# The portable presets (`portable-asan`, `portable-fuzz`) build core/ + pdf/cos/ on Linux, and
+# pdf/cos/ is everything above this line. Everything below links PDFium, which does not exist on
+# that platform: the root CMakeLists deliberately skips rawpage_assert_pdfium() for these two
+# configurations, so RAWPAGE_PDFIUM_VERSION is unset by design rather than by accident.
+#
+# This guard was MISSING from T2 (2026-09-01) until 2026-09-06, and the comment that stood here
+# claimed the root "only descends into pdf/ with RAWPAGE_PORTABLE_SUBSET off" -- which was never
+# true: the root must descend, because the portable subset needs rawpage_cos. So `portable-asan`
+# and `portable-fuzz` failed to CONFIGURE for the whole of Stage 2, hitting the FATAL_ERROR below
+# that exists to catch a reordered assert. It went unseen because no CI run happened between
+# Stage 1's sign-off and T18. A comment asserting a guard that lives in another file is a claim
+# nothing re-derives -- convention 8's shape, and the reason this one is a `return()` you can see.
+if(RAWPAGE_PORTABLE_SUBSET)
+    message(STATUS "pdf/: portable subset -- rawpage_cos only, no engine facade")
+    return()
+endif()
+
 # =======================================================================================
 # rawpage_pdfium -- the PDFium facade. Stage 2 T2.
 # =======================================================================================
@@ -133,11 +151,10 @@ rawpage_strict(rawpage_cos)           # -Werror: no warning survives in pdf/ eit
 # cmake/RawPageHeadless.cmake's, which has forbidden the NAME since T1 -- before the target existed,
 # which is what makes the rule hold on the portable presets where it never will.
 #
-# It is not guarded by if(WIN32) here: the root CMakeLists only descends into pdf/ with
-# RAWPAGE_PORTABLE_SUBSET off for the Windows presets, and adding a second, weaker guard beside a
-# real one teaches a reader that neither is load-bearing. RAWPAGE_PDFIUM_VERSION is set by
-# rawpage_assert_pdfium() in the root, and its absence below would be a configure error rather than
-# a silently unbuilt engine.
+# RAWPAGE_PDFIUM_VERSION is set by rawpage_assert_pdfium() in the root. Past the `return()` above
+# the only way to reach this line unset is for that call to have been removed or reordered on a
+# Windows preset, which would leave the engine linked and its version unasserted -- so it stays a
+# configure error rather than a silently unbuilt engine.
 if(NOT DEFINED RAWPAGE_PDFIUM_VERSION)
     message(FATAL_ERROR
         "\nrawpage_pdfium cannot be built: RAWPAGE_PDFIUM_VERSION is not set.\n\n"
