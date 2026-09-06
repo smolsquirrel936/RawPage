@@ -144,7 +144,8 @@ Reporting one costs a triage cycle and, worse, invites someone to build it early
 |---|---|
 | **Nothing can be changed or saved.** `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+R` (rotate pages) do nothing and consume no key | Stage 3 |
 | No text selection, no copy, no search, no `Ctrl+F` — the **Select** tool arms and selects nothing, which is deliberate rather than broken (T14) | Stage 5 |
-| No annotations, forms, security editing, signatures, or export | Stages 6–11 |
+| No annotation **editing**, form **filling**, security editing, signatures, or export. **Since I-21 both annotations and form widgets DRAW**, and that is the whole of what Stage 2 claims about them: a `/AP` stream is page content and is rasterized | Stages 6–11 |
+| **A form field is not interactive — clicking, typing and tabbing into one do nothing, and that is the scope line I-21 was fixed along.** The widget's appearance stream is drawn because it is page content under ISO 32000; focus, typing, validation, the calculation cascade and any change to a field's value are a different thing entirely and none of them is wired. **The form-fill environment exists but answers no callback**: `FPDF_FORMFILLINFO` is version 2 with every entry null, because a read-only rasterizer has no dialog to pop, no timer to set and no focus to move. Reported once during the M-03 walk, which is why it is now itemized here rather than left to be inferred from the row above | Stage 9 |
 | No split views, rulers, grid, guides, full screen, presentation, or session restore. `Ctrl+U`, `Ctrl+'`, `Ctrl+;`, `Ctrl+L` are unregistered | Stage 4 |
 | No thumbnails, bookmarks or destinations pane — the sidebar still holds nothing document-shaped | Stage 4 |
 | No Reflow view (`Ctrl+4`) | Stage 13 |
@@ -2152,7 +2153,7 @@ machine and is the whole reason that case is manual.
   than left to be discovered as a gap. **The chrome-and-page agreement is the part that was actually
   at risk** and it is the part reported fine: A-61's automated half proves only that the signal fired.
 
-**M-03 · Rasterization fidelity, beside a reference** ☐
+**M-03 · Rasterization fidelity, beside a reference** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-06**, on the third walk, after two product fixes
 - **Goal** The golden suite proves we render **consistently**; a baseline captured from a wrong
   renderer is green forever, and only a person beside a reference can catch that. **Read the scope
   limit before walking this**: the corpus is entirely generated (§1, *What this corpus cannot tell
@@ -2196,9 +2197,27 @@ machine and is the whole reason that case is manual.
   `/Subtype /Widget` from `FPDF_RenderPageBitmap`, and the facade never created the form-fill
   environment a widget's `/AP` needs. **The corpus contained the control the whole time** —
   `annots-mixed.pdf`'s nine non-widget annotations rendered correctly under the identical flag —
-  and nothing compared the two files until a person did. **The remaining five files are not yet
-  judged**: the walk stopped at the finding, so this case is still open and continues from
-  `text-a4.pdf`.
+  and nothing compared the two files until a person did.
+- **THIRD WALK 2026-09-06 — PASSED, and signed off by the user.** All six files against Acrobat at
+  **100 % and 400 %**, with the `antialiasText` and `antialiasLineArt` toggles exercised. No
+  systematic difference in glyph weight, spacing or colour; hairlines visible at 100 %; the two
+  live toggles do what they say.
+  **RECORDED IN THE WORDING THIS CASE REQUIRES: *consistent with the reference over the generated
+  corpus*, NOT *rendering is correct*.** The corpus is entirely ours (§1, D2-11), so this compared
+  two renderers over files our own generator emitted. It says nothing about a construct the
+  generator never produces — a scanner's CCITT quirks, InDesign transparency, an unusual colour
+  space — and a clean M-03 is **not** evidence that real-world PDFs render correctly. The trigger
+  for revisiting that is D2-11's own *Revisit* column: the first real-world rendering bug the
+  corpus cannot reproduce.
+  **What the pass does NOT cover, beyond the corpus bound.** `pageDisplay/lineWeight` was toggled
+  and does nothing — **I-11**, open by decision, not a finding of this walk. The CJK file's glyphs
+  are sixteen rectilinear shapes by construction, so *correct* there means the rectangles agree,
+  not that curves, hinting or kerning were judged. And **no form field is interactive**, which is
+  Stage 9's and is now itemized in §1's out-of-scope table because this walk raised it.
+  **THE CASE COST TWO PRODUCT FIXES TO REACH A PASS** — **I-20** at its first file and **I-21** at
+  its sixth — which is the argument for an independent reference renderer stated as a fact rather
+  than as a principle: both defects were invisible to a green suite, and both were found within
+  minutes of putting the product beside something that was not itself.
 
 
 **M-04 · Scrolling a 900-page document — the perceived-smoothness half of A2** ☐

@@ -161,6 +161,13 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
             // kind of omission that looks like the feature simply not working. Its partner is
             // called before the page closes, below, and the pairing is why both are here rather
             // than one being folded into the draw.
+            //
+            // A FACT ABOUT THIS ARRANGEMENT, recorded because it is true rather than because
+            // anything depends on it yet: the page's form view is created and torn down **inside
+            // one tile's render**, so no form state survives between renders. That is exactly
+            // right for drawing a `/AP` stream, which is what this is for, and it is the reason
+            // nothing here is a foundation for interaction -- a field the user had focused or
+            // typed into has nowhere to live across two tiles of the same page.
             FORM_OnAfterLoadPage(enginePage, form);
             FPDF_FFLDraw(form, bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
                          pageHeight, static_cast<int>(request.viewRotation) / 90, flags);
