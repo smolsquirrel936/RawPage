@@ -231,6 +231,84 @@ TEST_CASE("rasterizer honours the render flags", "[render][raster]")
     CHECK(allGrey);
 }
 
+TEST_CASE("a WIDGET annotation is drawn, and the annotations flag governs it", "[render][raster]")
+{
+    // A-85, issue I-21. **THE GOLDEN SUITE CANNOT ASK THIS QUESTION.** It compares our render with
+    // our own earlier render, so a page that has never drawn its widgets has a baseline saying a
+    // form is an empty page -- which is exactly what `golden/ordinary/forms-acroform/` held for
+    // four days, green the whole time. An absence is invisible to a comparison with oneself, and
+    // only a person beside Acrobat saw it.
+    //
+    // So this case asserts a property with no reference image in it: **turning annotations off
+    // must CHANGE this page.** With the defect both renders were identical -- eleven widgets
+    // missing either way -- and no assertion about size, non-blankness or self-consistency could
+    // have separated them, because the labels and the heading render fine in both.
+    //
+    // PDFium's split is the thing under test: `FPDF_RenderPageBitmap` draws every annotation
+    // EXCEPT `/Subtype /Widget`, and a widget's `/AP` is reachable only through `FPDF_FFLDraw`
+    // with a form-fill environment.
+    auto document = openOrFail("ordinary/forms-acroform.pdf");
+    PdfiumRasterizer rasterizer(*document);
+
+    RenderRequest withWidgets = requestFor(0, TileRect{0, 0, 480, 640});
+    withWidgets.flags = RenderFlags::Annotations;
+
+    RenderRequest without = withWidgets;
+    without.flags = RenderFlags::None;
+
+    const auto drawn = rasterizer.raster(withWidgets);
+    const auto bare = rasterizer.raster(without);
+    REQUIRE(drawn);
+    REQUIRE(bare);
+    REQUIRE(drawn.value().pixels.size() == bare.value().pixels.size());
+
+    // Both must be real renders: the page's heading and labels are page CONTENT and appear either
+    // way, so a case that only checked non-blankness would pass against the defect.
+    CHECK(distinctBytes(drawn.value()) > 2);
+    CHECK(distinctBytes(bare.value()) > 2);
+
+    // And the difference, which is the whole assertion. The widgets occupy a large part of this
+    // page, so the threshold is generous and still nowhere near satisfiable by rounding.
+    qsizetype differing = 0;
+    for (qsizetype at = 0; at < drawn.value().pixels.size(); ++at)
+        if (drawn.value().pixels[at] != bare.value().pixels[at]) ++differing;
+
+    INFO("differing bytes: " << differing);
+    CHECK(differing > 1000);
+}
+
+TEST_CASE("a NON-widget annotation is drawn too -- the other half of PDFium's split",
+          "[render][raster]")
+{
+    // The companion to the case above, and its control (convention 7). The two corpus files are
+    // the two halves of one experiment and they were in the tree the whole time: nine non-widget
+    // annotations with `/AP` here, eleven widget annotations with `/AP` there, the same flag on
+    // both. Before I-21 this case passed and its neighbour could not have.
+    //
+    // Keeping both is what makes a future regression say WHICH path broke. If widgets stop drawing
+    // this one stays green; if `FPDF_ANNOT` stops being passed at all, both redden together.
+    auto document = openOrFail("ordinary/annots-mixed.pdf");
+    PdfiumRasterizer rasterizer(*document);
+
+    RenderRequest withAnnots = requestFor(0, TileRect{0, 0, 480, 640});
+    withAnnots.flags = RenderFlags::Annotations;
+
+    RenderRequest without = withAnnots;
+    without.flags = RenderFlags::None;
+
+    const auto drawn = rasterizer.raster(withAnnots);
+    const auto bare = rasterizer.raster(without);
+    REQUIRE(drawn);
+    REQUIRE(bare);
+
+    qsizetype differing = 0;
+    for (qsizetype at = 0; at < drawn.value().pixels.size(); ++at)
+        if (drawn.value().pixels[at] != bare.value().pixels[at]) ++differing;
+
+    INFO("differing bytes: " << differing);
+    CHECK(differing > 1000);
+}
+
 TEST_CASE("rasterizer refuses an invalid request rather than returning an empty image",
           "[render][raster]")
 {

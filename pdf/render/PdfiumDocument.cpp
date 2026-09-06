@@ -9,6 +9,7 @@
 // ones that describe it), the ROTATION is in fpdf_edit.h, and the page LABEL in fpdf_doc.h.
 #include <fpdf_doc.h>
 #include <fpdf_edit.h>
+#include <fpdf_formfill.h>
 #include <fpdf_transformpage.h>
 #include <fpdfview.h>
 
@@ -61,6 +62,28 @@ core::PdfRect rectFrom(float left, float bottom, float right, float top)
 
 struct PdfiumDocument::Engine {
     FPDF_DOCUMENT document = nullptr;
+
+    // THE FORM-FILL ENVIRONMENT, AND IT IS HERE PURELY SO WIDGET APPEARANCES RASTERIZE (I-21).
+    //
+    // PDFium splits annotation drawing in two, and the split is invisible until a form page meets
+    // a reference renderer. `FPDF_RenderPageBitmap` with `FPDF_ANNOT` draws every annotation
+    // EXCEPT `/Subtype /Widget`; widgets are drawn only by `FPDF_FFLDraw`, which needs a handle
+    // from `FPDFDOC_InitFormFillEnvironment`. `corpus/ordinary/annots-mixed.pdf` and
+    // `corpus/ordinary/forms-acroform.pdf` are the two halves of that experiment and they were
+    // sitting in the corpus the whole time: nine non-widget annotations with `/AP` all rendered,
+    // eleven widget annotations with `/AP` rendered as an empty page, under the same flag.
+    //
+    // THIS IS NOT STAGE 9 ARRIVING EARLY. `Architecture-FileMap.md`'s `PdfiumFormFill` row is
+    // about *live field appearances and widget states* -- focus, typing, validation, the
+    // calculation cascade -- and none of that is here. What is here is the minimum that makes a
+    // widget's ALREADY-COMPOSED `/AP` stream part of the page, which is what it is under ISO
+    // 32000 and what every conforming viewer draws.
+    //
+    // `info` MUST OUTLIVE `form`: `FPDFDOC_InitFormFillEnvironment` keeps the pointer it is given
+    // rather than copying the struct, so a stack temporary here would leave PDFium reading a dead
+    // frame on the first widget it draws. It is a member for that reason and no other.
+    FPDF_FORMFILLINFO info{};
+    FPDF_FORMHANDLE  form = nullptr;
 };
 
 PdfiumDocument::PdfiumDocument() : engine_(std::make_unique<Engine>()) {}
@@ -69,6 +92,13 @@ PdfiumDocument::~PdfiumDocument()
 {
     if (engine_ && engine_->document != nullptr) {
         const std::lock_guard<std::mutex> guard(engineLock());
+        // THE FORM HANDLE GOES FIRST, and the order is not cosmetic: the environment holds a
+        // reference to the document, and closing the document under it is a use-after-free that
+        // shows up as a crash on close rather than as anything to do with forms.
+        if (engine_->form != nullptr) {
+            FPDFDOC_ExitFormFillEnvironment(engine_->form);
+            engine_->form = nullptr;
+        }
         FPDF_CloseDocument(engine_->document);
         engine_->document = nullptr;
     }
@@ -77,6 +107,11 @@ PdfiumDocument::~PdfiumDocument()
 void* PdfiumDocument::engineHandle() const noexcept
 {
     return engine_ ? static_cast<void*>(engine_->document) : nullptr;
+}
+
+void* PdfiumDocument::formHandle() const noexcept
+{
+    return engine_ ? static_cast<void*>(engine_->form) : nullptr;
 }
 
 int PdfiumDocument::pageCount() const noexcept
@@ -164,6 +199,33 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
         if (attempt >= 16) {
             return openError(core::ErrorCode::PermissionDenied, "error.open.badPassword",
                              info.fileName());
+        }
+    }
+
+    // --- The form-fill environment, for widget appearance streams only (I-21) ------------
+    {
+        const std::lock_guard<std::mutex> guard(engineLock());
+
+        // VERSION 2 is what a document with no XFA wants; `FPDF_FORMFILLINFO` is otherwise all
+        // zeroes, which is the whole point. Every callback in it is a way for PDFium to ask the
+        // HOST to do something -- pop a dialog, set a timer, move focus -- and a read-only
+        // rasterizer answers none of them. Leaving them null is supported and is what makes this
+        // an appearance-stream renderer rather than an interactive form layer.
+        self->engine_->info.version = 2;
+        self->engine_->form =
+            FPDFDOC_InitFormFillEnvironment(self->engine_->document, &self->engine_->info);
+
+        // A DOCUMENT WITH NO `/AcroForm` STILL GETS A HANDLE, and that is correct rather than
+        // wasteful: PDFium returns one regardless, `FPDF_FFLDraw` on a page with no widgets draws
+        // nothing, and branching on the presence of a form dictionary here would add a second code
+        // path that only the form corpus file ever takes.
+        if (self->engine_->form == nullptr) {
+            // NOT AN OPEN FAILURE. The page content is unaffected; what is lost is widget
+            // appearances, and a document that opens without them is far better than one that
+            // does not open. Logged so the degradation is visible rather than silent.
+            RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+                << "form: no form-fill environment for" << info.fileName()
+                << "-- widget appearance streams will not be drawn";
         }
     }
 

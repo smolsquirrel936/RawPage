@@ -97,6 +97,16 @@ public:
     // rule `layer-lint` enforces is about names rather than about directories.
     void* engineHandle() const noexcept;
 
+    // The form-fill environment, likewise opaque and likewise for `PdfiumRasterizer` alone. Null
+    // when PDFium declined to make one, which is a degradation rather than a failure: the page
+    // still renders and only its widget appearances are missing.
+    //
+    // ITS ONLY PURPOSE IS `FPDF_FFLDraw`. PDFium will not draw a `/Subtype /Widget` annotation
+    // from `FPDF_RenderPageBitmap` however the flags are set, so a form page renders as its
+    // labels and nothing else without this (**I-21**). Interaction -- focus, typing, validation --
+    // is Stage 9's and is not reachable through this handle as it is used here.
+    void* formHandle() const noexcept;
+
 private:
     PdfiumDocument();
 

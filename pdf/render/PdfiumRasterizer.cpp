@@ -3,6 +3,7 @@
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumInit.h"
 
+#include <fpdf_formfill.h>
 #include <fpdfview.h>
 
 #include <algorithm>
@@ -140,6 +141,31 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         // shape of rendering bug because it depends on the file.
         FPDF_RenderPageBitmap(bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
                               pageHeight, static_cast<int>(request.viewRotation) / 90, flags);
+
+        // AND THE WIDGETS, WHICH THE CALL ABOVE DOES NOT DRAW (I-21). PDFium renders every
+        // annotation except `/Subtype /Widget` from `FPDF_RenderPageBitmap`; a widget's `/AP` is
+        // reachable only through `FPDF_FFLDraw`. Without this, `forms-acroform.pdf` renders as its
+        // labels and eleven blank spaces -- committed as a golden baseline for four days, because
+        // a suite comparing our output with our own earlier output cannot see an absence.
+        //
+        // SAME GEOMETRY, SAME ROTATION, DELIBERATELY. The arguments mirror the render exactly: a
+        // widget layer drawn at a different origin or rotation is worse than none, since it lands
+        // on the page looking like a rendering fault rather than like a missing feature.
+        //
+        // GATED ON THE ANNOTATIONS FLAG, because a widget IS an annotation. Someone turning
+        // annotations off and still getting form fields would be reading a flag that half works.
+        auto* form = static_cast<FPDF_FORMHANDLE>(document_.formHandle());
+        if (form != nullptr && (flags & FPDF_ANNOT) != 0) {
+            // `FORM_OnAfterLoadPage` is what gives PDFium a per-page view of the form for this
+            // page; `FPDF_FFLDraw` without it draws nothing at all on some documents and is the
+            // kind of omission that looks like the feature simply not working. Its partner is
+            // called before the page closes, below, and the pairing is why both are here rather
+            // than one being folded into the draw.
+            FORM_OnAfterLoadPage(enginePage, form);
+            FPDF_FFLDraw(form, bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
+                         pageHeight, static_cast<int>(request.viewRotation) / 90, flags);
+            FORM_OnBeforeClosePage(enginePage, form);
+        }
 
         FPDFBitmap_Destroy(bitmap);
         FPDF_ClosePage(enginePage);
