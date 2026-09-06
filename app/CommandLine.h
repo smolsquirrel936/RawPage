@@ -89,6 +89,23 @@ struct Intent {
     // before one exists would report 361 declared and 0 registered and be worse than no dump.
     bool        listActions = false;
 
+    // --print-screen-metrics: for every QScreen, the row `ui/viewer/PageLayoutEngine::metricsFor()`
+    // resolves for it -- Qt's name, the topology row it joined to (or that it did not), the scale,
+    // the physical DPI and WHICH OF THE THREE SOURCES answered.
+    //
+    // IT EXISTS BECAUSE NO HEADLESS SUITE CAN SEE THIS JOIN (**I-20**). `tests/ui` runs under
+    // `offscreen`, where there is one fake screen and no topology, so the layer that matches a
+    // `QScreen` to a `MonitorInfo` is only ever exercised against a fixture that agrees with
+    // itself by construction; `platform.displaytopology` (**A-60**) measures the topology alone
+    // and never puts a screen next to it. The join was therefore wrong on every real desktop for
+    // the whole of Stage 2 while both suites stayed green, and the only thing that found it was a
+    // person holding the product beside Acrobat.
+    //
+    // So this is A-60's own remedy applied one layer up: *a rig that has only been measured by the
+    // thing that might be broken is not a rig*. It needs the services, not the window -- the
+    // topology comes from the platform bundle and the screens from Qt.
+    bool        printScreenMetrics = false;
+
     // Which diagnostic, when kind == Diagnostic.
     QString     diagnostic;
 };

@@ -67,7 +67,16 @@ ScreenMetrics metricsFor(const QScreen* screen, const platform::IDisplayTopology
             for (const platform::MonitorInfo& monitor : monitors.value()) {
                 // BY NAME. See the header: the rectangles are in two different coordinate spaces
                 // on precisely the mixed-DPI desktop this join exists for.
-                if (monitor.id != name) continue;
+                //
+                // AND `QScreen::name()` IS THE MONITOR'S MODEL, NOT ITS DEVICE NAME. Qt 6 on
+                // Windows reports what DisplayConfig calls the friendly name -- `MAG 272URDF` --
+                // while `MonitorInfo::id` is `GetMonitorInfoW`'s `szDevice`, `\\.\DISPLAY1`.
+                // Comparing those two could never be equal, so this branch never once executed in
+                // the shipped product and every render silently used the fallback below
+                // (**I-20**). `friendlyName` is carried for exactly this join; `id` is still
+                // accepted because it is the stable identifier everything else keys on and a
+                // platform that reports one and not the other must still match.
+                if (monitor.friendlyName != name && monitor.id != name) continue;
 
                 metrics.scale = MonitorScale{monitor.scaleFactor};
                 metrics.physical = PhysicalDpi{static_cast<double>(monitor.physicalDpi)};
@@ -81,7 +90,22 @@ ScreenMetrics metricsFor(const QScreen* screen, const platform::IDisplayTopology
     // at all. It is preferred over the nominal figure and not over the topology's, because Qt
     // reports it for the screen as Qt understands it, which on a mixed-DPI desktop can be the
     // screen the window was created on rather than the one it is now over.
-    const double qtDpi = screen->physicalDotsPerInch();
+    //
+    // TIMES THE DEVICE PIXEL RATIO, AND THAT FACTOR IS THE WHOLE OF I-20. `physicalDotsPerInch()`
+    // divides the panel's millimetres into `QScreen::geometry()`, and Qt's geometry is in
+    // DEVICE-INDEPENDENT pixels -- 2560 for a 3840-wide panel at 150 %. So Qt answers 108.89 for
+    // glass that measures 163: a DIP dpi wearing the name of a physical one, off by exactly the
+    // scale factor. Feeding it to `DpiPolicy` as `PhysicalDpi` rendered Actual Size at two thirds
+    // of its size on every scaled monitor, which is what a person beside Acrobat saw in the first
+    // minutes of M-03. Multiplying restores the physical figure: 108.89 x 1.5 = 163.3 against the
+    // topology's measured 163, and 108.80 x 1.0 = 108.8 against its 108.
+    //
+    // This is I-07's mistake at one remove -- there a rectangle documented as device-independent
+    // was physical, here a dpi that IS device-independent was read as physical -- and it is why
+    // `ScreenMetrics` carries its `Source` at all: the three answers must stay distinguishable,
+    // because they disagree precisely where it matters and agree on the desktop everyone develops
+    // on, where `physicalDpi == 96 * scale` and the ratio is 1.
+    const double qtDpi = screen->physicalDotsPerInch() * metrics.scale.factor;
     if (qtDpi >= 48.0 && qtDpi <= 1200.0) {
         metrics.physical = PhysicalDpi{qtDpi};
         metrics.source = ScreenMetrics::Source::QtScreen;

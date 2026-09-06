@@ -7,6 +7,7 @@
 #include <shellscalingapi.h>
 
 #include <algorithm>
+#include <unordered_map>
 #include <utility>
 
 namespace rawpage::platform::win {
@@ -28,8 +29,64 @@ QString monitorId(const MONITORINFOEXW& info)
     return QString::fromWCharArray(info.szDevice);
 }
 
+// `szDevice` -> the monitor's own model name, for every path DisplayConfig can see.
+//
+// WHY A SECOND API AT ALL. `GetMonitorInfoW` answers `\\.\DISPLAY1`, which is a name for a
+// SLOT rather than for a panel: unplug the monitor and plug a different one into the same output
+// and the string is unchanged. `DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME` answers what the
+// display says about itself, and Qt 6 names a `QScreen` with exactly that -- which is the whole
+// reason this function exists (**I-20**). Nothing in `platform/` needs it; `ui/viewer/` does, to
+// find the row describing the monitor a widget is currently on.
+//
+// FAILURE IS EMPTINESS, NOT AN ERROR. Every call site treats a missing friendly name as "join on
+// `id` instead", so a session where DisplayConfig is unavailable degrades to what this file did
+// before rather than failing a query that has nothing to do with names.
+std::unordered_map<std::wstring, QString> friendlyNamesByDevice()
+{
+    std::unordered_map<std::wstring, QString> out;
+
+    UINT32 pathCount = 0;
+    UINT32 modeCount = 0;
+    if (::GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != ERROR_SUCCESS)
+        return out;
+
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+    if (::QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &pathCount, paths.data(), &modeCount,
+                             modes.data(), nullptr)
+        != ERROR_SUCCESS)
+        return out;
+
+    paths.resize(pathCount);
+    for (const DISPLAYCONFIG_PATH_INFO& path : paths) {
+        // The SOURCE half names the adapter output -- this is the `\\.\DISPLAY1` that
+        // `GetMonitorInfoW` also reports, and it is the key the two APIs share.
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
+        source.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        source.header.size = sizeof(source);
+        source.header.adapterId = path.sourceInfo.adapterId;
+        source.header.id = path.sourceInfo.id;
+        if (::DisplayConfigGetDeviceInfo(&source.header) != ERROR_SUCCESS) continue;
+
+        // The TARGET half names the panel.
+        DISPLAYCONFIG_TARGET_DEVICE_NAME target{};
+        target.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+        target.header.size = sizeof(target);
+        target.header.adapterId = path.targetInfo.adapterId;
+        target.header.id = path.targetInfo.id;
+        if (::DisplayConfigGetDeviceInfo(&target.header) != ERROR_SUCCESS) continue;
+
+        const QString friendly = QString::fromWCharArray(target.monitorFriendlyDeviceName);
+        if (friendly.isEmpty()) continue;   // an unnamed panel joins by `id`, like any other
+        out.emplace(std::wstring(source.viewGdiDeviceName), friendly);
+    }
+
+    return out;
+}
+
 struct EnumState {
     std::vector<MonitorInfo> monitors;
+    std::unordered_map<std::wstring, QString> friendlyNames;
 };
 
 BOOL CALLBACK enumMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM parameter)
@@ -46,6 +103,10 @@ BOOL CALLBACK enumMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM parameter)
 
     MonitorInfo out;
     out.id = monitorId(info);
+    if (const auto friendly = state->friendlyNames.find(std::wstring(info.szDevice));
+        friendly != state->friendlyNames.end()) {
+        out.friendlyName = friendly->second;
+    }
     out.x = info.rcMonitor.left;
     out.y = info.rcMonitor.top;
     out.width = info.rcMonitor.right - info.rcMonitor.left;
@@ -127,6 +188,7 @@ Result<std::vector<MonitorInfo>> WinDisplayTopology::monitors() const
     }
 
     EnumState state;
+    state.friendlyNames = friendlyNamesByDevice();
     if (::EnumDisplayMonitors(nullptr, nullptr, &enumMonitor,
                               reinterpret_cast<LPARAM>(&state)) == 0) {
         return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.platform.displayQuery"),

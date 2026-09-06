@@ -71,6 +71,19 @@ using core::Status;
 // say whether it is being told them.
 struct MonitorInfo {
     QString id;                  // stable across a session; the OS device name
+
+    // The MODEL name the display reports about itself -- `MAG 272URDF`, not `\\.\DISPLAY1`.
+    //
+    // IT EXISTS TO BE JOINED AGAINST A UI TOOLKIT'S IDEA OF A SCREEN, and that is the only reason
+    // it is here: Qt 6 names a `QScreen` with exactly this string, so `id` -- which is the OS
+    // device name and the right key for everything else -- can never match one. `ui/viewer/`
+    // compared the two for the whole of Stage 2 and the join never once succeeded (**I-20**),
+    // which cost nothing visible because the fallback answered plausibly and wrongly.
+    //
+    // MAY BE EMPTY, and a caller must tolerate that rather than treat it as the identity: it comes
+    // from a different Windows API than the rest of this struct, it is not guaranteed unique
+    // across two identical panels, and `id` remains the stable identifier.
+    QString friendlyName;
     int     x = 0;               // virtual-desktop coordinates, in PHYSICAL device pixels
     int     y = 0;
     int     width = 0;           // the panel's real pixel width, not its logical one

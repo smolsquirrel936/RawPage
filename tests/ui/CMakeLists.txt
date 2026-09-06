@@ -78,3 +78,15 @@ catch_discover_tests(rawpage_ui_tests
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )
+
+# A-84 -- and it drives `rawpage.exe` rather than linking anything, because the input it varies
+# (`QT_SCALE_FACTOR`) is read when the `QGuiApplication` is built and is therefore a property of a
+# process. It keeps the `ui.` prefix on purpose: a sixth CTest prefix would have to be remembered
+# separately by CI's non-empty check, which is the same reasoning that put `render.golden.` inside
+# `render.` at T17.
+add_test(NAME ui.screen_metrics_invariant
+    COMMAND ${CMAKE_COMMAND}
+            -DRAWPAGE_EXE=$<TARGET_FILE:rawpage>
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/ScreenMetricsInvariant.cmake")
+set_tests_properties(ui.screen_metrics_invariant PROPERTIES
+    ENVIRONMENT "PATH=${RAWPAGE_MINGW_ROOT}/bin;$ENV{PATH}")

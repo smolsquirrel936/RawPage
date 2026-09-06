@@ -103,6 +103,11 @@ Result<Intent> parse(const QStringList& arguments)
             continue;
         }
 
+        if (option.name == QLatin1String("--print-screen-metrics")) {
+            intent.printScreenMetrics = true;
+            continue;
+        }
+
         if (option.name == QLatin1String("--lang")) {
             if (option.hasInlineValue) {
                 if (option.value.isEmpty()) {
@@ -142,6 +147,7 @@ QString helpText()
         "  --lang <locale>         Use this UI locale for this run (for example zh-TW).\n"
         "  --dump-ui-strings       Print the shell's resolved catalog strings and exit.\n"
         "  --list-actions          Print every declared command with its registration state.\n"
+        "  --print-screen-metrics  Print each monitor's scale, physical DPI and metrics source.\n"
         "  --help, -h              Show this text.\n"
         "  --                      Treat every following argument as a file path.\n"
         "\n"

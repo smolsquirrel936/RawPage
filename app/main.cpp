@@ -36,10 +36,12 @@
 #include "pdf/render/PdfiumInit.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
+#include "ui/viewer/PageLayoutEngine.h"
 
 #include <windows.h>
 
 #include <QByteArray>
+#include <QScreen>
 #include <QString>
 #include <QStringList>
 
@@ -318,6 +320,55 @@ int main(int argc, char** argv)
             writeLine(QStringLiteral("# catalog\t%1").arg(catalogPath));
         writeLine(QStringLiteral("# locale\t%1").arg(application.activeLocale()));
         for (const QString& line : ui::catalog::dumpStrings()) writeLine(line);
+        return static_cast<int>(app::ExitCode::Ok);
+    }
+
+    if (intent.printScreenMetrics) {
+        // ISSUE I-20's REMEDY, and it is a diagnostic rather than a test because no test can be
+        // one: `tests/ui` runs under `offscreen`, where there is a single fake screen and no
+        // topology, and `platform.displaytopology` (A-60) measures the topology with no screen
+        // beside it. The join between them -- `QScreen` to `MonitorInfo` -- is reachable only on a
+        // real desktop, and it was WRONG on every real desktop for the whole of Stage 2 while both
+        // of those suites stayed green.
+        //
+        // It prints BOTH SIDES and then the resolved answer, deliberately: a line saying only
+        // "physical dpi 163" would look correct in exactly the case that was broken, because the
+        // fallback also produces a plausible number. What makes a mismatch visible is seeing the
+        // key that was matched on, the row it found, and WHICH SOURCE won.
+        const platform::IDisplayTopology* topology = root.platform().displayTopology.get();
+
+        writeLine(QStringLiteral("# topology"));
+        if (topology == nullptr) {
+            writeLine(QStringLiteral("(no IDisplayTopology in this bundle)"));
+        } else if (const core::Result<std::vector<platform::MonitorInfo>> monitors =
+                       topology->monitors()) {
+            for (const platform::MonitorInfo& monitor : monitors.value()) {
+                writeLine(QStringLiteral("monitor	%1	%2	%3x%4+%5+%6	scale %7	dpi %8%9")
+                              .arg(monitor.id, monitor.friendlyName)
+                              .arg(monitor.width)
+                              .arg(monitor.height)
+                              .arg(monitor.x)
+                              .arg(monitor.y)
+                              .arg(monitor.scaleFactor)
+                              .arg(monitor.physicalDpi)
+                              .arg(monitor.primary ? QStringLiteral("	primary") : QString()));
+            }
+        } else {
+            writeLine(QStringLiteral("(monitors() failed: %1)").arg(monitors.error().messageKey));
+        }
+
+        writeLine(QStringLiteral("# screens, and what metricsFor() resolves for each"));
+        for (const QScreen* screen : QGuiApplication::screens()) {
+            const ui::ScreenMetrics metrics = ui::metricsFor(screen, topology);
+            writeLine(QStringLiteral("screen	%1	dpr %2	qtPhysDpi %3	-> scale %4	physDpi %5"
+                                     "	source %6")
+                          .arg(screen->name())
+                          .arg(screen->devicePixelRatio())
+                          .arg(screen->physicalDotsPerInch())
+                          .arg(metrics.scale.factor)
+                          .arg(metrics.physical.dpi)
+                          .arg(QLatin1String(ui::ScreenMetrics::sourceName(metrics.source))));
+        }
         return static_cast<int>(app::ExitCode::Ok);
     }
 

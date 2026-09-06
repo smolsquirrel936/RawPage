@@ -22,7 +22,7 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. Nine of its ten cases are walkable; only **M-09** is not, needing Dr. Memory. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **697/697**, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **698/698**, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -386,7 +386,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 697/697 as of I-19's fix, 1 skipped
+ctest --preset x64-release --output-on-failure        # 698/698 as of I-20's fix, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -410,6 +410,7 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 .\scripts\symbolize.ps1 -Dump <path.dmp>                   # resolves the faulting frame
 .\build\x64-release\bin\rawpage.exe --dump-ui-strings     # every shell key + action label, resolved
 .\build\x64-release\bin\rawpage.exe --list-actions        # 361 declared / 48 registered / 313 not (S2 T18)
+.\build\x64-release\bin\rawpage.exe --print-screen-metrics # the QScreen-to-MonitorInfo join, and which source won (I-20)
 .\build\x64-release\bin\rawpage.exe --lang zh-TW --dump-ui-strings   # guide case A-72
 .\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error
 ```

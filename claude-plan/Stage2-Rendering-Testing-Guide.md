@@ -9,7 +9,7 @@
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
 > 2026-09-06. THE AUTOMATED HALF IS COMPLETE; the manual half is untouched and is yours.**
-> **83 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> **84 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
 > written before anyone noticed the render path could not carry, **A-81** at T15, the
@@ -17,9 +17,10 @@
 > before the font bridge existed and nothing in it stopped that finding from being re-made
 > silently, and **A-83** on 2026-09-06 — added not by a task but by the MANUAL WALK, which found
 > **I-19** in M-01's first minutes and with it the back door every case in §5.6 had been reaching
-> through) and **10 manual** (M-01 … M-10), of
+> through, and **A-84** the same day, when M-03 found **I-20** — a join that could never match and a
+> DIP dpi read as a physical one) and **10 manual** (M-01 … M-10), of
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
-> A-75 … A-83 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
+> A-75 … A-84 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61 was 🟡 until M-02 cleared it on 2026-09-06; A-62, A-65 and A-67 remain 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
@@ -249,6 +250,10 @@ Diagnostics the entry point answers, all usable under `QT_QPA_PLATFORM=offscreen
 .\build\x64-release\bin\rawpage.exe --print-dpi-awareness  # expect PerMonitorAwareV2
 .\build\x64-release\bin\rawpage.exe --dump-ui-strings      # the headless smoke test
 .\build\x64-release\bin\rawpage.exe --list-actions         # NEW at T18 — Stage 1's A-25, finally real
+.\build\x64-release\bin\rawpage.exe --print-screen-metrics # NEW 2026-09-06 -- both sides of the
+                                                            #   QScreen-to-MonitorInfo join, and
+                                                            #   which source won. THE ONLY WAY TO
+                                                            #   SEE I-20
 ```
 
 Two checks that are neither a `ctest` case nor a gate:
@@ -1705,6 +1710,34 @@ pixels* and it is physical pixels — the DIP reading is what a DPI-UNAWARE proc
 the same change. **If it fails** S2 — **and treat a disagreement with §2's rig table as a finding about
 the case, not about the rig, until proven otherwise**.
 
+**WHAT A-60 DOES NOT COVER, added 2026-09-06 after M-03 found it (I-20)** and named at the
+assertion rather than left to be inferred (convention 19): this case reads the topology **with no
+`QScreen` beside it**. It proves the platform layer measures the glass correctly — 163 and 108 —
+and says nothing about whether the product can find the row describing the monitor a widget is
+actually on. That join lived in `ui/viewer/`, matched two identifiers that can never be equal, and
+**failed on every real desktop for the whole of Stage 2** while this case stayed green. **A-84 and
+`--print-screen-metrics` are the missing half.**
+
+**A-84 · The resolved physical DPI does not move with the OS scale factor** ✅ **2026-09-06**
+**Goal** **I-20.** *Actual Size means 100 % at the physical DPI* and the scale factor must not enter
+it (`core/render/DpiPolicy`'s header). The defect collapsed the two into one, so the assertion is the
+INVARIANT rather than a number: vary only the scale factor, and the dots per inch of glass must not
+budge.
+**Steps** `ctest -R screen_metrics_invariant`. Two processes — a scale factor is read when the
+`QGuiApplication` is built and cannot be varied inside one — differing only in `QT_SCALE_FACTOR`,
+compared on `--print-screen-metrics`' resolved `physDpi`.
+**Expect** The two agree within a whole percent. **And the control, which runs first**: the second
+process must actually report a different device pixel ratio, or the case passed by failing to vary
+its own input — Stage 1 T3's two useless probes, and convention 7.
+**Result 2026-09-06** Green. **Run against the unfixed build first, which is what makes it
+evidence**: *"the resolved physical DPI moved with the scale factor: 100 dpi at dpr 1, 66 dpi at
+dpr 1.5 — 51 % apart"*.
+**What it does NOT cover:** it exercises the **fallback**, because offscreen has no topology to join
+to — so it catches fault (2) of I-20 and not fault (1). **Nothing headless can catch fault (1)**;
+that is what `--print-screen-metrics` is for, and why the join is checked by hand on the rig the way
+A-60 checks the rig itself. Recorded so the next reader subtracts it rather than adding it.
+**If it fails** S2 — every zoom in the product is computed from this number.
+
 **A-61 · The `changed` signal fires on a mid-session scale change** ✅ **automated half
 2026-09-04 (T12); the real scale change WALKED AS M-02 ON 2026-09-06 — this case's missing half is
 no longer missing**
@@ -2124,6 +2157,19 @@ machine and is the whole reason that case is manual.
 - **If it passes**, record it as *"consistent with the reference over the generated corpus"* rather
   than as *"rendering is correct"*. The second is a claim this case cannot support, and it is the kind
   of overstatement that survives for stages because nobody re-reads a criterion that already passed.
+- **FIRST WALK 2026-09-06 — ABANDONED AT THE FIRST FILE, and the reason was worth more than the
+  case.** Before any fidelity judgement could be made, `text-a4.pdf` at `Ctrl+1` beside Acrobat was
+  **visibly smaller** — measured off the two screenshots at ~469 px against ~712 px for the same A4
+  page on the same monitor, a ratio of **1.52**. That is **I-20**: the page was rasterized at
+  108.89 dpi where the glass measures 163, so *Actual Size* was wrong by the scale factor on every
+  scaled monitor. Fixed the same day.
+  **This is why the guide puts M-01 and M-02 first and it is not why they are first** — the ordering
+  note says a DPI bug makes every later judgement unreliable, and it was right for a reason it did
+  not anticipate: M-01 and M-02 both PASSED, because both judge crispness and continuity, and the
+  render was crisp and continuous at the wrong size. **A size error is invisible to a case that
+  compares the product with itself**, and this one was found in the first minute of the first case
+  that put it beside something else. **The case is NOT walked**: it is walked from the start against
+  the fixed build.
 
 **M-04 · Scrolling a 900-page document — the perceived-smoothness half of A2** ☐
 - **Goal** **The case A-68's number cannot replace.** A p95 under budget and a scroll that stutters is
@@ -2289,6 +2335,7 @@ document means **Stage 1's**, and says so where it appears.
 | **I-17** | **S2** | **`portable-asan` AND `portable-fuzz` COULD NOT CONFIGURE FOR THE WHOLE OF STAGE 2, AND THE COMMENT ABOVE THE DEFECT ASSERTED THE GUARD THAT WAS MISSING.** `pdf/CMakeLists.txt` defines `rawpage_cos` (portable by rule) and then `rawpage_pdfium` (the engine facade, Windows only). The root `CMakeLists.txt` correctly skips `rawpage_assert_pdfium()` for the portable subset and the gate build, so `RAWPAGE_PDFIUM_VERSION` is unset there **by design** — and `pdf/CMakeLists.txt` then walked straight into the `FATAL_ERROR` that exists to catch a *reordered* assert, reporting *“rawpage_pdfium cannot be built: RAWPAGE_PDFIUM_VERSION is not set”* on both Linux jobs. **The comment sitting directly above that error said the guard was elsewhere**: *“It is not guarded by `if(WIN32)` here: the root CMakeLists only descends into `pdf/` with `RAWPAGE_PORTABLE_SUBSET` off.”* The root has never done that and must not — the portable subset **needs** `pdf/cos/`, so `add_subdirectory(pdf)` is deliberately outside that guard. The claim was written at **T2** (2026-09-01) alongside the target it describes, and the file it named was never checked. **Live for eighteen tasks and invisible**, because no CI run happened between Stage 1's sign-off (2026-08-31) and T18 (2026-09-06): the sanitizer and fuzz jobs had never once met Stage 2's code. Fixed with an explicit `if(RAWPAGE_PORTABLE_SUBSET) return()` **in the file the reader is looking at**, printing what it did rather than passing silently. **The lesson is I-10's and convention 8's together**: a comment that asserts a guard lives in another file is a claim nothing re-derives, and it reads as a design decision for as long as nobody runs the configuration it describes. | ✅ **Closed 2026-09-06**, with the negative control run in both directions — the original file reproduces the exact CI error locally, the fixed one configures and prints its branch |
 | **I-18** | **S2** | **THE WINDOWS CI JOB NEVER FETCHED PDFIUM, SO IT COULD NOT CONFIGURE EITHER — the engine had been in the tree since T2 and the workflow had never mentioned it.** PDFium is not a vcpkg port and nothing under `third_party/pdfium/` is committed except its README (`.gitignore`), so a fresh checkout has no engine and `cmake --preset x64-release` fails in `rawpage_assert_pdfium()` (**PA-1**) with *“found: no third_party/pdfium/VERSION”*. `scripts/fetch-pdfium.ps1` has existed since T2 to do exactly this — verify the pinned SHA-256, generate the GNU import library upstream does not ship — and **no CI step ever called it**. The assertion was working; what was absent was the step. Found in the same run as **I-17** and for the same meta-reason: Stage 2's build met CI for the first time at T18, five days and eighteen tasks after the engine landed. Fixed by adding a *Fetch the pinned PDFium* step to the `windows` job, placed **after** the toolchain is on `PATH` because the script needs `gendef` and `dlltool` from `C:\Qt\Tools`, and **before** Configure. The script is idempotent, so on the self-hosted runner it is a no-op after the first run. **This is I-30's shape from Stage 1** — a step everything assumed was someone else's — and the countermeasure is the same: the job that proves it is the job that runs it. | ✅ **Closed 2026-09-06** |
 | **I-19** | **S2** | **A CACHE HIT NEVER WOKE THE PUMP, SO A MIXED-DPI DRAG BLANKED THE PAGE AND LEFT IT BLANK.** Found by the user on 2026-09-06 in the **first minutes of M-01's walk** — the first Stage 2 defect found by a human rather than by a suite. Dragging the window between the 150 % and 100 % monitors, at Actual Size, Fit Width or an arbitrary zoom, made the page's text **disappear**; scrolling sometimes brought it back and sometimes did not, and when it did not, only dragging to the other monitor again did. **`DpiPolicy` is innocent** — the whole of M-01's *If it fails* text is about re-rasterization direction, and the mechanism is in neither direction. `RenderScheduler` has **two producers of a completion**: the worker loop, which calls the wake handler when a job finishes, and `enqueue()`'s cache-hit branch, which pushed the finished tile onto `completed_` and returned **without waking anything**. `completed_` is drained only by `deliverReady()`, and the only thing that posts `deliverReady()` in the running product is that handler (`app/CompositionRoot.cpp`) — so **a batch of requests that are ALL cache hits starts no worker, wakes nobody, and strands its tiles in the queue.** The mixed-DPI drag is the arrangement that produces such a batch: `TilePresenter::requestTiles` re-keys every request on `deviceScale`, drops every tile held at the old one — the page blanks **correctly** at that instant — and dragging BACK to a monitor whose tiles are still in the 256 MiB cache finds every one of them a hit. **Both halves of the *sometimes* fall out of the same gap**: a scroll that reaches an uncached tile is a MISS, which starts a worker, which wakes the pump, and `deliverReady()` then drains the *whole* queue including the stranded hits; a scroll that stays inside cached tiles is all hits and changes nothing. **WHY 696 GREEN TESTS MISSED IT, which is the part worth keeping.** A-38's neighbour — *“render scheduler serves a cached tile without rasterizing it”* — calls `scheduler.deliverReady()` **by hand**. That is a back door no running product has, and it was not named at the assertion, so the case proved the cache **serves** and nothing anywhere proved the product ever **asks**. **Convention 19, in Stage 1 I-34's exact shape**: green in CI and unreachable by hand. It is also **convention 22** from the other side — the arrangement that fires was tested, the arrangement in which it must fire was not. Fixed by copying `wake_` under the lock and calling it after unlocking, precisely as the worker loop does; waking is not delivering, so `enqueue()`'s standing rule that no subscriber is entered from inside it still holds — the handler posts, and the queued call runs after the caller's `requestTiles()` has finished asking. | ✅ **Closed 2026-09-06**, with the control in both directions: `unit.render scheduler WAKES for a tile it served from the cache` fails on the unfixed scheduler at `CHECK( wakes.load() > before )` expanding to `1 > 1`, and its own MISS leg is a `REQUIRE` so the case cannot pass against a handler that never fires at all. **Confirmed on the P-1 rig by the user the same day** — the page no longer blanks on a mixed-DPI drag, which is the half a unit test counting wakes cannot claim. **M-01 is NOT thereby walked** — it is re-walked from step 1 by the user |
+| **I-20** | **S2** | **ACTUAL SIZE WAS WRONG BY THE SCALE FACTOR ON EVERY SCALED MONITOR, BECAUSE THE TOPOLOGY JOIN NEVER MATCHED AND THE FALLBACK IT FELL THROUGH TO WAS A DIP FIGURE WEARING A PHYSICAL ONE'S NAME.** Found by the user 2026-09-06 in the first minutes of **M-03**, by the only method that could find it: holding the product beside Acrobat. At `Ctrl+1` on the 150 % panel our A4 page measured ~469 px against Acrobat's ~712 — **1.52x**, which is the scale factor. **Two faults, and each alone was survivable.** **(1) The join could never succeed.** `ui/viewer/PageLayoutEngine::metricsFor()` matched `QScreen::name()` against `MonitorInfo::id`. `id` is `GetMonitorInfoW`'s `szDevice` — `\\.\DISPLAY1` — and Qt 6 on Windows names a screen with the display's MODEL, `MAG 272URDF`. Those two strings can never be equal, so the `Topology` branch **never once executed in the shipped product on any machine**, and T12's whole deliverable — the raw DPI measured off the glass, 163 where `96 x scale` says 144 — reached no pixel. **(2) The fallback is device-independent.** `QScreen::physicalDotsPerInch()` divides the panel's millimetres into `QScreen::geometry()`, and Qt's geometry is in DIP: 2560 for a 3840-wide panel. It answers **108.89** for glass that measures **163** — off by exactly the scale factor, which is why the error was invisible on the 100 % monitor and on every unscaled development desktop. Feeding it to `DpiPolicy` as `PhysicalDpi` violates that class's own header, which says at length that Actual Size is the physical DPI and that the OS scale factor *does not enter it*. **This is I-07 at one remove** — there a rectangle documented as device-independent was physical; here a dpi that genuinely is device-independent was read as physical. **WHY 697 GREEN TESTS MISSED IT.** The join is reachable only on a real desktop and **nothing tests it there**: `tests/ui` runs under `offscreen`, where there is one fake screen, no topology, and a fixture whose two sides agree by construction; **A-60** measures the topology with no screen beside it. The single case that touches the resolved source — `tests/ui/tst_pageview.cpp` — asserts `source != Topology` (correct, its bundle is null) beneath a comment reading *“On the P-1 rig the shipped product takes the topology path instead, and `platform.displaytopology` is where that is measured.”* **Both clauses were false**, and it is a present-tense claim nothing re-derives — CLAUDE.md rule 4, in **I-17**'s exact shape. **Fixed in three parts, because two would have left the third invisible:** `MonitorInfo` gains `friendlyName` from `DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME` and the join accepts it (`id` still accepted, since a platform reporting one and not the other must still match); the Qt fallback is multiplied by the device pixel ratio, giving 163.3 against the topology's 163 and 108.8 against its 108; and **`--print-screen-metrics`** prints both sides and the resolved source, because a diagnostic that printed only the answer would have looked right in precisely the broken case. | ✅ **Closed 2026-09-06.** Verified on the rig: the join now reports `source topology`, `physDpi 163` and `108`. Regression case **A-84** is headless and carries its control in both directions — it fails on the unfixed build with *“the resolved physical DPI moved with the scale factor: 100 dpi at dpr 1, 66 dpi at dpr 1.5 — 51 % apart”*, and it refuses to pass if `QT_SCALE_FACTOR` did not actually change the ratio it varies. **M-03 is NOT thereby walked** — it was blocked by this and is walked from the start against the fixed build |
 
 **NO S2 IS OPEN — I-17 and I-18 were raised and closed on 2026-09-06, in the CI run that first
 executed Stage 2's build. Two S3 remain — I-06 (JBIG2) and I-11 (line weight) — and both are open BY
@@ -2342,7 +2389,7 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-83 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-84 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
