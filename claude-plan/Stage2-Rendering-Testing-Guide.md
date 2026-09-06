@@ -21,7 +21,7 @@
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
 > A-75 … A-83 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
-> A-46 the second half it had been waiting for since T1), and **A-61, A-62, A-65 and A-67 are 🟡, each with the half it
+> A-46 the second half it had been waiting for since T1), and **A-61 was 🟡 until M-02 cleared it on 2026-09-06; A-62, A-65 and A-67 remain 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
 > A-62's battery throttle is WIRED as of T15 and its effect is unobservable on a desktop with no
 > battery, so that case still SKIPS by name; and A-65's five toggles are three measured green, one
@@ -1705,8 +1705,9 @@ pixels* and it is physical pixels — the DIP reading is what a DPI-UNAWARE proc
 the same change. **If it fails** S2 — **and treat a disagreement with §2's rig table as a finding about
 the case, not about the rig, until proven otherwise**.
 
-**A-61 · The `changed` signal fires on a mid-session scale change** 🟡 **automated half
-2026-09-04 (T12); the real scale change is manual case M-02's**
+**A-61 · The `changed` signal fires on a mid-session scale change** ✅ **automated half
+2026-09-04 (T12); the real scale change WALKED AS M-02 ON 2026-09-06 — this case's missing half is
+no longer missing**
 **Expect** Changing a monitor's scale in Windows Settings emits `changed` once, with the new topology.
 **Result 2026-09-04, and what is and is not claimed.** No automated run can change a monitor's scale
 factor, so **the half that says "emits `changed` once on a real scale change" is M-02's and is not
@@ -1733,7 +1734,13 @@ the render policy.
 `DevicePixelRatioChange`, because a widget is told by Qt when its own monitor moves, and
 `IDisplayTopology` has **no `unsubscribe`** — so a per-window subscription would dangle when a torn-off
 window is closed (convention 10). The subscription's real consumer is something that cares about the whole
-desktop: `core/settings/SessionState` at Stage 4. **If it fails** S2.
+desktop: `core/settings/SessionState` at Stage 4.
+**THE DEFERRED HALF, SUPPLIED 2026-09-06.** M-02 was walked and signed off — all four steps, the real
+scale change included — so the sentence above that reads *"is M-02's and is not claimed here"* now has
+its other end. **The 🟡 is cleared by a MANUAL result, which is the only kind that could clear it**, and
+this case is left saying exactly what each half proves rather than merging them: T12 proves the
+suppression and the predicate, M-02 proves a person changing a scale in the Settings app sees the page
+and the chrome follow together. **If it fails** S2.
 
 **A-62 · `WinPowerSession` reports battery and throttles** 🟡 **the interface 2026-09-04 (T12);
 the throttle is T15's**
@@ -2031,7 +2038,7 @@ machine and is the whole reason that case is manual.
 
 ---
 
-**M-01 · Mixed DPI — dragging between the 150 % and 100 % monitors** ☐
+**M-01 · Mixed DPI — dragging between the 150 % and 100 % monitors** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-06**, on the second walk, against the build carrying I-19's fix
 - **Goal** The case a single-monitor machine and an offscreen run both structurally cannot reach, and
   the one that decides whether `DpiPolicy` is right.
 - **Pre** P-1. A text-heavy corpus file open. Confirm `--print-dpi-awareness` reports
@@ -2056,8 +2063,15 @@ machine and is the whole reason that case is manual.
   **Kept as written even so** — it correctly names the two failures this case was designed to catch, and
   a third one existing is not an argument for deleting the first two. **The case is NOT walked**: it is
   re-walked from step 1, by the user, against the fixed build.
+- **SECOND WALK 2026-09-06 — PASSED, and signed off by the user.** All four steps against the fixed
+  build: Actual Size on the 100 % monitor, both drag directions twice, Fit Width, 400 %, and the window
+  left straddling the boundary. **The first Stage 2 manual case to be signed off, and it took a product
+  fix to get there** — which is the whole argument for the manual half stated as a fact rather than as a
+  principle. **What the sign-off covers is this rig**: the P-1 pair, 150 % and 100 %, asserted by A-60 in
+  the same session. It says nothing about a third scale factor, a 200 % panel, or a laptop's internal
+  display, none of which exist here to be walked.
 
-**M-02 · A scale change while the application is running** ☐
+**M-02 · A scale change while the application is running** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-06**, all four steps
 - **Goal** The mid-session change is where per-monitor DPI actually goes wrong, and A-61 can only prove
   the signal fired — not that the product did the right thing with it.
 - **Pre** P-1, a document open on the second monitor.
@@ -2071,6 +2085,18 @@ machine and is the whole reason that case is manual.
   that persists; the ribbon, status bar and message bar all follow (Stage 1's R-6 covered the chrome —
   this case is about the chrome **and** the page agreeing).
 - **If it fails** S2.
+- **WALKED 2026-09-06 — PASSED, all four steps, signed off by the user.** Reported as *“It looks
+  fine.”* **Step 4 was walked** — logged out, back in at a different primary scale, relaunched and
+  reopened — which is the one step of this case that is a COLD START rather than a live change, and
+  the only place the settings file and the topology are read fresh against a scale nobody has seen.
+  **Walked immediately after M-01 on the same window**, which is deliberate: the two share a rig and
+  M-01's fixed build is what this one is judging.
+  **What the sign-off covers and what it does not.** It covers the four scale factors this rig can be
+  put into and the transitions between them; it does **not** cover a monitor being hot-plugged or
+  removed mid-session, which no step here performs and which `IDisplayTopology` reports through the
+  same `changed` signal — that is a Stage 4 concern with no case in this guide, named here rather
+  than left to be discovered as a gap. **The chrome-and-page agreement is the part that was actually
+  at risk** and it is the part reported fine: A-61's automated half proves only that the signal fired.
 
 **M-03 · Rasterization fidelity, beside a reference** ☐
 - **Goal** The golden suite proves we render **consistently**; a baseline captured from a wrong
