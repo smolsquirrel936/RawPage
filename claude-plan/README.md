@@ -136,3 +136,8 @@ and [its Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-an
   names a file still owes that file a ③ row.
 - When a planned file is folded into another, its ③ row stays as a ⤵ breadcrumb rather than being
   deleted.
+- **Not sure which document a fact belongs in?** The inverse of the ownership table — *I have just
+  learned, decided or measured X, where does it get written?* — is
+  [`CLAUDE.md` → *Where does this fact go?*](../CLAUDE.md), one row per kind of fact, with the
+  house rules for writing it beneath. This index owns no facts, that file owns the routing, and
+  neither restates the other.

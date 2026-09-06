@@ -101,6 +101,191 @@ four while running three is the failure these gates exist to prevent, one level 
 
 ---
 
+### 1.5 Conventions discovered while building — these bind all later work
+
+> **Every bare `Tn` in this subsection is a STAGE 1 task**, and every bare `I-nn` is a
+> `Stage1-AppShell-Testing-Guide.md` §8 issue unless it says otherwise. These were written as
+> Stage 1 discovered them; Stage 2 has a `T1`…`T18` and an `I-01`…`I-16` of its own, so an
+> unqualified "T9" here means the shell task that built `MainWindow`, not the one that opened a
+> document. Conventions found in a later stage are appended with their stage named inline.
+>
+> **These moved here from `CLAUDE.md` on 2026-09-06**, which had grown a second copy of §1's
+> subject. This document owns shared conventions (see the document-set table in `CLAUDE.md`);
+> that file now carries the one-line list and points here.
+
+1. **Nothing may read a path out of `argv`.** Measured at T1: this machine's ANSI code page is
+   **950**, and the CRT replaces anything it cannot represent with `?` — an emoji path came back as
+   `report-?????.pdf` in `argv` while `QCoreApplication::arguments()` was byte-perfect. Parse
+   `QCoreApplication::arguments()` and nothing else. **Closed at T8 by three mechanisms** (issue
+   **I-04**): there is no `argc/argv` overload and a compile fixture proves it; `layer-lint` carries a
+   **non-escapable `argv-path-read` rule** permitting `argv` only in `app/main.cpp`; and
+   `tst_commandline` asserts an emoji path survives byte for byte. Proven end to end when a forwarded
+   `測試-📄.pdf` crossed three process boundaries unchanged.
+2. **Catch2 test names are ASCII — and contain no comma.** Catch2 splits a filter on commas, so a
+   name with one cannot be selected by hand even though CTest escapes it when running the suite (T9).
+   The ASCII half: `catch_discover_tests` hands the name back to CTest as a
+   command-line filter and a `§` does not survive the round trip — the test then "fails" with a
+   passing body. Section references go in comments. (Issue **I-07**.)
+3. **`core/` may not name a Qt GUI type.** `QKeySequence` is QtGui, so `core/cmd/Chord` is
+   first-party and `ui/shell/ShortcutBinder` converts at the boundary.
+4. **`settings.ini` is read through our own codecs, never through `QVariant`'s conversions.**
+   Measured at T5: QSettings' INI reader turns any comma-containing value into a `QStringList` and
+   `QVariant::toString()` on one returns an *empty string*, so `logging/subsystems=render,parse` read
+   back as unset; a one-element list comes back as a bare `QString`, so pinning exactly one file lost
+   it on restart; and a section named `[general]` is QSettings' own reserved fallback section, so the
+   hand edit the testing guide asks for was silently ignored. All three are handled and each has a
+   test that fails if the handling is removed. (Issues **I-08** and **I-09**.)
+5. **The catalog key is the `<source>`, and `en` is a real catalog rather than the identity.**
+   `core/Result.h` forbids user-facing English in `core/` and `ActionId.def` carries one `action.*`
+   key per action, so there is no English in the sources for `lupdate` to extract. Every locale,
+   `en` included, supplies the text. Consequences: a key missing from `en` is a detectable defect
+   rather than a button rendering `action.file.open`; the catalogs are hand-maintained data, not
+   generated; and `ui/` resolves through the catalog rather than relying on a fallback. (T6.)
+6. **An unimplemented `platform/` interface is a null member, never a stub.** A stub that silently
+   succeeds lets a caller believe a signature was created or a scan happened, and that surfaces
+   stages later as data nobody produced. `unimplementedInterfaces()` names the gaps so "not built
+   yet" is printable. Equally: **`platform/platform.h` may not include an OS header** — it is its
+   own `layer-lint` layer entry with a fixture and a control, because `core/`, `ui/` and `app/` all
+   include it. (T7.)
+7. **Every negative control must actually exercise the thing.** Two of T3's first probes appended
+   rows *after* an `#undef` and proved nothing; a control that does not fail for the right reason is
+   worse than none. T9 applied it to a crash: the `~MainWindow` disconnect was verified by commenting
+   it out and watching exactly one case segfault.
+8. **A gate reads the files the compiler reads, `.def` tables included.** Four X-macro tables are
+   `#include`d straight into layers that have deny lists, and until T9 neither gate scanned them —
+   so `i18n-lint` called 22 referenced keys orphans, and an `#include` written inside a table would
+   have been invisible to `layer-lint`. Whether a file is *compiled* is a fact about the build; it
+   says nothing about whether a gate should read it. (Issue **I-16**.)
+9. **`ui/` looks outward to exactly two files, and each is constrained by its own layer entry.**
+   `platform/platform.h` and `app/Services.h`. Both are interface headers naming only `core/` types;
+   both have a `layer-lint` entry saying so, with a fixture and a control in each direction. Widening
+   that list is an architectural decision, not a diff. (Issue **I-15**.)
+10. **A widget that connects a child's signal to a lambda holding `this` must disconnect in its
+   destructor.** `~QWidget` closes the window, which hides children, which emits — into an object
+   whose derived part is gone. Qt drops the connection only when the *QObject* part goes, and that is
+   last. (Issue **I-12**; found by `tests/ui` on its first run.)
+11. **`core/` may not let the *host* decide a domain rule.** `RecentFiles` deduped paths through
+   `QDir::cleanPath`, which converts *platform-native* separators — so `C:\x\a.pdf` collapsed onto
+   `C:/x/a.pdf` on Windows and stayed a separate document on Linux. Every path this product sees is a
+   Windows path; `core/` builds on Linux only so the sanitizers can run, and a rule that differs
+   between the two builds means the sanitized build is not exercising the shipping build's logic —
+   which makes *"reproduce it in `x64-debug` before it counts as fixed"* impossible to satisfy.
+   Normalize by hand, not by platform. (Issue **I-17**; and note the corollary — a Windows-green
+   `core/` test proves nothing about `portable-asan` until that job has actually run.)
+12. **A widget test must drive layout itself, and `resize()` alone is not driving it.** Offscreen
+   there is no event loop, so a bare `resize()` marks layouts dirty and returns; the geometry a real
+   window gets on its next paint never arrives. A ribbon suite that trusted `resize()` reported six
+   collapsed groups at every width from 1600 down to 400 — monotone, reproducible, and meaningless.
+   `show()` the widget (offscreen is what the platform is for), then `activate()` **every** layout
+   level involved. And when a case asserts a consequence of a size, assert the size it actually got
+   first: `resize(240)` returning a 1044-pixel widget is a finding, not a failed assertion. (T10;
+   issue **I-19** was found exactly this way.) **And assert what the LAYOUT gave the widget, not
+   only what the widget contains**: eleven ribbon cases asked the tab bar for its page count, its
+   current index, which tabs the chevron had taken — all correct, all answered from the bar's own
+   contents — while the layout was handing that bar **zero pixels** and no tab was on screen for
+   six days (**I-36**).
+13. **A self-check meets its real subject once, and that is when it gets corrected.** Two of T10's
+   three findings were the *check* being wrong, not the product: Qt manufactures actions nobody asked
+   for (`QMenu::menuAction`, `QDockWidget::toggleViewAction`), and `QToolButton::setDefaultAction`
+   adds a receiver, so "exactly one receiver on `triggered`" — the invariant the plan wrote — was
+   false for all 192 ribbon buttons at once. Run a self-check against the *product*, not only against
+   fixtures that prove it can fail. (Issues **I-18** and **I-20**.)
+
+14. **A command handler may not capture the window that registered it.** `ActionRegistry` is one
+   object shared by every `MainWindow`, and registration is deliberately not idempotent — so with a
+   second window (T12 tears a tab out into one) the first window's handler would act for the whole
+   application, including after that window was destroyed. Registration happens **once per
+   registry**; every handler resolves `MainWindow::activeShell()` at **dispatch** time. That is also
+   what makes a Global command mean *the window I am looking at*, which is what it always meant.
+   Corollary measured under `offscreen`: `activateWindow()` raises no `ActivationChange` there, so
+   `raiseToForeground()` sets the active shell itself rather than deriving it from an event that may
+   not come.
+15. **A chord never becomes a `QAction` shortcut or a `QShortcut`.** Qt's shortcut system cannot say
+   *innermost context, then `Common`, then `Global`* — the resolution order that IS the binding model
+   and the reason `Ctrl+K` means two different things — and it would have put each user remap into 360
+   actions as a shadow copy of `KeyBindingStore`. Every chord goes through `ui/shell/ShortcutBinder`:
+   focus chain → `KeyContext` → store → `ActionRegistry::dispatch`. A widget declares its context with
+   `ShortcutBinder::declareContext()` and nothing else does. This is D1-7's rule in its keyboard form,
+   and it is checked the same way — `MainWindow::showEvent` reports any action carrying a key sequence
+   and any free-standing `QShortcut`, with one of each planted in `tests/ui/tst_context.cpp`. (T13.)
+
+16. **A command that needs a user is DISABLED where there is none — it does not block.** `file.open`
+   raises a modal file picker; under `QT_QPA_PLATFORM=offscreen` that dialog is shown to nobody and
+   never returns, which stopped a whole `ctest` run dead with no failure and no output. Its
+   enablement predicate is false when there is no one to ask, so a headless dispatch is refused with
+   `Unavailable` — distinct from `NotFound`, which is exactly what those two codes are for. Every
+   such command needs a parameterized twin that needs no user (`openFiles()` is `file.open`'s), and
+   the general answer is **O11**. (Issue **I-23**.)
+
+17. **A surface generated from a declarative table reads the TABLE, not a runtime description of
+   it.** `ui/dialogs/SettingsPage` builds one row per key by `#include`ing `core/settings/SettingsKeys.def`
+   with a macro that instantiates a template, so every editor holds the real `constexpr Key<T>` and calls
+   the typed `get`/`set`. Iterating `SettingsSchema::allKeys()` would have been the obvious loop and is
+   the trap: a descriptor carries a *path*, so a page built from descriptors needs a string-keyed
+   `Settings::get`, and adding one for a dialog's convenience makes D1-10's *"an undeclared key does not
+   compile"* decorative for the entire product. The runtime table still owns *which widget* and *what to
+   call it*. (T14.)
+
+18. **`core/Log.h` has ONE sink and `setLogSink` REPLACES it — so nothing chains it.** Anything that
+   wants records is fanned out from the single sink `app/CompositionRoot` installs: the console, the
+   rolling file, the in-memory buffer the log pane reads. A widget that captured the installed sink and
+   installed a wrapper would be dropped the next time the logging settings changed — which is exactly
+   what the Preferences page it shipped alongside does — and two windows doing it would nest in
+   construction order and unwind in closing order. It is also I-12's bug in a new disguise: a lambda
+   installed by a widget outlives the widget unless something removes it. (T14; the reasoning lives in
+   `core/LogBuffer.h`.)
+
+19. **A test that reaches a behaviour through a back door must say what it therefore does NOT
+   cover.** `tst_documenttabs.cpp` asserted re-dock by calling `adoptDocument` directly, which proves
+   the *destination* works and says nothing about whether the gesture can reach it. A comment recorded
+   the gesture as manual-only, so the gap was known — and the case still read as coverage to everyone
+   who came after, including the guide, the file map and this document, all four of which described
+   re-dock as shipped. It was unreachable by hand for six days and green the whole time (**I-34**, the
+   stage's first S2 in the product). The rule is not *"test the gestures"* — offscreen there is no
+   pointer and that limit is real. It is that the back door has to be named at the assertion, so the
+   next reader subtracts it instead of adding it. The corollary is convention 7's: a case that cannot
+   fail for the reason it claims to test is worse than no case at all.
+
+20. **A colour is judged in BOTH themes, or it is judged in neither.** `disabledText` was picked
+   against a light mock at T9 and read 2.54 there and 3.05 in dark — the theme suite was green
+   throughout, because it asked whether each token *resolves*, whether light and dark *differ*, and
+   whether the background/text pair is the right way round. None of those is the question a person
+   asks, which is *can I read it*. Two manual passes signed off the light theme without switching
+   the OS, so the first person to try dark found it (**I-40**). Any new colour is a `ThemeToken`,
+   and `tst_theme` measures it against the surface it is painted over **in both themes** as a
+   contrast ratio against a floor — never as expected hex values, which would make the case a copy
+   of the table it checks. The floor is a legibility bar, **not** an accessibility one: that left
+   the product on 2026-08-23. The same case asserts disabled text stays under half the enabled
+   ratio, because a floor raised until they match trades one defect for a worse one.
+
+21. **A palette is not a theme: the native style paints from the COLOUR SCHEME, and it wins.**
+   Qt's `windows11` style takes control text from the scheme it derives from Windows and ignores
+   `QApplication::setPalette` while doing it — measured, an enabled `QToolButton` painting `#1f1f1f`
+   on a `#1f1f1f` background while a `QLabel` beside it obeyed the palette exactly. So a themed
+   shell has to call **`QStyleHints::setColorScheme()`** as well, and `Unknown` is the value that
+   means *follow the OS* — set it **before** anything reads the scheme back, or "follow system"
+   silently means "follow whatever I last chose". Offscreen the call is inert (no readback, no
+   signal), so the widget suite can assert the mapping and nothing further; the proof that pixels
+   changed is a rendered widget read back by hand. (**I-41**, found because the previous fix — a
+   correct one to a real defect — changed nothing on screen.)
+
+22. **A case proving a mechanism FIRES is half of proving it fires WHEN IT SHOULD — and the criterion
+   will not ask for the other half.** Stage 2's guide gave T16 one sentence: *a missing embedded font
+   substitutes through our policy, proven by a case that names the substitute*. That case passed. The
+   case beside it — asking what happens to a font that is **not** missing — measured the product
+   replacing **Helvetica with Segoe UI on every page of every document**, because PDFium consults its
+   font hook for the base-14 faces too and four files in this project had written down that it would
+   not (**S2 · I-13**). The defect was in the half nobody had specified, it would have changed how
+   every existing document renders, and it would have been baked into the golden baselines one task
+   later. This is convention 7 pointed at a different target: 7 says a control must fail for the right
+   reason, and this says **a new mechanism needs a control at all**, written from *what must stay
+   untouched* rather than from the criterion. The three T16 shipped are the shape — a base-14 font, an
+   embedded font, and the hook uninstalled entirely.
+   *(Stage 2 T16. The other half of the lesson is I-10's: the four files that said it could not happen
+   were each repeating a claim written by somebody who had not built the thing.)*
+
+---
+
 ## 2. Cross-cutting testing strategy
 
 Five layers, because a PDF editor fails in five different ways.
@@ -115,6 +300,38 @@ Five layers, because a PDF editor fails in five different ways.
 
 Plus **`tests/bench/`**, which is not pass/fail but gates a decision: per-tile render latency at
 each DPI over the corpus, settling risk A2.
+
+### 2.1 The build's test targets — the split is load-bearing, not organizational
+
+*Moved here from `CLAUDE.md` on 2026-09-06, which had grown a second copy of this document's
+subject. The live counts stay in the stage status blocks in §4; what this table owns is **why each
+target is separate**, which is a design fact rather than a status one. `CLAUDE.md` carries the
+one-line summary and points here.*
+
+Counted 2026-09-02 and re-counted at S2 · T17, which added the fifth: this heading read *"three"*
+from Stage 1 T9 until 2026-09-02, having missed `rawpage_render_tests` (S2 · T2) and
+`rawpage_bench_render` (S2 · T3) even though the table below already listed the first — so the count
+is re-measured with the target rather than remembered afterwards. A fifth suite, `gates.`, has **no binary at all** — its 90 cases drive the
+gate executables and CMake itself through `cmake -P`, which is what lets the `gates` preset run it
+with no Qt and no vcpkg. Current split of the 696: `unit.` 336, `ui.` 178, `gates.` 94,
+`render.` 50, `platform.` 35, `bench.` 3 — `render.` gained T17's ten `render.golden.*`, which are a
+separate BINARY inside the same PREFIX, deliberately: the prefix is what CI's non-empty check reads,
+**and as of T18 that check finally reads `render` at all**. **One of the 677 is deliberately SKIPPED rather than green** —
+`platform.powersession reports the machine's power source`, on a desktop with no battery, which is
+guide case A-62's own *"report not applicable explicitly rather than pass vacuously"* honoured.
+
+| Target | Links | CTest prefix | Runs where |
+|---|---|---|---|
+| `rawpage_tests` | `rawpage_core`, `rawpage_cos` | `unit.` | Windows + `portable-asan`. It also compiles **three** `app/` translation units **in** rather than linking them — `CommandLine.cpp` (a pure `QStringList` → intent parse), `LogFile.cpp` (QtCore and nothing else) and `SingleInstance.cpp` (T15; names only `core/` and the interface header `platform/platform.h`) — and compiling rather than linking is what keeps the assertion below true. `rawpage_assert_headless()` — in `cmake/RawPageHeadless.cmake` since Stage 2 T1 — **fails configure** if this ever links `rawpage_ui`, `rawpage_platform` or **`rawpage_pdfium`**, directly or transitively; that assertion is the standing proof that `core/` needs no display and no engine, and `tests/gates/fixtures/headless-assert/` is the five-case fixture proving it fires — with the control proving it does not fire on a clean closure. **From S2 · T5 it also holds the COS reader's suite**: `rawpage_cos` contains `pdf/cos/Lexer` and, from T6, `CosObject` + `Parser`, and `tst_cos_lexer` / `tst_cos_parser` reach `corpus/` through a `RAWPAGE_CORPUS_DIR` compile definition — the same mechanism as `RAWPAGE_FEATURES_MD`, and for the same reason: a test that guessed a relative path would pass or fail on whatever working directory CTest happened to use |
+| `rawpage_platform_tests` | `rawpage_core`, `rawpage_platform` | `platform.` | **Windows only** (S1 · T7) |
+| `rawpage_ui_tests` | `rawpage_core`, `rawpage_ui` | `ui.` | **Windows only**, `QT_QPA_PLATFORM=offscreen` (D1-4). **Arrived at T9**, not the plan's T15, on the precedent `tests/platform` set at T7. It installs `rawpage_en.qm` so the widgets are exercised against real text rather than their own catalog keys. **From S2 · T13 every fixture comes from `tests/ui/ShellFixture.h`** — seven copies of the same eight fields became a seven-way edit the moment `app::Services` grew a render pipeline — and that header supplies the FAKE rasterizer the viewer suite runs on, since this target may not link an engine. Its tile colour is chosen so that *a page is on screen* is distinguishable from *a white sheet was drawn*, and it pads its rows so the `bytesPerLine` assumption is exercised somewhere |
+| `rawpage_render_tests` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium`, **`rawpage_platform`** (S2 · T16) | `render.` | **Windows only** (S2 · T2). **From S2 · T13 it also holds the only case that drives the REAL engine through the REAL scheduler** (`tst_renderpipeline.cpp`, guide A-79): every other suite fakes one end of that path — `tests/unit` and `tests/ui` may not link an engine, and the rest of this target calls the rasterizer with no scheduler — so the assembly the product actually runs had no case at all until then (issue **I-09**), which is why `app::BackendRasterizer` is a header rather than a class private to `CompositionRoot.cpp`. It links the ENGINE, which is the whole reason it is a separate target: the raster suite is the pressure that would otherwise put PDFium into the headless closure and destroy what `rawpage_assert_headless()` proves. It needs **no display** — there is no Qt GUI object in it — which is how "initializing PDFium does not require a display" is established rather than assumed. **From S2 · T9 it also holds the SHIPPED BACKEND's census**, which `tests/unit/tst_backend.cpp` used to assert: `pdf::createBackend()` moved into `rawpage_pdfium` when it started returning something that opens documents, and the headless suite may not link that. The portable half of A-46 stays in `tests/unit` over a test backend defined in that file. **`rawpage_platform` joined the link line at T16, and it is I-09's finding a second time**: the font chain is PDFium → `FontResolverBridge` → `WinFontResolver` → `core/render/FontSubstitution`, three libraries deep, and no existing target could hold more than one link of it — `tests/unit` may link neither engine nor OS layer, `tests/platform` may not link the engine. Adding the OS layer to a Windows-only, engine-linking target costs nothing of what this target's separateness protects, which is that **`tests/unit`** links no engine and no display |
+| `rawpage_golden_tests` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium`, `rawpage_platform`, **QtGui** | `render.golden.` | **Windows only** (S2 · T17). **The fifth target, and QtGui is why it is one**: it reads and writes the 198 PNG baselines in `golden/`, and `tests/render`'s separateness rests on that target linking no Qt GUI library at all — which is how *the engine needs no display* is established rather than assumed. Folding a codec into it would have retired that property with every test still passing, which is the same pressure `tests/unit` met at Stage 1 T7 and T9 and this target meets from a fourth side. It needs no display either: `QImage` is a raster class and Qt's PNG handler is built into QtGui rather than being a plugin, so no `QGuiApplication` exists here. **Its CTest prefix is inside `render.`** on purpose — a sixth prefix would have to be remembered separately by CI's non-empty check. It compiles `tests/golden/GoldenSuite.cpp`, which `tools/golden-update` also compiles in, so the producer and the consumer of `golden/` cannot disagree about what a render is, how it is encoded, or what *the same* means |
+| `rawpage_bench_ribbon` | `rawpage_core`, `rawpage_ui` | `bench.` | **Windows only**, offscreen (T15). Not a test target and the difference is load-bearing: a test asserts and fails, **a benchmark reports, and its exit code is about whether the measurement was *possible*** — never about whether the machine was fast, or a loaded runner turns a green build red for a reason unrelated to the change. It is registered with CTest anyway, because a benchmark nobody runs is one that has stopped compiling by the time its number matters |
+| `rawpage_bench_pipeline` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium` — and deliberately **NOT** raw `pdfium` | `bench.` | **Windows only** (S2 · T18). **A2's PRODUCT figure** (D2-1, second half) and the numbers that answered **O7** and **D2-14**. It drives the assembly the product runs — backend → `app::BackendRasterizer` → `RenderScheduler` → `RenderCache`, with `TileGrid` choosing tiles and `DpiPolicy` the resolution — and the absent `pdfium` link line is the structural half of that claim: it **cannot name an `FPDF_` symbol even by accident**, so a "measurement of the product's render path" cannot quietly become a measurement of something below the facade. It creates no Qt GUI object. **A second binary rather than a rewrite of `bench_render`**, whose own CMakeLists predicted the rewrite: the probe's figure has to stay re-takeable (D2-1 keeps both in `Tech-Stack-Plan.md` §3.3) and `--unsafe-parallel` is I-05's reproducer, so deleting that program would have made a recorded finding folklore |
+| `rawpage_bench_render` | `rawpage_core`, `rawpage_cos`, `rawpage_pdfium` | `bench.` | **Windows only** (S2 · T3), and it creates **no Qt GUI object at all** — which is how "the engine needs no display" is established rather than assumed. A2's probe figure, and the run that found **I-05**. It takes an optional path, so any corpus file can be put through the real engine by hand; `8 --unsafe-parallel` reproduces the heap corruption on demand, because a finding that needs a source edit to reproduce is one that gets re-litigated |
+
+---
 
 ### Definition of Done — every stage, no exceptions
 
