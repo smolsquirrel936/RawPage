@@ -9,15 +9,17 @@
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
 > 2026-09-06. THE AUTOMATED HALF IS COMPLETE; the manual half is untouched and is yours.**
-> **82 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> **83 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
 > written before anyone noticed the render path could not carry, **A-81** at T15, the
 > measurement behind I-11, and **A-82** at T17 — I-13's tripwire, because this guide was written
 > before the font bridge existed and nothing in it stopped that finding from being re-made
-> silently) and **10 manual** (M-01 … M-10), of
+> silently, and **A-83** on 2026-09-06 — added not by a task but by the MANUAL WALK, which found
+> **I-19** in M-01's first minutes and with it the back door every case in §5.6 had been reaching
+> through) and **10 manual** (M-01 … M-10), of
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
-> A-75 … A-82 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
+> A-75 … A-83 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61, A-62, A-65 and A-67 are 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
@@ -1110,6 +1112,27 @@ reddens.
 **Negative controls run:** delivering from the worker thread reddens four cases; keeping a superseded result
 and keeping a cancelled one each redden this one. **If it fails** S1 — the second half is how a stale tile
 reaches the screen.
+**WHAT THIS CASE AND ITS NEIGHBOURS DID NOT COVER, added 2026-09-06 after M-01 found it (I-19)** and named
+here rather than left for the next reader to infer: **every case in this suite drains the completion queue
+by calling `deliverReady()` itself.** That is a back door — no running product calls it, the wake handler
+does — so the whole suite proved the DESTINATION and none of it proved the product ever arrives there.
+A cache hit woke nothing for the whole of Stage 2 and every case here stayed green. **A-83 is the missing
+half**, and convention 19 is why it is written at this assertion instead of only in the issue log.
+
+**A-83 · A tile served from the CACHE wakes the pump — the half A-38 reached through a back door** ✅
+**2026-09-06** **Goal** I-19, and convention 19 (`Implementation-Plan.md` §1.5) paid off at the assertion
+that owed it. `RenderScheduler` has two producers of a completion and only one of them woke anything.
+**Steps** `ctest -R "render scheduler WAKES"`. Enqueue a tile (a MISS), drain it, then enqueue **the same
+tile again** with nothing else in flight, and count wake-handler calls across the second `enqueue()`.
+**Expect** The second, cache-served `enqueue()` calls the wake handler. **Its MISS leg is a `REQUIRE`,
+not a `CHECK`** — that is the control, and without it the case would pass identically against a scheduler
+whose wake handler never fired at all (convention 7).
+**Result 2026-09-06** Green on the fixed scheduler. **Run first against the unfixed one, which is what
+makes it evidence**: `CHECK( wakes.load() > before )` expanding to `1 > 1` — the miss woke, the hit did
+not. **What it does NOT cover:** it counts wakes, not repaints. That the wake reaches a widget and the page
+comes back is **M-01**, and M-01 is where this defect was found in the first place.
+**If it fails** S2 — a completion nothing drains is a blank page, and the user cannot tell it from a
+rendering failure.
 
 **A-39 · A `PageView` destroyed with tiles in flight does not crash** ✅ **`core/` half 2026-09-04
 (T11); widget half 2026-09-04 (T13)**
@@ -2024,6 +2047,15 @@ machine and is the whole reason that case is manual.
 - **If it fails** S2. Say **which** direction is wrong — 100→150 blurry means re-rasterization did not
   trigger; 150→100 stuttering means it triggered when a resample would have done. That distinction is
   `DpiPolicy::requiresRerender()` and it is the whole finding.
+- **FIRST WALK 2026-09-06 — FAILED, and NEITHER direction above is what it found.** The user's words:
+  *“When I drag the window between 100% and 150% monitor with Ctrl + 1/2/M, the text in PDF will
+  disappear. Sometime can make it visible again with mouse scrolling, sometimes cannot, which can only
+  drag window to another window to make text visible.”* The page did not go blurry or stutter — it went
+  **blank**. Diagnosed as **I-19** and fixed the same day: the defect is in `RenderScheduler`'s pump and
+  `DpiPolicy` is innocent, so the *If it fails* text above led away from the mechanism rather than to it.
+  **Kept as written even so** — it correctly names the two failures this case was designed to catch, and
+  a third one existing is not an argument for deleting the first two. **The case is NOT walked**: it is
+  re-walked from step 1, by the user, against the fixed build.
 
 **M-02 · A scale change while the application is running** ☐
 - **Goal** The mid-session change is where per-monitor DPI actually goes wrong, and A-61 can only prove
@@ -2230,6 +2262,7 @@ document means **Stage 1's**, and says so where it appears.
 | **I-13** | **S2** | **THE FONT BRIDGE SUBSTITUTED A SYSTEM FACE FOR THE BASE-14 FONTS, changing how every page of every existing document renders.** Found at **T16 by the control case, not by the case the task was written around.** A-66 asks whether the substitution bridge RUNS; the control beside it asks whether it runs when it should NOT, and that one measured `mapFontCalls() == 2` on `corpus/ordinary/text-a4.pdf` with **Helvetica resolved to Segoe UI**. Every file in this project that touched the subject — the bridge's header, the policy's header, this guide's own A-66 wording — had said that Helvetica, Times, Courier, Symbol and ZapfDingbats are required of every conforming reader, that PDFium carries its own metric-compatible Foxit copies, and that a font hook would therefore never be asked about them. **PDFium asks about them.** `FPDF_SetSystemFontInfo` is consulted for EVERY unembedded font and the engine uses its own faces only when the hook declines. **The consequence is out of proportion to the fix.** T16's subject is documents that render *wrongly today* — a font named and not embedded — and without the decline it would have changed the appearance of every page of every document that names a standard face, which is most of them, in a task nobody would think to look at for that. It would also have invalidated `tests/golden/`'s baselines at **T17** before they were captured, and the substitution is not neutral: Segoe UI is not metric-compatible with Helvetica, whereas PDFium's copy is and is identical on every machine. **Fixed with `core::render::isStandardFontName()`**, checked against the NORMALIZED family so that `Times-BoldItalic` reduces to `Times`, and deliberately NOT listing `Arial`, `TimesNewRoman` or `Courier New` — those are real installed families that a resolver should match exactly, and declining them would refuse a font we can serve perfectly. **The lesson is convention 7's, in the form it takes when the thing being verified is a NEW mechanism**: a case that proves a mechanism runs is half of proving it runs when it should, and nothing in the criterion this task was given called for the other half. | ✅ **Closed 2026-09-05 at T16**, in the same change as the code that found it — raised and closed by the same run |
 | **I-17** | **S2** | **`portable-asan` AND `portable-fuzz` COULD NOT CONFIGURE FOR THE WHOLE OF STAGE 2, AND THE COMMENT ABOVE THE DEFECT ASSERTED THE GUARD THAT WAS MISSING.** `pdf/CMakeLists.txt` defines `rawpage_cos` (portable by rule) and then `rawpage_pdfium` (the engine facade, Windows only). The root `CMakeLists.txt` correctly skips `rawpage_assert_pdfium()` for the portable subset and the gate build, so `RAWPAGE_PDFIUM_VERSION` is unset there **by design** — and `pdf/CMakeLists.txt` then walked straight into the `FATAL_ERROR` that exists to catch a *reordered* assert, reporting *“rawpage_pdfium cannot be built: RAWPAGE_PDFIUM_VERSION is not set”* on both Linux jobs. **The comment sitting directly above that error said the guard was elsewhere**: *“It is not guarded by `if(WIN32)` here: the root CMakeLists only descends into `pdf/` with `RAWPAGE_PORTABLE_SUBSET` off.”* The root has never done that and must not — the portable subset **needs** `pdf/cos/`, so `add_subdirectory(pdf)` is deliberately outside that guard. The claim was written at **T2** (2026-09-01) alongside the target it describes, and the file it named was never checked. **Live for eighteen tasks and invisible**, because no CI run happened between Stage 1's sign-off (2026-08-31) and T18 (2026-09-06): the sanitizer and fuzz jobs had never once met Stage 2's code. Fixed with an explicit `if(RAWPAGE_PORTABLE_SUBSET) return()` **in the file the reader is looking at**, printing what it did rather than passing silently. **The lesson is I-10's and convention 8's together**: a comment that asserts a guard lives in another file is a claim nothing re-derives, and it reads as a design decision for as long as nobody runs the configuration it describes. | ✅ **Closed 2026-09-06**, with the negative control run in both directions — the original file reproduces the exact CI error locally, the fixed one configures and prints its branch |
 | **I-18** | **S2** | **THE WINDOWS CI JOB NEVER FETCHED PDFIUM, SO IT COULD NOT CONFIGURE EITHER — the engine had been in the tree since T2 and the workflow had never mentioned it.** PDFium is not a vcpkg port and nothing under `third_party/pdfium/` is committed except its README (`.gitignore`), so a fresh checkout has no engine and `cmake --preset x64-release` fails in `rawpage_assert_pdfium()` (**PA-1**) with *“found: no third_party/pdfium/VERSION”*. `scripts/fetch-pdfium.ps1` has existed since T2 to do exactly this — verify the pinned SHA-256, generate the GNU import library upstream does not ship — and **no CI step ever called it**. The assertion was working; what was absent was the step. Found in the same run as **I-17** and for the same meta-reason: Stage 2's build met CI for the first time at T18, five days and eighteen tasks after the engine landed. Fixed by adding a *Fetch the pinned PDFium* step to the `windows` job, placed **after** the toolchain is on `PATH` because the script needs `gendef` and `dlltool` from `C:\Qt\Tools`, and **before** Configure. The script is idempotent, so on the self-hosted runner it is a no-op after the first run. **This is I-30's shape from Stage 1** — a step everything assumed was someone else's — and the countermeasure is the same: the job that proves it is the job that runs it. | ✅ **Closed 2026-09-06** |
+| **I-19** | **S2** | **A CACHE HIT NEVER WOKE THE PUMP, SO A MIXED-DPI DRAG BLANKED THE PAGE AND LEFT IT BLANK.** Found by the user on 2026-09-06 in the **first minutes of M-01's walk** — the first Stage 2 defect found by a human rather than by a suite. Dragging the window between the 150 % and 100 % monitors, at Actual Size, Fit Width or an arbitrary zoom, made the page's text **disappear**; scrolling sometimes brought it back and sometimes did not, and when it did not, only dragging to the other monitor again did. **`DpiPolicy` is innocent** — the whole of M-01's *If it fails* text is about re-rasterization direction, and the mechanism is in neither direction. `RenderScheduler` has **two producers of a completion**: the worker loop, which calls the wake handler when a job finishes, and `enqueue()`'s cache-hit branch, which pushed the finished tile onto `completed_` and returned **without waking anything**. `completed_` is drained only by `deliverReady()`, and the only thing that posts `deliverReady()` in the running product is that handler (`app/CompositionRoot.cpp`) — so **a batch of requests that are ALL cache hits starts no worker, wakes nobody, and strands its tiles in the queue.** The mixed-DPI drag is the arrangement that produces such a batch: `TilePresenter::requestTiles` re-keys every request on `deviceScale`, drops every tile held at the old one — the page blanks **correctly** at that instant — and dragging BACK to a monitor whose tiles are still in the 256 MiB cache finds every one of them a hit. **Both halves of the *sometimes* fall out of the same gap**: a scroll that reaches an uncached tile is a MISS, which starts a worker, which wakes the pump, and `deliverReady()` then drains the *whole* queue including the stranded hits; a scroll that stays inside cached tiles is all hits and changes nothing. **WHY 696 GREEN TESTS MISSED IT, which is the part worth keeping.** A-38's neighbour — *“render scheduler serves a cached tile without rasterizing it”* — calls `scheduler.deliverReady()` **by hand**. That is a back door no running product has, and it was not named at the assertion, so the case proved the cache **serves** and nothing anywhere proved the product ever **asks**. **Convention 19, in Stage 1 I-34's exact shape**: green in CI and unreachable by hand. It is also **convention 22** from the other side — the arrangement that fires was tested, the arrangement in which it must fire was not. Fixed by copying `wake_` under the lock and calling it after unlocking, precisely as the worker loop does; waking is not delivering, so `enqueue()`'s standing rule that no subscriber is entered from inside it still holds — the handler posts, and the queued call runs after the caller's `requestTiles()` has finished asking. | ✅ **Closed 2026-09-06**, with the control in both directions: `unit.render scheduler WAKES for a tile it served from the cache` fails on the unfixed scheduler at `CHECK( wakes.load() > before )` expanding to `1 > 1`, and its own MISS leg is a `REQUIRE` so the case cannot pass against a handler that never fires at all. **Confirmed on the P-1 rig by the user the same day** — the page no longer blanks on a mixed-DPI drag, which is the half a unit test counting wakes cannot claim. **M-01 is NOT thereby walked** — it is re-walked from step 1 by the user |
 
 **NO S2 IS OPEN — I-17 and I-18 were raised and closed on 2026-09-06, in the CI run that first
 executed Stage 2's build. Two S3 remain — I-06 (JBIG2) and I-11 (line weight) — and both are open BY
@@ -2283,7 +2316,7 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-82 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-83 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.

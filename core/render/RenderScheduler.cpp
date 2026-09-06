@@ -62,11 +62,28 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
     // `enqueue()` would re-enter a paint handler that has not finished asking for its tiles.
     if (cache_ != nullptr) {
         if (auto hit = cache_->lookup(request)) {
-            std::lock_guard<std::mutex> lock(mutex_);
-            const std::uint64_t ticket = nextTicketId_++;
-            ++stats_.enqueued;
-            ++stats_.servedFromCache;
-            completed_.push_back(Completion{request, std::move(*hit), true, true});
+            std::uint64_t ticket = 0;
+            WakeHandler wake;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                ticket = nextTicketId_++;
+                ++stats_.enqueued;
+                ++stats_.servedFromCache;
+                completed_.push_back(Completion{request, std::move(*hit), true, true});
+                wake = wake_;
+            }
+
+            // AND WAKE, because this is the second producer of a completion and the worker loop is
+            // the other. `completed_` is drained only by `deliverReady()`, and in the running
+            // product the only thing that posts `deliverReady()` is this handler -- so a batch of
+            // requests that are ALL cache hits starts no worker, wakes nobody, and strands its
+            // tiles in the queue. That is issue I-19: the mixed-DPI drag re-keys every tile on
+            // `deviceScale`, dragging BACK finds them all cached, and the page stays blank until
+            // some unrelated MISS happens to wake the pump and drain them.
+            //
+            // Waking is not delivering, so the rule above still holds: the handler posts, and the
+            // queued call runs after the caller's `requestTiles()` has finished asking.
+            if (wake) wake();
             return RenderTicket{ticket};
         }
     }

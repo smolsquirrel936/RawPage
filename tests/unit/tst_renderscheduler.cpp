@@ -378,6 +378,36 @@ TEST_CASE("render scheduler drops a superseded result rather than caching it", "
     }
 }
 
+TEST_CASE("render scheduler WAKES for a tile it served from the cache", "[core][render]")
+{
+    // M-01's finding, reproduced without a monitor. Every case above drains the completion queue by
+    // CALLING `deliverReady()` -- a back door no running product has (convention 19). In the product
+    // the ONLY thing that posts `deliverReady()` is the wake handler, and the wake handler is called
+    // from the worker loop. A batch of requests that are ALL cache hits therefore starts no worker,
+    // wakes nobody, and strands its completions in the queue: the page goes blank and stays blank.
+    RenderCache cache;
+    RasterizerProbe probe;
+    RenderScheduler scheduler(factoryFor(probe), &cache);
+
+    std::atomic<int> wakes{0};
+    scheduler.setWakeHandler([&] { ++wakes; });
+
+    const RenderRequest tile = requestFor(3);
+
+    // The MISS, which is the control: this one must wake, or the case below proves nothing about
+    // the cache path -- it would merely be observing a wake handler that never fires at all.
+    scheduler.enqueue(tile, RenderPriority::Visible);
+    REQUIRE(scheduler.waitForIdle(2000));
+    REQUIRE(wakes.load() > 0);
+    REQUIRE(scheduler.deliverReady() == 1);
+
+    // The HIT. Nothing else is enqueued, so nothing else can wake the pump on its behalf.
+    const int before = wakes.load();
+    scheduler.enqueue(tile, RenderPriority::Visible);
+    REQUIRE(scheduler.stats().servedFromCache == 1);
+    CHECK(wakes.load() > before);
+}
+
 TEST_CASE("render scheduler serves a cached tile without rasterizing it", "[core][render]")
 {
     RenderCache cache;
