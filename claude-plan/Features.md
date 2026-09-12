@@ -148,6 +148,9 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - **In the paged modes, scrolling past a page's edge turns the page** — by wheel as well as by
   arrow key (§8), landing at the near edge of the new one. A paged mode shows one page at a time;
   it does not trap the reader on it.
+- **In the two-up modes, a page step is a SPREAD step.** Next/previous page, and the edge-of-page
+  turn above, move to the next spread rather than to the page beside the current one — which is
+  already on screen, so stepping onto it would show the reader nothing.
 - Show cover page separately in Two-Up modes.
 - Right-to-left binding for RTL documents.
 - Horizontal-scroll layout for wide documents.

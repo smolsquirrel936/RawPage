@@ -218,12 +218,20 @@ void PageView::lastPage()
 
 void PageView::nextPage()
 {
-    goToPage(controller_->currentPage() + 1);
+    goToPage(pageStep(controller_->currentPage(), +1));
 }
 
 void PageView::prevPage()
 {
-    goToPage(controller_->currentPage() - 1);
+    goToPage(pageStep(controller_->currentPage(), -1));
+}
+
+int PageView::pageStep(int from, int direction) const
+{
+    // ONE SPREAD, NOT ONE PAGE, and the difference only shows in the two-up modes -- where the
+    // page beside the current one is already on screen, so stepping onto it shows the reader
+    // nothing and, in a PAGED two-up, strands them there for good (S2 issue I-25).
+    return engine_.spreadStep(from, direction, controller_->layoutMode());
 }
 
 void PageView::nextScreen()
@@ -266,7 +274,7 @@ bool PageView::scrollOrTurnPage(double dx, double dy)
 
     const bool forward = dy > 0.0 || dx > 0.0;
     const int from = controller_->currentPage();
-    goToPage(from + (forward ? 1 : -1));
+    goToPage(pageStep(from, forward ? +1 : -1));
     if (controller_->currentPage() == from) return false;   // the document ended; leave the event
 
     // WHERE THE NEW PAGE LANDS. `goToPage` puts its top edge under the viewport, which is right

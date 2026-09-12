@@ -221,6 +221,28 @@ Zoom PageLayoutEngine::zoomForFit(FitMode fit, core::DeviceSize viewportSize, in
     return Zoom{factor}.clamped();
 }
 
+int PageLayoutEngine::spreadStep(int from, int direction, core::render::LayoutMode mode) const
+{
+    const int count = pageCount();
+    if (count <= 0) return 0;
+
+    const int clamped = std::clamp(from, 0, count - 1);
+
+    // THE EXTENT OF THE SPREAD, not the page. `spreadFor()` is the single place the cover's parity
+    // and an odd page count are resolved -- `PagePresentation.cpp` says so of itself -- so asking
+    // it is what keeps this step right for a cover that sits alone and for a last page with no
+    // partner. In the single modes it answers one page and this is `from + direction`.
+    int lowest = clamped;
+    int highest = clamped;
+    for (const int index : presentation_.spreadFor(clamped, count, mode)) {
+        if (index < 0) continue;   // the empty column of a half-spread
+        lowest = std::min(lowest, index);
+        highest = std::max(highest, index);
+    }
+
+    return direction >= 0 ? highest + 1 : lowest - 1;
+}
+
 int PageLayoutEngine::dominantPage(const core::DeviceRect& viewport) const
 {
     const std::vector<core::render::PageSlot> touched = layout_.slotsIntersecting(viewport);

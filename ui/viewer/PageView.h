@@ -223,6 +223,11 @@ protected:
 private:
     void updateScrollBars();
     void syncControllerFromScrollBars();
+    // The page a step of one SPREAD from `from` lands on, in `direction` (+1 / -1). What
+    // `nextPage()`, `prevPage()` and the edge-of-page scroll all step by -- see
+    // `PageLayoutEngine::spreadStep()` for why a page step is the wrong one in `TwoUp`.
+    int pageStep(int from, int direction) const;
+
     core::DeviceSize viewportSizeInDevicePixels() const;
 
     // Scroll by one step, and IF THE SCROLL WAS ALREADY AT THE LIMIT, turn the page instead --

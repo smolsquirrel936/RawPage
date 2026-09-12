@@ -567,3 +567,138 @@ TEST_CASE("in a continuous mode the edge of the document is the end of the scrol
     CHECK(view->controller().currentPage() == atEnd);
     CHECK(view->controller().scroll().y == scrollAtEnd);
 }
+
+// =============================================================================================
+// A PAGED TWO-UP TURNS BY THE SPREAD, and this is the half the three cases above do not ask for.
+// Each of them selects `LayoutMode::Single`, where a spread is a page and "advance the current
+// page" and "show the next thing" are the same sentence. In `TwoUp` they are not, and the gap
+// between them is S2 issue I-25: `goToPage(current + 1)` targets the page BESIDE the current one,
+// which is already on screen, and the dominant-page snap at the end of `refresh()` then puts the
+// current page back where it started -- so the view never leaves the spread it is on.
+//
+// Asserted on the SLOTS rather than on `currentPage()`, because what the reader is complaining
+// about is which pages are on the glass; the page index is the mechanism, not the claim.
+// =============================================================================================
+
+namespace {
+
+std::set<int> pagesOnScreen(const ui::PageView* view)
+{
+    std::set<int> pages;
+    for (const core::render::PageSlot& slot : view->layoutEngine().layout().pageSlots())
+        pages.insert(slot.pageIndex);
+    return pages;
+}
+
+} // namespace
+
+TEST_CASE("in paged Two-Up the page turns to the next SPREAD", "[pageview]")
+{
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 6;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("twoup.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+    REQUIRE(view->width() > 300);
+
+    view->setLayoutMode(core::render::LayoutMode::TwoUp);
+    view->refresh();
+    REQUIRE(pagesOnScreen(view) == std::set<int>{0, 1});
+
+    view->nextPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{2, 3});
+
+    view->nextPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{4, 5});
+
+    // THE FAR END. Six pages are three spreads; a fourth step has nothing to show and must leave
+    // the last spread on screen rather than clamping onto a half-spread of its own.
+    view->nextPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{4, 5});
+
+    view->prevPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{2, 3});
+
+    view->prevPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{0, 1});
+
+    view->prevPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{0, 1});
+}
+
+TEST_CASE("in paged Two-Up with a cover the spread step follows the cover's parity", "[pageview]")
+{
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 7;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("cover.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+    REQUIRE(view->width() > 300);
+
+    core::render::PresentationOptions options;
+    options.showCoverInTwoUp = true;
+    view->setPresentationOptions(options);
+    view->setLayoutMode(core::render::LayoutMode::TwoUp);
+    view->refresh();
+
+    // The cover takes a spread of its own -- and the step out of a ONE-page spread is what the
+    // odd-count corpus file exists to catch (M-05).
+    REQUIRE(pagesOnScreen(view) == std::set<int>{0});
+
+    view->nextPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{1, 2});
+
+    view->nextPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{3, 4});
+
+    view->nextPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{5, 6});
+
+    view->prevPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{3, 4});
+
+    view->prevPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{1, 2});
+
+    view->prevPage();
+    CHECK(pagesOnScreen(view) == std::set<int>{0});
+}
+
+// AND THE WHEEL REACHES THE SAME STEP. `nextPage()` above is the command; this is the gesture the
+// reader actually used when they found it, and the two go through different code -- the wheel
+// arrives at `scrollOrTurnPage`, which decides a page turn from a scroll that did not move.
+TEST_CASE("in paged Two-Up the wheel at the edge turns to the next spread", "[pageview]")
+{
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 6;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("twoup-wheel.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+    REQUIRE(view->width() > 300);
+
+    view->setLayoutMode(core::render::LayoutMode::TwoUp);
+    view->refresh();
+    REQUIRE(pagesOnScreen(view) == std::set<int>{0, 1});
+
+    int guard = 0;
+    while (pagesOnScreen(view) == std::set<int>{0, 1} && guard++ < 40) sendWheel(view, -120);
+    CHECK(pagesOnScreen(view) == std::set<int>{2, 3});
+    CHECK(guard < 40);   // it turned because the wheel turned it, not because the loop ran out
+
+    guard = 0;
+    while (pagesOnScreen(view) == std::set<int>{2, 3} && guard++ < 40) sendWheel(view, -120);
+    CHECK(pagesOnScreen(view) == std::set<int>{4, 5});
+    CHECK(guard < 40);
+}

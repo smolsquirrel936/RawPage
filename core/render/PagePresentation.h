@@ -192,10 +192,16 @@ public:
                       PageRotation viewRotation = PageRotation::None) const;
 
     // The spread a page belongs to, as the page indices in COLUMN order (left column first in LTR)
-    // with -1 for an empty column. Exposed because `ui/viewer/ViewportController` (T13) pages by
-    // spread rather than by page in the two-up modes, and because it is the half of the layout
-    // that carries both asymmetries -- so it is asserted directly rather than inferred from
-    // rectangles.
+    // with -1 for an empty column. It is the half of the layout that carries both asymmetries --
+    // the cover's parity and an odd page count -- so it is asserted directly rather than inferred
+    // from rectangles.
+    //
+    // THE CALLER IS `ui/viewer/PageLayoutEngine::spreadStep()`, from 2026-09-13. This comment said
+    // `ViewportController` paged by spread "at T13" and it never did: the viewer stepped by ONE
+    // PAGE in every mode, which in a paged two-up is the page already on screen, and the reader was
+    // stranded on the spread (S2 issue I-25, found in the M-05 walk). The claim was present-tense,
+    // nothing re-derived it, and `tst_presentation` asserting this function in isolation is what
+    // made the unused API look wired -- CLAUDE.md rule 4 and convention 19 in one comment.
     std::vector<int> spreadFor(int pageIndex, int pageCount, LayoutMode mode) const;
 
     // How many spreads a document of `pageCount` pages has in `mode`. 0 for an empty document.

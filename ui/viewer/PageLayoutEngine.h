@@ -117,6 +117,18 @@ public:
     core::render::Zoom zoomForFit(FitMode fit, core::DeviceSize viewportSize, int page,
                                   ScreenMetrics metrics, core::render::Zoom current) const;
 
+    // The page one SPREAD away from `from`, in `direction` (+1 forward, -1 back) -- and the page
+    // step of every paged mode, because in `TwoUp` the page BESIDE the current one is already on
+    // the glass. Stepping to it moves nothing, and the dominant-page snap at the end of
+    // `PageView::refresh()` then puts the current page back on the spread's first page, so the
+    // view can never leave the spread it is on. That was S2 issue I-25, and this is the call
+    // `PagePresentation::spreadFor()` was exposed for at T13 and never given.
+    //
+    // Returns a page index that may be OUT OF RANGE at either end -- `PageView::goToPage()` clamps,
+    // and a caller that compares the resulting current page against the one it started on is how
+    // "the document ends here" is told from "the page turned".
+    int spreadStep(int from, int direction, core::render::LayoutMode mode) const;
+
     // The page whose slot covers the most of `viewport`, or -1 when none does. This is what makes
     // the status bar say "page 7 of 900" while scrolling: the topmost intersecting page is the
     // wrong answer when a spread's first page is one row of pixels tall at the top of the screen.
