@@ -7,6 +7,7 @@
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/viewer/TilePresenter.h"
 
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -31,6 +32,11 @@ constexpr double kWheelNotch = 120.0;
 // on screen afterwards. Every document reader overlaps for this reason; a step of exactly 1.0 loses
 // a line per press and the loss is invisible until somebody is actually reading.
 constexpr double kScreenOverlap = 0.92;
+
+// One arrow press, in LOGICAL pixels, and the same number `updateScrollBars` gives the scrollbars
+// as their single step -- a key and a click on a scrollbar arrow must move the page by the same
+// amount or one of them feels broken.
+constexpr int kArrowStep = 24;
 
 // Below this, a marquee drag is a click. Zooming to a two-pixel band would jump to 6400 % on a
 // mis-click with no obvious way back.
@@ -245,6 +251,38 @@ void PageView::prevScreen()
     }
     const double step = std::max(1.0, controller_->viewportSize().height * kScreenOverlap);
     controller_->scrollBy(0.0, -step);
+}
+
+bool PageView::scrollOrTurnPage(double dx, double dy)
+{
+    const core::DevicePoint before = controller_->scroll();
+    controller_->scrollBy(dx, dy);
+    if (controller_->scroll() != before) return true;
+
+    // NOTHING MOVED, so we are against a limit. `ViewportController::setScroll` clamps, which is
+    // what makes "did not move" the reliable test rather than comparing against a computed
+    // maximum that the layout, the zoom and the device pixel ratio all get a vote in.
+    if (core::render::isContinuous(controller_->layoutMode())) return false;
+
+    const bool forward = dy > 0.0 || dx > 0.0;
+    const int from = controller_->currentPage();
+    goToPage(from + (forward ? 1 : -1));
+    if (controller_->currentPage() == from) return false;   // the document ended; leave the event
+
+    // WHERE THE NEW PAGE LANDS. `goToPage` puts its top edge under the viewport, which is right
+    // going forward and wrong coming back: `Up` at the top of page 5 would show the top of page 4
+    // and read as a jump backwards through everything the reader just passed. Coming back lands at
+    // the FAR edge, and the huge value is deliberate -- `setScroll` clamps, so this asks for "as
+    // far as this page goes" without computing it.
+    constexpr double kPastAnyLayout = 1.0e9;
+    if (!forward) {
+        controller_->setScroll(dx != 0.0
+                                   ? core::DevicePoint{kPastAnyLayout, controller_->scroll().y}
+                                   : core::DevicePoint{controller_->scroll().x, kPastAnyLayout});
+    } else if (dx != 0.0) {
+        controller_->setScroll(core::DevicePoint{0.0, controller_->scroll().y});
+    }
+    return true;
 }
 
 void PageView::goBackView()
@@ -480,9 +518,10 @@ void PageView::updateScrollBars()
     verticalScrollBar()->setPageStep(viewport()->height());
 
     // A single step is a comfortable scroll rather than one pixel: three of them is roughly a
-    // text line at 100 %.
-    horizontalScrollBar()->setSingleStep(24);
-    verticalScrollBar()->setSingleStep(24);
+    // text line at 100 %. `kArrowStep` is the same number because an arrow key and a click on a
+    // scrollbar arrow are the same gesture to a reader.
+    horizontalScrollBar()->setSingleStep(kArrowStep);
+    verticalScrollBar()->setSingleStep(kArrowStep);
 
     horizontalScrollBar()->setValue(static_cast<int>(controller_->scroll().x / dpr));
     verticalScrollBar()->setValue(static_cast<int>(controller_->scroll().y / dpr));
@@ -537,7 +576,64 @@ void PageView::wheelEvent(QWheelEvent* event)
         return;
     }
 
+    // THE SCROLLING HALF, and it has to notice when the scroll did not happen. `QAbstractScrollArea`
+    // moves the scrollbar, whose range in a paged mode covers one page -- so at the bottom of that
+    // page the wheel silently does nothing, which is a reader stuck on page 3 with the wheel in
+    // their hand (I-24). One more notch there turns the page, exactly as it does in the reference
+    // product, and the "already at the limit" test is what keeps a fast flick from flying through
+    // pages: the first notch that cannot scroll is the one that pages.
+    const int beforeY = verticalScrollBar()->value();
+    const int beforeX = horizontalScrollBar()->value();
     QAbstractScrollArea::wheelEvent(event);
+    if (verticalScrollBar()->value() != beforeY || horizontalScrollBar()->value() != beforeX) {
+        return;
+    }
+
+    const double notches = event->angleDelta().y() / kWheelNotch;
+    if (std::abs(notches) < 0.01) return;
+
+    // A WHEEL AWAY FROM THE USER is a POSITIVE `angleDelta` and moves BACKWARD through the
+    // document, which is the opposite sign from a scroll offset. Getting this backwards is a
+    // one-character bug that reads as the page flipping the wrong way.
+    if (scrollOrTurnPage(0.0, notches > 0.0 ? -1.0 : 1.0)) event->accept();
+}
+
+void PageView::keyPressEvent(QKeyEvent* event)
+{
+    // THE ARROW KEYS ARE `RAWPAGE_BINDING_NATIVE` ROWS (`core/cmd/KeyBindingDefaults.def`): the
+    // focused widget owns them, so the boundary behaviour `Features.md` §8 specifies for them --
+    // *"Scroll the page (paging at page boundaries)"* -- is this widget's to implement and not an
+    // `ActionId`'s. Minting four permanent public names for a scroll gesture is what D1-16 warns
+    // against; `NavNextPage` already exists for the dispatchable version.
+    //
+    // BARE ARROWS ONLY. A modifier belongs to whoever else wants it, and consuming `Ctrl+Left`
+    // here would eat a chord some later stage binds.
+    if (event->modifiers() == Qt::NoModifier) {
+        // The scrollbar's own single step, so a key and a scrollbar arrow move by the same amount.
+        const double step = kArrowStep * devicePixelRatioF();
+
+        double dx = 0.0;
+        double dy = 0.0;
+        switch (event->key()) {
+        case Qt::Key_Down:  dy = step; break;
+        case Qt::Key_Up:    dy = -step; break;
+        case Qt::Key_Right: dx = step; break;
+        case Qt::Key_Left:  dx = -step; break;
+        default: break;
+        }
+
+        if (dx != 0.0 || dy != 0.0) {
+            if (scrollOrTurnPage(dx, dy)) {
+                event->accept();
+                return;
+            }
+            // AT THE DOCUMENT'S END, and deliberately NOT accepted: the base class will try the
+            // same scroll and also fail, and leaving the key unconsumed is what the rest of the
+            // shell does with a key it cannot use.
+        }
+    }
+
+    QAbstractScrollArea::keyPressEvent(event);
 }
 
 bool PageView::event(QEvent* event)

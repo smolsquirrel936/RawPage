@@ -145,6 +145,9 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Single Page Continuous (vertical scroll).
 - Two-Up (facing pages).
 - Two-Up Continuous.
+- **In the paged modes, scrolling past a page's edge turns the page** — by wheel as well as by
+  arrow key (§8), landing at the near edge of the new one. A paged mode shows one page at a time;
+  it does not trap the reader on it.
 - Show cover page separately in Two-Up modes.
 - Right-to-left binding for RTL documents.
 - Horizontal-scroll layout for wide documents.

@@ -42,8 +42,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLayout>
 #include <QScrollBar>
+#include <QWheelEvent>
 
 #include <set>
 
@@ -424,4 +426,144 @@ TEST_CASE("a view with no display topology falls back and says so", "[pageview]"
     CHECK(metrics.source != ui::ScreenMetrics::Source::Topology);
     CHECK(metrics.physical.dpi >= 48.0);
     CHECK(metrics.scale.factor > 0.0);
+}
+
+// =============================================================================================
+// I-24 -- A PAGED MODE MUST NOT TRAP THE READER ON THE PAGE.
+//
+// `PagePresentation` lays out ONE page in `Single` and one spread in `Two-Up`, so the scroll range
+// is that page and the wheel simply stops at its bottom edge. Nothing in the viewer noticed: the
+// scrollbar was at its maximum and that is a perfectly ordinary state in a continuous document.
+// `Page Down` worked the whole time (`nextScreen` becomes a page step), which is why this survived
+// a suite that drove the commands and never drove the gesture.
+//
+// Both cases here press TWICE at the edge -- once to arrive, once to cross. A single press cannot
+// tell "scrolled to the bottom" from "turned the page", which is convention 22 again and is the
+// shape I-23 had one commit earlier.
+// =============================================================================================
+
+namespace {
+
+// The realistic path: a wheel event is delivered to the VIEWPORT, and `QAbstractScrollArea`
+// forwards it to the scroll area's handler. Sending it to the `PageView` itself would also reach
+// the override and would skip the forwarding this depends on.
+void sendWheel(ui::PageView* view, int angleDelta)
+{
+    QWheelEvent event(QPointF(120, 120), view->viewport()->mapToGlobal(QPointF(120, 120)),
+                      QPoint(0, 0), QPoint(0, angleDelta), Qt::NoButton, Qt::NoModifier,
+                      Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(view->viewport(), &event);
+    QCoreApplication::processEvents();
+}
+
+void sendKey(ui::PageView* view, Qt::Key key)
+{
+    QKeyEvent event(QEvent::KeyPress, key, Qt::NoModifier);
+    QCoreApplication::sendEvent(view, &event);
+    QCoreApplication::processEvents();
+}
+
+} // namespace
+
+TEST_CASE("in a paged mode the wheel turns the page at the edge", "[pageview]")
+{
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 6;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("paged.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+    REQUIRE(view->width() > 300);   // A-52's rule: the geometry first
+
+    view->setLayoutMode(core::render::LayoutMode::Single);
+    view->refresh();
+    REQUIRE(view->controller().currentPage() == 0);
+
+    // DOWN TO THE BOTTOM OF PAGE 1 FIRST. However tall the page is, a bounded number of notches
+    // reaches its end; the loop stops early once the page turns so that the assertion below is
+    // about the FIRST crossing rather than about wherever thirty notches landed.
+    int guard = 0;
+    while (view->controller().currentPage() == 0 && guard++ < 40) sendWheel(view, -120);
+
+    CHECK(view->controller().currentPage() == 1);
+    CHECK(guard < 40);   // it turned because the wheel turned it, not because the loop ran out
+
+    // AND THE NEW PAGE STARTS AT ITS TOP. Landing mid-page would mean the reader skipped whatever
+    // the viewport had scrolled past. A paged layout puts its one page's top edge at the margin and
+    // `goToPage` scrolls to that top MINUS the margin, so the top of the page is scroll zero.
+    CHECK(view->controller().scroll().y == 0.0);
+
+    // BACK UP AGAIN, and the far edge this time: page 1's BOTTOM, not its top.
+    guard = 0;
+    while (view->controller().currentPage() == 1 && guard++ < 40) sendWheel(view, +120);
+    CHECK(view->controller().currentPage() == 0);
+
+    const core::DeviceSize content = view->controller().contentSize();
+    const core::DeviceSize viewport = view->controller().viewportSize();
+    if (content.height > viewport.height) {
+        CHECK(view->controller().scroll().y > (content.height - viewport.height) / 2.0);
+    }
+}
+
+TEST_CASE("in a paged mode the arrow keys turn the page at the edge", "[pageview]")
+{
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 4;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("arrows.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+    REQUIRE(view->width() > 300);
+
+    view->setLayoutMode(core::render::LayoutMode::Single);
+    view->refresh();
+    view->setFocus();
+    REQUIRE(view->controller().currentPage() == 0);
+
+    int guard = 0;
+    while (view->controller().currentPage() == 0 && guard++ < 400) sendKey(view, Qt::Key_Down);
+    CHECK(view->controller().currentPage() == 1);
+    CHECK(guard < 400);
+
+    guard = 0;
+    while (view->controller().currentPage() == 1 && guard++ < 400) sendKey(view, Qt::Key_Up);
+    CHECK(view->controller().currentPage() == 0);
+}
+
+// THE CONTROL, and it is the half that says the fix is bounded. A continuous layout holds every
+// page, so its scroll limit is the END OF THE DOCUMENT -- and a wheel notch there must do nothing
+// at all rather than turn a page that is already on screen. Without this, "turn the page whenever
+// the scroll did not move" would pass every assertion above while double-stepping through every
+// continuous document in the product.
+TEST_CASE("in a continuous mode the edge of the document is the end of the scrolling",
+          "[pageview]")
+{
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 3;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("continuous.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentDocument()->view();
+    REQUIRE(view != nullptr);
+    REQUIRE(view->width() > 300);
+
+    view->setLayoutMode(core::render::LayoutMode::SingleContinuous);
+    view->refresh();
+
+    // To the bottom of the whole document, then well past it.
+    for (int i = 0; i < 200; ++i) sendWheel(view, -120);
+    const int atEnd = view->controller().currentPage();
+    const double scrollAtEnd = view->controller().scroll().y;
+
+    for (int i = 0; i < 10; ++i) sendWheel(view, -120);
+    CHECK(view->controller().currentPage() == atEnd);
+    CHECK(view->controller().scroll().y == scrollAtEnd);
 }

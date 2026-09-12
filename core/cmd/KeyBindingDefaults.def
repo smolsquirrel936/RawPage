@@ -81,10 +81,16 @@ RAWPAGE_BINDING(Viewer, "Ctrl+3",        ViewFitVisible)
 RAWPAGE_BINDING(Viewer, "Ctrl+4",        ViewReflow)
 RAWPAGE_BINDING(Viewer, "Ctrl+M",        ViewZoomTo)
 RAWPAGE_BINDING(Viewer, "Ctrl+Shift+N",  NavGoToPage)
-RAWPAGE_BINDING_NATIVE(Viewer, "Up",     "scrolls the page surface; QScrollArea already does it")
-RAWPAGE_BINDING_NATIVE(Viewer, "Down",   "scrolls the page surface; QScrollArea already does it")
-RAWPAGE_BINDING_NATIVE(Viewer, "Left",   "scrolls the page surface; QScrollArea already does it")
-RAWPAGE_BINDING_NATIVE(Viewer, "Right",  "scrolls the page surface; QScrollArea already does it")
+// STILL NATIVE, and the reason string is now accurate rather than merely short. The old one said
+// "QScrollArea already does it", which was true of the scrolling and silently false of the rest of
+// the SAME section 8 row -- "paging at page boundaries" -- so in a paged mode, where the layout
+// holds one page, the arrows could not leave it (I-24 in Stage 2's guide). `PageView` owns both
+// halves now. Native is still the right classification: it is a scroll gesture inside the focused
+// widget, and `NavNextPage` is the dispatchable form for anything that is not a person.
+RAWPAGE_BINDING_NATIVE(Viewer, "Up",     "PageView scrolls the page and turns it at the top edge")
+RAWPAGE_BINDING_NATIVE(Viewer, "Down",   "PageView scrolls the page and turns it at the bottom edge")
+RAWPAGE_BINDING_NATIVE(Viewer, "Left",   "PageView scrolls the page and turns it at the left edge")
+RAWPAGE_BINDING_NATIVE(Viewer, "Right",  "PageView scrolls the page and turns it at the right edge")
 RAWPAGE_BINDING(Viewer, "Page Down",     NavNextScreen)
 RAWPAGE_BINDING(Viewer, "Page Up",       NavPrevScreen)
 RAWPAGE_BINDING(Viewer, "Space",         NavNextScreen)

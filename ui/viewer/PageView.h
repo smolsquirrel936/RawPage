@@ -214,6 +214,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
     void scrollContentsBy(int dx, int dy) override;
     void wheelEvent(QWheelEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
@@ -223,6 +224,18 @@ private:
     void updateScrollBars();
     void syncControllerFromScrollBars();
     core::DeviceSize viewportSizeInDevicePixels() const;
+
+    // Scroll by one step, and IF THE SCROLL WAS ALREADY AT THE LIMIT, turn the page instead --
+    // landing at the near edge of the new page so the gesture reads as continuing rather than as
+    // jumping. Returns whether anything moved; false means the document really has ended and the
+    // caller should leave the event alone.
+    //
+    // **ONLY A PAGED MODE CAN TURN A PAGE HERE.** In a continuous mode the layout already holds
+    // every page, so the scroll limit IS the end of the document and there is nothing past it; in
+    // `Single` and `Two-Up` the layout holds one page or one spread (`PagePresentation.cpp`), so
+    // the limit is the page's edge and the next page is exactly what is past it. That difference
+    // is the whole of I-24.
+    bool scrollOrTurnPage(double dx, double dy);
 
     core::render::RenderScheduler& scheduler_;
     const platform::IDisplayTopology* topology_ = nullptr;
