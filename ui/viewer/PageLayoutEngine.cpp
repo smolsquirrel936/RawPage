@@ -26,9 +26,10 @@ core::PdfSize fitTarget(const core::Page& page, FitMode fit)
     const bool swapped = page.rotation() == core::PageRotation::Clockwise90
                          || page.rotation() == core::PageRotation::Clockwise270;
 
-    // `Page` fits the SHEET and `Visible` fits what is drawn. They agree on a document whose
-    // CropBox equals its MediaBox, which is most of them, and they differ on a trimmed page --
-    // which is the case that makes them two commands in Features.md 1.2 rather than one.
+    // `Page` fits the SHEET and `Visible` fits the CropBox. They agree on a document whose
+    // CropBox equals its MediaBox, which is most of them, and they differ on a trimmed page.
+    // THIS IS NOT WHAT Features.md 1.2 SPECIFIES: Fit Visible there is "fit the content bounding
+    // box, ignoring white margins", which nothing here computes -- Stage 2 guide issue I-28, open.
     const core::PdfSize box =
         (fit == FitMode::Page) ? page.mediaBox().size : page.cropBox().size;
 

@@ -61,10 +61,10 @@ namespace rawpage::core::render {
 // instead of chosen, and `ui/viewer/PageLayoutEngine::zoomForFit()` is a policy question rather
 // than a widget one.
 //
-// The four are Features.md 1.2's, and `Page` versus `Visible` is a real distinction rather than two
-// names for one thing: `Page` fits the MediaBox -- the sheet -- and `Visible` fits the CropBox,
-// which is what is actually drawn. On a document whose CropBox equals its MediaBox they agree, and
-// on a trimmed page they do not.
+// The four are Features.md 1.2's. As BUILT, `Page` fits the MediaBox -- the sheet -- and `Visible`
+// fits the CropBox, so on a document whose CropBox equals its MediaBox they agree. **That is not
+// Features.md 1.2's `Visible`**, which fits the content bounding box and ignores white margins;
+// Stage 2 guide issue I-28 records the gap, and until it closes Ctrl+3 is Ctrl+0 on most files.
 //
 // `None` reads as "no fitting", which as a DEFAULT ZOOM means 100 % -- and that is why the settings
 // row defaults to it: a settings task must not silently change what the product does.
