@@ -224,7 +224,7 @@ bool operator==(const CosObject& a, const CosObject& b) noexcept
 
 // No `default:` label, deliberately. Every enumerator is listed above, so adding one to `CosType`
 // without handling it here is a -Wswitch error under the -Werror this layer builds with -- which
-// is the same mechanism `ui/shell/ThemeManager` uses to keep its eleven colour tokens complete.
+// is the same mechanism `ui/shell/ThemeManager` uses to keep its colour tokens complete.
 const char* cosTypeName(CosType type) noexcept
 {
     switch (type) {

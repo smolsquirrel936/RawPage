@@ -402,6 +402,15 @@ void MainWindow::buildCentralSurface()
     messageBar_ = new MessageBar(documentColumn);
     documentLayout->addWidget(messageBar_);
 
+    // THE BANNER'S COLOURS COME FROM THIS WINDOW'S THEME, and follow it: `themeChanged` fires only
+    // when the RESOLVED theme moves, which is the only thing the two tokens depend on (issue I-29).
+    const auto paintMessageBar = [this] {
+        messageBar_->setColors(theme_->color(ThemeToken::MessageBackground),
+                               theme_->color(ThemeToken::MessageText));
+    };
+    paintMessageBar();
+    connect(theme_.get(), &ThemeManager::themeChanged, messageBar_, paintMessageBar);
+
     documents_ = new QStackedWidget;
     documents_->setObjectName(QStringLiteral("documentStack"));
 

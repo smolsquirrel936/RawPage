@@ -2,6 +2,7 @@
 
 #include "core/doc/RepairReport.h"
 #include "ui/shell/Catalog.h"
+#include "ui/shell/ThemeManager.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -36,7 +37,10 @@ const char* MessageBar::kindName(Kind kind) noexcept
     return "Unknown";
 }
 
-MessageBar::MessageBar(QWidget* parent) : QWidget(parent)
+MessageBar::MessageBar(QWidget* parent)
+    : QWidget(parent),
+      background_(ThemeManager::colorFor(ThemeToken::MessageBackground, ThemeManager::systemTheme())),
+      text_(ThemeManager::colorFor(ThemeToken::MessageText, ThemeManager::systemTheme()))
 {
     setObjectName(QStringLiteral("messageBar"));
 
@@ -63,12 +67,12 @@ void MessageBar::showMessage(Message message)
                           + QLatin1String(kindName(message.kind)));
     banner->setAutoFillBackground(true);
 
-    // FROM THE PALETTE, not a hard-coded amber. A banner is exactly the kind of surface that gets
-    // written against a light mock and turns out to be unreadable in dark -- which is what I-40 was
-    // (convention 20). `AlternateBase` is one step off the window in both themes by construction.
-    QPalette bannerPalette = banner->palette();
-    bannerPalette.setColor(QPalette::Window, bannerPalette.color(QPalette::AlternateBase));
-    banner->setPalette(bannerPalette);
+    // FROM A THEME TOKEN, not a hard-coded amber and not a borrowed palette role. A banner is
+    // exactly the kind of surface that gets written against a light mock and turns out to be
+    // unreadable in dark -- which is what I-40 was (convention 20). **This comment used to say
+    // `AlternateBase` was "one step off the window in both themes by construction"; `ThemeManager`
+    // sets it to the window colour, so the banner was the desk's own grey** (issue I-29).
+    paintBanner(banner);
 
     auto* row = new QHBoxLayout(banner);
     row->setContentsMargins(12, 6, 6, 6);
@@ -103,6 +107,26 @@ void MessageBar::showMessage(Message message)
 
     entries_.push_back(Entry{kind, banner, message.text});
     rebuildOrder();
+}
+
+void MessageBar::setColors(const QColor& background, const QColor& text)
+{
+    background_ = background;
+    text_ = text;
+    for (const Entry& entry : entries_) paintBanner(entry.widget);
+}
+
+void MessageBar::paintBanner(QWidget* banner) const
+{
+    // WINDOW AND WINDOWTEXT ONLY. The label honours `WindowText`; the Details button and the close
+    // glyph are painted by the native style from the colour scheme and ignore the palette
+    // (convention 21), which is why the text token is judged against this background only for the
+    // label -- the buttons carry their own face.
+    QPalette palette = banner->palette();
+    palette.setColor(QPalette::Window, background_);
+    palette.setColor(QPalette::WindowText, text_);
+    banner->setPalette(palette);
+    banner->update();
 }
 
 void MessageBar::rebuildOrder()

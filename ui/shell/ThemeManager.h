@@ -50,9 +50,11 @@ enum class ThemeToken {
     SelectionBackground,
     SelectionText,
     DisabledText,
+    MessageBackground,     // the document-condition banner -- a TINT, never the window's grey
+    MessageText,           // text drawn ON the banner
 };
 
-inline constexpr std::size_t kThemeTokenCount = 11;
+inline constexpr std::size_t kThemeTokenCount = 13;
 
 constexpr std::string_view themeTokenName(ThemeToken token)
 {
@@ -68,6 +70,8 @@ constexpr std::string_view themeTokenName(ThemeToken token)
     case ThemeToken::SelectionBackground: return "selectionBackground";
     case ThemeToken::SelectionText:       return "selectionText";
     case ThemeToken::DisabledText:        return "disabledText";
+    case ThemeToken::MessageBackground:   return "messageBackground";
+    case ThemeToken::MessageText:         return "messageText";
     }
     return "?";
 }

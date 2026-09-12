@@ -36,6 +36,7 @@
 #ifndef RAWPAGE_UI_SHELL_MESSAGEBAR_H
 #define RAWPAGE_UI_SHELL_MESSAGEBAR_H
 
+#include <QColor>
 #include <QString>
 #include <QWidget>
 
@@ -83,6 +84,14 @@ public:
 
     void showMessage(Message message);
 
+    // The banner's colours, from `ThemeManager`'s `MessageBackground` and `MessageText` tokens.
+    // Pushed in by the window that owns the theme rather than pulled from the application palette,
+    // because no `QPalette` role means "a banner": the role this used to borrow, `AlternateBase`, is
+    // the window grey, and that is the defect (issue I-29). Re-applied to every banner already on
+    // screen, so a theme switch with a repaired document open recolours it at once.
+    void setColors(const QColor& background, const QColor& text);
+    QColor backgroundColor() const { return background_; }
+
     // Removes one kind, or everything. `clear()` is what a tab switch and a document close call:
     // a banner about the document that was closed, still on screen over the one that replaced it,
     // is worse than no banner at all.
@@ -119,9 +128,15 @@ private:
     };
 
     void rebuildOrder();
+    void paintBanner(QWidget* banner) const;
 
     QVBoxLayout* column_ = nullptr;
     std::vector<Entry> entries_;
+
+    // Initialised from the tokens for the theme the OS reports, so a bar nobody has called
+    // `setColors` on -- a unit case, a future second owner -- is still never the window grey.
+    QColor background_;
+    QColor text_;
 };
 
 } // namespace rawpage::ui

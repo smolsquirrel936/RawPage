@@ -669,7 +669,7 @@ void PageView::paintEvent(QPaintEvent* event)
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     // The surround, FROM THE PALETTE rather than a hard-coded grey. `ThemeManager` writes the
-    // application palette from its eleven tokens, so taking the desk colour from `QPalette::Window`
+    // application palette from its tokens, so taking the desk colour from `QPalette::Window`
     // is taking it from the theme -- and a hard-coded light grey here would be a dark-theme
     // contrast defect in a brand-new widget, which is exactly what I-40 was (convention 20).
     painter.fillRect(event->rect(), palette().color(QPalette::Window));

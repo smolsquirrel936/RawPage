@@ -78,6 +78,16 @@ QColor ThemeManager::colorFor(ThemeToken token, Resolved theme)
     // and each stays far below the enabled text's 13.45 / 15.68, so "disabled" still reads as
     // disabled at a glance. `tst_theme` asserts the floor rather than the hex values.
     case ThemeToken::DisabledText:        return dark ? QColor(0x8a, 0x8a, 0x8a) : QColor(0x7a, 0x7a, 0x7a);
+    // THE BANNER IS A TINT, SEPARATED FROM THE DESK BY HUE -- IN LIGHT, ALMOST ONLY BY HUE
+    // (Stage 2 guide issue I-29). It used to borrow `AlternateBase`, which `apply()` below sets to
+    // the WINDOW colour -- so the one place the product says "this document is not what it seems"
+    // was painted exactly the grey `PageView` paints around the page, and a person walking M-07
+    // could not find it. A warm amber in both themes: a light tint keeps dark text legible, a deep
+    // one keeps light text legible, and measured: 24.6 CIE76 units from the light window grey and 30.0 from the dark one, with the text
+    // at 15.4 : 1 and 9.9 : 1 on it.
+    // `tst_theme` asserts that distance and the text's contrast, never these hex values.
+    case ThemeToken::MessageBackground:   return dark ? QColor(0x4a, 0x3a, 0x12) : QColor(0xff, 0xf1, 0xc2);
+    case ThemeToken::MessageText:         return dark ? QColor(0xf2, 0xf2, 0xf2) : QColor(0x1a, 0x1a, 0x1a);
     }
 
     // Unreachable for any declared token; returning an INVALID colour rather than a plausible one

@@ -12,6 +12,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/settings/Settings.h"
+#include "tests/ui/ColorDistance.h"
 #include "ui/shell/ThemeManager.h"
 
 #include <QApplication>
@@ -40,6 +41,7 @@ const std::vector<ui::ThemeToken>& allTokens()
         ui::ThemeToken::Accent,              ui::ThemeToken::AccentText,
         ui::ThemeToken::SelectionBackground, ui::ThemeToken::SelectionText,
         ui::ThemeToken::DisabledText,
+        ui::ThemeToken::MessageBackground,   ui::ThemeToken::MessageText,
     };
     return tokens;
 }
@@ -146,6 +148,7 @@ TEST_CASE("every text token is legible against the surface it is drawn on", "[th
         {ui::ThemeToken::DisabledText,   ui::ThemeToken::SurfaceBackground},
         {ui::ThemeToken::AccentText,     ui::ThemeToken::Accent},
         {ui::ThemeToken::SelectionText,  ui::ThemeToken::SelectionBackground},
+        {ui::ThemeToken::MessageText,    ui::ThemeToken::MessageBackground},
     };
 
     // 3.0 is a floor, not a target: it is the level at which the reported defect stops being one,
@@ -179,6 +182,41 @@ TEST_CASE("every text token is legible against the surface it is drawn on", "[th
             ui::ThemeManager::colorFor(ui::ThemeToken::DisabledText, theme), background);
         UNSCOPED_INFO("enabled " << enabled << " vs disabled " << disabled);
         CHECK(disabled * 2.0 < enabled);
+    }
+}
+
+TEST_CASE("the message banner is a colour of its own and not the desk grey", "[theme]")
+{
+    // STAGE 2 ISSUE I-29, found by the user preparing the M-07 walk: the document-condition banner
+    // borrowed `AlternateBase`, which `ThemeManager::apply()` sets to `WindowBackground` -- the
+    // colour `PageView` paints around every page -- so the one strip that says a document was
+    // repaired was indistinguishable from the desk it sits on.
+    //
+    // Measured as a colour DISTANCE, not a contrast ratio -- `tests/ui/ColorDistance.h` says why --
+    // against two surfaces: the window grey (the desk and the tab strip both paint it) and the
+    // page-white surface colour.
+    const double floorDeltaE = uitest::kDistinctSurfaceDeltaE;
+
+    // THE CONTROL, and it fails the floor for the right reason (convention 7): the colour the OLD
+    // banner actually painted in the light theme, measured by grabbing it -- #f7f7f7, not quite the
+    // #f3f3f3 window, because the style nudges `AlternateBase` -- is unequal to the desk and still
+    // far under the floor. A hex literal on purpose: it is a measurement of the defect, not a token.
+    CHECK(uitest::deltaE76(QColor(0xf7, 0xf7, 0xf7),
+                           ui::ThemeManager::colorFor(ui::ThemeToken::WindowBackground,
+                                                      ui::ThemeManager::Resolved::Light))
+          < floorDeltaE);
+
+    for (const ui::ThemeManager::Resolved theme :
+         {ui::ThemeManager::Resolved::Light, ui::ThemeManager::Resolved::Dark}) {
+        const QColor banner = ui::ThemeManager::colorFor(ui::ThemeToken::MessageBackground, theme);
+        for (const ui::ThemeToken surface :
+             {ui::ThemeToken::WindowBackground, ui::ThemeToken::SurfaceBackground}) {
+            const double distance = uitest::deltaE76(banner, ui::ThemeManager::colorFor(surface, theme));
+            UNSCOPED_INFO((theme == ui::ThemeManager::Resolved::Dark ? "dark  " : "light ")
+                          << "messageBackground vs " << ui::themeTokenName(surface) << " = "
+                          << distance);
+            CHECK(distance >= floorDeltaE);
+        }
     }
 }
 

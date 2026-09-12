@@ -22,6 +22,7 @@
 
 #include "core/cmd/ActionRegistry.h"
 #include "core/doc/RepairReport.h"
+#include "tests/ui/ColorDistance.h"
 #include "tests/ui/ShellFixture.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
@@ -30,6 +31,7 @@
 #include "ui/shell/MessageBar.h"
 #include "ui/shell/RawPageAction.h"
 #include "ui/shell/StatusBar.h"
+#include "ui/shell/ThemeManager.h"
 #include "ui/viewer/PageView.h"
 
 #include <QDir>
@@ -259,6 +261,61 @@ TEST_CASE("the banner belongs to the tab, not to the window", "[chrome]")
     // on every tab change, which is the mechanism; whether a per-document report re-appears is the
     // real backend's, and manual case M-03 walks it.
     SUCCEED();
+}
+
+TEST_CASE("the banner is painted in its own colour and follows the theme", "[chrome]")
+{
+    // STAGE 2 ISSUE I-29. The token-level half -- that the banner colour is far from the desk grey
+    // in both themes -- is `tst_theme`'s. THIS half is the wiring, measured in PIXELS rather than
+    // read back from a palette: the old banner had a perfectly good palette call too, it just
+    // named a role that held the wrong colour.
+    Fixture fixture;
+    fixture.settings.set(core::keys::general::theme, core::Theme::Light);
+    fixture.backend.repairs = damagedReport();
+
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    window.openFiles({fixture.writeFile(QStringLiteral("damaged.pdf"))});
+    driveLayout(&window);
+
+    ui::PageView* view = window.currentView();
+    REQUIRE(view != nullptr);
+
+    // THE BANNER ON SCREEN, found fresh each time and required to be the ONLY one. A dismissed
+    // banner is `deleteLater()`ed, so until deferred deletes run it is still a child with the same
+    // object name -- and opening a document rebuilds the bar more than once. The first draft of
+    // this case held a `findChild` pointer, grabbed a stale banner nothing would ever recolour, and
+    // failed the theme half while passing the light half only because every banner was light.
+    const auto banner = [&window]() -> QWidget* {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        const QList<QWidget*> found =
+            window.messageBar()->findChildren<QWidget*>(QStringLiteral("messageBanner.Repaired"));
+        REQUIRE(found.size() == 1);
+        return found.front();
+    };
+
+    // (2, 2) is inside the banner's 12/6 px content margin, so it is the fill and not the label.
+    const auto fill = [&banner] { return banner()->grab().toImage().pixelColor(2, 2); };
+    const auto desk = [view] { return view->palette().color(QPalette::Window); };
+
+    // CLEARLY DIFFERENT, not merely unequal: the old banner painted #f7f7f7 beside a #f3f3f3 desk,
+    // which `!=` accepts and nobody can see (`tests/ui/ColorDistance.h`).
+    CHECK(fill() == window.theme()->color(ui::ThemeToken::MessageBackground));
+    CHECK(uitest::deltaE76(fill(), desk()) >= uitest::kDistinctSurfaceDeltaE);
+
+    // A THEME SWITCH WITH THE BANNER ALREADY ON SCREEN. The banner was built under Light, so a bar
+    // that coloured a banner only when it was built would still be showing the light tint here.
+    fixture.settings.set(core::keys::general::theme, core::Theme::Dark);
+    QCoreApplication::processEvents();
+    REQUIRE(window.theme()->resolved() == ui::ThemeManager::Resolved::Dark);
+    CHECK(fill() == ui::ThemeManager::colorFor(ui::ThemeToken::MessageBackground,
+                                               ui::ThemeManager::Resolved::Dark));
+    CHECK(uitest::deltaE76(fill(), desk()) >= uitest::kDistinctSurfaceDeltaE);
+
+    // WHAT THIS DOES NOT COVER (convention 19): the offscreen platform does not paint with the
+    // native `windows11` style. The fill is `QWidget::autoFillBackground`, which no style repaints,
+    // so the colour above is the colour on Windows too -- but how the Details button and the close
+    // glyph look ON that colour is visible only on a real desktop, in both themes.
 }
 
 TEST_CASE("the message bar stacks kinds worst-first and dismisses one at a time", "[chrome]")
