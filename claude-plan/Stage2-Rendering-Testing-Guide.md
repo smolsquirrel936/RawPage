@@ -2111,7 +2111,7 @@ been automated is a defect in this guide — say so and I will move it.**
 **Walk M-01 and M-02 first**, before the fidelity cases: a DPI bug makes every subsequent judgement
 about rendering quality unreliable, and you would be grading the wrong thing.
 
-**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** **WALKED AND SIGNED OFF AS OF 2026-09-13: SIX — M-01 … M-06.** There is a page on
+**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** **WALKED AND SIGNED OFF AS OF 2026-09-13: SEVEN — M-01 … M-07.** There is a page on
 screen — open one with `.\build\x64-release\bin\rawpage.exe corpus\ordinary\text-a4.pdf`, or any
 other corpus file — the §8 Viewer chords move it, the status bar counts it, the four layout modes
 and the zoom presets are reachable, a repaired file raises a banner, an encrypted one prompts, and a
@@ -2414,7 +2414,7 @@ machine and is the whole reason that case is manual.
   **the one case where Fit Page and Fit Visible are specified to differ even in the product's own
   CropBox reading has never been looked at by anybody**.
 
-**M-07 · Open every corpus file, malformed included** ☐
+**M-07 · Open every corpus file, malformed included** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-13**, on the second walk, after four product fixes (I-29 … I-32)
 - **Goal** The exit criterion, walked by hand. A-21 proves the parser reports; this proves the
   **product** does something sensible with the report.
 - **Steps** Open every file in `corpus/`, one at a time, including all of `corpus/malformed/`. For each:
@@ -2435,6 +2435,23 @@ machine and is the whole reason that case is manual.
   double-click that left its prompt behind the window in front. **All four are fixed; the case
   needs a re-walk** — the four refused files and `objstm-corrupt.pdf` at least, since those are
   what changed.
+- **SECOND WALK 2026-09-13 — PASSED, signed off by the user.** Walked against the build carrying
+  all four fixes, from notes asking for the five changed files by double-click and by `Ctrl+O`, in
+  both themes, with the banner's text and close glyph read on the red. The user's report is *"all
+  works"*: each of the four damaged files refused with no tab and a red banner saying *damaged*,
+  `objstm-corrupt.pdf` refused with a red banner saying no page could be read, and the rest of the
+  corpus as on the first walk. **The record is that report, not a transcript**, so which of the
+  suggested gestures and themes were used for each file is what was proposed, not what was confirmed.
+  **WHAT THIS PASS DOES NOT COVER, named rather than assumed.** It is **the generated corpus and
+  nothing else** (D2-11): 24 malformed files, each damaged in ONE deliberate way, so a real-world
+  file damaged in three ways at once is outside it. **The nine malformed files that open with no
+  banner** — `bad-flate-stream`, both `length-lies-*`, `pages-loop`, `pages-count-wrong`,
+  `unbalanced-dictionary`, `deep-nesting`, `free-list-broken`, `no-eof-marker` — **were judged by
+  eye to render sensibly, and nothing tells a reader they were damaged**: `RepairReport` covers the
+  cross-reference layer only, and whether content-level damage should raise a banner is a scope
+  question for `Features.md`, raised with the user on 2026-09-13 and not asked for. And the
+  *damaged* versus *not a PDF* split rests on a header check, so a damaged file whose header is
+  itself destroyed is still called *not a PDF* — which is the honest limit of what the bytes say.
 
 **M-08 · An encrypted document** ☐
 - **Steps** Open `corpus/encrypted/`. Enter the wrong password; then the right one. Cancel the prompt.
@@ -2636,7 +2653,7 @@ Stage 2 is done when **all** of these hold. This is
 
 1. ☐ A-01 … A-85 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
-2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Six of ten as of 2026-09-13: M-01 … M-06.** M-07, M-08 and M-10 are walkable and unwalked; **M-09 is blocked** on a memory checker this machine does not have. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
+2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Seven of ten as of 2026-09-13: M-01 … M-07.** M-08 and M-10 are walkable and unwalked; **M-09 is blocked** on a memory checker this machine does not have. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
 4. ☐ `ctest` green across all five Windows targets, every prior stage included.
 5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets
