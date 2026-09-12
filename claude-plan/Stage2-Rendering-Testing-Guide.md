@@ -2050,7 +2050,7 @@ been automated is a defect in this guide — say so and I will move it.**
 **Walk M-01 and M-02 first**, before the fidelity cases: a DPI bug makes every subsequent judgement
 about rendering quality unreliable, and you would be grading the wrong thing.
 
-**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** There is a page on
+**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** **WALKED AND SIGNED OFF AS OF 2026-09-12: FOUR — M-01, M-02, M-03 and M-04.** There is a page on
 screen — open one with `.\build\x64-release\bin\rawpage.exe corpus\ordinary\text-a4.pdf`, or any
 other corpus file — the §8 Viewer chords move it, the status bar counts it, the four layout modes
 and the zoom presets are reachable, a repaired file raises a banner, an encrypted one prompts, and a
@@ -2220,7 +2220,7 @@ machine and is the whole reason that case is manual.
   minutes of putting the product beside something that was not itself.
 
 
-**M-04 · Scrolling a 900-page document — the perceived-smoothness half of A2** ☐
+**M-04 · Scrolling a 900-page document — the perceived-smoothness half of A2** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-12**, all five steps, at all three worker counts, after two product fixes
 - **Goal** **The case A-68's number cannot replace.** A p95 under budget and a scroll that stutters is
   a finding about the scheduler, and only a person can tell the difference. It is also the only test in
   this guide that drives cancellation through the gesture that is supposed to trigger it — A-36 drives
@@ -2244,6 +2244,33 @@ machine and is the whole reason that case is manual.
 - **If it fails** S2 against A2, and say **which** step. Step 2 failing is cancellation. Step 4 failing
   is `Revision`/`Scope` invalidation and is S1 — that is a stale tile, and a stale tile is the product
   telling the user something untrue about their document.
+- **WALKED 2026-09-12 — PASSED, all five steps, signed off by the user.** Step 5 was walked **in
+  full** — `renderWorkers` at 8, then 1, then 16, relaunching between each, since the key takes
+  effect only at the next launch. At 1 worker it was slow and **correct**, which is the half of that
+  step that matters: the shipped default is 1 (**I-05**), so the one-worker walk is the walk of what
+  the product actually ships and the other two are the sweep around it.
+  **A2 NOW HAS ITS THIRD ANSWER, and it is the one the other two cannot give.** The probe (T3, 0.532
+  ms of engine service time) and the product figure (**A-68**, 14.18 ms p95 of queued latency against
+  a 16.667 ms budget) are both numbers; this is a person reporting that the scroll does not stutter.
+  A p95 under budget with a scroll that judders would have been a finding about the **scheduler**,
+  and that is the reading this case exists to make possible. It did not happen.
+  **THE CASE COST TWO PRODUCT FIXES TO REACH A PASS**, both found by scrolling rather than by
+  measuring, and both in the shell rather than in the engine: **I-23** (`Ctrl+Shift+T` could enter
+  two-up and never leave) and **I-24** (a paged mode trapped the reader on the page — nothing that
+  scrolled could cross a page boundary). Neither is about tiles, latency or PDFium. **A2's verdict is
+  untouched by both**, which is worth stating so the pass is not read as broader than it is: this
+  case's contribution to A2 is *the scroll feels smooth*, and what it found on the way was that two
+  of the gestures around the scroll did not work at all.
+  **What this pass does NOT cover.** It is one rig — 16 cores, the P-1 monitor pair — and one
+  document, the generated 900-page file, **whose pages are deliberately light** —
+  `corpus/make-ordinary.py`'s `pages_900` gives each page a heading plus one of **ten shared**
+  Helvetica text blocks and no image, no shading and no transparency, because the file exists to
+  test the page TREE rather than the raster. So nothing here says what scrolling costs on 900 pages
+  of scanned CCITT or heavy transparency, and the corpus contains no such document to say it with. **Perceived smoothness on a slower machine is not measured by
+  anything in this guide**, and the benchmarks report a figure rather than judging the machine. And
+  step 2 was judged behaviourally — responsiveness returning, no long CPU tail — because
+  `RenderScheduler::Stats::cancelledBeforeStart` is surfaced nowhere in the product; **A-36** is what
+  proves cancellation mechanically, and this step proves the gesture reaches it.
 
 **M-05 · The four layout modes, the cover page, and RTL binding** ☐
 - **Pre** The odd-page-count corpus file with a cover page, and an RTL document. **P-4 for comparison —
@@ -2468,7 +2495,7 @@ Stage 2 is done when **all** of these hold. This is
 
 1. ☐ A-01 … A-85 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
-2. ☐ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case.
+2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Four of ten as of 2026-09-12: M-01, M-02, M-03 and M-04.** M-05 … M-08 and M-10 are walkable and unwalked; **M-09 is blocked** on a memory checker this machine does not have. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
 4. ☐ `ctest` green across all five Windows targets, every prior stage included.
 5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets

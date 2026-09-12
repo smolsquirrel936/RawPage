@@ -278,6 +278,14 @@ optimization. The corpus is entirely generated (D2-11), so a real-world page wit
 or a large scanned image is outside this evidence; **M-04** is where a person scrolls 900 pages and
 says whether it *feels* smooth, which no percentile can.
 
+**M-04 WAS WALKED 2026-09-12 and passed** — all five steps, at `renderWorkers` of 8, 1 and 16
+(`Stage2-Rendering-Testing-Guide.md` §6 holds the record). So A2's third answer agrees with its two
+numbers: the scroll does not stutter, and a p95 under budget with a juddering scroll — which would
+have been a finding about the **scheduler** rather than about PDFium — did not happen. **It is still
+one rig and one generated 900-page document**, so the bound above is unchanged by it. The walk cost
+two product fixes (**I-23**, **I-24**), and neither touches this verdict: both were gestures around
+the scroll rather than anything about tiles or latency.
+
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
 `chromium/8009`, SHA-256 `c78a8cd51b48ab…`, acquired by `scripts/fetch-pdfium.ps1`.
