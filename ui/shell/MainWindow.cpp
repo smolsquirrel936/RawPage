@@ -1571,6 +1571,17 @@ void MainWindow::openFiles(const QStringList& paths)
     }
 }
 
+void MainWindow::openHandoff(const QStringList& files)
+{
+    // RAISE FIRST. The secondary granted this process the right to come forward before it exited
+    // (`AllowSetForegroundWindow`, D1-11), and spending it here is what lets the password prompt that
+    // `openFiles()` may raise be shown by the FOREGROUND process, in front, parented to a window
+    // that is already there. A refused file benefits too: its reason lands in the status bar of a
+    // window the person is looking at, rather than of one still behind whatever they clicked in.
+    raiseToForeground();
+    openFiles(files);
+}
+
 void MainWindow::raiseToForeground()
 {
     // The permission to come forward was granted by the SECONDARY process before it exited

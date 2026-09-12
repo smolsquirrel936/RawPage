@@ -37,6 +37,11 @@ public:
 
     // Every path `open()` was asked about, in order.
     QStringList asked;
+
+    // Called at the top of `open()`, before anything is decided -- which is the moment the REAL
+    // backend would invoke the password callback and put a modal prompt on screen. A case that
+    // needs to know the state of the window at that moment sets it (Stage 2 issue I-30).
+    std::function<void(const QString&)> onOpen;
     int closes = 0;
 
     // How many A4 pages an accepted document has. Zero gives a document with a real handle and no
@@ -54,6 +59,7 @@ public:
                                             const core::PasswordCallback&) override
     {
         asked << path;
+        if (onOpen) onOpen(path);
         if (!accepts(path)) {
             return core::Error{core::ErrorCode::ParseFailure,
                                QLatin1String("error.open.notPdf"), path};

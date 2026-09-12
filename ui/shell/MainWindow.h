@@ -145,6 +145,13 @@ public:
     // to choose WHICH window to raise.
     void raiseToForeground();
 
+    // WHAT A HANDOFF DOES: raise, THEN open. The order is the whole of this method (Stage 2 guide
+    // issue I-30). Opening an encrypted file blocks inside a modal password prompt, so raising
+    // AFTER the open left the prompt to be shown by a background process -- which Windows does not
+    // bring forward -- and the window came up only once somebody had found the prompt and answered
+    // it. A method rather than two lines in `app/main.cpp`'s listener so the order has a case.
+    void openHandoff(const QStringList& files);
+
     // The window's keyboard. `activeContext()` is what attributes every dispatch -- a ribbon
     // click's as much as a chord's -- to the §8 context the focus is actually in.
     ShortcutBinder*     shortcutBinder() const { return shortcuts_.get(); }

@@ -352,6 +352,42 @@ TEST_CASE("the message bar stacks kinds worst-first and dismisses one at a time"
     CHECK_FALSE(bar.isVisible());
 }
 
+TEST_CASE("a handoff raises the window before it opens the file", "[chrome]")
+{
+    // STAGE 2 ISSUE I-30, found by the user in the M-07 walk: double-clicking a plain PDF brought
+    // RawPage to the front and double-clicking an encrypted one did not. The handoff opened THEN
+    // raised, and opening an encrypted file blocks in a modal password prompt -- so the prompt was
+    // put up by a process Windows keeps in the background, and the raise waited behind it.
+    //
+    // The observable: at the moment the backend is asked -- which is when the real one invokes the
+    // password callback -- the window must already be out of the minimized state it started in.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    driveLayout(&window);
+    window.setWindowState(window.windowState() | Qt::WindowMinimized);
+    REQUIRE(window.isMinimized());
+
+    int opens = 0;
+    bool minimizedWhenAsked = true;
+    fixture.backend.onOpen = [&](const QString&) {
+        ++opens;
+        minimizedWhenAsked = window.isMinimized();
+    };
+
+    window.openHandoff({fixture.writeFile(QStringLiteral("locked.pdf"))});
+
+    REQUIRE(opens == 1);
+    CHECK_FALSE(minimizedWhenAsked);
+    CHECK(window.documentCount() == 1);
+
+    // WHAT THIS DOES NOT COVER (convention 19). It drives `openHandoff()` directly: the named pipe
+    // from a second process is A-61's (`scripts/check-single-instance.ps1`), and `app/main.cpp`'s
+    // listener is one line that calls this method. Nor can offscreen say what Windows' foreground
+    // lock does with a prompt from a background process -- that is the defect's real surface, and
+    // only a double-click on a desktop shows it, which is why M-08 now asks for one.
+}
+
 // =============================================================================================
 // A-59 -- Stage 1's I-53: a registered-but-unavailable command says WHY.
 // =============================================================================================

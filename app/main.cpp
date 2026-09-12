@@ -444,10 +444,8 @@ int main(int argc, char** argv)
     }
 
     if (role == app::SingleInstance::Role::Primary) {
-        const core::Status listening = instance.listen([&window](const QStringList& files) {
-            window.openFiles(files);
-            window.raiseToForeground();
-        });
+        const core::Status listening = instance.listen(
+            [&window](const QStringList& files) { window.openHandoff(files); });
         if (!listening) {
             RAWPAGE_LOG_ERROR(core::LogSubsystem::Ui)
                 << "single instance: this process holds the claim but cannot listen --"
