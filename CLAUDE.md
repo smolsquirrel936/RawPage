@@ -22,7 +22,7 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. Nine of its ten cases are walkable; only **M-09** is not, needing Dr. Memory. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **700/700**, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **709/709**, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -386,7 +386,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 700/700 as of I-21's fix, 1 skipped
+ctest --preset x64-release --output-on-failure        # 709/709 as of I-27's fix, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -462,11 +462,15 @@ redirect the file.
 .\build\x64-release\bin\ribbon-validate.exe --explain   # NOT a gate -- a build step (D1-8)
 ```
 
-**Two notes on running `rawpage.exe` from PowerShell**, both of which cost time to rediscover.
+**Three notes on running `rawpage.exe` from PowerShell**, each of which cost time to rediscover.
 PowerShell does **not wait** on a GUI-subsystem binary, so `$LASTEXITCODE` after `& .\rawpage.exe`
 reads the *previous* command's — use `Start-Process -Wait -PassThru` and read `.ExitCode`. And an
 ordinary launch now runs an event loop and does not return; `--dump-ui-strings` is the switch that
-composes everything and exits.
+composes everything and exits. And the three switches that compose the product — `--dump-ui-strings`,
+`--print-screen-metrics`, `--list-actions` — **do not claim the single-instance bus**, so they answer
+whether or not a window is open (`Intent::composesAndExits()`, S2 issue **I-27**); before 2026-09-13
+they forwarded and printed nothing, and a walker with the product open got an empty answer and an
+exit code of 0.
 
 Presets: `gates` (tools + gate fixtures only, **no Qt and no vcpkg** — what CI runs first),
 `x64-debug`, `x64-release`, `arm64-release`, plus the two non-Windows ones — `portable-asan`,

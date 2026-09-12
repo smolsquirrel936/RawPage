@@ -108,6 +108,21 @@ struct Intent {
 
     // Which diagnostic, when kind == Diagnostic.
     QString     diagnostic;
+
+    // THE THREE SWITCHES ABOVE COMPOSE THE PRODUCT AND EXIT WITHOUT EVER BECOMING A SESSION, which
+    // is one fact about them rather than three, and every rule that follows from it asks HERE
+    // rather than repeating the disjunction. `Kind::Diagnostic` cannot answer this: those switches
+    // are answered before Qt is composed and these three need the services (and `--list-actions`
+    // the window), so they arrive as a `RunGui` that is not a run.
+    //
+    // The rule it exists for is `app/main.cpp`'s: such a switch MUST NOT claim the single-instance
+    // bus. Claiming it while a window is open makes the diagnostic process a SECONDARY, which
+    // forwards and returns 0 having printed nothing -- silently, since exiting 0 is what a
+    // successful diagnostic also does (S2 issue I-27).
+    bool composesAndExits() const noexcept
+    {
+        return dumpUiStrings || listActions || printScreenMetrics;
+    }
 };
 
 namespace CommandLine {

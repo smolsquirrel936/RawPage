@@ -8,8 +8,8 @@
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
-> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; the manual half is untouched and is yours.**
-> **86 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is FIVE OF TEN as of 2026-09-13** — M-01 … M-05 walked and signed off by the user, M-09 blocked on a memory checker this machine does not have, and the remaining four are the user's to walk.**
+> **87 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
 > written before anyone noticed the render path could not carry, **A-81** at T15, the
@@ -21,10 +21,11 @@
 > DIP dpi read as a physical one, and **A-85** the same day for **I-21**, when the form page in
 > M-03's own six turned out to have been rendering as an empty page since T9, and **A-86** on
 > 2026-09-13, when M-05's walk found **I-25** — a paged Two-Up that could not leave its spread,
-> in the mode the paged-turn cases written one day earlier had all declined to select) and
-> **10 manual** (M-01 … M-10), of
+> in the mode the paged-turn cases written one day earlier had all declined to select, and
+> **A-87** the same day for **I-27**, found when the suite went red because the walker still had
+> the product open) and **10 manual** (M-01 … M-10), of
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
-> A-75 … A-86 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
+> A-75 … A-87 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61 was 🟡 until M-02 cleared it on 2026-09-06; A-62, A-65 and A-67 remain 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
@@ -1575,6 +1576,33 @@ the cover case failing at a different step from the other two, which is the pari
 measures something of its own. ctest 708/708, one skipped.
 **If it fails** S2 — a reader who cannot reach page 4 of 7 has no workaround.
 
+**A-87 · A diagnostic that composes and exits ignores the single-instance bus** ✅ **2026-09-13**
+**Goal** **I-27.** `--dump-ui-strings`, `--print-screen-metrics` and `--list-actions` compose the
+whole product and exit without ever becoming a session. Claiming the bus first made each of them a
+SECONDARY whenever a window was open: forward, return 0, print nothing — and **exiting 0 is also
+what a successful diagnostic does**, so no caller could tell the two apart.
+**Steps** `ctest --preset x64-release -R diagnostics_ignore_the_bus`. A PowerShell script, because
+the condition is a property of two PROCESSES and a bus claim needs a claimant.
+**Expect** With a primary holding the bus, each of the three switches still prints its own first
+line — the `screen` row, the `# locale` header, the `# actions` census.
+**THE CONTROL COMES FIRST AND IS THE WHOLE CASE.** With no primary alive the three switches work
+perfectly, so a run that forgot to hold the bus would pass against the defect. The script therefore
+launches a second GUI process and **requires it to exit**; that exit is the only evidence the bus is
+genuinely claimed. If it does not exit — `general/singleInstance` is false on that machine — the
+case **SKIPS at 77 rather than passing**, because it then measures nothing. Convention 7, in the
+shape where the control gates the assertion instead of following it.
+**It never kills a window it did not open.** An existing RawPage is **adopted** as the primary and
+left running; only a process the script started is stopped. `taskkill /IM rawpage.exe` would make
+this case a hazard to the walker running it — which is not hypothetical, since I-27 was found with
+the M-05 walk open in another window.
+**Result 2026-09-13** Green, and **the negative control discriminates on all three switches at
+once**: against the unfixed binary each prints **0 characters** while the control still reports the
+bus claimed. In that same run `ui.screen_metrics_invariant` **passed**, because no primary was alive
+when it happened to execute — which is exactly why A-84 could not be left as the case that covers
+this.
+**If it fails** S2 — three documented diagnostics are then silently answering nothing, and a CTest
+case's colour depends on whether somebody has the product open.
+
 **A-55 · `KeyContext::Viewer` is declared and resolves — the first time in the product's history**
 ✅ **2026-09-04 (T13)** **Goal** D2-8. **Steps** Focus inside `PageView`; ask
 `ShortcutBinder::activeContext()`.
@@ -2082,7 +2110,7 @@ been automated is a defect in this guide — say so and I will move it.**
 **Walk M-01 and M-02 first**, before the fidelity cases: a DPI bug makes every subsequent judgement
 about rendering quality unreliable, and you would be grading the wrong thing.
 
-**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** **WALKED AND SIGNED OFF AS OF 2026-09-12: FOUR — M-01, M-02, M-03 and M-04.** There is a page on
+**WALKABLE AS OF 2026-09-06 (T17): NINE OF THE TEN — M-01 … M-08 and M-10.** **WALKED AND SIGNED OFF AS OF 2026-09-13: FIVE — M-01 … M-05.** There is a page on
 screen — open one with `.\build\x64-release\bin\rawpage.exe corpus\ordinary\text-a4.pdf`, or any
 other corpus file — the §8 Viewer chords move it, the status bar counts it, the four layout modes
 and the zoom presets are reachable, a repaired file raises a banner, an encrypted one prompts, and a
@@ -2304,7 +2332,7 @@ machine and is the whole reason that case is manual.
   `RenderScheduler::Stats::cancelledBeforeStart` is surfaced nowhere in the product; **A-36** is what
   proves cancellation mechanically, and this step proves the gesture reaches it.
 
-**M-05 · The four layout modes, the cover page, and RTL binding** ☐
+**M-05 · The four layout modes, the cover page, and RTL binding** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-13**, on the second walk, against the build carrying I-25's fix
 - **Pre** The odd-page-count corpus file with a cover page, and an RTL document. **P-4 for comparison —
   Acrobat Reader, not Edge or Chrome.** Layout mode is UX rather than rasterization, so a PDFium-based
   viewer would not be circular here the way it is in M-03 — but its *pairing* behaviour is Chromium's
@@ -2325,6 +2353,30 @@ machine and is the whole reason that case is manual.
   boundary, not several**; at the first and last page the gesture does nothing rather than wrapping.
 - **If it fails** S2. A-32 through A-34 cover the geometry; if they are green and this is not, the
   finding is in the viewer's use of `PagePresentation`, not in `PagePresentation`.
+- **WALKED 2026-09-13 — PASSED, signed off by the user, on the second walk.**
+  **The first walk stopped in its first minutes on I-25**: switching `cover-odd-count.pdf` from
+  `Single` into `Two-Up` showed the cover alone, then the 2-3 spread, and **pages 4 onward were
+  unreachable by any gesture or command** — the page step landed on the page already beside the
+  current one, and the dominant-page snap put the current page back. **The mode the case is named
+  after could not be walked at all**, which is why the four-mode step is the first thing this case
+  asks for.
+  **The second walk, against the fixed build, passed every step.** All four modes paged through in
+  full, page 7 reached in paged Two-Up, and the `Ctrl+Shift+H`/`Ctrl+Shift+T` cycle closes back to
+  Single Continuous — the two chords toggling one axis each, which is **I-23**'s fix still holding.
+  **Pairing, the cover and RTL all match Acrobat on both fixtures**, and switching modes preserves
+  the current page rather than jumping to page 1. The scroll half was walked in both paged modes at
+  Fit Width and at Fit Page, including the fast-spin variant that no synthetic wheel event can
+  produce: one gesture crosses one boundary, the new page lands at its near edge, and neither end of
+  the document wraps.
+  **WHAT THIS PASS DOES NOT COVER, named rather than left to be assumed.** It is **two corpus
+  files** — `ordinary/cover-odd-count.pdf` and `ordinary/rtl-binding.pdf`, both ours, both A4 and
+  uniform — so it says nothing about a spread of MIXED page sizes, which `PagePresentation` handles
+  with one column width for the whole document and which no manual case has ever looked at. The RTL
+  fixture is **binding direction only**: it carries `/Lang (ar)` and no Arabic text, no RTL glyph
+  run and no bidi, because RTL *binding* is a layout question and RTL *text* is Stage 5's. And the
+  reference comparison was made with our own flags set by hand to match what Acrobat derived from
+  each document's `/PageLayout` and `/ViewerPreferences` — see §8's row on that — so what was
+  compared is the ARRANGEMENT, never whether we agree with Acrobat about what a document asked for.
 
 **M-06 · Zoom extremes — 6400 % and 8 %** ☐
 - **Steps** `Ctrl+M`, 6400 %. Scroll around. Then 8 %. Then `Ctrl+0`, `Ctrl+1`, `Ctrl+2`, `Ctrl+3`.
@@ -2415,6 +2467,7 @@ was. If a row here turns out to be wrong, that is itself a finding.
 | ~~Anti-aliasing, line weight and the resolution cap cannot be changed~~ | **Fixed at T15** for fifteen of the sixteen keys, and the sixteenth is **I-11**: PDFium always draws a hairline at a minimum of one pixel and has no flag over it, so Line Weight is a checkbox that does nothing. Measured, not assumed — case A-81 |
 | **The Preferences dialog has five pages and `Features.md` describes 26** | Correct. A group gets a page when its keys exist; the other 21 arrive with the stages that declare their settings |
 | **`performance/renderWorkers` changes nothing until the application is restarted** | Correct, and said on the row itself: a worker pool's threads are made once. The two cache SIZES are live |
+| **A document that declares `/PageLayout /TwoPageRight` or `/ViewerPreferences /Direction /R2L` opens in neither** | Correct at Stage 2, and it is what M-05's Acrobat comparison has to work around. Two-up, the cover and RTL are `pageDisplay/` PREFERENCES — `Features.md` §1.2 lists all three that way — and nothing in `core/`, `ui/` or `pdf/` reads either catalog key. Acrobat honours both, so it opens `cover-odd-count.pdf` already paired with its cover alone and `rtl-binding.pdf` already right-to-left, while we open both in the shipped default. **Set our flags to match what the reference derived from the document; a difference that disappears when you do is this row, not a pairing defect.** Whether the product should honour a document's own declaration is a scope question for `Features.md` §1.2 and has not been asked |
 | A page appears a moment after the tab does, rather than with it | Correct, and it is D10's whole promise: the UI thread never rasterizes. The sheet and its border are drawn immediately and the tiles land on top |
 | ~~**A missing embedded font renders in something else, silently**~~ | **No longer true as of T16.** Substitution goes through `core/render/FontSubstitution` → `WinFontResolver`, every mapping is logged with the face it chose, and the base-14 set is deliberately handed back to PDFium's own metric-compatible copies (issue **I-13**). **M-03's typography half is gradeable from T16 on.** What is still absent: the substitution is not reported in the UI — no message bar row, no font-substitution dialog — so a person sees the page and the log sees the reason |
 | A benchmark's exit code is 0 on a slow machine | Correct. A benchmark **reports**; its exit code is about whether the measurement was possible |
@@ -2462,15 +2515,18 @@ document means **Stage 1's**, and says so where it appears.
 | **I-24** | **S2** | **A PAGED MODE TRAPPED THE READER ON THE PAGE: NOTHING THAT SCROLLED COULD CROSS A PAGE BOUNDARY.** Found by the user 2026-09-12, during the M-04 walk, by scrolling in `Single` and not arriving anywhere. `PagePresentation.cpp` lays out ONE page in `Single` and one spread in `Two-Up`, so the scroll range **is** that page; `PageView::wheelEvent` forwarded to `QAbstractScrollArea`, which reached the bottom of that range and stopped. There was no *past the bottom* to fall off. **The arrow keys were the same defect with a specification behind it**: [`Features.md` §8](./Features.md#8-key-bindings-authoritative-reference) gives them *"Scroll the page (paging at page boundaries, per S3)"* — two behaviours — and `KeyBindingDefaults.def` classified them `RAWPAGE_BINDING_NATIVE` with the reason *"scrolls the page surface; QScrollArea already does it"*, which is true of the first behaviour and silently false of the second. The row was classified on its first three words and the parenthetical was dropped. **That is I-08's shape again — a comment asserting a route is not the route existing** — and here the comment was half-right, which is why it read as settled. **WHY NOTHING CAUGHT IT.** `Page Down`, `Space` and `Ctrl+Page Down` all worked the whole time: `PageView::nextScreen` explicitly becomes a page step in a paged mode and has a case asserting exactly that. The suite drove the COMMANDS and never drove the GESTURE, so the one input path a reader actually uses in a paged mode was the one path nothing pressed. The wheel had no specification at all — `Features.md` §1.2 listed the four layouts and said nothing about how a reader leaves a page — so there was no document to contradict either. | ✅ **Closed 2026-09-12.** `PageView::scrollOrTurnPage` scrolls, and if the scroll was already at the limit **and the mode is paged**, turns the page and lands at the near edge of the new one — the far edge coming backwards, since `Up` at the top of page 5 landing on the top of page 4 would read as a jump back past everything just passed. The limit is detected by the scroll NOT MOVING, because `ViewportController::setScroll` clamps; computing a maximum instead would give the layout, the zoom and the device pixel ratio each a vote. The arrows stay `RAWPAGE_BINDING_NATIVE` — minting four permanent `ActionId`s for a scroll gesture is what D1-16 warns against, and `NavNextPage` is already the dispatchable form — but their reason strings now say what the widget does. **`Features.md` §1.2 gains the capability line**, since the wheel half was specified nowhere and a fix to an unwritten rule is just a preference. Two cases in `tests/ui/tst_pageview.cpp` press **twice at the edge** — once to arrive, once to cross — for the wheel and for the arrows, **plus a continuous-mode control** proving a notch at the END OF THE DOCUMENT still does nothing, which is what stops the fix from double-stepping every continuous document. Both paged cases were run against the unfixed viewer first and fail there (5 assertions); the control passes either way, which is its job. `checks` clean; ctest **705/705**, one skipped |
 | **I-25** | **S2** | **A PAGED TWO-UP COULD NOT LEAVE ITS SPREAD: THE PAGE STEP LANDED ON THE PAGE ALREADY BESIDE IT, AND THE DOMINANT-PAGE SNAP THEN PUT IT BACK.** Found by the user 2026-09-13, in the first minutes of the **M-05** walk, by switching `cover-odd-count.pdf` from `Single` into `Two-Up`: the cover appeared alone, one step reached the 2-3 spread, and **pages 4-7 were unreachable by any gesture or command**. `PageView::nextPage()` was `goToPage(currentPage + 1)`. In `Single` that is the next page and the next thing on screen, which is why the mode nothing else was walked in worked perfectly. In `TwoUp` the two are different: from the 2-3 spread the step targets page 3, which is already drawn — the layout does not change — and `refresh()` ends by snapping the current page to `dominantPage()`, whose tie between two fully-visible pages goes to the FIRST slot in document order. So the current page returned to 2 and the view never moved. `scrollOrTurnPage()` then read its own `currentPage() == from` end-of-document test as *the document ended* and left the wheel event unconsumed, which is why the gesture felt dead rather than merely wrong. **With the cover OFF it is worse and was not what the user hit**: the trap closes on the FIRST spread, since pages 1 and 2 share it — the walk reached spread 2 only because a cover spread holds one page, so `+1` genuinely leaves it. **WHY NOTHING CAUGHT IT.** `PagePresentation::spreadFor()` — the function that resolves exactly this step — has carried a header comment since T13 saying it is *"exposed because `ui/viewer/ViewportController` (T13) pages by spread rather than by page in the two-up modes"*. **It had no product caller at all**: `tst_presentation.cpp` asserts it in isolation, ten `CHECK`s over cover and RTL parity, all green, all of a function the viewer never called. A present-tense claim nothing re-derives, wearing a passing test as evidence — **CLAUDE.md rule 4 and convention 19 in one comment**, and I-24's shape one layer up. And the three paged cases added with I-24 each select `LayoutMode::Single`, the one paged mode where the defect cannot appear: **convention 22 exactly** — they prove the turn FIRES, and the mode where it fires wrongly was not asked. | ✅ **Closed 2026-09-13.** The step is now a SPREAD step in every mode: `PageLayoutEngine::spreadStep()` asks `spreadFor()` for the current spread's extent and returns *highest + 1* or *lowest - 1*, which is `from ± 1` in the single modes, follows the cover's parity without knowing about it, and handles a last page with no partner because the empty column is `-1` and is skipped. `PageView::nextPage()`, `prevPage()` and `scrollOrTurnPage()` all route through one private `pageStep()`, so the command and the gesture cannot drift apart. Out-of-range is returned rather than clamped, because `goToPage()` clamps and the caller's *did the current page move* test is what distinguishes the end of the document from a turn. **`Features.md` §1.2 gains the capability line** — that a two-up page step is a spread step was written down nowhere, and a fix to an unwritten rule is a preference. **A-86** — three cases in `tests/ui/tst_pageview.cpp` — asserts **which pages are on the glass** rather than the page index, since the index is the mechanism and the pages are the complaint: the commands over six pages, the commands over seven with a cover, and the WHEEL over six — the gesture the user actually used, which reaches a different function. All three fail against the unfixed viewer (11 assertions) and the cover case fails differently from the other two, which is the parity half doing its own work. `checks` clean; ctest **708/708**, one skipped |
 | **I-26** | S3 | **THE §4 SETTINGS TABLE — THE ONE A CASE IS TOLD TO CHECK BEFORE REPORTING A DIFFERENCE — WAS WRONG IN FOUR OF ITS TWELVE ROWS.** Found 2026-09-13 while answering *how do I walk M-05*, by reading `core/settings/SettingsKeys.def` beside it. `pageDisplay/defaultZoom` was given as **Fit Width**; the product has never shipped that — the row's own comment in the `.def` says `FitMode::None`, *"no fitting, which as a default means 100 %  — again the behaviour the viewer already had"*. And `maxRenderResolution`, `tileCacheMB`/`diskCacheMB` and `prefetchPages` all still read ***(to be set at T15)*** nine days after T15 set them to 2400, 256/0 and 1. **This is I-22 in the table rather than in a case**: a guide written before the code, holding a figure nothing re-derived, and the figures it holds are the ones a walker is instructed to compare their machine against — so a correct default reads as a misconfiguration and a real misconfiguration reads as correct. The `defaultZoom` row is the one that bites, because **M-06 opens by asking what the fits do** and its walker would have started from a fit the product never applied. **WHY NOTHING CAUGHT IT.** A-63 round-trips all sixteen keys and A-64 proves the Preferences pages are generated from the table, so both assert the `.def` against the PRODUCT and neither can see a Markdown row; there is no gate over prose, and the guide is not generated from `SettingsKeys.def`. Convention 17's *"a surface generated from a declarative table reads the TABLE"* is exactly what this table does not do. | ✅ **Closed 2026-09-13.** All four rows corrected from the `.def`, ranges included, and the column is now headed *Default (`SettingsKeys.def`)* with a standing instruction to re-read that file rather than this column — plus the record that four rows were wrong, so the next reader knows the table has drifted before. **Not automated**: making this a gate means teaching a linter to read one Markdown table, which is a tool nobody maintains for one table; naming the owner in the heading is the cheap half, and the rule that the `.def` is the only default is already machine-enforced by `Settings::get` refusing to take a fallback from a caller |
+| **I-27** | **S2** | **THREE DIAGNOSTICS PRINTED NOTHING AND EXITED 0 WHENEVER A WINDOW WAS OPEN, AND A CTEST CASE'S COLOUR DEPENDED ON IT.** Found 2026-09-13 by the suite going red on **`ui.screen_metrics_invariant` (A-84)** with *"no screen row in the output at scale 1"* — on a docs-only change, minutes after the same suite was green. The cause was not in the case: **the user still had `rtl-binding.pdf` open from the M-05 walk**. `app/main.cpp` claimed the single-instance bus BEFORE handling `--dump-ui-strings`, `--print-screen-metrics` and `--list-actions`, so with a primary alive each of those became the SECONDARY — it forwarded `intent.files` (empty), returned **0**, printed nothing, and raised the running window on its way out. **Exiting 0 is also what a successful diagnostic does**, which is what made this silent: A-84's script checks the exit code first, passes that check, and then fails on the missing row with a message about screen metrics — pointing at the one subsystem that was working. **WHAT IT COST BEYOND THE RED.** `--print-screen-metrics` is **I-20's own remedy** and `--list-actions` is the census `CLAUDE.md` quotes for *313 of 361 unregistered*; both have been answering nothing for anyone with the product open since the day they were written, and a walker following the guide has the product open by definition. **A green `ctest` was therefore conditional on an unrelated window**, and *ctest green including all prior stages* is a Definition-of-Done clause. **WHY NOTHING CAUGHT IT.** Every automated run of these switches has been on a machine with no window open — CI has no display and the local runs were between walks — and `tests/unit/tst_singleinstance.cpp` asserts the POLICY half (`enabled=false` never touches the bus) while `scripts/check-single-instance.ps1` asserts the two-process half for a GUI launch. **Neither asks what a diagnostic does**, and the three switches predate the bus by a stage. | ✅ **Closed 2026-09-13.** `Intent::composesAndExits()` (`app/CommandLine.h`) names the property once — *this switch builds the product and exits without becoming a session* — and `main.cpp` skips the claim entirely for those three. It is a method on `Intent` rather than three `||` in `main.cpp` so a fourth such switch inherits the rule instead of re-deriving it; `Kind::Diagnostic` could not carry it, since those switches are answered before Qt is composed and these three need the services. **A-61 re-run whole** (`scripts/check-single-instance.ps1`, both directions) — forwarding is untouched. Guide case **A-87** asserts all three switches with a primary holding the bus, **adopts a window it finds rather than killing it**, and **skips at 77 if its own control cannot prove the bus is claimed**. Against the unfixed binary all three print 0 characters. `checks` clean; ctest **709/709**, one skipped |
 
 **NO S2 IS OPEN — I-17 and I-18 were raised and closed on 2026-09-06, in the CI run that first
-executed Stage 2's build, I-23 and I-24 on 2026-09-12 and I-25 on 2026-09-13, each in the change
-that found it. Two S3 remain — I-06 (JBIG2) and I-11 (line weight) — and both are open BY DECISION
-rather than pending. **Twenty-four closed, re-counted from the table on 2026-09-13**: I-01 and I-03
+executed Stage 2's build, I-23 and I-24 on 2026-09-12, and I-25 and I-27 on 2026-09-13, each in the
+change that found it. Two S3 remain — I-06 (JBIG2) and I-11 (line weight) — and both are open BY DECISION
+rather than pending. **Twenty-five closed, re-counted from the table on 2026-09-13**: I-01 and I-03
 before any code, I-05 at T11, I-07 at T12, I-08 and I-09 at T13, I-10 at T14, I-02, I-04, I-12 and
 I-13 at T16, **I-14, I-15 and I-16 at T17**, **I-17 through I-21 all on 2026-09-06** — the CI run
 and the first three manual walks — **I-22, I-23 and I-24 on 2026-09-12**, one preparing M-04's walk
-and two during it, and **I-25 and I-26 on 2026-09-13** — I-25 in M-05's walk, I-26 in the reading that prepared it.**
+and two during it, and **I-25, I-26 and I-27 on 2026-09-13** — I-25 in M-05's walk, I-26 in the reading that
+prepared it, and I-27 in the suite run that followed it, red because the walker still had the
+product open.**
 
 **Three of the last four were found by a person paging through a document, and each was invisible to
 a green suite for the same reason**: the suite drove the command, the mode or the press that the
@@ -2533,7 +2589,7 @@ Stage 2 is done when **all** of these hold. This is
 
 1. ☐ A-01 … A-85 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
-2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Four of ten as of 2026-09-12: M-01, M-02, M-03 and M-04.** M-05 … M-08 and M-10 are walkable and unwalked; **M-09 is blocked** on a memory checker this machine does not have. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
+2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Five of ten as of 2026-09-13: M-01, M-02, M-03, M-04 and M-05.** M-06, M-07, M-08 and M-10 are walkable and unwalked; **M-09 is blocked** on a memory checker this machine does not have. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
 4. ☐ `ctest` green across all five Windows targets, every prior stage included.
 5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets

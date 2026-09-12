@@ -45,6 +45,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <optional>
+
 namespace {
 
 // --- Console output from a -mwindows binary ----------------------------------
@@ -294,20 +296,32 @@ int main(int argc, char** argv)
         root.platform().singleInstanceBus.get(),
         app::SingleInstance::scopeIdForExecutable(QCoreApplication::applicationFilePath()));
 
-    const core::Result<app::SingleInstance::Role> role =
-        instance.claim(root.settings().get(core::keys::general::singleInstance));
-    if (!role) {
-        RAWPAGE_LOG_ERROR(core::LogSubsystem::Ui)
-            << "single instance: claim failed --" << role.error().messageKey << role.error().context;
-    } else if (role.value() == app::SingleInstance::Role::Secondary) {
-        // Forward and go. The bus grants the primary the right to take the foreground on the way
-        // out; see decision D1-11 for why that has to happen from THIS process.
-        const core::Status forwarded = instance.forward(intent.files);
-        if (!forwarded) {
+    // A DIAGNOSTIC THAT COMPOSES AND EXITS NEVER TOUCHES THE BUS (`Intent::composesAndExits`,
+    // S2 issue I-27). Claiming it while a window is open makes THIS process the secondary: it
+    // forwards, returns 0, and prints nothing -- and exiting 0 is also what a successful
+    // `--print-screen-metrics` does, so the caller cannot tell the two apart. `ui.screen_metrics_
+    // invariant` (A-84) then fails on any machine where somebody has the product open, which is
+    // how this was found: the M-05 walk was running in another window.
+    std::optional<app::SingleInstance::Role> role;
+    if (!intent.composesAndExits()) {
+        const core::Result<app::SingleInstance::Role> claimed =
+            instance.claim(root.settings().get(core::keys::general::singleInstance));
+        if (!claimed) {
             RAWPAGE_LOG_ERROR(core::LogSubsystem::Ui)
-                << "single instance: handoff failed --" << forwarded.error().messageKey;
+                << "single instance: claim failed --" << claimed.error().messageKey
+                << claimed.error().context;
+        } else if (claimed.value() == app::SingleInstance::Role::Secondary) {
+            // Forward and go. The bus grants the primary the right to take the foreground on the
+            // way out; see decision D1-11 for why that has to happen from THIS process.
+            const core::Status forwarded = instance.forward(intent.files);
+            if (!forwarded) {
+                RAWPAGE_LOG_ERROR(core::LogSubsystem::Ui)
+                    << "single instance: handoff failed --" << forwarded.error().messageKey;
+            }
+            return static_cast<int>(app::ExitCode::Ok);
+        } else {
+            role = claimed.value();
         }
-        return static_cast<int>(app::ExitCode::Ok);
     }
 
     // --- Language ----------------------------------------------------------------------------
@@ -429,7 +443,7 @@ int main(int argc, char** argv)
         return static_cast<int>(app::ExitCode::Ok);
     }
 
-    if (role && role.value() == app::SingleInstance::Role::Primary) {
+    if (role == app::SingleInstance::Role::Primary) {
         const core::Status listening = instance.listen([&window](const QStringList& files) {
             window.openFiles(files);
             window.raiseToForeground();

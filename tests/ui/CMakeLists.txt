@@ -90,3 +90,28 @@ add_test(NAME ui.screen_metrics_invariant
             -P "${CMAKE_CURRENT_SOURCE_DIR}/ScreenMetricsInvariant.cmake")
 set_tests_properties(ui.screen_metrics_invariant PROPERTIES
     ENVIRONMENT "PATH=${RAWPAGE_MINGW_ROOT}/bin;$ENV{PATH}")
+
+# A-87 -- issue I-27, and like A-84 it drives `rawpage.exe` instead of linking anything, for the
+# same class of reason: the condition it asserts is a property of a PROCESS. A diagnostic that
+# composes and exits must print its answer while another process holds the single-instance bus, and
+# a bus claim needs a claimant, so the case needs two processes and cannot be a Catch2 case.
+#
+# POWERSHELL RATHER THAN `cmake -P`, because CMake's `execute_process` has no way to start a process
+# and keep it -- and the obvious workaround, `taskkill /IM rawpage.exe`, would kill the window of
+# whoever is running the suite. `Start-Process -PassThru` gives a pid, and the script stops only
+# what it started and adopts anything already running.
+#
+# It touches no settings file, which is what lets it be a CTest case where A-61's two-process half
+# (`scripts/check-single-instance.ps1`) cannot be: that one has to edit settings.ini.
+#
+# 77 is SKIP: the case measures nothing on a machine whose `general/singleInstance` is false, and
+# the script says so rather than passing. The skip is reached only through the CONTROL failing --
+# a second GUI process that did not forward -- so a skip always means the bus was not claimed.
+add_test(NAME ui.diagnostics_ignore_the_bus
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/DiagnosticsIgnoreTheBus.ps1"
+            -Exe $<TARGET_FILE:rawpage>)
+set_tests_properties(ui.diagnostics_ignore_the_bus PROPERTIES
+    ENVIRONMENT "PATH=${RAWPAGE_MINGW_ROOT}/bin;$ENV{PATH}"
+    SKIP_RETURN_CODE 77
+    RUN_SERIAL TRUE)
