@@ -871,9 +871,15 @@ void MainWindow::registerViewerActions()
                  "shell.tooltip.needsDocument");
 
     // --- Layout modes ---------------------------------------------------------------------------
-    // Each is a TOGGLE reporting its own state, so the ribbon renders a check mark saying which
-    // arrangement is in force -- `ActionFactory` reads `checked` for that, and `isToggle` decides
-    // checkability (I-21).
+    // `registerMode` SELECTS one arrangement outright; it reports its own state so the ribbon
+    // renders a check mark saying which is in force -- `ActionFactory` reads `checked` for that,
+    // and `isToggle` decides checkability (I-21).
+    //
+    // **REPORTING STATE IS NOT THE SAME AS TOGGLING, and calling both of them "toggle" is what hid
+    // S2 issue I-23 for eight days**: `ViewTwoUp` was registered here, so `Ctrl+Shift+T` set
+    // `TwoUpContinuous` every time and could never leave it, while `checked` made it look like a
+    // toggle to every surface that asked. The two chords below are the real toggles and neither
+    // goes through this lambda.
     const auto registerMode = [this, hasView](ActionId id, core::render::LayoutMode mode) {
         if (services_.actions.isRegistered(id)) return;
         core::ActionRegistry::Registration registration;
@@ -897,11 +903,45 @@ void MainWindow::registerViewerActions()
 
     registerMode(ActionId::ViewSinglePage, core::render::LayoutMode::Single);
     registerMode(ActionId::ViewContinuous, core::render::LayoutMode::SingleContinuous);
-    registerMode(ActionId::ViewTwoUp, core::render::LayoutMode::TwoUpContinuous);
+
+    // `Ctrl+Shift+T` TOGGLES two-up and PRESERVES the continuity, which is the exact mirror of
+    // `Ctrl+Shift+H` below -- one chord owns one axis of `LayoutMode` and leaves the other alone.
+    // `Features.md` §8 calls it "Toggle Two-Up" and that table is the authority (I-23).
+    //
+    // `checked` asks `isTwoUp`, NOT equality with one mode: the button means *two-up is on*, and
+    // `TwoUp` and `TwoUpContinuous` are both on. Equality is what `registerMode` wants and is why
+    // this cannot go through it.
+    if (!services_.actions.isRegistered(ActionId::ViewTwoUp)) {
+        core::ActionRegistry::Registration twoUp;
+        twoUp.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            PageView* view = window->currentView();
+            if (!view) return;
+
+            using core::render::LayoutMode;
+            const LayoutMode now = view->controller().layoutMode();
+            view->setLayoutMode(core::render::isTwoUp(now)
+                                    ? (core::render::isContinuous(now) ? LayoutMode::SingleContinuous
+                                                                       : LayoutMode::Single)
+                                    : (core::render::isContinuous(now) ? LayoutMode::TwoUpContinuous
+                                                                       : LayoutMode::TwoUp));
+            window->updateViewChrome();
+        };
+        twoUp.checked = [] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && core::render::isTwoUp(view->controller().layoutMode());
+        };
+        twoUp.enable = hasView;
+        twoUp.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewTwoUp, std::move(twoUp));
+    }
 
     // `Ctrl+Shift+H` TOGGLES between paged and continuous rather than selecting one, which is what
     // its §8 row says ("toggle single-page <-> continuous scrolling") and is a different command
-    // from the three above.
+    // from the two selects above. It preserves the two-up-ness, exactly as `Ctrl+Shift+T`
+    // preserves the continuity.
     if (!services_.actions.isRegistered(ActionId::ViewTogglePageMode)) {
         core::ActionRegistry::Registration toggle;
         toggle.handler = [](KeyContext) {

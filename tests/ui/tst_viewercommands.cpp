@@ -256,12 +256,85 @@ TEST_CASE("the layout chords select and toggle, and report which is in force",
     CHECK_FALSE(viewer.fixture.actions.isChecked(core::ActionId::ViewContinuous));
 
     // `Ctrl+Shift+H` TOGGLES paged against continuous rather than selecting one, and it preserves
-    // the two-up-ness -- which is what its §8 row says and is a different command from the three
+    // the two-up-ness -- which is what its §8 row says and is a different command from the two
     // that select a mode outright.
     REQUIRE(viewer.press("Ctrl+Shift+H") == ui::ShortcutBinder::Outcome::Dispatched);
     CHECK(viewer.view->controller().layoutMode() == LayoutMode::TwoUp);
     REQUIRE(viewer.press("Ctrl+Shift+H") == ui::ShortcutBinder::Outcome::Dispatched);
     CHECK(viewer.view->controller().layoutMode() == LayoutMode::TwoUpContinuous);
+}
+
+// ---------------------------------------------------------------------------------------------
+// I-23. THE CASE ABOVE PRESSES `Ctrl+Shift+T` ONCE, AND ONE PRESS CANNOT SEE A TOGGLE THAT DOES
+// NOT TOGGLE.
+//
+// It is convention 22 in its plainest form: proving a chord FIRES is half of proving it fires WHEN
+// IT SHOULD, and the criterion -- *every §8 Viewer chord dispatches* -- asked only for the half
+// that was written. `ViewTwoUp` was a `registerMode` select that set `TwoUpContinuous`
+// unconditionally, so the second press was a no-op and the user could enter two-up and never
+// leave. The case stayed green because it never pressed twice, and `checked` reported state
+// correctly the whole time, which is what made the action look like a toggle everywhere else.
+//
+// So this one presses TWICE FROM EVERY STARTING MODE, and the round trip is the assertion: the
+// chord owns the two-up axis and must return the mode it started from, whichever that was.
+TEST_CASE("Ctrl+Shift+T toggles two-up from every mode and preserves the continuity",
+          "[viewercommands]")
+{
+    Viewer viewer(6);
+
+    struct Case {
+        LayoutMode start;
+        LayoutMode toggled;
+    };
+
+    // The four starting modes and what ONE press must give. The continuity is unchanged in every
+    // row -- that is the half `Ctrl+Shift+H` owns, and this chord may not touch it.
+    const Case cases[] = {
+        {LayoutMode::Single, LayoutMode::TwoUp},
+        {LayoutMode::SingleContinuous, LayoutMode::TwoUpContinuous},
+        {LayoutMode::TwoUp, LayoutMode::Single},
+        {LayoutMode::TwoUpContinuous, LayoutMode::SingleContinuous},
+    };
+
+    for (const Case& c : cases) {
+        CAPTURE(core::render::layoutModeName(c.start));
+
+        viewer.view->setLayoutMode(c.start);
+        viewer.view->refresh();
+        REQUIRE(viewer.view->controller().layoutMode() == c.start);
+
+        REQUIRE(viewer.press("Ctrl+Shift+T") == ui::ShortcutBinder::Outcome::Dispatched);
+        CHECK(viewer.view->controller().layoutMode() == c.toggled);
+        CHECK(core::render::isContinuous(c.toggled) == core::render::isContinuous(c.start));
+
+        // THE SECOND PRESS IS THE WHOLE CASE. A select passes every assertion above.
+        REQUIRE(viewer.press("Ctrl+Shift+T") == ui::ShortcutBinder::Outcome::Dispatched);
+        CHECK(viewer.view->controller().layoutMode() == c.start);
+    }
+}
+
+// The companion half: `checked` means *two-up is on*, not *one particular mode is in force*. A
+// check that asked equality with `TwoUpContinuous` would leave the ribbon control unchecked in
+// paged two-up while the pages were visibly side by side.
+TEST_CASE("the Two-Up control reports checked in BOTH two-up modes", "[viewercommands]")
+{
+    Viewer viewer(6);
+
+    for (const LayoutMode mode : {LayoutMode::TwoUp, LayoutMode::TwoUpContinuous}) {
+        CAPTURE(core::render::layoutModeName(mode));
+        viewer.view->setLayoutMode(mode);
+        viewer.view->refresh();
+        CHECK(viewer.fixture.actions.isChecked(core::ActionId::ViewTwoUp));
+    }
+
+    // THE CONTROL, and convention 7's point: a `checked` hard-wired to `true` passes the loop
+    // above and fails here.
+    for (const LayoutMode mode : {LayoutMode::Single, LayoutMode::SingleContinuous}) {
+        CAPTURE(core::render::layoutModeName(mode));
+        viewer.view->setLayoutMode(mode);
+        viewer.view->refresh();
+        CHECK_FALSE(viewer.fixture.actions.isChecked(core::ActionId::ViewTwoUp));
+    }
 }
 
 TEST_CASE("rotating the view rotates the layout and re-keys the tiles", "[viewercommands]")
