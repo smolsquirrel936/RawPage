@@ -28,6 +28,7 @@ constexpr int kMaxDetailEntries = 200;
 const char* MessageBar::kindName(Kind kind) noexcept
 {
     switch (kind) {
+    case Kind::OpenFailed: return "OpenFailed";
     case Kind::Repaired: return "Repaired";
     case Kind::Protected: return "Protected";
     case Kind::Signed: return "Signed";
@@ -37,10 +38,18 @@ const char* MessageBar::kindName(Kind kind) noexcept
     return "Unknown";
 }
 
+bool MessageBar::isWindowScoped(Kind kind) noexcept
+{
+    return kind == Kind::OpenFailed;
+}
+
 MessageBar::MessageBar(QWidget* parent)
     : QWidget(parent),
       background_(ThemeManager::colorFor(ThemeToken::MessageBackground, ThemeManager::systemTheme())),
-      text_(ThemeManager::colorFor(ThemeToken::MessageText, ThemeManager::systemTheme()))
+      text_(ThemeManager::colorFor(ThemeToken::MessageText, ThemeManager::systemTheme())),
+      failureBackground_(
+          ThemeManager::colorFor(ThemeToken::ErrorBackground, ThemeManager::systemTheme())),
+      failureText_(ThemeManager::colorFor(ThemeToken::ErrorText, ThemeManager::systemTheme()))
 {
     setObjectName(QStringLiteral("messageBar"));
 
@@ -72,7 +81,7 @@ void MessageBar::showMessage(Message message)
     // unreadable in dark -- which is what I-40 was (convention 20). **This comment used to say
     // `AlternateBase` was "one step off the window in both themes by construction"; `ThemeManager`
     // sets it to the window colour, so the banner was the desk's own grey** (issue I-29).
-    paintBanner(banner);
+    paintBanner(banner, message.kind);
 
     auto* row = new QHBoxLayout(banner);
     row->setContentsMargins(12, 6, 6, 6);
@@ -113,18 +122,27 @@ void MessageBar::setColors(const QColor& background, const QColor& text)
 {
     background_ = background;
     text_ = text;
-    for (const Entry& entry : entries_) paintBanner(entry.widget);
+    for (const Entry& entry : entries_) paintBanner(entry.widget, entry.kind);
 }
 
-void MessageBar::paintBanner(QWidget* banner) const
+void MessageBar::setFailureColors(const QColor& background, const QColor& text)
 {
+    failureBackground_ = background;
+    failureText_ = text;
+    for (const Entry& entry : entries_) paintBanner(entry.widget, entry.kind);
+}
+
+void MessageBar::paintBanner(QWidget* banner, Kind kind) const
+{
+    const bool failure = kind == Kind::OpenFailed;
+
     // WINDOW AND WINDOWTEXT ONLY. The label honours `WindowText`; the Details button and the close
     // glyph are painted by the native style from the colour scheme and ignore the palette
     // (convention 21), which is why the text token is judged against this background only for the
     // label -- the buttons carry their own face.
     QPalette palette = banner->palette();
-    palette.setColor(QPalette::Window, background_);
-    palette.setColor(QPalette::WindowText, text_);
+    palette.setColor(QPalette::Window, failure ? failureBackground_ : background_);
+    palette.setColor(QPalette::WindowText, failure ? failureText_ : text_);
     banner->setPalette(palette);
     banner->update();
 }
@@ -169,15 +187,28 @@ void MessageBar::dismiss(Kind kind)
     emit messageCountChanged(static_cast<int>(entries_.size()));
 }
 
+void MessageBar::clearDocumentConditions()
+{
+    removeWhere([](Kind kind) { return !isWindowScoped(kind); });
+}
+
 void MessageBar::clear()
 {
-    for (const Entry& entry : entries_) {
-        column_->removeWidget(entry.widget);
-        entry.widget->deleteLater();
+    removeWhere([](Kind) { return true; });
+}
+
+void MessageBar::removeWhere(const std::function<bool(Kind)>& predicate)
+{
+    const auto removed = std::stable_partition(
+        entries_.begin(), entries_.end(),
+        [&predicate](const Entry& entry) { return !predicate(entry.kind); });
+    for (auto it = removed; it != entries_.end(); ++it) {
+        column_->removeWidget(it->widget);
+        it->widget->deleteLater();
     }
-    entries_.clear();
-    setVisible(false);
-    emit messageCountChanged(0);
+    entries_.erase(removed, entries_.end());
+    setVisible(!entries_.empty());
+    emit messageCountChanged(static_cast<int>(entries_.size()));
 }
 
 bool MessageBar::isShowing(Kind kind) const

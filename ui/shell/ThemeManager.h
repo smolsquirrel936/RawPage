@@ -52,9 +52,11 @@ enum class ThemeToken {
     DisabledText,
     MessageBackground,     // the document-condition banner -- a TINT, never the window's grey
     MessageText,           // text drawn ON the banner
+    ErrorBackground,       // the could-not-open banner -- red, and far from the condition tint too
+    ErrorText,             // text drawn ON the error banner
 };
 
-inline constexpr std::size_t kThemeTokenCount = 13;
+inline constexpr std::size_t kThemeTokenCount = 15;
 
 constexpr std::string_view themeTokenName(ThemeToken token)
 {
@@ -72,6 +74,8 @@ constexpr std::string_view themeTokenName(ThemeToken token)
     case ThemeToken::DisabledText:        return "disabledText";
     case ThemeToken::MessageBackground:   return "messageBackground";
     case ThemeToken::MessageText:         return "messageText";
+    case ThemeToken::ErrorBackground:     return "errorBackground";
+    case ThemeToken::ErrorText:           return "errorText";
     }
     return "?";
 }

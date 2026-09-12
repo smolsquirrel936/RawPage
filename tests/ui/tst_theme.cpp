@@ -42,6 +42,7 @@ const std::vector<ui::ThemeToken>& allTokens()
         ui::ThemeToken::SelectionBackground, ui::ThemeToken::SelectionText,
         ui::ThemeToken::DisabledText,
         ui::ThemeToken::MessageBackground,   ui::ThemeToken::MessageText,
+        ui::ThemeToken::ErrorBackground,     ui::ThemeToken::ErrorText,
     };
     return tokens;
 }
@@ -149,6 +150,7 @@ TEST_CASE("every text token is legible against the surface it is drawn on", "[th
         {ui::ThemeToken::AccentText,     ui::ThemeToken::Accent},
         {ui::ThemeToken::SelectionText,  ui::ThemeToken::SelectionBackground},
         {ui::ThemeToken::MessageText,    ui::ThemeToken::MessageBackground},
+        {ui::ThemeToken::ErrorText,      ui::ThemeToken::ErrorBackground},
     };
 
     // 3.0 is a floor, not a target: it is the level at which the reported defect stops being one,
@@ -217,6 +219,34 @@ TEST_CASE("the message banner is a colour of its own and not the desk grey", "[t
                           << distance);
             CHECK(distance >= floorDeltaE);
         }
+    }
+}
+
+TEST_CASE("the could-not-open banner is red enough to be told from everything beside it", "[theme]")
+{
+    // STAGE 2 ISSUES I-31 AND I-32. The refusal banner shares a strip with the condition banners
+    // and sits on the same desk, so it is measured against THREE neighbours: the window grey, the
+    // page-white surface, and the amber condition tint. The third is the one that matters most -- a
+    // refusal that reads as "this document was repaired" tells the reader they have a file they
+    // do not have.
+    for (const ui::ThemeManager::Resolved theme :
+         {ui::ThemeManager::Resolved::Light, ui::ThemeManager::Resolved::Dark}) {
+        const QColor error = ui::ThemeManager::colorFor(ui::ThemeToken::ErrorBackground, theme);
+        for (const ui::ThemeToken neighbour :
+             {ui::ThemeToken::WindowBackground, ui::ThemeToken::SurfaceBackground,
+              ui::ThemeToken::MessageBackground}) {
+            const double distance =
+                uitest::deltaE76(error, ui::ThemeManager::colorFor(neighbour, theme));
+            UNSCOPED_INFO((theme == ui::ThemeManager::Resolved::Dark ? "dark  " : "light ")
+                          << "errorBackground vs " << ui::themeTokenName(neighbour) << " = "
+                          << distance);
+            CHECK(distance >= uitest::kDistinctSurfaceDeltaE);
+        }
+
+        // AND IT IS RED, which is what the user asked for and what no distance says: a clear blue
+        // would clear every floor above. Red channel dominant, in both themes.
+        CHECK(error.red() > error.green() + 16);
+        CHECK(error.red() > error.blue() + 16);
     }
 }
 

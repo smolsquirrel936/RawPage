@@ -63,7 +63,9 @@ public:
     ~PdfiumDocument();
 
     // Reads the file, initializes the engine if it is not already, and opens. Fails with a NAMED
-    // error: `error.open.notFound`, `error.open.notPdf`, `error.open.cancelled`,
+    // error: `error.open.notFound`, `error.open.notPdf` (no PDF header), `error.open.damaged` (a
+    // header, and the engine still could not open it), `error.open.noPages` (it opened and has no
+    // readable page -- refused rather than shown empty, I-31), `error.open.cancelled`,
     // `error.open.badPassword`, or `error.engine.initFailed`. **"Is this a PDF" is answered here
     // and nowhere else** -- Stage 1 decided it by suffix and said so at the time (case A-58), and
     // this is where that stops (guide case A-47).

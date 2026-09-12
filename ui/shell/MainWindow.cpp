@@ -407,6 +407,8 @@ void MainWindow::buildCentralSurface()
     const auto paintMessageBar = [this] {
         messageBar_->setColors(theme_->color(ThemeToken::MessageBackground),
                                theme_->color(ThemeToken::MessageText));
+        messageBar_->setFailureColors(theme_->color(ThemeToken::ErrorBackground),
+                                      theme_->color(ThemeToken::ErrorText));
     };
     paintMessageBar();
     connect(theme_.get(), &ThemeManager::themeChanged, messageBar_, paintMessageBar);
@@ -661,7 +663,7 @@ void MainWindow::updateDocumentChrome()
         // on screen over the document that replaced it is worse than no banner: it is a false
         // statement about the file the user is now looking at, and Stage 3 forces a Save-As on
         // exactly that statement.
-        messageBar_->clear();
+        messageBar_->clearDocumentConditions();
         if (current) showDocumentConditions(current);
     }
 
@@ -1498,6 +1500,13 @@ void MainWindow::promptForFiles()
 
 void MainWindow::openFiles(const QStringList& paths)
 {
+    // EVERY REFUSAL IN THIS CALL, for one window-level banner at the end (Stage 2 issue I-32). The
+    // status bar kept the only copy until 2026-09-13, bottom-left, in the grey of everything else:
+    // a double-click on a damaged file produced no tab, no dialog and no banner, and the user
+    // reasonably concluded nothing had happened. One banner per call rather than per file, so a
+    // handoff of six damaged files is one strip listing six sentences rather than six strips.
+    QStringList refusals;
+
     for (const QString& path : paths) {
         const QFileInfo info(path);
 
@@ -1506,7 +1515,10 @@ void MainWindow::openFiles(const QStringList& paths)
         // first into the second.
         if (!info.exists() || !info.isFile()) {
             RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "open: no such file:" << path;
-            status_->setMessage(catalog::translateError(QStringLiteral("error.open.notFound"), path));
+            const QString reason =
+                catalog::translateError(QStringLiteral("error.open.notFound"), path);
+            status_->setMessage(reason);
+            refusals << reason;
             continue;
         }
 
@@ -1548,8 +1560,13 @@ void MainWindow::openFiles(const QStringList& paths)
             RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
                 << "open: backend refused" << info.absoluteFilePath() << "--"
                 << opened.error().messageKey.data();
-            status_->setMessage(
-                catalog::translateError(opened.error().messageKey, opened.error().context));
+            const QString reason =
+                catalog::translateError(opened.error().messageKey, opened.error().context);
+            status_->setMessage(reason);
+
+            // A CANCELLED PROMPT IS NOT A FAILURE (A-43): the person pressed Escape, and a red
+            // banner telling them the file could not be opened would be telling them off for it.
+            if (opened.error().code != core::ErrorCode::Cancelled) refusals << reason;
             continue;
         }
 
@@ -1568,6 +1585,13 @@ void MainWindow::openFiles(const QStringList& paths)
         RAWPAGE_LOG_INFO(LogSubsystem::Ui)
             << "open: accepted" << info.absoluteFilePath() << "as handle"
             << static_cast<int>(opened.value().id);
+    }
+
+    if (!refusals.isEmpty() && messageBar_) {
+        MessageBar::Message failed;
+        failed.kind = MessageBar::Kind::OpenFailed;
+        failed.text = refusals.join(QLatin1Char('\n'));
+        messageBar_->showMessage(std::move(failed));
     }
 }
 

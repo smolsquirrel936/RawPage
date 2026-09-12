@@ -1694,6 +1694,14 @@
         <translation>%1 is not a PDF file.</translation>
     </message>
     <message>
+        <source>error.open.damaged</source>
+        <translation>%1 could not be opened: the file is damaged and could not be repaired.</translation>
+    </message>
+    <message>
+        <source>error.open.noPages</source>
+        <translation>%1 could not be opened: no page in it could be read.</translation>
+    </message>
+    <message>
         <source>error.backend.notImplemented</source>
         <translation>This build cannot do that yet: %1 is not implemented.</translation>
     </message>

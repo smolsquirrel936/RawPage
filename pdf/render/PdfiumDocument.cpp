@@ -27,6 +27,22 @@ core::Error openError(core::ErrorCode code, const char* key, const QString& cont
     return core::Error{code, QLatin1String(key), context};
 }
 
+// DOES THIS LOOK LIKE A PDF AT ALL? Asked only once PDFium has already refused the bytes, and only to
+// choose between two refusals that PDFium reports identically (`FPDF_ERR_FORMAT` for both): *the file
+// is damaged* and *this is not a PDF*. Stage 2 issue I-32 -- every damaged corpus file PDFium could
+// not open was reported as "not a PDF file", which is false and sent the reader looking for the wrong
+// problem.
+//
+// A `%PDF-` header anywhere in the first 4 KiB. ISO 32000 lets a header sit behind up to 1,024 bytes
+// of junk (`corpus/malformed/junk-before-header.pdf` puts it exactly there), and the window is wider
+// than that on purpose: this only picks a SENTENCE, so a generous window costs nothing, while a tight
+// one would call a damaged file with a longer preamble "not a PDF" again.
+bool looksLikePdf(const QByteArray& bytes)
+{
+    constexpr qsizetype kHeaderWindow = 4096;
+    return bytes.left(kHeaderWindow).contains("%PDF-");
+}
+
 // A page label, as UTF-16LE from `FPDF_GetPageLabel`. Empty when the document has none, which is
 // the ordinary case -- most files number their pages implicitly.
 QString pageLabel(FPDF_DOCUMENT document, int index)
@@ -174,8 +190,11 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
         const unsigned long error = FPDF_GetLastError();
         if (error != FPDF_ERR_PASSWORD) {
             // Not an encryption problem: the bytes are not a PDF, or are damaged past what even
-            // PDFium's own silent repair can do.
-            return openError(core::ErrorCode::ParseFailure, "error.open.notPdf", info.fileName());
+            // PDFium's own silent repair can do -- and PDFium does not say which, so the header
+            // does (I-32).
+            return openError(core::ErrorCode::ParseFailure,
+                             looksLikePdf(self->bytes_) ? "error.open.damaged" : "error.open.notPdf",
+                             info.fileName());
         }
         if (!password) {
             // No one to ask. A batch run and a test both land here, and it is a REFUSAL rather
@@ -301,6 +320,18 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
     while (!pages.empty() && pages.back().mediaBox().size.width <= 0.0
            && pages.back().mediaBox().size.height <= 0.0) {
         pages.pop_back();
+    }
+
+    // **A DOCUMENT WITH NO READABLE PAGE IS REFUSED, not opened** (Stage 2 issue I-31). There is
+    // nothing to show, nothing to navigate and nothing to edit, and opening it anyway produced a
+    // tab with an empty desk and no word of explanation -- the silent empty window M-07 forbids.
+    // `corpus/malformed/objstm-corrupt.pdf` reaches here: PDFium opens it, and with every object in
+    // the corrupt object stream unreadable its page tree has no page. Refusing HERE rather than in
+    // the shell means the batch path and the CLI get the same answer as a double-click.
+    if (pages.empty()) {
+        RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+            << "open: refusing" << info.fileName() << "-- the engine opened it and found no page";
+        return openError(core::ErrorCode::ParseFailure, "error.open.noPages", info.fileName());
     }
 
     self->pages_ = core::PageTree(std::move(pages));

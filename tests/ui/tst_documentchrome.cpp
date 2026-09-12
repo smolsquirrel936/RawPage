@@ -352,6 +352,105 @@ TEST_CASE("the message bar stacks kinds worst-first and dismisses one at a time"
     CHECK_FALSE(bar.isVisible());
 }
 
+// =============================================================================================
+// Stage 2 issues I-31 and I-32 -- a file that could not be opened says so where a person looks.
+// =============================================================================================
+
+TEST_CASE("a refused file raises a red window-level banner that names it", "[chrome]")
+{
+    // I-32, found by the user in the M-07 walk: a damaged file's refusal went to the status bar
+    // alone, bottom-left, and a double-click that produced no tab, no dialog and no banner read as
+    // nothing having happened at all.
+    Fixture fixture;
+    fixture.settings.set(core::keys::general::theme, core::Theme::Light);
+    fixture.backend.accepts = [](const QString& path) { return !path.endsWith(QStringLiteral("broken.pdf")); };
+    fixture.backend.refusalKey = "error.open.damaged";
+
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    driveLayout(&window);
+
+    window.openFiles({fixture.writeFile(QStringLiteral("broken.pdf"))});
+    driveLayout(&window);
+
+    ui::MessageBar* bar = window.messageBar();
+    REQUIRE(bar->isShowing(ui::MessageBar::Kind::OpenFailed));
+    CHECK(bar->isVisible());
+    CHECK(window.documentCount() == 0);   // refused: no tab
+
+    // The banner is the refusal's OWN sentence, resolved -- the file's name and the reason.
+    const QString text = bar->textFor(ui::MessageBar::Kind::OpenFailed);
+    CHECK(text.contains(QStringLiteral("broken.pdf")));
+    CHECK_FALSE(text.contains(QStringLiteral("error.open")));
+    CHECK(text == ui::catalog::translateError(QStringLiteral("error.open.damaged"),
+                                              QStringLiteral("broken.pdf")));
+
+    // RED, in pixels, and not the condition tint. Found fresh because a rebuilt bar leaves its old
+    // banners awaiting deletion (see the I-29 case above).
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    const QList<QWidget*> banners =
+        bar->findChildren<QWidget*>(QStringLiteral("messageBanner.OpenFailed"));
+    REQUIRE(banners.size() == 1);
+    const QColor fill = banners.front()->grab().toImage().pixelColor(2, 2);
+    CHECK(fill == window.theme()->color(ui::ThemeToken::ErrorBackground));
+    CHECK(uitest::deltaE76(fill, window.theme()->color(ui::ThemeToken::MessageBackground))
+          >= uitest::kDistinctSurfaceDeltaE);
+
+    // WINDOW-SCOPED: opening a good file afterwards changes the tab set, which clears every
+    // DOCUMENT condition -- and must leave this one, because it is about no document.
+    window.openFiles({fixture.writeFile(QStringLiteral("fine.pdf"))});
+    driveLayout(&window);
+    CHECK(window.documentCount() == 1);
+    CHECK(bar->isShowing(ui::MessageBar::Kind::OpenFailed));
+
+    // Until it is dismissed.
+    bar->dismiss(ui::MessageBar::Kind::OpenFailed);
+    CHECK_FALSE(bar->isShowing(ui::MessageBar::Kind::OpenFailed));
+}
+
+TEST_CASE("several refusals in one open share one banner and name every file", "[chrome]")
+{
+    Fixture fixture;
+    fixture.backend.accepts = [](const QString&) { return false; };
+    fixture.backend.refusalKey = "error.open.damaged";
+
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    driveLayout(&window);
+
+    window.openFiles({fixture.writeFile(QStringLiteral("first.pdf")),
+                      fixture.writeFile(QStringLiteral("second.pdf"))});
+    driveLayout(&window);
+
+    ui::MessageBar* bar = window.messageBar();
+    CHECK(bar->messageCount() == 1);
+    const QString text = bar->textFor(ui::MessageBar::Kind::OpenFailed);
+    CHECK(text.contains(QStringLiteral("first.pdf")));
+    CHECK(text.contains(QStringLiteral("second.pdf")));
+}
+
+TEST_CASE("a cancelled password prompt raises no could-not-open banner", "[chrome]")
+{
+    // THE HALF THAT WOULD BE LOST by raising the banner on every failed `Result` (convention 22):
+    // A-43 settled that giving up at a prompt is `Cancelled`, not a failure, and a red strip telling
+    // somebody who pressed Escape that their file could not be opened would be false.
+    Fixture fixture;
+    fixture.backend.accepts = [](const QString&) { return false; };
+    fixture.backend.refusalCode = core::ErrorCode::Cancelled;
+    fixture.backend.refusalKey = "error.open.cancelled";
+
+    ui::MainWindow window(fixture.services());
+    window.resize(900, 700);
+    driveLayout(&window);
+
+    window.openFiles({fixture.writeFile(QStringLiteral("locked.pdf"))});
+    driveLayout(&window);
+
+    REQUIRE(fixture.backend.asked.size() == 1);   // the backend WAS asked -- this is not a no-op
+    CHECK_FALSE(window.messageBar()->isShowing(ui::MessageBar::Kind::OpenFailed));
+    CHECK(window.messageBar()->messageCount() == 0);
+}
+
 TEST_CASE("a handoff raises the window before it opens the file", "[chrome]")
 {
     // STAGE 2 ISSUE I-30, found by the user in the M-07 walk: double-clicking a plain PDF brought

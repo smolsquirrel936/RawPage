@@ -1694,6 +1694,14 @@
         <translation>%1 不是 PDF 檔案。</translation>
     </message>
     <message>
+        <source>error.open.damaged</source>
+        <translation>無法開啟 %1：檔案已損毀，且無法修復。</translation>
+    </message>
+    <message>
+        <source>error.open.noPages</source>
+        <translation>無法開啟 %1：檔案中沒有任何可讀取的頁面。</translation>
+    </message>
+    <message>
         <source>error.backend.notImplemented</source>
         <translation>此版本尚無法執行該項作業：%1 尚未實作。</translation>
     </message>

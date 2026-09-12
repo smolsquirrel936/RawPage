@@ -139,14 +139,14 @@
   ],
   "excluded": [
     { "file": "malformed/missing-endobj.pdf",
-      "reason": "the engine refuses it (error.open.notPdf); nothing to rasterize" },
+      "reason": "the engine refuses it (error.open.damaged); nothing to rasterize" },
     { "file": "malformed/no-root.pdf",
-      "reason": "the engine refuses it (error.open.notPdf); nothing to rasterize" },
+      "reason": "the engine refuses it (error.open.damaged); nothing to rasterize" },
     { "file": "malformed/root-points-at-nothing.pdf",
-      "reason": "the engine refuses it (error.open.notPdf); nothing to rasterize" },
+      "reason": "the engine refuses it (error.open.damaged); nothing to rasterize" },
     { "file": "malformed/truncated-mid-stream.pdf",
-      "reason": "the engine refuses it (error.open.notPdf); nothing to rasterize" },
+      "reason": "the engine refuses it (error.open.damaged); nothing to rasterize" },
     { "file": "malformed/objstm-corrupt.pdf",
-      "reason": "opens and reports zero pages, so there is no page 0 to capture" }
+      "reason": "the engine refuses it (error.open.noPages): it opens with no readable page, which is refused rather than shown empty (Stage 2 I-31)" }
   ]
 }

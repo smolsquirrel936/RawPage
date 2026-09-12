@@ -189,7 +189,9 @@ TEST_CASE("pdfium opens every malformed corpus file or refuses by name", "[rende
             continue;
         }
         ++opened;
-        CHECK(document.value()->pageCount() >= 0);
+        // A DOCUMENT THAT OPENS HAS A PAGE. This asserted `>= 0` until I-31, which every document
+        // satisfies -- including the zero-page one the product then showed as an empty window.
+        CHECK(document.value()->pageCount() > 0);
         if (document.value()->wasRepaired())
             ++reportedRepairs;
     }
@@ -226,6 +228,50 @@ TEST_CASE("pdfium refuses bytes that are not a PDF by name", "[render][document]
     CHECK(junk.error().messageKey == QLatin1String("error.open.notPdf"));
 
     // None of those is an encryption problem, so nothing should have been asked for a password.
+    CHECK(recorder.asks == 0);
+}
+
+TEST_CASE("a damaged PDF the engine cannot open is refused as damaged and not as not-a-PDF", "[render][document]")
+{
+    // STAGE 2 ISSUE I-32. PDFium reports `FPDF_ERR_FORMAT` for a spreadsheet and for a PDF whose
+    // trailer is gone alike, and the product used to say "is not a PDF file" for both. The four
+    // corpus files PDFium refuses all carry a `%PDF-` header and are damaged PDFs by construction
+    // (`corpus/PROVENANCE.md`).
+    for (const char* name : {"missing-endobj.pdf", "no-root.pdf", "root-points-at-nothing.pdf",
+                             "truncated-mid-stream.pdf"}) {
+        INFO("file: " << name);
+        Recorder recorder;
+        auto refused = PdfiumDocument::open(corpusPath(std::string("malformed/") + name),
+                                            recorder.callback());
+        REQUIRE_FALSE(refused);
+        CHECK(refused.error().messageKey == QLatin1String("error.open.damaged"));
+        CHECK(refused.error().context == QLatin1String(name));
+    }
+
+    // THE CONTROL (convention 7): the same kind of failure with no header is still "not a PDF", so
+    // the key above is not simply what every refusal now says. `junk-before-header.pdf` is the
+    // other side -- 1,024 bytes of junk and then a header -- and it OPENS, which the corpus loop
+    // above asserts.
+    Recorder recorder;
+    auto junk = PdfiumDocument::openBytes(QByteArray("Dear diary, today I was not a PDF.\n"),
+                                          QStringLiteral("diary.pdf"), recorder.callback());
+    REQUIRE_FALSE(junk);
+    CHECK(junk.error().messageKey == QLatin1String("error.open.notPdf"));
+}
+
+TEST_CASE("a document with no readable page is refused rather than opened empty", "[render][document]")
+{
+    // STAGE 2 ISSUE I-31, the silent empty window M-07 forbids. PDFium opens
+    // `corpus/malformed/objstm-corrupt.pdf` -- its classic xref is fine -- and every object in the
+    // corrupt object stream is unreadable, so the page tree has no page. It used to open as a tab
+    // showing nothing, with no banner, because our own reader's repair report covers the xref and
+    // found nothing wrong there.
+    Recorder recorder;
+    auto document = PdfiumDocument::open(corpusPath("malformed/objstm-corrupt.pdf"),
+                                         recorder.callback());
+    REQUIRE_FALSE(document);
+    CHECK(document.error().messageKey == QLatin1String("error.open.noPages"));
+    CHECK(document.error().context == QLatin1String("objstm-corrupt.pdf"));
     CHECK(recorder.asks == 0);
 }
 

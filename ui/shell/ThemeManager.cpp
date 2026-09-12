@@ -88,6 +88,13 @@ QColor ThemeManager::colorFor(ThemeToken token, Resolved theme)
     // `tst_theme` asserts that distance and the text's contrast, never these hex values.
     case ThemeToken::MessageBackground:   return dark ? QColor(0x4a, 0x3a, 0x12) : QColor(0xff, 0xf1, 0xc2);
     case ThemeToken::MessageText:         return dark ? QColor(0xf2, 0xf2, 0xf2) : QColor(0x1a, 0x1a, 0x1a);
+    // THE COULD-NOT-OPEN BANNER (Stage 2 issues I-31 and I-32), red on the user's instruction, and
+    // judged against THREE neighbours rather than two: the window grey, the page-white surface, and
+    // the amber condition tint above -- a refusal that could be mistaken for "this document was
+    // repaired" would be telling the reader they have a file they do not have. Measured: 22.0 /
+    // 24.4 / 29.3 CIE76 units in light and 32.6 / 31.3 / 28.6 in dark, text at 11.5 : 1 and 11.1 : 1.
+    case ThemeToken::ErrorBackground:     return dark ? QColor(0x5c, 0x20, 0x20) : QColor(0xf7, 0xc6, 0xc7);
+    case ThemeToken::ErrorText:           return dark ? QColor(0xf2, 0xf2, 0xf2) : QColor(0x1a, 0x1a, 0x1a);
     }
 
     // Unreachable for any declared token; returning an INVALID colour rather than a plausible one

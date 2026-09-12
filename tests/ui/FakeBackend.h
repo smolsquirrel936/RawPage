@@ -19,6 +19,7 @@
 #include "core/doc/PageTree.h"
 #include "core/doc/RepairReport.h"
 
+#include <QFileInfo>
 #include <QString>
 #include <QStringList>
 
@@ -35,6 +36,11 @@ public:
     // care about opening writes nothing; a case that does sets this.
     std::function<bool(const QString&)> accepts = [](const QString&) { return true; };
 
+    // What a refusal says, for a case that needs a particular one -- a cancelled prompt must not
+    // raise the could-not-open banner that a damaged file must (Stage 2 issue I-32).
+    core::ErrorCode refusalCode = core::ErrorCode::ParseFailure;
+    const char* refusalKey = "error.open.notPdf";
+
     // Every path `open()` was asked about, in order.
     QStringList asked;
 
@@ -45,7 +51,9 @@ public:
     int closes = 0;
 
     // How many A4 pages an accepted document has. Zero gives a document with a real handle and no
-    // pages, which is a state the viewer must survive and not a state any real PDF reaches.
+    // pages -- a state the viewer must survive, and one the SHIPPED backend never hands over: it
+    // refuses a document with no readable page (Stage 2 issue I-31). This comment used to say no
+    // real PDF reaches it; `corpus/malformed/objstm-corrupt.pdf` did, for as long as nothing refused.
     int pagesPerDocument = 3;
 
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
@@ -61,8 +69,8 @@ public:
         asked << path;
         if (onOpen) onOpen(path);
         if (!accepts(path)) {
-            return core::Error{core::ErrorCode::ParseFailure,
-                               QLatin1String("error.open.notPdf"), path};
+            // The FILE NAME as context, as `PdfiumDocument` gives it -- not the path.
+            return core::Error{refusalCode, QLatin1String(refusalKey), QFileInfo(path).fileName()};
         }
         const core::DocumentHandle handle{static_cast<std::uint64_t>(asked.size())};
 
