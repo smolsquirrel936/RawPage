@@ -6,9 +6,9 @@
 > **before any Stage 2 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
+> **Status:** ✅ **STAGE 2 SIGNED OFF BY THE USER, 2026-09-14.** **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
-> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is COMPLETE — TEN OF TEN, the last signed off 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after its growth clause's defect **I-35** was found, fixed and closed. **The stage is still not signed off, and every §9 item is now met (2026-09-14)**: item 1 when A-69 was met and A-68 re-taken after I-41, and item 5 when `.github/workflows/fuzz-soak.yml` ran both fuzz targets for ten minutes clean, in run 34781013867. What remains is the user's sign-off.**
+> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is COMPLETE — TEN OF TEN, the last signed off 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after its growth clause's defect **I-35** was found, fixed and closed. **Every §9 item was met, and the user signed the stage off, on 2026-09-14**: item 1 when A-69 was met and A-68 re-taken after I-41, and item 5 when `.github/workflows/fuzz-soak.yml` ran both fuzz targets for ten minutes clean, in run 34781013867. Nothing remains.**
 > **93 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
@@ -3028,6 +3028,8 @@ the position `pages()` was, and the message bar is the consumer that will find o
 ---
 
 ## 9. Sign-off criteria
+
+**✅ SIGNED OFF BY THE USER, 2026-09-14, with every item below met.**
 
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.

@@ -6,8 +6,9 @@
 > **before any Stage 1 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Automated half GREEN IN CI at 71 of 73 — Stage 1 T1…T15 verified as of 2026-08-25.
-> Two cases cannot run and are carried to Stage 2 (see the row below); the manual walk remains.**
+> **Status:** ✅ **STAGE 1 SIGNED OFF 2026-08-31**, when M-12, the last manual case, was signed off by the user
+> (status flipped here 2026-09-14). *As it stood before the walk:* **Automated half GREEN IN CI at 71 of 73 — Stage 1 T1…T15 verified as of 2026-08-25.
+> Two cases cannot run and are carried to Stage 2 (see the row below); the manual walk remains.** Both carried cases, A-25 and A-26, ran and passed at Stage 2 T18.
 > **73 automated** cases
 > (A-01 … A-94, plus **A-67** added at T7 and **A-90 … A-94** added at T14 in a new §5.10) and **12
 > manual** (M-01 … M-12), of which **M-08 is withdrawn** with the accessibility removal.
@@ -1776,6 +1777,10 @@ record.
 ---
 
 ## 9. Sign-off criteria
+
+**✅ SIGNED OFF 2026-08-31** (recorded here 2026-09-14). Every box below is ticked **except one**: *every caveat in §7
+has a human verdict*. That box is the user's to tick, as part of the walk, and it was never ticked in this
+document. It is left open rather than ticked on the user's behalf.
 
 Stage 1 is signed off when **all** of the following hold — this is
 [`Implementation-Plan.md` §2's Definition of Done](./Implementation-Plan.md#definition-of-done--every-stage-no-exceptions)

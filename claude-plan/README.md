@@ -58,7 +58,7 @@ where the work is and points at the owner; the numbers live there and are re-mea
 |---|---|---|
 | 0 — Toolchain | ✅ complete, signed off 2026-08-19 | [⑥ Stage 0](./Stage0-Toolchain-Testing-Guide.md) |
 | 1 — App shell | ✅ complete, signed off 2026-08-31 | [④'s Stage 1 block](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance), [⑥ Stage 1](./Stage1-AppShell-Testing-Guide.md) |
-| 2 — Engine boundary and tiled rendering | 🟡 code complete 2026-09-06, manual walk complete 2026-09-14, **not signed off**: two automated sign-off items remain | [④'s Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering), [⑥ Stage 2](./Stage2-Rendering-Testing-Guide.md) — §6 carries each manual case's ✅ or ☐, §8 the issue log |
+| 2 — Engine boundary and tiled rendering | ✅ complete, signed off 2026-09-14 | [④'s Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering), [⑥ Stage 2](./Stage2-Rendering-Testing-Guide.md) — §6 carries each manual case's ✅ or ☐, §8 the issue log |
 | 3 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
 
 **What is live, in one sentence each, with the owner of every figure:**
