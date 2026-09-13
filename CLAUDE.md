@@ -19,7 +19,7 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | | |
 |---|---|
 | **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, manual walk complete 2026-09-14, NOT signed off.** |
-| **Next action** | **Stage 2's last two sign-off items** — `Stage2-Rendering-Testing-Guide.md` §9. **The manual walk is complete: all ten cases signed off by the user, the last (M-09) on 2026-09-14.** Still open: **item 1** — A-69 is half met (A-72 and A-73 were completed 2026-09-14, the second finding Stage 2 **I-39**); and **item 5** — the ten-minute fuzz soak. A-71 is met, and clean since CI run 34775047037 — the first whose fuzz job aborts on a sanitizer finding (Stage 2 **I-38**; every fuzz run before it had logged one under a green tick). I-35 is closed. |
+| **Next action** | **Stage 2's last sign-off item** — `Stage2-Rendering-Testing-Guide.md` §9. **The manual walk is complete: all ten cases signed off by the user, the last (M-09) on 2026-09-14.** Still open: **item 5** — the ten-minute fuzz soak. Item 1 was met 2026-09-14: A-72 and A-73 were completed (the second finding Stage 2 **I-39**), and A-69 was met when the product benchmark gained its latency control, which found Stage 2 **I-41**. A-71 is met, and clean since CI run 34775047037 — the first whose fuzz job aborts on a sanitizer finding (Stage 2 **I-38**; every fuzz run before it had logged one under a green tick). I-35 is closed. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
 | **Tests** | **741/741** as of Stage 2 I-39's and I-40's cases, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
@@ -43,8 +43,9 @@ nothing until Stage 5. **313 of 361 declared commands are unregistered**, which 
 rather than a shortcut.
 
 **Two verdicts worth knowing before quoting a number.** **A2 = `go` on both of D2-1's measurements**
-— probe p95 **0.532 ms** of engine service time, product p95 **14.18 ms** of queued latency against
-a 16.667 ms frame budget, **1.18× headroom**. Those are different quantities and the pair is the
+— probe p95 **0.532 ms** of engine service time, product p95 **13.03–13.20 ms** of queued latency against
+a 16.667 ms frame budget, **about 1.27× headroom** (re-measured 2026-09-14 behind a latency control;
+T18's 14.18 ms and 1.18× were an upper bound, Stage 2 **I-41**). Those are different quantities and the pair is the
 answer; quoting the probe's *31× headroom* as the product's is the exact error D2-1 exists to
 prevent. And the **golden suite's green is a narrower claim than it looks**: *the product rasterizes
 our own generated corpus the same way it did at capture* — never *correctly*, and nothing at all
@@ -178,7 +179,7 @@ Each rule below cost this project a defect or a wrong decision; the incident is 
 5. **State what a green result actually claims, wherever it is quoted** — *"rasterizes our own
    generated corpus the same way it did at capture"*, never *"rendering is correct"*. *(D2-11.)*
 6. **Record the measurement and the reasoning, not just the conclusion.** *"`workerCount` is 1"* is
-   unactionable; *"1, because eight workers buy 5 % while p50 gets worse"* survives the next person
+   unactionable; *"1, because eight workers buy 5 % while p95 does not improve"* survives the next person
    who wants to raise it.
 7. **Verify a doc change by reading the thing it was meant to change** — the rendered diff, the
    regenerated file, the tool's output — never by re-reading your own edit. *(Stage 2 I-16: a

@@ -62,6 +62,38 @@
 // prints both sides.
 //
 // ===============================================================================================
+// PHASE 0 IS THE LATENCY INSTRUMENT'S CONTROL, AND EVERY OTHER FIGURE IS READ ONLY AFTER IT
+// ===============================================================================================
+//
+// Stage 1's **I-29** printed nothing but its own argument-evaluation bug, and Stage 1 T15's rule is
+// that *a small reading has two explanations: a cheap operation, or a dead instrument*. A tile here
+// costs ~0.34 ms, which is exactly the size of number a dead instrument would also produce. Guide
+// case A-69 found the probe had a control and this file did not: its O7 phase proved the cache
+// COUNTERS live, but nothing had a KNOWN cost to catch a dead LATENCY instrument.
+//
+// So phase 0 runs the SAME instrument -- `measureLatency`, the one copy phases 1 and 2 also use --
+// over a rasterizer whose cost is known by construction (`kControlCostMs`, spent in a busy wait
+// because a Windows `Sleep` rounds up to the ~15.6 ms timer tick and would make the cost unknown
+// again). With one worker, three things are checked:
+//
+//   * every latency is at least the known cost -- a tile cannot be delivered before its raster
+//     returns. A zero here is I-29's shape.
+//   * the FIRST tile reads within `kControlResolutionMs` of the known cost. This is the check that
+//     fired on its first run: every tile had been delivered only on a ~15.6 ms timer tick, so phase
+//     1's p50 and p95 were both the batch's wall time (Stage 2 I-41). It is the one bound that
+//     depends on the machine, and it is set at a third of a tick so that it separates the two
+//     states rather than grading speed.
+//   * the slowest tile waited behind the rest of its batch -- at least half of (tiles - 1) known
+//     costs. A figure near ONE known cost means the instrument is timing SERVICE rather than queued
+//     latency, which is D2-1's confusion and would make phase 1 comparable to the probe when it is
+//     not.
+//
+// Any failing exits 1 BEFORE any figure is printed: under the exit-code rule below, a dead
+// instrument is a measurement that was not possible. `--dead-instrument` and `--coarse-pump` are
+// this control's own negative controls (convention 7), each breaking the instrument one way, and
+// each must make the run fail.
+//
+// ===============================================================================================
 // WHY IT IS NOT A PASS/FAIL CTEST CASE
 // ===============================================================================================
 //
@@ -97,6 +129,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -125,9 +158,38 @@ constexpr double kA2PhysicalDpi  = 144.0;   // 96 x 1.50, the nominal the probe 
 // slow file against its baseline is looking at the same pixels.
 constexpr int kSweepDpi[] = {96, 144, 192};
 
+// Phase 0's known cost per tile. Large beside a real tile (~0.34 ms) so the control cannot pass on
+// the pipeline's own overhead, small enough that the phase takes well under a second.
+constexpr double kControlCostMs = 2.0;
+
 double millisSince(Clock::time_point start)
 {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+}
+
+// How far above the known cost phase 0's FIRST tile may read. A live instrument over a yielding
+// pump reads it within a fraction of a millisecond (2.07-2.08 ms on 2026-09-14); a pump quantized to
+// the ~15.6 ms timer tick reads ~15.7 ms. Five sits well clear of both.
+constexpr double kControlResolutionMs = 5.0;
+
+// The two NEGATIVE controls for phase 0 (convention 7), each breaking the instrument one way:
+// `--dead-instrument` makes every latency read zero (I-29's shape), and `--coarse-pump` restores the
+// tick-quantized pump I-41 found. Either must make the run fail at phase 0.
+bool g_deadInstrument = false;
+bool g_coarsePump = false;
+
+// THE LATENCY READING, in one place, so the control and the figures cannot use different ones.
+double latencySince(Clock::time_point sent)
+{
+    return g_deadInstrument ? millisSince(Clock::now()) : millisSince(sent);
+}
+
+// The key that joins an enqueue to its delivery -- one function for both ends, so they cannot drift
+// apart and silently drop every sample.
+std::string tileKey(core::DocumentHandle document, int page, const TileRect& tile)
+{
+    return std::to_string(document.id) + "/" + std::to_string(page) + "/"
+           + std::to_string(tile.x) + "," + std::to_string(tile.y);
 }
 
 double percentile(std::vector<double> samples, double fraction)
@@ -234,22 +296,69 @@ void renderPage(core::render::RenderScheduler& scheduler, bool wholePage,
 
     for (const TileRect& tile : tiles.visible) {
         const RenderRequest request = requestFor(document.handle, page, tile, dpi);
-        sentAt[std::to_string(document.handle.id) + "/" + std::to_string(page) + "/"
-               + std::to_string(tile.x) + "," + std::to_string(tile.y)] = Clock::now();
+        sentAt[tileKey(document.handle, page, tile)] = Clock::now();
         scheduler.enqueue(request, RenderPriority::Visible);
         into.tiles += 1;
     }
 
-    // Pump until idle. `waitForIdle` blocks the pumping thread, so it is interleaved with
-    // `deliverReady()` rather than called once: a scheduler that finished everything while this
-    // thread slept would report every latency as the whole batch's wall time.
+    // Pump until idle, delivering between YIELDS -- never between timed waits. A scheduler that
+    // finished everything while this thread slept would report every latency as the whole batch's
+    // wall time, and until 2026-09-14 that is what happened: the pump waited in `waitForIdle(1)`,
+    // whose 1 ms `wait_for` rounds up to the ~15.6 ms Windows timer tick on this toolchain, so a
+    // tile was handed over only at a tick or when the batch went idle. Phase 1's 40 tiles finish in
+    // ~14 ms, inside one tick, and all 40 read 14.08 ms (Stage 2 I-41, found by phase 0's control).
+    // `--coarse-pump` restores that wait, which is how the control's resolution check is shown to
+    // fire.
     while (scheduler.pendingCount() > 0 || scheduler.runningCount() > 0) {
         scheduler.deliverReady();
         if (scheduler.pendingCount() == 0 && scheduler.runningCount() == 0) break;
-        scheduler.waitForIdle(1);
+        if (g_coarsePump)
+            scheduler.waitForIdle(1);
+        else
+            std::this_thread::yield();
     }
     scheduler.deliverReady();
 }
+
+// One page's latencies through `scheduler` -- the instrument phases 0 and 1 share.
+RunResult measureLatency(core::render::RenderScheduler& scheduler, bool wholePage,
+                         const OpenDocument& document, int page, double dpi)
+{
+    RunResult run;
+    std::map<std::string, Clock::time_point> sentAt;
+    const core::render::RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
+        [&](const RenderRequest& request, const core::RasterImage&) {
+            const auto at = sentAt.find(tileKey(request.document, request.pageIndex, request.tile));
+            if (at != sentAt.end()) run.latencies.push_back(latencySince(at->second));
+        });
+
+    const Clock::time_point start = Clock::now();
+    renderPage(scheduler, wholePage, document, page, dpi, sentAt, run);
+    run.wallMs = millisSince(start);
+    scheduler.unsubscribeReady(token);
+    return run;
+}
+
+// Phase 0's subject: a rasterizer that costs `kControlCostMs` per tile and never touches the engine.
+// A BUSY wait, because `Sleep` on Windows rounds up to the timer tick and the cost would stop being
+// known. The pixels are real and valid, so the scheduler and the cache treat the tile like any other.
+class KnownCostRasterizer final : public core::IPageRasterizer {
+public:
+    core::Result<core::RasterImage> raster(const RenderRequest& request) override
+    {
+        const Clock::time_point start = Clock::now();
+        core::RasterImage image;
+        image.width = request.tile.width;
+        image.height = request.tile.height;
+        image.bytesPerLine = request.tile.width * 4;
+        image.format = core::PixelFormat::Bgrx8888;
+        image.pixels = QByteArray(static_cast<qsizetype>(image.bytesPerLine) * image.height,
+                                  static_cast<char>(0xFF));
+        while (millisSince(start) < kControlCostMs) {
+        }
+        return image;
+    }
+};
 
 } // namespace
 
@@ -267,6 +376,14 @@ int main(int argc, char** argv)
     for (int at = 1; at < arguments.size(); ++at) {
         if (arguments.at(at) == QLatin1String("--whole-page")) {
             wholePage = true;
+            continue;
+        }
+        if (arguments.at(at) == QLatin1String("--dead-instrument")) {
+            g_deadInstrument = true;
+            continue;
+        }
+        if (arguments.at(at) == QLatin1String("--coarse-pump")) {
+            g_coarsePump = true;
             continue;
         }
         bool numeric = false;
@@ -335,6 +452,57 @@ int main(int argc, char** argv)
                                              core::render::MonitorScale{kA2MonitorScale},
                                              core::render::PhysicalDpi{kA2PhysicalDpi});
 
+        // ---------------------------------------------------------------------------------
+        // PHASE 0 -- the latency instrument's control (see the file header). Same page, same
+        // tiles, same instrument as phase 1; only the rasterizer's cost is known.
+        // ---------------------------------------------------------------------------------
+        {
+            core::render::RenderCache cache;
+            core::render::RenderScheduler::Config config;
+            config.workerCount = 1;   // the queueing prediction below is for exactly one worker
+            core::render::RenderScheduler scheduler(
+                []() -> std::unique_ptr<core::IPageRasterizer> {
+                    return std::make_unique<KnownCostRasterizer>();
+                },
+                &cache, config);
+
+            const RunResult run = measureLatency(scheduler, wholePage, *document, 0, a2.dpi);
+
+            // Into locals first (I-29).
+            const double minMs = percentile(run.latencies, 0.00);
+            const double maxMs = percentile(run.latencies, 1.00);
+            const double cost =
+                run.latencies.empty() ? 0.0 : run.wallMs / static_cast<double>(run.latencies.size());
+            const double queueFloorMs =
+                0.5 * static_cast<double>(std::max<long long>(run.tiles - 1, 0)) * kControlCostMs;
+            const bool everyTileTimed =
+                !run.latencies.empty() && static_cast<long long>(run.latencies.size()) == run.tiles;
+            const bool noneBelowCost = minMs >= kControlCostMs;
+            const bool resolved = minMs <= kControlCostMs + kControlResolutionMs;
+            const bool queueingSeen = maxMs >= queueFloorMs;
+
+            std::printf("\n  phase 0 -- CONTROL: the same instrument over a rasterizer costing %.1f ms"
+                        " a tile, 1 worker\n", kControlCostMs);
+            report("known cost", run.latencies, run.wallMs);
+            std::printf("    tiles timed %zu of %lld   min %.3f ms (must be %.3f..%.3f)   max %.3f ms"
+                        " (must be >= %.3f)   cost %.3f ms/tile\n",
+                        run.latencies.size(), run.tiles, minMs, kControlCostMs,
+                        kControlCostMs + kControlResolutionMs, maxMs, queueFloorMs, cost);
+            if (!everyTileTimed || !noneBelowCost || !resolved || !queueingSeen) {
+                std::printf("    DEAD INSTRUMENT: %s%s%s%s-- no latency figure below would be"
+                            " evidence, so none is taken.\n",
+                            everyTileTimed ? "" : "tiles went untimed; ",
+                            noneBelowCost ? "" : "a tile read below its known cost; ",
+                            resolved ? "" : "the first tile read far above its known cost, so"
+                                            " delivery is quantized; ",
+                            queueingSeen ? "" : "no tile read as having queued; ");
+                std::fprintf(stderr, "A2 product: the latency control failed\n");
+                backend->close(document->handle);
+                return 1;
+            }
+            std::printf("    the instrument is live: it reads the known cost and the queue behind it\n");
+        }
+
         std::printf("\n  phase 1 -- A2's configuration, the probe's subject\n");
         std::printf("    %.0f %% zoom on a %.0f %%-scaled monitor  ->  %.1f dpi, %.3f px/pt\n",
                     kA2Zoom * 100.0, kA2MonitorScale * 100.0, a2.dpi, a2.rasterScale());
@@ -345,22 +513,7 @@ int main(int argc, char** argv)
             config.workerCount = workers;
             core::render::RenderScheduler scheduler(makeRasterizer, &cache, config);
 
-            RunResult run;
-            std::map<std::string, Clock::time_point> sentAt;
-            const core::render::RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
-                [&](const RenderRequest& request, const core::RasterImage&) {
-                    const std::string key = std::to_string(request.document.id) + "/"
-                                            + std::to_string(request.pageIndex) + "/"
-                                            + std::to_string(request.tile.x) + ","
-                                            + std::to_string(request.tile.y);
-                    const auto at = sentAt.find(key);
-                    if (at != sentAt.end()) run.latencies.push_back(millisSince(at->second));
-                });
-
-            const Clock::time_point start = Clock::now();
-            renderPage(scheduler, wholePage, *document, 0, a2.dpi, sentAt, run);
-            run.wallMs = millisSince(start);
-            scheduler.unsubscribeReady(token);
+            const RunResult run = measureLatency(scheduler, wholePage, *document, 0, a2.dpi);
 
             if (run.latencies.empty()) {
                 std::fprintf(stderr, "A2 product: no tile was delivered -- no measurement\n");
@@ -396,12 +549,9 @@ int main(int argc, char** argv)
         std::map<std::string, Clock::time_point> sentAt;
         const core::render::RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
             [&](const RenderRequest& request, const core::RasterImage&) {
-                const std::string key = std::to_string(request.document.id) + "/"
-                                        + std::to_string(request.pageIndex) + "/"
-                                        + std::to_string(request.tile.x) + ","
-                                        + std::to_string(request.tile.y);
-                const auto at = sentAt.find(key);
-                if (at != sentAt.end()) run.latencies.push_back(millisSince(at->second));
+                const auto at =
+                    sentAt.find(tileKey(request.document, request.pageIndex, request.tile));
+                if (at != sentAt.end()) run.latencies.push_back(latencySince(at->second));
             });
 
         opened = 0;

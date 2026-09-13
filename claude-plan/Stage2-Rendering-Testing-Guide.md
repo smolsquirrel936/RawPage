@@ -27,7 +27,7 @@
 > cases, each run red before its fix, and the measurement that moved M-09's growth clause out of the
 > manual walk) and **10 manual** (M-01 … M-10), of
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
-> A-70, A-72 … A-74 and A-75 … A-93 are green** (A-68 run and recorded 2026-09-14; A-69 🟡 with its missing half named; A-72 and A-73 🟡 until later the same day, when the chord column and the survival cases landed with I-39 and I-40; A-71 ✅ on run 34773735428, and clean on 34775047037 after I-38) — that range absorbed A-48 … A-51 at T17 and is written as one span
+> A-69, A-70, A-72 … A-74 and A-75 … A-93 are green** (A-68 run and recorded 2026-09-14, and re-taken the same day after I-41; A-69 🟡 until later the same day, when the product benchmark's latency control landed and found I-41 on its first run; A-72 and A-73 🟡 until later the same day, when the chord column and the survival cases landed with I-39 and I-40; A-71 ✅ on run 34773735428, and clean on 34775047037 after I-38) — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61 was 🟡 until M-02 cleared it on 2026-09-06; A-62, A-65 and A-67 remain 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
@@ -44,7 +44,9 @@
 > **The Stage 2 exit criterion (A-21) is met on Windows as of T8** and is owed its ASan half.
 > **A2 IS SETTLED ON BOTH OF D2-1's MEASUREMENTS — `go`.** The probe (T3, raw PDFium): p95
 > **0.532 ms** of service time. The product (T18, through the shipped scheduler and cache): p95
-> **14.18 ms** of queued latency against 16.667 ms — **1.18× headroom where the probe reported 31×**,
+> **14.18 ms** of queued latency against 16.667 ms — **1.18× headroom where the probe reported 31×**
+> (an upper bound: **I-41** found that pump delivered on a timer tick; re-measured 2026-09-14 behind a
+> latency control, p95 **13.03–13.20 ms**, about 1.27×),
 > which is not a regression but the difference between timing the engine and timing the product, and
 > is the entire reason D2-1 asked for two figures. Both are in
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
@@ -2221,15 +2223,22 @@ machine: a text-heavy A4 page at 200 % on the 150 %-scaled monitor, 8 workers, o
 phases, **and the figure is recorded beside T3's probe figure with the difference explained.** A
 benchmark reports; its exit code is about whether the measurement was *possible*, never whether the
 machine was fast. **If it fails to measure** S1 against A2.
-**Result 2026-09-14** (`rawpage_bench_pipeline.exe 8`, under the product's segment-heap manifest): A2's
-configuration, 288 dpi over a 1920×1080 viewport, p95 **13.60 / 13.28 / 14.27 / 13.64 ms** at 1 / 2 / 4 / 8
-workers against 16.667 ms, cost 0.334–0.357 ms a tile; the corpus at 96 / 144 / 192 dpi p95 7.38 / 7.75 /
-11.12 ms. **Beside the probe** (`rawpage_bench_render.exe`, same session): p95 **0.541 ms** of service time
-behind the engine lock, 30.8× headroom. The two are different quantities, and the comparable pair is the
-probe's 0.54 ms service time and the product's ~0.34 ms cost a tile, which agree — as `Tech-Stack-Plan.md`
-§3.3 records. **Workers stay at 1**: eight buy nothing at p95 and cost at p50 (9.99 → 12.94 ms).
+**Result 2026-09-14, re-taken the same day after I-41** (`rawpage_bench_pipeline.exe 8`, three runs, under
+the product's segment-heap manifest, **phase 0's latency control green in each**). A2's configuration, 288
+dpi over a 1920×1080 viewport of 40 tiles: at one worker p50 **6.73–6.89 ms**, p95 **13.03–13.20 ms** against
+16.667 ms, cost 0.343–0.347 ms a tile. At 2 / 4 / 8 workers p95 13.11–13.52 / 13.39–13.92 / 13.94–14.25 ms, and
+p50 6.3–7.1 ms at every count. The corpus at 96 / 144 / 192 dpi: p50 1.89–1.95 / 2.11–2.13 / 2.20–2.26 ms, p95
+5.12–5.22 / 5.89–6.07 / 7.27–7.52 ms. `--whole-page`: 140 tiles, p95 39.26 ms. **Beside the probe**
+(`rawpage_bench_render.exe`, same session as the first reading): p95 **0.541 ms** of service time behind the
+engine lock, 30.8× headroom. These are different quantities. The comparable pair is the probe's 0.54 ms
+service time and the product's ~0.35 ms cost a tile, and they agree, as `Tech-Stack-Plan.md` §3.3 records.
+**Workers stay at 1**: eight buy nothing at p95.
+**The first reading that day is withdrawn, not superseded.** It gave p95 13.60 / 13.28 / 14.27 / 13.64 ms at
+1 / 2 / 4 / 8 workers, corpus p95 7.38 / 7.75 / 11.12 ms, and *"eight cost at p50 (9.99 → 12.94 ms)"*. It was
+taken through a pump that delivered only on a ~15.6 ms timer tick (**I-41**). Every one of those figures was
+an upper bound, and the p50 claim was the pump's, not the scheduler's.
 
-**A-69 · The benchmark carries its own control** 🟡 **2026-09-14 — the probe has one; the product benchmark's latency does not**
+**A-69 · The benchmark carries its own control** ✅ **2026-09-14 — both benchmarks; the product's control found I-41 on its first run**
 **Goal** Stage 1's **I-29** — a benchmark whose every printed figure was its own argument-evaluation
 bug, and Stage 1 T15's rule that **a 0.000 ms reading has two explanations: a cheap operation, or a
 dead instrument.**
@@ -2242,7 +2251,25 @@ service times cannot. **The product benchmark has no dedicated latency control p
 non-zero and move the way the workload says they should (a 900 % larger corpus render, a slower disk
 tier), and its O7 phase carries a genuine control — a 24 MiB cap forcing 297 evictions where 256 MiB forces
 none, which proves the counters live — but nothing in it has a *known* cost set up to catch a dead
-latency instrument. **What is absent:** that phase; no owner is assigned here.
+latency instrument. **What is absent:** that phase; no owner is assigned here. *(Corrected below the same
+day: the phase exists.)*
+**Result 2026-09-14, after phase 0.** `rawpage_bench_pipeline` now opens with **phase 0**. It runs the same
+instrument phases 1 and 2 use (`measureLatency`, one copy) over the same page and tiles as phase 1. The only
+difference is a `KnownCostRasterizer` that busy-waits **2.0 ms** a tile, with one worker. It exits 1 before
+printing any other figure unless all four checks hold: every tile timed; no tile below 2.0 ms; the first
+tile within 5 ms of 2.0; and the slowest tile at least half of (tiles − 1) × 2.0 ms, i.e. the queue was
+counted. **Its first run failed on resolution, and that was a real finding.** The first tile read
+**15.681 ms**, and phase 1's 40 tiles all read 14.08 ms: the pump only delivered on a timer tick (**I-41**).
+With that fixed, three runs gave min **2.078 / 2.087 / 2.079 ms**, p50 **40.1 ms** (20 × 2.0), max
+**80.1 ms** (40 × 2.0) and cost 2.004–2.006 ms a tile, which is the known cost and the queue behind it
+exactly. `--whole-page` gave 140 tiles, min 2.093 ms and max 280.3 ms. **Both of its negative controls
+were run red** (convention 7): `--dead-instrument` (every latency 0.000 ms, exit 1: *below its known cost*,
+*no queueing*) and `--coarse-pump` (min 20.085 ms, exit 1: *delivery is quantized*). CTest's
+`bench.render.a2_product` passes with phase 0 in it. **What this does NOT cover:** the product's own
+delivery path. In `rawpage.exe` a tile reaches `PageView` through the scheduler's wake handler and the Qt
+event loop, not through this pump, so phase 1 is a latency to `deliverReady()` and says nothing about event
+loop latency. That half of A2 is **M-04**'s (§6), a person scrolling a 900-page document, signed off by the
+user on 2026-09-12.
 
 **A-70 · The cache statistics that answer O7** ✅ **2026-09-14, criterion corrected**
 **Expect** Hit rate, eviction rate and **inter-document key overlap** over the corpus, reported by the
@@ -2551,7 +2578,7 @@ case was run that day and its record says what it found.
   the product actually ships and the other two are the sweep around it.
   **A2 NOW HAS ITS THIRD ANSWER, and it is the one the other two cannot give.** The probe (T3, 0.532
   ms of engine service time) and the product figure (**A-68**, 14.18 ms p95 of queued latency against
-  a 16.667 ms budget) are both numbers; this is a person reporting that the scroll does not stutter.
+  a 16.667 ms budget at T18, an upper bound, see **I-41**; 13.03–13.20 ms re-measured 2026-09-14) are both numbers; this is a person reporting that the scroll does not stutter.
   A p95 under budget with a scroll that judders would have been a finding about the **scheduler**,
   and that is the reading this case exists to make possible. It did not happen.
   **THE CASE COST TWO PRODUCT FIXES TO REACH A PASS**, both found by scrolling rather than by
@@ -2930,11 +2957,12 @@ document means **Stage 1's**, and says so where it appears.
 | **I-38** | **S2** | **`fuzz_cos_parser` FOUND A SIGNED OVERFLOW IN THE OBJECT-STREAM READER ON ITS FIRST CI RUN AND ON EVERY RUN SINCE, AND NOT ONE OF THOSE RUNS FAILED — THE FUZZ PRESET LET UBSAN PRINT AND CARRY ON.** Found 2026-09-14 by reading the log of the first green run in a week, **34773735428**, rather than its tick: *"pdf/cos/Parser.cpp:586:42: runtime error: signed integer overflow: 69 + 9223372036854775807 cannot be represented in type 'long long'"*. The same line, with a different left operand, is in **34011533934** (2026-09-06, T18's first fuzz run), **34724531551** and **34772420519**. **The defect:** `Parser::parseObjectStream` computed `absolute = first + pair.second` and range-checked the sum afterwards, so a pair-table offset near LLONG_MAX overflowed — undefined behaviour, which licenses the compiler to delete the very `absolute < 0` test meant to catch it. Graded **S2** because this is the reader Stage 3's writer copies bytes out of, and a bounds check that exists at the compiler's discretion is not one. **Why nothing failed:** `portable-asan` sets `-fno-sanitize-recover=all`; `portable-fuzz` did not, so UBSan reported and continued, and libFuzzer's `-error_exitcode=1` only fires on a crash. The two presets disagreed about what a finding is, and the one without the flag was the one generating adversarial input. **Fixed** in two places: the offset is checked against `payload.size() - first` BEFORE it is added (`first` is already known to be inside the payload, so that subtraction cannot wrap), and `portable-fuzz` now sets `-fno-sanitize-recover=all`, so the next finding aborts the job; `ci.yml` says why above the fuzz steps. **The case, run red first:** *"cos parser reports an object stream offset too large to add to /First"*, with an honest pair beside the hostile one as its control. **In `x64-release` it passed against the unfixed parser** — MinGW wraps, and the wrapped sum fails the range check — which the case says at its assertion (convention 19). It went red in a local build with `-fsanitize=signed-integer-overflow -fsanitize-undefined-trap-on-error`, which needs no UBSan runtime: `0xC000001D` on the unfixed parser, green on the fix, and the whole unit suite (332 cases) green under the trap afterwards. In CI, `portable-asan` runs the case under UBSan with the abort flag. **Why the suite missed it:** a green tick was read as a clean run for eight days; nobody read a fuzz log that had nothing red in it. | ✅ Closed 2026-09-14 — confirmed on CI run 34775047037: the fuzz job built with the abort flag and logged no sanitizer finding; the case passed under `portable-asan` |
 | **I-39** | **S2** | **A SHORTCUT SAVED UNDER A RETIRED ACTION SPELLING SURVIVED THE RENAME AND THEN COULD NOT BE RESET: THE LOADER KEPT THE OLD KEY, EVERY WRITE BUILT THE NEW ONE, AND A RESET CAME BACK ON THE NEXT LAUNCH.** Found 2026-09-14 by reading the code while writing **A-73**'s survival half, then shown by a case, on the user's instruction to fix it. **The defect:** D1-16 promises that a renamed action keeps a user's saved shortcuts. `SettingsSchema::isDeclaredPath` resolved `shortcuts/<context>/<retired>` through the alias table, so the key loaded and the remap worked, and there the implementation stopped. `ShortcutsPage::persist` builds its key from the ENUM, so a reset cleared `shortcuts/<context>/<current>`, a key that did not exist, and the retired key stayed in the file to be imported again. A rebind wrote the current key BESIDE the retired one, and the next launch imported both in `values_`' alphabetical order, so the later path won whatever the user had chosen last. `core/cmd/ActionId.h` said *"callers that rewrite a settings file use [`actionStringIdIsRetired`] to migrate the key"*, and nothing called it. Graded **S2**: a documented behaviour missing in a way the first stage to rename an id builds on. **Unreachable today**, because the shipped alias table has no rows. **Fixed** in the loader: `Settings::migrateRetiredActionIds` rewrites a retired spelling, in `shortcuts/` and inside `ui/qatCommands`, under the current one at load, queues the old key for removal and writes nothing until the next sync. When two keys land on one path, the current spelling in the file wins, then the later alias row, which is `ActionId.def` rule 2's append order. The fixture's two old spellings were put in that order the same day. `Settings` and `isDeclaredPath` take the alias table as a parameter, defaulting to the shipped one. **The cases:** A-73's eleven, each run against a control. **Why the suite missed it:** the alias cases drove the resolution algorithm, and nothing that PERSISTS could be handed an alias row. The survival clause had been written into A-73 since Stage 1 and never had a case. | ✅ Closed 2026-09-14 — 741/741 on this machine, the controls run red first |
 | **I-40** | S3 | **`UiCustomization::applyToSettings` REPORTED THE SHORTCUTS IT KEPT AS THE SHORTCUTS IT DROPPED — STAGE 1 I-51'S MISREADING, IN THE ONE PLACE I-51'S FIX DID NOT REACH.** Found 2026-09-14 in the same reading as I-39. `KeyBindingStore::importOverrides` returns the number it DROPPED, which its header says. `app/CompositionRoot.cpp` read it backwards until I-51 (`Stage1-AppShell-Testing-Guide.md` §8) on 2026-08-31, and `ui/shell/UiCustomization.cpp` still stored it as `accepted` and reported `total - accepted`, so a clean import of two reported two dropped and an import with one bad entry in three reported two as well. **Latent:** nothing calls `applyToSettings` yet; the import UI is Stage 14's. **Fixed** by reporting the return value directly. **The case:** *"an applied customization reports the shortcuts it DROPPED and not the ones it kept"* (`tst_qat.cpp`), with a clean blob that must report 0 and a partial one that must report 1. Restoring the old line failed both checks. **Why the suite missed it:** the function had no caller and no case, so I-51's fix had nothing to find it through. | ✅ Closed 2026-09-14 |
+| **I-41** | S3 | **THE PRODUCT BENCHMARK'S LATENCY INSTRUMENT DELIVERED TILES ONLY ON A ~15.6 MS TIMER TICK OR WHEN THE BATCH WENT IDLE, SO A2'S VIEWPORT READ EVERY ONE OF ITS 40 TILES AS THE BATCH'S WALL TIME.** Found 2026-09-14 by **A-69**'s control on its first run. **The defect:** `tests/bench/bench_pipeline.cpp` pumped deliveries between `RenderScheduler::waitForIdle(1)` calls. That is a 1 ms `condition_variable::wait_for`, and on this toolchain it rounds up to the Windows timer tick, so it returned only at a tick or once the scheduler was idle. A2's 40 tiles finish in about 14 ms, inside one tick: all 40 read **p50 14.078, p95 14.081, max 14.085 ms**. The control's rasterizer costs a known 2.0 ms, and its first tile read **15.681 ms**. **What it did to the record:** every latency figure `rawpage_bench_pipeline` has produced was an upper bound. The p50s and the corpus p95s were inflated most. The viewport p95 and the cost per tile were barely affected, because the p95 tile finishes near the end of its batch anyway and cost is wall time over tiles. **A2's `go` stands, with more margin than recorded.** Re-measured through a yielding pump, three runs: one worker p50 **6.73–6.89**, p95 **13.03–13.20 ms**; corpus p50 1.89–1.95 / 2.11–2.13 / 2.20–2.26 ms and p95 5.12–5.22 / 5.89–6.07 / 7.27–7.52 ms at 96 / 144 / 192 dpi. T18's own rows (p50 10.48, p95 14.18 ms) do not show p50 equal to p95, so the pump then woke partway through a batch some of the time. **Why is not established.** A `waitForIdle` that could return in the hand-off gap before **I-37**'s fix would explain it, but that was not measured. One conclusion drawn from the artifact is withdrawn: *"p50 gets worse with eight workers as the queue reorders"*. Through the yielding pump, p50 is 6.3–7.1 ms at every worker count. `workerCount` stays **1** because eight workers still buy nothing at p95 (13.94–14.25 ms). Graded **S3**: no product defect, and no verdict moved. **A-69**'s S2 is for a control showing EVERY figure unusable, and the p95 and cost readings stayed valid as upper bounds. **Fixed** in the benchmark: the pump yields between deliveries, and `--coarse-pump` restores the timed wait. **Phase 0** is the control. It runs the same instrument over a `KnownCostRasterizer` costing 2.0 ms a tile, and exits 1 before any figure if a tile goes untimed, reads below the known cost, reads its first tile more than 5 ms above it, or shows no queueing. **Both negative controls were run red:** `--dead-instrument` (min 0.000 ms) and `--coarse-pump` (min 20.085 ms). **Why the suite missed it:** the benchmark had no known cost to read, which is exactly the gap A-69 named. Its figures were non-zero and moved with the workload, and a quantized instrument does both. | ✅ Closed 2026-09-14 — phase 0 green in three runs and under `bench.render.a2_product`; both negative controls exit 1 |
 
 **NO S1 OR S2 IS OPEN.** **I-35** was raised at S2 on 2026-09-13 in M-09, four causes were found by measurement and fixed the same day, and the user downgraded the residual — heap fragmentation, +2.2 MB of private bytes a round — to **S3** the same day. **Before it, no S1 or S2 was open — I-17 and I-18 were raised and closed on 2026-09-06, in the CI run that first
 executed Stage 2's build, I-23 and I-24 on 2026-09-12, and I-25, I-27, I-30, I-31, I-32 and I-33 on 2026-09-13, each in the
 change that found it. Four S3 remain — I-06 (JBIG2) and I-11 (line weight), both open BY DECISION
-rather than pending, **I-28** (Fit Visible fits the CropBox), raised 2026-09-13 in M-06 and simply open, **I-34** (the second level of key tips does nothing), raised the same day in M-10 with no owner stage, and — until 2026-09-14 — **I-35**, now closed. **I-39 (S2) was raised and closed on 2026-09-14 in the change that found it.** **Thirty-six closed, re-counted from the table on 2026-09-14** (I-40 the latest; this sentence said thirty-one, with I-35 the latest, through three later closures): I-01 and I-03
+rather than pending, **I-28** (Fit Visible fits the CropBox), raised 2026-09-13 in M-06 and simply open, **I-34** (the second level of key tips does nothing), raised the same day in M-10 with no owner stage, and — until 2026-09-14 — **I-35**, now closed. **I-39 (S2) was raised and closed on 2026-09-14 in the change that found it.** **Thirty-seven closed, re-counted from the table on 2026-09-14, I-41 included** (I-41 the latest; this sentence said thirty-one, with I-35 the latest, through three later closures): I-01 and I-03
 before any code, I-05 at T11, I-07 at T12, I-08 and I-09 at T13, I-10 at T14, I-02, I-04, I-12 and
 I-13 at T16, **I-14, I-15 and I-16 at T17**, **I-17 through I-21 all on 2026-09-06** — the CI run
 and the first three manual walks — **I-22, I-23 and I-24 on 2026-09-12**, one preparing M-04's walk
@@ -3001,7 +3029,7 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. 🟡 A-01 … A-93 **run**, with actual output recorded against each case — **§5.12's A-68 … A-74 were the last never-recorded block, run on 2026-09-14**; A-71 was met on CI run 34773735428 and met CLEAN on 34775047037, the first run whose fuzz job aborts on a sanitizer finding (I-38), and A-24 … A-26 are Linux jobs this machine cannot run — — not a summary claiming they
+1. ✅ A-01 … A-93 **run**, with actual output recorded against each case — **§5.12's A-68 … A-74 were the last never-recorded block, run on 2026-09-14**, and **A-69, the last half-met case, met the same day** when `rawpage_bench_pipeline` gained its latency control (phase 0), which found **I-41** and had A-68 re-taken; the 🟡 cases that remain (A-46, A-62, A-65, A-67) are run and recorded with the half they do not claim named; A-71 was met on CI run 34773735428 and met CLEAN on 34775047037, the first run whose fuzz job aborts on a sanitizer finding (I-38), and A-24 … A-26 are Linux jobs this machine cannot run — — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
 2. ✅ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Ten of ten as of 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after I-35 was closed, knowing it did not cover uninitialized reads. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
 3. ✅ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**. **Measured 2026-09-14**: layer-lint 282 files, license-audit 20 components, i18n-lint 176 files, no waiver creep (eight filesystem-write waivers).
@@ -3036,7 +3064,10 @@ Stage 2 is done when **all** of these hold. This is
    the entire reason D2-1 asked for both**: the probe times service inside the engine lock, the
    product figure times queued latency from `enqueue()` to delivery. The comparable pair is the
    probe's 0.532 ms and this run's 0.356 ms per-tile cost, and those agree — the engine did not get
-   slower, the queue got counted. Also recorded there: a whole page at 288 dpi is **43.9 ms**, three
+   slower, the queue got counted. **Corrected 2026-09-14 (I-41):** T18's latencies went through a pump
+   that delivered on a ~15.6 ms timer tick, so they were upper bounds. Behind **A-69**'s control, p95 is
+   **13.03–13.20 ms** (about 1.27×) and cost 0.343–0.347 ms. The verdict is unchanged. Also recorded there:
+   a whole page at 288 dpi is **43.9 ms**, three
    frames, which is why tiles stream rather than pages and why prefetch is a Stage 4 subject.
 9. ✅ **O7 and O10 resolved** in `Implementation-Plan.md` §8, both on 2026-09-06 at T18 and both
    by evidence rather than preference.

@@ -93,7 +93,7 @@ mistaken for evidence, and each has a concrete way to settle it. **Stage 0 owes 
 | # | Unverified assumption | How to settle it |
 |---|---|---|
 | A1 | Right PDF's Write mode is a first-party reflow engine rather than an embedded third-party word processor. | Inspect an installed copy's binaries and dependency list; check for a known word-processing engine's DLLs. |
-| ~~A2~~ | **PDFium's `FPDF_RenderPageBitmap` throughput is sufficient for smooth 60 Hz scrolling of a text-heavy A4 page at 200% on a 150 %-scaled 4K monitor with an 8-worker pool.** | ✅ **SETTLED — `go`, on BOTH measurements D2-1 required.** Probe 2026-09-01 (T3): p95 **0.532 ms** of engine service time per tile, 25–31× headroom — and it found the pool is not eight threads. **Product 2026-09-06 (T18)**: through the shipped scheduler and cache, a 1920×1080 viewport at A2's own 288 dpi has a p95 **queued latency of 14.18 ms against 16.667 ms — 1.18× headroom**, at a per-tile cost of **0.356 ms**. Both figures are below; **they measure different quantities and the gap between 31× and 1.18× is the whole reason D2-1 asked for two.** |
+| ~~A2~~ | **PDFium's `FPDF_RenderPageBitmap` throughput is sufficient for smooth 60 Hz scrolling of a text-heavy A4 page at 200% on a 150 %-scaled 4K monitor with an 8-worker pool.** | ✅ **SETTLED — `go`, on BOTH measurements D2-1 required.** Probe 2026-09-01 (T3): p95 **0.532 ms** of engine service time per tile, 25–31× headroom — and it found the pool is not eight threads. **Product 2026-09-06 (T18)**: through the shipped scheduler and cache, a 1920×1080 viewport at A2's own 288 dpi has a p95 **queued latency of 14.18 ms against 16.667 ms — 1.18× headroom**, at a per-tile cost of **0.356 ms**. **Corrected 2026-09-14:** that latency went through a benchmark pump that delivered only on a ~15.6 ms timer tick, so it was an upper bound (I-41 (`Stage2-Rendering-Testing-Guide.md` §8)). Behind the benchmark's new latency control it is p95 **13.03–13.20 ms, about 1.27×**, at 0.343–0.347 ms a tile. The verdict is unchanged. Both figures are below; **they measure different quantities and the gap between 31× and 1.18× is the whole reason D2-1 asked for two.** |
 | ~~A3~~ | **Qt Widgets can deliver a ribbon, tear-off document tabs, and dockable auto-hiding panes without a commercial ribbon library.** | ✅ **Settled 2026-08-23 — `go, with named custom work`. See below.** Every remaining criterion is met: R-1…R-7 and R-9. R-8 was **withdrawn**, not failed, when accessibility was removed from the product. The fallback (a first-party ribbon widget) is not in play. |
 | A4 | Incremental save can preserve the original bytes closely enough that a signature applied before an unrelated later edit still validates. | Corpus round-trip harness in Stage 3: sign, then add an annotation incrementally, then validate. |
 | ~~A5~~ | vcpkg has serviceable ports for every dependency in §6 at the versions we want, **on the `x64-mingw-dynamic` triplet**. | ✅ **Resolution settled 2026-08-18 — see below.** Build fidelity remains partly open. |
@@ -256,6 +256,27 @@ D2-1 exists to prevent:
   by one worker. The comparable pair is the probe's 0.532 ms p95 and this run's **0.356 ms cost per
   tile**, and those agree: the engine did not get slower, the queue got counted.
 
+**Corrected 2026-09-14: every latency in this section is an UPPER BOUND except the two tables re-measured behind the latency control.** The benchmark
+pumped deliveries between `waitForIdle(1)` calls. That 1 ms condition-variable wait rounds up to the ~15.6 ms
+Windows timer tick on this toolchain, so a tile was handed over only at a tick or when its batch went idle.
+Guide case **A-69** asked for a control with a known cost, and when one was added (`bench_pipeline` phase 0,
+a rasterizer costing 2.0 ms a tile) its first tile read 15.7 ms. That is Stage 2 **I-41** (`Stage2-Rendering-Testing-Guide.md` §8). Through
+a yielding pump, with the control green, three runs on 2026-09-14:
+
+| Workers | latency p50 | latency **p95** | cost per tile |
+|---|---|---|---|
+| **1 (shipped)** | 6.73–6.89 ms | **13.03–13.20 ms** | 0.343–0.347 ms |
+| 2 | 6.30–6.66 ms | 13.11–13.52 ms | 0.347–0.357 ms |
+| 4 | 6.37–6.47 ms | 13.39–13.92 ms | 0.354–0.367 ms |
+| 8 | 6.42–7.10 ms | 13.94–14.25 ms | 0.369–0.376 ms |
+
+The p95 barely moves, because the p95 tile finishes near the end of its batch either way, and cost is wall
+time over tiles, which the pump does not touch. **The p50s moved most, and the conclusion drawn from them
+below is withdrawn.** T18's rows do not show p50 equal to p95, so its pump woke partway through a batch some
+of the time. Why is not established: a `waitForIdle` able to return in the hand-off gap before Stage 2
+**I-37** would explain it, but that was not measured. The segment-heap comparison below went through the
+same coarse pump on both sides, so it stands as a comparison but not as absolute latencies.
+
 **Re-measured 2026-09-14 under the segment heap, which `rawpage.exe` has carried since then** (its
 manifest, `app/rawpage.manifest` — Stage 2 issue I-35, where the classic heap fragmented on the tile
 workload). Same machine, same session, three runs each of `rawpage_bench_pipeline` with and without
@@ -269,7 +290,9 @@ product's manifest, so its figure describes the allocator the product runs on.
 **Walking the worker count changes almost nothing, which re-confirms I-05 through the shipped
 pipeline rather than through the probe.** p95 moves from 14.18 ms to 13.39 ms between one worker and
 eight — 5 % — because every worker still serializes on `PdfiumInit`'s engine lock, and p50 gets
-*worse* (10.5 → 12.6 ms) as the queue reorders. `RenderScheduler::Config::workerCount` stays at **1**,
+*worse* (10.5 → 12.6 ms) as the queue reorders. **Corrected 2026-09-14 (I-41):** the p50 half of that
+was the pump. Through the controlled instrument, p50 is 6.3–7.1 ms at every worker count, and p95 is
+13.03–13.20 ms at one worker against 13.94–14.25 ms at eight, so eight still buy nothing. `RenderScheduler::Config::workerCount` stays at **1**,
 and the sweep is a command-line argument rather than a rebuild precisely so this is checkable.
 
 **Over the whole corpus** — 56 of 61 files (the other five are refused by design), page 0 of each:
@@ -279,6 +302,14 @@ and the sweep is a command-line argument rather than a rebuild precisely so this
 | 96 dpi | 3.02 ms | 6.59 ms | 14.45 ms | 0.307 ms |
 | 144 dpi | 4.32 ms | 8.51 ms | 25.49 ms | 0.299 ms |
 | 192 dpi | 5.64 ms | 10.06 ms | 34.41 ms | 0.251 ms |
+
+Those rows are T18's, through the coarse pump. **Re-measured 2026-09-14 behind the latency control (I-41)**, three runs:
+
+| Resolution | latency p50 | latency p95 | worst | cost per tile |
+|---|---|---|---|---|
+| 96 dpi | 1.89–1.95 ms | 5.12–5.22 ms | 14.06–14.15 ms | 0.316–0.321 ms |
+| 144 dpi | 2.11–2.13 ms | 5.89–6.07 ms | 25.44–26.21 ms | 0.297–0.301 ms |
+| 192 dpi | 2.20–2.26 ms | 7.27–7.52 ms | 34.87–35.59 ms | 0.250–0.252 ms |
 
 **What this figure is NOT, stated as plainly as the probe's was.** A **whole page** at 288 dpi is 140
 tiles and takes **43.9 ms** — nearly three frames — which `--whole-page` reports. That is not a
@@ -1016,7 +1047,7 @@ cannot, the boundary has already leaked.
 | R2 | Full-text catalog indexing needs an inverted index, and the obvious library (Xapian) is GPL. A first-party index is more work than expected. | Its own stage; interface `IIndexer` declared early so the choice stays open. |
 | R3 | Export fidelity to Office formats is a product-defining quality bar and we have no engine for it. Options: first-party writers, `IOfficeBridge` round-tripping through the installed suite, or a commercial component for this subsystem only. | Decided at the export stage, on measured fidelity — not now. |
 | R4 | Dynamic XFA is effectively a second document format. `Features.md` promises normalization of *static* XFA and honest reporting for dynamic; whether we ever do more is undecided. | Deferred; the honest-reporting path is the committed behaviour. |
-| ~~R5~~ | ~~A2 (render throughput) is unmeasured and gates D10.~~ | ✅ **Retired 2026-09-01, Stage 2 T3; CLOSED OUT 2026-09-06 at T18.** The probe measured p95 **0.532 ms** per tile against a 16.667 ms budget — see A2 in §3.3 — so D10's tiling policy stands. It is retired rather than deleted because the measurement replaced it with a **different** constraint that is now tracked where it belongs: PDFium is not callable from two threads at once, so the worker pool became a scheduling decision at **T11** (I-05: one render thread with a queue). **T18 supplied the product's own figure — p95 14.18 ms of queued latency against 16.667 ms, 1.18× headroom — and it is the one that is a claim about the product.** The margin is real rather than comfortable, which is worth knowing before Stage 6 starts drawing annotations on top of these tiles. |
+| ~~R5~~ | ~~A2 (render throughput) is unmeasured and gates D10.~~ | ✅ **Retired 2026-09-01, Stage 2 T3; CLOSED OUT 2026-09-06 at T18.** The probe measured p95 **0.532 ms** per tile against a 16.667 ms budget — see A2 in §3.3 — so D10's tiling policy stands. It is retired rather than deleted because the measurement replaced it with a **different** constraint that is now tracked where it belongs: PDFium is not callable from two threads at once, so the worker pool became a scheduling decision at **T11** (I-05: one render thread with a queue). **T18 supplied the product's own figure — p95 14.18 ms of queued latency against 16.667 ms, 1.18× headroom — and it is the one that is a claim about the product.** (An upper bound, corrected 2026-09-14 by Stage 2 I-41 to 13.03–13.20 ms, about 1.27×; see A2 in §3.3.) The margin is real rather than comfortable, which is worth knowing before Stage 6 starts drawing annotations on top of these tiles. |
 | ~~R6~~ | ~~Qt Widgets' ability to host a real ribbon (A3) is unproven.~~ | ✅ **Retired 2026-08-23, Stage 1 T2**, when **A3** settled **`go, with named custom work`** (§3.3, per criterion): Qt Widgets host a real ribbon, and the first-party ribbon widget fallback is not in play. Struck through rather than deleted, as R5 was when A2 settled. *(Recorded 2026-09-14: the verdict was recorded in §3.3 the day it was reached and this row was not updated with it.)* |
 | R7 | **The GCC toolchain (D1) has no ASan/UBSan on Windows and no libFuzzer at all**, and it emits DWARF rather than PDB. Two documented quality gates and the crash-symbolization story all depend on tooling MSVC gave for free. | Mitigated, not eliminated: §6.3's `portable-asan`/`portable-fuzz` jobs recover both gates for `core/` and `pdf/cos/` — which is most of the memory-unsafe surface — leaving `platform/win/` and `ui/` covered only by Application Verifier and Dr. Memory. DWARF symbolization is Stage 1 work on `app/CrashHandler`. **O10** records which sanitizer route we settle on. |
 | R8 | **Parts of the Windows integration surface are MSVC-shaped.** The virtual printer driver (WDK), Office add-ins, and the shell extensions lean on ATL/WRL, `#import` type libraries, and WDK build rules that MinGW does not provide; arm64 support in MinGW-w64 GCC is immature where LLVM-MinGW is not. | None of it is in the editing path, and `platform/platform.h` already isolates all of it behind 16 interfaces. If a component genuinely cannot be built with GCC, it becomes a **separately built satellite DLL or EXE** talking to us across the C/COM boundary the platform layer already imposes — the architecture pays for that isolation precisely here. arm64 (O6) most likely means LLVM-MinGW rather than GCC. Settle each at its own stage (15, 16), not now. |
