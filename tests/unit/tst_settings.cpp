@@ -14,12 +14,14 @@
 #include "core/Log.h"
 #include "core/settings/Settings.h"
 #include "core/settings/SettingsSchema.h"
+#include "tests/unit/fixtures/ActionAliasFixture.h"
 
 #include <QByteArray>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
 
+#include <array>
 #include <set>
 #include <string>
 
@@ -506,6 +508,186 @@ TEST_CASE("a saved shortcut for an id that no longer exists is dropped and count
     settings.set(keys::general::theme, Theme::Dark);
     REQUIRE(settings.sync());
     CHECK_FALSE(readBytes(path).contains("thisActionWasRetired"));
+}
+
+// =======================================================================================
+// D1-16 -- a RETIRED action spelling in the file (Stage 2 I-39, guide case A-73)
+// =======================================================================================
+//
+// The shipped alias table has zero rows, so every case here loads through the synthetic table in
+// `tests/unit/fixtures/ActionAliasFixture.def`: `shell.toggleSidebar` (oldest) and
+// `view.sidebar.toggle` (newer) both retired onto `view.toggleSidebar`, and `file.open` claimed by
+// an alias row although it is live. What this does NOT cover (convention 19): the product composes
+// `Settings` with the SHIPPED table, so the day a real alias row lands this is still the first time
+// that row meets a user's file -- but no longer the first time the loader meets any row.
+
+TEST_CASE("a shortcut saved under a retired spelling loads under the current one", "[settings][alias]")
+{
+    QTemporaryDir dir;
+    const QString path = writeIni(dir, QStringLiteral(
+        "[shortcuts]\n"
+        "Global/view.sidebar.toggle=Ctrl+Alt+B\n"));
+    const QByteArray before = readBytes(path);
+
+    {
+        Settings settings(path, rawpage::testfixture::kFixtureAliases);
+
+        const ShortcutKey current = ShortcutKey::forAction(KeyContext::Global, ActionId::ViewToggleSidebar);
+        CHECK(settings.shortcutOverride(current) == QStringLiteral("Ctrl+Alt+B"));
+        CHECK(settings.droppedShortcutKeyCount() == 0);
+
+        const std::vector<KeyBindingStore::OverrideEntry> entries = settings.shortcutOverrides();
+        REQUIRE(entries.size() == 1);
+        CHECK(entries.front().actionStringId == "view.toggleSidebar");
+
+        // NOTHING WRITTEN AT LOAD. A process that only reads its settings must not rewrite them.
+        CHECK(readBytes(path) == before);
+
+        // ...and the rename reaches the file with the next write of anything at all.
+        settings.set(keys::general::theme, Theme::Dark);
+        REQUIRE(settings.sync());
+    }
+
+    const QByteArray after = readBytes(path);
+    CHECK_FALSE(after.contains("view.sidebar.toggle"));
+    CHECK(after.contains("view.toggleSidebar=Ctrl+Alt+B"));
+
+    // Read back through the SHIPPED table, which knows nothing of the old spelling: the remap is
+    // there because the file now says the current name, not because an alias resolved it again.
+    Settings shipped(path);
+    CHECK(shipped.shortcutOverride(ShortcutKey::forAction(KeyContext::Global, ActionId::ViewToggleSidebar))
+          == QStringLiteral("Ctrl+Alt+B"));
+}
+
+TEST_CASE("without its alias row a retired shortcut is dropped as stale", "[settings][alias]")
+{
+    // THE CONTROL for the case above. The same file through a table with no rows -- which is what
+    // the shipped table is today -- loses the remap, so the case above is measuring the alias row
+    // and not something the loader would have done anyway.
+    QTemporaryDir dir;
+    const QString path = writeIni(dir, QStringLiteral(
+        "[shortcuts]\n"
+        "Global/view.sidebar.toggle=Ctrl+Alt+B\n"));
+
+    constexpr std::array<ActionAlias, 0> none{};
+    Settings settings(path, none);
+    CHECK(settings.droppedShortcutKeyCount() == 1);
+    CHECK(settings.shortcutOverrides().empty());
+}
+
+TEST_CASE("when two keys land on one current path the newer spelling wins", "[settings][alias]")
+{
+    // Two rules, from `Settings::migrateRetiredActionIds`: the CURRENT spelling in the file beats
+    // any retired one, and between retired spellings the LATER alias row wins.
+    QTemporaryDir dir;
+    const QString contents = QStringLiteral(
+        "[shortcuts]\n"
+        "Global/view.toggleSidebar=Ctrl+Alt+1\n"
+        "Global/view.sidebar.toggle=Ctrl+Alt+2\n"
+        "Viewer/shell.toggleSidebar=Ctrl+Alt+3\n"
+        "Viewer/view.sidebar.toggle=Ctrl+Alt+4\n");
+    const QString path = writeIni(dir, contents);
+
+    const ShortcutKey global = ShortcutKey::forAction(KeyContext::Global, ActionId::ViewToggleSidebar);
+    const ShortcutKey viewer = ShortcutKey::forAction(KeyContext::Viewer, ActionId::ViewToggleSidebar);
+
+    {
+        Settings settings(path, rawpage::testfixture::kFixtureAliases);
+        CHECK(settings.shortcutOverride(global) == QStringLiteral("Ctrl+Alt+1"));
+        CHECK(settings.shortcutOverride(viewer) == QStringLiteral("Ctrl+Alt+4"));
+        CHECK(settings.shortcutOverrides().size() == 2);
+    }
+
+    // THE ROW ORDER, NOT THE ALPHABET. In the fixture the later row (`view.sidebar.toggle`) also
+    // sorts later, so "whichever key the map visits last" would pass the check above. The same file
+    // through the same rows REVERSED must now pick `shell.toggleSidebar` -- which the alphabet
+    // would not.
+    QTemporaryDir reversedDir;
+    const QString reversedPath = writeIni(reversedDir, contents);
+    constexpr std::array<ActionAlias, 2> reversed{{
+        ActionAlias{"view.sidebar.toggle", ActionId::ViewToggleSidebar},
+        ActionAlias{"shell.toggleSidebar", ActionId::ViewToggleSidebar},
+    }};
+    Settings settings(reversedPath, reversed);
+    CHECK(settings.shortcutOverride(viewer) == QStringLiteral("Ctrl+Alt+3"));
+    CHECK(settings.shortcutOverride(global) == QStringLiteral("Ctrl+Alt+1"));
+}
+
+TEST_CASE("a live id claimed by an alias row is not renamed", "[settings][alias]")
+{
+    // The fixture's third row claims `file.open` as a retired spelling of `view.fullScreen`. A live
+    // id outranks an alias, so the loader must leave the key exactly where it is -- renaming it
+    // would move a user's Open shortcut onto Full Screen.
+    QTemporaryDir dir;
+    const QString path = writeIni(dir, QStringLiteral(
+        "[shortcuts]\n"
+        "Viewer/file.open=Ctrl+Alt+O\n"));
+
+    Settings settings(path, rawpage::testfixture::kFixtureAliases);
+    CHECK(settings.shortcutOverride(ShortcutKey::forAction(KeyContext::Viewer, ActionId::FileOpen))
+          == QStringLiteral("Ctrl+Alt+O"));
+    CHECK_FALSE(settings.shortcutOverride(
+        ShortcutKey::forAction(KeyContext::Viewer, ActionId::ViewFullScreen)).has_value());
+}
+
+TEST_CASE("a toolbar saved with a retired command loads with the current one", "[settings][alias]")
+{
+    QTemporaryDir dir;
+    const QString path = dir.path() + QStringLiteral("/settings.ini");
+
+    // Written through the shipped table, which stores whatever strings it is handed -- the one way
+    // to get a list into the file exactly as QSettings would have written it.
+    {
+        Settings writer(path);
+        writer.set(keys::ui::qatCommands,
+                   QStringList{QStringLiteral("file.open"), QStringLiteral("shell.toggleSidebar"),
+                               QStringLiteral("file.save")});
+        REQUIRE(writer.sync());
+    }
+
+    {
+        Settings settings(path, rawpage::testfixture::kFixtureAliases);
+        CHECK(settings.get(keys::ui::qatCommands)
+              == QStringList({QStringLiteral("file.open"), QStringLiteral("view.toggleSidebar"),
+                              QStringLiteral("file.save")}));
+        settings.set(keys::general::theme, Theme::Dark);
+        REQUIRE(settings.sync());
+    }
+    CHECK_FALSE(readBytes(path).contains("shell.toggleSidebar"));
+
+    // The control: no rows, no rename -- the string is still the retired one, and the toolbar's own
+    // restore is what would then drop it (`UiCustomization::resolveCommands`).
+    QTemporaryDir controlDir;
+    const QString controlPath = controlDir.path() + QStringLiteral("/settings.ini");
+    {
+        Settings writer(controlPath);
+        writer.set(keys::ui::qatCommands, QStringList{QStringLiteral("shell.toggleSidebar")});
+        REQUIRE(writer.sync());
+    }
+    constexpr std::array<ActionAlias, 0> none{};
+    Settings control(controlPath, none);
+    CHECK(control.get(keys::ui::qatCommands) == QStringList{QStringLiteral("shell.toggleSidebar")});
+}
+
+TEST_CASE("a newer build's file is renamed in memory and never rewritten", "[settings][alias]")
+{
+    // D1-16's downgrade rule outranks the rename: a file from a newer build is read for what is
+    // understood and left byte-identical, even though this build would rather spell a key its way.
+    QTemporaryDir dir;
+    const QString path = writeIni(dir, QStringLiteral(
+        "[meta]\nschemaVersion=99\n\n"
+        "[shortcuts]\n"
+        "Global/view.sidebar.toggle=Ctrl+Alt+B\n"));
+    const QByteArray before = readBytes(path);
+
+    Settings settings(path, rawpage::testfixture::kFixtureAliases);
+    CHECK(settings.writesSuppressed());
+    CHECK(settings.shortcutOverride(ShortcutKey::forAction(KeyContext::Global, ActionId::ViewToggleSidebar))
+          == QStringLiteral("Ctrl+Alt+B"));
+
+    settings.set(keys::general::theme, Theme::Dark);
+    REQUIRE(settings.sync());
+    CHECK(readBytes(path) == before);
 }
 
 TEST_CASE("a change is on disk before anything shuts down", "[settings]")

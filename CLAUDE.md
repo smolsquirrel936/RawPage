@@ -19,10 +19,10 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | | |
 |---|---|
 | **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, manual walk complete 2026-09-14, NOT signed off.** |
-| **Next action** | **Stage 2's last two sign-off items** — `Stage2-Rendering-Testing-Guide.md` §9. **The manual walk is complete: all ten cases signed off by the user, the last (M-09) on 2026-09-14.** Still open: **item 1** — A-69, A-72 and A-73 are each half met; and **item 5** — the ten-minute fuzz soak. A-71 is met, and clean since CI run 34775047037 — the first whose fuzz job aborts on a sanitizer finding (Stage 2 **I-38**; every fuzz run before it had logged one under a green tick). I-35 is closed. |
+| **Next action** | **Stage 2's last two sign-off items** — `Stage2-Rendering-Testing-Guide.md` §9. **The manual walk is complete: all ten cases signed off by the user, the last (M-09) on 2026-09-14.** Still open: **item 1** — A-69 is half met (A-72 and A-73 were completed 2026-09-14, the second finding Stage 2 **I-39**); and **item 5** — the ten-minute fuzz soak. A-71 is met, and clean since CI run 34775047037 — the first whose fuzz job aborts on a sanitizer finding (Stage 2 **I-38**; every fuzz run before it had logged one under a green tick). I-35 is closed. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **729/729** as of Stage 2 I-38's parser case, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **741/741** as of Stage 2 I-39's and I-40's cases, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -386,7 +386,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 729/729 as of Stage 2 I-38, 1 skipped
+ctest --preset x64-release --output-on-failure        # 741/741 as of Stage 2 I-39, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -409,7 +409,7 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 .\build\x64-debug\bin\rawpage.exe   --crash-test           # debug only; writes a minidump
 .\scripts\symbolize.ps1 -Dump <path.dmp>                   # resolves the faulting frame
 .\build\x64-release\bin\rawpage.exe --dump-ui-strings     # every shell key + action label, resolved
-.\build\x64-release\bin\rawpage.exe --list-actions        # 361 declared / 48 registered / 313 not (S2 T18)
+.\build\x64-release\bin\rawpage.exe --list-actions        # 361 declared / 48 registered / 313 not (S2 T18), + effective chords (A-72)
 .\build\x64-release\bin\rawpage.exe --print-screen-metrics # the QScreen-to-MonitorInfo join, and which source won (I-20)
 .\build\x64-release\bin\rawpage.exe --lang zh-TW --dump-ui-strings   # guide case A-72
 .\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error

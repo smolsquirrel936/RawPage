@@ -49,6 +49,10 @@ add_executable(rawpage_ui_tests
     # A-65 is deliberately split: the three flags that change PIXELS are measured in tests/render
     # over the real engine, and what is asserted here is that the preference reaches the request.
     tst_viewsettings.cpp
+
+    # S2 I-39 -- guide case A-73's second clause: a saved shortcut and a saved toolbar survive an
+    # action rename, driven through the real Shortcuts page and the real toolbar restore.
+    tst_aliassurvival.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

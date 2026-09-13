@@ -74,7 +74,8 @@ struct Intent {
     // Chinese is any good is manual case M-06 and this switch cannot tell you.
     bool        dumpUiStrings = false;
 
-    // --list-actions: print every declared ActionId with its registration state and exit.
+    // --list-actions: print every declared ActionId with its registration state and its effective
+    // chords, and exit.
     // Stage 1 guide case **A-25**, carried here by **D2-10** and built at Stage 2 T18.
     //
     // The case was recorded at Stage 1 T15 as *NOT RUN -- the switch it names does not exist*, and

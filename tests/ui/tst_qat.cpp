@@ -713,6 +713,37 @@ TEST_CASE("the customization blob round-trips and keeps a newer version's fields
     CHECK_FALSE(ui::UiCustomization::parse(QByteArrayLiteral("not json at all")));
 }
 
+TEST_CASE("an applied customization reports the shortcuts it DROPPED and not the ones it kept", "[qat]")
+{
+    // STAGE 2 ISSUE I-40. `applyToSettings` read `KeyBindingStore::importOverrides`' return -- the
+    // number DROPPED -- as the number accepted and subtracted it from the total, so this report was
+    // the exact opposite of the truth in both directions. Two blobs, because either alone can be
+    // satisfied by the wrong arithmetic: all-good must report 0 (the defect said 2), and one bad in
+    // three must report 1 (the defect said 2 as well). The second is the control on the first.
+    Fixture fixture;
+
+    ui::UiCustomizationData clean;
+    clean.version = ui::kUiCustomizationVersion;
+    clean.shortcuts.push_back(
+        core::KeyBindingStore::OverrideEntry{core::KeyContext::Global, "view.toggleSidebar", "Ctrl+Alt+B"});
+    clean.shortcuts.push_back(
+        core::KeyBindingStore::OverrideEntry{core::KeyContext::Global, "file.open", "Ctrl+Alt+O"});
+
+    const ui::UiCustomization::ApplyReport cleanReport =
+        ui::UiCustomization::applyToSettings(clean, fixture.settings, fixture.keyBindings);
+    CHECK(cleanReport.droppedShortcuts == 0);
+    CHECK(fixture.keyBindings.exportOverrides().size() == 2);
+
+    ui::UiCustomizationData partial = clean;
+    partial.shortcuts.push_back(core::KeyBindingStore::OverrideEntry{
+        core::KeyContext::Global, "file.thisWasRemovedInStage7", "Ctrl+Alt+R"});
+
+    const ui::UiCustomization::ApplyReport partialReport =
+        ui::UiCustomization::applyToSettings(partial, fixture.settings, fixture.keyBindings);
+    CHECK(partialReport.droppedShortcuts == 1);
+    CHECK(fixture.keyBindings.exportOverrides().size() == 2);
+}
+
 TEST_CASE("a saved command whose id no longer exists is dropped and named", "[qat]")
 {
     // What D1-16's alias rows exist to prevent, seen from the other side: an id that has no alias

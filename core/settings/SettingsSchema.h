@@ -46,6 +46,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -630,7 +631,11 @@ const SettingsKeyInfo* findKey(const QString& path);
 
 // Nothing outside `allKeys()` and the shortcuts family is a declared key. Used at load to tell a
 // key we never had from a key a NEWER build wrote -- D1-16 treats the two differently.
-bool isDeclaredPath(const QString& path);
+//
+// The alias table is a parameter for one reason, and it is a testing one (Stage 2 I-39): the
+// shipped table has zero rows, so a `shortcuts/` key under a RETIRED spelling can only be loaded by
+// a test that supplies its own rows. Every product caller takes the default.
+bool isDeclaredPath(const QString& path, std::span<const ActionAlias> aliases = kActionAliases);
 
 // D1-16. Bumped when a key's TYPE or MEANING changes -- not when a key is added, since an added key
 // simply reads as its default in an older file and needs no migration at all.

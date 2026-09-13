@@ -41,6 +41,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <type_traits>
 #include <vector>
 
@@ -55,7 +56,10 @@ public:
     // code path through everything that reads a setting.
     static QString defaultFilePath();
 
-    explicit Settings(QString iniPath);
+    // `aliases` is the table a retired action spelling in the FILE is resolved through at load --
+    // see `migrateRetiredActionIds`. A parameter only so that a test can supply rows the shipped
+    // table does not have (Stage 2 I-39); every product caller takes the default.
+    explicit Settings(QString iniPath, std::span<const ActionAlias> aliases = kActionAliases);
     ~Settings();
 
     Settings(const Settings&) = delete;
@@ -167,7 +171,8 @@ public:
     QStringList unknownKeys() const;
 
 private:
-    void loadFromFile();
+    void loadFromFile(std::span<const ActionAlias> aliases);
+    void migrateRetiredActionIds(QVariantMap& declared, std::span<const ActionAlias> aliases);
     void setVariant(const QString& path, SettingsGroup group, const QVariant& value);
     void notify(const Change& change);
 

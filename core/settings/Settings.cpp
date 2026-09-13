@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include <QStringList>
 
+#include <set>
 #include <utility>
 
 namespace rawpage::core {
@@ -39,15 +40,16 @@ QString Settings::defaultFilePath()
     return base + QStringLiteral("/settings.ini");
 }
 
-Settings::Settings(QString iniPath) : filePath_(std::move(iniPath))
+Settings::Settings(QString iniPath, std::span<const ActionAlias> aliases)
+    : filePath_(std::move(iniPath))
 {
     backing_ = std::make_unique<QSettings>(filePath_, QSettings::IniFormat);
-    loadFromFile();
+    loadFromFile(aliases);
 }
 
 Settings::~Settings() = default;
 
-void Settings::loadFromFile()
+void Settings::loadFromFile(std::span<const ActionAlias> aliases)
 {
     const QStringList fileKeys = backing_->allKeys();
 
@@ -83,7 +85,7 @@ void Settings::loadFromFile()
 
         const QVariant value = backing_->value(key);
 
-        if (SettingsSchema::isDeclaredPath(key)) {
+        if (SettingsSchema::isDeclaredPath(key, aliases)) {
             declared.insert(key, value);
             continue;
         }
@@ -98,7 +100,7 @@ void Settings::loadFromFile()
         // genuinely top-level key a newer build wrote is still preserved as itself.
         if (!key.contains(QLatin1Char('/'))) {
             const QString folded = QStringLiteral("general/") + key;
-            if (SettingsSchema::isDeclaredPath(folded) && !fileKeys.contains(folded)) {
+            if (SettingsSchema::isDeclaredPath(folded, aliases) && !fileKeys.contains(folded)) {
                 declared.insert(folded, value);
                 // Normalized at the next write: the value is queued to be written under the
                 // canonical path AND the top-level spelling is queued for removal. Doing only the
@@ -131,6 +133,9 @@ void Settings::loadFromFile()
         unknown_.emplace(key, value);
     }
 
+    // --- D1-16: a retired action spelling becomes the current one ------------------------------
+    migrateRetiredActionIds(declared, aliases);
+
     // --- Migrate, if the file is older ---------------------------------------------------------
     if (storedVersion < SettingsSchema::kCurrentSchemaVersion) {
         const int reached = SettingsSchema::migrate(declared, storedVersion,
@@ -161,6 +166,129 @@ void Settings::loadFromFile()
     // %APPDATA% directory it never wanted.
     if (!hasVersionStamp && fileKeys.isEmpty()) {
         fileSchemaVersion_ = SettingsSchema::kCurrentSchemaVersion;
+    }
+}
+
+void Settings::migrateRetiredActionIds(QVariantMap& declared, std::span<const ActionAlias> aliases)
+{
+    // STAGE 2 ISSUE I-39. D1-16 promises that a renamed action keeps a user's saved shortcuts and
+    // Quick Access Toolbar. Resolving the old spelling is only the READ half of that promise, and
+    // until I-39 it was the only half. Everything that WRITES builds the key from the enum -- a
+    // Preferences reset clears `shortcuts/Viewer/<current>`, a rebind sets it -- so a key left under
+    // `shortcuts/Viewer/<retired>` was one no write could ever reach: a reset came back on the next
+    // launch, and a rebind raced the old remap with `values_`' alphabetical order as the referee.
+    //
+    // So the file is brought to the current spelling HERE, once, and nothing downstream ever meets
+    // a retired one. The old key is queued for removal and the new one written at the next sync --
+    // the same two-halves shape the `[General]` fold above uses, for the same reason. Nothing syncs
+    // at load: a process that only read its settings still writes nothing (and a file from a newer
+    // build is never written at all), so a load that is never followed by a change renames again
+    // next time, which is harmless.
+    //
+    // Only two settings hold action ids, `shortcuts/<context>/<action>` and `ui/qatCommands`
+    // (`SettingsKeys.def`). A third would need a branch here, and its tests would find it absent.
+    if (aliases.empty()) return;
+
+    const auto currentSpelling = [&](const std::string& stringId) -> std::optional<QString> {
+        if (!actionStringIdIsRetiredIn(kActions, aliases, stringId)) return std::nullopt;
+        const std::optional<ActionId> action = actionFromStringIdIn(kActions, aliases, stringId);
+        if (!action) return std::nullopt;   // unreachable: a retired spelling resolves by definition
+        return toQString(actionStringId(*action));
+    };
+
+    // --- The shortcuts family ------------------------------------------------------------------
+    // TWO KEYS CAN LAND ON ONE CURRENT PATH, and which one wins is a rule rather than an accident:
+    //
+    //   * The CURRENT spelling, when the file already has it, beats every retired one. Only a build
+    //     that knew the new name can have written it, so it is the newer of the two.
+    //   * Between two RETIRED spellings, the one whose alias row comes LATER wins. `ActionId.def`'s
+    //     rule 2 appends alias rows, so a later row is a more recent rename -- and a more recent
+    //     spelling was written by a more recent build.
+    const QString prefix = toQString(ShortcutKey::pathPrefix());
+
+    struct Candidate {
+        std::size_t row = 0;
+        QString     retiredPath;
+        QVariant    value;
+    };
+    std::map<QString, Candidate> chosen;              // current path -> the retired key written there
+    std::vector<std::pair<QString, QString>> retired; // retired path -> current path
+
+    for (auto it = declared.constBegin(); it != declared.constEnd(); ++it) {
+        if (!it.key().startsWith(prefix)) continue;
+        const QStringList parts = it.key().mid(prefix.size()).split(QLatin1Char('/'));
+        if (parts.size() != 2) continue;
+
+        const std::string stringId = parts.at(1).toStdString();
+        const std::optional<QString> spelling = currentSpelling(stringId);
+        if (!spelling) continue;
+
+        std::size_t row = 0;
+        while (row < aliases.size() && aliases[row].oldStringId != stringId) ++row;
+
+        const QString current = prefix + parts.at(0) + QLatin1Char('/') + *spelling;
+        retired.emplace_back(it.key(), current);
+
+        const auto existing = chosen.find(current);
+        if (existing == chosen.end() || row > existing->second.row)
+            chosen[current] = Candidate{row, it.key(), it.value()};
+    }
+
+    // Removed first, then written: a current path is never itself retired, so nothing inserted
+    // below can be one of the keys removed here.
+    for (const auto& [retiredPath, current] : retired) {
+        declared.remove(retiredPath);
+        removed_.push_back(retiredPath);
+    }
+
+    // Taken BEFORE anything is inserted, so "the file already had the current spelling" is not
+    // confused with "an earlier row of this loop just wrote it".
+    std::set<QString> alreadySet;
+    for (const auto& [current, candidate] : chosen)
+        if (declared.contains(current)) alreadySet.insert(current);
+
+    for (const auto& [retiredPath, current] : retired) {
+        if (alreadySet.count(current) != 0) {
+            RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+                << "settings: dropping" << retiredPath << "-- it names a retired action id and"
+                << current << "is already set";
+            continue;
+        }
+        const Candidate& winner = chosen.at(current);
+        if (winner.retiredPath != retiredPath) {
+            RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+                << "settings: dropping" << retiredPath << "-- a more recent spelling,"
+                << winner.retiredPath << ", is also in the file";
+            continue;
+        }
+        declared.insert(current, winner.value);
+        dirty_.push_back(current);
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+            << "settings: renamed" << retiredPath << "to" << current << "-- the action was renamed";
+    }
+
+    // --- The Quick Access Toolbar --------------------------------------------------------------
+    // Renamed in place, order kept. A list holding both spellings of one command becomes a list
+    // holding the current one twice, and `UiCustomization::resolveCommands` already drops a
+    // duplicate -- a second rule for the same shape here would be a second opinion about it.
+    const QString qatPath = toQString(keys::ui::qatCommands.path);
+    if (const auto it = declared.find(qatPath); it != declared.end()) {
+        if (std::optional<QStringList> commands = SettingsCodec<QStringList>::fromVariant(it.value())) {
+            bool changed = false;
+            for (QString& command : *commands) {
+                if (const std::optional<QString> spelling = currentSpelling(command.toStdString())) {
+                    RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+                        << "settings: quick access toolbar command" << command << "renamed to"
+                        << *spelling;
+                    command = *spelling;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                it.value() = SettingsCodec<QStringList>::toVariant(*commands);
+                dirty_.push_back(qatPath);
+            }
+        }
     }
 }
 

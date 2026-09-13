@@ -59,10 +59,12 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QString>
 #include <QTemporaryDir>
 
 #include <memory>
+#include <span>
 
 namespace rawpage::uitest {
 
@@ -118,6 +120,18 @@ public:
 };
 
 struct ShellFixture {
+    ShellFixture() = default;
+
+    // A fixture whose settings file EXISTS BEFORE `Settings` loads it, read through a supplied alias
+    // table. Stage 2 I-39: what a user keeps across an action rename is decided at load, so a case
+    // about it has to hand the loader a file it did not write itself -- and the shipped alias table
+    // has no rows, so the case has to hand it those too. Members initialise in declaration order,
+    // which is what lets `iniPath` write the file between `directory` and `settings`.
+    ShellFixture(const QString& iniContents, std::span<const core::ActionAlias> aliases)
+        : iniPath(seedIni(directory, iniContents)), settings(iniPath, aliases)
+    {
+    }
+
     QTemporaryDir         directory;
     QString               iniPath{QDir(directory.path()).filePath(QStringLiteral("settings.ini"))};
     core::Settings        settings{iniPath};
@@ -158,6 +172,18 @@ struct ShellFixture {
         } while (renderScheduler.pendingCount() > 0 && timer.elapsed() < budgetMs);
 
         return delivered;
+    }
+
+    // Writes `contents` as the settings file in `dir` and returns its path. Used only by the seeded
+    // constructor above, where it runs as `iniPath`'s initialiser.
+    static QString seedIni(const QTemporaryDir& dir, const QString& contents)
+    {
+        const QString path = QDir(dir.path()).filePath(QStringLiteral("settings.ini"));
+        QFile file(path);
+        REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        REQUIRE(file.write(contents.toUtf8()) == contents.toUtf8().size());
+        file.close();
+        return path;
     }
 };
 

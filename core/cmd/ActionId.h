@@ -106,11 +106,14 @@ constexpr std::string_view actionLabelKey(ActionId id) { return actionDescriptor
 // real rows built by the real `RAWPAGE_ACTION_ALIAS` macro over
 // `tests/unit/fixtures/ActionAliasFixture.def`.
 //
-// **What that still does not cover (convention 19):** the *consumers*. `KeyBindingStore::load`,
-// `UiCustomization`, `SettingsSchema` and `RibbonModel` all call the shipped wrappers over the
-// shipped table, and with zero rows there is nothing for them to resolve. The first real rename is
-// still the first time those four paths meet an alias -- but it will no longer be the first time
-// the algorithm underneath them does, which is the half D1-16's argument actually turns on.
+// **What that still does not cover (convention 19):** most *consumers*. `KeyBindingStore`,
+// `UiCustomization` and `RibbonModel` call the shipped wrappers over the shipped table, and with
+// zero rows there is nothing for them to resolve. The one consumer that takes a table is the
+// settings LOADER (`Settings`, `SettingsSchema::isDeclaredPath`), since Stage 2 I-39: it rewrites a
+// retired spelling in the file under the current one, so the consumers that act on a user's saved
+// shortcuts and toolbar never meet an alias at all, and `tests/ui/tst_aliassurvival.cpp` drives
+// them over a file the fixture's rows produced. The first real rename is still the first time a
+// real row meets a user's file.
 
 constexpr std::optional<ActionId> actionFromStringIdIn(
     std::span<const ActionDescriptor> descriptors, std::span<const ActionAlias> aliases,
@@ -141,9 +144,11 @@ constexpr bool actionStringIdIsRetiredIn(std::span<const ActionDescriptor> descr
     return false;
 }
 
-// Resolves a string id, INCLUDING a retired one through its alias row. This is the function every
-// persistence path must use -- `shortcuts/<context>/<action>` on load, and the QAT customization
-// blob -- because it is the only one that honours a rename.
+// Resolves a string id, INCLUDING a retired one through its alias row. Anything that reads an id a
+// user or a resource wrote must use it -- the QAT customization blob, `res/ribbon.json` -- because it
+// is the only lookup that honours a rename. The settings file is the exception that goes further:
+// resolving a retired key is not enough there, because every write builds the key from the enum
+// and could never reach the retired one again, so `Settings` rewrites it at load (Stage 2 I-39).
 //
 // A linear scan over the whole table, deliberately. It runs at load time and on a `--list-actions`
 // dump, not per keystroke: chord lookup goes through `KeyBindingStore`'s own index. A sorted table
@@ -156,9 +161,11 @@ constexpr std::optional<ActionId> actionFromStringId(std::string_view stringId)
     return actionFromStringIdIn(kActions, kActionAliases, stringId);
 }
 
-// True when the string resolves only through an alias row -- i.e. it is a retired spelling. Callers
-// that rewrite a settings file use this to migrate the key to the current name while still honouring
-// the old one on the next load.
+// True when the string resolves only through an alias row -- i.e. it is a retired spelling.
+// `Settings::migrateRetiredActionIds` asks this (as `actionStringIdIsRetiredIn`) to decide which keys
+// in the file to rewrite under the current name. *(Until Stage 2 I-39 this comment said callers that
+// rewrite a settings file used it, and nothing did: the loader kept the retired key, and a
+// Preferences reset that cleared the current one came back on the next launch.)*
 constexpr bool actionStringIdIsRetired(std::string_view stringId)
 {
     return actionStringIdIsRetiredIn(kActions, kActionAliases, stringId);

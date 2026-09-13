@@ -24,22 +24,27 @@
 // `ViewToggleSidebar` and this file stops compiling, which is the correct outcome and is exactly
 // what a table of dead strings would not do.
 //
-//   1. An ordinary retirement -- an old spelling that must still resolve, and must report as
-//      retired so a settings rewrite can migrate the key while still honouring the old name on the
-//      next load.
-//   2. A SECOND alias onto the SAME action. Renaming twice is the ordinary shape of a long-lived
-//      product, and both spellings have to keep working; a mechanism that only tolerates one hop is
-//      one nobody discovers until the second rename.
+//   1. The OLDEST spelling of an action renamed twice -- `shell.toggleSidebar`, then
+//      `view.sidebar.toggle`, then today's `view.toggleSidebar`. Renaming twice is the ordinary
+//      shape of a long-lived product, and both old spellings have to keep working; a mechanism that
+//      only tolerates one hop is one nobody discovers until the second rename.
+//   2. The more recent retirement of the same action -- an old spelling that must still resolve,
+//      and must report as retired so the settings loader rewrites the key under the current name.
 //   3. A row whose old spelling COLLIDES with a live id. This is the one that cannot be written in
 //      the shipped table at all, and it is the case the resolution ORDER exists for: live table
 //      first, alias table second. Without a row like this, "a live id wins over an alias of the
 //      same spelling" is a sentence no test can distinguish from its opposite.
+//
+// ROWS 1 AND 2 ARE IN RENAME ORDER, and the order is load-bearing since Stage 2 I-39. `ActionId.def`
+// rule 2 appends alias rows, so a later row is a more recent rename, and `Settings::loadFromFile`
+// relies on exactly that when a file holds both old spellings of one shortcut: the later row's key
+// wins. Until I-39 the two rows were the other way round, which no case could see.
 
-// 1. The ordinary retirement.
-RAWPAGE_ACTION_ALIAS("view.sidebar.toggle", ViewToggleSidebar)
-
-// 2. A second, older spelling of the same action -- two renames deep.
+// 1. The oldest spelling -- the first rename.
 RAWPAGE_ACTION_ALIAS("shell.toggleSidebar", ViewToggleSidebar)
+
+// 2. The more recent spelling -- the second rename.
+RAWPAGE_ACTION_ALIAS("view.sidebar.toggle", ViewToggleSidebar)
 
 // 3. THE COLLISION. `file.open` is a live id; this row claims it as a retired spelling of something
 //    else entirely. Resolution must ignore it and answer `FileOpen`, because a live action always

@@ -74,7 +74,7 @@ const SettingsKeyInfo* findKey(const QString& path)
     return nullptr;
 }
 
-bool isDeclaredPath(const QString& path)
+bool isDeclaredPath(const QString& path, std::span<const ActionAlias> aliases)
 {
     if (findKey(path) != nullptr) return true;
 
@@ -96,9 +96,11 @@ bool isDeclaredPath(const QString& path)
     }
     if (!contextKnown) return false;
 
-    // Through actionFromStringId, so a RETIRED id still resolves via its alias row (D1-16). A user
-    // who remapped a shortcut in Stage 7 keeps that remap after the id is renamed in Stage 9.
-    return actionFromStringId(parts.at(1).toStdString()).has_value();
+    // Through the alias table, so a RETIRED id still resolves via its alias row (D1-16) and is
+    // declared rather than dropped as stale. Declared is not the end of it: `Settings::loadFromFile`
+    // then rewrites the key under the current spelling, because a key kept under the old one is a
+    // key nothing that writes can ever reach again (Stage 2 I-39).
+    return actionFromStringIdIn(kActions, aliases, parts.at(1).toStdString()).has_value();
 }
 
 const std::vector<Migration>& migrations()

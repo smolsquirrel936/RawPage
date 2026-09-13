@@ -32,12 +32,13 @@
 // WHAT THIS STILL DOES NOT COVER, NAMED AT THE ASSERTION (convention 19)
 // ===============================================================================================
 //
-// **The four consumers.** `KeyBindingStore::load`, `ui/shell/UiCustomization`,
-// `core/settings/SettingsSchema` and `ui/shell/RibbonModel` each call the shipped wrapper over the
-// shipped table, and with zero rows there is nothing there for them to resolve. The first real
-// rename is still the first time those four paths meet an alias. What is no longer true is that it
-// would also be the first time the algorithm underneath them met one -- and the algorithm is where
-// D1-16's argument actually lives.
+// **The consumers.** This file drives the algorithm and nothing that calls it. What a USER keeps
+// across a rename -- a saved shortcut, a saved Quick Access Toolbar -- is guide case A-73's second
+// clause, and since Stage 2 I-39 it has its own cases: `tst_settings.cpp` for the loader that
+// rewrites a retired spelling, `tests/ui/tst_aliassurvival.cpp` for the Shortcuts page and the
+// toolbar acting on what that loader produced. `ui/shell/RibbonModel` and the customization-blob
+// import (`UiCustomization::applyToSettings`) still call the shipped wrapper over the shipped table,
+// and with zero rows there is nothing there for them to resolve.
 //
 // ===============================================================================================
 // THE ASSERTIONS ARE `STATIC_REQUIRE`, SO A DEFECT HERE STOPS THE BUILD
@@ -58,6 +59,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/cmd/ActionId.h"
+#include "tests/unit/fixtures/ActionAliasFixture.h"
 
 #include <array>
 #include <span>
@@ -65,22 +67,14 @@
 #include <string_view>
 
 using namespace rawpage::core;
+using rawpage::testfixture::kFixtureAliasCount;
+using rawpage::testfixture::kFixtureAliases;
 
 namespace {
 
-// The fixture table, built by the SAME two-pass macro pattern `ActionId.h` uses for the shipped
-// one: count by re-including with only the alias macro defined, then build. Using the real macro
-// rather than hand-written `ActionAlias{...}` literals is the point -- a hand-written array would
-// test the algorithm and leave the macro exactly as unexercised as it was.
-constexpr std::size_t kFixtureAliasCount = 0
-#define RAWPAGE_ACTION_ALIAS(OldStringId, Enumerator) +1
-#include "tests/unit/fixtures/ActionAliasFixture.def"
-    ;
-
-constexpr std::array<ActionAlias, kFixtureAliasCount> kFixtureAliases{{
-#define RAWPAGE_ACTION_ALIAS(OldStringId, Enumerator) ActionAlias{OldStringId, ActionId::Enumerator},
-#include "tests/unit/fixtures/ActionAliasFixture.def"
-}};
+// The fixture table is built in `tests/unit/fixtures/ActionAliasFixture.h`, by the SAME two-pass
+// macro pattern `ActionId.h` uses for the shipped one. It lived here until Stage 2 I-39, when the
+// settings loader and the two consumers a user sees needed the same rows.
 
 constexpr std::optional<ActionId> resolve(std::string_view stringId)
 {

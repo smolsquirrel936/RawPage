@@ -31,6 +31,7 @@
 
 #include "core/Log.h"
 #include "core/cmd/ActionRegistry.h"
+#include "core/cmd/KeyBindingStore.h"
 #include "core/settings/SettingsSchema.h"
 
 #include "pdf/render/PdfiumInit.h"
@@ -46,6 +47,7 @@
 #include <QStringList>
 
 #include <optional>
+#include <vector>
 
 namespace {
 
@@ -408,24 +410,55 @@ int main(int argc, char** argv)
         // silently forgetting to register something it declared, and for that the state and the
         // count are the whole of it.
         //
+        // THE CHORDS, added 2026-09-14 for Stage 2 guide case A-72, which asked for them and found
+        // the column missing. They are the EFFECTIVE chords -- `KeyBindingStore::bindingsFor`, the
+        // same merged view the Shortcuts page shows and the keyboard resolves, so a §8 default the
+        // user has replaced is absent and their replacement is present, marked `[user]`. The §8
+        // table is `Features.md`'s to state; what a support transcript needs is what a key press
+        // on THIS machine does.
+        //
+        // One trailing field per binding, `Context:Chord`, rather than one column joined by a
+        // separator: §8's own chords contain a space (`Page Down`), a comma (`Ctrl+,`) and a
+        // semicolon (`Ctrl+;`), and no key is named with a tab. `-` when an action has none.
+        //
         // Tab-separated and untranslated: it is a developer diagnostic, and
         // `tools/i18n-lint/rules.json` puts console output out of scope because a translated
         // support transcript cannot be read back.
         const core::ActionRegistry& registry = root.services().actions;
+        const core::KeyBindingStore& bindings = root.services().keyBindings;
         const std::vector<core::ActionRegistry::ActionState> states = registry.allActions();
 
         std::size_t registered = 0;
         for (const core::ActionRegistry::ActionState& state : states)
             if (state.registered) ++registered;
 
+        std::vector<QStringList> chords(core::kActionCount);
+        for (std::size_t c = 0; c < core::kKeyContextCount; ++c) {
+            const auto context = static_cast<core::KeyContext>(c);
+            const std::string_view contextName = core::keyContextName(context);
+            for (const core::KeyBinding& binding : bindings.bindingsFor(context)) {
+                if (!binding.action) continue;   // widget-native: no action to list it under
+                const std::optional<core::Chord> chosen =
+                    bindings.overrideChordFor(*binding.action, context);
+                const bool user = chosen && *chosen == binding.chord;
+                chords[static_cast<std::size_t>(*binding.action)].append(
+                    QStringLiteral("%1:%2%3")
+                        .arg(QString::fromUtf8(contextName.data(),
+                                               static_cast<qsizetype>(contextName.size())),
+                             QString::fromStdString(binding.chord.toString()),
+                             user ? QStringLiteral("[user]") : QString()));
+            }
+        }
+
         writeLine(QStringLiteral("# actions\t%1 declared\t%2 registered\t%3 unregistered")
                       .arg(states.size())
                       .arg(registered)
                       .arg(states.size() - registered));
-        writeLine(QStringLiteral("# columns\tstate\tstringId\tdefaultContext\tlabelKey"));
+        writeLine(QStringLiteral("# columns\tstate\tstringId\tdefaultContext\tlabelKey\tchords..."));
 
         for (const core::ActionRegistry::ActionState& state : states) {
-            writeLine(QStringLiteral("%1\t%2\t%3\t%4")
+            const QStringList& actionChords = chords[static_cast<std::size_t>(state.id)];
+            writeLine(QStringLiteral("%1\t%2\t%3\t%4\t%5")
                           .arg(state.registered ? QStringLiteral("registered")
                                                 : QStringLiteral("declared"))
                           .arg(QString::fromUtf8(core::actionStringId(state.id).data(),
@@ -438,7 +471,9 @@ int main(int argc, char** argv)
                                       .size())))
                           .arg(QString::fromUtf8(core::actionLabelKey(state.id).data(),
                                                  static_cast<qsizetype>(
-                                                     core::actionLabelKey(state.id).size()))));
+                                                     core::actionLabelKey(state.id).size())))
+                          .arg(actionChords.isEmpty() ? QStringLiteral("-")
+                                                      : actionChords.join(QLatin1Char('\t'))));
         }
         return static_cast<int>(app::ExitCode::Ok);
     }

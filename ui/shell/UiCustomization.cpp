@@ -73,9 +73,14 @@ UiCustomization::ApplyReport UiCustomization::applyToSettings(const UiCustomizat
     // The shortcut half REPLACES rather than merges. An import is "make my layout look like this
     // one", and a merge would leave in place a remap the exporting machine had deliberately removed
     // -- which is the one outcome the person deploying a house layout cannot inspect.
+    //
+    // `importOverrides` RETURNS HOW MANY IT DROPPED. This line read that as the number ACCEPTED and
+    // subtracted it from the total, so an import of three good shortcuts reported three dropped and
+    // an import of three unresolvable ones reported none -- Stage 1 I-51's misreading, fixed in
+    // `app/CompositionRoot.cpp` on 2026-08-31 and left standing here, where nothing called it yet
+    // (Stage 2 I-40).
     bindings.clearAllOverrides();
-    const std::size_t accepted = bindings.importOverrides(data.shortcuts);
-    report.droppedShortcuts = static_cast<int>(data.shortcuts.size() - accepted);
+    report.droppedShortcuts = static_cast<int>(bindings.importOverrides(data.shortcuts));
 
     for (const core::KeyBindingStore::OverrideEntry& entry : bindings.exportOverrides()) {
         const std::optional<core::ActionId> action = core::actionFromStringId(entry.actionStringId);
