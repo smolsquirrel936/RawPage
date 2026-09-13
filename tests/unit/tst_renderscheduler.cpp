@@ -455,6 +455,36 @@ TEST_CASE("render scheduler WAKES for a tile it served from the cache", "[core][
     CHECK(wakes.load() > before);
 }
 
+TEST_CASE("render scheduler is not idle until the wake handler has returned", "[core][render]")
+{
+    // The race behind CI run 34772420519, made deterministic. The case above failed its control
+    // under ASan -- `waitForIdle()` returned, and `wakes` was still 0 -- because the worker announced
+    // idle BEFORE calling the handler, and a slow build lands in that gap. A handler that sleeps
+    // before counting widens the gap to 100 ms, so a scheduler that announces idle early fails this
+    // on every run rather than on the occasional one. THE CONTROL is the same count taken with no
+    // wait at all: it must still be 0, or the sleep did not open the gap and this proves nothing.
+    RasterizerProbe probe;
+    RenderScheduler scheduler(factoryFor(probe), nullptr);
+
+    std::atomic<bool> entered{false};
+    std::atomic<int> wakes{0};
+    scheduler.setWakeHandler([&] {
+        entered = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        ++wakes;
+    });
+
+    scheduler.enqueue(requestFor(1), RenderPriority::Visible);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!entered.load() && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::yield();
+    REQUIRE(entered.load());
+    CHECK(wakes.load() == 0);   // the control: the handler is inside its sleep
+
+    REQUIRE(scheduler.waitForIdle(2000));
+    CHECK(wakes.load() == 1);
+}
+
 TEST_CASE("render scheduler serves a cached tile without rasterizing it", "[core][render]")
 {
     RenderCache cache;

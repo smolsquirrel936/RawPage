@@ -89,7 +89,13 @@ add_test(NAME ui.screen_metrics_invariant
             -DRAWPAGE_EXE=$<TARGET_FILE:rawpage>
             -P "${CMAKE_CURRENT_SOURCE_DIR}/ScreenMetricsInvariant.cmake")
 set_tests_properties(ui.screen_metrics_invariant PROPERTIES
-    ENVIRONMENT "PATH=${RAWPAGE_MINGW_ROOT}/bin;$ENV{PATH}")
+    # ENVIRONMENT_MODIFICATION, NEVER `ENVIRONMENT "PATH=<dir>;$ENV{PATH}"`. `ENVIRONMENT` is a CMake
+    # LIST, so the semicolons of a Windows PATH split that one value into entries (113 on the CI runner) and the child
+    # ran with `PATH=<mingw>/bin` and nothing else. It passed wherever the Qt DLLs had been copied
+    # beside rawpage.exe and exited 0xC0000135 in every clean build -- CI runs 34724531551 and
+    # 34772420519. It also froze the CONFIGURING shell's PATH into the test. The bench targets use
+    # this form already (tests/bench/CMakeLists.txt).
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin")
 
 # A-87 -- issue I-27, and like A-84 it drives `rawpage.exe` instead of linking anything, for the
 # same class of reason: the condition it asserts is a property of a PROCESS. A diagnostic that
@@ -112,6 +118,8 @@ add_test(NAME ui.diagnostics_ignore_the_bus
             -File "${CMAKE_CURRENT_SOURCE_DIR}/DiagnosticsIgnoreTheBus.ps1"
             -Exe $<TARGET_FILE:rawpage>)
 set_tests_properties(ui.diagnostics_ignore_the_bus PROPERTIES
-    ENVIRONMENT "PATH=${RAWPAGE_MINGW_ROOT}/bin;$ENV{PATH}"
+    # The same trap as A-84's above, and here it did not even fail: a rawpage.exe that could not
+    # load Qt never exited, the control read that as "the bus is not claimed", and the case SKIPPED.
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin"
     SKIP_RETURN_CODE 77
     RUN_SERIAL TRUE)

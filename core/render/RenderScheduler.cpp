@@ -398,7 +398,7 @@ bool RenderScheduler::waitForIdle(int milliseconds)
 {
     std::unique_lock<std::mutex> lock(mutex_);
     return idle_.wait_for(lock, std::chrono::milliseconds(milliseconds),
-                          [this] { return pending_.empty() && running_ == 0; });
+                          [this] { return pending_.empty() && running_ == 0 && handingOff_ == 0; });
 }
 
 std::size_t RenderScheduler::pendingCount() const
@@ -500,15 +500,26 @@ void RenderScheduler::workerLoop(int index)
             completed_.push_back(Completion{request, std::move(result.value()), true, false});
         }
 
-        const bool nowIdle = pending_.empty() && running_ == 0;
         WakeHandler wake = wake_;
+        ++handingOff_;
         lock.unlock();
 
-        if (nowIdle) idle_.notify_all();
         // Called OUTSIDE the lock and carrying nothing: it is the only outward call a worker makes,
         // and a handler that took data or reached back into the scheduler would put a UI object on
         // this thread -- which is the bug this whole arrangement exists to make impossible.
         if (wake) wake();
+
+        // IDLE IS ANNOUNCED AFTER THE WAKE, not before it. Until 2026-09-14 the worker decremented
+        // `running_`, released the lock and only then called the handler, so `waitForIdle()` could
+        // return in that gap and its caller find no wake yet. The ASan build is slow enough to land
+        // in it: CI run 34772420519 failed "render scheduler WAKES for a tile it served from the
+        // cache" on its control, `wakes > 0`, with 0.
+        lock.lock();
+        --handingOff_;
+        const bool nowIdle = pending_.empty() && running_ == 0 && handingOff_ == 0;
+        lock.unlock();
+
+        if (nowIdle) idle_.notify_all();
     }
 }
 

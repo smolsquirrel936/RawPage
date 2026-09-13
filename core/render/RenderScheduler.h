@@ -190,7 +190,9 @@ public:
     bool isPaused() const;
 
     // Blocks until nothing is queued or running, or until the timeout. For tests and for an orderly
-    // shutdown; it is NOT a way to render synchronously.
+    // shutdown; it is NOT a way to render synchronously. "Running" lasts until the worker has
+    // RETURNED from the wake handler, not merely until the rasterizer has: a caller that returns from
+    // here has seen every wake its work produced.
     bool waitForIdle(int milliseconds);
 
     std::size_t pendingCount() const;
@@ -252,6 +254,9 @@ private:
     std::unordered_map<std::uint64_t, std::uint64_t> ticketToJob_;
     std::vector<std::uint64_t> pending_;                       // job ids, chosen by priority
     std::size_t running_ = 0;
+    // Workers between finishing a tile and returning from the wake handler. Counted for
+    // `waitForIdle()` only, so `runningCount()` keeps meaning "inside the rasterizer".
+    std::size_t handingOff_ = 0;
 
     std::deque<Completion> completed_;
     std::unordered_map<std::uint64_t, Revision> revisions_;

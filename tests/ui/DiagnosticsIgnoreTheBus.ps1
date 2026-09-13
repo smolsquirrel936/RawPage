@@ -84,6 +84,25 @@ function Test-Diagnostic {
     return $false
 }
 
+# --- The executable STARTS, before anything is read as a bus decision ----------------------------
+# The control below reads "a second process did not exit" as "the bus is not claimed" and skips. A
+# rawpage.exe that cannot load its DLLs does not exit either, so without this the case SKIPPED on
+# every run whose PATH had lost Qt -- CI runs 34724531551 and 34772420519, ten seconds of settling
+# and exit 77 over an executable that had never run a line. `--version` claims no bus and composes
+# nothing, so the only thing it can fail on is starting at all.
+$previousPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    $versionOutput = & $exePath --version 2>$null | Out-String
+    $versionCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousPreference
+}
+if ($versionCode -ne 0 -or $versionOutput -notmatch '(?m)^RawPage\s') {
+    Write-Host ("A-87: rawpage.exe --version exited 0x{0:X8} and printed no version line -- the executable does not start, so nothing below could measure the bus" -f $versionCode)
+    exit 1
+}
+
 try {
     # --- A primary, adopted or launched ---------------------------------------------------------
     $existing = @(Get-Process -Name 'rawpage' -ErrorAction SilentlyContinue)
