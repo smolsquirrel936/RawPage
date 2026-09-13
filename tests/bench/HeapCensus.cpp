@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 
 namespace rawpage::bench {
@@ -24,12 +25,24 @@ HeapCensus heapCensus()
         if (!HeapLock(heaps[i])) continue;
         PROCESS_HEAP_ENTRY entry{};
         while (HeapWalk(heaps[i], &entry)) {
+            if (entry.wFlags & PROCESS_HEAP_REGION) census.heapCommittedBytes += entry.Region.dwCommittedSize;
+            // A large allocation lives outside the regions and is committed on its own.
+            if ((entry.wFlags & PROCESS_HEAP_ENTRY_BUSY) && entry.cbData >= 512 * 1024)
+                census.heapCommittedBytes += entry.cbData;
             if (!(entry.wFlags & PROCESS_HEAP_ENTRY_BUSY)) continue;
             census.busyBytes += entry.cbData;
             census.busyBlocks += 1;
             if (sizes->size() < sizes->capacity()) sizes->push_back(entry.cbData);
         }
         HeapUnlock(heaps[i]);
+    }
+
+    MEMORY_BASIC_INFORMATION region{};
+    for (LPVOID at = nullptr; VirtualQuery(at, &region, sizeof(region)) == sizeof(region);) {
+        if (region.State == MEM_COMMIT && region.Type == MEM_PRIVATE) census.privateCommittedBytes += region.RegionSize;
+        const auto next = reinterpret_cast<std::uintptr_t>(region.BaseAddress) + region.RegionSize;
+        if (next <= reinterpret_cast<std::uintptr_t>(at)) break;
+        at = reinterpret_cast<LPVOID>(next);
     }
 
     std::sort(sizes->begin(), sizes->end());

@@ -24,9 +24,13 @@
 //   --only <file>         one corpus file per round instead of the nine
 //   --no-view             never page or zoom; open, paint once, close
 //   --with-encrypted      add encrypted/aes-256.pdf, answering its password prompt by timer
+//   --bus                 open through the REAL single-instance pipe: a rawpage.exe per file forwards
+//                         into this process, which holds rawpage.exe's scope (RawPage must not be running)
+//   --screen <n>          with --native, put the window on monitor n (QGuiApplication::screens() order)
 //   --handoff             open through MainWindow::openHandoff, the single-instance path
 //   --quiet-log           logging/level = Error, so almost nothing is logged
 //   --clear-pixmap-cache  clear Qt's QPixmapCache before measuring each round
+//   --compact             HeapCompact every heap after each round, before measuring
 //   --pump <ms>           event-loop time after each open (default 300)
 //   --track <r>           record C++ allocations from round r on and print the call stacks of the
 //                         survivors (AllocationTracker: our code's `new` only, not Qt's or PDFium's)
@@ -34,6 +38,8 @@
 
 #include "app/CompositionRoot.h"
 #include "app/Services.h"
+#include "app/SingleInstance.h"
+#include "platform/platform.h"
 #include "core/LogBuffer.h"
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
@@ -53,6 +59,7 @@
 #include <QLineEdit>
 #include <QTimer>
 #include <QFileInfo>
+#include <QProcess>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QInputMethod>
@@ -227,6 +234,9 @@ int main(int argc, char** argv)
     QString only;
     QString experiment;
     bool withEncrypted = false;
+    bool viaBus = false;
+    bool compact = false;
+    int screenIndex = -1;
     const QStringList arguments = QCoreApplication::arguments();
     for (int at = 1; at < arguments.size(); ++at) {
         const QString& argument = arguments.at(at);
@@ -234,6 +244,9 @@ int main(int argc, char** argv)
         if (argument == QLatin1String("--native")) continue;
         else if (argument == QLatin1String("--handoff")) handoff = true;
         else if (argument == QLatin1String("--with-encrypted")) withEncrypted = true;
+        else if (argument == QLatin1String("--bus")) viaBus = true;
+        else if (argument == QLatin1String("--compact")) compact = true;
+        else if (argument == QLatin1String("--screen") && hasValue) screenIndex = arguments.at(++at).toInt();
         else if (argument == QLatin1String("--no-view")) view = false;
         else if (argument == QLatin1String("--quiet-log")) quietLog = true;
         else if (argument == QLatin1String("--clear-pixmap-cache")) clearPixmapCache = true;
@@ -261,10 +274,48 @@ int main(int argc, char** argv)
     if (quietLog) root.settings().set(core::keys::logging::level, core::LogLevel::Error);
 
     ui::MainWindow window(root.services());
+    // --bus: THE REAL SINGLE-INSTANCE PIPE. This process claims the scope `rawpage.exe` computes for
+    // itself, so a real `rawpage.exe -- <file>` started per open is a SECONDARY: it connects, forwards
+    // and exits, and the file arrives through the bus's own listener exactly as in M-09's driven runs.
+    // Without it the harness calls `openHandoff` directly and never exercises the pipe.
+    const QString productExe = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("rawpage.exe"));
+    std::unique_ptr<app::SingleInstance> bus;
+    if (viaBus) {
+        bus = std::make_unique<app::SingleInstance>(root.platform().singleInstanceBus.get(),
+                                                    app::SingleInstance::scopeIdForExecutable(productExe));
+        const core::Result<app::SingleInstance::Role> claimed = bus->claim(true);
+        if (!claimed || claimed.value() != app::SingleInstance::Role::Primary) {
+            std::fprintf(stderr, "openclose-ui: could not become the primary for %s -- is RawPage running?\n",
+                         productExe.toStdString().c_str());
+            return 1;
+        }
+        const core::Status listening =
+            bus->listen([&window](const QStringList& files) { window.openHandoff(files); });
+        if (!listening) {
+            std::fprintf(stderr, "openclose-ui: the bus would not listen\n");
+            return 1;
+        }
+    }
+    const auto forwardThroughBus = [&productExe](const QString& file) {
+        QProcess secondary;
+        secondary.start(productExe, {QStringLiteral("--"), file});
+        // The event loop must keep running while the secondary forwards: the listener delivers on
+        // this thread, and blocking here would stall the handoff it is waiting for.
+        QElapsedTimer timer;
+        timer.start();
+        while (secondary.state() != QProcess::NotRunning && timer.elapsed() < 15000) pump(10);
+        if (secondary.state() != QProcess::NotRunning) secondary.kill();
+    };
     window.resize(1920, 1080);
     if (native) {
         window.setAttribute(Qt::WA_ShowWithoutActivating);   // never take the keyboard from a person
-        window.move(-2600, 40);
+        const QList<QScreen*> screens = QGuiApplication::screens();
+        if (screenIndex >= 0 && screenIndex < screens.size()) {
+            // A chosen monitor -- I-35's product runs were on the 150 % one, whose pixmaps are 2.25x.
+            window.setGeometry(screens.at(screenIndex)->availableGeometry());
+        } else {
+            window.move(-2600, 40);
+        }
     }
     window.show();
     pump(500);
@@ -290,12 +341,18 @@ int main(int argc, char** argv)
     std::printf("openclose-ui: %d rounds x %lld files, %s, view %s, log %s, pixmap cache %s, "
                 "pump %d ms (QPixmapCache limit %d KB, style %s, platform %s)\n",
                 rounds, static_cast<long long>(roundFiles.size()),
-                handoff ? "openHandoff" : "openFiles", view ? "ON" : "off",
+                viaBus ? "the real single-instance pipe" : handoff ? "openHandoff" : "openFiles", view ? "ON" : "off",
                 quietLog ? "quiet" : "Info", clearPixmapCache ? "CLEARED each round" : "kept", pumpMs,
                 QPixmapCache::cacheLimit(), QApplication::style()->name().toStdString().c_str(),
                 QGuiApplication::platformName().toStdString().c_str());
+    for (int i = 0; i < QGuiApplication::screens().size(); ++i)
+        std::printf("screen %d: %s, dpr %.2f%s\n", i,
+                    QGuiApplication::screens().at(i)->name().toStdString().c_str(),
+                    QGuiApplication::screens().at(i)->devicePixelRatio(),
+                    window.screen() == QGuiApplication::screens().at(i) ? "  <- window" : "");
     std::printf("round,privateMB,liveHeapMB,liveBlocks,handles,documentsOpenAtPeak,allWidgets,"
-                "windowChildren,cacheEntries,pendingPlusRunning,logBuffer,logPaneBlocks,recentEntries,recentListSetting\n");
+                "windowChildren,cacheEntries,pendingPlusRunning,logBuffer,logPaneBlocks,recentEntries,recentListSetting,"
+                "heapCommittedMB,heapFreeKeptMB,privateOutsideHeapsMB\n");
 
     // --experiment: ONE operation, 200 times, with the heap census around it. Elimination rather
     // than archaeology -- each run answers whether that operation alone leaves anything behind.
@@ -341,6 +398,13 @@ int main(int argc, char** argv)
         for (int i = 0; i < repeats; ++i) once();
         pump(500);
         if (clearPixmapCache) QPixmapCache::clear();
+        if (compact) {
+            // Asks every heap to decommit the free memory it is keeping -- the question being whether
+            // private bytes that live heap does not explain are RECLAIMABLE or fragmented beyond reach.
+            HANDLE heaps[256];
+            const DWORD count = GetProcessHeaps(256, heaps);
+            for (DWORD i = 0; i < count && i < 256; ++i) HeapCompact(heaps[i], 0);
+        }
         const bench::HeapCensus after = bench::heapCensus();
         std::printf("experiment %s x%d: live heap %+.1f KB, 218-byte blocks %+lld\n",
                     experiment.toStdString().c_str(), repeats,
@@ -357,7 +421,9 @@ int main(int argc, char** argv)
         if (trackFrom > 0 && round == trackFrom) bench::startTracking();
         for (const QString& relative : roundFiles) {
             const QStringList files{corpus.filePath(relative)};
-            if (handoff)
+            if (viaBus)
+                forwardThroughBus(files.first());
+            else if (handoff)
                 window.openHandoff(files);
             else
                 window.openFiles(files);
@@ -379,6 +445,13 @@ int main(int argc, char** argv)
         window.closeAllDocuments();
         pump(1000);
         if (clearPixmapCache) QPixmapCache::clear();
+        if (compact) {
+            // Asks every heap to decommit the free memory it is keeping -- the question being whether
+            // private bytes that live heap does not explain are RECLAIMABLE or fragmented beyond reach.
+            HANDLE heaps[256];
+            const DWORD count = GetProcessHeaps(256, heaps);
+            for (DWORD i = 0; i < count && i < 256; ++i) HeapCompact(heaps[i], 0);
+        }
 
         int logPaneBlocks = -1;
         if (auto* pane = window.findChild<ui::LogPane*>())
@@ -390,14 +463,17 @@ int main(int argc, char** argv)
         const bench::HeapCensus heap = bench::heapCensus();
         if (round == middle) heapAtMiddle = heap;
 
-        std::printf("%d,%.1f,%.2f,%zu,%lu,%d,%lld,%lld,%zu,%zu,%zu,%d,%zu,%lld\n", round, privateMB(),
+        std::printf("%d,%.1f,%.2f,%zu,%lu,%d,%lld,%lld,%zu,%zu,%zu,%d,%zu,%lld,%.1f,%.1f,%.1f\n", round, privateMB(),
                     heap.busyBytes / (1024.0 * 1024.0), heap.busyBlocks, handleCount(), openAtPeak,
                     static_cast<long long>(QApplication::allWidgets().size()),
                     static_cast<long long>(window.findChildren<QObject*>().size()),
                     root.renderCache().entryCount(),
                     root.renderScheduler().pendingCount() + root.renderScheduler().runningCount(),
                     root.logBuffer().size(), logPaneBlocks, root.recentFiles().entries().size(),
-                    static_cast<long long>(root.settings().get(core::keys::documents::recentList).size()));
+                    static_cast<long long>(root.settings().get(core::keys::documents::recentList).size()),
+                    heap.heapCommittedBytes / (1024.0 * 1024.0),
+                    (static_cast<double>(heap.heapCommittedBytes) - heap.busyBytes) / (1024.0 * 1024.0),
+                    (static_cast<double>(heap.privateCommittedBytes) - heap.heapCommittedBytes) / (1024.0 * 1024.0));
         std::fflush(stdout);
 
         if (round == rounds && rounds > middle) {

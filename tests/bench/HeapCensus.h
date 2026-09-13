@@ -22,6 +22,12 @@ struct HeapCensus {
     std::size_t busyBytes = 0;
     std::size_t busyBlocks = 0;
     std::vector<std::pair<std::size_t, long long>> bySize;   // (block size, how many), sorted by size
+
+    // WHERE PRIVATE BYTES ACTUALLY ARE. Committed private memory in the address space, split into what
+    // the NT heaps have committed -- busy blocks plus freed blocks the heap is keeping -- and private
+    // memory outside every heap (a VirtualAlloc: a GPU driver, a JIT, an allocator of its own).
+    std::size_t heapCommittedBytes = 0;      // committed bytes of every heap region
+    std::size_t privateCommittedBytes = 0;   // every MEM_PRIVATE | MEM_COMMIT region in the process
 };
 
 HeapCensus heapCensus();

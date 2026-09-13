@@ -19,7 +19,7 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | | |
 |---|---|
 | **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, NOT signed off.** |
-| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), an S2 fixed the same day and **not closed until the running `rawpage.exe` is re-measured under M-09's driver** — that re-run, and the sign-off, are what is left. |
+| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), **partly fixed** the same day and **downgraded to S3 by the user**: four live retentions fixed, and the running `rawpage.exe` still grows **+2.2 MB of private bytes a round against +4.3** — measured as **heap fragmentation** (committed-but-free memory; live heap is flat through the real pipe), open with no owner stage. M-09's sign-off is the user's. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
 | **Tests** | **726/726** as of I-35's fixes, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
@@ -447,10 +447,10 @@ Two checks that are neither a `ctest` case nor a gate, and each has a recorded r
                                                     #   numbers. `8` sweeps the worker count;
                                                     #   `--whole-page` reports the other quantity.
                                                     #   READ IT WITH THE PROBE, NEVER INSTEAD OF IT
-.\build\x64-release\bin\rawpage_bench_openclose.exe --bridge 50   # S2 I-35's reproducer, NO window: LIVE
+.\build\x64-release\bin\rawpage_bench_openclose.exe --bridge 50   # Stage 2 I-35's reproducer, NO window: LIVE
                                                     #   heap per round of ten documents, and the
                                                     #   block sizes that grew. `--no-render`
-.\build\x64-release\bin\rawpage_bench_openclose_ui.exe 30 --native --with-encrypted --handoff --quiet-log
+.\build\x64-release\bin\rawpage_bench_openclose_ui.exe 30 --native --with-encrypted --bus --quiet-log
                                                     # guide case A-92: the product's own composition,
                                                     #   real platform and style (a window appears,
                                                     #   without taking focus). Read liveHeapMB, NEVER

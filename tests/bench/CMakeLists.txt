@@ -183,6 +183,7 @@ add_executable(rawpage_bench_openclose_ui
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/LogFile.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp
+    ${CMAKE_SOURCE_DIR}/app/SingleInstance.cpp
 )
 target_include_directories(rawpage_bench_openclose_ui PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(rawpage_bench_openclose_ui PRIVATE
