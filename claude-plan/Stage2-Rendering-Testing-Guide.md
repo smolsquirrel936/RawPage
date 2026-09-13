@@ -8,7 +8,7 @@
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
-> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is COMPLETE — TEN OF TEN, the last signed off 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after its growth clause's defect **I-35** was found, fixed and closed. **The stage is still not signed off**: §9 items 1 and 5 remain — A-71 needs a CI run, which needs a push, three automated cases are half met, and the fuzz soak is not run.**
+> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is COMPLETE — TEN OF TEN, the last signed off 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after its growth clause's defect **I-35** was found, fixed and closed. **The stage is still not signed off, and every §9 item is now met (2026-09-14)**: item 1 when A-69 was met and A-68 re-taken after I-41, and item 5 when `.github/workflows/fuzz-soak.yml` ran both fuzz targets for ten minutes clean, in run 34781013867. What remains is the user's sign-off.**
 > **93 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
@@ -911,7 +911,7 @@ Linux too — `VCPKG_MANIFEST_FEATURES` is set for `_portable` as well as `_wind
 ### 5.4 Fuzzing — the preset's first real targets
 
 **A-25 · `fuzz_cos_lexer` builds and runs 10 minutes clean**
-🟡 **WRITTEN AT T5. A CI JOB EXISTS AS OF T18 and the target now BUILDS AND RUNS on every
+✅ **MET 2026-09-14 — run 34781013867, 601 s, 2,271,896 inputs, nothing found.** *(Below, as it stood before the soak:)* 🟡 **WRITTEN AT T5. A CI JOB EXISTS AS OF T18 and the target now BUILDS AND RUNS on every
 push — seeded, for 60 seconds, not for ten minutes. The build half is closed; the soak is not.**
 **Goal** `portable-fuzz` has been wired since Stage 0 with its preset description saying **"NO
 TARGETS EXIST until Stage 2"**. **Steps** Build on `portable-fuzz`; run seeded from `corpus/malformed/`:
@@ -944,10 +944,12 @@ short run establishes is that the driver starts, reads the seed corpus and execu
 is what turns *"the target exists"* into *"the target runs"*. A real soak belongs on a schedule, and
 that is **Stage 3's** to add along with `tests/roundtrip/`; recorded here rather than left implicit,
 because the difference between a smoke test and a fuzz campaign is exactly the kind of thing a green
-tick makes invisible.
+tick makes invisible. *(Corrected 2026-09-14: the soak was added in Stage 2, not Stage 3. It is its own
+workflow, run by hand and weekly on Mondays, so no push triggers it and no push cancels it.)*
+**Result 2026-09-14 — the soak, run 34781013867** (`.github/workflows/fuzz-soak.yml`, dispatched by hand on `8d98ba1`, 600 s requested per target). Each target soaks in its own job, seeded from `corpus/malformed/` into a scratch corpus, under ASan + UBSan with `-fno-sanitize-recover=all`. The flags are `-timeout=30` (libFuzzer's default of 1200 s per input could never fail a ten-minute soak), `-error_exitcode=1` and `-timeout_exitcode=1`. The log is also grepped for a sanitizer line, which is I-38's lesson. **`fuzz_cos_lexer`: `Done 2271896 runs in 601 second(s)`**, 3,780 a second, 15,026 new units, slowest unit 0 s, peak RSS 524 MB. **The exit code was 0, and the job printed *no sanitizer line in fuzz_cos_lexer's log*.** **What it does NOT claim:** that the lexer is correct. A green soak says only that ten minutes of mutation from these seeds found no crash, leak, sanitizer report or 30-second input. The seeds are our own generated corpus, so the evidence is bounded by D2-11's.
 
 **A-26 · `fuzz_cos_parser` — the primary target — same**
-🟡 **WRITTEN AT T6. BUILDS AND RUNS SEEDED ON EVERY PUSH as of T18; the ten-minute soak is
+✅ **MET 2026-09-14 — run 34781013867, 601 s, 875,611 inputs, nothing found.** *(Below, as it stood before the soak:)* 🟡 **WRITTEN AT T6. BUILDS AND RUNS SEEDED ON EVERY PUSH as of T18; the ten-minute soak is
 still owed — see A-25, which carries the reasoning for both.**
 **Steps** As A-25, against `./bin/fuzz_cos_parser`. **Expect** As A-25.
 **State 2026-09-03** The target **exists** (`tests/fuzz/fuzz_cos_parser.cpp`) and this machine has
@@ -968,7 +970,8 @@ linked, and runs it for 60 seconds seeded from `corpus/malformed/` on every push
 overflow at `pdf/cos/Parser.cpp:586`, reported by UBSan and survived because `portable-fuzz` lacked
 `-fno-sanitize-recover=all`. *"Runs clean"* was read off a green tick for eight days. Fixed in the parser, with
 a unit case; the preset now makes a finding abort. **Run 34775047037**, the first under it: 128,136 runs in
-60 s and no sanitizer line in the log. The ten-minute soak is still the half owed.
+60 s and no sanitizer line in the log. The ten-minute soak is still the half owed. *(Corrected below the same day.)*
+**Result 2026-09-14 — the soak, run 34781013867** (`.github/workflows/fuzz-soak.yml`, dispatched by hand on `8d98ba1`, 600 s requested per target), the same job as A-25's with the same flags. **`fuzz_cos_parser`: `Done 875611 runs in 601 second(s)`**, 1,456 a second, 12,022 new units, slowest unit 0 s, peak RSS 544 MB. **The exit code was 0, and the job printed *no sanitizer line in fuzz_cos_parser's log*.** The body's own checks (progress, the iterative depth bound, span containment) abort on a violation, so they ran on every input and none fired. Same bound as A-25: this is not a correctness claim.
 
 **A-27 · The fuzz targets actually exist in the build graph**
 ✅ **closed at T6 — and moved from a manual enumeration to an assertion at T5**
@@ -3034,13 +3037,13 @@ Stage 2 is done when **all** of these hold. This is
 2. ✅ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Ten of ten as of 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after I-35 was closed, knowing it did not cover uninitialized reads. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
 3. ✅ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**. **Measured 2026-09-14**: layer-lint 282 files, license-audit 20 components, i18n-lint 176 files, no waiver creep (eight filesystem-write waivers).
 4. ✅ `ctest` green across all five Windows targets, every prior stage included. **Measured 2026-09-14 after I-39 and I-40: 741/741, one skipped by name** (the battery case). It was 729/729 after I-36, I-37 and I-38, and the bare `gates` preset was 94/94 then.
-5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets
-   that demonstrably exist. **Half done 2026-09-06 at T18**, and the half is the one that was
+5. ✅ `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets
+   that demonstrably exist. **MET 2026-09-14**: the ten-minute soak ran as `.github/workflows/fuzz-soak.yml`, run **34781013867**. `fuzz_cos_lexer` ran 2,271,896 inputs and `fuzz_cos_parser` 875,611, in 601 s each, with no crash, leak, timeout or sanitizer line (A-25, A-26). The sentence below that gives the soak to Stage 3 is superseded: it was added in Stage 2 so that this item could be met. **Half done 2026-09-06 at T18**, and the half is the one that was
    missing: **a Linux fuzz job now exists**. Until T18, A-25 and A-26 were recorded as *"Linux
    jobs"* and there was no Linux fuzz job in `ci.yml` at all — a deferral whose owner did not
    exist, which is I-30's shape. Both targets now build, are asserted to have LINKED before being
    run, and run seeded from `corpus/malformed/` on every push. **The 10 minutes is deliberately not
-   run per-push** (60 s each): a soak belongs on a schedule, and is Stage 3's to add. `portable-asan`
+   run per-push** (60 s each): a soak belongs on a schedule, and ~~is Stage 3's to add~~ was added in Stage 2 as its own workflow, as above. `portable-asan`
    is unchanged and still runs the corpus parse. **Correction 2026-09-14 — I-38:** until then a green
    fuzz job did not mean a clean one: the preset let UBSan report and continue, and every run since T18
    had logged a signed overflow in `Parser.cpp`. Fixed, and `portable-fuzz` now aborts on a finding —

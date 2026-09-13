@@ -308,7 +308,8 @@ jobs:
   # A-04 rather than as pending boxes -- and then no Linux job existed to run them, which is the
   # difference between a deferral with an owner and a deferral without one. This job is the owner.
   #
-  # TEN MINUTES IS THE GUIDE'S FIGURE, and it is not run here. A fuzz target's value is in long
+  # TEN MINUTES IS THE GUIDE'S FIGURE, and it is not run here -- it is `fuzz-soak.yml`'s, a separate
+  # workflow run weekly and by hand (Stage 2, 2026-09-14). A fuzz target's value is in long
   # soaks, and a ten-minute soak on every push would make the slowest job in the pipeline the one
   # that finds least. What this job establishes is the thing A-25's own "If it fails" clause calls
   # **S2**: *it builds*. A preset that has never built anything has not been proven to build
@@ -368,7 +369,7 @@ jobs:
       # a VALID document with one named fault, so the fuzzer starts from inputs that already reach
       # deep into the reader rather than from random bytes bouncing off the header check.
       #
-      # 60 seconds each, not the guide's 600. The long soak is a scheduled job's work, and asking
+      # 60 seconds each, not the guide's 600. The long soak is fuzz-soak.yml's work, and asking
       # for it on every push buys ten minutes of wall time per run to re-cover ground the previous
       # run already covered. `-error_exitcode=1` is explicit: libFuzzer's default already exits
       # non-zero on a crash, and saying so is cheaper than the day somebody wonders.
