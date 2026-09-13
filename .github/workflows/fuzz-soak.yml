@@ -1,0 +1,144 @@
+# The ten-minute fuzz soak -- guide cases A-25 and A-26 (Stage2-Rendering-Testing-Guide.md 5), and
+# Stage 2's sign-off item 5 (the same guide, 9).
+#
+# WHY A SEPARATE WORKFLOW RATHER THAN A JOB IN ci.yml. CI's `portable-fuzz` job runs each target for
+# 60 seconds on every push, and ci.yml's comment says why the guide's 600 is not run there: a soak
+# on every push re-covers ground the previous push already covered. The soak is not per-push work,
+# so it lives in a workflow that no push triggers. It must also be a separate FILE: ci.yml's
+# concurrency group cancels an in-progress run when a newer push arrives, and a soak cancelled at
+# minute eight has proven nothing while still reading as "cancelled" rather than "failed".
+#
+# WHAT A GREEN RUN CLAIMS, AND ONLY THIS: libFuzzer, seeded from corpus/malformed/, drove each target
+# for the stated time under ASan + UBSan with -fno-sanitize-recover=all and found no crash, no
+# leak, no sanitizer report and no input slower than -timeout. It does not claim the reader is
+# correct, and it says nothing about code outside pdf/cos/'s lexer and parser.
+#
+# THE LOG IS READ, NOT JUST THE EXIT CODE. Stage 2 I-38: every fuzz run from T18 to 2026-09-14 logged
+# a UBSan finding under a green tick, because the preset let UBSan report and continue. The preset
+# now aborts on a finding, and this workflow ALSO greps each target's log for a sanitizer line and
+# fails on one -- so the next time a flag goes missing, the soak says so instead of agreeing.
+
+name: Fuzz soak
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds per target (the guide's figure is 600)"
+        required: false
+        default: "600"
+  schedule:
+    # Mondays 03:17 UTC. Off the hour, because scheduled runs on the hour queue behind everyone's.
+    - cron: "17 3 * * 1"
+
+concurrency:
+  group: fuzz-soak-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: Fuzz soak (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    # Budget: ~5 min to install and build, the soak itself, and slack. A hung job must not hold a
+    # runner for GitHub's six-hour default.
+    timeout-minutes: 45
+    strategy:
+      # Both targets report even when one fails: a finding in the lexer says nothing about the parser.
+      fail-fast: false
+      matrix:
+        target: [fuzz_cos_lexer, fuzz_cos_parser]
+    env:
+      SOAK_SECONDS: ${{ github.event.inputs.seconds || '600' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools, clang and QtCore
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang qt6-base-dev
+
+      - name: Export VCPKG_ROOT
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-linux-fuzz-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-linux-fuzz-
+
+      # tests/fuzz/CMakeLists.txt fails configure on the wrong target count (A-27), so an empty fuzz
+      # graph stops here rather than soaking nothing for ten minutes.
+      - name: Configure
+        run: cmake --preset portable-fuzz
+
+      - name: Build ${{ matrix.target }}
+        run: cmake --build --preset portable-fuzz --target ${{ matrix.target }}
+
+      - name: The target linked
+        run: |
+          path="build/portable-fuzz/bin/${{ matrix.target }}"
+          if [ ! -x "$path" ]; then
+            echo "::error::$path was not built"
+            exit 1
+          fi
+          echo "${{ matrix.target }}: linked"
+
+      # The soak. The FIRST corpus directory is where libFuzzer writes the inputs it finds, so it is
+      # a scratch directory, and corpus/malformed/ is passed second as read-only seeds: the checked-in
+      # corpus is data whose provenance is recorded file by file, and a fuzzer must not add to it.
+      #
+      # -timeout=30: libFuzzer's default is 1200 s PER INPUT, which would let a hang sit unreported
+      # for twenty minutes and so could never fail a ten-minute soak. A-25 expects "no timeout", and
+      # a single malformed file that takes 30 s to lex or parse is a hang by any reading.
+      #
+      # `set -o pipefail` so tee cannot swallow the fuzzer's exit code.
+      - name: Soak ${{ matrix.target }} for ${{ env.SOAK_SECONDS }} s
+        run: |
+          set -o pipefail
+          mkdir -p soak/corpus soak/artifacts
+          ./build/portable-fuzz/bin/${{ matrix.target }} soak/corpus corpus/malformed \
+              -max_total_time="$SOAK_SECONDS" \
+              -timeout=30 \
+              -error_exitcode=1 \
+              -timeout_exitcode=1 \
+              -print_final_stats=1 \
+              -artifact_prefix=soak/artifacts/ \
+            2>&1 | tee soak/fuzz.log
+
+      # I-38's lesson, applied: a sanitizer line in the log fails the job even if the exit code did not.
+      - name: No sanitizer report in the log
+        if: always()
+        run: |
+          if [ ! -f soak/fuzz.log ]; then
+            echo "::error::no fuzz log -- the soak did not run"
+            exit 1
+          fi
+          if grep -nE "runtime error|AddressSanitizer|UndefinedBehaviorSanitizer|LeakSanitizer" soak/fuzz.log; then
+            echo "::error::a sanitizer reported in ${{ matrix.target }}'s log"
+            exit 1
+          fi
+          echo "no sanitizer line in ${{ matrix.target }}'s log"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.target }} -- ${SOAK_SECONDS} s requested"
+            echo ""
+            echo '```'
+            grep -E "^stat::|^Done [0-9]+ runs|DEDUP_TOKEN|^SUMMARY" soak/fuzz.log || echo "(no final stats -- the run did not finish)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # A crashing input is the whole deliverable of a failed soak; keep it and the log.
+      - name: Keep the log and any crashing input
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-soak-${{ matrix.target }}
+          path: |
+            soak/fuzz.log
+            soak/artifacts/
+          if-no-files-found: warn
+          retention-days: 30
