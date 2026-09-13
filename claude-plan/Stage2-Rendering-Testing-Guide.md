@@ -8,7 +8,7 @@
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
-> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is NINE OF TEN as of 2026-09-13** — M-01 … M-08 and M-10 walked and signed off by the user, and **M-09 RUN the same day and NOT signed off**: its memory checker was on this machine all along, came back clean, and its growth half found **I-35**, downgraded to S3 by the user and **closed 2026-09-14**: four live retentions and the heap fragmentation fixed, and the running product, measured without the verifier, grows +0.29 MB a round (the log pane's bounded fill).**
+> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is COMPLETE — TEN OF TEN, the last signed off 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after its growth clause's defect **I-35** was found, fixed and closed. **The stage is still not signed off**: §9 items 1 and 5 remain — A-71 needs a CI run, which needs a push, three automated cases are half met, and the fuzz soak is not run.**
 > **93 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
@@ -27,7 +27,7 @@
 > cases, each run red before its fix, and the measurement that moved M-09's growth clause out of the
 > manual walk) and **10 manual** (M-01 … M-10), of
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
-> A-75 … A-93 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
+> A-70, A-74 and A-75 … A-93 are green** (A-68 run and recorded 2026-09-14; A-69, A-72 and A-73 🟡, each with its missing half named; A-71 ☐ until CI runs on a push) — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61 was 🟡 until M-02 cleared it on 2026-09-06; A-62, A-65 and A-67 remain 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
@@ -50,8 +50,8 @@
 > [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), with
 > risk **R5** struck through and now closed out. **O7, O10 and D2-14 are answered at T18 by
 > measurement rather than by preference** — one shared cache, the portable sanitizer route, and no
-> disk tier. The
-> **None of the ten manual cases has been walked**, and as of T13 **the first four are walkable** —
+> disk tier.
+> **The manual walk, as it went** — *history, kept for its lesson; the live state is the first status line above and each case's own heading in §6*. **Before T13 none of the ten manual cases could be walked**, and as of T13 **the first four were walkable** —
 > there is a page on screen to look at; `rawpage.exe <a corpus file>` opens it. **T14 makes them worth
 > walking**: the §8 Viewer chords work, the status bar reports real numbers, and a repaired file says
 > so, and **T16 makes M-03's typography half gradeable for the first time** — a missing font now
@@ -133,7 +133,7 @@
   DPI, surviving a drag between monitors at different scaling.
 - The **§8 Viewer key bindings** listed in `Implementation-Plan.md` § Stage 2, and the first
   `KeyContext` declaration the product has ever had. **Met at T14** — 23 of 361 registered ids
-  became 48, and the seven chords later stages own stay `NotFound` and leave the key unconsumed,
+  became 48, and the **fourteen** Viewer chords later stages own stay `NotFound` and leave the key unconsumed *(re-counted 2026-09-14 from `KeyBindingDefaults.def` against `--list-actions`; earlier text said seven)*,
   which a case walks rather than a comment describing.
 - **A missing embedded font substitutes through OUR policy and the product can name the face**
   (T16). Not in the original list, and it is what A-66 is for.
@@ -269,7 +269,9 @@ Diagnostics the entry point answers, all usable under `QT_QPA_PLATFORM=offscreen
 Two checks that are neither a `ctest` case nor a gate:
 
 ```powershell
-.\build\x64-release\bin\rawpage_bench_render.exe    # A2's product figure, and O7's cache statistics
+.\build\x64-release\bin\rawpage_bench_render.exe    # A2's PROBE figure: raw PDFium, below the facade (T3)
+.\build\x64-release\bin\rawpage_bench_pipeline.exe  # A2's PRODUCT figure and O7's cache statistics (T18)
+.\build\x64-release\bin\rawpage_bench_openclose_ui.exe 30 --native --bus --with-encrypted   # A-92, memory per document (I-35)
 .\scripts\check-single-instance.ps1                  # unchanged from Stage 1
 ```
 
@@ -2200,48 +2202,88 @@ and must not be quoted as the product**: its Fusion style caches scroll-bar arro
 key per view and the key strings survive `QPixmapCache::clear()`, about 0.5 KB per document — measured
 absent under the native style.
 
-**A-68 · `bench_render` — A2's PRODUCT figure**
-☐ **Goal** D2-1's second half, and the §3 verdict. **Steps** `rawpage_bench_render.exe` on the P-1
+**A-68 · A2's PRODUCT figure** ✅ **run 2026-09-14** *(the case named `bench_render`; T18 put the product figure in `rawpage_bench_pipeline` and kept `bench_render` as the probe — see `tests/bench/CMakeLists.txt`)*
+**Goal** D2-1's second half, and the §3 verdict. **Steps** `rawpage_bench_render.exe` on the P-1
 machine: a text-heavy A4 page at 200 % on the 150 %-scaled monitor, 8 workers, over the corpus.
 **Expect** p50 and p95 per-tile milliseconds reported against the **16.667 ms** frame budget, in
 phases, **and the figure is recorded beside T3's probe figure with the difference explained.** A
 benchmark reports; its exit code is about whether the measurement was *possible*, never whether the
 machine was fast. **If it fails to measure** S1 against A2.
+**Result 2026-09-14** (`rawpage_bench_pipeline.exe 8`, under the product's segment-heap manifest): A2's
+configuration, 288 dpi over a 1920×1080 viewport, p95 **13.60 / 13.28 / 14.27 / 13.64 ms** at 1 / 2 / 4 / 8
+workers against 16.667 ms, cost 0.334–0.357 ms a tile; the corpus at 96 / 144 / 192 dpi p95 7.38 / 7.75 /
+11.12 ms. **Beside the probe** (`rawpage_bench_render.exe`, same session): p95 **0.541 ms** of service time
+behind the engine lock, 30.8× headroom. The two are different quantities, and the comparable pair is the
+probe's 0.54 ms service time and the product's ~0.34 ms cost a tile, which agree — as `Tech-Stack-Plan.md`
+§3.3 records. **Workers stay at 1**: eight buy nothing at p95 and cost at p50 (9.99 → 12.94 ms).
 
-**A-69 · The benchmark carries its own control**
-☐ **Goal** Stage 1's **I-29** — a benchmark whose every printed figure was its own argument-evaluation
+**A-69 · The benchmark carries its own control** 🟡 **2026-09-14 — the probe has one; the product benchmark's latency does not**
+**Goal** Stage 1's **I-29** — a benchmark whose every printed figure was its own argument-evaluation
 bug, and Stage 1 T15's rule that **a 0.000 ms reading has two explanations: a cheap operation, or a
 dead instrument.**
 **Expect** A control phase with a known non-trivial cost reports a non-zero figure. Without it, no
 number in A-68 is evidence. **If it fails** S2 — and every A-68 figure is then unusable, not merely
 suspect.
+**Result 2026-09-14.** **The probe's control is real**: beside its percentiles it prints throughput, 1,705
+tiles/s at one worker and 1,867 at eight (1.09×) — the figure that exposes serialization which per-tile
+service times cannot. **The product benchmark has no dedicated latency control phase.** Its figures are
+non-zero and move the way the workload says they should (a 900 % larger corpus render, a slower disk
+tier), and its O7 phase carries a genuine control — a 24 MiB cap forcing 297 evictions where 256 MiB forces
+none, which proves the counters live — but nothing in it has a *known* cost set up to catch a dead
+latency instrument. **What is absent:** that phase; no owner is assigned here.
 
-**A-70 · The cache statistics that answer O7** ☐
+**A-70 · The cache statistics that answer O7** ✅ **2026-09-14, criterion corrected**
 **Expect** Hit rate, eviction rate and **inter-document key overlap** over the corpus, reported by the
 same run. The overlap figure is the one O7 turns on: near-zero overlap means per-document, meaningful
 overlap means shared. **If it fails** S2 — O7 stays open for want of a number, which is exactly the
 failure `Stage2-Rendering-Plan.md` D2-14 was written to prevent.
+**Result 2026-09-14** (`rawpage_bench_pipeline`, phase 3): eight documents open at once, two passes, 144 dpi —
+at 256 MiB **50.0 % hits, 0 evictions, 0 cross-document**; at 24 MiB **0 % hits, 297 evictions, all 297
+cross-document**. **The criterion is corrected rather than met as written**: it asked for *inter-document key
+overlap*, and T18 answered O7 with the **cross-document eviction count** instead, because overlap is near
+zero by construction — a key names its document — and what O7 turns on is what sharing COSTS a document
+that did nothing wrong. Overlap itself is not reported. O7 is resolved on this figure in
+`Implementation-Plan.md` §8.
 
-**A-71 · CI green, and no suite prefix is empty** ☐
+**A-71 · CI green, and no suite prefix is empty** ☐ **NOT MET 2026-09-14 — the last CI run failed, and CI has not run since**
 **Expect** All jobs green; `unit.`, `ui.`, `platform.`, **`render.`**, `bench.` each non-empty; the
 fuzz job reports two targets built. **A target that failed to build subtracts cases from a run still
 reporting "100% tests passed"** — that assertion is why it is here. **If it fails** S2.
+**State 2026-09-14** (`gh run list`). The most recent run, **34724531551** on commit `ec4b992`, failed in the
+Windows job on one case, `ui.screen_metrics_invariant` (A-84): the defect **I-27**, which failed whenever a
+RawPage window was open on the runner's desktop, and which was fixed later the same day. Gates, both Linux
+jobs and the coverage summary were green. The run queued for over nine hours for an offline runner. **No
+commit since has been pushed**, so no CI run has seen the current tree; this case is owed the next push's
+run. Separately, CI runs on this machine between about 17:00 on 2026-09-13 and 00:45 on 2026-09-14 would
+have launched `rawpage.exe` under Application Verifier (the test rig's note).
 
-**A-72 · `--list-actions` exists — Stage 1's A-25, carried and closed** ☐ **Goal** D2-10.
+**A-72 · `--list-actions` exists — Stage 1's A-25, carried and closed** 🟡 **2026-09-14 — exists and exits 0; no chord column** **Goal** D2-10.
 **Steps** `rawpage.exe --list-actions` under `offscreen`.
 **Expect** Exit 0; every declared `ActionId` with its string id, default context, registration state,
 and chord. **361+ rows.** **If it fails** S3 — but note this case has been *unrunnable* since Stage 1
 and six documents already describe the switch as though it exists.
+**Result 2026-09-14.** Exit 0; **361 rows** (48 registered, 313 declared), columns `state`, `stringId`,
+`defaultContext`, `labelKey`. **Not there: the chord column** this case expects, and the owning stage
+Stage 1's A-25 asked for — the second was dropped deliberately at T18 and `app/main.cpp` records why (a
+stage column in `ActionId.def` would be 361 copies of the roadmap); the chord was not addressed. **What is
+absent:** a chord per row; no owner is assigned here.
 
-**A-73 · The `RAWPAGE_ACTION_ALIAS` fixture — Stage 1's A-26, carried and closed** ☐
+**A-73 · The `RAWPAGE_ACTION_ALIAS` fixture — Stage 1's A-26, carried and closed** 🟡 **2026-09-14 — the resolution half is green; the survival half has no case**
 **Steps** A synthetic alias row for a renamed id; resolve the old string.
 **Expect** The old string resolves to the new enumerator; a saved QAT customization and a saved
 shortcut both survive the rename. **If it fails** S2 — this is live code with **zero rows and no
 test**, and the first stage to rename an id will be trusting a mechanism nothing has ever executed.
+**Result 2026-09-14** (`ctest -R alias`): five unit cases green over `tests/unit/fixtures/ActionAliasFixture.def`
+— the macro builds a table matching its rows, the table never shadows a live id, a live id outranks an alias
+of the same spelling, and an empty table resolves a retired spelling to nothing. **Not found: a case that a
+saved QAT customization and a saved shortcut survive a rename**, the Expect's second clause.
 
-**A-74 · `--dump-ui-strings` still exits 0 with every new key** ☐
+**A-74 · `--dump-ui-strings` still exits 0 with every new key** ✅ **2026-09-14**
 **Expect** Exit 0; the new `prefs.*` and `error.*` families resolved in both `en` and `zh-TW`; no key
 rendering as its own name. **If it fails** S2.
+**Result 2026-09-14.** Exit 0 in both locales: **572 lines** under `en` and **573** under `--lang zh-TW`
+(the second loads both catalogs, `rawpage_en.qm` then `rawpage_zh_TW.qm`), and **no key renders as its
+own name** in either — counted over every `key → value` line, not sampled.
 
 ---
 
@@ -2285,8 +2327,8 @@ settled. It was found by asking what T17 had actually unblocked, and finding the
 
 Two things about the state you will be walking, so a planned absence is not reported as a defect:
 
-- **Seven §8 Viewer chords deliberately do nothing** — `Ctrl+4`, `Ctrl+R`, `S`, `Ctrl+B`, `Ctrl+E`,
-  `Ctrl+L`, `Ctrl+U` — and they leave the key **unconsumed**, which is T14's decision and is walked
+- **Fourteen §8 Viewer chords deliberately do nothing** — `Ctrl+4`, `Ctrl+R`, `S`, `Ctrl+B`, `Ctrl+E`,
+  `Ctrl+L`, `Ctrl+U`, `Ctrl+'`, `Ctrl+;`, `Ctrl+Alt+C`, `Ctrl+.`, `Ctrl+,`, `Ctrl+]` and `Ctrl+[` *(re-counted 2026-09-14 from `KeyBindingDefaults.def` against `--list-actions`; this line named seven)* — and they leave the key **unconsumed**, which is T14's decision and is walked
   by a case rather than described by a comment. They belong to Stages 3 to 13.
 - **Line Weight is a checkbox that does nothing**, and that is issue **I-11** rather than a defect:
   PDFium always draws a hairline at a minimum of one pixel and exposes no flag over it. The other
@@ -2630,7 +2672,7 @@ case was run that day and its record says what it found.
   whether a non-ASCII password set by a real R2–R4 producer opens that way is unexercised.
   And nothing about permission enforcement, which does not exist yet.
 
-**M-09 · Dr. Memory / Application Verifier over the raster path** ☐ **RUN 2026-09-13 — NOT SIGNED OFF: the checker is clean, and the growth clause found I-35 (S2, partly fixed, downgraded to S3 the same day)**
+**M-09 · Dr. Memory / Application Verifier over the raster path** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-14** — run 2026-09-13 under Application Verifier, the growth clause's defect I-35 found, fixed and closed on 2026-09-14
 - **Goal** The coverage ASan structurally cannot provide, because PDFium is in the path and the path
   cannot leave Windows (risk **R7**, `Tech-Stack-Plan.md` §10). **This case IS half of O10's answer** —
   what it finds, and what it costs to run, is the evidence for whether the portable route's gap matters.
@@ -2690,6 +2732,7 @@ case was run that day and its record says what it found.
     structure that grows while running and is freed at shutdown passes it, which is exactly what
     I-35 turned out to be.
   - **One machine, one build per half, the generated corpus.**
+- **SIGNED OFF BY THE USER 2026-09-14**, after I-35 was closed. **What the sign-off rests on, clause by clause:** no invalid free across the boundary and no handle misuse — Application Verifier clean over the walk; no handle leak — flat over 80 opens; no leak growing with each document — the running product, measured without the verifier and with every I-35 fix in, at +0.29 MB a round, which is the log pane's bounded fill. **Signed off knowing what it does not cover:** uninitialized reads were never tested (that is Dr. Memory's alone, and it was not run); which Application Verifier layers were enabled for the walk is not recorded; the verified walk opened one malformed file that renders, not two. **The case is closed on those terms; none of the three is carried as an open issue.**
 - **I-35 CLOSED 2026-09-14 — WITH A CORRECTION TO THIS RECORD, AND WHAT IS STILL THE USER'S.** **Every driven run above after the verifier walk ran under Application Verifier's full page heap**, re-enabled by the log-export step; the figures in this record's growth table (225.9 → 256.2 MB) therefore describe the verifier as much as the product. Measured without it on 2026-09-14 with every fix in, the same driver read **71.2 → 73.2 MB over eight rounds, +0.29 MB a round** — the log pane's bounded fill. The original entry follows unchanged.
   **I-35 FIXED THE SAME DAY — AND WHAT IS STILL THE USER'S.** Four causes, found by measurement after a
   first hypothesis was refuted by this case's own driver (I-35 has the detail): the log pane kept every
@@ -2900,11 +2943,11 @@ the position `pages()` was, and the message bar is the consumer that will find o
 Stage 2 is done when **all** of these hold. This is
 [`Stage2-Rendering-Plan.md` §13](./Stage2-Rendering-Plan.md) restated as a checklist.
 
-1. ☐ A-01 … A-85 **run**, with actual output recorded against each case — not a summary claiming they
+1. 🟡 A-01 … A-93 **run**, with actual output recorded against each case — **§5.12's A-68 … A-74 were the last never-recorded block, run on 2026-09-14**; A-71 is owed a CI run on the next push, and A-24 … A-26 are Linux jobs this machine cannot run — — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
-2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Nine of ten as of 2026-09-13: M-01 … M-08 and M-10.** **M-09 is the only one left: RUN 2026-09-13 and NOT signed off** — the verifier half is clean, and the growth half found **I-35**, closed 2026-09-14; the case itself is the user's to sign off or hold. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
-3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
-4. ☐ `ctest` green across all five Windows targets, every prior stage included.
+2. ✅ M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Ten of ten as of 2026-09-14** — M-01 … M-08 and M-10 by 2026-09-13, and **M-09 signed off by the user on 2026-09-14** after I-35 was closed, knowing it did not cover uninitialized reads. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
+3. ✅ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**. **Measured 2026-09-14**: layer-lint 282 files, license-audit 20 components, i18n-lint 176 files, no waiver creep (eight filesystem-write waivers).
+4. ✅ `ctest` green across all five Windows targets, every prior stage included. **Measured 2026-09-14: 727/727, one skipped by name** (the battery case), and the bare `gates` preset 94/94.
 5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets
    that demonstrably exist. **Half done 2026-09-06 at T18**, and the half is the one that was
    missing: **a Linux fuzz job now exists**. Until T18, A-25 and A-26 were recorded as *"Linux
@@ -2917,7 +2960,7 @@ Stage 2 is done when **all** of these hold. This is
    96 / 144 / 192 DPI, with `golden/manifest.json` declaring what is captured and why, and
    `golden/captured.json` recording the engine and the fonts it was captured against.
    `tests/roundtrip/` **not applicable** and recorded as such: nothing in Stage 2 writes a byte.
-7. ☐ **The corpus limitation is written into the sign-off, not merely known.** `Implementation-Plan.md`'s
+7. ✅ **The corpus limitation is written into the sign-off, not merely known.** *(Re-read 2026-09-14: the status block carries the sentence verbatim.)* `Implementation-Plan.md`'s
    Stage 2 status block states in those words that the golden suite's green is **consistency against our
    own generated output**, not **fidelity to real-world PDFs** (plan §13.6). An unqualified *"every
    corpus file renders correctly"* overstates the evidence.
@@ -2959,5 +3002,5 @@ Stage 2 is done when **all** of these hold. This is
     a machine where rendering is far more expensive may still want it, and Stage 5 changes the
     workload.
 10. ✅ **No open S1 or S2 in §8 — MET again 2026-09-13**, when the user downgraded **I-35** to S3; I-35 itself was closed on 2026-09-14. It was met as of T16, 2026-09-05, as follows. I-05 closed at T11, **I-02 at T16** (the closure measurement and the `text` split), and **I-13** — this stage's only S2 found in the product — raised and closed within the same run. **I-04** and **I-12** are S3 and closed at T16 too. The two S3 that remain, **I-06** (JBIG2) and **I-11** (line weight), are open BY DECISION rather than pending: each is a feature the engine or the licence cannot deliver, kept as a declared-and-inert surface so the day the constraint lifts there is a row to fill in.
-11. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
+11. ✅ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid; *(re-measured 2026-09-14: no debt item open in the plan, no Stage 2 row left ○, two family-row entries recorded as ⤵ folded)*
     `Implementation-Plan.md` Stage 2 status block updated to reality, deviations included.

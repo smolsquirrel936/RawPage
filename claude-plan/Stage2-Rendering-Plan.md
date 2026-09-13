@@ -439,7 +439,7 @@ to existing documents and are made when this plan is written.
   headers; the second of the two interface headers this architecture rests on is not in it, though
   `platform/platform.h` is. Add it, with the `layer-lint` layer entry it will need for the same
   reason `platform/platform.h` has one — `core/`, `pdf/` and `app/` all include it.
-- 🟡 **`pdf/BackendFactory` has a row as of T1; `pdf/DocumentBackendImpl` does not exist yet and is T9's.** §3.11 is `pdf/ops/`; these two
+- ~~🟡 **`pdf/BackendFactory` has a row as of T1; `pdf/DocumentBackendImpl` does not exist yet and is T9's.**~~ **Paid — re-read 2026-09-14:** `Architecture-FileMap.md` §3 has ✅ rows for `pdf/DocumentBackendImpl.{h,cpp}` (T9) and `pdf/BackendFactory.h` with its `.cpp` moved to `pdf/render/` (T9), and `PdfModule.cpp`'s deletion is recorded. The item was left 🟡 after the rows landed. §3.11 is `pdf/ops/`; these two
   sit at `pdf/`'s root beside the deleted `PdfModule.cpp` and need either rows or a folded row with a
   ⤵ breadcrumb.
 - ~~🟡 **`platform/win/`'s four Stage 2 implementations — rows exist, tagged ○ (S2); the CODE does not.**~~
@@ -474,7 +474,7 @@ to existing documents and are made when this plan is written.
   (issue **I-09**) and `platform/win/WinMessageWindow` at T12. `ui/shell/DocumentWindow`'s row moved from
   the D1-2 stub's description to what it now is.
 
-- 🟡 **`CLAUDE.md`'s "Still no document code" paragraph** — *"nothing in `core/doc/`, `pdf/cos/`,
+- ~~🟡 **`CLAUDE.md`'s "Still no document code" paragraph**~~ **Paid — both halves: the paragraph was rewritten at T13, and the CI prefix at T18 (below). Re-read 2026-09-14; the item was left 🟡 after its own PAID line.** — *"nothing in `core/doc/`, `pdf/cos/`,
   `pdf/render/`, `pdf/ops/`, or `ui/viewer/`"* — is false after T13 and must be rewritten, not
   amended. **Rewritten twice already rather than left to rot at T18**: at T2 for `pdf/render/`, and
   at T5, when `pdf/cos/` stopped being empty and the sentence had to name what the lexer does *not*

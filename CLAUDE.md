@@ -18,8 +18,8 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 
 | | |
 |---|---|
-| **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, NOT signed off.** |
-| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), **partly fixed** the same day and **downgraded to S3 by the user**: four live retentions fixed, and the running `rawpage.exe` still grows **+2.2 MB of private bytes a round against +4.3** — measured as **heap fragmentation**, then fixed on 2026-09-14 with the segment heap (`app/rawpage.manifest`). **I-35 is closed**: measured without Application Verifier, the running product grows +0.29 MB a round, the log pane's bounded fill. **What is left is M-09's sign-off, which is the user's.** |
+| **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, manual walk complete 2026-09-14, NOT signed off.** |
+| **Next action** | **Stage 2's last two sign-off items** — `Stage2-Rendering-Testing-Guide.md` §9. **The manual walk is complete: all ten cases signed off by the user, the last (M-09) on 2026-09-14.** Still open: **item 1** — guide case A-71 needs a CI run, which needs a push (the last run, 34724531551, failed on I-27, since fixed), and A-69, A-72 and A-73 are each half met; and **item 5** — the ten-minute fuzz soak. I-35 is closed. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
 | **Tests** | **727/727** as of I-35's segment-heap fix, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
@@ -38,8 +38,7 @@ is declared and unimplemented (Stage 4, *if A2 says it is needed* — it does no
 runs through our own policy but has **no UI**: only the log names the face. `pageDisplay/lineWeight`
 is a checkbox that does nothing — **I-06** and **I-11** (`Stage2-Rendering-Testing-Guide.md` §8) are
 both open **by decision**, each a feature the engine or the licence cannot deliver, kept as a
-declared-and-inert surface so there is a row to fill in the day the constraint lifts. Seven §8 Viewer
-chords stay `NotFound` and deliberately leave the key unconsumed. `Select` arms a tool that selects
+declared-and-inert surface so there is a row to fill in the day the constraint lifts. Fourteen §8 Viewer chords (re-counted 2026-09-14) stay `NotFound` and deliberately leave the key unconsumed. `Select` arms a tool that selects
 nothing until Stage 5. **313 of 361 declared commands are unregistered**, which is the honest state
 rather than a shortcut.
 
@@ -71,7 +70,7 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
 | `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order, its stage-local design decisions (`D<N>-n`) and its blocking preconditions. **Three exist:** `Stage0-Toolchain-Plan.md`, `Stage1-AppShell-Plan.md` and `Stage2-Rendering-Plan.md`, each written before that stage's code. **A stage plan owns no product facts and no live status** — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Three exist**, one per stage built: `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed), `Stage1-AppShell-Testing-Guide.md` (fully run and fully walked, issues I-01…I-55, none open) and `Stage2-Rendering-Testing-Guide.md` (automated half run, manual half **not yet walked**). **Each guide owns its own case counts, results and issue states — read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Each is written right after its stage's plan and **before that stage's code**, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Three exist**, one per stage built: `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed), `Stage1-AppShell-Testing-Guide.md` (fully run and fully walked, issues I-01…I-55, none open) and `Stage2-Rendering-Testing-Guide.md` (automated half run; manual half **fully walked and signed off**, the last case on 2026-09-14; §9 items 1 and 5 still open). **Each guide owns its own case counts, results and issue states — read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Each is written right after its stage's plan and **before that stage's code**, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
@@ -99,7 +98,7 @@ defect in the reply, not something for the reader to go and look up.
 | `D1`…`D9` | Locked stack decisions | `Tech-Stack-Plan.md` §2 |
 | `A1`…`A7` | Assumptions / go-no-go verdicts | `Tech-Stack-Plan.md` §3.3 |
 | `R1`…`R8` | Open risks carried forward | `Tech-Stack-Plan.md` §10 |
-| `O1`…`O10` | Open decisions carried forward | `Implementation-Plan.md` §8 |
+| `O1`…`O11` | Open decisions carried forward | `Implementation-Plan.md` §8 |
 | Flows `A`…`K` | Call traces | `Architecture-FileMap.md` §5 |
 | `D0-n` / `D1-n` | Stage-local design decisions | that stage's `Stage<N>-*-Plan.md` §3 |
 | `T1`…`T15` | Stage tasks | that stage's `Stage<N>-*-Plan.md` §6 |
@@ -142,7 +141,7 @@ the other cites it.
 | **Stage ordering**, and **live per-task status and deviations** | `Implementation-Plan.md` **§4**, that stage's status block | CLAUDE.md — it points at these blocks and must not copy them |
 | A **convention that binds all later work** | `Implementation-Plan.md` **§1.5**, appended and never renumbered | a stage plan, where a cross-cutting rule would be invisible to later stages |
 | The **testing strategy**, and why a test target is separate | `Implementation-Plan.md` **§2** and **§2.1** | a testing guide, which covers one stage only |
-| An **open decision** nobody has settled (`O1`…`O10`) | `Implementation-Plan.md` **§8** — and record the resolution there when work forces one | an inline choice in the code that nothing records |
+| An **open decision** nobody has settled (`O1`…`O11`) | `Implementation-Plan.md` **§8** — and record the resolution there when work forces one | an inline choice in the code that nothing records |
 | One stage's **task order** and **stage-local design decisions** (`D<N>-n`) | that stage's `Stage<N>-*-Plan.md` §3 and §6 | `Implementation-Plan.md`, which owns ordering *between* stages |
 | A **blocking precondition** that is the user's to clear (`P-n` / `V-n`) | that stage's `Stage<N>-*-Plan.md` §7 | a testing guide |
 | A **test case**, automated (`A-nn`) or manual (`M-nn`) | that stage's `Stage<N>-*-Testing-Guide.md` §5 / §6 | the plan; the plan says what is built, the guide says how we know |
@@ -242,7 +241,7 @@ only:**
   (lexer, object model, xref, filters, crypt, incremental writer) and **links zlib, libjpeg-turbo
   and openjpeg from S2 · T7, all PRIVATE** so no `pdf/cos/` header names them; `pdf/render/` is the
   PDFium facade; `pdf/ops/` realizes each mutation.
-- `platform/win/` — the only OS-specific code; implements the 17 `platform/platform.h` interfaces
+- `platform/win/` — the only OS-specific code; implements the 17 `platform/platform.h` interfaces (five of them so far — the product logs its own census at startup, and a missing one is a null member, convention 6)
   and makes no policy decisions.
 - `i18n/`, `res/`, `corpus/`, `golden/` are **data, not code**.
 
@@ -416,7 +415,7 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 .\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error
 ```
 
-The three gates can also be run one at a time, and each has an `--explain` that prints its rules and
+The three gates can also be run one at a time. `layer-lint` and `i18n-lint` have an `--explain` that prints their rules and
 its live waivers — that census is how anyone notices waivers creeping from a handful to a hundred:
 
 The golden baselines are data, and like the corpus they are **checked** like code — but unlike the
@@ -470,7 +469,11 @@ redirect the file.
 ```powershell
 .\build\x64-release\bin\layer-lint.exe    --root . --explain   # includes, rules, 8 live waivers
 .\build\x64-release\bin\i18n-lint.exe     --root . --explain   # locales, shipped flags, unfinished count
-.\build\x64-release\bin\license-audit.exe --help
+.\build\x64-release\bin\license-audit.exe --manifest vcpkg.json --spdx-map tools\license-audit\spdx-map.json `
+    --qt-modules build\x64-release\qt-modules.txt --compiler-plugins build\x64-release\compiler-plugins.txt
+    # license-audit has NO --explain and NO --help: an unknown or missing argument prints its usage and
+    #   exits 2 (measured 2026-09-14). --target checks passes it these arguments, plus
+    #   --vcpkg-installed when an installed tree exists -- cmake/RawPageChecks.cmake is the invocation
 .\build\x64-release\bin\ribbon-validate.exe --explain   # NOT a gate -- a build step (D1-8)
 ```
 
@@ -563,11 +566,15 @@ explicit tab-order pass on every change of the collapsed set (~15, and the only 
 predicted). Recorded per criterion in `Tech-Stack-Plan.md` §3.3 — **including that the verdict rests
 on eight criteria, not nine, because R-8 was withdrawn rather than cleared.**
 
-Still open: **A2** (p95 per-tile render latency under ~16 ms, Stage 2) and **A4** (does a signature
-survive a later unrelated incremental save, Stage 3). **A5**, **A6** and **A7** were settled in
-Stage 0 — we build with Qt's own bundled GCC 13.1.0 and `toolchain-mingw.cmake` keeps it that way. Larger unknowns carried forward: the Write-mode reflow engine
-(R1), a first-party full-text index since Xapian is GPL (R2), Office export fidelity (R3), the
-sanitizer/PDB capability loss from the GCC toolchain (R7), and the MSVC-shaped corners of the Windows
-integration surface — print driver, Office add-ins, arm64 (R8). Open decisions O1–O10 are listed in
-`Implementation-Plan.md` §8 — if work forces one, record the resolution there rather than deciding it
-inline.
+**A2 is SETTLED** (Stage 2 T3 and T18): **`go`** on both of D2-1's measurements, and re-measured on
+2026-09-14 under the segment heap, which moved it further in its favour. Still open: **A1** (Write mode
+is a first-party reflow engine) and **A4** (does a signature survive a later unrelated incremental
+save, Stage 3). **A5**, **A6** and **A7** were settled in Stage 0 — we build with Qt's own bundled GCC
+13.1.0 and `toolchain-mingw.cmake` keeps it that way. Risks **R5** and **R6** are retired with A2 and
+A3. Larger unknowns carried forward: the Write-mode reflow engine (R1), a first-party full-text index
+since Xapian is GPL (R2), Office export fidelity (R3), dynamic XFA (R4), the sanitizer/PDB capability loss from the
+GCC toolchain (R7), and the MSVC-shaped corners of the Windows integration surface — print driver,
+Office add-ins, arm64 (R8). Open decisions are **O1, O3, O4, O5, O6, O8 and O11** (O2, O7, O9 and O10
+are resolved), listed with their owning stages in `Implementation-Plan.md` §8 — if work forces one,
+record the resolution there rather than deciding it inline. *(States re-read from the owning tables on
+2026-09-14; read them there.)*
