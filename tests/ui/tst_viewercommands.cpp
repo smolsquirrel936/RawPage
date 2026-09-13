@@ -376,6 +376,43 @@ TEST_CASE("rotating the view rotates the layout and re-keys the tiles", "[viewer
     CHECK(viewer.view->viewRotation() == core::PageRotation::Clockwise270);
 }
 
+TEST_CASE("the rotate chords rotate from the key event a keyboard sends", "[viewercommands]")
+{
+    // S2 issue I-33, found by the user in the M-10 walk. The case above presses "Ctrl+Shift+=" by
+    // PARSING the string -- which is the chord §8 spells, and not what arrives: Qt on Windows
+    // reports Shift+= as Key_Plus and Shift+- as Key_Underscore, so `ShortcutBinder` formed
+    // `Ctrl+Shift++`, nothing bound it, and the chord was dead while every case here was green.
+    // This one sends the EVENT, through the application filter, to the focused widget.
+    //
+    // WHAT THIS DOES NOT COVER (convention 19): Qt's Windows key mapper. The events are built as
+    // a probe measured that mapper delivering them; that it still does is M-10's, by hand.
+    Viewer viewer(3);
+    QWidget* focus = viewer.window->focusWidget();
+    REQUIRE(focus != nullptr);
+    REQUIRE(viewer.view->viewRotation() == core::PageRotation::None);
+
+    const auto send = [focus](Qt::Key key, Qt::KeyboardModifiers modifiers, const QString& text) {
+        QKeyEvent press(QEvent::KeyPress, key, modifiers, text);
+        press.ignore();
+        QCoreApplication::sendEvent(focus, &press);
+        return press.isAccepted();
+    };
+    const Qt::KeyboardModifiers ctrlShift = Qt::ControlModifier | Qt::ShiftModifier;
+
+    CHECK(send(Qt::Key_Plus, ctrlShift, QStringLiteral("=")));
+    CHECK(viewer.view->viewRotation() == core::PageRotation::Clockwise90);
+
+    CHECK(send(Qt::Key_Underscore, ctrlShift, QString(QChar(0x1f))));
+    CHECK(viewer.view->viewRotation() == core::PageRotation::None);
+
+    // THE CONTROL IN THE OTHER DIRECTION: the unshifted chord is still zoom and not a rotation,
+    // so the candidates did not make `Ctrl+=` and `Ctrl+Shift+=` one chord.
+    const double zoomBefore = viewer.view->controller().zoom().factor;
+    CHECK(send(Qt::Key_Equal, Qt::ControlModifier, QStringLiteral("=")));
+    CHECK(viewer.view->viewRotation() == core::PageRotation::None);
+    CHECK(viewer.view->controller().zoom().factor > zoomBefore);
+}
+
 TEST_CASE("the three tool chords arm a tool and report which is armed", "[viewercommands]")
 {
     Viewer viewer(3);

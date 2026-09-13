@@ -82,6 +82,7 @@
 #include <QString>
 
 #include <optional>
+#include <vector>
 
 class QKeyEvent;
 class QWidget;
@@ -146,6 +147,22 @@ public:
     // very thing this function exists to interpret. The event overload delegates here, so there is
     // one implementation and the two cannot disagree.
     static std::optional<core::Chord> chordFor(Qt::Key key, Qt::KeyboardModifiers modifiers);
+
+    // EVERY CHORD ONE KEY PRESS COULD MEAN, in the order `eventFilter` tries them -- S2 issue
+    // I-33. With Shift held, Qt reports the CHARACTER a punctuation key produces, not the key:
+    // `Ctrl+Shift+=` arrives as `Key_Plus`, `Ctrl+Shift+7` as `Key_Ampersand` (measured on Windows
+    // with a key-event probe, physical keys and injected ones alike). §8 spells those rows by the
+    // key, but it spells `Ctrl+Shift+>` and a bare `+` by the character -- both conventions are in
+    // the table, so neither reading alone can be right. Three candidates, Qt's own shortcut map's
+    // rule: the chord as reported, the same modifiers on the UNSHIFTED key, and the reported
+    // character with Shift removed. A key with no shifted form yields exactly one, `chordFor`'s.
+    //
+    // THE UNSHIFTED KEY IS A US KEYBOARD'S. Nothing here reads the active layout, so on a layout
+    // whose shifted punctuation differs -- German, French -- the second candidate names the wrong
+    // key; the first and third are unaffected. `chordFor` above stays the LITERAL reading, which
+    // is what the Shortcuts page records.
+    static std::vector<core::Chord> chordCandidatesFor(const QKeyEvent* event);
+    static std::vector<core::Chord> chordCandidatesFor(Qt::Key key, Qt::KeyboardModifiers modifiers);
 
     // THE INVERSE, over the same table. Two callers, and neither of them is decoration: the census
     // below, and T14's Shortcuts page, which has to SHOW a chord as a key and read one back.

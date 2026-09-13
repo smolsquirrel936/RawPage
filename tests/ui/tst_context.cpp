@@ -271,6 +271,12 @@ TEST_CASE("every binding in the tables can be produced by a keyboard", "[chord]"
 
     // The round trip, which is the stronger statement: turned into a key event and read back,
     // every row is the SAME chord. `unreachableBindings` only says a key has a name.
+    //
+    // WHAT THIS DOES NOT COVER (convention 19): the event is built from the chord, so it is the
+    // event this class would EXPECT, not the one a keyboard sends. `Ctrl+Shift+=` round-trips
+    // here as `Key_Equal` + Shift, and Qt on Windows delivers `Key_Plus` + Shift -- S2 issue I-33,
+    // dead in the product for its whole life while this loop was green. The case after this one
+    // builds the event the way a keyboard does.
     for (const core::KeyBinding& binding : fixture.keyBindings.allBindings()) {
         INFO(chordText(binding.chord).toStdString());
         const std::optional<Qt::Key> key = ShortcutBinder::qtKeyFor(binding.chord);
@@ -281,6 +287,116 @@ TEST_CASE("every binding in the tables can be produced by a keyboard", "[chord]"
         REQUIRE(read.has_value());
         CHECK(*read == binding.chord);
     }
+}
+
+TEST_CASE("a shifted punctuation key offers the reported key then the unshifted one", "[chord]")
+{
+    // S2 issue I-33. The REPORTED keys below are measured, not assumed: a Qt probe window on
+    // Windows 11, driven by the physical keyboard and by injected input alike, received
+    // `Ctrl+Shift+=` as Key_Plus (0x2B) and `Ctrl+Shift+-` as Key_Underscore (0x5F), while
+    // `Ctrl+Shift+N` stayed Key_N. The order is the contract `eventFilter` walks.
+    struct Case {
+        Qt::Key                  key;
+        Qt::KeyboardModifiers    modifiers;
+        std::vector<const char*> expected;
+    };
+    const Qt::KeyboardModifiers ctrlShift = Qt::ControlModifier | Qt::ShiftModifier;
+
+    const Case cases[] = {
+        {Qt::Key_Plus,       ctrlShift, {"Ctrl+Shift++", "Ctrl+Shift+=", "Ctrl++"}},
+        {Qt::Key_Underscore, ctrlShift, {"Ctrl+Shift+_", "Ctrl+Shift+-", "Ctrl+_"}},
+        {Qt::Key_Ampersand,  ctrlShift, {"Ctrl+Shift+&", "Ctrl+Shift+7", "Ctrl+&"}},
+        {Qt::Key_Greater,    ctrlShift, {"Ctrl+Shift+>", "Ctrl+Shift+.", "Ctrl+>"}},
+        {Qt::Key_Plus,       Qt::ShiftModifier, {"Shift++", "Shift+=", "+"}},
+        // One candidate, each for its own reason: no Shift (the keypad's `+`), a letter, a key
+        // with no shifted form, and Backtab, whose chord already carries Shift but names a word.
+        {Qt::Key_Plus,       Qt::ControlModifier, {"Ctrl++"}},
+        {Qt::Key_N,          ctrlShift, {"Ctrl+Shift+N"}},
+        {Qt::Key_Equal,      Qt::ControlModifier, {"Ctrl+="}},
+        {Qt::Key_Backtab,    ctrlShift, {"Ctrl+Shift+Tab"}},
+    };
+
+    for (const Case& testCase : cases) {
+        QKeyEvent event(QEvent::KeyPress, testCase.key, testCase.modifiers);
+        const std::vector<core::Chord> candidates = ShortcutBinder::chordCandidatesFor(&event);
+        INFO(testCase.expected.front());
+        REQUIRE(candidates.size() == testCase.expected.size());
+        for (std::size_t i = 0; i < candidates.size(); ++i)
+            CHECK(candidates[i].toString() == testCase.expected[i]);
+    }
+
+    // Nothing in, nothing out -- the same refusals as `chordFor`.
+    QKeyEvent meta(QEvent::KeyPress, Qt::Key_Plus, Qt::MetaModifier | Qt::ShiftModifier);
+    CHECK(ShortcutBinder::chordCandidatesFor(&meta).empty());
+    CHECK(ShortcutBinder::chordCandidatesFor(nullptr).empty());
+}
+
+TEST_CASE("every shifted punctuation binding resolves from the key a keyboard sends", "[chord]")
+{
+    // THE CENSUS I-33 WAS MISSING, over the whole table rather than the two chords M-10 found:
+    // `Ctrl+Shift+7` and `Ctrl+Shift+8` in Write were dead the same way and nobody had pressed
+    // them. Each affected row's key press is built as a US keyboard delivers it -- the SHIFTED
+    // character whenever Shift is down on the main block -- and resolved through the candidates
+    // in the order `eventFilter` uses. The first candidate any row binds must be THIS row.
+    //
+    // A row spelled by the character with no Shift (`+`, `*`) is pressed with Shift, which is the
+    // only way to type it without a numeric keypad; the keypad press is `chordFor`'s identity and
+    // the round trip above already covers it.
+    //
+    // WHAT THIS DOES NOT COVER (convention 19): Qt's Windows key mapper itself. The event is still
+    // constructed here, shaped by the probe measurement recorded at I-33; that the mapper keeps
+    // delivering it that way is M-10's to see, by hand.
+    const auto unshiftedOf = [](char c) -> std::optional<char> {
+        static const std::string_view shifted   = "!@#$%^&*()_+{}|:\"<>?~";
+        static const std::string_view unshifted = "1234567890-=[]\\;',./`";
+        const std::size_t at = shifted.find(c);
+        return at == std::string_view::npos ? std::nullopt : std::optional<char>(unshifted[at]);
+    };
+    const auto shiftedOf = [](char c) -> std::optional<char> {
+        static const std::string_view shifted   = "!@#$%^&*()_+{}|:\"<>?~";
+        static const std::string_view unshifted = "1234567890-=[]\\;',./`";
+        const std::size_t at = unshifted.find(c);
+        return at == std::string_view::npos ? std::nullopt : std::optional<char>(shifted[at]);
+    };
+
+    Fixture fixture;
+    int affected = 0;
+    for (const core::KeyBinding& binding : fixture.keyBindings.allBindings()) {
+        if (binding.chord.key().size() != 1) continue;
+        const char key = binding.chord.key().front();
+
+        Qt::KeyboardModifiers modifiers = ShortcutBinder::qtModifiersFor(binding.chord);
+        char delivered = 0;
+        if (binding.chord.hasShift()) {
+            const std::optional<char> shifted = shiftedOf(key);
+            if (!shifted) continue;              // a letter, or already the character
+            delivered = *shifted;
+        } else if (unshiftedOf(key)) {
+            delivered = key;                     // `+` typed as Shift+=
+            modifiers |= Qt::ShiftModifier;
+        } else {
+            continue;
+        }
+        ++affected;
+
+        const std::string row = binding.chord.toString() + " in "
+                                + std::string(core::keyContextName(binding.context));
+        INFO(row);
+        QKeyEvent event(QEvent::KeyPress, static_cast<Qt::Key>(delivered), modifiers);
+        std::optional<core::KeyBinding> resolved;
+        for (const core::Chord& candidate : ShortcutBinder::chordCandidatesFor(&event)) {
+            resolved = fixture.keyBindings.resolve(candidate, binding.context);
+            if (resolved) break;
+        }
+        REQUIRE(resolved.has_value());
+        CHECK(resolved->chord == binding.chord);
+        CHECK(resolved->action == binding.action);
+    }
+
+    // Measured over `KeyBindingDefaults.def` on 2026-09-13: Ctrl+Shift+= and Ctrl+Shift+- in
+    // Viewer; Ctrl+Shift+=, Ctrl+Shift+7 and Ctrl+Shift+8 in Write; `+` in PageThumbnails and
+    // `*` in Bookmarks. A census that silently matched nothing would pass; this says it did not.
+    CHECK(affected == 7);
 }
 
 // =============================================================================================

@@ -31,6 +31,10 @@ using core::LogSubsystem;
 // `=`, `>`, `[`, `]`) need no rows at all. The F-keys are likewise arithmetic. What is left is the
 // set §8 spells as WORDS, and those are the only ones a table can get wrong.
 //
+// "No rows" is true of NAMING a key and was taken, until I-33, to be true of READING one: the
+// identity is right for the key Qt reports, but with Shift held Qt reports a different key. That
+// half has its own table below, `kShiftedKeys`.
+//
 // The table is consulted FIRST in both directions, which is what keeps `Space` spelled `Space`
 // rather than as a literal blank -- a settings-file key (`shortcuts/<context>/<action>`) holding a
 // bare space would be a key nobody could read or hand-edit.
@@ -59,6 +63,30 @@ constexpr std::array<NamedKey, 15> kNamedKeys{{
     // conversion has to be able to name it, in both directions.
     {Qt::Key_Alt,       "Alt"},
 }};
+
+// THE SHIFTED PUNCTUATION OF A US KEYBOARD, character to key -- S2 issue I-33. The identity above
+// holds for what Qt REPORTS, and with Shift held Qt reports the character: `Shift+=` is `Key_Plus`.
+// Twenty-one rows, which is every key on the main block whose shifted character differs from its
+// own. A US layout, deliberately and stated in the header: §8 names its keys the way that keyboard
+// does, and this file does not read the active layout.
+struct ShiftedKey {
+    char shifted;
+    char unshifted;
+};
+
+constexpr std::array<ShiftedKey, 21> kShiftedKeys{{
+    {'!', '1'}, {'@', '2'}, {'#', '3'}, {'$', '4'}, {'%', '5'}, {'^', '6'}, {'&', '7'},
+    {'*', '8'}, {'(', '9'}, {')', '0'}, {'_', '-'}, {'+', '='}, {'{', '['}, {'}', ']'},
+    {'|', '\\'}, {':', ';'}, {'"', '\''}, {'<', ','}, {'>', '.'}, {'?', '/'}, {'~', '`'},
+}};
+
+std::optional<char> unshiftedFor(std::string_view key)
+{
+    if (key.size() != 1) return std::nullopt;
+    for (const ShiftedKey& row : kShiftedKeys)
+        if (row.shifted == key.front()) return row.unshifted;
+    return std::nullopt;
+}
 
 std::optional<std::string> nameForKey(int key)
 {
@@ -264,6 +292,35 @@ std::optional<Chord> ShortcutBinder::chordFor(Qt::Key key, Qt::KeyboardModifiers
     return Chord{modifiers, *name};
 }
 
+std::vector<Chord> ShortcutBinder::chordCandidatesFor(const QKeyEvent* event)
+{
+    if (!event) return {};
+    return chordCandidatesFor(static_cast<Qt::Key>(event->key()), event->modifiers());
+}
+
+std::vector<Chord> ShortcutBinder::chordCandidatesFor(Qt::Key key, Qt::KeyboardModifiers keyModifiers)
+{
+    std::vector<Chord> candidates;
+    const std::optional<Chord> reported = chordFor(key, keyModifiers);
+    if (!reported) return candidates;
+    candidates.push_back(*reported);
+
+    // ONLY WITH SHIFT HELD. A `Key_Plus` without Shift is the numeric keypad's `+`, which is the
+    // key §8's bare `+` means and has no unshifted form to offer.
+    if (!reported->hasShift()) return candidates;
+    const std::optional<char> unshifted = unshiftedFor(reported->key());
+    if (!unshifted) return candidates;
+
+    // The key, then the character. `Ctrl+Shift+=` before `Ctrl++`, so a row spelled by the key
+    // wins over one spelled by the character with a modifier fewer -- the one that names every
+    // key the user is actually holding.
+    candidates.push_back(Chord{reported->modifiers(), std::string(1, *unshifted)});
+    const auto withoutShift = static_cast<std::uint8_t>(
+        reported->modifiers() & ~static_cast<std::uint8_t>(core::ChordModifier::Shift));
+    candidates.push_back(Chord{withoutShift, std::string(reported->key())});
+    return candidates;
+}
+
 std::optional<Qt::Key> ShortcutBinder::qtKeyFor(const Chord& chord)
 {
     return keyForName(chord.key());
@@ -326,12 +383,12 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
         return QObject::eventFilter(watched, event);
 
     auto* keyEvent = static_cast<QKeyEvent*>(event);
-    const std::optional<Chord> chord = chordFor(keyEvent);
-    if (!chord) return QObject::eventFilter(watched, event);
+    const std::vector<Chord> candidates = chordCandidatesFor(keyEvent);
+    if (candidates.empty()) return QObject::eventFilter(watched, event);
 
     // HOLDING A MODIFIER IS ONE GESTURE. Auto-repeat is right for `Page Down` and wrong for `Alt`:
     // key tips should open once and stay open, not reopen thirty times a second.
-    if (keyEvent->isAutoRepeat() && chord->key() == "Alt")
+    if (keyEvent->isAutoRepeat() && candidates.front().key() == "Alt")
         return QObject::eventFilter(watched, event);
 
     // FIRST REFUSAL TO THE FOCUSED WIDGET, through Qt's own handshake -- see the class comment.
@@ -346,8 +403,17 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
         if (probe.isAccepted()) return QObject::eventFilter(watched, event);
     }
 
+    // THE FIRST CANDIDATE ANY ROW BINDS, and "binds" includes a row nothing has registered: a
+    // `NotImplemented` or `WidgetNative` answer is §8 speaking about this key, and a later
+    // candidate must not overrule it. See `chordCandidatesFor` for the order and I-33 for why.
     const KeyContext context = activeContext();
-    const Outcome    outcome = activate(*chord, context);
+    std::optional<Chord> chord;
+    Outcome outcome = Outcome::NoBinding;
+    for (const Chord& candidate : candidates) {
+        outcome = activate(candidate, context);
+        chord   = candidate;
+        if (outcome != Outcome::NoBinding) break;
+    }
 
     if (outcome == Outcome::NotImplemented) {
         // Named rather than silent, because this is the ordinary state of most of §8 at Stage 1 and
