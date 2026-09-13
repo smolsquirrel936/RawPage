@@ -19,7 +19,7 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | | |
 |---|---|
 | **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, NOT signed off.** |
-| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; only **M-09** remains, and it is not walkable without Dr. Memory. |
+| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), an open S2: memory retained per document opened, whose layer is not yet established. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
 | **Tests** | **721/721** as of I-33's fix, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
@@ -446,6 +446,9 @@ Two checks that are neither a `ctest` case nor a gate, and each has a recorded r
                                                     #   numbers. `8` sweeps the worker count;
                                                     #   `--whole-page` reports the other quantity.
                                                     #   READ IT WITH THE PROBE, NEVER INSTEAD OF IT
+.\build\x64-release\bin\rawpage_bench_openclose.exe --bridge 50   # S2 I-35's reproducer: private bytes
+                                                    #   per round of ten documents, NO window.
+                                                    #   `--no-render` drops the rasterizing
 .\scripts\check-single-instance.ps1                 # A-61's two-process half, with its `true` control
 ```
 
@@ -481,7 +484,7 @@ A-04 rather than pending boxes. `tests/fuzz/CMakeLists.txt` fails configure when
 wrong — **1 at T5, 2 from T6** — because "ten minutes with no crashes" is passed trivially by a
 target that builds nothing.
 
-**Five test targets and three benchmarks**, and the split is load-bearing rather than
+**Five test targets and four benchmarks**, and the split is load-bearing rather than
 organizational — a suite is a separate target when linking something would destroy a property
 another suite proves. `rawpage_tests` (`unit.`) links no display and no engine, which
 `rawpage_assert_headless()` **fails configure** to enforce; `rawpage_platform_tests`
