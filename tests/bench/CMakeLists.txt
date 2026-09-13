@@ -200,3 +200,32 @@ target_compile_definitions(rawpage_bench_openclose_ui PRIVATE
     RAWPAGE_VERSION="${PROJECT_VERSION}")
 add_dependencies(rawpage_bench_openclose_ui rawpage_translations rawpage_resources)
 rawpage_common_flags(rawpage_bench_openclose_ui)
+
+# THE PRODUCT'S MANIFEST, EMBEDDED IN THE BENCHES THAT STAND IN FOR THE PRODUCT (Stage 2 issue I-35).
+# app/rawpage.manifest opts rawpage.exe into the segment heap, which changes both how much memory a
+# long session keeps and how fast a tile renders -- so a figure taken without it describes a different
+# allocator. bench_render is deliberately left out: it is the RAW-PDFium probe, below the product.
+target_sources(rawpage_bench_pipeline PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
+target_sources(rawpage_bench_openclose PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
+target_sources(rawpage_bench_openclose_ui PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
+# The manifest is a dependency windres does not declare; a source-file property is directory-scoped,
+# so app/'s own setting does not reach these targets. Without it an edited manifest ships stale here.
+set_source_files_properties(${CMAKE_SOURCE_DIR}/app/rawpage.rc PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/app/rawpage.manifest")
+
+# rawpage_bench_openclose_ui_classicheap -- THE CONTROL: the same harness WITHOUT the manifest, so the
+# classic heap's fragmentation stays reproducible without editing a build file. Through
+# `--native --bus`, its msvcrt heap kept 60 -> 167 MB of committed-but-free memory over 30 rounds of
+# ten documents, where the manifest build held private bytes flat.
+get_target_property(_openclose_ui_sources rawpage_bench_openclose_ui SOURCES)
+list(FILTER _openclose_ui_sources EXCLUDE REGEX "rawpage\\.rc$")
+add_executable(rawpage_bench_openclose_ui_classicheap ${_openclose_ui_sources})
+target_include_directories(rawpage_bench_openclose_ui_classicheap PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_bench_openclose_ui_classicheap PRIVATE
+    rawpage_core rawpage_cos rawpage_pdfium rawpage_platform rawpage_ui psapi)
+set_target_properties(rawpage_bench_openclose_ui_classicheap PROPERTIES AUTOMOC ON)
+target_compile_definitions(rawpage_bench_openclose_ui_classicheap PRIVATE
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
+    RAWPAGE_VERSION="${PROJECT_VERSION}")
+add_dependencies(rawpage_bench_openclose_ui_classicheap rawpage_translations rawpage_resources)
+rawpage_common_flags(rawpage_bench_openclose_ui_classicheap)

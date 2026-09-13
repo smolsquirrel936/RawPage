@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  rawpage.exe's application manifest. ONE setting, and it is load-bearing.
+
+  THE SEGMENT HEAP (Stage 2 issue I-35). Without this, every allocation through msvcrt (our code,
+  Qt, every tile's pixel buffer) comes from the classic NT heap. Tiles are ~256 KB each, allocated
+  and freed by the thousand between long-lived small blocks, and the classic heap kept the freed
+  memory committed in thousands of gaps it could neither reuse nor return: measured through the real
+  single-instance pipe at 60 -> 167 MB of committed-but-free memory in msvcrt's heap over 30 rounds of
+  ten documents, while live memory was flat. The segment heap allocates blocks above 128 KB as whole
+  pages and decommits them on free: the same workload held private bytes flat (73.1 -> 72.2 MB), and
+  A2's render figure got FASTER (p95 13.7-14.0 ms against 14.5-15.3 ms, same session).
+
+  Honoured from Windows 10 2004 (build 19041). The product supports 1703 and later (app/main.cpp);
+  on 1703-1909 the element is ignored and the process keeps the classic heap and I-35's residual.
+
+  NO DOUBLE HYPHEN ANYWHERE IN THIS COMMENT: XML forbids it inside a comment, Windows then rejects the
+  whole manifest, and the executable fails to start with a side-by-side configuration error. That is
+  what the first version of this file did; tests/platform/tst_manifest.cpp now launches the product.
+
+  NOT a place for DPI awareness: that is set by API in app/main.cpp, which measures it, and a second
+  source of the same setting is a disagreement waiting to happen.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <heapType xmlns="http://schemas.microsoft.com/SMI/2020/WindowsSettings">SegmentHeap</heapType>
+    </windowsSettings>
+  </application>
+</assembly>

@@ -30,6 +30,7 @@
 //   --handoff             open through MainWindow::openHandoff, the single-instance path
 //   --quiet-log           logging/level = Error, so almost nothing is logged
 //   --clear-pixmap-cache  clear Qt's QPixmapCache before measuring each round
+//   --heaps               per-heap committed / busy / free / largest free block at rounds 1, middle, last
 //   --compact             HeapCompact every heap after each round, before measuring
 //   --pump <ms>           event-loop time after each open (default 300)
 //   --track <r>           record C++ allocations from round r on and print the call stacks of the
@@ -185,6 +186,57 @@ void dumpBlocksOfSize(std::size_t size, int limit)
     }
 }
 
+// ONE LINE PER HEAP: which heap the committed-but-free memory is in, and what shape it has. Many free
+// blocks with a small largest one is fragmentation; a few very large free blocks is a heap that keeps
+// memory it could give back -- two different problems with two different remedies.
+void printHeaps(const char* label)
+{
+    HANDLE heaps[256];
+    const DWORD count = GetProcessHeaps(256, heaps);
+    HANDLE msvcrtHeap = nullptr;
+    if (HMODULE crt = GetModuleHandleA("msvcrt.dll"))
+        if (auto getHeap = reinterpret_cast<intptr_t (*)()>(GetProcAddress(crt, "_get_heap_handle")))
+            msvcrtHeap = reinterpret_cast<HANDLE>(getHeap());
+    std::printf("\nheaps %s (default %p, msvcrt %p):\n", label, static_cast<void*>(GetProcessHeap()),
+                static_cast<void*>(msvcrtHeap));
+    std::printf("  heap              committedMB  busyMB  freeMB  freeBlocks  largestFreeKB  bigBusyBlocks(>=512KB)\n");
+    for (DWORD i = 0; i < count && i < 256; ++i) {
+        if (!HeapLock(heaps[i])) continue;
+        std::vector<std::pair<std::uintptr_t, std::uintptr_t>> regions;
+        std::size_t committed = 0, busy = 0, free = 0, freeBlocks = 0, largestFree = 0, bigBusy = 0;
+        std::vector<std::pair<std::uintptr_t, std::size_t>> busyBlocks;
+        PROCESS_HEAP_ENTRY entry{};
+        while (HeapWalk(heaps[i], &entry)) {
+            if (entry.wFlags & PROCESS_HEAP_REGION) {
+                committed += entry.Region.dwCommittedSize;
+                regions.emplace_back(reinterpret_cast<std::uintptr_t>(entry.Region.lpFirstBlock),
+                                     reinterpret_cast<std::uintptr_t>(entry.Region.lpLastBlock));
+            } else if (entry.wFlags & PROCESS_HEAP_ENTRY_BUSY) {
+                busy += entry.cbData;
+                if (entry.cbData >= 512 * 1024) ++bigBusy;
+                busyBlocks.emplace_back(reinterpret_cast<std::uintptr_t>(entry.lpData), entry.cbData);
+            } else if (!(entry.wFlags & PROCESS_HEAP_UNCOMMITTED_RANGE)) {
+                free += entry.cbData;
+                ++freeBlocks;
+                largestFree = std::max<std::size_t>(largestFree, entry.cbData);
+            }
+        }
+        HeapUnlock(heaps[i]);
+        // Busy blocks outside every region are large allocations the heap committed separately.
+        for (const auto& [address, size] : busyBlocks) {
+            bool inside = false;
+            for (const auto& [first, last] : regions)
+                if (address >= first && address < last) { inside = true; break; }
+            if (!inside) committed += size;
+        }
+        if (committed < 512 * 1024) continue;   // the dozens of tiny heaps say nothing here
+        std::printf("  %p%s %10.1f %7.1f %7.1f %10zu %14.0f %10zu\n", static_cast<void*>(heaps[i]),
+                    heaps[i] == GetProcessHeap() ? " [default]" : heaps[i] == msvcrtHeap ? " [msvcrt] " : "          ",
+                    committed / 1048576.0, busy / 1048576.0, free / 1048576.0, freeBlocks,
+                    largestFree / 1024.0, bigBusy);
+    }
+}
+
 // The event loop for `milliseconds`, INCLUDING deferred deletes -- `closeDocument` uses
 // `deleteLater`, and processEvents alone does not run a DeferredDelete posted at this loop level.
 void pump(int milliseconds)
@@ -236,6 +288,7 @@ int main(int argc, char** argv)
     bool withEncrypted = false;
     bool viaBus = false;
     bool compact = false;
+    bool heapsReport = false;
     int screenIndex = -1;
     const QStringList arguments = QCoreApplication::arguments();
     for (int at = 1; at < arguments.size(); ++at) {
@@ -246,6 +299,7 @@ int main(int argc, char** argv)
         else if (argument == QLatin1String("--with-encrypted")) withEncrypted = true;
         else if (argument == QLatin1String("--bus")) viaBus = true;
         else if (argument == QLatin1String("--compact")) compact = true;
+        else if (argument == QLatin1String("--heaps")) heapsReport = true;
         else if (argument == QLatin1String("--screen") && hasValue) screenIndex = arguments.at(++at).toInt();
         else if (argument == QLatin1String("--no-view")) view = false;
         else if (argument == QLatin1String("--quiet-log")) quietLog = true;
@@ -459,6 +513,8 @@ int main(int argc, char** argv)
 
         // At the middle round the connection census runs BEFORE the heap census, and at the last
         // round AFTER it, so neither census's own maps are counted as growth.
+        if (heapsReport && (round == 1 || round == middle || round == rounds))
+            printHeaps((std::string("after round ") + std::to_string(round)).c_str());
         if (round == middle) connectionsAtMiddle = connectionCensus(window);
         const bench::HeapCensus heap = bench::heapCensus();
         if (round == middle) heapAtMiddle = heap;
@@ -602,7 +658,8 @@ int main(int argc, char** argv)
                     auto it = std::upper_bound(arrays.begin(), arrays.end(),
                                                std::make_pair(value, std::numeric_limits<std::uintptr_t>::max()));
                     if (it == arrays.begin() || value < std::prev(it)->first || value >= std::prev(it)->second) continue;
-                    std::printf("  %zu-byte block, pointer at offset %zu; first words:", entry.cbData, k);
+                    std::printf("  %zu-byte block, pointer at offset %zu; first words:",
+                                static_cast<std::size_t>(entry.cbData), k);
                     for (std::size_t w = 0; w < 6 && (w + 1) * 8 <= entry.cbData; ++w) describeWord(words[w]);
                     std::printf("\n");
                 }

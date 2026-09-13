@@ -1,0 +1,6 @@
+// rawpage.exe's resources. RT_MANIFEST (24), resource 1: the executable's own manifest -- see
+// rawpage.manifest for the one setting it carries and the measurement behind it.
+//
+// The path is from the source root, which every target embedding this file puts on its include path
+// (the product and the benchmarks that stand in for it: their figures must describe this allocator).
+1 24 "app/rawpage.manifest"

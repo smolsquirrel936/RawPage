@@ -256,6 +256,16 @@ D2-1 exists to prevent:
   by one worker. The comparable pair is the probe's 0.532 ms p95 and this run's **0.356 ms cost per
   tile**, and those agree: the engine did not get slower, the queue got counted.
 
+**Re-measured 2026-09-14 under the segment heap, which `rawpage.exe` has carried since then** (its
+manifest, `app/rawpage.manifest` — Stage 2 issue I-35, where the classic heap fragmented on the tile
+workload). Same machine, same session, three runs each of `rawpage_bench_pipeline` with and without
+the manifest: **p95 13.69 / 13.75 / 14.00 ms under the segment heap against 14.53 / 15.06 / 15.32 ms
+under the classic heap**, and cost per tile 0.345–0.351 ms against 0.364–0.384 ms. **The allocator
+change moved A2 in its favour, not against it.** The classic-heap runs read higher than the 14.18 ms
+above on the same code, which is run-to-run variance on this machine and is why the comparison is
+within one session rather than against the recorded figure. `rawpage_bench_pipeline` now embeds the
+product's manifest, so its figure describes the allocator the product runs on.
+
 **Walking the worker count changes almost nothing, which re-confirms I-05 through the shipped
 pipeline rather than through the probe.** p95 moves from 14.18 ms to 13.39 ms between one worker and
 eight — 5 % — because every worker still serializes on `PdfiumInit`'s engine lock, and p50 gets

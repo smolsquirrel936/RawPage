@@ -28,7 +28,21 @@ add_executable(rawpage
     # layer-lint filesystem-write waivers, both named and both visible in --explain.
     LogFile.h
     LogFile.cpp
+
+    # The application manifest, embedded as RT_MANIFEST 1. It opts the process into the Windows 10
+    # segment heap -- Stage 2 issue I-35, and rawpage.manifest carries the measurement.
+    rawpage.rc
 )
+
+# The .rc names its manifest from the source root; windres resolves it through the include path.
+target_include_directories(rawpage PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# AND THE MANIFEST IS A DEPENDENCY OF THE .rc, which no build system infers: windres reads it, ninja
+# does not know, and an edited manifest otherwise ships STALE -- measured, when a corrected manifest
+# still produced an executable Windows refused to start. A source-file property is DIRECTORY-scoped, so
+# tests/bench/CMakeLists.txt sets the same dependency for the benches that embed this .rc.
+set_source_files_properties(rawpage.rc PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/rawpage.manifest")
 
 # Application is a QObject (QApplication subclass), so this target needs moc. Set per target
 # rather than globally: core/ deliberately contains no QObject, and a project-wide AUTOMOC would

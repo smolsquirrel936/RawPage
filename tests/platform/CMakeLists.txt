@@ -30,7 +30,13 @@ add_executable(rawpage_platform_tests
     # the ordered candidate list it walks is core/render/FontSubstitution's and is asserted by
     # tests/unit with no display at all, and the chain through PDFium is tests/render's.
     tst_fontresolver.cpp
+
+    # Stage 2 issue I-35: rawpage.exe's embedded manifest (the segment heap). Its subject is app/'s
+    # build output, so the target below depends on `rawpage` and is handed its path.
+    tst_manifest.cpp
 )
+target_compile_definitions(rawpage_platform_tests PRIVATE RAWPAGE_EXE_PATH="$<TARGET_FILE:rawpage>")
+add_dependencies(rawpage_platform_tests rawpage)
 
 target_include_directories(rawpage_platform_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 

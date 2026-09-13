@@ -19,10 +19,10 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | | |
 |---|---|
 | **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, NOT signed off.** |
-| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), **partly fixed** the same day and **downgraded to S3 by the user**: four live retentions fixed, and the running `rawpage.exe` still grows **+2.2 MB of private bytes a round against +4.3** — measured as **heap fragmentation** (committed-but-free memory; live heap is flat through the real pipe), open with no owner stage. M-09's sign-off is the user's. |
+| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), **partly fixed** the same day and **downgraded to S3 by the user**: four live retentions fixed, and the running `rawpage.exe` still grows **+2.2 MB of private bytes a round against +4.3** — measured as **heap fragmentation**, then fixed on 2026-09-14 with the segment heap (`app/rawpage.manifest`). **I-35 is closed**: measured without Application Verifier, the running product grows +0.29 MB a round, the log pane's bounded fill. **What is left is M-09's sign-off, which is the user's.** |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **726/726** as of I-35's fixes, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **727/727** as of I-35's segment-heap fix, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -387,7 +387,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 726/726 as of I-35's fixes, 1 skipped
+ctest --preset x64-release --output-on-failure        # 727/727 as of I-35's segment-heap fix, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -455,7 +455,9 @@ Two checks that are neither a `ctest` case nor a gate, and each has a recorded r
                                                     #   real platform and style (a window appears,
                                                     #   without taking focus). Read liveHeapMB, NEVER
                                                     #   privateMB alone -- it swings 180 MB on retention.
-                                                    #   Offscreen reads differently: see the header
+                                                    #   Offscreen reads differently: see the header.
+                                                    #   _classicheap is the same WITHOUT the product's
+                                                    #   manifest: the fragmentation control (I-35)
 .\scripts\check-single-instance.ps1                 # A-61's two-process half, with its `true` control
 ```
 
@@ -510,7 +512,7 @@ Single test / suite — Catch2 v3 binaries registered with CTest, selected by na
 
 ```
 ctest --preset x64-debug   -R tst_settings --output-on-failure
-ctest --preset x64-release -R "^platform\."      # the OS layer's suite (19 cases)
+ctest --preset x64-release -R "^platform\."      # the OS layer's suite (36 cases, re-counted 2026-09-14)
 ctest --preset x64-release -R "^gates\."         # the gates against deliberately bad input
 ctest --preset x64-release -R "unit.settings.compile"   # the negative-COMPILE fixtures (A-41)
 ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash (S3)
