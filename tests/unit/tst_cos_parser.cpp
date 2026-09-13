@@ -561,6 +561,37 @@ TEST_CASE("cos parser reports an object stream with a wrong /First rather than c
     CHECK_FALSE(Parser::parseObjectStream(payload, -1, 0));
 }
 
+TEST_CASE("cos parser reports an object stream offset too large to add to /First", "[cos][parser][objstm]")
+{
+    // Stage 2 issue I-38, found by `fuzz_cos_parser` in every CI run since T18 and never failing
+    // one. The offset was ADDED to `/First` and the sum range-checked afterwards, so a relative
+    // offset near LLONG_MAX overflowed a `long long` -- undefined behaviour, which licenses the
+    // compiler to delete the `absolute < 0` check that was meant to catch it.
+    //
+    // WHAT THIS DOES NOT COVER (convention 19): on MinGW GCC the addition wraps, the wrapped sum
+    // fails the range check, and this case passed against the unfixed code in `x64-release`. What
+    // made it red was a build with `-fsanitize=signed-integer-overflow
+    // -fsanitize-undefined-trap-on-error`, which needs no runtime and traps on the addition; in
+    // CI, `portable-asan` runs this case under UBSan and now aborts on it.
+    //
+    // THE CONTROL is the first pair: an honest offset in the same stream must still be recovered,
+    // or the case is satisfied by a parser that refuses the whole table.
+    const std::string payload = "1 0 2 9223372036854775807 42";
+    std::vector<rawpage::pdf::cos::ParseNoteRecord> notes;
+    const auto packed = Parser::parseObjectStream(payload, 2, 26, &notes);
+    REQUIRE(packed);
+
+    REQUIRE(packed.value().size() == 1);
+    CHECK(packed.value()[0].number == 1);
+    CHECK(packed.value()[0].object.integerValue() == 42);
+
+    bool sawOffsetNote = false;
+    for (const auto& record : notes)
+        sawOffsetNote = sawOffsetNote
+                        || (record.note == ParseNote::ObjectStreamOffsetBad && record.detail == 2);
+    CHECK(sawOffsetNote);
+}
+
 TEST_CASE("cos parser cannot reach the corpus object streams until T7 supplies Flate",
           "[cos][parser][objstm]")
 {

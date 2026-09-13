@@ -372,6 +372,12 @@ jobs:
       # for it on every push buys ten minutes of wall time per run to re-cover ground the previous
       # run already covered. `-error_exitcode=1` is explicit: libFuzzer's default already exits
       # non-zero on a crash, and saying so is cheaper than the day somebody wonders.
+      #
+      # A SANITIZER REPORT IS A CRASH HERE ONLY BECAUSE THE PRESET SAYS -fno-sanitize-recover=all.
+      # Until 2026-09-14 `portable-fuzz` did not, so UBSan printed its finding and carried on, and
+      # every run from T18 onward logged "signed integer overflow" at pdf/cos/Parser.cpp:586 under
+      # a green tick -- Stage 2 issue I-38. `portable-asan` had the flag all along; the two presets
+      # disagreed about what a finding is, and the one without it was the one looking hardest.
       - name: A-25 -- fuzz_cos_lexer, seeded
         run: ./build/portable-fuzz/bin/fuzz_cos_lexer corpus/malformed -max_total_time=60 -error_exitcode=1
 

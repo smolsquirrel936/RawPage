@@ -583,12 +583,17 @@ core::Result<std::vector<IndirectObject>> Parser::parseObjectStream(
 
     Parser inner(payload);
     for (const auto& pair : pairs) {
-        const long long absolute = first + pair.second;
-        if (pair.second < 0 || absolute < 0
-            || static_cast<unsigned long long>(absolute) > payload.size()) {
+        // RANGE-CHECKED BEFORE IT IS ADDED, never after: `first + pair.second` with an offset near
+        // LLONG_MAX overflows, and a check on the sum is a check the compiler may delete (Stage 2
+        // issue I-38, found by `fuzz_cos_parser`). `first` is already known to be within the
+        // payload, so the subtraction below cannot wrap.
+        if (pair.second < 0
+            || static_cast<unsigned long long>(pair.second)
+                   > payload.size() - static_cast<std::size_t>(first)) {
             record(ParseNote::ObjectStreamOffsetBad, 0, pair.first);
             continue;
         }
+        const long long absolute = first + pair.second;
         inner.seek(static_cast<std::size_t>(absolute));
         IndirectObject entry;
         entry.number = pair.first;
