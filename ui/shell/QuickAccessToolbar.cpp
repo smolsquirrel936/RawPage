@@ -1,6 +1,7 @@
 #include "ui/shell/QuickAccessToolbar.h"
 
 #include "ui/shell/ActionFactory.h"
+#include "ui/shell/ActionToolButton.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/RawPageAction.h"
 
@@ -151,7 +152,7 @@ void QuickAccessToolbar::rebuild()
 
     for (const ActionId id : commands_) {
         RawPageAction* action = actions_.create(id, this);
-        auto* button = new QToolButton(this);
+        auto* button = new ActionToolButton(this);   // not QToolButton -- S2 issue I-35
         button->setDefaultAction(action);
         button->setAutoRaise(true);
         button->setFocusPolicy(Qt::TabFocus);   // keyboard operability, retained

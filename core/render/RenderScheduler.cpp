@@ -235,6 +235,23 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
         (void)id;
         if (job.started && job.request.document == document) job.cancelled = true;
     }
+
+    // AND WHAT HAS ALREADY FINISHED. The two steps above cover a tile that is queued and a tile
+    // that is running; a tile that FINISHED and is waiting for the pump is the third state, and
+    // until Stage 2 issue I-35 nothing covered it. The caller closing a tab runs cancel, drain,
+    // `RenderCache::dropDocument()`, `close()` -- and the next `deliverReady()` then wrote these
+    // completions into the cache under a handle nothing would ask for again, where they held the
+    // memory budget until eviction. Measured in the product at ~4 MB per round of ten documents.
+    completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
+                                    [this, document](const Completion& completion) {
+                                        if (completion.request.document != document) return false;
+                                        // A cache hit was never rasterized, so it is not a
+                                        // finished job being dropped -- `droppedCancelled` stays
+                                        // a count of work the engine did for nothing.
+                                        if (!completion.fromCache) ++stats_.droppedCancelled;
+                                        return true;
+                                    }),
+                     completed_.end());
     idle_.notify_all();
 }
 

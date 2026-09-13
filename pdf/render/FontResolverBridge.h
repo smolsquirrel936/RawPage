@@ -80,6 +80,7 @@
 #include "platform/platform.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -114,6 +115,10 @@ public:
         QString filePath;
         int     faceIndex = 0;
         Outcome outcome = Outcome::NoneAvailable;
+
+        // The row's place among EVERY mapping this process performed, starting at 0 and never
+        // reused -- which stays meaningful after older rows have been dropped (see `substitutions()`).
+        std::uint64_t sequence = 0;
     };
 
     // Installs the hook. The resolver is borrowed, NOT owned: it belongs to the platform bundle,
@@ -138,11 +143,30 @@ public:
     // WHAT A TEST -- AND A SUPPORT LOG -- CAN READ BACK.
     //
     // The whole point of moving this decision to our side of the boundary is that the answer is
-    // now observable. `substitutions()` is every mapping this process performed, in order;
+    // now observable. `substitutions()` is the most recent `kLogCapacity` mappings, oldest first;
     // `lastSubstitution()` is the convenience for the common case.
+    //
+    // BOUNDED, and it was not until Stage 2 issue I-35. PDFium asks about every unembedded font a
+    // document loads -- the base-14 faces it declines included -- so an append-only log gained a
+    // row of four QStrings for every ordinary document opened, for the life of the process.
+    //
+    // A caller that wants only the rows ITS work produced takes `substitutionCount()` BEFORE the
+    // work and reads `substitutionsSince()` after. Counting positions in `substitutions()` stops
+    // working the moment the log is full -- every later window would read as empty, silently --
+    // which is why the golden suite no longer does it.
+    static constexpr std::size_t kLogCapacity = 256;
     static std::vector<Substitution> substitutions();
     static std::optional<Substitution> lastSubstitution();
     static void resetLog();
+
+    // How many mappings this process has EVER recorded -- the next row's `sequence`. Not reset by
+    // `resetLog()`, so a mark taken before a reset still means the same thing after it.
+    static std::uint64_t substitutionCount();
+
+    // The retained rows whose `sequence` is at least `mark`, oldest first. A window that produced
+    // more than `kLogCapacity` rows returns only the newest of them; `substitutionCount() - mark`
+    // says how many there were.
+    static std::vector<Substitution> substitutionsSince(std::uint64_t mark);
 
     // How many times PDFium asked us to map a font. **A second tile of the same page adds
     // nothing**: PDFium resolves a font when it loads it, not when it draws it -- which is the half

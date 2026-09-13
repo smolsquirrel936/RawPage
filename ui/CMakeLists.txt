@@ -33,6 +33,7 @@ add_library(rawpage_ui STATIC
     shell/RibbonModel.h
     shell/RibbonModel.cpp
     shell/RawPageAction.h
+    shell/ActionToolButton.h
     shell/ActionFactory.h
     shell/ActionFactory.cpp
     shell/Ribbon.h

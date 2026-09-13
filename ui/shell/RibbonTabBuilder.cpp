@@ -3,6 +3,7 @@
 #include "core/Log.h"
 #include "core/cmd/ActionRegistry.h"
 #include "ui/shell/ActionFactory.h"
+#include "ui/shell/ActionToolButton.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/RawPageAction.h"
 #include "ui/shell/Ribbon.h"
@@ -24,7 +25,9 @@ constexpr int kSmallRowsPerColumn = 3;
 
 QToolButton* makeButton(RawPageAction* action, ribbon::ControlSize size, QWidget* parent)
 {
-    auto* button = new QToolButton(parent);
+    // ActionToolButton, not QToolButton: a stock button gains a connection on every change of its
+    // action (Stage 2 issue I-35, measured in ActionToolButton.h).
+    auto* button = new ActionToolButton(parent);
     button->setDefaultAction(action);
     button->setAutoRaise(true);
     button->setFocusPolicy(Qt::TabFocus);   // keyboard operability, retained

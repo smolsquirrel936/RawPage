@@ -8,6 +8,7 @@
 #include <fpdf_sysfontinfo.h>
 
 #include <cstring>
+#include <deque>
 #include <mutex>
 #include <new>
 
@@ -22,7 +23,19 @@ using core::LogSubsystem;
 // moment a page needed a substitute.
 std::mutex                              g_mutex;
 const platform::IFontResolver*          g_resolver = nullptr;
-std::vector<FontResolverBridge::Substitution> g_log;
+// BOUNDED to `kLogCapacity` rows (Stage 2 issue I-35): append-only, it grew by a row per document
+// opened for the life of the process. `g_recorded` counts every row ever made and never resets, so
+// a caller's mark survives both the drop of old rows and `resetLog()`.
+std::deque<FontResolverBridge::Substitution> g_log;
+std::uint64_t                           g_recorded = 0;
+
+// Caller holds `g_mutex`.
+void recordLocked(FontResolverBridge::Substitution row)
+{
+    row.sequence = g_recorded++;
+    g_log.push_back(std::move(row));
+    while (g_log.size() > FontResolverBridge::kLogCapacity) g_log.pop_front();
+}
 std::size_t                             g_mapFontCalls = 0;
 bool                                    g_installed = false;
 
@@ -175,7 +188,7 @@ void* bridgeMapFont(FPDF_SYSFONTINFO*, int weight, FPDF_BOOL italic, int charset
     // reader needs to see next to "we were asked about Garamond and chose Times New Roman".
     if (core::render::isStandardFontName(request.family)) {
         row.outcome = FontResolverBridge::Outcome::StandardDeclined;
-        g_log.push_back(row);
+        recordLocked(row);
         return nullptr;
     }
 
@@ -186,7 +199,7 @@ void* bridgeMapFont(FPDF_SYSFONTINFO*, int weight, FPDF_BOOL italic, int charset
         // page with the engine's default font beats a page with no text -- and it is LOGGED,
         // because the whole reason this file exists is that the silent version of this decision was
         // unobservable.
-        g_log.push_back(row);
+        recordLocked(row);
         RAWPAGE_LOG_WARNING(LogSubsystem::Render)
             << "font: no substitute for" << requested << "-- falling back to the engine's default";
         return nullptr;
@@ -197,7 +210,7 @@ void* bridgeMapFont(FPDF_SYSFONTINFO*, int weight, FPDF_BOOL italic, int charset
     row.faceIndex = match.value().faceIndex;
     row.outcome = match.value().exact ? FontResolverBridge::Outcome::Exact
                                       : FontResolverBridge::Outcome::Substituted;
-    g_log.push_back(row);
+    recordLocked(row);
 
     if (row.filePath.isEmpty()) {
         // A face with no readable file cannot be handed to the engine as bytes. Refusing here is
@@ -350,7 +363,22 @@ bool FontResolverBridge::isInstalled()
 std::vector<FontResolverBridge::Substitution> FontResolverBridge::substitutions()
 {
     const std::lock_guard<std::mutex> guard(g_mutex);
-    return g_log;
+    return std::vector<Substitution>(g_log.begin(), g_log.end());
+}
+
+std::uint64_t FontResolverBridge::substitutionCount()
+{
+    const std::lock_guard<std::mutex> guard(g_mutex);
+    return g_recorded;
+}
+
+std::vector<FontResolverBridge::Substitution> FontResolverBridge::substitutionsSince(std::uint64_t mark)
+{
+    const std::lock_guard<std::mutex> guard(g_mutex);
+    std::vector<Substitution> rows;
+    for (const Substitution& row : g_log)
+        if (row.sequence >= mark) rows.push_back(row);
+    return rows;
 }
 
 std::optional<FontResolverBridge::Substitution> FontResolverBridge::lastSubstitution()

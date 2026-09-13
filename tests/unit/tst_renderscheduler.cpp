@@ -378,6 +378,53 @@ TEST_CASE("render scheduler drops a superseded result rather than caching it", "
     }
 }
 
+TEST_CASE("render scheduler forgets a FINISHED tile of a document that was cancelled", "[core][render]")
+{
+    // Stage 2 issue I-35, found by M-09's growth clause: the product kept ~4 MB per round of ten
+    // documents. A tile that had FINISHED but was still in the completion queue when its tab closed
+    // survived `cancelDocument()` -- which cleared the queue and marked the running jobs, and never
+    // looked at `completed_` -- so the next `deliverReady()` wrote it into the cache AFTER
+    // `dropDocument()` had emptied it, keyed by a handle nothing would ask for again. It then sat in
+    // the 256 MiB budget until eviction, charged to no open document.
+    //
+    // The sequence below is `ui/shell/DocumentWindow`'s destructor, step for step: cancel, drain,
+    // drop, and only then does the pump run again. WHAT THIS DOES NOT COVER (convention 19): it
+    // drives the pump by calling `deliverReady()`, so it proves the scheduler forgets the tile; that
+    // a closed tab in the running product no longer leaves memory behind is the M-09 re-run's.
+    RenderCache cache;
+    RasterizerProbe probe;
+    RenderScheduler scheduler(factoryFor(probe), &cache);
+
+    scheduler.enqueue(requestFor(0, 0), RenderPriority::Visible);
+    scheduler.enqueue(requestFor(0, 8), RenderPriority::Visible);
+    // THE CONTROL, finished in the same queue: a tile of a document that stays open. Without it this
+    // case is satisfied by a scheduler that drops every completion it holds (convention 22).
+    scheduler.enqueue(requestFor(0, 0, Revision::initial(), kDocB), RenderPriority::Visible);
+    REQUIRE(scheduler.waitForIdle(2000));
+    REQUIRE(probe.calls.load() == 3);   // all three finished, and none has been delivered
+
+    scheduler.cancelDocument(kDocA);
+    REQUIRE(scheduler.waitForIdle(2000));
+    cache.dropDocument(kDocA);
+
+    std::vector<RenderRequest> delivered;
+    const RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
+        [&](const RenderRequest& request, const RasterImage&) { delivered.push_back(request); });
+    CHECK(scheduler.deliverReady() == 1);
+    scheduler.unsubscribeReady(token);
+
+    // THE ASSERTION THAT MATTERS: nothing of the closed document reached the cache.
+    CHECK_FALSE(cache.lookup(requestFor(0, 0)).has_value());
+    CHECK_FALSE(cache.lookup(requestFor(0, 8)).has_value());
+    CHECK(scheduler.stats().droppedCancelled == 2);
+
+    // And the open document's tile was delivered and cached as if nothing had happened.
+    REQUIRE(delivered.size() == 1);
+    CHECK(delivered.front().document == kDocB);
+    CHECK(cache.lookup(requestFor(0, 0, Revision::initial(), kDocB)).has_value());
+    CHECK(cache.entryCount() == 1);
+}
+
 TEST_CASE("render scheduler WAKES for a tile it served from the cache", "[core][render]")
 {
     // M-01's finding, reproduced without a monitor. Every case above drains the completion queue by

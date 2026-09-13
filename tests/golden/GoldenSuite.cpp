@@ -333,7 +333,10 @@ RenderOutcome renderPage(const QString& corpusRoot, const Case& item, int page, 
     // wrong side of the window and the capture recorded *no substitutions at all* for the one file
     // in the corpus whose whole purpose is to have them. The symptom was silent: the baseline was
     // still correct, and the machine-dependence guard it feeds was simply never armed.
-    const std::size_t before = pdf::render::FontResolverBridge::substitutions().size();
+    // A MARK, not a position: the bridge's log is bounded (Stage 2 issue I-35), and a position taken
+    // in a full log would make every later page's window read as empty -- silently, which is this
+    // comment's own subject.
+    const std::uint64_t mark = pdf::render::FontResolverBridge::substitutionCount();
 
     OpenedPage opened = openPage(corpusRoot, item, page, dpi);
     if (!opened.error.isEmpty()) {
@@ -356,10 +359,9 @@ RenderOutcome renderPage(const QString& corpusRoot, const Case& item, int page, 
     outcome.image = std::move(raster).value();
     outcome.ok = true;
 
-    // Only the rows THIS page produced. The bridge's log is process-wide and append-only, so a
-    // caller that took all of it would attribute every earlier page's substitutions to this one.
-    const auto all = pdf::render::FontResolverBridge::substitutions();
-    for (std::size_t at = before; at < all.size(); ++at) outcome.substitutions.push_back(all[at]);
+    // Only the rows THIS page produced. The bridge's log is process-wide, so a caller that took all
+    // of it would attribute earlier pages' substitutions to this one.
+    outcome.substitutions = pdf::render::FontResolverBridge::substitutionsSince(mark);
     return outcome;
 }
 

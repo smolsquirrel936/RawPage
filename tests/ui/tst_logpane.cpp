@@ -143,6 +143,47 @@ TEST_CASE("clearing empties the pane and the buffer behind it", "[logpane]")
     CHECK(pane.visibleRecordCount() == 0);
 }
 
+TEST_CASE("the pane holds no more lines than the buffer it mirrors", "[logpane]")
+{
+    // Stage 2 issue I-35. The buffer is capped -- that is its whole design -- and `rebuild()` reads
+    // from it, but the LIVE path appended to the view forever, so a pane that nobody had opened
+    // kept every line the process ever logged. Measured through the product's own composition at
+    // ~1.1 MB of live heap per round of nine documents opened and closed, with no plateau, while
+    // the buffer sat at its 2,000-record cap and the view held 2,656 lines and counting.
+    //
+    // A capacity of five so the cap is reached in a few lines. WHAT THIS DOES NOT COVER (convention
+    // 19): it proves the view is bounded by the buffer; that the running product no longer grows
+    // per document is the M-09 re-run's, and the harness `rawpage_bench_openclose_ui` measures it.
+    const auto say = [](core::LogBuffer& buffer, int n) {
+        buffer.append(core::LogRecordData{LogLevel::Info, LogSubsystem::Ui,
+                                          QStringLiteral("record %1").arg(n)});
+    };
+    core::LogBuffer small(5);
+    ui::LogPane pane(small);
+
+    // THE CONTROL: under the cap, every live record is shown. Without it a pane that trimmed to
+    // some smaller number -- or showed nothing -- would satisfy the assertions below.
+    for (int n = 1; n <= 3; ++n) say(small, n);
+    drain();
+    REQUIRE(pane.visibleRecordCount() == 3);
+
+    for (int n = 4; n <= 12; ++n) say(small, n);
+    drain();
+    REQUIRE(small.size() == 5);
+
+    // THE ASSERTION THAT MATTERS: the view is the buffer's size, not the number of lines ever logged.
+    CHECK(pane.visibleRecordCount() == 5);
+    CHECK(pane.visibleText().contains(QStringLiteral("record 12")));
+    CHECK(pane.visibleText().contains(QStringLiteral("record 8")));
+    CHECK_FALSE(pane.visibleText().contains(QStringLiteral("record 7")));
+
+    // And the live path and the rebuild path agree, so a filter change does not visibly jump.
+    const QString live = pane.visibleText();
+    pane.setLevelFilter(LogLevel::Error);
+    pane.setLevelFilter(LogLevel::Trace);
+    CHECK(pane.visibleText() == live);
+}
+
 TEST_CASE("the pane's line shape is the log file's line shape", "[logpane]")
 {
     // One format, so a log read on screen and the same log read in a support bundle are the same

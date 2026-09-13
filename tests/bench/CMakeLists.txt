@@ -159,7 +159,7 @@ set_tests_properties(bench.render.a2_product PROPERTIES
 # ten documents opened, rendered and closed with no window. NOT registered with CTest: it reports a
 # trend over dozens of rounds, and no threshold for that trend has been decided. It links the
 # platform library only for `--bridge`, which installs the font hook the way app/CompositionRoot does.
-add_executable(rawpage_bench_openclose bench_openclose.cpp)
+add_executable(rawpage_bench_openclose bench_openclose.cpp HeapCensus.cpp AllocationTracker.cpp)
 target_include_directories(rawpage_bench_openclose PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(rawpage_bench_openclose PRIVATE
     rawpage_core
@@ -172,3 +172,30 @@ rawpage_link_qt(rawpage_bench_openclose Core)
 target_compile_definitions(rawpage_bench_openclose PRIVATE
     RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
 rawpage_common_flags(rawpage_bench_openclose)
+
+# rawpage_bench_openclose_ui -- I-35 with the window in the loop: the product's own composition root
+# and MainWindow, offscreen, opened and closed in rounds. The app/ sources are compiled in because
+# app/ is an executable rather than a library.
+add_executable(rawpage_bench_openclose_ui
+    bench_openclose_ui.cpp
+    AllocationTracker.cpp
+    HeapCensus.cpp
+    ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
+    ${CMAKE_SOURCE_DIR}/app/LogFile.cpp
+    ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp
+)
+target_include_directories(rawpage_bench_openclose_ui PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_bench_openclose_ui PRIVATE
+    rawpage_core
+    rawpage_cos
+    rawpage_pdfium
+    rawpage_platform
+    rawpage_ui
+    psapi
+)
+set_target_properties(rawpage_bench_openclose_ui PROPERTIES AUTOMOC ON)
+target_compile_definitions(rawpage_bench_openclose_ui PRIVATE
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
+    RAWPAGE_VERSION="${PROJECT_VERSION}")
+add_dependencies(rawpage_bench_openclose_ui rawpage_translations rawpage_resources)
+rawpage_common_flags(rawpage_bench_openclose_ui)

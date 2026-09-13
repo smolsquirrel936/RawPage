@@ -109,6 +109,49 @@ private:
 
 } // namespace
 
+TEST_CASE("the substitution log is bounded however many documents ask", "[render][font]")
+{
+    // Stage 2 issue I-35. The log was append-only for the life of the process: every font PDFium
+    // asked about -- including every base-14 face it DECLINED, which is every page of every
+    // ordinary document -- added a row of four QStrings that nothing ever removed. Measured at one
+    // row per document opened, in both I-35 harnesses, with no plateau.
+    //
+    // A document is re-opened rather than re-rendered, because a font is mapped when a document
+    // LOADS it: a second tile of the same page asks nothing (A-67's own finding).
+    InstalledBridge bridge;
+
+    const auto renderOnce = [] {
+        auto document = openOrFail("ordinary/text-a4.pdf");
+        PdfiumRasterizer rasterizer(*document);
+        REQUIRE(rasterizer.raster(requestFor(0, TileRect{0, 0, 64, 64}, 1.0)));
+    };
+
+    // THE CONTROL: below the bound, every request is kept. A log that recorded nothing at all
+    // would satisfy the bound below for free.
+    renderOnce();
+    const std::size_t perDocument = FontResolverBridge::substitutions().size();
+    REQUIRE(perDocument > 0);
+    renderOnce();
+    REQUIRE(FontResolverBridge::substitutions().size() == 2 * perDocument);
+
+    // Enough documents to pass any bound a support reader could want in full.
+    for (int i = 0; i < 600; ++i) renderOnce();
+
+    CHECK(FontResolverBridge::substitutions().size() <= FontResolverBridge::kLogCapacity);
+    CHECK_FALSE(FontResolverBridge::substitutions().empty());
+
+    // AND A CALLER CAN STILL READ ITS OWN WINDOW once the log is full -- the golden suite's
+    // question. A position counted in `substitutions()` would read an empty window from here on;
+    // the mark must return exactly the rows the next document produced.
+    const std::uint64_t mark = FontResolverBridge::substitutionCount();
+    REQUIRE(mark >= FontResolverBridge::kLogCapacity);   // really full, or this proves nothing
+    renderOnce();
+    const auto window = FontResolverBridge::substitutionsSince(mark);
+    CHECK(window.size() == perDocument);
+    CHECK(FontResolverBridge::substitutionCount() - mark == perDocument);
+    for (const auto& row : window) CHECK(row.sequence >= mark);
+}
+
 // ==========================================================================================
 // A-66 -- a missing embedded font substitutes through OUR policy, and the case NAMES the face
 // ==========================================================================================

@@ -151,6 +151,12 @@ public:
     // which is plan 5.3's own wording.
     void cancel(RenderTicket ticket);
     void cancelAll();
+
+    // Everything of this document, in all THREE states: queued (removed), running (marked, and
+    // dropped on delivery) and FINISHED BUT NOT YET DELIVERED (removed from the completion queue).
+    // The third is what makes "cancel, drain, `RenderCache::dropDocument()`, close" leave nothing
+    // behind -- without it the next `deliverReady()` cached the finished tiles of a closed
+    // document, which is Stage 2 issue I-35.
     void cancelDocument(DocumentHandle document);
 
     // A mutation landed. One call rather than three, so the three things that must happen together

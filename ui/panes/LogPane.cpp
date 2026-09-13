@@ -15,6 +15,10 @@
 #include <QTextCursor>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <cstddef>
+#include <limits>
+
 namespace rawpage::ui {
 namespace {
 
@@ -105,6 +109,14 @@ LogPane::LogPane(core::LogBuffer& buffer, QWidget* parent)
     // that does not line up is a column nobody scans.
     view_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     view_->setLineWrapMode(QPlainTextEdit::NoWrap);
+    // NO MORE LINES THAN THE BUFFER HOLDS. `rebuild()` reads the capped buffer, but the live path
+    // appends, and until Stage 2 issue I-35 nothing trimmed it: a pane nobody had opened kept every
+    // line the process ever logged, measured at ~1.1 MB of live heap per round of nine documents
+    // with no plateau. The view drops its oldest line as the buffer drops its oldest record.
+    // Under a narrowing filter the view can hold lines older than the buffer's oldest -- still at
+    // most `capacity()` of them, so still bounded, and the next `rebuild()` realigns it.
+    view_->setMaximumBlockCount(
+        static_cast<int>(std::min<std::size_t>(buffer_.capacity(), std::numeric_limits<int>::max())));
     column->addWidget(view_, 1);
 
     // --- The note ----------------------------------------------------------------------------
