@@ -8,8 +8,8 @@
 >
 > **Status:** 🟡 **Written 2026-08-31; T1–T3's cases run 2026-09-01, T4's and T5's on 2026-09-02,
 > T6's on 2026-09-03, T7 … T15's on 2026-09-04, T16's on 2026-09-05, and T17's and T18's on
-> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is NINE OF TEN as of 2026-09-13** — M-01 … M-08 and M-10 walked and signed off by the user, and **M-09 RUN the same day and NOT signed off**: its memory checker was on this machine all along, came back clean, and its growth half found **I-35**, an open S2.**
-> **87 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
+> 2026-09-06. THE AUTOMATED HALF IS COMPLETE; **the manual half is NINE OF TEN as of 2026-09-13** — M-01 … M-08 and M-10 walked and signed off by the user, and **M-09 RUN the same day and NOT signed off**: its memory checker was on this machine all along, came back clean, and its growth half found **I-35** (S2), fixed the same day and not closed until the running product is re-measured.**
+> **92 automated** (A-01 … A-74, plus **A-75** added 2026-08-31 — see I-02, **A-76 … A-78**
 > added at T4 because the plan's *“asserted rather than assumed”* named a check the guide had no
 > case for, **A-79** at T13 — see I-09 — **A-80** at T14, for a view rotation this guide was
 > written before anyone noticed the render path could not carry, **A-81** at T15, the
@@ -23,9 +23,11 @@
 > 2026-09-13, when M-05's walk found **I-25** — a paged Two-Up that could not leave its spread,
 > in the mode the paged-turn cases written one day earlier had all declined to select, and
 > **A-87** the same day for **I-27**, found when the suite went red because the walker still had
-> the product open) and **10 manual** (M-01 … M-10), of
+> the product open, and **A-88 … A-92** the same day again for **I-35**, M-09's memory growth — four
+> cases, each run red before its fix, and the measurement that moved M-09's growth clause out of the
+> manual walk) and **10 manual** (M-01 … M-10), of
 > which **A-01, A-03, A-05 … A-13, A-15 … A-23, A-28 … A-60, A-63, A-64, A-66 and
-> A-75 … A-87 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
+> A-75 … A-92 are green** — that range absorbed A-48 … A-51 at T17 and is written as one span
 > rather than two, because a list of ranges is a second copy of the case table — **A-27 and A-46 are CLOSED** (T6 took the expected fuzz-target count from 1 to 2; T9 gave
 > A-46 the second half it had been waiting for since T1), and **A-61 was 🟡 until M-02 cleared it on 2026-09-06; A-62, A-65 and A-67 remain 🟡, each with the half it
 > does not claim named and owned**: a real mid-session scale change is manual case **M-02's**;
@@ -1222,6 +1224,26 @@ worth recording, because a control that does not fail for the right reason prove
 **If it fails** S1 — this is the mechanism that makes
 Stage 3's mutations safe, and Stage 2 is where it must already be right.
 
+**A-88 · A tile that FINISHED before its document was cancelled is forgotten, not cached** ✅ **2026-09-13 (I-35)**
+**Goal** The third state `cancelDocument()` never covered. A tile can be queued (removed), running
+(marked, dropped on delivery) or **finished and waiting for the pump** — and the last was written into
+the cache by the next `deliverReady()`, after `ui/shell/DocumentWindow` had already called
+`RenderCache::dropDocument()`, under a handle nothing would ask for again.
+**Steps** `ctest -R "forgets a FINISHED tile"`. Two tiles of document A and one of document B finish and
+are NOT delivered; then `DocumentWindow`'s destructor sequence runs step for step (cancel, drain, drop),
+and only then the pump.
+**Expect** One delivery — B's. Nothing of A in the cache; `droppedCancelled == 2`; B's tile delivered AND
+cached, which is the control: a scheduler that dropped every queued completion would pass the rest.
+**Result 2026-09-13** Green on the fixed scheduler. **Run first against the unfixed one**: `3 == 1`
+deliveries, both of A's tiles found in the cache, `droppedCancelled` `0 == 2`. **Measured with the
+engine too** (`rawpage_bench_openclose`, whose default leaves the last page's tiles undelivered at the
+close): the unfixed scheduler filled the 256 MiB cache to its cap with dead tiles within three rounds;
+the fixed one ends every round at **0 bytes**. **What it does NOT cover:** it drives the pump by calling
+it. In the running product the pump had usually drained the queue before a person's `Ctrl+W`, so this
+was a real hole and **not** the cause of I-35's measured growth — the M-09 driven re-run on the build
+carrying only this fix was unchanged (225.7 → 255.9 MB against 225.9 → 256.2), which is recorded in I-35.
+**If it fails** S2 — the budget fills with tiles of closed documents and evicts the open ones.
+
 ### 5.7 The engine
 
 **A-42 · Every corpus file opens** ✅ **2026-09-04 (T9)** **Steps** `ctest -R "^render\."`
@@ -1762,6 +1784,46 @@ held key carries the rotation.
 **If it fails** S2 — and the first question is which of the four layers, because three of them fail
 invisibly.
 
+**A-89 · The log pane holds no more lines than the buffer it mirrors** ✅ **2026-09-13 (I-35)**
+**Goal** I-35's first cause. `core::LogBuffer` is capped at 2,000 records by design and
+`LogPane::rebuild()` reads it, but the LIVE path appended to the `QPlainTextEdit` forever — so a pane
+nobody had opened kept every line the process ever logged, at roughly 9 KB of Qt's heap per line.
+**Steps** `ctest -R "no more lines than the buffer"`. A buffer of capacity 5; three live records, then
+nine more.
+**Expect** Three lines under the cap (the control); five after twelve records, the newest five; the live
+view equal to a rebuilt one.
+**Result 2026-09-13** Green on the fixed pane (`setMaximumBlockCount(buffer.capacity())`). **Run first
+against the unfixed one**: `12 == 5`. Through the product's composition (`rawpage_bench_openclose_ui`,
+offscreen, nine documents a round, logging at Info): the pane held **2,656 lines against the buffer's
+2,000** by round 24 and live heap grew **1.25 MB a round with no plateau**; fixed, the pane stops at 2,000
+and live heap levels off (34.06 → 34.48 MB over rounds 19–24). **What it does NOT cover:** the bounded
+cost is still large — about 18 MB for a hidden pane's 2,000 lines — and whether a hidden pane should lay
+out text at all is not decided here.
+**If it fails** S2 — unbounded growth proportional to everything the process logs.
+
+**A-90 · A button showing a command gains no signal connection when the command changes** ✅ **2026-09-13 (I-35)**
+**Goal** I-35's second cause, **a Qt 6.11.1 behaviour measured rather than read**: a `QToolButton`
+re-applies its default action on every `ActionChanged` and connects `changed()` AGAIN each time, so a
+stock button's action gains one connection per change for ever. Every open and close of a document
+changes the enabled state of every Viewer command. `ui/shell/ActionToolButton.h` records the measurement
+and the fix; convention 23 (`Implementation-Plan.md` §1.5) makes it binding.
+**Steps** `ctest -R "gains no connection|gains connections as its commands"`. One case on a single button,
+with a STOCK `QToolButton` as its control; one on every ribbon and QAT button the real `MainWindow` builds,
+each action's enabled state flipped four times.
+**Expect** The stock button's count RISES (if it ever stops, Qt has fixed it and `ActionToolButton` can
+go); `ActionToolButton`'s stays where Qt starts it, at one, and still follows text and enabled state;
+**no** window button's count changes.
+**Result 2026-09-13** Green. **Negative control run**: with the disconnect removed from
+`ActionToolButton`, the single-button case read `11 == 1` and the window case **`195 == 0`** — 195 of the
+window's buttons accumulating. How it was found is the reusable part: no object count moved, because a
+connection is not an object; the harness's `QObject::receivers()` census named
+`RawPageAction::changed()` gaining **56 connections per document opened**, and disconnecting from each
+reachable object named the receiver as a single `QToolButton`.
+**What it does NOT cover:** it flips enabled state directly; that opening documents no longer grows the
+process is A-92's measurement.
+**If it fails** S2 — memory and slot calls that grow with every change of document state, for the life
+of the window.
+
 ### 5.10 Platform
 
 **A-60 · `WinDisplayTopology` sees the real rig — and this is what makes the rig trustworthy**
@@ -2057,7 +2119,51 @@ round-trips, reaches the view and changes no render flag.
 **If it fails** S3 — and a failure here would be GOOD NEWS: it would mean a flag does thin a line,
 and I-11 should be closed rather than the case fixed.
 
+**A-91 · The font substitution log is bounded, and a caller's window survives it** ✅ **2026-09-13 (I-35)**
+**Goal** I-35's third cause. `FontResolverBridge`'s log of substitutions was append-only for the life of
+the process, and PDFium asks about every unembedded font a document loads — the base-14 faces it declines
+included — so every ordinary document added a row of four `QString`s. Bounding it breaks a position-based
+reader silently, so the case covers the reader too.
+**Steps** `ctest -R "substitution log is bounded"`. `text-a4.pdf` opened and rendered 602 times with the
+real resolver installed; then a mark taken and one more document rendered.
+**Expect** Two documents keep every row (the control); after 602 the log holds at most
+`kLogCapacity` (256); `substitutionsSince(mark)` returns exactly the rows the next document produced, all
+with `sequence >= mark`.
+**Result 2026-09-13** Green. **Run first against the unfixed bridge**: **`1204 <= 256`** — two rows per
+document, all kept. The golden suite read its per-page rows by POSITION in that log
+(`GoldenSuite.cpp`), which a bounded log would have turned into empty windows once full — with no test
+failing, since an empty substitution list is also a legitimate one — and now reads by mark. In
+`rawpage_bench_openclose` the fix took live-heap growth below `ui/` from **4.8 KB to 0.1 KB a round**.
+**If it fails** S2 for the bound; **S1 if the golden suite reads an empty window**, because A-82's
+machine-dependence guard is then silently disarmed.
+
 ### 5.12 The measurement, CI, and Stage 1's carry-overs
+
+**A-92 · Opening and closing documents leaves nothing behind — I-35's measurement, through the product's own composition** ✅ **2026-09-13** *(a reported figure, like A-68, not a pass/fail case)*
+**Goal** The automatable half of M-09's growth clause, moved out of the manual walk because it turned out
+to be measurable — and measurable far better than by eye.
+**Steps** `rawpage_bench_openclose_ui <rounds> --native --with-encrypted [--handoff] [--quiet-log]`.
+It composes `app::CompositionRoot` and `ui::MainWindow` as `app/main.cpp` does, on the real Windows
+platform and style (a window appears, off to the side, without taking focus), opens the ten M-09 files a
+round — the encrypted one's prompt answered by timer — pages and zooms each, closes them all, and
+reports **live heap** (the sum of busy heap blocks, `tests/bench/HeapCensus`) per round, plus which block
+sizes and which signals' connection counts grew between the middle and last round.
+**Read it this way.** Never private bytes alone: a heap keeps what it has freed, and private bytes in
+the same run swung **70.5 → 258.1 MB** while live heap moved 60 KB. Logging at Info is *expected* to
+grow until the log pane reaches its 2,000-line cap, and Qt's `QPixmapCache` until its 10,240 KB limit;
+both are bounded, and `--quiet-log` / `--clear-pixmap-cache` remove them from the reading.
+**Result 2026-09-13, all fixes in.** Native `windows11` style, ten files, handoff path, quiet log, 30
+rounds: live heap **34.91 → 34.97 MB**, +1.1 KB a round, **no signal's connection count changed**, handles
+and widgets flat. The same without `--handoff` over 20 rounds: 34.94 → 34.95 MB from round 5. With
+logging at Info and the pixmap cache kept (nine files, 30 rounds): +183 KB a round, every block of it the
+log pane filling towards its cap and pixmaps towards theirs.
+**What it does NOT cover.** `app/main.cpp` and the single-instance IPC itself (the `openHandoff` receiver
+is exercised, the pipe is not); a real 150 % display — the harness window is at the virtual desktop's
+edge, and its device pixel ratio is not recorded; allocations the heap walk cannot see (a `VirtualAlloc`
+outside the NT heaps, which `pdfium.dll` does not use for its own objects). **Offscreen reads differently
+and must not be quoted as the product**: its Fusion style caches scroll-bar arrows under a new palette
+key per view and the key strings survive `QPixmapCache::clear()`, about 0.5 KB per document — measured
+absent under the native style.
 
 **A-68 · `bench_render` — A2's PRODUCT figure**
 ☐ **Goal** D2-1's second half, and the §3 verdict. **Steps** `rawpage_bench_render.exe` on the P-1
@@ -2547,8 +2653,19 @@ case was run that day and its record says what it found.
     workload at once.
   - **The verifier's leak check reports memory still allocated at exit, and nothing else.** A
     structure that grows while running and is freed at shutdown passes it, which is exactly what
-    I-35 may be.
+    I-35 turned out to be.
   - **One machine, one build per half, the generated corpus.**
+- **I-35 FIXED THE SAME DAY — AND WHAT IS STILL THE USER'S.** Four causes, found by measurement after a
+  first hypothesis was refuted by this case's own driver (I-35 has the detail): the log pane kept every
+  line, action buttons gained a connection per change of their command, the font substitution log was
+  append-only, and — a real hole but not the growth — finished tiles of a closed document were cached.
+  Each has a case run red before its fix (**A-88 … A-91**), and the growth clause's automatable half is
+  now **A-92**: through the product's own composition on the real platform, ten files including the
+  encrypted one, live heap **34.91 → 34.97 MB over 30 rounds**. **This case stays ☐.** What remains is
+  the running `rawpage.exe` re-measured under the same driver with every fix in — its reading is private
+  bytes, which A-92 shows can swing by 180 MB on retention alone, so a re-run judges the *trend* over
+  eight rounds against 225.9 → 256.2 MB, not a single figure — and the sign-off decision, including
+  whether uninitialized reads (Dr. Memory, not run) are held against it.
 
 **M-10 · The Viewer keyboard, by hand** ✅ **WALKED AND SIGNED OFF BY THE USER 2026-09-13**, first walk, one S2 fixed during it (I-33) and one S3 logged (I-34)
 - **Goal** The one thing no synthetic key event can establish: whether a chord is intercepted by the
@@ -2675,9 +2792,9 @@ document means **Stage 1's**, and says so where it appears.
 | **I-32** | **S2** | **A FILE THAT COULD NOT BE OPENED SAID SO ONLY IN THE STATUS BAR, AND SAID THE WRONG THING — *"IS NOT A PDF FILE"* ABOUT FOUR DAMAGED PDFs.** Found by the user in the M-07 walk, 2026-09-13: double-clicking `missing-endobj`, `no-root`, `root-points-at-nothing` or `truncated-mid-stream` looked like nothing happening at all. **Two faults.** (1) **Where**: `MainWindow::openFiles()` put a refusal in the status bar's message label and nowhere else — no tab, no dialog, no banner, bottom-left in the grey of every other status text. The message bar could not carry it: it was per-document and cleared on every tab change, and a refused file has no document. (2) **What**: PDFium reports `FPDF_ERR_FORMAT` for a spreadsheet and for a damaged PDF alike, and `PdfiumDocument` mapped both to `error.open.notPdf` — a reason that is false for every damaged file and sends the reader looking for the wrong problem. **WHY NOTHING CAUGHT IT.** A-47 asserts a refusal is NAMED, and it is; nothing asked whether a person SEES it, and `tests/ui` can read a status label a walker never looks at. The only engine case for a refusal used English prose as its bad input, where *not a PDF* is true. | ✅ **Closed 2026-09-13**, on the user's choice of a window-level banner with a red background. `MessageBar::Kind::OpenFailed` is **window-scoped** — `clearDocumentConditions()`, which a tab change now calls, leaves it — and painted from two new tokens, `ErrorBackground`/`ErrorText` (fifteen now): 22.0 / 24.4 / 29.3 CIE76 units from the window, the surface and the amber condition tint in light, 32.6 / 31.3 / 28.6 in dark, text 11.5 : 1 and 11.1 : 1. `openFiles()` gathers every refusal of one call into one banner, and **a cancelled prompt raises none** (A-43). `PdfiumDocument` says `error.open.damaged` when the refused bytes carry a `%PDF-` header in their first 4 KiB, `notPdf` only when they do not; both catalogs gain the two keys. **Four cases and three negative controls**: a refusal banner names the file, is red in grabbed pixels and survives a tab change (control: `clear()` on tab change reddens it); several refusals share one banner; a cancel raises none (control: counting cancels reddens it); the four corpus files say *damaged* while header-less bytes still say *not a PDF* (control: `notPdf` for both reddens all four). **A first run of that last control did not compile and passed against the previous binary** — discarded, and re-run with a reversion that builds. **M-07 needs re-walking on these files** |
 | **I-33** | S2 | **`Ctrl+Shift+=` AND `Ctrl+Shift+-` — ROTATE VIEW — DID NOTHING FROM A KEYBOARD, AND `Ctrl+Shift+7` AND `Ctrl+Shift+8` WERE DEAD THE SAME WAY.** Found by the user in the M-10 walk, 2026-09-13, step 1. **The mechanism, measured rather than assumed**: a throwaway Qt probe window, driven first by injected input and then by the user's own keyboard with the zh-TW IME active, received `Ctrl+Shift+=` as **`Key_Plus` (0x2B)** and `Ctrl+Shift+-` as **`Key_Underscore` (0x5F)** — with Shift held, Qt on Windows reports the character a punctuation key types, not the key. `ShortcutBinder::chordFor` read the key code as the key's identity, formed `Ctrl+Shift++`, and no row binds that. `Ctrl+=` and `Ctrl+Shift+N` were unaffected, which is what made it look like two broken commands rather than one broken reading. **Why the suite missed it**: every case built its key event FROM the chord — `tst_viewercommands`' `press()` parses `"Ctrl+Shift+="`, and `tst_context`'s round-trip census turns each row into `Key_Equal` + Shift and reads the same row back — so both agreed with the mistake by construction (convention 19). **Why a one-line normalization was not the fix**: `KeyBindingDefaults.def` uses BOTH spellings — `Ctrl+Shift+=`, `Ctrl+Shift+7` by the key, `Ctrl+Shift+>` and a bare `+` by the character — so mapping every character back to its key would have killed the second set. **Fixed** with `ShortcutBinder::chordCandidatesFor`, which offers the chord as reported, then the same modifiers on the unshifted key, then the character with Shift removed, and `eventFilter` takes the first any row binds — Qt's own shortcut map's rule. **The unshifted key is a US keyboard's** (a 21-row table): on a layout whose shifted punctuation differs, the second candidate names the wrong key, and nothing reads the active layout — recorded at the header, not repaired. **Not changed**: the Shortcuts page still records the LITERAL chord, so a remap captured as `Ctrl+Shift+=` is stored as whatever `QKeySequenceEdit` reports — not measured. **Three cases, two negative controls**: the candidate order; a census over every shifted-punctuation row in the table — **seven**, Viewer's two rotate chords, Write's `Ctrl+Shift+=`, `+7` and `+8`, PageThumbnails' `+` and Bookmarks' `*` — each pressed as a keyboard sends it; and the rotate chords end to end as `QKeyEvent`s through the application filter, with `Ctrl+=` still zooming as the control in the other direction. Trying only the first candidate reddens the end-to-end case (rotation 0, not 90); dropping the unshifted candidate reddens all three. **What those cases do not cover is Qt's Windows key mapper itself** — each event is shaped by the probe measurement — and that stays M-10's. | ✅ **Closed 2026-09-13** in the change that found it; the two rotate chords re-pressed by the user in M-10 on the rebuilt product and working |
 | **I-34** | S3 | **THE SECOND LEVEL OF RIBBON KEY TIPS IS INERT: THE GROUP NUMBERS ARE DRAWN AND NO KEY DOES ANYTHING WITH THEM.** Found by the user in the M-10 walk, 2026-09-13, step 4: `Alt` and a tab letter work, and the digits shown on the tab's groups have no effect. **The mechanism, read from the code**: `Ribbon::handleKeyTip` (`ui/shell/Ribbon.cpp`) at level two draws `QString::number(i + 1)` over each `RibbonGroup` and records no target for it, and **any** key pressed at that level other than `Esc` falls through to `hideKeyTips()` — so a digit is consumed, closes the tips and returns focus, exactly as a stray letter would. **Not a regression and not a failure of any written criterion**: `Stage1-AppShell-Plan.md` §5.3's **R-5** asks for *"`Alt` key tips, two levels deep, dismissable with `Esc`"*, Stage 1's M-01 step 5 was walked and signed off against that wording, `Features.md` §1.1 promises *"accelerator letters overlaid on the ribbon"* and nothing more, and this guide's M-10 step 4 asks only that the tips work and focus returns. **The gap is what none of them asked**: a keyboard user can reach a TAB through key tips and cannot reach a BUTTON, while full keyboard operability is one of the things `Features.md` → *Removed from scope* explicitly kept. Criterion R-5 was satisfied by drawing a second level, which is convention 22's shape — the mechanism was proved to APPEAR, and nothing asked whether it DOES. **What is absent**: any activation below the tab — no target per group, no tip per control. S3 rather than S2 because nothing that works stopped working and every ribbon command is reachable by mouse, the tool finder and, where §8 binds one, its chord. **Owner unassigned**; which stage builds it, and whether level two should label groups or controls, is not decided here. | ☐ **Open** — raised 2026-09-13 in M-10, owner stage not assigned |
-| **I-35** | **S2** | **THE PRODUCT KEEPS ABOUT 4 MB OF PRIVATE MEMORY PER ROUND OF TEN DOCUMENTS OPENED AND CLOSED, AND DOES NOT STOP — WHILE THE SAME PIPELINE WITH NO WINDOW DOES NOT.** Found 2026-09-13 in M-09's growth clause (*"no leak growing with each document"*), driven rather than read by eye. **What the product does**: on `x64-release`, eight rounds of the same ten corpus files are opened, scrolled, zoomed and closed, and private bytes with every tab closed go **225.9 → 230.2 → 235.2 → 238.9 → 243.1 → 248.0 → 251.5 → 256.2 MB**, +3.5 to +5.0 MB every round, and the figure with ten tabs open climbs in step (783.9 → 813.3 MB). **Handles, GDI and USER objects are flat** over the same 80 opens. An earlier three-round run that reached only the first screen of each file grew at almost the same rate (221.2 → 224.5 → 228.4 MB). **So the growth follows OPENS rather than the volume rendered.** **What the pipeline below `ui/` does**: `tests/bench/bench_openclose.cpp`, added the same day as this issue's reproducer. It opens the same ten files through `pdf::createBackend()`, `app::BackendRasterizer`, ONE `RenderScheduler` and ONE `RenderCache` as `app/CompositionRoot` holds them. It renders a 1920×1080 viewport of up to seven pages per file at 216 dpi (**805 tiles delivered per round**, counted, so a silent render loop cannot report *flat* for free), then calls `dropDocument` and then `close` in `ui/shell/DocumentWindow`'s order. The disk tier is off, as it is by default and in the walker's `settings.ini`. **Fifty rounds, 500 opens, in each of three configurations.** **Open and close only**: private bytes 4.8 MB after round 1 and 4.8 MB after round 50 — **opening and closing leaks nothing measurable**. **Rendering, with `FontResolverBridge` installed as the product installs it**: 4.1 MB at round 1, 5.7 at round 10, then STEPS to 16.3 at 20 and holds — 19.5, 21.4, 20.7 at 30, 40 and 50. **Rendering without the bridge**: the same shape, 4.5 → 6.2 → 20.0 → 17.8 MB. **So the headless pipeline gains about 15 MB in steps and LEVELS OFF**, which is allocator high-water behaviour rather than a per-document retention, and the font bridge makes no difference. **Over their first ten rounds the product grows about 4 MB a round and the headless pipeline about 0.2 MB — twenty times the rate, over the same files and the same close protocol.** **What that establishes, and what it does not.** It does **not** place the retention at the PDFium boundary, which is why this is not the S1 M-09's *If it fails* reserves for the boundary. It **points at `ui/`**, or at something only the GUI process composes, **and does not prove it**. The headless run needed twenty rounds before its step, and the product was measured for eight, so *the product never levels off* is not established either. What is established is the difference in rate in comparable rounds. **Application Verifier's leak check was clean at exit** (M-09's record), so whatever holds the memory is released by shutdown or is never attributed to a heap block at exit. **Why nothing caught it**: no automated case measures memory across documents. M-09 was the only case that asked, and its growth clause named no instrument, so it would have been judged by watching Task Manager; the first driven attempt, whose page keys never reached the page, showed how easily *"it looked flat"* comes from a workload that did not happen. **Weighed against O10's reopening trigger** (`Implementation-Plan.md` §8, *a memory defect in `platform/win/` or `ui/` that the portable jobs structurally could not have seen*): **not met as written**. This is a retention rather than a memory-safety defect, which no sanitizer route would have caught either, and its layer is not established. **S2** because M-09 names this exact behaviour, and every later stage holds more per document than this one does. **Provisional** until the layer is known; **the user decides the severity**. **What is absent**: the retaining layer and the mechanism; a GUI run long enough to show whether the product levels off; and any automated case measuring growth per document. **Owner unassigned.** | ☐ **Open** — raised 2026-09-13 in M-09 |
+| **I-35** | **S2** | **THE PRODUCT KEPT ABOUT 4 MB OF PRIVATE MEMORY PER ROUND OF TEN DOCUMENTS OPENED AND CLOSED, AND DID NOT STOP.** Found 2026-09-13 in M-09's growth clause (*"no leak growing with each document"*), driven rather than read by eye: on `x64-release`, eight rounds of ten corpus files opened, scrolled, zoomed and closed took private bytes with every tab closed **225.9 → 256.2 MB**, +3.5 to +5.0 MB every round, with handles, GDI and USER objects flat. **FOUR CAUSES, EACH MEASURED, FIXED AND GIVEN A CASE THAT WAS RUN RED FIRST.** **(1) The log pane kept every line ever logged** — `LogPane` mirrored a buffer capped at 2,000 records into a `QPlainTextEdit` with no cap, about 9 KB of Qt's heap per line, whether or not anyone had opened the pane; fixed with `setMaximumBlockCount`, case **A-89**. **(2) Every ribbon and QAT button gained a signal connection each time its command changed** — a Qt 6.11.1 `QToolButton` re-applies its default action on every `ActionChanged` and connects `changed()` again, measured at **56 connections per document opened** (96 + 32 bytes each, plus one more slot call per later change); fixed with `ui/shell/ActionToolButton.h`, case **A-90**, convention **23** (`Implementation-Plan.md` §1.5). **(3) The font substitution log was append-only** — two rows of four `QString`s per ordinary document, since PDFium asks about the base-14 faces it declines too; bounded to 256 rows with a sequence number, and the golden suite, which read its per-page rows by position and would have read empty windows silently once the log was full, now reads by mark; case **A-91**. **(4) A real hole that was NOT the measured growth**: `RenderScheduler::cancelDocument()` ignored tiles that had finished and were waiting for the pump, so the next delivery cached them under a closed document's handle; case **A-88**. Fixed first, on a hypothesis that fitted the numbers, and **the M-09 driven re-run on a build carrying only that fix was unchanged (225.7 → 255.9 MB)** — which is how the hypothesis was refuted and why the rest was found by instrument rather than by reading. **A CORRECTION TO THE FIRST DIAGNOSIS, MADE IN PLACE:** it said the pipeline below `ui/` *"leaks nothing measurable"* and pointed at `ui/`; that was read from PRIVATE BYTES, which cannot see kilobytes under an allocator that keeps freed pages, and live heap below `ui/` was in fact growing 4.8 KB a round — cause (3). **HOW THE CAUSES WERE FOUND, because the method is the reusable part:** `rawpage_bench_openclose_ui` composes `app::CompositionRoot` and `ui::MainWindow` without a person and reports LIVE heap (`tests/bench/HeapCensus`, the sum of busy blocks) — private bytes in the same runs swung by 180 MB between rounds. A histogram of block sizes between two rounds named the accumulating allocation (5,200-byte blocks tracking log records; 96 + 32-byte pairs, 56 per open); `QObject::receivers()` summed per signal named `RawPageAction::changed()`, and disconnecting from each reachable object named a `QToolButton` as the receiver; `tests/bench/AllocationTracker` (a replaced `operator new` recording stacks, resolved with `addr2line`) named `FontResolverBridge`'s vector; a content dump and a pointer-holder scan identified the remainder as Qt's own caches. **WHAT IS BOUNDED AND DELIBERATELY NOT CHANGED:** Qt's `QPixmapCache` (10,240 KB, filling with style pixmaps); the log pane's bounded ~18 MB for 2,000 lines; and, on the OFFSCREEN platform only, the Fusion style's scroll-bar arrow keys, ~0.5 KB per document, measured absent under the native `windows11` style. **AFTER ALL FOUR FIXES (A-92):** the product's composition on the real platform and style, ten files including the encrypted one, through the single-instance `openHandoff` path, 30 rounds: live heap **34.91 → 34.97 MB**, no signal gaining connections, handles and widgets flat. **WHAT IS NOT ESTABLISHED:** that these four account for the running product's 4 MB of PRIVATE bytes a round — private bytes include retention the harness shows swinging by 180 MB — because the product itself has not been re-measured with every fix in; that re-run is M-09's and the user's. **Application Verifier's leak check was clean at exit throughout**, which fits: everything retained was reachable and freed at shutdown. **Why nothing caught it:** no automated case measured memory across documents; A-92 now reports it. **Weighed against O10's reopening trigger** (`Implementation-Plan.md` §8): **not met** — a retention, not a memory-safety defect, which no sanitizer route catches either. **S2**, the user's to confirm. | 🟡 **Fixed 2026-09-13** — four fixes, each case red then green, and flat through the product's composition (A-92); **not closed until the running product is re-measured** under M-09's driver |
 
-**ONE S2 IS OPEN: I-35**, raised 2026-09-13 in M-09 — the product keeps about 4 MB per round of ten documents and a headless loop through the same pipeline does not; the layer is not yet known. **Before it, no S1 or S2 was open — I-17 and I-18 were raised and closed on 2026-09-06, in the CI run that first
+**ONE S2 IS FIXED BUT NOT YET CLOSED: I-35**, raised 2026-09-13 in M-09 — four causes found by measurement and fixed the same day, flat through the product's composition (A-92), and awaiting the running product's re-measurement under M-09's driver. **Before it, no S1 or S2 was open — I-17 and I-18 were raised and closed on 2026-09-06, in the CI run that first
 executed Stage 2's build, I-23 and I-24 on 2026-09-12, and I-25, I-27, I-30, I-31, I-32 and I-33 on 2026-09-13, each in the
 change that found it. Four S3 remain — I-06 (JBIG2) and I-11 (line weight), both open BY DECISION
 rather than pending, **I-28** (Fit Visible fits the CropBox), raised 2026-09-13 in M-06 and simply open, and **I-34** (the second level of key tips does nothing), raised the same day in M-10 with no owner stage. **Thirty closed, re-counted from the table on 2026-09-13**: I-01 and I-03
@@ -2749,7 +2866,7 @@ Stage 2 is done when **all** of these hold. This is
 
 1. ☐ A-01 … A-85 **run**, with actual output recorded against each case — not a summary claiming they
    were. Stage 1's **I-32** was exactly this gap.
-2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Nine of ten as of 2026-09-13: M-01 … M-08 and M-10.** **M-09 is the only one left: RUN 2026-09-13 and NOT signed off** — the verifier half is clean, and the growth half found **I-35**. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
+2. 🟡 M-01 … M-10 **walked and signed off by you.** I do not mark a manual case. **Nine of ten as of 2026-09-13: M-01 … M-08 and M-10.** **M-09 is the only one left: RUN 2026-09-13 and NOT signed off** — the verifier half is clean, and the growth half found **I-35**, fixed the same day and awaiting the running product's re-measurement. Re-read the case headings rather than this line — each carries its own ✅ or ☐ and its own walk record.
 3. ☐ `checks` clean — three gates, with the narrowed `FPDF_` rule **and its control**.
 4. ☐ `ctest` green across all five Windows targets, every prior stage included.
 5. 🟡 `portable-asan` clean over the whole corpus parse; `portable-fuzz` green on **two** targets
@@ -2805,6 +2922,6 @@ Stage 2 is done when **all** of these hold. This is
     at **0**, by evidence rather than by inertia, and the row, the code and the range all stay:
     a machine where rendering is far more expensive may still want it, and Stage 5 changes the
     workload.
-10. ☐ **No open S1 or S2 in §8 — NOT MET as of 2026-09-13: I-35 (S2) is open**, raised in M-09. It was met as of T16, 2026-09-05, as follows. I-05 closed at T11, **I-02 at T16** (the closure measurement and the `text` split), and **I-13** — this stage's only S2 found in the product — raised and closed within the same run. **I-04** and **I-12** are S3 and closed at T16 too. The two S3 that remain, **I-06** (JBIG2) and **I-11** (line weight), are open BY DECISION rather than pending: each is a feature the engine or the licence cannot deliver, kept as a declared-and-inert surface so the day the constraint lifts there is a row to fill in.
+10. ☐ **No open S1 or S2 in §8 — NOT MET as of 2026-09-13: I-35 (S2) is fixed but not closed**, raised in M-09 and fixed the same day; it closes when the running product is re-measured. It was met as of T16, 2026-09-05, as follows. I-05 closed at T11, **I-02 at T16** (the closure measurement and the `text` split), and **I-13** — this stage's only S2 found in the product — raised and closed within the same run. **I-04** and **I-12** are S3 and closed at T16 too. The two S3 that remain, **I-06** (JBIG2) and **I-11** (line weight), are open BY DECISION rather than pending: each is a feature the engine or the licence cannot deliver, kept as a declared-and-inert surface so the day the constraint lifts there is a row to fill in.
 11. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
     `Implementation-Plan.md` Stage 2 status block updated to reality, deviations included.

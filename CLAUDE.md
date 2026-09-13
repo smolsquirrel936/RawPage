@@ -19,10 +19,10 @@ Stage 2 (PDF engine boundary and tiled rendering) is **code complete and not sig
 | | |
 |---|---|
 | **Stage** | **Stage 2, code complete as of 2026-09-06 — all eighteen tasks done, NOT signed off.** |
-| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), an open S2: memory retained per document opened, whose layer is not yet established. |
+| **Next action** | **The Stage 2 MANUAL WALK, which is yours** — `Stage2-Rendering-Testing-Guide.md` §6. **Nine of its ten cases are walked and signed off as of 2026-09-13**; **M-09** was run the same day and is **not signed off**. Its checker half is clean, and its growth half found **I-35** (§8 there), an S2 fixed the same day and **not closed until the running `rawpage.exe` is re-measured under M-09's driver** — that re-run, and the sign-off, are what is left. |
 | **Then** | Stage 3 — `IncrementalWriter`, `ObjectAllocator`, `tools/mutation-lint`, `tests/roundtrip/`. |
 | **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **721/721** as of I-33's fix, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **726/726** as of I-35's fixes, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 94/94 with no Qt. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -307,7 +307,7 @@ Plus the standing conventions:
 
 ## Conventions discovered while building — these bind all later work
 
-**Twenty-two of them, and the full text with the measurement behind each is
+**Twenty-three of them, and the full text with the measurement behind each is
 [`Implementation-Plan.md` §1.5](claude-plan/Implementation-Plan.md).** Most were written the day a
 defect got past a green test suite, so the reasoning is the load-bearing part and it lives there
 rather than here. **The numbers are stable and are cited across the document set** — several guides
@@ -336,6 +336,7 @@ know when to go and read one:
 20. **A colour is judged in BOTH themes, or it is judged in neither.**
 21. **A palette is not a theme: the native style paints from the COLOUR SCHEME, and it wins.**
 22. **A case proving a mechanism FIRES is half of proving it fires WHEN IT SHOULD — and the criterion will not ask for the other half.**
+23. **A button that shows a command is an `ActionToolButton`, never a stock `QToolButton` with a default action — and anything retained per document is measured as LIVE heap, never as private bytes.**
 
 **Three are cited often enough to state in full here**, because they are the ones a new change
 breaks:
@@ -386,7 +387,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 721/721 as of I-33's fix, 1 skipped
+ctest --preset x64-release --output-on-failure        # 726/726 as of I-35's fixes, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -446,9 +447,15 @@ Two checks that are neither a `ctest` case nor a gate, and each has a recorded r
                                                     #   numbers. `8` sweeps the worker count;
                                                     #   `--whole-page` reports the other quantity.
                                                     #   READ IT WITH THE PROBE, NEVER INSTEAD OF IT
-.\build\x64-release\bin\rawpage_bench_openclose.exe --bridge 50   # S2 I-35's reproducer: private bytes
-                                                    #   per round of ten documents, NO window.
-                                                    #   `--no-render` drops the rasterizing
+.\build\x64-release\bin\rawpage_bench_openclose.exe --bridge 50   # S2 I-35's reproducer, NO window: LIVE
+                                                    #   heap per round of ten documents, and the
+                                                    #   block sizes that grew. `--no-render`
+.\build\x64-release\bin\rawpage_bench_openclose_ui.exe 30 --native --with-encrypted --handoff --quiet-log
+                                                    # guide case A-92: the product's own composition,
+                                                    #   real platform and style (a window appears,
+                                                    #   without taking focus). Read liveHeapMB, NEVER
+                                                    #   privateMB alone -- it swings 180 MB on retention.
+                                                    #   Offscreen reads differently: see the header
 .\scripts\check-single-instance.ps1                 # A-61's two-process half, with its `true` control
 ```
 
@@ -484,7 +491,7 @@ A-04 rather than pending boxes. `tests/fuzz/CMakeLists.txt` fails configure when
 wrong — **1 at T5, 2 from T6** — because "ten minutes with no crashes" is passed trivially by a
 target that builds nothing.
 
-**Five test targets and four benchmarks**, and the split is load-bearing rather than
+**Five test targets and five benchmarks**, and the split is load-bearing rather than
 organizational — a suite is a separate target when linking something would destroy a property
 another suite proves. `rawpage_tests` (`unit.`) links no display and no engine, which
 `rawpage_assert_headless()` **fails configure** to enforce; `rawpage_platform_tests`
