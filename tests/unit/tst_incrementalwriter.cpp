@@ -657,62 +657,111 @@ TEST_CASE("cos writer refuses what it cannot write and produces nothing", "[cos]
 // A-28 -- THE A4 PROBE: the writer alone, over the signed corpus, to disk (D3-1, first half)
 // ==========================================================================================
 
-TEST_CASE("A4 probe writes a page rotation into every signed corpus file", "[cos][writer][a4probe]")
+TEST_CASE("A4 probe writes a comment and a rotation into every signed corpus file", "[cos][writer][a4probe]")
 {
     // The FILES this writes are what OpenSSL judges in `unit.a4_probe.openssl` and what the user
-    // opens in Acrobat for guide case M-03's probe walk. This case asserts the byte half: the file
-    // read back FROM DISK begins with every byte of the original -- so every signed range, which
-    // ends at or before the original's end -- and the rotation is there when re-read.
+    // opens in Acrobat for guide case M-03's probe walk. TWO EDITS per file, into two directories,
+    // because the first Acrobat walk taught that they answer different questions (Stage 3 guide
+    // issue I-06, decided by the user 2026-09-14):
     //
-    // What it does NOT cover: whether the signature still verifies (OpenSSL's, in the case above)
-    // or is still valid by policy (Acrobat's, M-03). And the delta is hand-built -- the product's
-    // own path to the same file is T13's re-measurement.
+    //   * `comment/` -- a text annotation added to page 1: a change these signatures' policy PERMITS
+    //     ("Form Fill-in, Signing and Commenting"). Acrobat grades A4 on this set.
+    //   * `rotate/` -- page 1's `/Rotate` set to 90: the only change Stage 3's product can make, and
+    //     one the policy FORBIDS. Acrobat reported it "altered or corrupted" from our writer and from
+    //     an unrelated one alike, so this set is a second control Acrobat must reject -- and OpenSSL
+    //     still has to find every signed range intact in it.
+    //
+    // This case asserts the byte half for both: each file, read back FROM DISK, begins with every
+    // byte of the original, so every signed range is identical, and the edit re-reads. What it does
+    // NOT cover: signature validity (OpenSSL's, in `unit.a4_probe.openssl`) or policy (Acrobat's,
+    // M-03). The deltas are hand-built -- the product's own path is T13's re-measurement.
     const std::filesystem::path out(RAWPAGE_A4_PROBE_DIR);
-    std::filesystem::create_directories(out);
 
     std::size_t probed = 0;
-    for (const char* name : {"approval.pdf", "approval-xrefstream.pdf", "certified-nochanges.pdf",
-                             "approval-then-update.pdf"}) {
-        INFO("file: " << name);
-        Loaded before = load(readFile(corpus(std::string("signed/") + name)));
-        const long long page = firstPage(before.table);
+    for (const char* edit : {"comment", "rotate"}) {
+        std::filesystem::create_directories(out / edit);
+        for (const char* name : {"approval.pdf", "approval-xrefstream.pdf",
+                                 "certified-nochanges.pdf", "approval-then-update.pdf"}) {
+            INFO("edit: " << edit << ", file: " << name);
+            Loaded before = load(readFile(corpus(std::string("signed/") + name)));
+            const long long page = firstPage(before.table);
+            const bool comment = std::string_view(edit) == "comment";
 
-        ObjectDelta delta(before.table);
-        delta.replace(page, rotated(before.table, page, 90));
-        auto update = IncrementalWriter::append(*before.bytes, before.table, delta);
-        REQUIRE(update);
+            ObjectDelta delta(before.table);
+            long long note = -1;
+            if (comment) {
+                note = delta.add(CosObject::makeDictionary({
+                    {"Type", CosObject::makeName("Annot")},
+                    {"Subtype", CosObject::makeName("Text")},
+                    {"Rect", CosObject::makeArray({CosObject::makeInteger(500),
+                                                   CosObject::makeInteger(760),
+                                                   CosObject::makeInteger(520),
+                                                   CosObject::makeInteger(780)})},
+                    {"Contents", CosObject::makeString("A4 probe: a comment added after signing")},
+                    {"F", CosObject::makeInteger(4)},
+                    {"P", CosObject::makeReference(page, 0)}}));
+                auto pageObject = before.table.fetch(page);
+                REQUIRE(pageObject);
+                std::vector<CosObject::Entry> entries;
+                std::vector<CosObject> annots;
+                for (const CosObject::Entry& entry : pageObject.value().object.entries()) {
+                    if (entry.key == "Annots")
+                        annots = entry.value.items();
+                    else
+                        entries.push_back(entry);
+                }
+                annots.push_back(CosObject::makeReference(note, 0));
+                entries.push_back({"Annots", CosObject::makeArray(std::move(annots))});
+                delta.replace(page, CosObject::makeDictionary(std::move(entries)));
+            } else {
+                delta.replace(page, rotated(before.table, page, 90));
+            }
+            auto update = IncrementalWriter::append(*before.bytes, before.table, delta);
+            REQUIRE(update);
 
-        const std::filesystem::path target = out / name;
-        {
-            std::ofstream stream(target, std::ios::binary | std::ios::trunc);
-            stream.write(before.bytes->data(), static_cast<std::streamsize>(before.bytes->size()));
-            stream.write(update.value().bytes.data(),
-                         static_cast<std::streamsize>(update.value().bytes.size()));
-            REQUIRE(stream.good());
+            const std::filesystem::path target = out / edit / name;
+            {
+                std::ofstream stream(target, std::ios::binary | std::ios::trunc);
+                stream.write(before.bytes->data(),
+                             static_cast<std::streamsize>(before.bytes->size()));
+                stream.write(update.value().bytes.data(),
+                             static_cast<std::streamsize>(update.value().bytes.size()));
+                REQUIRE(stream.good());
+            }
+
+            // FROM DISK, not the buffer (guide rule 3).
+            Loaded after = load(readFile(target));
+            REQUIRE(startsWith(*after.bytes, *before.bytes));
+            if (comment) {
+                auto added = after.table.fetch(note);
+                REQUIRE(added);
+                CHECK(added.value().object.get("Subtype").text() == "Text");
+                auto pageAfter = after.table.fetch(page);
+                REQUIRE(pageAfter);
+                const CosObject& annots = pageAfter.value().object.get("Annots");
+                REQUIRE_FALSE(annots.items().empty());
+                CHECK(annots.items().back().reference().number == note);
+            } else {
+                CHECK(rotationOf(after.table, page) == 90);
+            }
+
+            // The signed range's end, read with `pdf/cos/Parser` -- acceptable HERE because this only
+            // locates bytes to compare; the independent judge of the signature is OpenSSL, whose
+            // extractor shares no code with this reader. (This used `std::regex` until CI run
+            // 34834009577 showed libstdc++ 13 drawing a -Wmaybe-uninitialized false positive from it.)
+            const std::size_t key = before.bytes->find("/ByteRange");
+            REQUIRE(key != std::string::npos);
+            Parser parser(*before.bytes);
+            parser.seek(key + std::string_view("/ByteRange").size());
+            const CosObject range = parser.parseObject();
+            REQUIRE(range.isArray());
+            REQUIRE(range.items().size() == 4);
+            const std::size_t signedEnd = static_cast<std::size_t>(
+                range.items()[2].integerValue(-1) + range.items()[3].integerValue(-1));
+            CHECK(signedEnd <= before.bytes->size());
+            CHECK(after.bytes->compare(0, signedEnd, *before.bytes, 0, signedEnd) == 0);
+            ++probed;
         }
-
-        // FROM DISK, not the buffer (guide rule 3).
-        Loaded after = load(readFile(target));
-        REQUIRE(startsWith(*after.bytes, *before.bytes));
-        CHECK(rotationOf(after.table, page) == 90);
-
-        // The signed range's end, read with `pdf/cos/Parser` -- which is acceptable HERE because this
-        // only locates bytes to compare; the independent judge of the signature is OpenSSL, in
-        // `unit.a4_probe.openssl`, whose extractor shares no code with this reader. (Until the CI run
-        // after T2 this used `std::regex`, whose libstdc++ 13 internals draw a -Wmaybe-uninitialized
-        // false positive in the Linux ASan build.)
-        const std::size_t key = before.bytes->find("/ByteRange");
-        REQUIRE(key != std::string::npos);
-        Parser parser(*before.bytes);
-        parser.seek(key + std::string_view("/ByteRange").size());
-        const CosObject range = parser.parseObject();
-        REQUIRE(range.isArray());
-        REQUIRE(range.items().size() == 4);
-        const std::size_t signedEnd = static_cast<std::size_t>(
-            range.items()[2].integerValue(-1) + range.items()[3].integerValue(-1));
-        CHECK(signedEnd <= before.bytes->size());
-        CHECK(after.bytes->compare(0, signedEnd, *before.bytes, 0, signedEnd) == 0);
-        ++probed;
     }
-    CHECK(probed == 4);
+    CHECK(probed == 8);
 }

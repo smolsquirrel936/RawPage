@@ -11,9 +11,10 @@
 > and A-28's automated half** (§5.4, T2), all 2026-09-14, each ticked with the evidence it was ticked
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
 > recorded in the plan's §7 row rather than ticked here, because its case also covers CI jobs that were
-> not read. Every other box is ☐, and **no manual case has been walked — including M-03's probe walk,
-> on which A4's probe verdict waits.** **Five issues**, all closed: I-01 and I-02 raised by reading
-> while this guide was written, **I-03** found at T1, **I-04** and **I-05** found at T2 (§8). No S1 or
+> not read. Every other box is ☐. **M-03's probe walk was walked and signed off by the user** (§6), and A4's probe
+> verdict, graded from its readings, is **`go`**. No
+> other manual case has been walked. **Six issues**, all closed: I-01 and I-02 raised by reading
+> while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2 (§8). No S1 or
 > S2 is open.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -69,7 +70,7 @@ Planned absences, itemized in [`Stage3-Mutation-Plan.md` §11](./Stage3-Mutation
 | **Save As does not compact or rewrite the file** — it copies the file and appends, exactly as Save does, to a new path (D3-16) | Stage 8 |
 | No *Revert to saved* | Stage 8 |
 | **An encrypted document cannot be edited at all.** Rotate is disabled and says why (D3-7) | Stage 10 |
-| **RawPage saves a rotation into a certified document whose certification forbids changes, without warning.** Acrobat then reports the certification as broken. That is M-03's *control*, and the product honouring `/DocMDP` is Stage 11's | Stage 11 |
+| **RawPage saves a rotation into a signed document without warning, and Acrobat then reports the signature INVALID** — *"altered or corrupted"* — **for approval signatures as well as certifications.** Measured at T2 (I-06): Acrobat's policy for these signatures permits only form fill-in, signing and commenting, and it rejects a rotation from any writer, while OpenSSL proves the signed bytes intact. Both are M-03's *controls*. Warning before, or refusing, an edit a signature's policy forbids is Stage 11's | Stage 11 |
 | No signing, no signature panel, no validation inside RawPage | Stage 11 |
 | No session restore: the documents open at quit do not reopen at launch — only a **crash** offers recovery | Stage 4 |
 | Most of the 361 declared commands are still disabled; Stage 3 registers five | per feature stage |
@@ -211,13 +212,24 @@ A stage that is green but has no verdict is not signed off. Stage 3 owes one, me
 | **A4** — does an incremental save preserve the original bytes closely enough that a pre-existing signature still validates? | **Probe (T2):** A-28, with **M-03's probe walk**. **Product (T13):** A-57 and A-83, with **M-03's product walk** | [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified) — **both, the second labelled as the product's**, and stated as *"over RawPage's generated signatures"* (§1) |
 
 **A4's verdict scale**, fixed here before the measurement so it is not graded against whatever was
-achieved:
+achieved — **and corrected once, after the first Acrobat walk, on evidence independent of the result
+and by the user's decision (issue I-06, 2026-09-14).** The scale as first written graded Acrobat on a
+**rotation**. Acrobat applies a policy to these approval signatures — *"Form Fill-in, Signing and
+Commenting are allowed … No other changes are permitted"*, printed on the untouched originals — and
+reported a rotation *"altered or corrupted"* when it was written by our writer **and** by an unrelated
+one, while accepting our writer's update for a comment. Criterion (3) could not be met by any writer,
+so it measured Acrobat's policy rather than the append model. The rotation stays, as a control.
 
 | Result | Means |
 |---|---|
-| **go** | Over all four signed files, after a rotation and a save: **(1)** every byte of the file as opened is unchanged at the start of the saved file, read back from disk; **(2)** OpenSSL verifies every signature, and rejects each with one byte flipped in its range; **(3)** Acrobat reports every **approval** signature valid for its revision; **(4)** Acrobat **flags** the certified `/DocMDP /P 1` file — proving (3) was a judgement and not a default. The append model stands |
-| **go, with named custom work** | (1) and (2) hold, and Acrobat objects to an approval signature for a named reason in the **shape** of the update — an xref-stream convention, the trailer `/ID`, a key order. The writer changes shape; the model stands |
+| **go** | Over all four signed files: **(1)** every byte of the file as opened is unchanged at the start of the written file, read back from disk, **after both edits** — a comment and a rotation; **(2)** OpenSSL verifies every signature after both, and rejects each with one byte flipped in its range; **(3)** after the **comment** — a change these signatures' policy permits — Acrobat reports every **approval** signature's signed revision **unaltered**, with subsequent changes; **(4)** Acrobat **flags** the certified `/DocMDP /P 1` file after the comment, **and flags every file after the rotation** — two controls proving (3) was a judgement and not a default. The append model stands |
+| **go, with named custom work** | (1) and (2) hold, and Acrobat objects to an approval signature **after the comment** for a named reason in the **shape** of the update — an xref-stream convention, the trailer `/ID`, a key order. The writer changes shape; the model stands |
 | **no-go** | (1) or (2) fails for a reason the append model cannot avoid. **The writer's design is reopened before Stage 6 writes the first annotation** — at T2 this stops the stage |
+
+**The product measurement (T13) can only rotate** — the comment is Stage 6's first annotation command.
+So at T13 criteria (1), (2) and the rotation half of (4) are graded through the product's own Save,
+and **criterion (3) through the product is carried to Stage 6's exit criteria** (`Implementation-Plan.md`
+§ Stage 6). The T13 verdict records itself as partial in those words rather than borrowing the probe's.
 
 ---
 
@@ -388,7 +400,7 @@ green its cases did not record.
 **Expect** Each refused with a named `Result` error and **no bytes written**. **If it fails** S2.
 
 **A-28 · A4 PROBE — the writer alone, over the signed corpus (D3-1, first half)**
-✅ **Automated half only — 2026-09-14, T2.** `unit.a4_probe.openssl` (`tests/unit/RunA4Probe.cmake`) deletes stale outputs, runs the writing case — which writes a page-1 rotation into each signed file and asserts, **from the file read back off disk**, that the original is its prefix, every signed range is identical and the rotation re-reads — then judges the four outputs through `tests/gates/CheckSignatures.cmake`: `validator: C:/ProgramData/miniconda3/Library/bin/openssl.exe (OpenSSL 3.5.6 …)`, **8 flipped-byte controls rejected, then 4 of 4 `CMS Verification successful`**. Passed on both presets. **NOT DONE: M-03's probe walk (the user's)**, over `build\x64-release\a4-probe\` — so the §3 verdict is **not graded**, and `Tech-Stack-Plan.md` §3.3 says so.
+✅ **2026-09-14, T2 — PROBE VERDICT `go`.** *Automated half, revised the same day for I-06:* `unit.a4_probe.openssl` (`tests/unit/RunA4Probe.cmake`) deletes stale outputs, runs the writing case — which writes **two edits** into each signed file, a page-1 **comment** into `a4-probe\comment\` and a page-1 **rotation** into `a4-probe\rotate\`, asserting **from the files read back off disk** that each original is the prefix, every signed range is identical and the edit re-reads — then judges all eight through `tests/gates/CheckSignatures.cmake`: **16 flipped-byte controls rejected, then 8 of 8 `CMS Verification successful`**. The first version wrote only the rotation; its Acrobat walk and the D1–D3 diagnosis are I-06. *Acrobat's half* is M-03's probe re-walk, reported by the user the same day (the readings are under M-03): every approval signature's signed revision unaltered after the comment, and both controls flagged. **Graded on §3: (1) ✅ (2) ✅ (3) ✅ (4) ✅ → `go`**, recorded in `Tech-Stack-Plan.md` §3.3 as the probe's and bounded to RawPage's generated signatures (§1).
 **Goal** Early enough that a no-go costs the writer, not the stage.
 **Steps** For each of the four signed files: a hand-built rotation of page 1, written by `IncrementalWriter`, to a file. Then A-15's procedure over the **written file** — control first.
 **Expect** Every flipped copy rejected; every signature verifies; the signed revision — the file up to the end of `/ByteRange` — is byte-identical to the original. **Then M-03's probe walk over the same four outputs.** Verdict per §3, recorded in `Tech-Stack-Plan.md` §3.3 as the probe's.
@@ -686,25 +698,40 @@ Two things about the state you will be walking, so a planned absence is not repo
 - **If it fails** S1 if any reader cannot open the file or shows it damaged; S2 for a lost *Mark of the
   Web*; S2 for a rotation that differs between readers.
 
-**M-03 · A4 in Acrobat — the probe walk (T2) and the product walk (T13)** ☐ probe · ☐ product
-- **Goal** The policy half of A4 (D3-2), which OpenSSL cannot judge — and a control that proves Acrobat
-  is judging.
-- **Pre** P-1. **Probe walk:** the four files A-28 wrote, which I will name in the session. **Product
-  walk:** copies of the four `corpus\signed\` files, each opened in RawPage, **page 1 rotated 90°**,
-  saved with `Ctrl+S`.
-- **Steps** For each file, open it in Acrobat and open the **Signatures** panel. Expand each signature.
-  For the approval signatures, use *View signed version*.
+**M-03 · A4 in Acrobat — the probe walk (T2) and the product walk (T13)** ✅ probe (signed off by the user, 2026-09-14) · ☐ product
+- **Goal** The policy half of A4 (D3-2), which OpenSSL cannot judge — and two controls that prove
+  Acrobat is judging. Graded on §3's corrected scale (I-06).
+- **Pre** P-1. **Probe walk:** the eight files A-28 writes — `build\x64-release\a4-probe\comment\`
+  (a comment added to page 1) and `…\a4-probe\rotate\` (page 1 rotated 90°), four each — with
+  `corpus\signed\` as the untouched reference. **Product walk:** copies of the four `corpus\signed\`
+  files, each opened in RawPage, **page 1 rotated 90°**, saved with `Ctrl+S`.
+- **Steps** Open each file in Acrobat (right-click → *Open with*). In the **Signatures** panel,
+  right-click the signature → **Show Signature Properties**; the first line of the *Validity Summary* is
+  the modification verdict. For the three approval files in `comment\`, also **View Signed Version**.
+  *"Signature validity is UNKNOWN"* and *"the signer's identity is unknown"* are expected — the
+  certificate is a self-signed test identity — and are **not** failures; **do not add it to Acrobat's
+  trusted certificates**, because its private key is derivable from a public seed.
 - **Expect**
-  - `approval.pdf`, `approval-xrefstream.pdf`, `approval-then-update.pdf`: each signature **valid**;
-    Acrobat may say the document was changed **after** signing, and lists the later revision — that is
-    correct for an approval signature and is not a failure. *View signed version* shows page 1
-    **unrotated**.
-  - **`certified-nochanges.pdf` — the control: Acrobat must report the certification as invalidated,
-    or the change as not permitted.** If Acrobat calls this file fine, the other three results mean
-    nothing, and the walk is reported as *unjudged*, not passed.
-- **If it fails** **S1 and, on the probe walk, the stage's no-go** for an approval signature reported
-  invalid for a reason in the bytes. S2 for a reason in the update's shape (§3's middle row). A control
-  that passes voids the walk.
+  - **`comment\approval.pdf`, `comment\approval-xrefstream.pdf`, `comment\approval-then-update.pdf`:**
+    *"The revision of the document that was covered by this signature has not been altered; however,
+    there have been subsequent changes."* *View Signed Version* shows page 1 **without** the comment.
+  - **`comment\certified-nochanges.pdf` — control 1:** Acrobat reports the certification invalid, or the
+    change not permitted.
+  - **All four in `rotate\` — control 2:** *"Signature is INVALID … altered or corrupted"*, as measured
+    for the rotated `approval.pdf` in the first walk (I-06), when it sat directly in `a4-probe\`.
+  - **Product walk:** all four flagged exactly as `rotate\` is. The product's permitted-edit half is
+    Stage 6's.
+  - If either control is **not** flagged, the other results mean nothing, and the walk is reported as
+    *unjudged*, not passed.
+- **If it fails** **S1 and, on the probe walk, the stage's no-go** for a `comment\` approval signature
+  reported altered for a reason in the bytes. S2 for a reason in the update's shape (§3's middle row).
+  A control that passes voids the walk.
+- **Probe walk — walked and SIGNED OFF by the user, 2026-09-14.** Readings: `comment\approval.pdf`, `comment\approval-xrefstream.pdf` and `comment\approval-then-update.pdf`, each after **Validate Signature**: *"The revision of the document that was covered by this signature has not been altered; however, there have been subsequent changes to the document"* (validity UNKNOWN, identity unknown — the self-signed test certificate, as expected). `comment\certified-nochanges.pdf`: *"Document certification is INVALID. The document has been altered or corrupted since the Certification was applied … no changes are allowed"*. All four in `rotate\`: *"Signature is INVALID … altered or corrupted"* (the certified one as *"Document certification is INVALID"*). The three `comment\` approvals first read *"not yet been verified"* — Acrobat had
+  not run validation on them — and were re-read after **Validate Signature**; one `rotate\` screenshot
+  first came back as a duplicate of another file and was re-taken. **Not reported:** the *View Signed
+  Version* step. The §3 grade (`go`) rests on the Validity Summary lines above, which is what §3's
+  criteria name; *View Signed Version* is an Expect line of this case the grade does not use; it was not
+  walked, and the user signed the probe walk off without it.
 
 **M-04 · Kill the real product mid-edit, and recover** ☐
 - **Goal** A-68 kills a probe; this kills the product, and meets the dialog a person meets.
@@ -803,6 +830,7 @@ Numbered `I-nn`, **this stage's own namespace**.
 | **I-03** | S3 | **`pdf/cos/XrefTable`'s hybrid `/XRefStm` path had never run under test, while a comment and this stage's plan both said it had.** `tests/unit/tst_xreftable.cpp`'s header read *"The code path exists and is exercised below only against a hand-built file"*, and `Stage3-Mutation-Plan.md` §2 repeated it as the inherited state. **No case in that file — or anywhere under `tests/` — contains `/XRefStm` or reads `fromXrefStm`** (`grep`, 2026-09-14). The reader code was correct when finally exercised; the defect is the claim, which is Stage 1's I-34 shape — coverage believed rather than measured — and would have let D3-5's *"a classic section after a hybrid file"* be written against a reader path nobody had ever run. **Found at T1 while writing A-17's case**, by searching for the hand-built buffer to extend. **Fixed in the same change:** `corpus/ordinary/hybrid-xrefstm.pdf` and the case *"cos xref reaches objects that only a hybrid file's XRefStm lists"*, whose control renames the trailer key in place and requires the packed objects to vanish; the comment and the plan's ledger row corrected in place. **What stays uncovered is named** in `corpus/PROVENANCE.md` and at the assertion: a hybrid file that lists its packed objects as **free** in the classic table, which this reader's first-seen-wins merge may mishandle — unmeasured, not known broken. **Why the suite missed it:** nothing checks a comment's claim of coverage against the cases beneath it | ✅ **Closed 2026-09-14** (T1) |
 | **I-04** | S2 | **A packed object's NESTED values kept spans into a decompressed buffer that no longer existed, while the code clearing them said they were cleared.** `XrefTable::objectStreamFor` parses an `/ObjStm`'s decoded payload, then cleared `span` on each unpacked object — its own, and nothing inside it. Every array item and dictionary value of a packed page dictionary kept a span measured into that payload. `CosObject::raw()` takes the buffer as an argument, so handed the FILE it returned a slice of the file from the wrong place: no crash, no error, the wrong bytes. The comment above the loop read *"Cleared here rather than left dangling … A packed object is re-serialized rather than copied"*. Graded **S2** because Stage 3's writer and sink are exactly the code that would copy an untouched value by its span, which the header of `CosObject.h` invites. **Found at T2 by reading `objectStreamFor` before building the writer on it.** **Fixed:** `CosObject::clearSpansRecursively()`, called there. **The case:** *"cos xref clears the spans of every value inside a packed object"* walks every value of every packed object in `objstm-xrefstream.pdf`. **Run red against the old code first: 108 of 132 assertions failed.** The writer independently ignores spans (`IncrementalWriter.h`), so it never depended on the fix. **Why the suite missed it:** Stage 2's packed-object case checked `CHECK_FALSE(object.span().valid)` on the top-level object only | ✅ **Closed 2026-09-14** (T2) |
 | **I-05** | S2 | **The lexer read decimal reals a few units in the last place off, so the writer turned every `0.3` it rewrote into `0.30000000000000004`.** `Lexer::lexNumber` summed `digit × 0.1ⁿ` term by term, which is not correctly rounded: `0.3` became 0.30000000000000004, `0.94` became 0.94000000000000006. No reading case could see it, because no reader compares a real's last bits. The writer does: it prints a real's shortest round-trip spelling, so a rewritten object carried visible noise, and the lexer read that noise back as yet another double. **Found at T2 by the serializer's corpus round-trip case**, which failed on exactly five objects, all with short decimal reals (`forms-acroform.pdf`'s `/MK` colours, `shading-patterns.pdf`'s `/C0`). **Fixed:** a real is parsed with `std::from_chars` from a normalized spelling of its own digits. The spelling keeps the tolerances: one sign, and digits past a second point still count, so `1.2.3` is 1.23. The old sum stays as the fallback when `from_chars` refuses. **The case:** *"cos lexer reads a decimal real as the nearest double"*, exact comparisons against C++ literals. **Run red first: 4 of 10 failed.** After the fix the full suite is green on both presets (the T2 row in `Implementation-Plan.md` §4 has the counts), and the golden suite is unaffected because PDFium, not this lexer, rasterizes. **Why the suite missed it:** every real assertion was `== 4.5`, `== 0.5` or a range, and those values happen to be exact in binary | ✅ **Closed 2026-09-14** (T2) |
+| **I-06** | S2 | **A4's verdict scale graded Acrobat on a page ROTATION, which Acrobat rejects after these signatures from any writer — so the first probe walk said "INVALID" about Acrobat's policy, not about the append model.** The first M-03 probe walk (the user's, 2026-09-14) opened `a4-probe\approval.pdf`, a rotation written by `IncrementalWriter`: *"Signature is INVALID. The document has been altered or corrupted since the Signature was applied."* OpenSSL verified the same file. **The instrument was then shown known answers**, each isolating one variable, all verified by OpenSSL and opened by the user: the untouched `corpus\signed\approval.pdf` — *"not modified since this signature was applied"*, and, on the untouched file, *"The certifier has specified that Form Fill-in, Signing and Commenting are allowed for this document. No other changes are permitted."*; **D1**, our writer replacing only `/Info` — *"not modified"*; **D2**, our writer adding a comment to page 1 (rewriting the page object, adding an object, appending a table and trailer) — *"The revision of the document that was covered by this signature has not been altered; however, there have been subsequent changes"*; **D3**, the corpus's Python builder writing the **same rotation** — *"INVALID … altered or corrupted"*, identical to our writer's. **So:** our update is accepted for a permitted change, a rotation is rejected whoever writes it, and Acrobat's wording does not separate a policy violation from corruption. Criterion (3) as written could never be met. Graded **S2**: a verdict scale the stage's go/no-go builds on, wrong in a way that would have stopped the stage for a reason that is not the writer's. **Decided by the user 2026-09-14:** Acrobat grades A4 on a **permitted edit** (a comment) over all four files; the rotation stays as a second control Acrobat must reject; OpenSSL judges integrity after both; §3 and M-03 corrected in place; and the product's permitted-edit Acrobat half, which the product cannot make before Stage 6, carried to Stage 6's exit criteria. `Stage3-Mutation-Plan.md` D3-1 records the amendment. **A product fact came with it**, and is recorded in §1 and the plan's §11 rather than only here: once `page.rotate` is wired at T10, rotating a page of a signed PDF with RawPage shows that signature INVALID in Acrobat — policy, not corruption, and not Stage 3's to prevent (Stage 11). **Why the scale missed it:** it was written without asking what modification policy Acrobat applies to an approval signature, and `Tech-Stack-Plan.md` §3.3's original method — *"add an annotation incrementally"* — became a rotation when D3-1 chose Stage 3's only mutation, without anyone noticing the two edits differ in exactly the way the validator judges | ✅ **Closed 2026-09-14** (T2) — the re-walk on the revised probe outputs is M-03, not this issue |
 
 **NO S1 OR S2 IS OPEN.**
 

@@ -146,7 +146,7 @@ def check(arguments):
     entries = []
     for path in files:
         data = path.read_bytes()
-        found = signatures(data, path.name)
+        found = signatures(data, path.parent.name + "/" + path.name)
         if not found:
             raise Failure("%s: no /ByteRange -- no signature to judge" % path.name)
         for entry in found:
@@ -170,7 +170,7 @@ def check(arguments):
             for where, offset in flip_offsets(entry):
                 damaged = bytearray(original)
                 damaged[offset] ^= 0x01
-                again = signatures(bytes(damaged), entry["path"].name)[entry["index"]]
+                again = signatures(bytes(damaged), entry["path"].parent.name + "/" + entry["path"].name)[entry["index"]]
                 accepted, message = run_validator(command, again["der"], again["content"], scratch)
                 print("control   %s flipped byte %d (%s): %s -- %s"
                       % (entry["label"], offset, where,

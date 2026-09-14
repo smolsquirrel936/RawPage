@@ -3,16 +3,19 @@
 #
 # Two steps in one CTest case, in order, because the second is meaningless without the first:
 #
-#   1. Run tst_incrementalwriter's probe case, which writes a page rotation into each of the four
-#      corpus/signed/ files with pdf/cos/IncrementalWriter ALONE and puts the results in PROBE_DIR,
-#      asserting from the bytes read back off disk that every signed range is untouched.
-#   2. Include tests/gates/CheckSignatures.cmake over those four files: the same resolver, the same
+#   1. Run tst_incrementalwriter's probe case, which writes TWO edits into each of the four
+#      corpus/signed/ files with pdf/cos/IncrementalWriter ALONE -- a comment into PROBE_DIR/comment/
+#      and a page rotation into PROBE_DIR/rotate/ -- asserting from the bytes read back off disk that
+#      every signed range is untouched. Why two: Stage 3 guide issue I-06. Acrobat grades A4 on the
+#      comment set, because these signatures' policy permits commenting and forbids a rotation from
+#      any writer; the rotation set is the control Acrobat must reject.
+#   2. Include tests/gates/CheckSignatures.cmake over all eight files: the same resolver, the same
 #      byte-level extractor and the same flipped-byte controls FIRST as guide case A-15 -- so the
 #      instrument that said the originals verify is the instrument that judges the probe.
 #
-# The output files are deleted before step 1, so a stale probe from an earlier build can never be
-# what OpenSSL passes. Acrobat's half is guide case M-03's probe walk, over the same PROBE_DIR,
-# and is the user's.
+# The output files are deleted before step 1 -- including the four files the first version of this
+# probe left directly in PROBE_DIR -- so a stale probe can never be what OpenSSL passes. Acrobat's
+# half is guide case M-03's probe walk, over the same PROBE_DIR, and is the user's.
 #
 # Required: -DTEST_BINARY=<rawpage_tests> -DPROBE_DIR=<dir> -DCHECKS_DIR=<tests/gates>
 
@@ -26,11 +29,14 @@ set(probe_files approval.pdf approval-xrefstream.pdf certified-nochanges.pdf app
 set(file_list "")
 foreach(name IN LISTS probe_files)
     file(REMOVE "${PROBE_DIR}/${name}")
-    list(APPEND file_list "${PROBE_DIR}/${name}")
+    foreach(edit comment rotate)
+        file(REMOVE "${PROBE_DIR}/${edit}/${name}")
+        list(APPEND file_list "${PROBE_DIR}/${edit}/${name}")
+    endforeach()
 endforeach()
 
 execute_process(
-    COMMAND "${TEST_BINARY}" "A4 probe writes a page rotation into every signed corpus file"
+    COMMAND "${TEST_BINARY}" "A4 probe writes a comment and a rotation into every signed corpus file"
     RESULT_VARIABLE rc)
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "the A4 probe's writing case failed (exit ${rc}); nothing was judged")
