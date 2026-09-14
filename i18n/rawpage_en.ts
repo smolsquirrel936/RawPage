@@ -1934,6 +1934,26 @@
         <translation>Internal error: this document has not been checked for editing. Nothing was changed.</translation>
     </message>
     <message>
+        <source>command.page.rotate</source>
+        <translation>Rotate page %1 by %2 degrees</translation>
+    </message>
+    <message>
+        <source>error.command.failed</source>
+        <translation>The change could not be made (%1). Nothing was changed.</translation>
+    </message>
+    <message>
+        <source>error.command.noSink</source>
+        <translation>This document cannot be changed in this build (%1).</translation>
+    </message>
+    <message>
+        <source>error.command.malformed</source>
+        <translation>A saved change could not be read: the field %1 is missing or invalid.</translation>
+    </message>
+    <message>
+        <source>error.command.unknownType</source>
+        <translation>A saved change names a kind of change this version does not know (%1).</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>Opening %1 was cancelled.</translation>
     </message>

@@ -1,0 +1,33 @@
+// -*- C++ -*-  THE COMMAND TABLE. Stage 3 T5, decision D3-12 (`Stage3-Mutation-Plan.md` §3).
+//
+// One row per `Command` subclass. `core/cmd/CommandRegistry.cpp` generates its deserializer and its
+// type-id list from these rows, and `tools/mutation-lint` (T6) reads this file AS TEXT to check that
+// every class deriving from `Command` under `core/cmd/commands/` has a row -- which is why it is a
+// table a tool can read without compiling, the shape `ActionId.def` and `SettingsKeys.def` established
+// (D1-6, convention 17).
+//
+// This file is #included repeatedly with different macro definitions. It has no include guard on
+// purpose.
+//
+//   RAWPAGE_COMMAND(Class, "type.id", "header")
+//
+// THREE RULES:
+//
+// 1. THE TYPE ID IS A PERMANENT NAME. It is written into a crashed session's recovery journal
+//    (`journal.ndjson`, D3-11) and read back by a later launch -- possibly a later version. Renaming
+//    one strands every journal written with the old name.
+//
+// 2. EVERY ROW'S CLASS HAS `static Result<std::unique_ptr<Command>> deserialize(const QJsonObject&)`,
+//    which refuses hostile input by `Result` (guide case A-45). The registry calls it by name; a row
+//    whose class lacks it does not compile.
+//
+// 3. THE HEADER COLUMN NAMES THE FILE THAT DECLARES THE CLASS. `CommandRegistry.cpp` includes it, and
+//    mutation-lint reads it to find the class.
+
+#ifndef RAWPAGE_COMMAND
+#define RAWPAGE_COMMAND(Class, TypeId, Header)
+#endif
+
+RAWPAGE_COMMAND(RotatePageCommand, "page.rotate", "core/cmd/commands/PageCommands.h")
+
+#undef RAWPAGE_COMMAND

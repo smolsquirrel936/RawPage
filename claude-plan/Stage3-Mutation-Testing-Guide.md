@@ -6,7 +6,7 @@
 > **before any Stage 3 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-09-14; T1's and T2's cases run.** **83 automated** (A-01 … A-83)
+> **Status:** 🟡 **Written 2026-09-14; T1's to T5's cases run.** **83 automated** (A-01 … A-83)
 > and **8 manual** (M-01 … M-08). **Run and passed: A-14 … A-18** (§5.3, T1) and **A-19 … A-27,
 > and A-28's automated half** (§5.4, T2), all 2026-09-14, each ticked with the evidence it was ticked
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
@@ -15,7 +15,7 @@
 > verdict, graded from its readings, is **`go`**. No
 > other manual case has been walked. **Seven issues**, all closed: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
-> at T3 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14.** No S1 or
+> at T3 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-44, and A-45's Windows half — run 2026-09-15.** No S1 or
 > S2 is open.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -461,35 +461,43 @@ green its cases did not record.
 ### 5.7 The command journal, the registry, reversibility
 
 **A-38 · Run, undo, redo, and the stacks**
-☐ **Steps** `tst_journal`.
+✅ **2026-09-15, T5; 823/823 on `x64-release`.** `tst_journal`, over `tests/unit/CosBackend.h` (the first-party walk's tree and a real `pdf/ops/MutationSinkImpl` — the file says it does not cover the engine): undo reverts the newest of two rotations and leaves the older; redo re-applies it; a `run` after an undo leaves `canRedo()` false and `historySize() == position()`; undo and redo with nothing to do return false and leave the model hash and revision alone; three operations give three `mutated(Scope::page(2))` calls, an unsubscribed token none, and a handler that unsubscribes itself mid-call is called once. `undoName()` is `{command.page.rotate, ["1", "90"]}`. Six operations raise the revision by exactly six.
+**Steps** `tst_journal`.
 **Expect** Undo reverts the newest; redo re-applies it; a `run` after an undo **empties redo**; undo with nothing to undo returns false and changes nothing; subscribers get `mutated(Scope::page(p))` once per operation; an unsubscribed token gets nothing. **If it fails** S2.
 
 **A-39 · Dirty is a position, not a revision — D3-10**
-☐ **Steps** rotate → save → rotate → undo; rotate → save → undo → rotate another page; and every revision along the way.
+✅ **2026-09-15, T5.** `tst_journal`: rotate → save (`markSaved()`) → rotate → undo is **clean**, and the four revisions along the way rise strictly — the control inside the case; the dirty subscriber saw exactly `true, false, true, false`. Rotate → save → undo → rotate another page is dirty, and stays dirty through every undo and every redo after it. **Control run:** with `isDirty()` planted as *revision differs from the revision at save*, the first case went red. "Save" here is `markSaved()`, which T8's save path will call; no file is written (T8's A-51 is the save).
+**Steps** rotate → save → rotate → undo; rotate → save → undo → rotate another page; and every revision along the way.
 **Expect** First: **not dirty**, while the revision has **risen** at every step (the control). Second: dirty, and **no sequence of undos reaches clean** — the saved position is unreachable. **If it fails** S2 — a user asked to save an unchanged file learns to ignore the question.
 
 **A-40 · A refused or failed command leaves no trace**
-☐ **Steps** A planted command whose `apply()` returns false; an encrypted-document fixture refused by `Permissions`.
+✅ **2026-09-15, T5 — except "journal lines", which cannot be observed until the recovery journal exists (T9, A-60's neighbourhood) and is not claimed here.** `tst_journal`, three sections: a planted command whose `apply()` returns false (`error.command.failed`), a rotation of page 99 of a three-page file, and a document planted as encrypted through `CosBackend::plantReading` (`PermissionDenied`, `error.edit.encrypted`, and the backend handed out no sink). Each leaves the model hash, revision, position, history size and both stacks unchanged, the sink's delta empty, and no subscriber called — the first with a redo step present, which survives. **Partial application** is observed through `CommandJournal::setPartialApplicationHandler`: a planted command that rotates page 1 and returns false is reported once, by type id, and not recorded; an honest refusal is not reported. The case says at its assertion that it does **not** observe the default handler's `Q_ASSERT` aborting a debug build. **Controls run, each red:** the `Permissions::may()` pre-flight removed from `run()`; `run()` recording a command whose apply failed; the partial-application check removed.
+**Steps** A planted command whose `apply()` returns false; an encrypted-document fixture refused by `Permissions`.
 **Expect** Model hash, sink delta, journal lines, revision, position and both stacks **unchanged**; no subscriber called. In a debug build, the partial-application assertion fires for a planted command that changes the model **and** returns false — observed through a test assertion handler, and the case says it does not observe a real `abort`. **If it fails** S1.
 
 **A-41 · Groups are one undo step**
-☐ **Steps** A group of twelve rotations; a nested group; an empty group.
+✅ **2026-09-15, T5.** `tst_journal`: twelve rotations of `ordinary/pages-900.pdf` inside one group are **one** history step with the group's name; the journal is dirty while the group is open and refuses undo until it closes; one undo restores the model hash, zeroes all twelve pages, empties the sink's delta and calls `mutated` **once**, with a twelve-page scope; redo re-applies all twelve. A nested group folds into the outer (one step, the outer's name, still open after the inner closes); an empty group records no step, leaves the revision and dirty flag alone, and a second `endGroup()` returns false. **Control run:** with groups planted not to gather, both cases went red.
+**Steps** A group of twelve rotations; a nested group; an empty group.
 **Expect** One undo reverts all twelve; the nested group folds into the outer; the empty group records **no** step. **If it fails** S2.
 
 **A-42 · The registry deserializes what it registered, and refuses what it did not**
-☐ **Steps** `tst_command_serialize`: every `Commands.def` row; an unknown type id; each command's `name()`.
+✅ **2026-09-15, T5.** `tst_command_serialize`, tagged `[serialize:RotatePageCommand]`: every row of `core/cmd/Commands.def` — one today, `page.rotate` — has a sample table entry (a row without one fails), and **16** samples (pages 0, 1, 899 and the ISO 32000-1 Annex C limit × 90, 180, 270 and −90) round-trip to identical JSON, type id, `name()`, scope and operation. Five near-miss type ids (`page.rotat`, a trailing space, upper case, empty, `test.lying`) are `NotFound` with `error.command.unknownType`. Every sample's `name()` key starts `command.`, has no space, and is a `<source>` in both `i18n/rawpage_en.ts` and `rawpage_zh_TW.ts`, read as text; the lookup's control — a misspelled key — is absent from both. **Control run:** with the zh-TW key renamed, the catalog case went red. What it does not cover: a loaded `.qm`, or `ui/` resolving the key (T10).
+**Steps** `tst_command_serialize`: every `Commands.def` row; an unknown type id; each command's `name()`.
 **Expect** Every row round-trips; the unknown id returns `NotFound` without a crash; `name()` is a **catalog key** present in both locales (D3-10, I-01). **If it fails** S2.
 
 **A-43 · Reversibility over the corpus — the property test**
-☐ **Steps** `ctest -R reversibility`: every registered command × every editable corpus file × the first and last page × 90°, 180°, 270°. Tagged `[revert:RotatePageCommand]`.
+✅ **2026-09-15, T5, after A-44.** `ctest -R reversibility`, tagged `[revert:RotatePageCommand]`: it printed *"270 combinations over 59 editable corpus files; 0 failures; 2 of 61 files the first-party writer did not open for editing: malformed/objstm-corrupt.pdf malformed/truncated-mid-stream.pdf"*. The 61 are every corpus PDF outside `encrypted/` minus `malformed/pages-loop.pdf`, excluded by name because the shipped backend refuses it (I-07). Every apply had to **change** the model hash or the delta, so a command that does nothing cannot pass. Every `Commands.def` row must have a generator. The backend is `tests/unit/CosBackend.h`, and the file says what that leaves out: the engine's tree, the journal, and save. **Controls run, each red:** a revert that turns the same way again (118 failures), and a revert that restores the model but not the sink (59 failures, each *"non-empty delta"*).
+**Steps** `ctest -R reversibility`: every registered command × every editable corpus file × the first and last page × 90°, 180°, 270°. Tagged `[revert:RotatePageCommand]`.
 **Expect** Apply then revert restores the **model hash** and leaves an **empty sink delta**. The case prints how many combinations ran. **If it fails** S1.
 
 **A-44 · A lying inverse is caught — the control for A-43**
-☐ **Steps** Register a fixture command whose `revert()` returns true and restores nothing; run A-43's harness over it.
+✅ **2026-09-15, T5.** The harness in `tst_reversibility` is a function that returns its failures, and the case runs the **same** function over four planted commands on two files. It reports each of them and names each by type id: a revert that returns true and restores nothing (`test.lyingRotate`); one that restores the model and forgets the sink (`test.modelOnlyRevert`, *"non-empty delta"*); one that restores the sink and forgets the model (`test.sinkOnlyRevert`, *"did not restore the model hash"*); and an apply and revert that both do nothing (`test.inert`, *"changed neither"*). A registry with no generators reports `page.rotate` missing. The case is declared before A-43's.
+**Steps** Register a fixture command whose `revert()` returns true and restores nothing; run A-43's harness over it.
 **Expect** The harness **fails** and names the command. Run **before** A-43 is trusted. **If it fails** S2 — A-43 is then an instrument that cannot read a wrong answer.
 
 **A-45 · Hostile serialized commands**
-☐ **Steps** Deserialize missing fields, wrong types, a page index of −1 and of 10⁹, an angle of 45, and a 10 MB string; under `portable-asan` too.
+🟡 **Windows half ✅ 2026-09-15, T5; the `portable-asan` half is ☐ until a CI run's log is read.** `tst_command_serialize`: 23 malformed objects are each refused `ParseFailure` / `error.command.malformed`, with a context under 64 characters. They include an empty object; a missing, numeric or null type; a missing page or degrees; a page given as a string, array or bool; degrees given as a string or object; pages −1, 10⁹, one past the Annex C limit, 1.5 and 2⁶³; degrees 45, 0, 360, −90 and 90.5; and a 10 MB string as the page and as the degrees. A 10 MB **type** string is `NotFound` with its context cut to 64 characters, and the same 10 MB page string parsed from JSON text is refused. **The control:** pages 0 and the limit × 90, 180, 270 are accepted, as is `3.0`. **Control run:** with 45 degrees planted as accepted, the case went red.
+**Steps** Deserialize missing fields, wrong types, a page index of −1 and of 10⁹, an angle of 45, and a 10 MB string; under `portable-asan` too.
 **Expect** Each refused by `Result`; no crash; no sanitizer line. **If it fails** S1 — the recovery journal is a file on disk and this is its parser.
 
 ### 5.8 Durable files — `platform::IDurableFiles`

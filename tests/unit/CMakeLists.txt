@@ -63,6 +63,9 @@ add_executable(rawpage_tests
     tst_mutationsink.cpp          # Stage 3 T3  -- guide cases A-30 ... A-33 and T3's two controls
     tst_document.cpp              # Stage 3 T4  -- guide cases A-34's headless half and A-35
     tst_permissions.cpp           # Stage 3 T4  -- guide case A-36's planted half (D3-7)
+    tst_journal.cpp               # Stage 3 T5  -- guide cases A-38 ... A-41 (D3-10)
+    tst_command_serialize.cpp     # Stage 3 T5  -- guide cases A-42 and A-45 (D3-12)
+    tst_reversibility.cpp         # Stage 3 T5  -- guide cases A-43 and A-44, the property and its control
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -107,7 +110,10 @@ target_compile_definitions(rawpage_tests PRIVATE
     # Stage 3 T2: where the A4 probe writes its four outputs. In the BUILD tree, never the source
     # tree -- they are measurements, regenerated every run, and a copy beside corpus/ would look like
     # a fixture somebody should commit.
-    RAWPAGE_A4_PROBE_DIR="${CMAKE_BINARY_DIR}/a4-probe")
+    RAWPAGE_A4_PROBE_DIR="${CMAKE_BINARY_DIR}/a4-probe"
+    # Stage 3 T5: the catalog SOURCES, for guide case A-42 -- every command's `name()` key is present
+    # in both shipped locales. Read as text, the same way tools/i18n-lint reads them.
+    RAWPAGE_I18N_DIR="${CMAKE_SOURCE_DIR}/i18n")
 
 target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 

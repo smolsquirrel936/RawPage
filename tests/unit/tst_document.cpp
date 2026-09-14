@@ -8,7 +8,7 @@
 //   * An identity that misses a changed file (D3-16's guard) or splits one file into two.
 //
 // WHAT IT DOES NOT COVER, named at the assertion (convention 19):
-//   * **The engine's page tree.** The backend here is `CosBackend` below, which builds its tree from
+//   * **The engine's page tree.** The backend here is `tests/unit/CosBackend.h`, which builds its tree from
 //     `pdf/ops/PageOps` over the same bytes. Hydrating from the SHIPPED backend, whose tree is
 //     PDFium's, is `tests/render/tst_backendedit.cpp` (A-34's engine half).
 //   * **A file on disk.** `DocumentId` is exercised as the value type it is; the backend's stat of a
@@ -16,6 +16,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "CosBackend.h"
 #include "core/backend.h"
 #include "core/doc/Document.h"
 #include "core/doc/DocumentId.h"
@@ -40,98 +41,8 @@ std::filesystem::path corpus(std::string_view relative)
     return std::filesystem::path(RAWPAGE_CORPUS_DIR) / relative;
 }
 
-// A backend whose page tree comes from the FIRST-PARTY reader, so hydration is testable with no engine.
-class CosBackend final : public core::IDocumentBackend {
-public:
-    std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
-    {
-        std::array<bool, core::kBackendInterfaceCount> implemented{};
-        implemented[static_cast<std::size_t>(core::BackendInterface::DocumentBackend)] = true;
-        return implemented;
-    }
-
-    core::Result<core::DocumentHandle> open(const QString& path, const core::PasswordCallback&) override
-    {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly))
-            return core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), path};
-        auto entry = std::make_unique<Entry>();
-        entry->bytes = file.readAll();
-        auto sink = pdf::ops::MutationSinkImpl::open(
-            std::string_view(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size())));
-        if (!sink)
-            return sink.error();
-
-        std::vector<core::Page> pages;
-        std::vector<core::CosPageFacts> facts;
-        int index = 0;
-        for (const auto& walked : sink.value()->pages().pages) {
-            core::PdfRect box{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}};
-            if (walked.mediaBox) {
-                const auto& b = *walked.mediaBox;
-                box = core::PdfRect{core::PdfPoint{b[0], b[1]}, core::PdfSize{b[2] - b[0], b[3] - b[1]}};
-            }
-            core::Page page(index++, box);
-            page.setRotation(walked.effectiveRotate());
-            pages.push_back(page);
-            facts.push_back(core::CosPageFacts{walked.effectiveRotate(), box.size});
-        }
-        entry->tree = core::PageTree(std::move(pages));
-        entry->permissions = core::Permissions::assess(entry->tree, core::CosReading::Read, facts);
-        entry->id = DocumentId::of(path, 1'700'000'000'000LL, entry->bytes);
-
-        const core::DocumentHandle handle{next_++};
-        entries_.emplace(handle.id, std::move(entry));
-        return handle;
-    }
-    core::Status close(core::DocumentHandle handle) override
-    {
-        entries_.erase(handle.id);
-        return {};
-    }
-    const core::PageTree* pages(core::DocumentHandle handle) const override
-    {
-        const auto* entry = find(handle);
-        return entry ? &entry->tree : nullptr;
-    }
-    const core::RepairReport* repairReport(core::DocumentHandle handle) const override
-    {
-        const auto* entry = find(handle);
-        return entry ? &entry->repair : nullptr;
-    }
-    const core::Permissions* permissions(core::DocumentHandle handle) const override
-    {
-        const auto* entry = find(handle);
-        return entry ? &entry->permissions : nullptr;
-    }
-    const core::DocumentId* documentId(core::DocumentHandle handle) const override
-    {
-        const auto* entry = find(handle);
-        return entry ? &entry->id : nullptr;
-    }
-    core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
-    core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }
-    core::MutationSink* mutationSink(core::DocumentHandle) override { return nullptr; }
-    core::ISigner* signer(core::DocumentHandle) override { return nullptr; }
-    core::IOcrEngine* ocrEngine() override { return nullptr; }
-    core::IIndexer* indexer() override { return nullptr; }
-
-private:
-    struct Entry {
-        QByteArray bytes;
-        core::PageTree tree;
-        core::RepairReport repair;
-        core::Permissions permissions;
-        DocumentId id;
-    };
-    const Entry* find(core::DocumentHandle handle) const
-    {
-        const auto found = entries_.find(handle.id);
-        return found == entries_.end() ? nullptr : found->second.get();
-    }
-    std::map<std::uint64_t, std::unique_ptr<Entry>> entries_;
-    std::uint64_t next_ = 1;
-};
+// The backend is `tests/unit/CosBackend.h` -- the first-party reader only, see its header.
+using tests::CosBackend;
 
 QString corpusPath(std::string_view relative)
 {

@@ -1934,6 +1934,26 @@
         <translation>內部錯誤：此文件尚未經過編輯檢查。未變更任何內容。</translation>
     </message>
     <message>
+        <source>command.page.rotate</source>
+        <translation>將第 %1 頁旋轉 %2 度</translation>
+    </message>
+    <message>
+        <source>error.command.failed</source>
+        <translation>無法進行此變更（%1）。未變更任何內容。</translation>
+    </message>
+    <message>
+        <source>error.command.noSink</source>
+        <translation>此版本無法變更這份文件（%1）。</translation>
+    </message>
+    <message>
+        <source>error.command.malformed</source>
+        <translation>無法讀取已儲存的變更：欄位 %1 遺失或無效。</translation>
+    </message>
+    <message>
+        <source>error.command.unknownType</source>
+        <translation>已儲存的變更指定了此版本不認得的變更種類（%1）。</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>已取消開啟 %1。</translation>
     </message>

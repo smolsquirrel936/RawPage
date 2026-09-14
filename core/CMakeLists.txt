@@ -48,6 +48,17 @@ add_library(rawpage_core STATIC
     cmd/KeyBindingStore.h
     cmd/KeyBindingStore.cpp
 
+    # Stage 3 T5 -- mutation through commands (D3-10, D3-12). Commands.def is the command TABLE:
+    # CommandRegistry is generated from it and tools/mutation-lint (T6) reads it as text.
+    cmd/Command.h
+    cmd/Commands.def
+    cmd/CommandRegistry.h
+    cmd/CommandRegistry.cpp
+    cmd/CommandJournal.h
+    cmd/CommandJournal.cpp
+    cmd/commands/PageCommands.h
+    cmd/commands/PageCommands.cpp
+
     # settings/ -- the typed settings store (Stage 1 T5). SettingsKeys.def is listed for the same
     # reason ActionId.def is: it belongs in an IDE's project tree and editing it must re-run the
     # build. It is #included, never compiled.
@@ -138,7 +149,7 @@ add_library(rawpage_core STATIC
 
 # The .def files are header-shaped includes, not translation units. Without this the generator
 # tries to compile them and fails on the first macro invocation.
-set_source_files_properties(cmd/ActionId.def cmd/KeyBindingDefaults.def settings/SettingsKeys.def
+set_source_files_properties(cmd/ActionId.def cmd/KeyBindingDefaults.def cmd/Commands.def settings/SettingsKeys.def
     PROPERTIES HEADER_FILE_ONLY ON)
 
 target_include_directories(rawpage_core PUBLIC "${CMAKE_SOURCE_DIR}")
