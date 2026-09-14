@@ -19,7 +19,7 @@
 // change is the person who most needs to read the last one.
 //
 // ===============================================================================================
-// THIS IS NOT A GATE, AND `checks` STILL SAYS THREE
+// THIS IS NOT A GATE, AND `checks` DOES NOT COUNT IT
 // ===============================================================================================
 //
 // It links Qt, PDFium and the platform layer, so it cannot run on CI's bare `gates` runner, and it

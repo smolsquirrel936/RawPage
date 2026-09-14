@@ -4,7 +4,7 @@
 #
 # THE ORDERING GUARANTEE: this target depends ONLY on the gate executables, never on the
 # layer libraries. The gates link nothing but the C++ standard library (D0-1), so `checks`
-# compiles two small programs and runs them. That is what lets CI run it BEFORE compiling
+# compiles four small programs and runs them. That is what lets CI run it BEFORE compiling
 # anything (Tech-Stack-Plan.md 9) and have a layering violation fail in seconds rather than
 # after a full Qt build. Adding a dependency on rawpage_core here would silently destroy that
 # property while leaving every test passing.
@@ -53,13 +53,18 @@ function(rawpage_add_checks_target)
                 --locales "${CMAKE_SOURCE_DIR}/i18n/locales.json"
                 --actions "${CMAKE_SOURCE_DIR}/core/cmd/ActionId.def")
 
+    # mutation-lint (Stage 3 T6, D3-12). One input, the root: the table, the command classes and the
+    # tests all live at fixed paths beneath it, and a root missing any of them is exit 2.
+    list(APPEND gate_commands
+        COMMAND $<TARGET_FILE:mutation-lint> --root "${CMAKE_SOURCE_DIR}")
+
+    # FOUR gates, all four of those specified, and the COMMENT names each one. Until Stage 3 T6 this
+    # said three and the target ran three; a count here that disagrees with the commands above is
+    # the defect this target exists to prevent.
     add_custom_target(checks
         ${gate_commands}
-        DEPENDS layer-lint license-audit i18n-lint
+        DEPENDS layer-lint license-audit i18n-lint mutation-lint
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        COMMENT "Running enforcement gates (layer-lint, license-audit, i18n-lint)"
+        COMMENT "Running enforcement gates (layer-lint, license-audit, i18n-lint, mutation-lint)"
         VERBATIM)
-
-    # mutation-lint -> Stage 3 (needs Command). THREE of the four gates exist, and `checks` runs
-    # the three that do. If this target ever claims to have run four, that is the bug.
 endfunction()

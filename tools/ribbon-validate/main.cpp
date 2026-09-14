@@ -3,9 +3,9 @@
 // ---------------------------------------------------------------------------------------------
 // THIS IS NOT A GATE, AND THE DISTINCTION IS LOAD-BEARING.
 //
-// RawPage has THREE live gates -- layer-lint, license-audit, i18n-lint -- and `checks` runs three
-// and says three. CLAUDE.md is explicit that if it ever claims four, that is the bug. This program
-// is deliberately not one of them:
+// RawPage has FOUR live gates -- layer-lint, license-audit, i18n-lint and, from Stage 3 T6,
+// mutation-lint -- and `checks` runs four and says four. CLAUDE.md is explicit that a count it names
+// that disagrees with what it runs is the bug. This program is deliberately not one of them:
 //
 //   * a gate answers a question about the whole tree and runs on a bare Linux runner with no Qt,
 //     BEFORE anything is compiled;
@@ -46,7 +46,7 @@ int usage(QTextStream& err)
 
 void explain(QTextStream& out)
 {
-    // The same courtesy the three gates extend: a tool that enforces a rule should be able to state
+    // The same courtesy the gates extend: a tool that enforces a rule should be able to state
     // the rule. `--explain` is how anyone asks "what would this refuse?" without reading its source.
     out << "ribbon-validate enforces, on res/ribbon.json:\n"
         << "  schema-version    the file declares schemaVersion " << ribbon::kSchemaVersion << "\n"

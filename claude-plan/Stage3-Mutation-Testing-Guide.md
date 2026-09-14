@@ -6,7 +6,7 @@
 > **before any Stage 3 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-09-14; T1's to T5's cases run.** **83 automated** (A-01 … A-83)
+> **Status:** 🟡 **Written 2026-09-14; T1's to T6's cases run.** **83 automated** (A-01 … A-83)
 > and **8 manual** (M-01 … M-08). **Run and passed: A-14 … A-18** (§5.3, T1) and **A-19 … A-27,
 > and A-28's automated half** (§5.4, T2), all 2026-09-14, each ticked with the evidence it was ticked
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
@@ -15,7 +15,7 @@
 > verdict, graded from its readings, is **`go`**. No
 > other manual case has been walked. **Seven issues**, all closed: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
-> at T3 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-44, and A-45's Windows half — run 2026-09-15.** No S1 or
+> at T3 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-44, and A-45's Windows half — and T6's — A-08, A-10, A-11 — run 2026-09-15.** No S1 or
 > S2 is open.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -301,7 +301,8 @@ green its cases did not record.
 ### 5.2 The gates — four
 
 **A-08 · `checks` clean, and it says four**
-☐ **Steps** `cmake --build --preset x64-release --target checks`
+✅ **2026-09-15, T6.** `cmake --build --preset x64-release --target checks` printed *"Running enforcement gates (layer-lint, license-audit, i18n-lint, mutation-lint)"* and four clean lines, the last *"mutation-lint: clean -- 1 command(s): RotatePageCommand; 1 table row(s); 95 test file(s) scanned"*; layer-lint at **320 files / 2,297 includes**, i18n-lint **197 files**. The same four ran on the bare `gates` preset (license-audit there at 17 components and no Qt modules, as it has no Qt). `cmake/RawPageChecks.cmake`'s *"THREE of the four"* sentence is gone, and the live claims of three in `CLAUDE.md`, `Implementation-Plan.md` §1.3, `Tech-Stack-Plan.md` §5.6, `tools/CMakeLists.txt` and `tools/ribbon-validate/main.cpp` were corrected in the same change. CI's reading of it waits for a push.
+**Steps** `cmake --build --preset x64-release --target checks`
 **Expect** Exit 0; **four** gates named and run; `cmake/RawPageChecks.cmake` no longer says *"THREE of the four"*. **If it fails** S2 — and a `checks` claiming four while running three is the failure this gate set exists to prevent.
 
 **A-09 · The layer and filesystem-write census**
@@ -309,12 +310,14 @@ green its cases did not record.
 **Expect** `ReplaceFileW(` and `MoveFileExW(` are in the `filesystem-write` patterns, with a fixture each and a **control** (the same call in a comment, which must not fire). **Every waiver is named**, and the new ones are in `platform/win/WinDurableFiles.cpp` and `core/cmd/RecoveryJournal.cpp` only. **The count is recorded from the output**, not predicted here. **If it fails** S2 for an unnamed waiver; S3 for a count that disagrees with `CLAUDE.md`, which is then corrected.
 
 **A-10 · `mutation-lint` fails on each of its three rules**
-☐ **Goal** D3-12. Each fixture must fail **for its own rule**, not for being malformed (convention 7).
+✅ **2026-09-15, T6.** `ctest -R gates.mutation_lint`, 9/9. Each failing tree under `tests/gates/fixtures/mutation-lint/` holds **three** commands and exactly **one** defect, and each case asserts the rule and the class it names **and** that no sibling class or other rule is reported: `no-row` → *"unregistered-command: FixtureTiltCommand derives from Command"* (the two-line `: public core::Command` spelling, with its row present only in a comment); `no-serialize-test` → *"no-serialize-test: FixtureShearCommand has no test case tagged [serialize:FixtureShearCommand]"*, with that tag present in a comment, in an `INFO()` string and in a test under `tests/gates/`; `no-revert-test` → *"no-revert-test: FixtureStampCommand …"*, with the tag present misspelled in case and in a comment on the test case's own line. **Beyond the guide:** a fourth rule, `row-without-class` (a row whose header column does not declare its class), with its own tree, and two exit-2 trees — an unreadable row and no table. **Five controls planted in the gate itself, each red:** a tag counted anywhere in a file (`no_serialize_test` red), `tests/gates/` scanned (`no_serialize_test` red), comments not stripped (`no_serialize_test` and `no_revert_test` red), only a same-line base recognized (`complete_command_is_clean` and `no_row` red), and a base merely *starting* with `Command` counted (five cases red); the clean build was 9/9 after.
+**Goal** D3-12. Each fixture must fail **for its own rule**, not for being malformed (convention 7).
 **Steps** `ctest -R "gates.mutation_lint"` over `tests/gates/fixtures/mutation-lint/`: a command class with **no `Commands.def` row**; a registered command with **no `[serialize:Class]` test**; a registered command with **no `[revert:Class]` test**.
 **Expect** Each fails and its output names **that** rule and **that** class. **If it fails** S2.
 
 **A-11 · `mutation-lint` passes a complete command, and the real tree**
-☐ **Steps** The control fixture — row, both tags — and `mutation-lint` over the repository.
+✅ **2026-09-15, T6.** The control tree reports *"clean -- 3 command(s): FixtureStampCommand FixtureTiltCommand FixtureShearCommand"*: three spellings of the base, one test case whose arguments span two lines and one `TEST_CASE_METHOD`, beside a `: public CommandHistory` class and an `enum class … : int` that are correctly not counted. The real tree reports *"clean -- 1 command(s): RotatePageCommand"*. **Three controls on the real tree, each red and each restored:** the `[revert:RotatePageCommand]` tag renamed in `tst_reversibility.cpp` (`no-revert-test`); a planted `CropPageCommand` header under `core/cmd/commands/` (all three rules, for that class only); and the table's header column misspelled (`row-without-class`).
+**Steps** The control fixture — row, both tags — and `mutation-lint` over the repository.
 **Expect** Both pass. The real run reports **one** command, `RotatePageCommand`. **If it fails** S2 — a gate that fails everything proves nothing about what it fails.
 
 **A-12 · `i18n-lint` knows the two new families**

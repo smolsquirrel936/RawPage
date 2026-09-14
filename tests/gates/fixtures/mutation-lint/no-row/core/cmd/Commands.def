@@ -1,0 +1,13 @@
+// Fixture table for tools/mutation-lint (Stage 3 T6). Read as text; never compiled.
+//
+//   RAWPAGE_COMMAND(Class, "type.id", "header")
+
+#ifndef RAWPAGE_COMMAND
+#define RAWPAGE_COMMAND(Class, TypeId, Header)
+#endif
+
+// RAWPAGE_COMMAND(FixtureTiltCommand, "fixture.tilt", "core/cmd/commands/StampCommands.h")
+RAWPAGE_COMMAND(FixtureStampCommand, "fixture.stamp", "core/cmd/commands/StampCommands.h")
+RAWPAGE_COMMAND(FixtureShearCommand, "fixture.shear", "core/cmd/commands/StampCommands.h")
+
+#undef RAWPAGE_COMMAND

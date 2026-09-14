@@ -145,7 +145,7 @@ endif()
 
 # --- Gates -------------------------------------------------------------------
 # Before the layers, and independent of them: the gate executables link nothing but the
-# standard library, so `--target checks` compiles two small programs rather than the
+# standard library, so `--target checks` compiles four small programs rather than the
 # whole project. That ordering is the guarantee, not a convenience.
 add_subdirectory(tools)
 

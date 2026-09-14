@@ -534,6 +534,75 @@ rawpage_add_gate_test(NAME gates.i18n_lint.shipped_locale_without_catalog_is_exi
     EXPECT_EXIT 2 EXPECT_MATCH "declared shipped but its catalog is missing")
 
 # --------------------------------------------------------------------------------------
+# mutation-lint (Stage 3 T6, decision D3-12) -- Stage 3 guide cases A-10 and A-11
+#
+# One fixture per rule, and each must fail FOR ITS OWN RULE AND ITS OWN CLASS (convention 7): every
+# failing tree holds three commands and exactly one defect, so EXPECT_NOT_MATCH on a sibling class is
+# what shows the finding is precise rather than a gate that reports everything in the tree. The
+# defective tag in each tree also appears where a test does NOT -- a comment, an INFO() string, a
+# case-misspelling, a file under tests/gates/ -- and those must not satisfy the rule (convention 22).
+# The gate proves a test exists; whether it tests anything is tst_reversibility's (guide A-44).
+# --------------------------------------------------------------------------------------
+set(ML $<TARGET_FILE:mutation-lint>)
+set(ML_FIX "${FIXTURES}/mutation-lint")
+
+# A-11, the real tree: one command, named.
+rawpage_add_gate_test(NAME gates.mutation_lint.clean_tree
+    COMMAND ${ML} --root ${CMAKE_SOURCE_DIR}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 1 command\\(s\\): RotatePageCommand;")
+
+# A-11, THE CONTROL: three spellings of "derives from Command" (plain, qualified across two lines,
+# second of two bases), each complete -- and a CommandHistory base and an `enum class X : int`,
+# which are not commands. A roster of exactly three is the assertion.
+rawpage_add_gate_test(NAME gates.mutation_lint.complete_command_is_clean
+    COMMAND ${ML} --root ${ML_FIX}/complete
+    EXPECT_EXIT 0
+    EXPECT_MATCH "clean -- 3 command\\(s\\): FixtureStampCommand FixtureTiltCommand FixtureShearCommand;")
+
+# A-10, rule 1. The missing row is the TWO-LINE spelling, and the table carries it in a comment.
+rawpage_add_gate_test(NAME gates.mutation_lint.no_row
+    COMMAND ${ML} --root ${ML_FIX}/no-row
+    EXPECT_EXIT 1
+    EXPECT_MATCH "unregistered-command: FixtureTiltCommand derives from Command"
+    EXPECT_NOT_MATCH "(FixtureStampCommand|FixtureShearCommand) derives|no-serialize-test|no-revert-test")
+
+# A-10, rule 2. The serialize tag is present in a comment, in an INFO() string and under tests/gates/.
+rawpage_add_gate_test(NAME gates.mutation_lint.no_serialize_test
+    COMMAND ${ML} --root ${ML_FIX}/no-serialize-test
+    EXPECT_EXIT 1
+    EXPECT_MATCH "no-serialize-test: FixtureShearCommand has no test case tagged \\[serialize:FixtureShearCommand\\]"
+    EXPECT_NOT_MATCH "unregistered-command|no-revert-test|no-serialize-test: Fixture(Stamp|Tilt)")
+
+# A-10, rule 3. The revert tag is present misspelled in case, and in a comment on the test's own line.
+rawpage_add_gate_test(NAME gates.mutation_lint.no_revert_test
+    COMMAND ${ML} --root ${ML_FIX}/no-revert-test
+    EXPECT_EXIT 1
+    EXPECT_MATCH "no-revert-test: FixtureStampCommand has no test case tagged \\[revert:FixtureStampCommand\\]"
+    EXPECT_NOT_MATCH "unregistered-command|no-serialize-test|no-revert-test: Fixture(Tilt|Shear)")
+
+# The fourth rule: a row whose header column does not declare its class. The compiler never reads
+# that column, so nothing else would notice.
+rawpage_add_gate_test(NAME gates.mutation_lint.row_without_class
+    COMMAND ${ML} --root ${ML_FIX}/row-without-class
+    EXPECT_EXIT 1
+    EXPECT_MATCH "row-without-class: FixtureShearCommand2 \\(\"fixture.shear2\"\\)"
+    EXPECT_NOT_MATCH "unregistered-command|no-serialize-test|no-revert-test")
+
+# A gate that could not read its inputs has not run.
+rawpage_add_gate_test(NAME gates.mutation_lint.unreadable_row_is_exit_2
+    COMMAND ${ML} --root ${ML_FIX}/unreadable-row
+    EXPECT_EXIT 2 EXPECT_MATCH "cannot read this row")
+
+rawpage_add_gate_test(NAME gates.mutation_lint.missing_table_is_exit_2
+    COMMAND ${ML} --root ${ML_FIX}/no-table
+    EXPECT_EXIT 2 EXPECT_MATCH "no command table")
+
+# --explain states what the gate cannot see, so a reader need not open the tool to learn it.
+rawpage_add_gate_test(NAME gates.mutation_lint.explain_names_blind_spots
+    COMMAND ${ML} --root ${CMAKE_SOURCE_DIR} --explain
+    EXPECT_EXIT 0 EXPECT_MATCH "intermediate base")
+
+# --------------------------------------------------------------------------------------
 # rawpage_assert_headless() -- guide case A-03 (Stage 2 T1, decision D2-2).
 #
 # THE CASE THAT PROTECTS THE WHOLE PORTABLE STORY. tests/unit must link rawpage_core and rawpage_cos

@@ -660,9 +660,9 @@ onto changed content.
 ### 5.6 How it stays enforced
 
 Four independent gates, because a convention that depends on reviewer attention will not survive
-a hundred stages. **Three of the four are live; `mutation-lint` is Stage 3's, because it checks a
-`Command` registry that does not exist yet** — and the `checks` target says *three* rather than
-four, which is what keeps an unbuilt gate from reading as a passing one.
+a hundred stages. **All four are live**: `mutation-lint` arrived at Stage 3 T6, the task after the
+`Command` registry it checks — and until then the `checks` target said *three* rather than four,
+which is what kept an unbuilt gate from reading as a passing one.
 
 1. **`tools/layer-lint`** (CI, blocking) — fails on: a PDFium call **or handle** named outside
    **`pdf/render/`** (narrowed from `pdf/` at Stage 2 T2, because `pdf/cos/` is first-party by rule

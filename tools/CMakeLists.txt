@@ -7,19 +7,20 @@
 add_subdirectory(layer-lint)
 add_subdirectory(license-audit)
 add_subdirectory(i18n-lint)      # Stage 1 T6 -- the third gate
+add_subdirectory(mutation-lint)  # Stage 3 T6 -- the fourth, and the last D0-1 specified
 
 # The one target here that is not a gate and does link Qt: res/ribbon.json's build-time
 # validation (D1-8, Stage 1 T10). Its own CMakeLists returns early for the gate configurations,
 # so the "tools/ builds with no Qt" property above still holds.
 #
-# It is NOT a fourth gate. `checks` runs three and says three; this is a build step that ui/
+# It is NOT a fifth gate. `checks` runs four and says four; this is a build step that ui/
 # depends on, so a bad resource fails the build rather than the gate run. See its main.cpp.
 add_subdirectory(ribbon-validate)
 
 # The second non-gate target here, and it arrives on ribbon-validate's precedent (Stage 2 T17):
 # golden/'s reference rasters are PRODUCED by a tool and ENFORCED by a CTest suite, so the producer
 # links Qt, PDFium and the platform layer and its own CMakeLists returns early for the gate and
-# portable configurations. `checks` still runs three gates and says three.
+# portable configurations. `checks` runs four gates and says four.
 add_subdirectory(golden-update)
 
 # tools/spike-ribbon -- the A3 go/no-go spike (Stage 1 T2) -- was DELETED at T10, exactly as D1-1
@@ -34,6 +35,7 @@ add_subdirectory(golden-update)
 # is the production form, behind the facade and with a suite behind it. Neither spike was ever wired
 # into this file: both were built by hand, which is what a throwaway is.
 
-# tools/mutation-lint  -> Stage 3 (needs Command)
+# tools/mutation-lint  -> shipped at Stage 3 T6; the line that stood here said "needs Command", and
+#                         Stage 3 T5 built it.
 # tools/golden-update  -> shipped at Stage 2 T17; the line that stood here said "needs a
 #                         rasterizer", and T9 was where it got one.
