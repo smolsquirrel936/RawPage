@@ -463,7 +463,7 @@ jobs:
             echo ""
             echo "- \`ui.*\` — the widget suite (D1-4)"
             echo "- \`platform.*\` — the Win32 layer"
-            echo "- \`render.*\` — the engine suite AND \`render.golden.*\`, the 198 baselines"
+            echo "- \`render.*\` — the engine suite AND \`render.golden.*\`, every golden baseline"
             echo "- \`bench.*\` — the A-85 / R-9 figure and BOTH A2 figures"
             echo "- \`gates.wrong_compiler.*\` — the toolchain pin (Windows-only by design)"
             echo "- the real-configuration gate run, which is the only place \`qt-modules.txt\`"

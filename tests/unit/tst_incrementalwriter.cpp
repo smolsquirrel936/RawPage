@@ -39,7 +39,6 @@
 #include <fstream>
 #include <map>
 #include <memory>
-#include <regex>
 #include <string>
 #include <vector>
 
@@ -671,7 +670,6 @@ TEST_CASE("A4 probe writes a page rotation into every signed corpus file", "[cos
     const std::filesystem::path out(RAWPAGE_A4_PROBE_DIR);
     std::filesystem::create_directories(out);
 
-    const std::regex byteRange(R"(/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\])");
     std::size_t probed = 0;
     for (const char* name : {"approval.pdf", "approval-xrefstream.pdf", "certified-nochanges.pdf",
                              "approval-then-update.pdf"}) {
@@ -698,10 +696,20 @@ TEST_CASE("A4 probe writes a page rotation into every signed corpus file", "[cos
         REQUIRE(startsWith(*after.bytes, *before.bytes));
         CHECK(rotationOf(after.table, page) == 90);
 
-        std::smatch match;
-        REQUIRE(std::regex_search(*before.bytes, match, byteRange));
-        const std::size_t signedEnd =
-            std::stoull(match[3].str()) + std::stoull(match[4].str());
+        // The signed range's end, read with `pdf/cos/Parser` -- which is acceptable HERE because this
+        // only locates bytes to compare; the independent judge of the signature is OpenSSL, in
+        // `unit.a4_probe.openssl`, whose extractor shares no code with this reader. (Until the CI run
+        // after T2 this used `std::regex`, whose libstdc++ 13 internals draw a -Wmaybe-uninitialized
+        // false positive in the Linux ASan build.)
+        const std::size_t key = before.bytes->find("/ByteRange");
+        REQUIRE(key != std::string::npos);
+        Parser parser(*before.bytes);
+        parser.seek(key + std::string_view("/ByteRange").size());
+        const CosObject range = parser.parseObject();
+        REQUIRE(range.isArray());
+        REQUIRE(range.items().size() == 4);
+        const std::size_t signedEnd = static_cast<std::size_t>(
+            range.items()[2].integerValue(-1) + range.items()[3].integerValue(-1));
         CHECK(signedEnd <= before.bytes->size());
         CHECK(after.bytes->compare(0, signedEnd, *before.bytes, 0, signedEnd) == 0);
         ++probed;
