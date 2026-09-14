@@ -703,6 +703,42 @@ else()
 endif()
 
 # --------------------------------------------------------------------------------------
+# A4's automated signature validator (Stage 3 precondition P-2, guide case A-06).
+#
+# Decision D3-2 makes the OpenSSL command-line tool the integrity half of A4's verdict, and a
+# missing validator must FAIL, never skip. ResolveOpenSSL.cmake owns the reasoning, including
+# why it resolves at TEST time and why RAWPAGE_OPENSSL exists. Unconditional, and in `gates`,
+# because both CI runners that will judge A4 run this directory.
+#
+# The two controls are what keep the first case from being satisfied by a script that always
+# exits 0 (convention 7): each takes the validator away one way and asserts the failure NAMES
+# the reason. What none of them covers: that the tool verifies a CMS signature -- that is the
+# signed-corpus cases' job, with their flipped-byte control (Stage 3 T1).
+# --------------------------------------------------------------------------------------
+set(RESOLVE_OPENSSL "${CMAKE_CURRENT_SOURCE_DIR}/ResolveOpenSSL.cmake")
+
+# A-06, first half. Passes only on OpenSSL 3, and prints the path, how it was found and the version.
+rawpage_add_gate_test(NAME gates.validators.openssl
+    COMMAND ${CMAKE_COMMAND} -P ${RESOLVE_OPENSSL}
+    EXPECT_EXIT 0 EXPECT_MATCH "openssl validator: .*version: +OpenSSL 3\\.")
+
+# A-06, second half: a PATH that holds no OpenSSL, and no override. The fixtures directory is a real
+# directory with no executable in it; CMake itself is reached by absolute path, so it still starts.
+rawpage_add_gate_test(NAME gates.validators.openssl_absent_fails
+    COMMAND ${CMAKE_COMMAND} -P ${RESOLVE_OPENSSL}
+    EXPECT_EXIT 1 EXPECT_MATCH "no OpenSSL command-line tool was found on PATH")
+set_tests_properties(gates.validators.openssl_absent_fails PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=set:${FIXTURES};RAWPAGE_OPENSSL=unset:")
+
+# The override names a file that is not there. It must fail rather than fall back to PATH, which
+# would run a validator nobody chose -- so PATH is left as it is, where an OpenSSL may well be found.
+rawpage_add_gate_test(NAME gates.validators.openssl_override_not_a_file_fails
+    COMMAND ${CMAKE_COMMAND} -P ${RESOLVE_OPENSSL}
+    EXPECT_EXIT 1 EXPECT_MATCH "RAWPAGE_OPENSSL names" EXPECT_NOT_MATCH "openssl validator:")
+set_tests_properties(gates.validators.openssl_override_not_a_file_fails PROPERTIES
+    ENVIRONMENT_MODIFICATION "RAWPAGE_OPENSSL=set:${FIXTURES}/no-such-openssl")
+
+# --------------------------------------------------------------------------------------
 # The toolchain pin (TA-1 .. TA-9), against a minimal fixture project.
 #
 # These were written and passing by hand at T3; wiring them here is what the plan assigns

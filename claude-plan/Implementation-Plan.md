@@ -328,7 +328,7 @@ one-line summary and points here.*
 Counted 2026-09-02 and re-counted at S2 · T17, which added the fifth: this heading read *"three"*
 from Stage 1 T9 until 2026-09-02, having missed `rawpage_render_tests` (S2 · T2) and
 `rawpage_bench_render` (S2 · T3) even though the table below already listed the first — so the count
-is re-measured with the target rather than remembered afterwards. A sixth prefix, `gates.`, has **no binary at all** — its 94 cases drive the
+is re-measured with the target rather than remembered afterwards. A sixth prefix, `gates.`, has **no binary at all** — its cases drive the
 gate executables and CMake itself through `cmake -P`, which is what lets the `gates` preset run it
 with no Qt and no vcpkg. **Split of the 741, re-measured 2026-09-14 after Stage 2 I-39 and I-40** (`ctest -N`): `unit.` 346, `ui.` 207,
 `gates.` 94, `render.` 55, `platform.` 36, `bench.` 3 — `render.` includes T17's ten `render.golden.*`, which are a
@@ -1103,35 +1103,83 @@ is strictly read-only this stage. Split views, rulers, grid, guides, and full-sc
 
 *Part 3 of the first milestone — the stage that closes the risk slice.*
 
-**Status:** ⚪ **Not started.** Carries risk **A4** as a **go/no-go**: can an incremental save
+**Status:** ⚪ **Not started — but planned.** Its execution plan
+([`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md), decisions **D3-1 … D3-18**, tasks
+**T1 … T13**, preconditions **P-1 … P-5**) and its testing guide
+([`Stage3-Mutation-Testing-Guide.md`](./Stage3-Mutation-Testing-Guide.md), **83 automated** and
+**8 manual** cases, none run) were both written on 2026-09-14, **before any Stage 3 code**, per §5.
+**One slice of T1 has landed (2026-09-14): P-2's validator.** `tests/gates/ResolveOpenSSL.cmake` and
+guide case A-06's three `gates.validators.*` cases, green on the `gates` preset here (97/97); the
+Windows CI job names its OpenSSL in `RAWPAGE_OPENSSL`, because the runner has none on its registry
+`PATH`. **No CI run has carried it yet**, so P-2 stays 🟡 (`Stage3-Mutation-Plan.md` §7 owns why).
+The rest of T1 — the signed corpus — has not started.
+
+Carries risk **A4** as a **go/no-go**: can an incremental save
 preserve the original bytes closely enough that a signature applied *before* an unrelated later edit
-still validates? `pdf/cos/IncrementalWriter` is the riskiest first-party code in the project.
+still validates? `pdf/cos/IncrementalWriter` is the riskiest first-party code in the project. **The
+plan measures A4 twice** (D3-1): a probe over the writer alone at **T2**, before any model, journal or
+UI code, and the product through the shipped save path at **T13** — Stage 2's D2-1 method, whose two
+A2 figures differed by the whole product. **A4's evidence is two validators that share no code with
+RawPage** (D3-2, decided by the user 2026-09-14): the OpenSSL command-line tool for the integrity of
+the signed range, automated, and Acrobat for modification policy, manual, over signed files generated
+like the rest of the corpus. The verdict is therefore bounded to **RawPage's own generated
+signatures**, and the sign-off says so.
+
+**Four scope and design decisions were made by the user on 2026-09-14 while the plan was written**,
+and this entry was corrected in the same change: **Save writes a complete new file beside the target
+and atomically replaces it** (D3-4) rather than appending in place; `Outline` and `Metadata` move to
+Stage 4, where their first consumers are (D3-8); `documents/saveMode` moves to Stage 8 and
+`documents/autosaveIntervalSec` to Stage 13 (D3-9); and A4's evidence, above.
 
 **Objectives.** Make one real change to a document, reversibly, durably, and recoverably: rotate a
 page, undo it, redo it, save it incrementally, reopen it, and recover it after a kill.
 
 **Components & responsibilities.**
 - `core/doc/Document` — `Result<void> hydrate(IDocumentBackend&)`, `Revision revision() const`.
-- `core/doc/DocumentId`, `Page`, `PageTree` (`void rotate(PageIndex, int)`, `void move(Range, PageIndex)`,
-  `PageLabel labelFor(PageIndex) const`), `Outline` (read-only), `Metadata`, `Revision.h`, `Scope`.
-- `core/cmd/Command.h` — the five-method contract.
+- `core/doc/DocumentId`, and `PageTree`'s **rotation** (`void rotate(PageIndex, int)`). ~~`move(Range,
+  PageIndex)`, `Outline` (read-only), `Metadata`~~ — **moved 2026-09-14** (`Stage3-Mutation-Plan.md`
+  **D3-8**): nothing in Stage 3 calls a page move, and the first readers of an outline and of metadata
+  are Stage 4's `BookmarksPane` and `DocumentPropertiesDialog`. `Page`, `Revision.h` and `Scope`
+  arrived at Stage 2 (D2-5), and a page label is `Page::label()` since Stage 2 T9.
+- `core/doc/Permissions` — **the pre-flight half, brought forward from Stage 10** (D3-7): `may(Operation)`
+  refuses, by name, a document this build cannot write — encrypted, or read differently by the COS
+  reader and the engine. The permission bits stay Stage 10's.
+- `core/doc/SaveCoordinator` — **not in the original list** (D3-4): whether to save, where, and what a
+  failure leaves, over the backend and `platform::IDurableFiles`, so the batch path reaches it.
+- `core/cmd/Command.h` — the five-method contract. **`name()` returns a catalog key and arguments**,
+  not a translated string — `core/` has no `tr()` (D3-10; guide issue I-01).
 - `core/cmd/CommandJournal` — `bool run(std::unique_ptr<Command>)`, `bool undo()`, `bool redo()`,
   `void beginGroup(QString)`, `void endGroup()`, `Revision revision() const`,
-  `void markSaved(Revision)`, `Signal<Scope> mutated`, `Signal<bool> dirtyChanged`.
+  `void markSaved(Revision)`, and **subscriptions** for `mutated(Scope)` and `dirtyChanged(bool)` —
+  the pattern `core/settings/Settings` uses, since `core/` has no `Signal` type. **Dirty is a position
+  in the history, not a revision** (D3-10).
 - `core/cmd/CommandRegistry` — `void add<T>()`, `std::unique_ptr<Command> deserialize(const QJsonObject&)`.
 - `core/cmd/RecoveryJournal` — `void append(const QJsonObject&)`, `QVector<Found> discover()`,
   `ReplayResult replay(CommandJournal&)`, `void truncate()`.
 - `core/cmd/commands/PageCommands` — `RotatePageCommand` only this stage.
 - `pdf/cos/IncrementalWriter` — `Result<void> append(QIODevice&, const ObjectDelta&)`.
 - `pdf/cos/ObjectAllocator`.
-- `pdf/ops/MutationSinkImpl` — `void setPageRotation(PageIndex, int)` + the queue/flush pair.
+- `pdf/ops/` as a **portable** library, `rawpage_ops`, so the writer and the sink run under
+  `portable-asan` and `portable-fuzz` (D3-3).
+- `pdf/ops/MutationSinkImpl` — `Status setPageRotation(int pageIndex, int degrees)` (the signature
+  `core/backend.h` has declared since Stage 2 T1) + the queue/flush pair, holding **desired state** so
+  an undo before Save writes nothing (D3-5).
+- `platform::IDurableFiles` and `platform/win/WinDurableFiles` — **the eighteenth platform interface**
+  (D3-4): a flush to disk and a replace that keeps the target's streams, neither of which Qt provides.
 - `pdf/ops/PageOps` — `void applyRotation(CosObject& pageDict, int angle)`. **The type is
   `CosObject`**, the single variant Stage 2 T6 built; this line said `CosDict` while the object
   model was still a sketch.
-- `app/RecoveryPrompt`, `ui/dialogs/RecoveryDialog`, `ui/dialogs/RepairReportDialog`.
-- `tools/mutation-lint/`, `tests/roundtrip/`. ~~`tests/fuzz/`~~ — **moved to Stage 2**, which is where
+- `app/RecoveryPrompt`, `ui/dialogs/RecoveryDialog`. ~~`ui/dialogs/RepairReportDialog`~~ — folded into
+  `ui/shell/MessageBar` at Stage 2 T14. **Added by the plan:** `ui/dialogs/RotatePagesDialog` — the
+  rotate half of Stage 7's `PageOpsDialogs`, because `Features.md` §8 says `Ctrl+R` *opens the dialog*
+  (D3-13) — and `ui/dialogs/UnsavedChangesDialog`, because this is the first stage in which closing a
+  document can lose work (D3-14).
+- `tools/mutation-lint/`, `tests/roundtrip/` (compiled into `rawpage_tests`, not a sixth target —
+  D3-18). ~~`tests/fuzz/`~~ — **moved to Stage 2**, which is where
   `pdf/cos/Lexer` and `Parser` are written and therefore the earliest a fuzz target can exist;
-  `CMakePresets.json` has said so since Stage 0. Stage 3 adds seeds, not targets.
+  `CMakePresets.json` has said so since Stage 0. ~~Stage 3 adds seeds, not targets.~~ **Stage 3 adds
+  seeds and ONE target**, `fuzz_cos_roundtrip` — parse, rotate, append, re-parse — because the writer
+  consumes whatever the tolerant reader produced from a malformed file (D3-17, corrected 2026-09-14).
 
 **Key bindings handled** — `Ctrl+S` ([Global](./Features.md#global-active-in-every-context)),
 `Ctrl+Z` / `Ctrl+Y` ([Common](./Features.md#common-all-contexts-unless-a-context-above-overrides-the-chord),
@@ -1140,8 +1188,11 @@ now backed by a real journal), and `Ctrl+R` in **both**
 [`Thumbnails`](./Features.md#page-thumbnails-pane) contexts — the first chord to demonstrate context
 dispatch against a real mutation.
 
-**Data / settings keys.** `documents/autosaveIntervalSec`, `documents/recoveryDir`,
-`documents/saveMode` (incremental | full), `documents/warnOnRepairedSave`.
+**Data / settings keys.** `documents/recoveryDir`, `documents/warnOnRepairedSave` — which controls
+the explanation before a repaired document's forced Save-As and **never** the forcing (D3-6).
+~~`documents/autosaveIntervalSec`~~ → Stage 13 and ~~`documents/saveMode` (incremental | full)~~ →
+Stage 8, **moved by the user 2026-09-14** (D3-9): a journal flushed per command has no interval, and
+`full` has no writer until `FullWriter`. The Documents Preferences page ships.
 
 **Cross-cutting additions — the gate turns on here.** First registered command:
 `RotatePageCommand`. From this stage forward `mutation-lint` blocks any command lacking registration,
@@ -1156,7 +1207,9 @@ a serialize round-trip test, and a revert test. i18n groups: `command.*` (undo-m
 - **The recovery journal is `fsync`ed per command.** Slower than buffering, and correct — the whole
   point is surviving a kill at an arbitrary instant.
 - **Replay is per-command resumable.** A failure at command *k* keeps 1..*k-1* and reports *k*. An
-  all-or-nothing recovery would throw away good work to avoid reporting a bad line.
+  all-or-nothing recovery would throw away good work to avoid reporting a bad line. **Refined by
+  D3-11: the unit is the undo step** — a group is one step, so a failure inside a group keeps the steps
+  before it and none of the group, and an unterminated trailing group is dropped and reported.
 - **A repaired document's first save is forced to Save-As.** Appending an incremental update to a
   file whose structure we reconstructed risks destroying the original.
 - **Compound operations group.** "Insert 12 pages" is one `Ctrl+Z`, via `beginGroup`/`endGroup`.
@@ -1170,10 +1223,15 @@ save → reopen: rotation present, untouched objects **byte-identical**, and `co
 still validates (**the A4 gate**); `tst_recovery` (append/discover/replay, mid-file corruption stops
 cleanly, read-only directory degrades to memory with one warning); `tests/fuzz` targets live on the
 `portable-fuzz` preset.
-*Manual:* → queued **`Stage3-Mutation-Testing-Guide.md`**, written before this stage's code (§5). In brief:
-rotate from the Viewer and from Thumbnails; undo/redo repeatedly; save and reopen; compare the file
-bytes before and after; kill the process mid-edit and recover; make the recovery directory read-only;
-open a repaired file and confirm the forced Save-As.
+*Manual:* → [`Stage3-Mutation-Testing-Guide.md`](./Stage3-Mutation-Testing-Guide.md) §6, **written
+2026-09-14** before this stage's code (§5) — eight cases: the first mutation by hand; save and reopen
+in three readers that are not PDFium; **A4 in Acrobat, walked twice** (probe and product) with a
+certified document as the control; killing the real product and recovering; a read-only recovery
+directory; a repaired file's forced Save-As; closing with unsaved changes; saving while another
+application holds the file. **Two items this line used to queue became automated**, as the guide
+explains: comparing the file bytes before and after (against bytes read back from disk), and killing
+mid-edit (`TerminateProcess` at instants the harness proves it reached). *Rotate from Thumbnails* is a
+binding a case resolves and a gesture Stage 4 owns — there is no pane until then (D3-13).
 
 **Exit criteria.** Rotate → undo → redo → save → reopen works end to end; the original bytes are
 provably preserved; a pre-signed file's signature survives an unrelated incremental edit
@@ -1210,6 +1268,9 @@ arrangement, and session restore.
   `void syncScroll(bool)`.
 - `core/settings/SessionState` — `void capture(const MainWindow&)`, `void restore(MainWindow&)`.
 - `ui/dialogs/GoToPageDialog`, `ui/dialogs/DocumentPropertiesDialog`.
+- `core/doc/Outline` (read — `BookmarksPane` is its first reader) and `core/doc/Metadata`
+  (`DocumentPropertiesDialog` is its first reader), **moved here from Stage 3 on 2026-09-14** by the
+  user (`Stage3-Mutation-Plan.md` D3-8): a model type arrives with its first caller.
 
 **Key bindings handled** — [Viewer](./Features.md#viewer-review-mode): `Ctrl+4`, `Ctrl+U`, `Ctrl+'`,
 `Ctrl+;`, `Ctrl+L` (reading mode), `S` (snapshot). [Global](./Features.md#global-active-in-every-context):
@@ -1492,7 +1553,10 @@ flattening.
 `convertFrom/exportColourSpace`, `convertFrom/textLayoutPreserving`,
 `convertFrom/officeEngine` (firstParty | officeBridge), `documents/optimizeProfile`,
 `documents/targetPdfVersion`, `documents/conformanceTarget`, `documents/linearizeOnSave`,
-`documents/flattenTargets`.
+`documents/flattenTargets`, `documents/saveMode` (incremental | full) — **moved here from Stage 3**
+(`Stage3-Mutation-Plan.md` D3-9), because `full` is `FullWriter`'s. **`Ctrl+Shift+S` is registered
+from Stage 3**, where Save-As copies and appends (D3-16); this stage changes what it writes, not
+whether it exists.
 
 **Cross-cutting additions.** Commands: `OptimizeDocument`, `FlattenContent`,
 `ConvertPdfVersion` — all document mutations and therefore commands. Export and print are **not**
@@ -1824,7 +1888,9 @@ Key signatures: `FixedToReflowConverter::convert(const Document&) -> Result<Refl
 `spelling/customDictionaries`, `spelling/ignoreUppercase`, `spelling/ignoreUrls`,
 `documents/convertWarnOnFeatureLoss`, `documents/keepFixedRenditionUntilFinalized`,
 `documents/trackChangesOnByDefault`, `documents/reviewerColour`, `documents/showFormattingMarks`,
-`documents/defaultStyleSet`.
+`documents/defaultStyleSet`, `documents/autosaveIntervalSec` — **moved here from Stage 3**
+(`Stage3-Mutation-Plan.md` D3-9): the recovery journal is flushed per command, and an interval first
+means something when a burst of typing is coalesced into one journal line.
 
 **Cross-cutting additions.** Commands: `EditTextRun`, `SetParagraphFormat`, `ApplyStyle`,
 `InsertPageBreak`, `InsertTable`, `EditTable`, `InsertObject`, `SetTextWrap`, `InsertToc`,
@@ -2043,14 +2109,15 @@ Each guide carries **two sections**, per §2:
   section above; this one is the residue and should shrink over the project's life.
 
 Stages whose surface is entirely headless still get a guide — its manual section is short or empty,
-and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1 and 2 have theirs**, each
+and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1, 2 and 3 have theirs**, each
 written from its plan before its code; every other row below is a schedule, not a backlog of missing
 documents.
 
 **A stage's §4 entry may also be expanded into a `Stage<N>-<Area>-Plan.md` execution document** when
 its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md),
-[`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md) and
-[`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md) are the three that exist. Such a document
+[`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md),
+[`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md) and
+[`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md) are the four that exist. Such a document
 owns **only** that stage's
 task ordering and its stage-local design choices; the objectives, components, and exit criteria stay
 here, and the stage's live status stays in its §4 status block. It sits between plan and guide in the
@@ -2062,7 +2129,7 @@ guide.**
 | 0 — Toolchain & gates | [`Stage0-Toolchain-Testing-Guide.md`](./Stage0-Toolchain-Testing-Guide.md) | ✅ **Written 2026-08-17** from [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md), before any Stage 0 code · **not yet run** — no case has a result. 40 automated cases (A-01…A-73), 7 manual (M-01…M-07): the clean-machine bootstrap and the **real** UCRT64 wrong-compiler configure. Carries the **A5/A6** verdicts and keeps **A7** settled |
 | 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · 🟡 **partly run — T1…T13 verified 2026-08-24**. 68 automated (A-01…A-85, plus **A-67** added at T7), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go, **recorded**. Twenty-five issues, **none open** (I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-24 and I-25 at T13, both of them the harness rather than the product** — **CI now green at `gates` 45/45 and `portable-asan` 177/177**, run 32649932954, with the `windows` job still skipped for want of a registered runner, which is why **A-80 stays open**); **fifteen of the twenty were found by running something rather than by reading it**, including both S1s |
 | 2 — Rendering | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) | ✅ **Written 2026-08-31** from [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md), before any Stage 2 code · 🟡 **partly run — T1–T9's cases have results, the stage's EXIT CRITERION (A-21) is met on Windows, and A-46 is closed.** **78 automated** (A-01…A-78: A-75 added 2026-08-31 with I-02, A-76…A-78 at T4), **10 manual** (M-01…M-10). **Four automated cases are Linux jobs this machine cannot run — A-04, A-24, A-25 and A-26** — and are recorded as such rather than as pending. Six issues: I-01 and I-03 closed, **I-02 half-closed at T7**, I-04, I-05 and **I-06** (T7's JBIG2 scope finding) open. The manual half is **smaller than Stage 1's**, on purpose: most of this stage is pure arithmetic and is automated, so what is left is the irreducible residue — two monitors at different scaling, perceived smoothness while scrolling, fidelity judged beside a reference, and a memory checker the CI runner does not have. **Needs two monitors at different scaling** (satisfied — the rig matches A2's specification exactly) and carries the **A2** verdict, plus **O7** and **O10**. One issue, **I-01**, raised by reading rather than running and closed the same day |
-| 3 — Mutation & save | `Stage3-Mutation-Testing-Guide.md` | ⚪ Queued — **needs a hex editor and a way to kill the process mid-edit**; carries the **A4** verdict |
+| 3 — Mutation & save | [`Stage3-Mutation-Testing-Guide.md`](./Stage3-Mutation-Testing-Guide.md) | ✅ **Written 2026-09-14** from [`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md), before any Stage 3 code · **not yet run** — no case has a result. **83 automated** (A-01…A-83), **8 manual** (M-01…M-08). Carries the **A4** verdict, measured twice and judged by OpenSSL (integrity) and Acrobat (policy). ~~Needs a hex editor~~ — the byte comparison is automated against bytes read back from disk; **killing mid-edit is automated too**, with `TerminateProcess` at instants the harness must prove it reached, and the manual residue is the real product killed by hand. Two issues, **I-01** and **I-02**, raised by reading and closed in the same change |
 | 4 — Viewing surface | `Stage4-ViewingSurface-Testing-Guide.md` | ⚪ Queued |
 | 5 — Text, selection, search | `Stage5-TextSearch-Testing-Guide.md` | ⚪ Queued — near-entirely automated; the manual section covers selection feel and RTL/CJK rendering only |
 | 6 — Annotations | `Stage6-Annotations-Testing-Guide.md` | ⚪ Queued |

@@ -68,6 +68,12 @@ jobs:
       - name: Gate fixtures
         run: ctest --preset gates
 
+      # Stage 3 P-2: which OpenSSL judges A4 on this runner. gates.validators.openssl above already
+      # passed or failed on it; this step puts the path and version in the log, because a passing
+      # ctest line does not show them and D3-2 requires every result to name its validator.
+      - name: P-2 -- the A4 signature validator
+        run: cmake -P tests/gates/ResolveOpenSSL.cmake
+
       # Guide case A-82, the half that can only be checked HERE. D1-4 says rawpage_ui_tests runs on
       # Windows and only on Windows, and the usual way that stops being true is not malice -- it is
       # somebody adding Qt Widgets to a Linux job to chase a coverage number, which quietly
@@ -124,6 +130,13 @@ jobs:
     needs: gates
     if: vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'
     runs-on: [self-hosted, windows]
+    # A4's automated signature validator (Stage 3 P-2, decision D3-2), named rather than searched
+    # for. Measured 2026-09-14: on this runner no OpenSSL is on the registry PATH -- miniconda's
+    # arrives only through `conda init` in the user's PowerShell profile -- so a job that found one
+    # was relying on a personal shell hook. Git for Windows' copy runs standalone.
+    # tests/gates/ResolveOpenSSL.cmake explains why a set variable is the only place looked.
+    env:
+      RAWPAGE_OPENSSL: C:\Program Files\Git\mingw64\bin\openssl.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -151,6 +164,11 @@ jobs:
           g++ --version
           g++ -dumpmachine
           if ((g++ -dumpversion) -ne '13.1.0') { throw "expected GCC 13.1.0" }
+
+      # Stage 3 P-2, the Windows half: the validator RAWPAGE_OPENSSL names, with its version. Before
+      # Configure, so a missing one is reported before the build time is spent.
+      - name: P-2 -- the A4 signature validator
+        run: cmake -P tests/gates/ResolveOpenSSL.cmake
 
       # PDFium is NOT a vcpkg port -- there is no port -- and nothing under third_party/pdfium/
       # is committed except its README (.gitignore). So a fresh checkout has no engine, and

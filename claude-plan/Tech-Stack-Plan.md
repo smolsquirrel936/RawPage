@@ -592,7 +592,9 @@ incidental. So the mutation path is designed **now**, once.
 class Command {
 public:
     virtual ~Command() = default;
-    virtual QString  name()  const = 0;          // for the undo menu; goes through tr()
+    virtual CatalogText name() const = 0;       // for the undo menu: {catalog key, arguments}, never a
+                                                //   sentence -- core/ has no tr(); ui/ resolves it
+                                                //   (convention 5; Stage 3 guide I-01)
     virtual Scope    scope() const = 0;           // which pages/objects it touches
     virtual bool     apply (Document&, MutationSink&) = 0;   // forward
     virtual bool     revert(Document&, MutationSink&) = 0;   // exact inverse
@@ -613,7 +615,7 @@ public:
     void  markSaved(Revision);
 signals:
     void  mutated(Scope);                  // renderers/panes invalidate exactly what changed
-    void  dirtyChanged(bool);
+    void  dirtyChanged(bool);              // dirty = history position != saved position, NOT revision
 };
 ```
 
