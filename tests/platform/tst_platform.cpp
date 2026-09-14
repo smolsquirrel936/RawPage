@@ -86,17 +86,20 @@ TEST_CASE("an empty bundle reports every interface as unimplemented", "[platform
     CHECK(unimplementedInterfaces(empty).size() == kPlatformInterfaceCount);
 }
 
-// FIVE AS OF STAGE 2 T16, and the number is in the name on purpose. This case is the census, and a
+// SIX AS OF STAGE 3 T7, and the number is in the name on purpose. This case is the census, and a
 // census whose title says "two" while its body says five is the shape of drift the T1 recount was
-// written to stop. Stage 1 wired `ISingleInstanceBus` and `IShellIntegration`; T12 added
+// written to stop. Stage 1 wired `ISingleInstanceBus` and `IShellIntegration`; Stage 2 T12 added
 // `IDisplayTopology` and `IPowerSession` -- the two the render policy layer was waiting on -- and
-// T16 adds `IFontResolver`.
+// T16 `IFontResolver`. Stage 3 T7 declares an EIGHTEENTH interface, `IDurableFiles` (D3-4), and
+// implements it in the same change -- Stage 3 guide case A-46, which is why "census" is in the name.
 //
 // `IAcceleratedSurface` is NOT among them and the omission is deliberate rather than pending: the
 // Stage 2 guide's caveat table puts accelerated presentation at Stage 4, *if A2 says it is needed*,
 // and a null member is the vocabulary platform.h defines for "not built" (convention 6).
-TEST_CASE("the Windows bundle implements exactly the five interfaces built so far", "[platform]")
+TEST_CASE("census: the Windows bundle implements six of eighteen interfaces", "[platform][census]")
 {
+    REQUIRE(kPlatformInterfaceCount == 18);
+
     win::PlatformOptions options;
     options.executablePath = QStringLiteral("C:/nowhere/rawpage.exe");
     options.registryRoot = QStringLiteral("Software\\RawPageTests\\NotUsed");
@@ -109,14 +112,15 @@ TEST_CASE("the Windows bundle implements exactly the five interfaces built so fa
     CHECK(platform->displayTopology != nullptr);
     CHECK(platform->powerSession != nullptr);
     CHECK(platform->fontResolver != nullptr);
+    CHECK(platform->durableFiles != nullptr);
 
     // Still null, and asserted rather than assumed -- see the note above the case.
     CHECK(platform->acceleratedSurface == nullptr);
 
     const std::vector<std::string_view> missing = unimplementedInterfaces(*platform);
-    CHECK(missing.size() == kPlatformInterfaceCount - 5);
+    CHECK(missing.size() == kPlatformInterfaceCount - 6);
 
-    // Named, not just counted: a bundle that implemented five DIFFERENT interfaces would satisfy a
+    // Named, not just counted: a bundle that implemented six DIFFERENT interfaces would satisfy a
     // count and would mean the factory wired the wrong things.
     for (const std::string_view name : missing) {
         CHECK(name != "ISingleInstanceBus");
@@ -124,7 +128,10 @@ TEST_CASE("the Windows bundle implements exactly the five interfaces built so fa
         CHECK(name != "IDisplayTopology");
         CHECK(name != "IPowerSession");
         CHECK(name != "IFontResolver");
+        CHECK(name != "IDurableFiles");
     }
+    // The eighteenth name is the last, in the order of the `Platform` members.
+    CHECK(platformInterfaceNames().back() == "IDurableFiles");
 }
 
 // =======================================================================================

@@ -2,6 +2,7 @@
 
 #include "core/Log.h"
 #include "platform/win/WinDisplayTopology.h"
+#include "platform/win/WinDurableFiles.h"
 #include "platform/win/WinFontResolver.h"
 #include "platform/win/WinPowerSession.h"
 #include "platform/win/WinShellIntegration.h"
@@ -48,8 +49,12 @@ std::unique_ptr<Platform> createWindowsPlatform(const PlatformOptions& options)
     // machine with no GPU -- which is convention 6's whole argument for a null member.
     platform->fontResolver = std::make_unique<WinFontResolver>();
 
+    // Stage 3 T7 (D3-4): the flush and the replace Save is built on. Stateless, so it costs nothing
+    // until a save asks, and it decides nothing -- whether and where to save is SaveCoordinator's.
+    platform->durableFiles = std::make_unique<WinDurableFiles>();
+
     // Every other slot stays null, and the count is LOGGED rather than left implicit. "Twelve of
-    // seventeen interfaces are not built yet" is a fact a later stage should be able to see in a
+    // eighteen interfaces are not built yet" is a fact a later stage should be able to see in a
     // support log without reading this file.
     const std::vector<std::string_view> missing = unimplementedInterfaces(*platform);
     RAWPAGE_LOG_INFO(LogSubsystem::Ui)

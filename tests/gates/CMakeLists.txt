@@ -166,6 +166,25 @@ if(CMAKE_HOST_WIN32)
         EXPECT_EXIT 1 EXPECT_MATCH "outward-include")
 endif()
 
+# Stage 3 T7 (guide A-09): the three Win32 calls platform/win/WinDurableFiles makes, each spelled in a
+# different layer, and a control naming all three in comments. One fixture per spelling, because a
+# pattern list tested against one spelling catches one spelling (I-15).
+rawpage_add_gate_test(NAME gates.layer_lint.win32_replace_outside_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-replace-write --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write: found 'ReplaceFileW")
+
+rawpage_add_gate_test(NAME gates.layer_lint.win32_move_outside_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-move-write --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write: found 'MoveFileExW")
+
+rawpage_add_gate_test(NAME gates.layer_lint.win32_delete_outside_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-delete-write --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write: found 'DeleteFileW")
+
+rawpage_add_gate_test(NAME gates.layer_lint.win32_write_in_comment_is_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-write-in-comment --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
 rawpage_add_gate_test(NAME gates.layer_lint.qt_write_outside_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/qt-write --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write")

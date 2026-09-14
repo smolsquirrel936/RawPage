@@ -21,7 +21,7 @@ add_library(rawpage_platform STATIC
     # fails on the Linux portable-asan job.
     platform.h
 
-    # win/ -- the only OS-specific code in the project. Stage 1 implemented two of the seventeen
+    # win/ -- the only OS-specific code in the project. Stage 1 implemented two of the (then) seventeen
     # interfaces and Stage 2 T12 adds two more; the rest are declared and null. See platform.h on
     # why null beats a stub.
     win/PlatformFactory.h
@@ -44,13 +44,18 @@ add_library(rawpage_platform STATIC
     win/WinPowerSession.h
     win/WinPowerSession.cpp
 
-    # S2 T16 -- the fifth of the seventeen. It answers WHAT IS INSTALLED and deliberately not WHAT
+    # S2 T16 -- the fifth of the (then) seventeen. It answers WHAT IS INSTALLED and deliberately not WHAT
     # TO PREFER: the ordered candidate list is core/render/FontSubstitution, because this layer
     # makes no policy decisions and substitution is almost entirely policy. WinAcceleratedSurface
     # is NOT here -- see the guide's caveat table: presentation stays software until Stage 4 decides
     # it is needed, and a null member is the vocabulary platform.h defines for that.
     win/WinFontResolver.h
     win/WinFontResolver.cpp
+
+    # Stage 3 T7 -- the eighteenth interface, and the sixth implemented (D3-4). The flush and the
+    # replace that keeps a target's streams; kernel32 only, so no link line changes below.
+    win/WinDurableFiles.h
+    win/WinDurableFiles.cpp
 )
 
 target_include_directories(rawpage_platform PUBLIC "${CMAKE_SOURCE_DIR}")

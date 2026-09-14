@@ -31,6 +31,10 @@ add_executable(rawpage_platform_tests
     # tests/unit with no display at all, and the chain through PDFium is tests/render's.
     tst_fontresolver.cpp
 
+    # S3 T7 -- IDurableFiles against real files in a temporary directory: the stream and creation time
+    # a replace keeps, the refusals that leave both files, and the flush (guide cases A-47 ... A-49).
+    tst_durablefiles.cpp
+
     # Stage 2 issue I-35: rawpage.exe's embedded manifest (the segment heap). Its subject is app/'s
     # build output, so the target below depends on `rawpage` and is handed its path.
     tst_manifest.cpp

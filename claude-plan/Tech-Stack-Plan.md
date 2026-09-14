@@ -553,14 +553,18 @@ process launching · SVG icon rendering · high-precision timers.
 | `IProcessSandbox` | Launching a restricted child process for protected view uses OS job/token APIs. |
 | `IPowerSession` | Sleep/resume, battery-saver render throttling, and session lock notifications. |
 | `IDisplayTopology` | Monitor enumeration with per-monitor DPI and topology-change notification, beyond what `QScreen` reports. |
+| `IDurableFiles` | Forcing a file's data to stable storage, and replacing a file while keeping its creation time, security descriptor and alternate data streams — the `Zone.Identifier` stream that marks a download among them. `QSaveFile` renames over its target, which gives the result the temporary file's identity, and Qt has no public flush-to-disk. **Added 2026-09-15 at Stage 3 T7** by `Stage3-Mutation-Plan.md` D3-4, whose Save writes a new file and replaces the target with it. |
 | `IPrinting` | Tray selection by name, the printer's real duplex and colour capabilities, and submitting a job with a page range the driver understands. **Added 2026-08-23 at Stage 1 T7** — `platform/win/WinPrinting` has had a row in [`Architecture-FileMap.md` §3.12](./Architecture-FileMap.md#312-platform--the-os-abstraction) since the map was written, and `platform/win/` may hold nothing that does not implement a declared interface, so this row was missing rather than the file being wrong. *Ordinary* printing stays with `QPrinter` and is **not** behind it. |
 
-**Seventeen interfaces, in sixteen rows** — `ICertificateStore` and `ICryptoProvider` share one.
+**Eighteen interfaces, in seventeen rows** — `ICertificateStore` and `ICryptoProvider` share one. The
+eighteenth, `IDurableFiles`, was added at Stage 3 T7; the rest of this paragraph is the Stage 1 T7
+measurement that set the figure at seventeen.
 The count is stated as interfaces rather than rows because it was previously counted as rows and
 came out one short: the accessibility removal recorded the figure going "sixteen to fifteen" when
 what actually changed was sixteen rows to fifteen, and `IPrinting` had never been written down at
 all. Measured at Stage 1 T7 against `platform/platform.h` and `Architecture-FileMap.md` §3.12,
-which now agree at seventeen; `tests/platform/` asserts the count against the header.
+which then agreed at seventeen and agree at eighteen since Stage 3 T7; `tests/platform/`'s census case
+asserts the count against the header.
 
 Seventeen sounds like a lot until you notice the shape: it is **wide and shallow**. Most are three
 to six methods and none of them is in the document-editing path. That is the correct trade for this

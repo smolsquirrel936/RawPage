@@ -1798,6 +1798,34 @@
         <translation>RawPage could not hand the file to the copy that is already running (%1).</translation>
     </message>
     <message>
+        <source>error.file.notFound</source>
+        <translation>The file or folder could not be found: %1</translation>
+    </message>
+    <message>
+        <source>error.file.inUse</source>
+        <translation>Another program is using the file, so it could not be replaced: %1</translation>
+    </message>
+    <message>
+        <source>error.file.accessDenied</source>
+        <translation>Windows denied access to the file: %1</translation>
+    </message>
+    <message>
+        <source>error.file.readOnly</source>
+        <translation>The file is read-only, so it was not changed: %1</translation>
+    </message>
+    <message>
+        <source>error.file.replaceFailed</source>
+        <translation>The file could not be replaced: %1</translation>
+    </message>
+    <message>
+        <source>error.file.syncFailed</source>
+        <translation>The file could not be written to disk: %1</translation>
+    </message>
+    <message>
+        <source>error.file.originalMoved</source>
+        <translation>The save failed, and the original file could not be put back. It is here: %1</translation>
+    </message>
+    <message>
         <source>error.font.collectionUnavailable</source>
         <translation>The list of installed fonts could not be read, so missing fonts will be substituted by the PDF engine instead.</translation>
     </message>

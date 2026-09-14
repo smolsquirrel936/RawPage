@@ -1798,6 +1798,34 @@
         <translation>RawPage 無法將檔案交給已在執行的複本（%1）。</translation>
     </message>
     <message>
+        <source>error.file.notFound</source>
+        <translation>找不到檔案或資料夾：%1</translation>
+    </message>
+    <message>
+        <source>error.file.inUse</source>
+        <translation>另一個程式正在使用此檔案，因此無法取代：%1</translation>
+    </message>
+    <message>
+        <source>error.file.accessDenied</source>
+        <translation>Windows 拒絕存取此檔案：%1</translation>
+    </message>
+    <message>
+        <source>error.file.readOnly</source>
+        <translation>此檔案為唯讀，因此未變更：%1</translation>
+    </message>
+    <message>
+        <source>error.file.replaceFailed</source>
+        <translation>無法取代此檔案：%1</translation>
+    </message>
+    <message>
+        <source>error.file.syncFailed</source>
+        <translation>無法將檔案寫入磁碟：%1</translation>
+    </message>
+    <message>
+        <source>error.file.originalMoved</source>
+        <translation>儲存失敗，且無法將原始檔案放回。原始檔案位於：%1</translation>
+    </message>
+    <message>
         <source>error.font.collectionUnavailable</source>
         <translation>無法讀取已安裝的字型清單，因此缺少的字型將改由 PDF 引擎替代。</translation>
     </message>

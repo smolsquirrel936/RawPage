@@ -480,6 +480,38 @@ public:
 };
 
 // =======================================================================================
+// 18. IDurableFiles -- flush to disk, and a replace that keeps the target's identity (Stage 3)
+// =======================================================================================
+// Added at Stage 3 T7 by decision D3-4 (`Stage3-Mutation-Plan.md` §3): Save writes a complete new
+// file beside the target and then REPLACES the target with it. Qt has neither half. `QSaveFile`
+// renames over the target, and a rename gives the result the temporary file's creation time and
+// streams -- silently discarding the `Zone.Identifier` stream that tells Windows a PDF came from the
+// internet -- and Qt has no public call that forces a file's data to stable storage. Both are
+// §4.3's "needs platform code" column exactly, and §4.3 has been given the row.
+//
+// POLICY STAYS OUT. Whether to save, where the temporary file goes and what to tell the user when a
+// replace fails are `core/doc/SaveCoordinator`'s (T8). This interface does two things the OS does
+// and reports, by catalog key, what the OS said.
+class IDurableFiles {
+public:
+    virtual ~IDurableFiles() = default;
+
+    // Forces `path`'s data and metadata to stable storage. Success proves the flush was ASKED FOR and
+    // the OS accepted it; no test can observe durability across a power loss, and no caller should
+    // read more into it than that.
+    virtual Status syncToDisk(const QString& path) = 0;
+
+    // Makes `replacement` the file at `target`. When `target` exists it keeps its creation time,
+    // security descriptor and alternate data streams, and takes `replacement`'s content; when it does
+    // not, `replacement` is moved there. `replacement` must be on the same volume -- the caller puts
+    // it in the target's directory -- and no longer exists under its own name afterwards.
+    //
+    // A replace that fails leaves BOTH files as they were: the target unchanged, the replacement
+    // still present. A read-only target is refused rather than overwritten.
+    virtual Status replaceFile(const QString& target, const QString& replacement) = 0;
+};
+
+// =======================================================================================
 // The bundle
 // =======================================================================================
 // Owning, and NULL for anything this build does not implement. A null member is the honest state:
@@ -506,12 +538,13 @@ struct Platform {
     std::unique_ptr<IPowerSession>         powerSession;
     std::unique_ptr<IDisplayTopology>      displayTopology;
     std::unique_ptr<IPrinting>             printing;
+    std::unique_ptr<IDurableFiles>         durableFiles;
 };
 
 // Every interface this boundary declares, in the order of the `Platform` members. The census is
 // what makes "declared but not implemented" a countable, printable fact rather than a thing you
 // learn by dereferencing null.
-inline constexpr std::size_t kPlatformInterfaceCount = 17;
+inline constexpr std::size_t kPlatformInterfaceCount = 18;
 
 inline const std::array<std::string_view, kPlatformInterfaceCount>& platformInterfaceNames()
 {
@@ -520,13 +553,13 @@ inline const std::array<std::string_view, kPlatformInterfaceCount>& platformInte
         "ICryptoProvider", "ISecretStore", "IFontResolver", "IAcceleratedSurface",
         "IRichClipboard", "ISingleInstanceBus", "IOfficeBridge", "IBrowserBridge",
         "IRightsManagement", "IProcessSandbox", "IPowerSession", "IDisplayTopology",
-        "IPrinting",
+        "IPrinting", "IDurableFiles",
     };
     return kNames;
 }
 
 // Which slots the bundle leaves null, as booleans in the same order as the names above. Written as
-// one list rather than seventeen `if`s at each call site, and kept beside the names so that adding
+// one list rather than eighteen `if`s at each call site, and kept beside the names so that adding
 // an interface without extending both is a size mismatch the compiler reports.
 inline std::array<bool, kPlatformInterfaceCount> platformInterfacePresence(const Platform& platform)
 {
@@ -539,7 +572,7 @@ inline std::array<bool, kPlatformInterfaceCount> platformInterfacePresence(const
         platform.officeBridge != nullptr,         platform.browserBridge != nullptr,
         platform.rightsManagement != nullptr,     platform.processSandbox != nullptr,
         platform.powerSession != nullptr,         platform.displayTopology != nullptr,
-        platform.printing != nullptr,
+        platform.printing != nullptr,         platform.durableFiles != nullptr,
     };
 }
 
