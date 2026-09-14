@@ -720,6 +720,11 @@ TEST_CASE("A4 probe writes a comment and a rotation into every signed corpus fil
             REQUIRE(update);
 
             const std::filesystem::path target = out / edit / name;
+            // A viewer holding the file open -- Acrobat, during guide case M-03's walk -- makes this
+            // write fail on Windows, and a bare `stream.good()` failure does not say so. Measured
+            // 2026-09-14, when exactly the three files still open in Acrobat failed.
+            INFO("writing " << target.string()
+                            << " -- if this fails, is the file open in a PDF viewer?");
             {
                 std::ofstream stream(target, std::ios::binary | std::ios::trunc);
                 stream.write(before.bytes->data(),

@@ -113,6 +113,13 @@
       "note": "pdf/render/ is the PDFium facade, and from Stage 2 T16 it is the ONE part of pdf/ that may name platform/platform.h. The reason is narrow and is the whole of the widening: PDFium's font mapper is a PROCESS-GLOBAL hook (FPDF_SetSystemFontInfo), and the file that installs it -- pdf/render/FontResolverBridge -- is where the engine boundary and the OS boundary physically meet. A document names a font, does not embed it, and somebody has to say what to draw instead; before T16 that somebody was PDFium, silently, and nothing in the product could report which face it chose (guide case A-66). The alternative considered and rejected was a third font vocabulary declared here plus an adapter in app/, which would duplicate platform::FontMatch field for field -- the two-lists shape core/settings/SettingsKeys.def's rule 2 exists to prevent -- for no gain, since platform/platform.h is interfaces-only and names nothing but core/ types (see the platform-interface entry, which is what keeps that true). THE NARROWING IS THE POINT: this entry exists so that pdf/cos/ does NOT inherit it. That layer is portable BY RULE and is half of what portable-asan and portable-fuzz build on Linux, and it has no business knowing an operating system boundary exists. Same shape as T2's narrowing of the fpdf token rule from pdf/ to pdf/render/, and it relies on the same mechanism: layers match by longest path prefix."
     },
 
+    "pdf-cos": {
+      "paths": ["pdf/cos/"],
+      "mayInclude": ["pdf/cos/", "core/"],
+      "denyExternal": ["QtWidgets", "QWidget"],
+      "note": "pdf/cos/ is the first-party COS reader AND WRITER, and it is the bottom of pdf/: it may include itself and core/ and nothing else under pdf/. Added at Stage 3 T3 (decision D3-3, Stage3-Mutation-Plan.md): until then pdf/cos/ was matched by the `pdf` entry, which lets it include anything under pdf/ -- harmless while pdf/ops/ did not exist, and a real gap the moment it did, because a reader could start depending on the mutation layer built above it and only the linker would notice, late, and only for a call rather than a header. It also keeps pdf/cos/ from naming pdf/render/, which the `fpdf` token rules catch only for an engine symbol and not for an include of the facade's own headers."
+    },
+
     "pdf": {
       "paths": ["pdf/"],
       "mayInclude": ["pdf/", "core/"],

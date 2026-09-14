@@ -1,6 +1,7 @@
 # tests/unit -- the headless suite.
 #
-# THE STANDING PROOF: this target links rawpage_core and rawpage_cos and NOTHING ELSE. If the
+# THE STANDING PROOF: this target links rawpage_core, rawpage_cos and -- from Stage 3 T3 -- the
+# portable rawpage_ops (D3-3), and NOTHING ELSE. If the
 # full domain suite cannot pass without a display and without a PDF engine, the layer
 # boundary has already leaked -- and it will have leaked quietly, months before anyone
 # notices. Tech-Stack-Plan.md 9 names this as a verification step in its own right.
@@ -58,6 +59,8 @@ add_executable(rawpage_tests
     tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23
     tst_incrementalwriter.cpp     # Stage 3 T2  -- guide cases A-19 ... A-25, A-27, and A-28's
                                   #   writing half (the probe; OpenSSL's half is registered below)
+    tst_pageops.cpp               # Stage 3 T3  -- guide cases A-29's headless half and A-30's PageOps half
+    tst_mutationsink.cpp          # Stage 3 T3  -- guide cases A-30 ... A-33 and T3's two controls
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -109,6 +112,7 @@ target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(rawpage_tests PRIVATE
     rawpage_core
     rawpage_cos
+    rawpage_ops        # Stage 3 T3 (D3-3): portable, no engine -- gates.headless_assert.ops_* prove it
     Catch2::Catch2WithMain
 )
 

@@ -1,0 +1,30 @@
+# pdf/ops/ -- rawpage_ops, the engine-side realization of each mutation. Stage 3 T3, decision D3-3
+# (claude-plan/Stage3-Mutation-Plan.md section 3).
+#
+# A PORTABLE library of its own, linking rawpage_cos and NO ENGINE -- and that is the decision, not
+# a tidy-up. The page-object walk and the desired-state sink are the memory-unsafe code Stage 3 adds
+# above the writer: offsets, object numbers from a damaged file, a tree that may loop. portable-asan
+# and portable-fuzz are the only sanitizer coverage this project has (O10, Implementation-Plan.md
+# section 8), so this library is added BEFORE pdf/CMakeLists.txt's portable-subset return and builds
+# on Linux.
+#
+# The path of least resistance would have been to put pdf/ops/ beside pdf/DocumentBackendImpl in
+# rawpage_pdfium, which is where the backend lives. That would have put Stage 3's riskiest code
+# exactly where ASan cannot reach it. DocumentBackendImpl DELEGATES to this library instead (T4, T8).
+#
+# rawpage_tests links it under rawpage_assert_headless(), whose forbidden list is unchanged: the
+# gate case gates.headless_assert.ops_carrying_pdfium_is_caught proves an engine arriving through
+# this library would still be refused (guide case A-03). And tools/layer-lint's `pdf-cos` entry keeps
+# the dependency one-way: pdf/cos/ may not include pdf/ops/ (guide case A-05).
+
+add_library(rawpage_ops STATIC
+    PageOps.h
+    PageOps.cpp
+    MutationSinkImpl.h
+    MutationSinkImpl.cpp
+)
+
+target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_ops PUBLIC rawpage_core rawpage_cos)
+
+rawpage_strict(rawpage_ops)           # -Werror, like the rest of pdf/

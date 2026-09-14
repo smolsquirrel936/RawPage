@@ -79,6 +79,24 @@ rawpage_add_gate_test(NAME gates.layer_lint.cos_includes_platform
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/cos-includes-platform --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "platform/platform.h")
 
+# --- D3-3's `pdf-cos` entry, Stage 3 T3 (guide case A-05) --------------------------------
+# pdf/cos/ is the bottom of pdf/: the mutation layer (pdf/ops/) is built on it and the facade
+# (pdf/render/) beside it, and neither may be included from it. The two positives were run against a
+# rules file WITHOUT the entry and both came back clean, so they fail for this rule and no other
+# (convention 7). The control is the permitted direction, without which both positives are equally
+# satisfied by a rules file that forbade pdf/cos/ headers to everyone.
+rawpage_add_gate_test(NAME gates.layer_lint.pdf_cos_includes_ops
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/cos-includes-ops --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "pdf-cos/ includes pdf/ops/")
+
+rawpage_add_gate_test(NAME gates.layer_lint.pdf_cos_includes_render
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/cos-includes-render --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "pdf-cos/ includes pdf/render/")
+
+rawpage_add_gate_test(NAME gates.layer_lint.pdf_cos_ops_may_include_cos
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/ops-may-include-cos --rules ${LL_RULES}
+    EXPECT_EXIT 0 EXPECT_MATCH "clean")
+
 rawpage_add_gate_test(NAME gates.layer_lint.pdf_render_may_include_platform
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/pdf-render-may-include-platform --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")
@@ -576,6 +594,17 @@ rawpage_add_headless_test(NAME gates.headless_assert.pdfium_name_without_target
 
 # And Stage 1's two entries still fire after the function moved out of tests/unit. A refactor that
 # quietly narrowed the forbidden list to the newest member would pass every case above.
+# Stage 3 T3, guide case A-03 (D3-3): rawpage_tests now links rawpage_ops for real. The edge itself is
+# allowed -- a control, because an assertion that began refusing it would pass the case after it --
+# and an engine arriving THROUGH it is caught, with the engine a real target as it is on Windows.
+rawpage_add_headless_test(NAME gates.headless_assert.ops_edge_is_allowed
+    EXTRA "-DFIXTURE_LEAK=ops"
+    EXPECT_EXIT 0 EXPECT_MATCH "closure is clean")
+
+rawpage_add_headless_test(NAME gates.headless_assert.ops_carrying_pdfium_is_caught
+    EXTRA "-DFIXTURE_LEAK=ops_pdfium|-DFIXTURE_DEFINE_PDFIUM=ON"
+    EXPECT_EXIT 1 EXPECT_MATCH "resist")
+
 rawpage_add_headless_test(NAME gates.headless_assert.ui_edge_still_caught
     EXTRA "-DFIXTURE_LEAK=ui"
     EXPECT_EXIT 1 EXPECT_MATCH "rawpage_ui")

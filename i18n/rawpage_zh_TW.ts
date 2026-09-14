@@ -1894,6 +1894,22 @@
         <translation>無法壓縮此更新的交互參照資料。未寫入任何內容。</translation>
     </message>
     <message>
+        <source>error.pdf.noPageTree</source>
+        <translation>此 PDF 沒有可讀取的頁面樹，因此無法變更其頁面。</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageOutOfRange</source>
+        <translation>內部錯誤：此文件中沒有第 %1 頁。未變更任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.rotationNotRightAngle</source>
+        <translation>頁面只能以四分之一圈旋轉；%1 度不是其中之一。未變更任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageTreeChanged</source>
+        <translation>已儲存的檔案有 %1 頁，與編輯時的頁數不符。未儲存的變更已保留。</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>已取消開啟 %1。</translation>
     </message>

@@ -26,6 +26,7 @@
 # So:
 #
 #   rawpage_cos      pdf/cos/ + pdf/BackendFactory   portable, first-party, NO PDFium
+#   rawpage_ops      pdf/ops/                        portable, links rawpage_cos, NO PDFium  (Stage 3 T3, D3-3)
 #   rawpage_pdfium   pdf/render/                     Windows only, links pdfium.dll   (arrives T2)
 #
 # The split is not tidiness. It is what makes the sentence in tests/unit's comment true, and what
@@ -134,6 +135,12 @@ target_link_libraries(rawpage_cos PUBLIC rawpage_core PRIVATE ZLIB::ZLIB JPEG::J
 
 rawpage_strict(rawpage_cos)           # -Werror: no warning survives in pdf/ either
 
+# --- pdf/ops/ (Stage 3 T3, D3-3) -------------------------------------------------------
+# rawpage_ops: portable, links rawpage_cos and no engine, and is added HERE -- above the return
+# below -- so the portable presets build it and its code runs under ASan. pdf/ops/CMakeLists.txt says
+# why it is not part of rawpage_pdfium.
+add_subdirectory(ops)
+
 # --- THE PORTABLE SUBSET STOPS HERE ----------------------------------------------------
 # The portable presets (`portable-asan`, `portable-fuzz`) build core/ + pdf/cos/ on Linux, and
 # pdf/cos/ is everything above this line. Everything below links PDFium, which does not exist on
@@ -148,7 +155,7 @@ rawpage_strict(rawpage_cos)           # -Werror: no warning survives in pdf/ eit
 # Stage 1's sign-off and T18. A comment asserting a guard that lives in another file is a claim
 # nothing re-derives -- convention 8's shape, and the reason this one is a `return()` you can see.
 if(RAWPAGE_PORTABLE_SUBSET)
-    message(STATUS "pdf/: portable subset -- rawpage_cos only, no engine facade")
+    message(STATUS "pdf/: portable subset -- rawpage_cos and rawpage_ops, no engine facade")
     return()
 endif()
 

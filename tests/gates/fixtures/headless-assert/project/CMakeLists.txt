@@ -45,11 +45,25 @@ if(FIXTURE_DEFINE_PDFIUM)
     add_library(rawpage_pdfium INTERFACE)
 endif()
 
+# rawpage_ops (Stage 3 T3, decision D3-3): the portable mutation layer, which rawpage_tests links for
+# real. It links rawpage_cos and must never carry an engine in with it.
+add_library(rawpage_ops INTERFACE)
+target_link_libraries(rawpage_ops INTERFACE rawpage_core rawpage_cos)
+
 add_library(rawpage_tests INTERFACE)
 target_link_libraries(rawpage_tests INTERFACE rawpage_core rawpage_cos)
 
 # FIXTURE_LEAK names the library the suite is made to link, directly or through rawpage_cos.
-if(FIXTURE_LEAK STREQUAL "direct")
+if(FIXTURE_LEAK STREQUAL "ops")
+    # The real Stage 3 shape: allowed, and the case that proves the assertion did not start refusing
+    # the new edge along with the forbidden ones.
+    target_link_libraries(rawpage_tests INTERFACE rawpage_ops)
+elseif(FIXTURE_LEAK STREQUAL "ops_pdfium")
+    # The leak D3-3 exists to prevent, arriving the way it would: rawpage_ops grows an engine edge
+    # (say, because pdf/ops/ drifted toward DocumentBackendImpl) and nobody touches tests/unit.
+    target_link_libraries(rawpage_tests INTERFACE rawpage_ops)
+    target_link_libraries(rawpage_ops INTERFACE rawpage_pdfium)
+elseif(FIXTURE_LEAK STREQUAL "direct")
     target_link_libraries(rawpage_tests INTERFACE rawpage_pdfium)
 elseif(FIXTURE_LEAK STREQUAL "transitive")
     # The way this actually happens: nobody edits the test's own CMakeLists at all.

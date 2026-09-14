@@ -30,6 +30,8 @@ find_package(Catch2 3 REQUIRED)
 add_executable(rawpage_render_tests
     tst_pdfiuminit.cpp            # Stage 2 T2 -- guide cases A-07's engine half, and A-45's first
     tst_pdfiumdoc.cpp             # Stage 2 T9 -- guide cases A-42 and A-43
+    tst_pageopsengine.cpp         # Stage 3 T3 -- guide case A-29: pdf/ops/PageOps against the engine,
+                                  #   page by page, over every corpus file both readers open
     tst_rasterizer.cpp            # Stage 2 T9 -- guide cases A-44, A-45, A-46's second half,
                                   #               and A-47's engine half
     tst_fontbridge.cpp            # Stage 2 T16 -- guide cases A-66 and A-67. The ONLY suite that
@@ -65,9 +67,13 @@ target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 # It does NOT weaken what this target's separateness protects. The property being protected is that
 # tests/unit links no engine and no display; adding the OS layer to a Windows-only, engine-linking
 # target costs nothing of that. Both of these libraries are already in the shipped executable.
+# rawpage_ops JOINED AT Stage 3 T3 for tst_pageopsengine: the page walk has to be held to the engine's
+# page order, and this is the only target that links both. It adds no engine to anything -- rawpage_ops
+# is portable and links none (D3-3).
 target_link_libraries(rawpage_render_tests PRIVATE
     rawpage_core
     rawpage_cos
+    rawpage_ops
     rawpage_pdfium
     rawpage_platform
     Catch2::Catch2WithMain

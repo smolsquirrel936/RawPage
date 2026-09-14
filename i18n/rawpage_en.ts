@@ -1894,6 +1894,22 @@
         <translation>The cross-reference data for this update could not be compressed. Nothing was written.</translation>
     </message>
     <message>
+        <source>error.pdf.noPageTree</source>
+        <translation>This PDF has no readable page tree, so its pages cannot be changed.</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageOutOfRange</source>
+        <translation>Internal error: page %1 is not in this document. Nothing was changed.</translation>
+    </message>
+    <message>
+        <source>error.pdf.rotationNotRightAngle</source>
+        <translation>Pages can only be rotated in quarter turns; %1 degrees is not one. Nothing was changed.</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageTreeChanged</source>
+        <translation>The saved file has %1 pages, which is not what was edited. The unsaved changes were kept.</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>Opening %1 was cancelled.</translation>
     </message>
