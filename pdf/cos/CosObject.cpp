@@ -148,6 +148,17 @@ void CosObject::setStreamData(const CosStreamData& data)
     clearSpan();
 }
 
+void CosObject::clearSpansRecursively() noexcept
+{
+    // Recursive, and bounded by what built the object: `pdf/cos/Parser` refuses to nest deeper
+    // than `Parser::kMaxDepth`, so this cannot descend further than the parse did.
+    clearSpan();
+    for (CosObject& item : array_)
+        item.clearSpansRecursively();
+    for (Entry& entry : dict_)
+        entry.value.clearSpansRecursively();
+}
+
 std::string_view CosObject::raw(std::string_view source) const noexcept
 {
     if (!span_.valid)

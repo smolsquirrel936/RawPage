@@ -10,7 +10,8 @@
     "",
     "WHICH PAGES, AND WHY NOT ALL OF THEM. Page 0 of every corpus file the engine will open, at all",
     "three resolutions. A further page is captured only where the PIXELS differ for a reason page 0",
-    "cannot show: the four rotations of rotated-pages, the four media boxes of mixed-page-sizes, the",
+    "cannot show: the four rotations of rotated-pages, the three ways rotate-inherited's pages reach",
+    "their rotation, the four media boxes of mixed-page-sizes, the",
     "three revisions of incremental-3gen, the second annotation page of annots-mixed, and the LAST",
     "page of pages-900 -- which is the one that proves a 30x30 page tree is walked to its end rather",
     "than to its first leaf. cover-odd-count, rtl-binding and outline-labels are LAYOUT fixtures:",
@@ -62,6 +63,8 @@
     { "file": "ordinary/font-not-embedded.pdf", "pages": [0], "machineDependent": true,
       "note": "names two families installed on no machine, so what is drawn is whatever core/render/FontSubstitution found HERE -- the baseline is about this box's fonts and the suite skips it by name elsewhere" },
     { "file": "ordinary/forms-acroform.pdf", "pages": [0] },
+    { "file": "ordinary/hybrid-xrefstm.pdf", "pages": [0],
+      "note": "Stage 3 T1. Its page dictionaries are reachable only through /XRefStm, so a page drawn at all is the engine following the hybrid key" },
     { "file": "ordinary/image-ccitt-g3.pdf", "pages": [0] },
     { "file": "ordinary/image-ccitt-g4.pdf", "pages": [0] },
     { "file": "ordinary/image-dct-gray.pdf", "pages": [0] },
@@ -81,6 +84,8 @@
     { "file": "ordinary/outline-labels.pdf", "pages": [0] },
     { "file": "ordinary/pages-900.pdf", "pages": [0, 899],
       "note": "the last page proves a 30x30 page tree is walked to its end, not to its first leaf" },
+    { "file": "ordinary/rotate-inherited.pdf", "pages": [0, 1, 2],
+      "note": "Stage 3 T1. /Rotate 90 on the root /Pages only: page 0 inherits it, page 1 overrides it with an explicit 0, page 2 inherits it through an intermediate node -- so pages 0 and 2 are landscape and page 1 is not" },
     { "file": "ordinary/rotated-pages.pdf", "pages": [0, 1, 2, 3],
       "note": "/Rotate 0, 90, 180, 270 -- the PAGE's rotation, which PDFium applies itself. The VIEW rotation is a RenderRequest field and is not baselined (T14)" },
     { "file": "ordinary/rtl-binding.pdf", "pages": [0] },
@@ -125,7 +130,13 @@
     { "file": "encrypted/rc4-40.pdf",          "pages": [0], "password": "user" },
     { "file": "encrypted/rc4-128.pdf",         "pages": [0], "password": "user" },
     { "file": "encrypted/owner-empty-user.pdf", "pages": [0],
-      "note": "an EMPTY user password: it opens with no prompt, which is what makes it worth a baseline -- a reader that treated 'no password needed' as 'not encrypted' would draw nothing and say nothing" }
+      "note": "an EMPTY user password: it opens with no prompt, which is what makes it worth a baseline -- a reader that treated 'no password needed' as 'not encrypted' would draw nothing and say nothing" },
+
+    { "file": "signed/approval.pdf", "pages": [0],
+      "note": "Stage 3 T1 (D3-2). The signature is invisible (an empty /Rect), so the baseline is the page's text; it pins that a signed file opens and draws, and says nothing about the signature" },
+    { "file": "signed/approval-xrefstream.pdf", "pages": [0] },
+    { "file": "signed/certified-nochanges.pdf", "pages": [0] },
+    { "file": "signed/approval-then-update.pdf", "pages": [0] }
   ],
 
   "$comment-excluded": [

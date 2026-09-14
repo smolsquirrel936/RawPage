@@ -972,6 +972,36 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/hybrid-xrefstm.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/hybrid-xrefstm.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/hybrid-xrefstm.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/image-ccitt-g3.pdf",
             "height": 1123,
             "page": 0,
@@ -1572,6 +1602,96 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 794,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1123
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 1191,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1684
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 1588,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 2246
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 1123,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 1684,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 2246,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 794,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1123
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 1191,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1684
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/rotate-inherited.pdf",
+            "height": 1588,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 2246
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/rotated-pages.pdf",
             "height": 1123,
             "page": 0,
@@ -1989,9 +2109,129 @@
                 "Helvetica -> (engine) [standard-declined]"
             ],
             "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "signed/approval-then-update.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "signed/approval-then-update.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "signed/approval-then-update.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "signed/approval-xrefstream.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "signed/approval-xrefstream.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "signed/approval-xrefstream.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "signed/approval.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "signed/approval.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "signed/approval.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "signed/certified-nochanges.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "signed/certified-nochanges.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "signed/certified-nochanges.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
         }
     ],
-    "capturedUtc": "2026-09-06T07:58:12Z",
+    "capturedUtc": "2026-09-14T09:57:58Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "I-21: widget annotations now rasterize. PDFium draws every annotation except /Subtype /Widget from FPDF_RenderPageBitmap; widgets need FPDF_FFLDraw and a form-fill environment, which the facade never created. The previous baselines recorded this file -- whose whole purpose is AcroForm widgets with appearance streams -- as its labels and eleven blank spaces. Found by the user in the M-03 walk, beside Acrobat."
+    "reason": "Stage 3 T1: six corpus files added (corpus/signed/ four, ordinary/rotate-inherited.pdf, ordinary/hybrid-xrefstm.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files."
 }

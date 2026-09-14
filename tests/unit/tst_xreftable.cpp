@@ -20,10 +20,12 @@
 //
 // WHAT THIS SUITE DOES NOT COVER, named at the assertion (CLAUDE.md convention 19):
 //
-//   * **A HYBRID `/XRefStm` FILE HAS NO CORPUS FIXTURE.** The code path exists and is exercised
-//     below only against a hand-built file, not a generated one. A hybrid file that lost its
-//     `/XRefStm` would silently lose every packed object; the honest fix is a corpus file, and it
-//     is recorded with I-06 rather than left implied by a green suite.
+//   * **A hybrid file whose classic table lists its packed objects as FREE.** From Stage 3 T1
+//     `corpus/ordinary/hybrid-xrefstm.pdf` covers the `/XRefStm` path, with the packed objects
+//     ABSENT from the classic table; the free-entry arrangement is not in the corpus, and the
+//     hybrid case below says so at its assertion. (Until T1 this comment said the path was
+//     "exercised below against a hand-built file". No such case existed -- the path had never
+//     run under test at all. Stage 3 guide issue I-03.)
 //   * Nothing here REPAIRS anything. When `load()` fails, that failure is the signal T8's
 //     `XrefRepair` acts on, and T8's own suite is where recovery is asserted.
 
@@ -32,6 +34,7 @@
 #include "pdf/cos/XrefTable.h"
 
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <string>
 
@@ -168,6 +171,108 @@ TEST_CASE("cos xref reads a cross-reference stream and its packed objects", "[co
         // and a stale span here would have Stage 3 copying freed memory.
         CHECK_FALSE(object.value().object.span().valid);
     }
+}
+
+TEST_CASE("cos xref clears the spans of every value inside a packed object", "[cos][xref]")
+{
+    // Stage 3 guide issue I-04 (`Stage3-Mutation-Testing-Guide.md` §8). A packed object was parsed
+    // from a DECOMPRESSED payload, so every span inside it -- not only its own -- is measured into a
+    // buffer that is not the file. Until Stage 3 T2 only the top-level span was cleared, and
+    // `raw(fileBytes)` on a nested value returned a slice of the file from the wrong place.
+    const std::string file = readFile(corpus("ordinary/objstm-xrefstream.pdf"));
+    auto loaded = XrefTable::load(file);
+    REQUIRE(loaded);
+    XrefTable& table = loaded.value();
+
+    std::size_t nested = 0;
+    std::function<void(const CosObject&)> walk = [&](const CosObject& value) {
+        CHECK_FALSE(value.span().valid);
+        CHECK(value.raw(file).empty());
+        ++nested;
+        for (const CosObject& item : value.items())
+            walk(item);
+        for (const CosObject::Entry& entry : value.entries())
+            walk(entry.value);
+    };
+    std::size_t packedObjects = 0;
+    for (const auto& [number, entry] : table.entries()) {
+        if (entry.type != XrefEntryType::InObjectStream)
+            continue;
+        auto object = table.fetch(number);
+        REQUIRE(object);
+        walk(object.value().object);
+        ++packedObjects;
+    }
+    REQUIRE(packedObjects > 0);
+    // Nested values must actually have been visited, or the case checks only the top level again.
+    CHECK(nested > packedObjects * 2);
+}
+
+TEST_CASE("cos xref reaches objects that only a hybrid file's XRefStm lists", "[cos][xref]")
+{
+    // `corpus/ordinary/hybrid-xrefstm.pdf` (Stage 3 T1, guide case A-17 of
+    // `Stage3-Mutation-Testing-Guide.md`): a classic table whose trailer carries `/XRefStm`. The
+    // fonts, the `/Pages` node and both page dictionaries are packed in an object stream and are
+    // ABSENT from the classic table, so the cross-reference stream is the only way to them.
+    //
+    // What this does NOT cover: a hybrid file that lists its packed objects in the classic table as
+    // FREE entries, which some producers write. `XrefTable` merges free entries first-seen-wins and
+    // reads the classic table before `/XRefStm`, so on such a file the free entry would win. That
+    // arrangement is not in the corpus (`corpus/PROVENANCE.md` records the limit), and nothing here
+    // says how this reader treats it.
+    const std::string file = readFile(corpus("ordinary/hybrid-xrefstm.pdf"));
+    REQUIRE_FALSE(file.empty());
+
+    auto loaded = XrefTable::load(file);
+    REQUIRE(loaded);
+    XrefTable& table = loaded.value();
+
+    REQUIRE(table.sections().size() == 2);
+    CHECK_FALSE(table.sections()[0].isStream);
+    CHECK_FALSE(table.sections()[0].fromXrefStm);
+    CHECK(table.sections()[1].isStream);
+    CHECK(table.sections()[1].fromXrefStm);
+    CHECK(table.noteCount(XrefNote::SizeDisagrees) == 0);
+
+    // The page tree, followed from the catalog. Every step past the catalog is a packed object.
+    auto catalog = table.fetch(table.trailer().get("Root").reference().number);
+    REQUIRE(catalog);
+    const long long pagesNumber = catalog.value().object.get("Pages").reference().number;
+    const auto* pagesEntry = table.find(pagesNumber);
+    REQUIRE(pagesEntry != nullptr);
+    CHECK(pagesEntry->type == XrefEntryType::InObjectStream);
+
+    auto pages = table.fetch(pagesNumber);
+    REQUIRE(pages);
+    CHECK(pages.value().object.get("Type").text() == "Pages");
+    const CosObject& kids = pages.value().object.get("Kids");
+    REQUIRE(kids.isArray());
+    REQUIRE(kids.items().size() == 2);
+    for (const CosObject& kid : kids.items()) {
+        INFO("page object " << kid.reference().number);
+        const auto* entry = table.find(kid.reference().number);
+        REQUIRE(entry != nullptr);
+        CHECK(entry->type == XrefEntryType::InObjectStream);
+        auto page = table.fetch(kid.reference().number);
+        REQUIRE(page);
+        CHECK(page.value().object.get("Type").text() == "Page");
+    }
+
+    // THE CONTROL (convention 7): the same bytes with the trailer key renamed, same length, so
+    // every offset still holds. Without `/XRefStm` the packed objects must be GONE -- otherwise
+    // the assertions above would pass against a reader that found them some other way, and would
+    // say nothing about `/XRefStm` at all.
+    std::string blind = file;
+    const auto key = blind.find("/XRefStm");
+    REQUIRE(key != std::string::npos);
+    REQUIRE(blind.find("/XRefStm", key + 1) == std::string::npos);
+    blind.replace(key, 8, "/XRefStX");
+
+    auto without = XrefTable::load(blind);
+    REQUIRE(without);
+    CHECK(without.value().sections().size() == 1);
+    CHECK(without.value().find(pagesNumber) == nullptr);
+    CHECK_FALSE(without.value().fetch(pagesNumber));
 }
 
 // ==========================================================================================

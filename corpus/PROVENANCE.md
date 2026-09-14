@@ -32,12 +32,14 @@ This is recorded as a known limitation in `Stage2-Rendering-Plan.md` §12 and as
 item in `Stage2-Rendering-Testing-Guide.md` §13.6, and **the trigger for revisiting D2-11 is the
 first real-world rendering bug this corpus cannot reproduce.**
 
-Three narrower limits, each stated where it is created rather than left to be inferred:
+Five narrower limits, each stated where it is created rather than left to be inferred:
 
 | Limit | Where it comes from |
 |---|---|
 | **The JPEG 2000 stream carries one coding pass.** `image-jpx.pdf` decodes to a two-tone approximation — a 0/255 source comes back as roughly 0/128 — because `jpxenc.py` implements the MQ coder and the EBCOT **cleanup** pass and not the significance-propagation or magnitude-refinement passes. It is a *truncated* codestream, not a malformed one, and it exercises the `/JPXDecode` **path**; it is not a claim about JPEG 2000 fidelity | `corpus/jpxenc.py` |
 | **The JPEG streams are baseline 4:4:4 only.** No progressive, no chroma subsampling, no arithmetic coding, no restart markers. Each of those is a genuinely different decode path | `corpus/jpegenc.py` |
+| **Every signature is one generated signer.** RSA-2048, PKCS#1 v1.5, SHA-256, a self-signed certificate, signed attributes `contentType`, `signingTime` and `messageDigest` only — no timestamp, no revocation data, no PAdES profile, no visible appearance. Risk A4's verdict is therefore bounded to *"over RawPage's generated signatures"* (`Stage3-Mutation-Testing-Guide.md` §1); a signature from another producer may differ in exactly the way that matters, and the first real signed file that does not survive a save is the trigger to revisit D3-2 | `corpus/cmsenc.py`, `corpus/make-signed.py` |
+| **The hybrid-reference file leaves its packed objects OUT of the classic table.** ISO 32000-1 §7.5.8.4 also permits listing them there as *free* entries, and some producers do. That arrangement is not in the corpus, and `pdf/cos/XrefTable` merges free entries first-seen-wins with the classic table read before `/XRefStm` — so how this reader treats it is unmeasured, not known to work | `ordinary/hybrid-xrefstm.pdf` |
 | **The embedded fonts are nine hanzi and seven capitals, all built from rectangles.** They are *real characters correctly drawn* — 一 二 三 十 口 日 田 中 目 and E F H I L T — chosen because those glyphs genuinely are straight strokes. No curves, no hinting, no kerning, no composite glyphs. What is exercised is the embedding path (`/FontFile2`, CIDFontType2, Identity-H, `/W`), not typographic fidelity | `corpus/fontenc.py` |
 
 ## How to regenerate
@@ -49,7 +51,7 @@ python corpus/make-corpus.py --check-provenance # every file has a row here; eve
 python corpus/make-corpus.py --list             # every file with its size and sha256
 ```
 
-Individual generators (`make-ordinary.py`, `make-malformed.py`, `make-encrypted.py`) can be run on
+Individual generators (`make-ordinary.py`, `make-malformed.py`, `make-encrypted.py`, `make-signed.py`) can be run on
 their own and write only their own directory. `make-minimal.py` and `make-a2-text-page.py` predate
 this task and are deliberately **not** ported onto `pdfbuild.py`: `minimal.pdf`'s hash is quoted in
 `Stage0-Toolchain-Testing-Guide.md` and `a2-text-page.pdf` is the A2 probe's named input in
@@ -67,10 +69,14 @@ this task and are deliberately **not** ported onto `pdfbuild.py`: `minimal.pdf`'
 | `corpus/jpxenc.py` | JPEG 2000: MQ arithmetic coder, EBCOT cleanup pass, tag trees, packet headers. See the limitation above |
 | `corpus/fontenc.py` | Synthetic TrueType fonts (`glyf`/`loca`/`cmap`/`hmtx`/`head`/`hhea`/`maxp`/`name`/`post`/`OS/2`) |
 | `corpus/cryptenc.py` | The PDF standard security handler, encrypt side: RC4, AES-128/192/256, revisions 2/3/4/6. **Test-data only** — `pdf/cos/StandardSecurityHandler` (Stage 10) is the real one and shares no code with it |
+| `corpus/cmsenc.py` | Detached CMS signatures, sign side (Stage 3 T1, D3-2): DER, a **deterministic** RSA-2048 key derived from a public seed, a self-signed X.509 v3 certificate, and an RFC 5652 `SignedData` with signed attributes. **No key is stored** — it is re-derived at generation time. **Test-data only**; Stage 11's signing shares no code with it, and neither does OpenSSL, which is what lets OpenSSL judge it |
+| `corpus/make-signed.py` | `corpus/signed/`: serializes each file with a fixed-width `/ByteRange` and a zero-filled `/Contents`, fills the four numbers without moving a byte, then signs the two ranges. Asserts the private exponent appears in no output |
 
 Each encoder **self-checks against an independent implementation** before its output reaches a
 corpus file: `deflate.py` round-trips through `zlib.decompress`, `ccitt.py` through its own
-decoder, `cryptenc.py` against the FIPS-197 known-answer vectors, and — opportunistically, when the
+decoder, `cryptenc.py` against the FIPS-197 known-answer vectors, `cmsenc.py` by re-doing the RSA
+public operation and — when `cryptography` is importable — verifying the certificate and the
+signature with it, and — opportunistically, when the
 package happens to be importable — `jpegenc.py`, `jpxenc.py` and `fontenc.py` through Pillow
 (libjpeg, OpenJPEG and FreeType). **Pillow and `cryptography` are not dependencies of this
 project**; when they are absent the self-check says so rather than passing quietly.
@@ -117,6 +123,8 @@ project**; when they are absent the self-check says so rather than passing quiet
 | `ordinary/objstm-xrefstream.pdf` | `make-ordinary.py` | PDF 1.5 structure: objects packed into an `/ObjStm`, a cross-reference **stream** with `/W` field widths and type-2 entries. A completely separate reader path from the classic table |
 | `ordinary/incremental-3gen.pdf` | `make-ordinary.py` | Three generations appended, not rewritten — what `tst_xreftable` (A-20) walks. Gen 2 replaces page 2 and adds page 3; gen 3 replaces page 1 and the `/Info`. **The earlier bytes are still there verbatim**, which is the only way to catch a reader that rebuilds instead of following `/Prev` |
 | `ordinary/pages-900.pdf` | `make-ordinary.py` | 900 pages in a balanced tree of 30 × 30, with object streams. A flat 900-entry `/Kids` array is legal and is exactly the shape that hides an O(n) page lookup behind a fast small document |
+| `ordinary/rotate-inherited.pdf` | `make-ordinary.py` | **Stage 3 T1.** `/Rotate 90` on the **root `/Pages` node** only: page 1 inherits it, page 2 overrides it with an **explicit `/Rotate 0`**, and page 3 inherits it **through an intermediate `/Pages` node** with no `/Rotate` of its own. Decision D3-5 writes a rotation on the page and never on an ancestor (which would rotate the siblings), and drops a `/Rotate` equal to the inherited value — both wrong in ways only an inherited value can show. Page 2 separates *"absent"* from *"says 0"*; page 3 is what a one-level `/Parent` lookup misses |
+| `ordinary/hybrid-xrefstm.pdf` | `make-ordinary.py` | **Stage 3 T1.** A **hybrid-reference file**: a classic table whose trailer carries `/XRefStm`, pointing at a cross-reference stream listing the fonts, the `/Pages` node and both page dictionaries, which live in an object stream and are **absent from the classic table** — reachable only through `/XRefStm`. A reader that ignores the key finds a catalog with no page tree and says nothing. D3-5 writes a classic section after this file, and the packed objects must still resolve. Read the limitation above: the free-entry arrangement is not here |
 | `ordinary/stream-length-control.pdf` | `make-ordinary.py` | The **control** for `malformed/length-lies-short.pdf`. A-17 asks for a lying `/Length` *and* a correct one, because the second is what proves the recovery path actually ran. The damaged twin is built by importing this generator, so the pair cannot drift apart — they differ in exactly three bytes |
 
 ## `malformed/` — one named fault per file
@@ -172,8 +180,35 @@ look correct while PDFium silently failed.
 | `encrypted/aes-256.pdf` | R6 / V5 | AES-256 (`/AESV3`), the ISO 32000-2 handler. **The only one not built on MD5**: Algorithm 2.B's iterated SHA-2/AES password hash, the file key wrapped in `/UE` and `/OE`, and no per-object key derivation at all. A reader that handles R2–R4 shares almost no code with one that handles this |
 | `encrypted/owner-empty-user.pdf` | R4 / V4 | AES-128 with an **empty user password** and printing denied (`/P -3904`). It opens with no prompt, which is what makes it worth having: a reader that treats *“no password needed”* as *“not encrypted”* gets every byte wrong and nothing on screen says so |
 
-**Not here, and why.** No signed document — signing is Stage 10 and risk A4 belongs to Stage 3's
-round-trip suite, so a `corpus/signed-*.pdf` produced now would be a fixture with nothing to check
-it. No public-key (`/Filter /Adobe.PubSec`) encryption: it needs a certificate, a certificate needs
-a private key, and a private key committed to a repository is a bad habit even when it protects
-nothing.
+**Not here, and why.** No public-key (`/Filter /Adobe.PubSec`) encryption: opening it needs a
+recipient's private key, and a private key committed to a repository is a bad habit even when it
+protects nothing. Signed documents are not here either — they are `signed/`, below, from Stage 3 T1;
+signing *in the product* is Stage 11. (Until T1 this paragraph said *"signing is Stage 10"*, which
+`Implementation-Plan.md` never did.)
+
+## `signed/` — genuinely signed, by an identity that is not anyone
+
+**Stage 3 T1, decision D3-2** (`claude-plan/Stage3-Mutation-Plan.md` §3). These exist for **risk A4**
+(`Tech-Stack-Plan.md` §3.3): *does an incremental save leave a pre-existing signature valid?* Stage 3
+T2 writes a rotation into each with the incremental writer alone and T13 through the product's
+Save, and both times the result is judged by **OpenSSL** (`openssl cms -verify`, the integrity of
+the signed range) and by **Acrobat** (modification policy).
+
+**Every signature is real and means nothing.** The key is RSA-2048, **derived at generation time from
+a public seed** in `cmsenc.py` and never written to disk; the certificate is self-signed and its
+subject reads *"RawPage corpus test identity - NOT a real signer"*. Each signature is invisible (an
+empty `/Rect`) and `/SubFilter /adbe.pkcs7.detached`. **Read the signature limitation at the top of
+this file before quoting what these prove.**
+
+**The validator is shown a wrong answer first.** `tests/gates/check-signatures.py` reads each file as
+bytes — never through `pdf/cos/` — flips one byte in each signed range, and requires OpenSSL to
+**reject** both copies before it lets the unmodified file's verification count
+(`gates.corpus.signed`, guide case A-15). `--shapes` checks the structure each row below claims
+(A-16).
+
+| File | Signature | What it is for |
+|---|---|---|
+| `signed/approval.pdf` | Approval, classic table | The plain case: one revision, one signature covering the whole file |
+| `signed/approval-xrefstream.pdf` | Approval, xref stream | The page and its furniture are packed in an **object stream**, so the page dictionary a rotation changes is a type-2 object that D3-5 must write out as an ordinary one. The **signature dictionary is kept out** of the object stream, because `/ByteRange` needs its byte offsets in the file |
+| `signed/certified-nochanges.pdf` | **Certification**, `/DocMDP /P 1` | **The control.** *No changes permitted*: Stage 3 saves a rotation into it without honouring that (Stage 11's job), so a policy validator **must** flag the result — or its verdict on the three approval files was not a judgement |
+| `signed/approval-then-update.pdf` | Approval, then an **unsigned incremental update** | The update replaces `/Info` and keeps `/ID`'s first element. The signed range ends at the **first** `%%EOF`, and a save appends a **third** revision — the file that catches a writer measuring *"the original bytes"* from the newest revision, or a validator assuming a signature covers the whole file |

@@ -62,7 +62,7 @@ def build_all():
     files = {}
     files["minimal.pdf"] = _load("make-minimal.py").build()
     files["a2-text-page.pdf"] = _load("make-a2-text-page.py").build()
-    for script in ("make-ordinary.py", "make-malformed.py", "make-encrypted.py"):
+    for script in ("make-ordinary.py", "make-malformed.py", "make-encrypted.py", "make-signed.py"):
         files.update(_load(script).generate())
     return files
 

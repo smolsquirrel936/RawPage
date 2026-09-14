@@ -1862,6 +1862,38 @@
         <translation>This PDF is password-protected. RawPage cannot open protected files yet.</translation>
     </message>
     <message>
+        <source>error.pdf.writeWrongBuffer</source>
+        <translation>Internal error: a PDF update was built against a different copy of the document. Nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeNoRoot</source>
+        <translation>This PDF has no document catalog, so no change to it can be saved.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeNoRevision</source>
+        <translation>This PDF was repaired when it was opened and must be saved to a new file.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeNothing</source>
+        <translation>There are no changes to save.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeDuplicateObject</source>
+        <translation>Internal error: object %1 was changed twice in one update. Nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeObjectMissing</source>
+        <translation>Internal error: the update names object %1, which this PDF does not contain. Nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeStreamDataMissing</source>
+        <translation>Internal error: the update has no data for stream %1. Nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeEncodeFailed</source>
+        <translation>The cross-reference data for this update could not be compressed. Nothing was written.</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>Opening %1 was cancelled.</translation>
     </message>

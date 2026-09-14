@@ -1,8 +1,11 @@
 #include "pdf/cos/Lexer.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <limits>
+#include <string>
+#include <system_error>
 
 namespace rawpage::pdf::cos {
 namespace {
@@ -234,7 +237,36 @@ Token Lexer::lexNumber()
     if (!anyDigit)
         note = LexNote::MalformedNumber;            // a lone '-', '+', or '.'
 
-    const double magnitudeReal = static_cast<double>(magnitude) + fraction;
+    double magnitudeReal = static_cast<double>(magnitude) + fraction;
+
+    // A REAL IS PARSED CORRECTLY ROUNDED, from a normalized spelling of the same digits. The sum
+    // above drifts in the last bits -- `0.3` came out as 0.30000000000000004 -- which no reading case
+    // could see and which Stage 3's writer turned into visible damage: it prints a real's shortest
+    // round-trip spelling, so every `0.3` it rewrote became `0.30000000000000004` (Stage 3 guide
+    // issue I-05). The normalized text keeps every tolerance above: one sign, the integer digits,
+    // one point, and every digit after it including those past a second point (`1.2.3` is 1.23).
+    // The sum stays as the fallback for the one case `from_chars` refuses -- a magnitude out of the
+    // double range -- so a hostile run of digits still yields a value rather than garbage.
+    if (seenPoint && anyDigit) {
+        std::string digits;
+        bool afterPoint = false;
+        for (std::size_t index = start; index < position_; ++index) {
+            const std::uint8_t character = at(index);
+            if (character == '.') {
+                if (!afterPoint)
+                    digits += '.';
+                afterPoint = true;
+            } else if (character >= '0' && character <= '9') {
+                digits += static_cast<char>(character);
+            }
+        }
+        double parsed = 0.0;
+        const auto result = std::from_chars(digits.data(), digits.data() + digits.size(), parsed,
+                                            std::chars_format::fixed);
+        if (result.ec == std::errc() && result.ptr == digits.data() + digits.size())
+            magnitudeReal = parsed;
+    }
+
     Token token = make(seenPoint ? TokenType::Real : TokenType::Integer, start, note);
     token.real = negative ? -magnitudeReal : magnitudeReal;
 

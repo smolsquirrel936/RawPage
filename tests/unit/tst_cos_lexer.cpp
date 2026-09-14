@@ -121,6 +121,29 @@ TEST_CASE("cos lexer reads integers and reals", "[cos][lexer]")
         CHECK(lexOne(clean).note == LexNote::None);
 }
 
+TEST_CASE("cos lexer reads a decimal real as the nearest double", "[cos][lexer]")
+{
+    // Stage 3 T2, guide issue I-05 (`Stage3-Mutation-Testing-Guide.md` §8). The comparison is EXACT
+    // on purpose: the C++ literal `0.3` is the double nearest to three tenths, and a correctly
+    // rounded parse of the text `0.3` must produce that same double. Until T2 the lexer summed
+    // `digit * 0.1^n` term by term, which drifts in the last bits -- invisible to every reading
+    // case, and fatal to a WRITER, which prints a real's shortest round-trip spelling and so turned
+    // every `0.3` it rewrote into `0.30000000000000004`.
+    CHECK(lexOne("0.3").real == 0.3);
+    CHECK(lexOne("0.94").real == 0.94);
+    CHECK(lexOne("0.95").real == 0.95);
+    CHECK(lexOne("-0.1").real == -0.1);
+    CHECK(lexOne("595.276").real == 595.276);
+    CHECK(lexOne("841.89").real == 841.89);
+    CHECK(lexOne("123456789.123456789").real == 123456789.123456789);
+
+    // The tolerances keep their meaning: a doubled sign is still one sign, and the digits after a
+    // second point are still absorbed into the same fraction.
+    CHECK(lexOne("--0.3").real == -0.3);
+    CHECK(lexOne("1.2.3").real == 1.23);
+    CHECK(lexOne("12.5pt").real == 12.5);
+}
+
 TEST_CASE("cos lexer reads names, including the empty one", "[cos][lexer]")
 {
     CHECK(lexOne("/Type").text == "Type");

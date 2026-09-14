@@ -74,6 +74,14 @@ jobs:
       - name: P-2 -- the A4 signature validator
         run: cmake -P tests/gates/ResolveOpenSSL.cmake
 
+      # Stage 3 guide case A-15, surfaced. gates.corpus.signed passed or failed in "Gate fixtures";
+      # a passing ctest line hides which validator judged the signed corpus and what each flipped-
+      # byte control said -- and so does `ctest --verbose`, because RunGateCase.cmake prints a case's
+      # output only on failure. Guide rule 3 is that a tick is not a clean run, so the same wrapper
+      # runs here directly, where the log carries both.
+      - name: A-15 -- the signed corpus, controls first
+        run: cmake -P tests/gates/CheckSignatures.cmake
+
       # Guide case A-82, the half that can only be checked HERE. D1-4 says rawpage_ui_tests runs on
       # Windows and only on Windows, and the usual way that stops being true is not malice -- it is
       # somebody adding Qt Widgets to a Linux job to chase a coverage number, which quietly
@@ -229,6 +237,11 @@ jobs:
 
       - name: Test
         run: ctest --preset x64-release
+
+      # Stage 3 guide case A-15 on this runner's validator (RAWPAGE_OPENSSL), surfaced for the reason
+      # the gates job gives: the passing line above names neither the OpenSSL nor the controls.
+      - name: A-15 -- the signed corpus, controls first
+        run: cmake -P tests/gates/CheckSignatures.cmake
 
       # A-85 / R-9, the one A3 criterion that is a number rather than a judgement. It ran as part of
       # the suite above; this step surfaces the figure in the log, because a benchmark whose output

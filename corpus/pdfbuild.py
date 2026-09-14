@@ -195,7 +195,8 @@ class Pdf:
         digest = hashlib.sha256(payload).digest()[:16]
         return array([hexstring(digest), hexstring(digest)])
 
-    def serialize(self, root, info=None, extra_trailer=(), objstm=False, header_prefix=b""):
+    def serialize(self, root, info=None, extra_trailer=(), objstm=False, header_prefix=b"",
+                  keep_loose=()):
         """Assemble the file.
 
         `objstm=True` puts every eligible non-stream object into object streams and writes a
@@ -206,13 +207,19 @@ class Pdf:
 
         `header_prefix` is prepended before `%PDF-`, which is how `malformed/junk-before-header.pdf`
         gets its damage without any special case in this method.
+
+        `keep_loose` names objects that must stay ordinary indirect objects even under `objstm=True`.
+        A signature dictionary is the reason (Stage 3 T1, `make-signed.py`): its `/ByteRange` excludes
+        the `/Contents` hex string by BYTE OFFSET in the file, which a compressed object stream does
+        not have -- so a packed signature dictionary is a signature over nothing a verifier can find.
         """
         for number in range(1, len(self._bodies)):
             if self._bodies[number] is None:
                 raise ValueError("object %d was reserved and never set" % number)
 
         if objstm:
-            return self._serialize_xrefstream(root, info, extra_trailer, header_prefix)
+            return self._serialize_xrefstream(root, info, extra_trailer, header_prefix,
+                                              set(keep_loose))
         return self._serialize_classic(root, info, extra_trailer, header_prefix)
 
     def _preamble(self, header_prefix):
@@ -246,14 +253,14 @@ class Pdf:
         out += b"startxref\n%d\n%%%%EOF\n" % xref_offset
         return bytes(out)
 
-    def _serialize_xrefstream(self, root, info, extra_trailer, header_prefix):
+    def _serialize_xrefstream(self, root, info, extra_trailer, header_prefix, keep_loose=()):
         size = len(self._bodies) + 1          # +1 for the cross-reference stream itself
         xref_object = size - 1
 
         # Anything that is not a stream, and is not the catalog, goes into one object stream.
         # The catalog stays out: a reader locating /Root has not decompressed anything yet.
         packed = [n for n in range(1, len(self._bodies))
-                  if not isinstance(self._bodies[n], Stream) and n != root]
+                  if not isinstance(self._bodies[n], Stream) and n != root and n not in keep_loose]
         loose = [n for n in range(1, len(self._bodies)) if n not in set(packed)]
 
         objstm_number = None

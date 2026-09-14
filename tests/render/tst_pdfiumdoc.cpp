@@ -149,6 +149,42 @@ TEST_CASE("pdfium reads rotation as degrees rather than quarter turns", "[render
     CHECK(turned.height == upright.width);
 }
 
+TEST_CASE("pdfium resolves a rotation inherited from an ancestor Pages node", "[render][document]")
+{
+    // `corpus/ordinary/rotate-inherited.pdf` (Stage 3 T1, guide case A-17 of
+    // `Stage3-Mutation-Testing-Guide.md`): `/Rotate 90` on the ROOT `/Pages` node only. Page 1
+    // inherits it, page 2 overrides it with an explicit `/Rotate 0`, and page 3 inherits it through
+    // an intermediate `/Pages` node that has no `/Rotate` of its own.
+    //
+    // It asserts the fixture carries its fault as the ENGINE reads it -- which is the reading the
+    // user sees, and the one Stage 3's writer (D3-5) and pre-flight check (D3-7) will be compared
+    // against. What it does NOT cover: how the first-party COS reader resolves inheritance; that is
+    // `pdf/ops/PageOps`' page-object walk, Stage 3 T3.
+    Recorder recorder;
+    auto document = PdfiumDocument::open(corpusPath("ordinary/rotate-inherited.pdf"),
+                                         recorder.callback());
+    REQUIRE(document);
+    REQUIRE(document.value()->pageCount() == 3);
+
+    const auto& pages = document.value()->pages();
+    CHECK(pages.rotation(0) == rawpage::core::PageRotation::Clockwise90);
+    CHECK(pages.rotation(1) == rawpage::core::PageRotation::None);
+    CHECK(pages.rotation(2) == rawpage::core::PageRotation::Clockwise90);
+
+    // The CONTROL for the three above: page 2's explicit zero is what separates "inherited" from
+    // "every page reads 90 whatever it says", and its display size is the untransposed A4 that the
+    // two inheriting pages are the transpose of.
+    const auto overridden = pages.displaySize(1);
+    CHECK(overridden.height > overridden.width);
+    for (const int inheriting : {0, 2}) {
+        INFO("page index " << inheriting);
+        const auto turned = pages.displaySize(inheriting);
+        CHECK(turned.width == overridden.height);
+        CHECK(turned.height == overridden.width);
+    }
+    CHECK(recorder.asks == 0);
+}
+
 TEST_CASE("pdfium opens a 900-page document and indexes it directly", "[render][document]")
 {
     // `corpus/ordinary/pages-900.pdf`: 900 pages in a balanced 30x30 tree with object streams.

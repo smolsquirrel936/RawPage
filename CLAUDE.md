@@ -12,17 +12,17 @@ number goes stale. When something changes, **fix the owning document**; never re
 
 **RawPage** — a Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives
 under `claude-plan/`. Stage 0 (toolchain), Stage 1 (app shell) and Stage 2 (PDF engine boundary and
-tiled rendering) are complete and signed off, the last on 2026-09-14. **Stage 3 has not started.**
+tiled rendering) are complete and signed off, the last on 2026-09-14. **Stage 3 is in progress: T1 is done, and T2's writer is built with A4's probe verdict waiting on an Acrobat walk.**
 
 ### Where the work is right now — read this first
 
 | | |
 |---|---|
-| **Stage** | **Stage 2 is SIGNED OFF by the user, 2026-09-14** — code complete 2026-09-06, manual walk complete and every `Stage2-Rendering-Testing-Guide.md` §9 item met 2026-09-14. **Stage 3 is planned and not started** — its plan and testing guide were written 2026-09-14, before any Stage 3 code. |
-| **Next action** | **Stage 3 T1 — the writer's corpus**, then **T2, the A4 probe**, which is the stage's go/no-go and comes before any model, journal or UI code. The order, the decisions (**D3-1 … D3-18**) and the preconditions (**P-1 … P-5**) are in [`Stage3-Mutation-Plan.md`](claude-plan/Stage3-Mutation-Plan.md) §3, §6 and §7; how each task is verified is [`Stage3-Mutation-Testing-Guide.md`](claude-plan/Stage3-Mutation-Testing-Guide.md). **Four of those decisions are the user's, 2026-09-14** — Save writes a complete new file and atomically replaces the target (D3-4); A4 is judged by the OpenSSL command-line tool and Acrobat over generated signed files (D3-2); `Outline` and `Metadata` move to Stage 4 (D3-8); two of the four planned settings keys move to Stages 8 and 13 (D3-9). *How Stage 2 closed, 2026-09-14:* the manual walk was complete, all ten cases signed off by the user, the last (M-09) on 2026-09-14. Item 5 was met by the ten-minute fuzz soak, `.github/workflows/fuzz-soak.yml` run 34781013867 (A-25 and A-26, nothing found). Item 1 was met 2026-09-14: A-72 and A-73 were completed (the second finding Stage 2 **I-39**), and A-69 was met when the product benchmark gained its latency control, which found Stage 2 **I-41**. A-71 is met, and clean since CI run 34775047037 — the first whose fuzz job aborts on a sanitizer finding (Stage 2 **I-38**; every fuzz run before it had logged one under a green tick). I-35 is closed. |
+| **Stage** | **Stage 2 is SIGNED OFF by the user, 2026-09-14** — code complete 2026-09-06, manual walk complete and every `Stage2-Rendering-Testing-Guide.md` §9 item met 2026-09-14. **Stage 3 is in progress** — its plan and testing guide were written 2026-09-14, before any Stage 3 code, and **T1 was completed the same day**. **T2's code and automated half were completed 2026-09-14; its verdict is not.** |
+| **Next action** | **Yours: guide case M-03's probe walk** (`Stage3-Mutation-Testing-Guide.md` §6) — open the four files in `build\x64-release\a4-probe\` in Acrobat's Signatures panel. **That walk grades risk A4's probe, the stage's go/no-go**, and T3 does not start before it: a no-go stops the stage and reopens the writer. **What is already measured (Stage 3 T2, 2026-09-14):** `pdf/cos/IncrementalWriter` wrote a page rotation into all four `corpus/signed/` files, every original is the unchanged prefix of its output read back from disk, and OpenSSL rejected every flipped-byte copy and then verified 4 of 4 signatures — `Tech-Stack-Plan.md` §3.3 records that as the integrity half with **no verdict yet**. T2 found and fixed two reader defects, Stage 3 guide **I-04** and **I-05**; its status row in `Implementation-Plan.md` §4 carries the counts and deviations. T1 (the writer's corpus) was completed the same day. The order, the decisions (**D3-1 … D3-18**) and the preconditions (**P-1 … P-5**) are in [`Stage3-Mutation-Plan.md`](claude-plan/Stage3-Mutation-Plan.md) §3, §6 and §7; how each task is verified is [`Stage3-Mutation-Testing-Guide.md`](claude-plan/Stage3-Mutation-Testing-Guide.md). **Four of those decisions are the user's, 2026-09-14** — Save writes a complete new file and atomically replaces the target (D3-4); A4 is judged by the OpenSSL command-line tool and Acrobat over generated signed files (D3-2); `Outline` and `Metadata` move to Stage 4 (D3-8); two of the four planned settings keys move to Stages 8 and 13 (D3-9). *How Stage 2 closed, 2026-09-14:* the manual walk was complete, all ten cases signed off by the user, the last (M-09) on 2026-09-14. Item 5 was met by the ten-minute fuzz soak, `.github/workflows/fuzz-soak.yml` run 34781013867 (A-25 and A-26, nothing found). Item 1 was met 2026-09-14: A-72 and A-73 were completed (the second finding Stage 2 **I-39**), and A-69 was met when the product benchmark gained its latency control, which found Stage 2 **I-41**. A-71 is met, and clean since CI run 34775047037 — the first whose fuzz job aborts on a sanitizer finding (Stage 2 **I-38**; every fuzz run before it had logged one under a green tick). I-35 is closed. |
 | **Then** | The rest of Stage 3 in `Stage3-Mutation-Plan.md` §6's order — `rawpage_ops`, the document model, the journal, `mutation-lint`, `platform::IDurableFiles`, the save path, recovery, the UI — ending with A4 re-measured through the product at T13. |
-| **Authority for status** | The **Stage 1 and Stage 2 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **741/741** as of Stage 2 I-39's and I-40's cases, one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 97/97 with no Qt (measured 2026-09-14 on Windows, after Stage 3 P-2's three validator cases). Re-measure rather than quote: a count in prose goes stale silently. |
+| **Authority for status** | The **Stage 1, Stage 2 and Stage 3 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
+| **Tests** | **770/770** on `x64-release` and `x64-debug` as of Stage 3 T2 (measured 2026-09-14), one explicitly skipped (the battery case, on a desktop that has none). The `gates` preset is 102/102 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -71,7 +71,7 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
 | `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order, its stage-local design decisions (`D<N>-n`) and its blocking preconditions. **Four exist:** `Stage0-Toolchain-Plan.md`, `Stage1-AppShell-Plan.md`, `Stage2-Rendering-Plan.md` and `Stage3-Mutation-Plan.md`, each written before that stage's code. **A stage plan owns no product facts and no live status** — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Four exist**, one per stage built or next: `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed), `Stage1-AppShell-Testing-Guide.md` (fully run and fully walked, issues I-01…I-55, none open), `Stage2-Rendering-Testing-Guide.md` (automated half run; manual half **fully walked and signed off**, the last case on 2026-09-14; every §9 item met, and the stage signed off by the user, on 2026-09-14) and `Stage3-Mutation-Testing-Guide.md` (written 2026-09-14 from its plan, **nothing run**). **Each guide owns its own case counts, results and issue states — read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Each is written right after its stage's plan and **before that stage's code**, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Four exist**, one per stage built or next: `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed), `Stage1-AppShell-Testing-Guide.md` (fully run and fully walked, issues I-01…I-55, none open), `Stage2-Rendering-Testing-Guide.md` (automated half run; manual half **fully walked and signed off**, the last case on 2026-09-14; every §9 item met, and the stage signed off by the user, on 2026-09-14) and `Stage3-Mutation-Testing-Guide.md` (written 2026-09-14 from its plan; **T1's and T2's cases run**, no manual case walked). **Each guide owns its own case counts, results and issue states — read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Each is written right after its stage's plan and **before that stage's code**, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
@@ -387,7 +387,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 741/741 as of Stage 2 I-39, 1 skipped
+ctest --preset x64-release --output-on-failure        # 770/770 as of Stage 3 T2, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -395,10 +395,27 @@ verification dependency and deliberately **not** a build one (`cmake --build` ne
 run as `gates.corpus.*` in the `gates` preset; by hand:
 
 ```powershell
-python corpus/make-corpus.py                     # regenerate all 61 files
+python corpus/make-corpus.py                     # regenerate all 67 files (S3 T1 added six)
 python corpus/make-corpus.py --verify            # they regenerate BYTE-IDENTICALLY (D2-11, S2 T4)
 python corpus/make-corpus.py --check-provenance  # every file has a PROVENANCE.md row, and vice versa
 python corpus/make-corpus.py --self-test         # the negative control: each detection must fire
+```
+
+`make-corpus.py` with no flag **rewrites every file**, and a corpus PDF held open by a viewer makes
+it stop with `PermissionError` part-way (measured at Stage 3 T1). Run a single `make-*.py`, or close
+the viewer; `--verify` only reads, and is what says whether anything needed writing.
+
+`corpus/signed/` is judged by OpenSSL, never by our reader (D3-2, `Stage3-Mutation-Plan.md` §3), with
+one byte flipped in each signed range **first** — a control that verifies stops the run. The same
+script is Stage 3 T2's A4 probe instrument (guide case A-28), so it takes any signed file:
+
+```powershell
+cmake -P tests/gates/ResolveOpenSSL.cmake                                  # which OpenSSL: path, how found, version
+cmake -P tests/gates/CheckSignatures.cmake                                 # A-15 as CI's log step runs it, output shown
+python tests/gates/check-signatures.py --openssl <exe> <signed.pdf>...     # the same over any files
+ctest --preset x64-release -R a4_probe -V                                  # A-28: the writer writes, then OpenSSL
+                                                                           #   judges; outputs in build\x64-release\a4-probe
+python tests/gates/check-signatures.py --shapes corpus/signed/*.pdf        # A-16: the structure PROVENANCE.md claims
 ```
 
 Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offscreen`:

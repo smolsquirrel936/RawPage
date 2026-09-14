@@ -55,6 +55,9 @@ add_executable(rawpage_tests
     tst_renderscheduler.cpp       # Stage 2 T11 -- guide cases A-36, A-37, A-38, A-39's core/ half
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
                                   #   face substitutes, asserted with no engine and no Windows
+    tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23
+    tst_incrementalwriter.cpp     # Stage 3 T2  -- guide cases A-19 ... A-25, A-27, and A-28's
+                                  #   writing half (the probe; OpenSSL's half is registered below)
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #
@@ -95,7 +98,11 @@ target_compile_definitions(rawpage_tests PRIVATE
     # Guide case A-19 asserts that `CryptFilter` is ABSENT, which is a claim about the source tree
     # rather than about any compiled symbol -- so the directory has to be reachable at runtime, by
     # the same mechanism and for the same reason as the two paths above.
-    RAWPAGE_FILTERS_DIR="${CMAKE_SOURCE_DIR}/pdf/cos/filters")
+    RAWPAGE_FILTERS_DIR="${CMAKE_SOURCE_DIR}/pdf/cos/filters"
+    # Stage 3 T2: where the A4 probe writes its four outputs. In the BUILD tree, never the source
+    # tree -- they are measurements, regenerated every run, and a copy beside corpus/ would look like
+    # a fixture somebody should commit.
+    RAWPAGE_A4_PROBE_DIR="${CMAKE_BINARY_DIR}/a4-probe")
 
 target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -125,6 +132,25 @@ catch_discover_tests(rawpage_tests
     # 0xC0000135 -- a failure that looks nothing like a test failure.
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )
+
+# --- A-28: risk A4's probe, judged by OpenSSL (Stage 3 T2, decision D3-1) --------------------
+# The writing case is also discovered above and runs on its own; this one runs it FIRST and then
+# asks OpenSSL, through tests/gates/CheckSignatures.cmake -- the same resolver, extractor and
+# flipped-byte controls as guide case A-15. A missing OpenSSL or Python FAILS it, never skips it.
+# Not WIN32-only: portable-asan runs it too, which is the writer under ASan on the probe's inputs.
+add_test(NAME unit.a4_probe.openssl
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_tests>"
+            "-DPROBE_DIR=${CMAKE_BINARY_DIR}/a4-probe"
+            "-DCHECKS_DIR=${CMAKE_SOURCE_DIR}/tests/gates"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Probe.cmake")
+if(WIN32)
+    set_tests_properties(unit.a4_probe.openssl PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin")
+endif()
+# The verdict is the EXIT CODE: CheckSignatures.cmake fails unless every control is rejected and
+# every signature verifies. No PASS_REGULAR_EXPRESSION, which would make CTest ignore the exit code
+# -- tests/gates/RunGateCase.cmake's header records why that is a trap.
 
 # --- A-41: an undeclared settings key does not compile --------------------------------
 # D1-10's guarantee is a COMPILE-TIME one, so it cannot be asserted from inside a binary that by

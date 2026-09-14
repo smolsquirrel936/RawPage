@@ -490,14 +490,19 @@ const std::vector<IndirectObject>* XrefTable::objectStreamFor(long long number)
         return nullptr;
     }
 
-    // The decoded payload dies with this call, and the packed objects' spans point INTO it -- so
-    // they are spans into a buffer that no longer exists. Cleared here rather than left dangling,
-    // because `CosObject::raw()` would otherwise read freed memory the moment Stage 3 tried to
-    // round-trip a packed object. A packed object is re-serialized rather than copied, which is
-    // correct: it was never a byte range in the FILE to begin with.
+    // The decoded payload dies with this call, and the packed objects' spans are measured INTO it,
+    // not into the file. `CosObject::raw()` takes the buffer as an argument, so a caller handing it
+    // the FILE would get a slice of the file from the wrong place -- not a crash, which is worse. A
+    // packed object is re-serialized rather than copied, which is correct: it was never a byte range
+    // in the file to begin with.
+    //
+    // RECURSIVELY, and until Stage 3 T2 it was not: only the top-level object's span was cleared, so
+    // every nested value of a packed page dictionary still carried a payload-relative span into a
+    // buffer that no longer existed -- while this comment said the spans were cleared. Stage 3 guide
+    // issue I-04, found by reading this function before the incremental writer was built on it.
     std::vector<IndirectObject> objects = std::move(packed).value();
     for (IndirectObject& item : objects) {
-        item.object.clearSpan();
+        item.object.clearSpansRecursively();
         item.span = CosSpan{};
     }
 

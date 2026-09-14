@@ -226,6 +226,12 @@ public:
         span_ = CosSpan{offset, length, true};
     }
     void clearSpan() noexcept { span_ = CosSpan{}; }
+    // This object's span AND every nested value's. `clearSpan()` alone is not enough for an object
+    // whose bytes came from a buffer other than the file -- an object stream's decoded payload --
+    // because its array items and dictionary values keep spans measured into THAT buffer, and
+    // `raw(fileBytes)` on one of them returns a slice of the file from the wrong place rather than
+    // nothing. Stage 3 guide issue I-04.
+    void clearSpansRecursively() noexcept;
 
     // The exact bytes this object was written as, given the buffer it was parsed from. Empty when
     // the object has no span or the span does not fit `source` -- never a read past the end, and

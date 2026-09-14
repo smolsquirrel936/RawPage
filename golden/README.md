@@ -1,7 +1,8 @@
 # `golden/` — reference rasters
 
-**198 PNGs, 56 corpus files, 66 pages, three resolutions, one rasterizer.** Produced by
-`tools/golden-update` at Stage 2 T17 and compared on every `ctest` run by `tests/golden`
+**222 PNGs, 62 corpus files, 74 pages, three resolutions, one rasterizer.** Produced by
+`tools/golden-update` — 198 at Stage 2 T17, and 24 more at Stage 3 T1 for the six corpus files that
+task added, in one filtered capture that regenerated none of the 198 — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
@@ -57,7 +58,7 @@ leave the next `git status` full of files that look like new baselines.
 
 **Page 0 of every corpus file the engine will open, at 96 / 144 / 192 DPI.** A further page is
 captured only where the *pixels* differ for a reason page 0 cannot show: the four rotations of
-`rotated-pages`, the four media boxes of `mixed-page-sizes`, the three revisions of
+`rotated-pages`, the three ways `rotate-inherited`'s pages reach their rotation, the four media boxes of `mixed-page-sizes`, the three revisions of
 `incremental-3gen`, the second annotation page of `annots-mixed`, and the **last** page of
 `pages-900` — which is what proves a 30 × 30 page tree is walked to its end rather than to its first
 leaf. `cover-odd-count`, `rtl-binding` and `outline-labels` are *layout* fixtures; their later pages
@@ -97,7 +98,7 @@ is `corpus/make-corpus.py --check-provenance`'s rule in a second subject.
      named for is what makes its baseline a claim about this machine's fonts.
 
    A case asserts that **no other** baseline resolved a face off this disk — which is I-13's
-   tripwire: if the base-14 decline is ever removed, all 198 images move at once and that case names
+   tripwire: if the base-14 decline is ever removed, every image moves at once and that case names
    the cause in one line instead of leaving it to look like a renderer regression.
 
 ## Storage
@@ -106,9 +107,9 @@ PNG, through QtGui's built-in handler — a raster class that needs no display a
 `QGuiApplication`, and a module already in this project's Qt link closure through `rawpage_ui`, so
 `tools/license-audit` sees nothing new.
 
-**171 of the 198 baselines are stored as 8-bit grey**, detected exactly (every pixel `R == G == B`)
-and expanded back to RGB on read, which is lossless in both directions and took the tree from
-30.5 MB to 13.1 MB. The comparison reads the three colour bytes on both sides, so the encoding is
+**Baselines whose every pixel has `R == G == B` are stored as 8-bit grey** — 171 of the 198 at T17,
+and 192 of 222 re-counted at Stage 3 T1 from each PNG's colour-type byte — and expanded back to RGB
+on read, which is lossless in both directions and took the T17 tree from 30.5 MB to 13.1 MB. The comparison reads the three colour bytes on both sides, so the encoding is
 invisible above `readPng`.
 
 **The encoder is not pinned, and that is accepted.** A Qt upgrade could re-encode identical pixels

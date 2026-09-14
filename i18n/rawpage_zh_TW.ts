@@ -1862,6 +1862,38 @@
         <translation>此 PDF 有密碼保護。RawPage 尚無法開啟受保護的檔案。</translation>
     </message>
     <message>
+        <source>error.pdf.writeWrongBuffer</source>
+        <translation>內部錯誤：PDF 更新是依據文件的另一份副本建立的。未寫入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeNoRoot</source>
+        <translation>此 PDF 沒有文件目錄，因此無法儲存任何變更。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeNoRevision</source>
+        <translation>此 PDF 在開啟時已修復，必須儲存為新檔案。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeNothing</source>
+        <translation>沒有要儲存的變更。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeDuplicateObject</source>
+        <translation>內部錯誤：物件 %1 在同一次更新中被變更了兩次。未寫入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeObjectMissing</source>
+        <translation>內部錯誤：更新指定了物件 %1，但此 PDF 不含該物件。未寫入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeStreamDataMissing</source>
+        <translation>內部錯誤：更新缺少串流 %1 的資料。未寫入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.writeEncodeFailed</source>
+        <translation>無法壓縮此更新的交互參照資料。未寫入任何內容。</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>已取消開啟 %1。</translation>
     </message>

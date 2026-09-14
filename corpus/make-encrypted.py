@@ -18,11 +18,12 @@ is a fixture nobody can use. `owner-empty-user.pdf` is the exception worth knowi
 password is empty, so it opens with no prompt at all while still being encrypted, which is the
 commonest real-world arrangement and the one a reader most often mistakes for an unencrypted file.
 
-WHAT IS NOT HERE. No signed document -- signing is Stage 10 and risk A4 belongs to Stage 3's
-round-trip suite, so a `corpus/signed-*.pdf` produced now would be a fixture with nothing to check
-it. No public-key (/Filter /Adobe.PubSec) encryption: it needs a certificate, a certificate needs
-a private key, and a private key committed to a repository is a bad habit even when it protects
-nothing.
+WHAT IS NOT HERE. No signed document -- those are `corpus/make-signed.py`'s, from Stage 3 T1, for
+risk A4; signing in the product is Stage 11. (This sentence said "signing is Stage 10" until then,
+which `Implementation-Plan.md` never did.) No public-key (/Filter /Adobe.PubSec) encryption:
+opening it needs a recipient's private key, and a private key committed to a repository is a bad
+habit even when it protects nothing -- `make-signed.py` avoids the same trap by deriving its key
+at generation time instead.
 
     python corpus/make-encrypted.py
 """

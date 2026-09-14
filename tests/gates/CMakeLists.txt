@@ -695,8 +695,57 @@ if(Python3_Interpreter_FOUND)
     rawpage_add_gate_test(NAME gates.corpus.self_test
         COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --self-test
         EXPECT_EXIT 0 EXPECT_MATCH "5 of 5 controls fired")
+
+    # ----------------------------------------------------------------------------------
+    # corpus/signed/ (Stage 3 T1, decision D3-2) -- the instrument A4's verdict will read.
+    #
+    # tests/gates/check-signatures.py reads each file as BYTES, never through pdf/cos/, and asks
+    # OpenSSL. Its flipped-byte controls run FIRST and a control that verifies stops the case, so
+    # a validator that is not checking the signed range can never report a signature valid
+    # (Stage 2 I-41's lesson). The two cases after it are controls on the SCRIPT, not on OpenSSL:
+    # `cmake -E true` accepts everything and must stop the run at its first control; `cmake -E
+    # false` rejects everything and must fail the real check. Without them, "8 of 8 controls
+    # rejected" is equally satisfied by a script that never consulted the validator (convention 7).
+    # ----------------------------------------------------------------------------------
+    set(CHECK_SIGNATURES "${CMAKE_CURRENT_SOURCE_DIR}/check-signatures.py")
+    set(SIGNED_FILES
+        "${CMAKE_SOURCE_DIR}/corpus/signed/approval.pdf"
+        "${CMAKE_SOURCE_DIR}/corpus/signed/approval-xrefstream.pdf"
+        "${CMAKE_SOURCE_DIR}/corpus/signed/certified-nochanges.pdf"
+        "${CMAKE_SOURCE_DIR}/corpus/signed/approval-then-update.pdf")
+    string(REPLACE ";" "@@" signed_files_joined "${SIGNED_FILES}")
+
+    # A-15. Every generated signature verifies -- after its two flipped copies have been rejected.
+    rawpage_add_gate_test(NAME gates.corpus.signed
+        COMMAND ${CMAKE_COMMAND} -DPYTHON=${Python3_EXECUTABLE} -DSCRIPT=${CHECK_SIGNATURES}
+                "-DFILES=${signed_files_joined}" -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSignatures.cmake
+        EXPECT_EXIT 0
+        EXPECT_MATCH "validator: .*OpenSSL 3\\..*signature check ok: 8 of 8 controls rejected, 4 of 4 signatures verify")
+
+    rawpage_add_gate_test(NAME gates.corpus.signed_accepting_validator_stops
+        COMMAND ${Python3_EXECUTABLE} ${CHECK_SIGNATURES} --openssl ${CMAKE_COMMAND}
+                --openssl-prefix=-E --openssl-prefix=true ${SIGNED_FILES}
+        EXPECT_EXIT 1 EXPECT_MATCH "CONTROL VERIFIED" EXPECT_NOT_MATCH "verify    ")
+
+    rawpage_add_gate_test(NAME gates.corpus.signed_rejecting_validator_fails
+        COMMAND ${Python3_EXECUTABLE} ${CHECK_SIGNATURES} --openssl ${CMAKE_COMMAND}
+                --openssl-prefix=-E --openssl-prefix=false ${SIGNED_FILES}
+        EXPECT_EXIT 1 EXPECT_MATCH "all 8 flipped copies rejected.*4 of 4 signatures do NOT verify")
+
+    # A-16. The shapes corpus/PROVENANCE.md claims -- one signature each, the right cross-reference
+    # kind, /DocMDP /P 1 only on the certified file, the signed range ending at the FIRST %%EOF of
+    # the two-revision file, no private key, and a certificate that names itself a test identity.
+    # The self-test drives each of those seven detections with damage that must trigger it.
+    rawpage_add_gate_test(NAME gates.corpus.signed_shapes
+        COMMAND ${Python3_EXECUTABLE} ${CHECK_SIGNATURES} --shapes ${SIGNED_FILES}
+        EXPECT_EXIT 0 EXPECT_MATCH "shape check ok: 4 files")
+    rawpage_add_gate_test(NAME gates.corpus.signed_shapes_self_test
+        COMMAND ${Python3_EXECUTABLE} ${CHECK_SIGNATURES}
+                --shapes-self-test ${CMAKE_SOURCE_DIR}/corpus/signed
+        EXPECT_EXIT 0 EXPECT_MATCH "7 of 7 detections fired")
 else()
-    foreach(case reproducible provenance self_test)
+    foreach(case reproducible provenance self_test signed signed_accepting_validator_stops
+                 signed_rejecting_validator_fails signed_shapes signed_shapes_self_test)
         add_test(NAME gates.corpus.${case}
             COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RequirePython.cmake")
     endforeach()

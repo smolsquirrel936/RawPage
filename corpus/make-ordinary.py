@@ -1567,6 +1567,160 @@ def stream_length_control():
     return pdf.serialize(catalog, pb.info_object(pdf, "RawPage corpus: correct stream /Length"))
 
 
+# ---------------------------------------------------------------------------------------------
+# The writer's fixtures (Stage 3 T1)
+# ---------------------------------------------------------------------------------------------
+
+@generator("rotate-inherited.pdf")
+def rotate_inherited():
+    """`/Rotate 90` on the ROOT `/Pages` node, and three pages that reach it three different ways.
+
+        root /Pages  /Rotate 90
+          page 1                     no /Rotate: inherits 90 from its parent
+          page 2     /Rotate 0       overrides the inherited value with an EXPLICIT zero
+          /Pages                     no /Rotate of its own
+            page 3                   no /Rotate: inherits 90 through TWO levels
+
+    Decision D3-5 (`Stage3-Mutation-Plan.md` section 3) writes a rotation on the page dictionary
+    and never on an ancestor, because writing it on the root would rotate the siblings -- and it
+    removes a `/Rotate` it would otherwise write equal to the inherited value. Each of those is
+    wrong in a way only an inherited value can show, and page 2's explicit zero is what separates
+    "the key is absent" from "the key says 0", which a writer that treated both alike gets wrong.
+    Page 3's grandparent is the case a one-level `/Parent` lookup misses."""
+    pdf = pb.Pdf()
+    _, regular, bold = _fonts(pdf)
+    resources = _font_resource(regular, bold)
+    root_pages = pdf.reserve()
+    inner_pages = pdf.reserve()
+
+    def contents(title, how):
+        return pb.content_stream(pdf, b"\n".join([
+            _label("rotate-inherited.pdf - " + title),
+            pb.show_text(48, 740, 11, how),
+            pb.show_text(48, 700, 11, "the arrow below points to the TOP of the unrotated page"),
+            b"2 w 300 560 m 300 660 l S",
+            b"280 640 m 300 665 l 320 640 l S",
+            pb.show_text(48, 120, 9, "bottom-left corner marker"),
+            b"1 w 40 40 m 90 40 l S  40 40 m 40 90 l S",
+        ]) + b"\n")
+
+    page_one = pdf.add(pb.page(root_pages, pb.A4, contents(
+        "page 1", "no /Rotate: INHERITS 90 from the root /Pages node"), resources))
+    page_two = pdf.add(pb.page(root_pages, pb.A4, contents(
+        "page 2", "/Rotate 0 on the page: an EXPLICIT zero overriding the inherited 90"),
+        resources, extra=[(b"/Rotate", b"0")]))
+    page_three = pdf.add(pb.page(inner_pages, pb.A4, contents(
+        "page 3", "no /Rotate: INHERITS 90 through an intermediate /Pages node"), resources))
+    pdf.set(inner_pages, pb.dictionary([
+        (b"/Type", b"/Pages"), (b"/Parent", pb.ref(root_pages)),
+        (b"/Kids", pb.array([pb.ref(page_three)])), (b"/Count", b"1")]))
+    pdf.set(root_pages, pb.dictionary([
+        (b"/Type", b"/Pages"),
+        (b"/Kids", pb.array([pb.ref(page_one), pb.ref(page_two), pb.ref(inner_pages)])),
+        (b"/Count", b"3"), (b"/Rotate", b"90")]))
+    catalog = pdf.add(pb.dictionary([(b"/Type", b"/Catalog"), (b"/Pages", pb.ref(root_pages))]))
+    return pdf.serialize(catalog, pb.info_object(pdf, "RawPage corpus: inherited page rotation"))
+
+
+@generator("hybrid-xrefstm.pdf")
+def hybrid_xrefstm():
+    """A HYBRID-REFERENCE file (ISO 32000-1 section 7.5.8.4): a classic cross-reference table whose
+    trailer also carries `/XRefStm`, pointing at a cross-reference stream that lists the objects
+    packed in an object stream -- here the fonts, the `/Pages` node and both page dictionaries.
+
+    Those four objects are ABSENT from the classic table, not listed as free, so they are reachable
+    ONLY through `/XRefStm`. A reader that ignores the key sees a catalog whose page tree does not
+    exist; nothing fails loudly, which is why `pdf/cos/XrefTable` needed a fixture rather than a
+    comment saying it did (`tests/unit/tst_xreftable.cpp`). D3-5 writes a CLASSIC section after a
+    file like this, and guide case A-20 requires the packed objects still to resolve afterwards.
+
+    The other arrangement a producer may choose -- listing the packed objects in the classic table
+    as FREE entries -- is not in the corpus; `corpus/PROVENANCE.md` records that limit."""
+    pdf = pb.Pdf(version="1.5")
+    regular = pb.base14(pdf, "Helvetica")
+    bold = pb.base14(pdf, "Helvetica-Bold")
+    resources = _font_resource(regular, bold)
+    pages = []
+    for index in range(2):
+        body = b"\n".join([
+            _label("hybrid-xrefstm.pdf - page %d of 2" % (index + 1)),
+            pb.show_text(48, 700, 10, "this page dictionary is in an /ObjStm that ONLY /XRefStm lists"),
+        ] + _body_block(820 + index, 40, top=672)) + b"\n"
+        contents = pb.content_stream(pdf, body)
+        pages.append(lambda parent, c=contents: pb.page(parent, pb.A4, c, resources))
+    catalog, pages_number, page_numbers = pb.simple_document(pdf, pages)
+    info = pb.info_object(pdf, "RawPage corpus: hybrid-reference file")
+
+    bodies = pdf._bodies                                              # noqa: SLF001 -- same author
+    packed = sorted([regular, bold, pages_number] + page_numbers)
+    objstm_number = pdf.count()
+    xref_number = objstm_number + 1
+    size = xref_number + 1
+
+    header = bytearray()
+    payload = bytearray()
+    for number in packed:
+        header += b"%d %d " % (number, len(payload))
+        payload += bodies[number] + b"\n"
+    objstm = pb.Stream([(b"/Type", b"/ObjStm"), (b"/N", pb.num(len(packed))),
+                        (b"/First", pb.num(len(header))), (b"/Filter", b"/FlateDecode")],
+                       pb.flate(bytes(header) + bytes(payload))[0])
+
+    out = pdf._preamble(b"")                                          # noqa: SLF001
+    offsets = {}
+    for number in range(1, objstm_number):
+        if number in packed:
+            continue
+        offsets[number] = len(out)
+        out += pdf._render(number, bodies[number])                    # noqa: SLF001
+    offsets[objstm_number] = len(out)
+    out += pdf._render(objstm_number, objstm)                         # noqa: SLF001
+
+    # The cross-reference STREAM: type-2 rows for the packed objects and nothing else, one /Index
+    # subsection per contiguous run of object numbers.
+    runs = []
+    for number in packed:
+        if runs and number == runs[-1][-1] + 1:
+            runs[-1].append(number)
+        else:
+            runs.append([number])
+    rows = bytearray()
+    index_items = []
+    for run in runs:
+        index_items += [pb.num(run[0]), pb.num(len(run))]
+        for number in run:
+            rows += bytes([2]) + objstm_number.to_bytes(4, "big") \
+                + packed.index(number).to_bytes(2, "big")
+    encoded = pb.flate(bytes(rows))[0]
+    xrefstm_offset = len(out)
+    offsets[xref_number] = xrefstm_offset
+    out += b"%d 0 obj\n" % xref_number
+    out += pb.dictionary([(b"/Length", pb.num(len(encoded))), (b"/Type", b"/XRef"),
+                          (b"/Size", pb.num(size)), (b"/W", pb.array([b"1", b"4", b"2"])),
+                          (b"/Index", pb.array(index_items)), (b"/Filter", b"/FlateDecode")])
+    out += b"\nstream\n" + encoded + b"\nendstream\nendobj\n"
+
+    # The classic table: the free head, then every LOOSE object in contiguous subsections.
+    classic_offset = len(out)
+    out += b"xref\n0 1\n0000000000 65535 f \n"
+    loose = sorted(offsets)
+    subsections = []
+    for number in loose:
+        if subsections and number == subsections[-1][-1] + 1:
+            subsections[-1].append(number)
+        else:
+            subsections.append([number])
+    for run in subsections:
+        out += b"%d %d\n" % (run[0], len(run))
+        for number in run:
+            out += b"%010d 00000 n \n" % offsets[number]
+    trailer = [(b"/Size", pb.num(size)), (b"/Root", pb.ref(catalog)), (b"/Info", pb.ref(info)),
+               (b"/XRefStm", pb.num(xrefstm_offset)), (b"/ID", pdf._file_id(bytes(out)))]  # noqa
+    out += b"trailer\n" + pb.dictionary(trailer) + b"\n"
+    out += b"startxref\n%d\n%%%%EOF\n" % classic_offset
+    return bytes(out)
+
+
 def generate():
     return {"ordinary/" + name: builder() for name, builder in FILES.items()}
 

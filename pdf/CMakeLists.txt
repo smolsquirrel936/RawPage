@@ -98,6 +98,15 @@ add_library(rawpage_cos STATIC
     # corpus/malformed/ file yields a report and never a crash -- is this file's.
     cos/XrefRepair.h
     cos/XrefRepair.cpp
+
+    # Stage 3 T2: the WRITER. Here rather than in pdf/ops/ because it is COS syntax and offsets with
+    # no opinion about what an edit means, and because this library is what portable-asan builds --
+    # the incremental writer is the memory-unsafe code Stage 3 adds, and D3-3 exists so that it runs
+    # under a sanitizer. It returns the update and never holds a writable copy of the original.
+    cos/ObjectAllocator.h
+    cos/ObjectAllocator.cpp
+    cos/IncrementalWriter.h
+    cos/IncrementalWriter.cpp
 )
 
 target_include_directories(rawpage_cos PUBLIC "${CMAKE_SOURCE_DIR}")

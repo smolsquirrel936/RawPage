@@ -64,7 +64,7 @@ QTextStream& err()
 
 struct Options {
     QString reason;
-    QString filter;
+    QStringList filters;   // --filter, repeatable: a case matches when ANY of them does
     QString corpusRoot = QStringLiteral(RAWPAGE_CORPUS_DIR);
     QString goldenRoot = QStringLiteral(RAWPAGE_GOLDEN_DIR);
     bool    survey = false;
@@ -92,7 +92,7 @@ Options parse(const QStringList& arguments)
         };
 
         if (argument == QLatin1String("--reason"))            options.reason = takeValue("--reason");
-        else if (argument == QLatin1String("--filter"))       options.filter = takeValue("--filter");
+        else if (argument == QLatin1String("--filter"))       options.filters << takeValue("--filter");
         else if (argument == QLatin1String("--corpus"))       options.corpusRoot = takeValue("--corpus");
         else if (argument == QLatin1String("--golden"))       options.goldenRoot = takeValue("--golden");
         else if (argument == QLatin1String("--survey"))       options.survey = true;
@@ -114,7 +114,8 @@ void printUsage()
     out() << "golden-update -- regenerate the reference rasters in golden/\n\n"
           << "  --reason \"<text>\"   REQUIRED to regenerate. Says why the baselines moved.\n"
           << "                      Written to golden/captured.json and golden/UPDATES.md.\n"
-          << "  --filter <text>     only cases whose corpus path contains <text>\n"
+          << "  --filter <text>     only cases whose corpus path contains <text>; repeatable,\n"
+          << "                      and a case matches when any of them does\n"
           << "  --survey            measure corpus/ and print a manifest skeleton; writes nothing\n"
           << "  --check-manifest    every corpus file is a case or an excluded-with-a-reason row\n"
           << "  --explain           the thresholds, the case census, and where the baselines live\n"
@@ -137,7 +138,13 @@ QString capturePath(const Options& options)
 
 bool matchesFilter(const golden::Case& item, const Options& options)
 {
-    return options.filter.isEmpty() || item.file.contains(options.filter, Qt::CaseInsensitive);
+    // Repeatable since Stage 3 T1, whose six new corpus files share no substring: three filtered
+    // runs would have written three UPDATES.md entries for one decision to add baselines.
+    if (options.filters.isEmpty()) return true;
+    return std::any_of(options.filters.begin(), options.filters.end(),
+                       [&item](const QString& filter) {
+                           return item.file.contains(filter, Qt::CaseInsensitive);
+                       });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -293,7 +300,8 @@ bool appendUpdateLog(const Options& options, const QString& stamp, int images)
     stream << "\n## " << stamp << "\n\n"
            << "- **PDFium** " << pdf::render::version() << "\n"
            << "- **Images regenerated** " << images;
-    if (!options.filter.isEmpty()) stream << " (filtered on `" << options.filter << "`)";
+    if (!options.filters.isEmpty())
+        stream << " (filtered on `" << options.filters.join(QStringLiteral("`, `")) << "`)";
     stream << "\n- **Reason** " << options.reason << "\n";
     return true;
 }
@@ -378,7 +386,7 @@ int regenerate(const Options& options)
     }
     if (written == 0) {
         err() << "golden-update: no case matched";
-        if (!options.filter.isEmpty()) err() << " --filter " << options.filter;
+        for (const QString& filter : options.filters) err() << " --filter " << filter;
         err() << "\n";
         err().flush();
         return 1;
