@@ -66,10 +66,20 @@ public:
     // shifting under the cursor -- `corpus/ordinary/mixed-page-sizes.pdf` is the fixture.
     PdfSize largestDisplaySize() const noexcept;
 
-    // Stage 3 adds insert / move / remove / duplicate here. They are deliberately absent rather
-    // than present-and-refusing: this class has no `Result`, an unimplemented mutation would have
-    // nowhere to report to, and `pdf/cos/`'s convention is that a stub which silently succeeds is
+    // THE ONE MUTATION STAGE 3 HAS (T4, decision D3-8). Sets page `index`'s rotation in the MODEL --
+    // what the page will display at once the change is saved -- and returns false, changing nothing,
+    // for an index outside the tree. Normalized as `Page::setRotation` normalizes: -90 is 270.
+    //
+    // It changes the model and nothing else. Which object that means in the file is `pdf/ops/`'s
+    // (flow D), and the engine keeps the rotation it loaded, so an unsaved rotation is drawn by
+    // composing the difference into the render request (D3-15, T8). The only code that calls it
+    // holds a mutable `Document`, which is `CommandJournal` (D3-10).
+    //
+    // Insert / move / remove / duplicate are Stage 7's, with the commands that call them. They are
+    // deliberately absent rather than present-and-refusing: this class has no `Result`, an
+    // unimplemented mutation would have nowhere to report to, and a stub which silently succeeds is
     // worse than an absent method (CLAUDE.md convention 6).
+    bool setRotation(int index, int degrees) noexcept;
 
 private:
     std::vector<Page> pages_;

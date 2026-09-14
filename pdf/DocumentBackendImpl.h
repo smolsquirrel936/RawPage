@@ -66,6 +66,9 @@ public:
     // is handed that interface and may never name `pdf/` (Stage 2 guide issue I-08).
     const core::PageTree* pages(core::DocumentHandle document) const override;
     const core::RepairReport* repairReport(core::DocumentHandle document) const override;
+    // Stage 3 T4 (D3-7, D3-16): assessed and taken once, in `open()`.
+    const core::Permissions* permissions(core::DocumentHandle document) const override;
+    const core::DocumentId* documentId(core::DocumentHandle document) const override;
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle document) override;
     core::ITextExtractor*  textExtractor(core::DocumentHandle document) override;

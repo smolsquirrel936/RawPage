@@ -32,6 +32,7 @@ add_executable(rawpage_render_tests
     tst_pdfiumdoc.cpp             # Stage 2 T9 -- guide cases A-42 and A-43
     tst_pageopsengine.cpp         # Stage 3 T3 -- guide case A-29: pdf/ops/PageOps against the engine,
                                   #   page by page, over every corpus file both readers open
+    tst_backendedit.cpp           # Stage 3 T4 -- guide cases A-36's corpus half, A-37, A-34's engine half
     tst_rasterizer.cpp            # Stage 2 T9 -- guide cases A-44, A-45, A-46's second half,
                                   #               and A-47's engine half
     tst_fontbridge.cpp            # Stage 2 T16 -- guide cases A-66 and A-67. The ONLY suite that

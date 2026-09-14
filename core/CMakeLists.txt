@@ -78,12 +78,22 @@ add_library(rawpage_core STATIC
     doc/RepairReport.h
     doc/RepairReport.cpp
 
-    # T9 completes D2-5's four: Page and a READ-ONLY PageTree. Stage 3 adds the mutating half of
-    # PageTree (insert/move/remove/duplicate), which is the same split core/doc/Outline uses.
+    # T9 completes D2-5's four: Page and a READ-ONLY PageTree. Stage 3 T4 adds PageTree's ROTATION;
+    # insert/move/remove/duplicate are Stage 7's, with the commands that call them (D3-8).
     doc/Page.h
     doc/Page.cpp
     doc/PageTree.h
     doc/PageTree.cpp
+
+    # Stage 3 T4 -- the rest of D3-8's list, and no more: a type with no Stage 3 caller is tested only
+    # against its own idea of what a caller wants. Document is the model CommandJournal (T5) will be
+    # the only holder of a mutable reference to; DocumentId is header-only; Permissions is the
+    # PRE-FLIGHT half of a Stage 10 file (D3-7).
+    doc/Document.h
+    doc/Document.cpp
+    doc/DocumentId.h
+    doc/Permissions.h
+    doc/Permissions.cpp
 
     # render/ -- the rendering POLICY layer. RenderRequest was T10's by the plan and was built at T9
     # because IPageRasterizer::raster() takes one and T9's exit criterion is a rasterized page;

@@ -111,6 +111,12 @@ public:
 
     core::RepairReport repairs;
 
+    // Null for both (Stage 3 T4): no UI case yet reads whether a document may be edited or which file
+    // it is. A null permissions pointer hydrates to "not assessed", which refuses editing -- the safe
+    // reading for a fake whose pages come from nowhere.
+    const core::Permissions* permissions(core::DocumentHandle) const override { return nullptr; }
+    const core::DocumentId* documentId(core::DocumentHandle) const override { return nullptr; }
+
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }
     core::MutationSink* mutationSink(core::DocumentHandle) override { return nullptr; }

@@ -44,6 +44,14 @@ PageRotation PageTree::rotation(int index) const noexcept
     return page ? page->rotation() : PageRotation::None;
 }
 
+bool PageTree::setRotation(int index, int degrees) noexcept
+{
+    if (index < 0 || index >= count())
+        return false;
+    pages_[static_cast<std::size_t>(index)].setRotation(degrees);
+    return true;
+}
+
 PdfSize PageTree::largestDisplaySize() const noexcept
 {
     // Widest and tallest INDEPENDENTLY, not the largest single page. A document with one very wide

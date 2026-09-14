@@ -1910,6 +1910,30 @@
         <translation>The saved file has %1 pages, which is not what was edited. The unsaved changes were kept.</translation>
     </message>
     <message>
+        <source>error.edit.encrypted</source>
+        <translation>This PDF is password-protected. RawPage cannot change protected files yet.</translation>
+    </message>
+    <message>
+        <source>error.edit.noPageMap</source>
+        <translation>RawPage could not find this PDF's pages in a form it can change safely.</translation>
+    </message>
+    <message>
+        <source>error.edit.pageCountDisagrees</source>
+        <translation>This PDF's page structure is damaged: its pages can be counted two ways (%1), so changing them could affect the wrong page.</translation>
+    </message>
+    <message>
+        <source>error.edit.pageRotationDisagrees</source>
+        <translation>This PDF's page structure is damaged around page %1, so changing its pages could affect the wrong page.</translation>
+    </message>
+    <message>
+        <source>error.edit.pageSizeDisagrees</source>
+        <translation>This PDF's page structure is damaged around page %1, so changing its pages could affect the wrong page.</translation>
+    </message>
+    <message>
+        <source>error.edit.notAssessed</source>
+        <translation>Internal error: this document has not been checked for editing. Nothing was changed.</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>Opening %1 was cancelled.</translation>
     </message>

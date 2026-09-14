@@ -139,8 +139,8 @@ CompositionRoot::CompositionRoot(Options options)
     // first widget that reads it is the shape Stage 1 kept finding (I-34, I-42, I-46), and waiting
     // is what avoided it.
     //
-    // The census now reads "2 of 7 interfaces implemented" -- `IDocumentBackend` and
-    // `IPageRasterizer`.
+    // The census read "2 of 7 interfaces implemented" -- `IDocumentBackend` and `IPageRasterizer` --
+    // until Stage 3 T4 added `MutationSink`. The line in the log is the count; read it there.
     backend_ = pdf::createBackend();
 
     // --- The render pipeline (Stage 2 T13, configured from settings at T15) -------------------

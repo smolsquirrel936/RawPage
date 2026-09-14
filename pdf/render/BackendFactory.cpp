@@ -37,8 +37,8 @@ std::unique_ptr<core::IDocumentBackend> createBackend()
     // THE CENSUS LINE, and it is not decoration. `app/CompositionRoot` documents that this factory
     // logs its own interface census the way the Windows platform bundle logs its, and a build that
     // cannot do something should say so in its log rather than leave a caller to find out from an
-    // empty result (D2-7, convention 6). It read "0 of 7" from T1 until T9; it now reads 2, and the
-    // names of the five that are missing are what makes "not built yet" printable.
+    // empty result (D2-7, convention 6). It read "0 of 7" from T1 until T9, 2 until Stage 3 T4 and 3 from
+    // then (`MutationSink`); the names of the ones missing are what makes "not built yet" printable.
     //
     // It was briefly LOST when T9 replaced the null backend -- the line lived in that class's
     // constructor -- and restored when a smoke run of `--dump-ui-strings` showed the platform

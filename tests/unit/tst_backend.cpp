@@ -71,6 +71,8 @@ public:
     // a zero-page document rather than at nothing.
     const core::PageTree* pages(core::DocumentHandle) const override { return nullptr; }
     const core::RepairReport* repairReport(core::DocumentHandle) const override { return nullptr; }
+    const core::Permissions* permissions(core::DocumentHandle) const override { return nullptr; }
+    const core::DocumentId* documentId(core::DocumentHandle) const override { return nullptr; }
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }

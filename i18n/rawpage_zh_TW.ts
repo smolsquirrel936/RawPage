@@ -1910,6 +1910,30 @@
         <translation>已儲存的檔案有 %1 頁，與編輯時的頁數不符。未儲存的變更已保留。</translation>
     </message>
     <message>
+        <source>error.edit.encrypted</source>
+        <translation>此 PDF 有密碼保護。RawPage 尚無法變更受保護的檔案。</translation>
+    </message>
+    <message>
+        <source>error.edit.noPageMap</source>
+        <translation>RawPage 找不到此 PDF 可安全變更的頁面結構。</translation>
+    </message>
+    <message>
+        <source>error.edit.pageCountDisagrees</source>
+        <translation>此 PDF 的頁面結構已損毀：其頁數有兩種計算結果（%1），變更頁面可能影響到錯誤的頁面。</translation>
+    </message>
+    <message>
+        <source>error.edit.pageRotationDisagrees</source>
+        <translation>此 PDF 在第 %1 頁附近的頁面結構已損毀，變更頁面可能影響到錯誤的頁面。</translation>
+    </message>
+    <message>
+        <source>error.edit.pageSizeDisagrees</source>
+        <translation>此 PDF 在第 %1 頁附近的頁面結構已損毀，變更頁面可能影響到錯誤的頁面。</translation>
+    </message>
+    <message>
+        <source>error.edit.notAssessed</source>
+        <translation>內部錯誤：此文件尚未經過編輯檢查。未變更任何內容。</translation>
+    </message>
+    <message>
         <source>error.open.cancelled</source>
         <translation>已取消開啟 %1。</translation>
     </message>

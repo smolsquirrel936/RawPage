@@ -413,9 +413,12 @@ TEST_CASE("rasterizer survives eight concurrent workers over four documents", "[
 // A-46's second half -- the census, now that two of the seven are real
 // ==========================================================================================
 
-TEST_CASE("the shipped backend implements exactly IDocumentBackend and IPageRasterizer",
+TEST_CASE("the shipped backend implements IDocumentBackend and IPageRasterizer",
           "[render][backend]")
 {
+    // STAGE 3 T4 ADDED A THIRD, `MutationSink`, and this case was narrowed to what it was written for --
+    // that Stage 2's two are implemented -- rather than kept asserting a list of five missing. The
+    // census of three, and which four are missing, is `tst_backendedit.cpp` (Stage 3 guide case A-37).
     // **THE HALF `tests/unit/tst_backend.cpp` HAS BEEN WAITING FOR SINCE T1**, and it lives here
     // rather than there because the shipped backend is the engine and the headless suite may not
     // link it (D2-2). A-46's Expect says: *after Stage 2 the implemented set is `IDocumentBackend`
@@ -428,16 +431,9 @@ TEST_CASE("the shipped backend implements exactly IDocumentBackend and IPageRast
     CHECK(implemented[static_cast<std::size_t>(
         rawpage::core::BackendInterface::PageRasterizer)]);
 
-    const auto missing = rawpage::core::unimplementedBackendInterfaces(backend);
-    REQUIRE(missing.size() == 5);
-    CHECK(missing[0] == "ITextExtractor");
-    CHECK(missing[1] == "MutationSink");
-    CHECK(missing[2] == "ISigner");
-    CHECK(missing[3] == "IOcrEngine");
-    CHECK(missing[4] == "IIndexer");
 }
 
-TEST_CASE("the shipped backend hands out a rasterizer and nulls for the other five",
+TEST_CASE("the shipped backend hands out a rasterizer and nulls for the unimplemented four",
           "[render][backend]")
 {
     DocumentBackendImpl backend;
@@ -449,10 +445,10 @@ TEST_CASE("the shipped backend hands out a rasterizer and nulls for the other fi
     REQUIRE(rasterizer != nullptr);
     CHECK(rasterizer->raster(requestFor(0, TileRect{0, 0, 64, 64})));
 
-    // The five that are not are NULL, never an empty stub -- convention 6, because a stub that
-    // silently succeeds lets a caller believe a page was extracted or a signature applied.
+    // The four that are not are NULL, never an empty stub -- convention 6, because a stub that
+    // silently succeeds lets a caller believe a page was extracted or a signature applied. (Five until
+    // Stage 3 T4, when `mutationSink()` became real for an editable document -- `tst_backendedit.cpp`.)
     CHECK(backend.textExtractor(handle.value()) == nullptr);
-    CHECK(backend.mutationSink(handle.value()) == nullptr);
     CHECK(backend.signer(handle.value()) == nullptr);
     CHECK(backend.ocrEngine() == nullptr);
     CHECK(backend.indexer() == nullptr);

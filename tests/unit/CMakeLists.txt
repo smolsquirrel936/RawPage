@@ -61,6 +61,8 @@ add_executable(rawpage_tests
                                   #   writing half (the probe; OpenSSL's half is registered below)
     tst_pageops.cpp               # Stage 3 T3  -- guide cases A-29's headless half and A-30's PageOps half
     tst_mutationsink.cpp          # Stage 3 T3  -- guide cases A-30 ... A-33 and T3's two controls
+    tst_document.cpp              # Stage 3 T4  -- guide cases A-34's headless half and A-35
+    tst_permissions.cpp           # Stage 3 T4  -- guide case A-36's planted half (D3-7)
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #

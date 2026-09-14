@@ -15,7 +15,7 @@
 > verdict, graded from its readings, is **`go`**. No
 > other manual case has been walked. **Seven issues**, all closed: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
-> at T3 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — run 2026-09-14.** No S1 or
+> at T3 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14.** No S1 or
 > S2 is open.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -439,19 +439,23 @@ green its cases did not record.
 ### 5.6 `Document`, `DocumentId`, `Permissions`
 
 **A-34 · Hydration copies the engine's pages into the model**
-☐ **Steps** `tst_document` over a COS-backed test backend (unit) and the real backend (`tst_saveengine`).
+✅ **2026-09-14, T4; 807/807 on `x64-release` and `x64-debug`.** **Headless half** (`tst_document`, over a test backend whose tree is `pdf/ops/PageOps`' walk — the case says at its assertion that it does not cover the engine's tree): `Document::pages()` equals the backend's tree for every `ordinary/` and `signed/` file; a model rotation changes the model and not the backend, and the transposed display size follows the model; hydrating an unknown handle refuses with `error.open.notFound` and changes nothing. **Engine half** — moved forward from `tst_saveengine` (T8), because the shipped backend could already be hydrated from — `tests/render/tst_backendedit.cpp`: the model equals PDFium's tree for every `ordinary/` file, and after a model rotation of page 1 the backend's rotation is unchanged (D3-15).
+**Steps** `tst_document` over a COS-backed test backend (unit) and the real backend (`tst_saveengine`).
 **Expect** `Document::pages()` equals the backend's tree for every corpus file; after a rotation the **model** differs and the backend's does not (D3-15). **The unit half says at its assertion that it does not cover the engine's tree.** **If it fails** S2.
 
 **A-35 · `DocumentId` notices a changed file**
-☐ **Steps** Same file twice; a touched modification time; a same-size, same-time content change; two spellings of one Windows path.
+✅ **2026-09-14, T4; 807/807 on `x64-release` and `x64-debug`.** `tst_document`: the same file twice equal, keys equal; a modification time one millisecond later different; a same-size, same-time content change **different by the hash**; four spellings of one path — `c:/docs/report.pdf`, `C:\Docs\.\Report.PDF`, `C:\Docs\Sub\..\Report.pdf`, `C:\\Docs//Report.pdf` — equal, and a different file name not folded onto it (the control). Normalization is by hand (no `QDir`), including a UNC root and `..` that cannot climb past it, so the same assertions run on `portable-asan`. **Not yet read from that job's log.** The shipped backend's identity (`tst_backendedit`): the size is the file's size on disk, the same file opened twice gives equal identities, a different file a different one.
+**Steps** Same file twice; a touched modification time; a same-size, same-time content change; two spellings of one Windows path.
 **Expect** Equal; different; **different** (the hash); equal — normalized by hand per convention 11, identically on `portable-asan`. **If it fails** S2; S1 for the content change, which is D3-16's whole guard.
 
 **A-36 · Editing is refused by name where this build cannot write — D3-7**
-☐ **Steps** `tst_permissions` over all five `encrypted/` files, a planted engine/COS page-count disagreement, a planted rotation disagreement, and every `ordinary/` file.
+✅ **2026-09-14, T4; 807/807 on `x64-release` and `x64-debug`.** **Planted** (`tst_permissions`): encrypted, no page map, a page-count disagreement, a rotation disagreement and a media-box-size disagreement — **five distinct keys** (`error.edit.encrypted`, `.noPageMap`, `.pageCountDisagrees`, `.pageRotationDisagrees`, `.pageSizeDisagrees`), all `PermissionDenied`, the context naming the 1-based page or both counts; **the control** — both readers agreeing — editable; an unassessed value refuses (`error.edit.notAssessed`); a size the file never stated is not compared, and the 0.01 pt tolerance is a tolerance and not a pass. **A control was run**: with the rotation comparison removed, the planted rotation case and the context case failed; reverted. **Real readings** (`tst_backendedit`): all **five** `encrypted/` files open in the engine with the public password and are refused `error.edit.encrypted` with no sink; **every `ordinary/` and `signed/` file is editable** with a sink; and `malformed/pages-loop.pdf` (I-07) is refused `error.edit.pageCountDisagrees` with context `2/1`. The guide's *"three distinct catalog keys"* named the three refusals it planted; the build has five kinds of refusal and all five are planted.
+**Steps** `tst_permissions` over all five `encrypted/` files, a planted engine/COS page-count disagreement, a planted rotation disagreement, and every `ordinary/` file.
 **Expect** Each encrypted file refused with its encryption key; each disagreement with its own key; every ordinary file editable. `ErrorCode::PermissionDenied` for all refusals, and **three distinct catalog keys**. **If it fails** S2; S1 if an encrypted file is editable.
 
 **A-37 · The backend implements three of seven**
-☐ **Steps** `tst_backend` census; the startup log.
+✅ **2026-09-14, T4; 807/807 on `x64-release` and `x64-debug`.** `tst_backendedit`: `IDocumentBackend`, `IPageRasterizer` and `MutationSink` implemented, the other four named in order; one sink per document, not per file — the same file opened twice gets two — accepting a rotation; `mutationSink()`, `permissions()` and `documentId()` null for an unknown and for a closed handle; handles never reused. **The startup log**, from `rawpage.exe --dump-ui-strings` under `QT_QPA_PLATFORM=offscreen`: *"backend: assembled -- 3 of 7 interfaces implemented; missing: ITextExtractor, ISigner, IOcrEngine, IIndexer"*. Stage 2's two census cases in `tst_rasterizer.cpp`, which asserted five missing and a null sink, were corrected in place and say why.
+**Steps** `tst_backend` census; the startup log.
 **Expect** `IDocumentBackend`, `IPageRasterizer`, `MutationSink`; `mutationSink()` null for a closed or unknown handle; handles never reused. **If it fails** S2.
 
 ### 5.7 The command journal, the registry, reversibility

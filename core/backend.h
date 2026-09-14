@@ -80,6 +80,8 @@ namespace rawpage::core {
 
 class PageTree;              // core/doc/PageTree.h        -- Stage 2 T9 (read half, D2-5)
 class RepairReport;          // core/doc/RepairReport.h    -- Stage 2 T8
+class Permissions;           // core/doc/Permissions.h     -- Stage 3 T4 (pre-flight half, D3-7)
+struct DocumentId;           // core/doc/DocumentId.h      -- Stage 3 T4
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -365,6 +367,19 @@ public:
     // whose structure was guessed is how an original gets destroyed. `RepairReport::requiresSaveAs()`
     // is that question and it is deliberately not `!isEmpty()`.
     virtual const RepairReport* repairReport(DocumentHandle document) const = 0;
+
+    // WHETHER THIS DOCUMENT MAY BE EDITED IN THIS BUILD, and if not the refusal's catalog key -- or
+    // null for a handle this backend did not open. Added at Stage 3 T4 (decision D3-7). The
+    // assessment itself is `Permissions::assess()` in `core/`; the backend is what holds BOTH readings
+    // the rule compares, the engine's page tree and the first-party reader's, so it is the one that
+    // calls it, once, at open.
+    virtual const Permissions* permissions(DocumentHandle document) const = 0;
+
+    // WHICH FILE THIS IS -- path, size, modification time and a hash of the bytes that were opened --
+    // or null for a handle this backend did not open. Added at Stage 3 T4: "taken at open" (D3-16) is
+    // only possible where the bytes are read, and a second read of the file by a caller could hash a
+    // file that had already changed.
+    virtual const DocumentId* documentId(DocumentHandle document) const = 0;
 
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;

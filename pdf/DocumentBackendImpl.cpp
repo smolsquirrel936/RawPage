@@ -1,8 +1,14 @@
 #include "pdf/DocumentBackendImpl.h"
 
 #include "core/Log.h"
+#include "core/doc/DocumentId.h"
+#include "core/doc/Permissions.h"
+#include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumRasterizer.h"
+
+#include <QDateTime>
+#include <QFileInfo>
 
 #include <utility>
 
@@ -14,6 +20,16 @@ namespace rawpage::pdf {
 struct DocumentBackendImpl::Open {
     std::unique_ptr<render::PdfiumDocument> document;
     std::unique_ptr<render::PdfiumRasterizer> rasterizer;
+
+    // Stage 3 T4. The bytes the engine loaded, held by this entry so the first-party sink's views into
+    // them stay valid: a `QByteArray` copy shares the engine's buffer rather than duplicating it, and
+    // nothing here ever writes to it, so its data pointer does not move.
+    QByteArray bytes;
+    core::DocumentId id;
+    core::Permissions permissions;
+    // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
+    // would be a way to edit it (D3-7).
+    std::unique_ptr<ops::MutationSinkImpl> sink;
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -25,6 +41,9 @@ std::array<bool, core::kBackendInterfaceCount> DocumentBackendImpl::implementedI
     implemented.fill(false);
     implemented[static_cast<std::size_t>(core::BackendInterface::DocumentBackend)] = true;
     implemented[static_cast<std::size_t>(core::BackendInterface::PageRasterizer)] = true;
+    // Stage 3 T4: `pdf/ops/MutationSinkImpl`, handed out per document by `mutationSink()` -- and only
+    // for a document `Permissions` lets this build edit.
+    implemented[static_cast<std::size_t>(core::BackendInterface::Mutation)] = true;
     // The other five stay false and their accessors stay null. Convention 6: a stub that silently
     // succeeds surfaces stages later as data nobody produced.
     return implemented;
@@ -58,11 +77,51 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
     entry->document = std::move(document).value();
     entry->rasterizer = std::make_unique<render::PdfiumRasterizer>(*entry->document);
 
+    // --- Stage 3 T4: identity, the second reading, and the pre-flight (D3-7, D3-16) -----------------
+    // The identity is taken from the bytes the ENGINE loaded, not from a second read of the file, so
+    // the hash is of the document the user is looking at. The modification time is a separate stat,
+    // and a file rewritten between the read and the stat would carry the new time with the old hash --
+    // which makes the pair disagree with the disk, the conservative direction for D3-16's check.
+    entry->bytes = entry->document->bytes();
+    entry->id = core::DocumentId::of(
+        path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);
+
+    // The FIRST-PARTY reading of the same bytes, through the sink that would carry any edit. Its page
+    // walk and the engine's page tree must agree before editing is allowed: a rotation lands on the
+    // object the walk calls page n and is drawn on the engine's page n.
+    const std::string_view view(entry->bytes.constData(),
+                                static_cast<std::size_t>(entry->bytes.size()));
+    auto sink = ops::MutationSinkImpl::open(view);
+    core::CosReading reading = core::CosReading::Read;
+    std::vector<core::CosPageFacts> facts;
+    if (!sink) {
+        reading = sink.error().messageKey == QLatin1String("error.pdf.encrypted")
+                      ? core::CosReading::Encrypted
+                      : core::CosReading::NoPageMap;
+    } else {
+        for (const ops::PageEntry& page : sink.value()->pages().pages) {
+            core::CosPageFacts fact;
+            fact.rotation = page.effectiveRotate();
+            if (page.mediaBox) {
+                const auto& box = *page.mediaBox;
+                fact.mediaSize = core::PdfSize{box[2] - box[0], box[3] - box[1]};
+            }
+            facts.push_back(fact);
+        }
+    }
+    entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
+    if (sink && entry->permissions.canEditPages())
+        entry->sink = std::move(sink).value();
+
     const std::lock_guard<std::mutex> guard(mutex_);
     const core::DocumentHandle handle{nextHandle_++};
     RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
         << "backend: opened" << path << "as handle" << static_cast<int>(handle.id) << "with"
-        << entry->document->pageCount() << "pages";
+        << entry->document->pageCount() << "pages;"
+        << (entry->permissions.canEditPages()
+                ? QStringLiteral("editable")
+                : QStringLiteral("not editable (%1 %2)")
+                      .arg(entry->permissions.refusalKey(), entry->permissions.refusalContext()));
     open_.emplace(handle.id, std::move(entry));
     return handle;
 }
@@ -101,9 +160,13 @@ core::ITextExtractor* DocumentBackendImpl::textExtractor(core::DocumentHandle)
     return nullptr;   // Stage 5
 }
 
-core::MutationSink* DocumentBackendImpl::mutationSink(core::DocumentHandle)
+core::MutationSink* DocumentBackendImpl::mutationSink(core::DocumentHandle document)
 {
-    return nullptr;   // Stage 3
+    // Called from the UI thread -- by `CommandJournal`, through a command's `apply()` -- but under
+    // the same lock as `rasterizer()`, because `open()` and `close()` change the map it reads.
+    const std::lock_guard<std::mutex> guard(mutex_);
+    Open* entry = find(document);
+    return entry ? entry->sink.get() : nullptr;
 }
 
 core::ISigner* DocumentBackendImpl::signer(core::DocumentHandle)
@@ -133,6 +196,20 @@ const core::RepairReport* DocumentBackendImpl::repairReport(core::DocumentHandle
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
     return entry ? &entry->document->repairReport() : nullptr;
+}
+
+const core::Permissions* DocumentBackendImpl::permissions(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? &entry->permissions : nullptr;
+}
+
+const core::DocumentId* DocumentBackendImpl::documentId(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? &entry->id : nullptr;
 }
 
 } // namespace rawpage::pdf

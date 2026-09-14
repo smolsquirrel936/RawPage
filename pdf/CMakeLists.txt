@@ -244,7 +244,10 @@ target_compile_definitions(rawpage_pdfium PRIVATE
 # silent repair never produces -- while rawpage_cos still knows nothing about PDFium and still
 # builds on the portable presets alone. The forbidden edge is the other way round, and
 # rawpage_assert_headless() is what keeps it forbidden.
-target_link_libraries(rawpage_pdfium PUBLIC rawpage_core rawpage_cos PRIVATE pdfium)
+# rawpage_ops JOINS AT Stage 3 T4, in the same direction and for the same reason as rawpage_cos did at
+# T9: the backend holds a first-party MutationSinkImpl per open document and DELEGATES every mutation to
+# it (D3-3). The portable library knows nothing of PDFium; this one uses it.
+target_link_libraries(rawpage_pdfium PUBLIC rawpage_core rawpage_cos rawpage_ops PRIVATE pdfium)
 
 rawpage_strict(rawpage_pdfium)        # -Werror: pdf/ is a strict layer on both sides of the boundary
 
