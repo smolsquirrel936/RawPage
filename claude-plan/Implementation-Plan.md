@@ -1111,7 +1111,8 @@ is strictly read-only this stage. Split views, rulers, grid, guides, and full-sc
 **One slice of T1 has landed (2026-09-14): P-2's validator.** `tests/gates/ResolveOpenSSL.cmake` and
 guide case A-06's three `gates.validators.*` cases, green on the `gates` preset here (97/97); the
 Windows CI job names its OpenSSL in `RAWPAGE_OPENSSL`, because the runner has none on its registry
-`PATH`. **No CI run has carried it yet**, so P-2 stays 🟡 (`Stage3-Mutation-Plan.md` §7 owns why).
+`PATH`. **P-2 is ✅**, read in CI run 34826889323 (`Stage3-Mutation-Plan.md` §7 owns the detail), whose
+Windows job was 744/744 with the one named skip.
 The rest of T1 — the signed corpus — has not started.
 
 Carries risk **A4** as a **go/no-go**: can an incremental save
