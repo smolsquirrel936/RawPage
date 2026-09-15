@@ -38,9 +38,25 @@ add_executable(rawpage_platform_tests
     # Stage 2 issue I-35: rawpage.exe's embedded manifest (the segment heap). Its subject is app/'s
     # build output, so the target below depends on `rawpage` and is handed its path.
     tst_manifest.cpp
+
+    # S3 T9 -- TerminateProcess at random instants during commands and during saves (guide cases A-65's
+    # child half, A-68, A-69). The child is rawpage_killprobe, below; the replay runs through
+    # tests/unit/CosBackend.h, which is why this target now links rawpage_cos and rawpage_ops -- the
+    # portable reader and writer, no engine.
+    tst_recoverykill.cpp
 )
-target_compile_definitions(rawpage_platform_tests PRIVATE RAWPAGE_EXE_PATH="$<TARGET_FILE:rawpage>")
-add_dependencies(rawpage_platform_tests rawpage)
+target_compile_definitions(rawpage_platform_tests PRIVATE RAWPAGE_EXE_PATH="$<TARGET_FILE:rawpage>"
+    RAWPAGE_KILLPROBE_PATH="$<TARGET_FILE:rawpage_killprobe>"
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
+add_dependencies(rawpage_platform_tests rawpage rawpage_killprobe)
+
+# rawpage_killprobe -- Stage 3 T9: a HELPER EXECUTABLE, not a test target (Stage3-Mutation-Plan.md §4). It
+# edits or saves in a loop and reports its phase so tst_recoverykill can kill it at a known kind of instant.
+add_executable(rawpage_killprobe killprobe/main.cpp)
+target_include_directories(rawpage_killprobe PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_killprobe PRIVATE rawpage_core rawpage_cos rawpage_ops rawpage_platform)
+rawpage_link_qt(rawpage_killprobe Core)
+rawpage_common_flags(rawpage_killprobe)
 
 target_include_directories(rawpage_platform_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -48,6 +64,8 @@ target_include_directories(rawpage_platform_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 # QCoreApplication before any of them runs. See the comment there.
 target_link_libraries(rawpage_platform_tests PRIVATE
     rawpage_core
+    rawpage_cos
+    rawpage_ops
     rawpage_platform
     Catch2::Catch2
 )

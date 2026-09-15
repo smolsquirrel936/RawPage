@@ -55,6 +55,7 @@
 
 #include "core/Result.h"
 #include "core/cmd/Command.h"
+#include "core/cmd/OperationRecorder.h"
 #include "core/doc/Document.h"
 
 #include <cstddef>
@@ -98,9 +99,25 @@ public:
     void markSaved();
 
     // What `core/doc/SaveCoordinator` calls once the file is on disk and the backend has adopted it
-    // (Stage 3 T8): the document takes the new file's identity and repair report, then `markSaved()`.
-    // The model and the revision are unchanged -- a save is not a mutation.
-    Status adoptSavedFile(const IDocumentBackend& backend);
+    // (Stage 3 T8): the document takes the new file's identity and repair report, the recorder is told
+    // the document now lives at `path` (T9), then `markSaved()`. The model and the revision are
+    // unchanged -- a save is not a mutation.
+    Status adoptSavedFile(const IDocumentBackend& backend, const QString& path);
+
+    // Stage 3 T9 (D3-11). The recorder is told every operation before it returns; see
+    // `core/cmd/OperationRecorder.h`. Not owned; null detaches.
+    void setRecorder(OperationRecorder* recorder) noexcept { recorder_ = recorder; }
+    bool hasRecorder() const noexcept { return recorder_ != nullptr; }
+
+    // The commands of the step an undo would revert and a redo would re-apply, in run order -- for a
+    // replay checking that the history it rebuilt is the one a line names. Empty when there is none.
+    std::vector<const Command*> undoStep() const;
+    std::vector<const Command*> redoStep() const;
+
+    // Reverts every command of the open group's step, removes the step as if it had never been begun,
+    // and closes the group. For a replay whose group failed part-way: D3-11's unit of recovery is the
+    // undo step, so a group is recovered whole or not at all. False when no group is open.
+    bool abandonOpenGroup();
 
     std::size_t position() const noexcept { return position_; }
     std::size_t historySize() const noexcept { return history_.size(); }
@@ -123,12 +140,14 @@ private:
     };
 
     bool revertStep(Step& step);
+    static std::vector<const Command*> commandsOf(const Step& step);
     bool applyStep(Step& step);
     Scope scopeOf(const Step& step) const;
     void afterOperation(const Scope& scope, bool wasDirty);
 
     Document document_;
     MutationSink* sink_ = nullptr;
+    OperationRecorder* recorder_ = nullptr;
 
     std::vector<Step> history_;
     std::size_t position_ = 0;

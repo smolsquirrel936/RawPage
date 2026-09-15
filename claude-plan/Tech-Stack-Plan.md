@@ -643,9 +643,10 @@ I/O is the whole file, measured at Stage 3 T8 at 1.6 s for a 200 MB file on a lo
 with object renumbering and compaction, the only path that discards revision history, is Stage 8's. A document opened read-only or with insufficient permissions
 refuses `run()` before a command is constructed, not after.
 
-**The recovery journal.** `%LOCALAPPDATA%\RawPage\recovery\<docid>\` holds `meta.json` (source path,
-size, mtime, hash, the revision last saved) and `journal.ndjson` — one serialized command per line,
-appended and `fsync`ed as each command runs. On launch, any journal whose `meta.json` still matches
+**The recovery journal.** `%LOCALAPPDATA%\RawPage\recovery\<docid>-<pid>-<n>\` holds a lock, `meta.json` (source
+path, size, mtime, hash) and `journal.ndjson` — one operation per line (run, undo, redo, group begin
+and end; built at Stage 3 T9, `Stage3-Mutation-Plan.md` D3-11), appended and `fsync`ed before the
+operation returns, and truncated when the document is saved. On launch, any journal whose `meta.json` still matches
 its source file is offered for replay; each command deserializes and re-applies in order. A journal
 whose source no longer matches is offered as "recover to a new file" instead of silently replaying
 onto changed content.

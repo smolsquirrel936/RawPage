@@ -68,6 +68,7 @@ add_executable(rawpage_tests
     tst_reversibility.cpp         # Stage 3 T5  -- guide cases A-43 and A-44, the property and its control
     tst_savecoordinator.cpp       # Stage 3 T8  -- guide case A-50, and A-60's coordinator half
     tst_mutationrender.cpp        # Stage 3 T8  -- guide case A-59: a journal rotation reaching the scheduler and cache
+    tst_recovery.cpp              # Stage 3 T9  -- guide cases A-62 ... A-67's in-process halves and A-70 (D3-11)
 
     # Stage 3 T8 -- THE ROUND TRIP, a source directory compiled in rather than a sixth target (D3-18):
     # it links exactly what this target may, and so it runs under portable-asan too.

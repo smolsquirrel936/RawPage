@@ -1706,6 +1706,58 @@
         <translation>This build cannot do that yet: %1 is not implemented.</translation>
     </message>
     <message>
+        <source>error.recovery.noDurableFiles</source>
+        <translation>Edits to this document cannot be kept for recovery on this system, so they are kept in memory only (%1).</translation>
+    </message>
+    <message>
+        <source>error.recovery.unavailable</source>
+        <translation>The recovery folder could not be written, so edits to this document are kept in memory only: %1</translation>
+    </message>
+    <message>
+        <source>error.recovery.notRecoverable</source>
+        <translation>A change that cannot be recorded was made (%1), so this document can no longer be recovered after a crash.</translation>
+    </message>
+    <message>
+        <source>error.recovery.discarded</source>
+        <translation>The recovery information for this document was discarded (%1).</translation>
+    </message>
+    <message>
+        <source>error.recovery.unreadable</source>
+        <translation>The recovery information could not be read: %1</translation>
+    </message>
+    <message>
+        <source>error.recovery.tooLarge</source>
+        <translation>The recovery information is too large to be a record of edits: %1</translation>
+    </message>
+    <message>
+        <source>error.recovery.badMeta</source>
+        <translation>The recovery information does not say which file it belongs to.</translation>
+    </message>
+    <message>
+        <source>error.recovery.badJournal</source>
+        <translation>The recovery record is not in a format this version can read: %1</translation>
+    </message>
+    <message>
+        <source>error.recovery.live</source>
+        <translation>That recovery information belongs to a copy of RawPage that is still running: %1</translation>
+    </message>
+    <message>
+        <source>error.recovery.replayWhileRecording</source>
+        <translation>Recovery was started on a document that is already being recorded (%1).</translation>
+    </message>
+    <message>
+        <source>error.recovery.malformedLine</source>
+        <translation>The recovery record is damaged at %1; the changes before it were recovered.</translation>
+    </message>
+    <message>
+        <source>error.recovery.historyMismatch</source>
+        <translation>The recovery record does not match the changes before it at %1; the changes before it were recovered.</translation>
+    </message>
+    <message>
+        <source>error.recovery.stepFailed</source>
+        <translation>A recovered change could not be applied (%1); the changes before it were recovered.</translation>
+    </message>
+    <message>
         <source>error.render.documentClosed</source>
         <translation>That page could not be drawn: the document (%1) was closed while it was being prepared.</translation>
     </message>

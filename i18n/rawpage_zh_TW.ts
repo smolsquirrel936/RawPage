@@ -1706,6 +1706,58 @@
         <translation>此版本尚無法執行該項作業：%1 尚未實作。</translation>
     </message>
     <message>
+        <source>error.recovery.noDurableFiles</source>
+        <translation>此系統無法保存這份文件的編輯以供復原，因此僅保留在記憶體中（%1）。</translation>
+    </message>
+    <message>
+        <source>error.recovery.unavailable</source>
+        <translation>無法寫入復原資料夾，因此這份文件的編輯僅保留在記憶體中：%1</translation>
+    </message>
+    <message>
+        <source>error.recovery.notRecoverable</source>
+        <translation>進行了一項無法記錄的變更（%1），因此這份文件在當機後將無法復原。</translation>
+    </message>
+    <message>
+        <source>error.recovery.discarded</source>
+        <translation>已捨棄這份文件的復原資訊（%1）。</translation>
+    </message>
+    <message>
+        <source>error.recovery.unreadable</source>
+        <translation>無法讀取復原資訊：%1</translation>
+    </message>
+    <message>
+        <source>error.recovery.tooLarge</source>
+        <translation>復原資訊過大，不可能是編輯紀錄：%1</translation>
+    </message>
+    <message>
+        <source>error.recovery.badMeta</source>
+        <translation>復原資訊未說明它屬於哪個檔案。</translation>
+    </message>
+    <message>
+        <source>error.recovery.badJournal</source>
+        <translation>此版本無法讀取復原紀錄的格式：%1</translation>
+    </message>
+    <message>
+        <source>error.recovery.live</source>
+        <translation>該復原資訊屬於仍在執行的 RawPage：%1</translation>
+    </message>
+    <message>
+        <source>error.recovery.replayWhileRecording</source>
+        <translation>在已經記錄中的文件上開始了復原（%1）。</translation>
+    </message>
+    <message>
+        <source>error.recovery.malformedLine</source>
+        <translation>復原紀錄在 %1 處損毀；已復原在此之前的變更。</translation>
+    </message>
+    <message>
+        <source>error.recovery.historyMismatch</source>
+        <translation>復原紀錄在 %1 處與之前的變更不符；已復原在此之前的變更。</translation>
+    </message>
+    <message>
+        <source>error.recovery.stepFailed</source>
+        <translation>無法套用一項復原的變更（%1）；已復原在此之前的變更。</translation>
+    </message>
+    <message>
         <source>error.render.documentClosed</source>
         <translation>無法繪製該頁面：文件（%1）在準備期間已關閉。</translation>
     </message>

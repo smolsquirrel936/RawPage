@@ -1,0 +1,264 @@
+// tst_recoverykill -- TerminateProcess at random instants, then what survived. Stage 3 T9, guide cases A-65's
+// child half, A-68 and A-69 (`Stage3-Mutation-Testing-Guide.md` §5.10), decisions D3-4 and D3-11.
+//
+// The child is `rawpage_killprobe` (tests/platform/killprobe/main.cpp). `QProcess::kill()` is
+// `TerminateProcess` on Windows: no destructor, no crash handler, no flush on the way out -- the harsher
+// condition, and the one D3-11's claim is written against.
+//
+// EACH CASE MUST PROVE IT REACHED THE INSTANTS IT CLAIMS (guide rule 4, Stage 2's I-41). The probe reports
+// its phase before each step, the harness classifies where every kill landed, and a case whose twenty
+// kills never landed in a required window FAILS AS UNMEASURED rather than passing. The windows are held
+// open by the probe's test-only phase observers, which sleep; the header of the probe says why.
+//
+// WHAT THIS DOES NOT COVER (convention 19): a power loss -- the OS survives every kill here, so the file
+// cache is flushed by Windows whether or not FlushFileBuffers ran; a kill in the OS's own write path; and
+// the product's composition (T11's recovery prompt replays through `ui/`). The replay here runs through
+// `tests/unit/CosBackend.h`, the first-party reader, as tst_recovery's does.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "tests/unit/CosBackend.h"
+
+#include "core/cmd/CommandJournal.h"
+#include "core/cmd/RecoveryJournal.h"
+#include "core/cmd/commands/PageCommands.h"
+#include "core/doc/Document.h"
+#include "core/doc/SaveCoordinator.h"
+#include "platform/win/WinDurableFiles.h"
+
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
+#include <QProcess>
+#include <QRandomGenerator>
+#include <QTemporaryDir>
+#include <QThread>
+
+#include <windows.h>
+
+#include <iostream>
+#include <map>
+#include <set>
+#include <string>
+
+using namespace rawpage;
+
+namespace {
+
+constexpr int kRuns = 20;
+constexpr int kDwellMs = 15;
+
+std::string shaOf(const QString& path)
+{
+    QFile file(path);
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    return QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256).toHex().toStdString();
+}
+
+std::wstring wide(const QString& path)
+{
+    const QString native = QDir::toNativeSeparators(path);
+    return std::wstring(reinterpret_cast<const wchar_t*>(native.utf16()), static_cast<std::size_t>(native.size()));
+}
+
+// Starts the probe and waits for its "ready" line. The seed of the run's delays is printed so a failure
+// can be re-run with the same instants.
+std::unique_ptr<QProcess> startProbe(const QStringList& arguments)
+{
+    auto probe = std::make_unique<QProcess>();
+    probe->setProcessChannelMode(QProcess::SeparateChannels);
+    probe->start(QStringLiteral(RAWPAGE_KILLPROBE_PATH), arguments);
+    REQUIRE(probe->waitForStarted(10000));
+    QByteArray seen;
+    while (!seen.contains("ready ")) {
+        REQUIRE(probe->waitForReadyRead(10000));
+        seen += probe->peek(1 << 20);
+        if (probe->state() != QProcess::Running)
+            FAIL("the probe exited before it was ready: " << probe->readAllStandardError().toStdString());
+    }
+    return probe;
+}
+
+// Kills it and returns every line it managed to write.
+QList<QByteArray> killProbe(QProcess& probe, int afterMs)
+{
+    QThread::msleep(static_cast<unsigned long>(afterMs));
+    probe.kill();                                            // TerminateProcess
+    REQUIRE(probe.waitForFinished(10000));
+    QByteArray all = probe.readAllStandardOutput();
+    QList<QByteArray> lines = all.split('\n');
+    while (!lines.isEmpty() && lines.last().trimmed().isEmpty())
+        lines.removeLast();
+    for (QByteArray& line : lines)
+        line = line.trimmed();
+    return lines;
+}
+
+int numberAfter(const QByteArray& line, const QByteArray& word)
+{
+    if (!line.startsWith(word + ' '))
+        return -1;
+    return line.mid(word.size() + 1).split(' ').first().toInt();
+}
+
+} // namespace
+
+// ==========================================================================================
+// A-68 -- kills during commands: every acknowledged command is recovered
+// ==========================================================================================
+
+TEST_CASE("recovery.kill_commands: twenty kills during commands recover every acknowledged command", "[recovery][kill]")
+{
+    const quint32 seed = QRandomGenerator::global()->generate();
+    QRandomGenerator random(seed);
+    std::cout << "kill_commands: seed " << seed << std::endl;
+
+    std::map<std::string, int> landed;
+    for (int run = 1; run <= kRuns; ++run) {
+        INFO("run " << run << " of " << kRuns << ", seed " << seed);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString document = dir.filePath(QStringLiteral("doc.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/ordinary/text-a4.pdf"), document));
+        const QString root = dir.filePath(QStringLiteral("recovery"));
+
+        auto probe = startProbe({QStringLiteral("commands"), document, root, QString::number(kDwellMs)});
+        if (run == 1) {
+            // A-65's child half, first part: the probe is alive, so its journal is NOT offered.
+            CHECK(core::RecoveryJournal::discover(root).empty());
+        }
+        const QList<QByteArray> lines = killProbe(*probe, 20 + static_cast<int>(random.bounded(380)));
+        REQUIRE_FALSE(lines.isEmpty());
+
+        int acknowledged = 0;
+        for (const QByteArray& line : lines)
+            acknowledged = std::max(acknowledged, numberAfter(line, "ack"));
+        const QByteArray last = lines.last();
+        const std::string where = last.startsWith("writing") ? "between apply and the flush"
+                                  : last.startsWith("flushing") ? "inside the flush"
+                                  : last.startsWith("apply") ? "inside apply"
+                                                             : "between commands";
+        ++landed[where];
+
+        // The process is gone, so its lock is stale and its journal IS offered (A-65, second part).
+        const auto candidates = core::RecoveryJournal::discover(root);
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().sourceMatches);
+
+        tests::CosBackend backend;
+        auto handle = backend.open(document, nullptr);
+        REQUIRE(handle);
+        core::Document fresh;
+        REQUIRE(fresh.hydrate(backend, handle.value()));
+        core::CommandJournal journal(std::move(fresh), backend.mutationSink(handle.value()));
+        auto report = core::RecoveryJournal::replay(candidates.front().directory, journal);
+        REQUIRE(report);
+        INFO("killed " << where << " after ack " << acknowledged << "; replayed " << report.value().stepsApplied
+             << (report.value().tornTrailingLine ? " (a torn line reported)" : ""));
+        CHECK_FALSE(report.value().stoppedAtStep.has_value());
+        CHECK(report.value().stepsApplied >= acknowledged);          // nothing acknowledged is lost
+        CHECK(report.value().stepsApplied <= acknowledged + 1);      // and at most the one still inside run()
+    }
+
+    std::cout << "kill_commands: where the " << kRuns << " kills landed --";
+    for (const auto& [where, count] : landed)
+        std::cout << " " << where << ": " << count << ";";
+    std::cout << std::endl;
+    // UNMEASURED IS A FAILURE: twenty kills that never reached these windows prove nothing about them.
+    CHECK(landed["inside the flush"] >= 1);
+    CHECK(landed["between apply and the flush"] >= 1);
+}
+
+// ==========================================================================================
+// A-69 -- kills during saves: the target is never partial
+// ==========================================================================================
+
+TEST_CASE("recovery.kill_saves: twenty kills during saves leave the target at a whole revision with its stream", "[recovery][kill]")
+{
+    const quint32 seed = QRandomGenerator::global()->generate();
+    QRandomGenerator random(seed);
+    std::cout << "kill_saves: seed " << seed << std::endl;
+    const QByteArray zone = "[ZoneTransfer]\r\nZoneId=3\r\n";
+
+    std::map<std::string, int> landed;
+    for (int run = 1; run <= kRuns; ++run) {
+        INFO("run " << run << " of " << kRuns << ", seed " << seed);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString target = dir.filePath(QStringLiteral("approval.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/signed/approval.pdf"), target));
+        QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        {
+            const HANDLE stream = CreateFileW(wide(target + QStringLiteral(":Zone.Identifier")).c_str(), GENERIC_WRITE, 0,
+                                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            REQUIRE(stream != INVALID_HANDLE_VALUE);
+            DWORD written = 0;
+            WriteFile(stream, zone.constData(), static_cast<DWORD>(zone.size()), &written, nullptr);
+            CloseHandle(stream);
+        }
+        const std::string original = shaOf(target);
+
+        auto probe = startProbe({QStringLiteral("saves"), target, QString::number(kDwellMs)});
+        const qint64 probePid = probe->processId();
+        const QList<QByteArray> lines = killProbe(*probe, 30 + static_cast<int>(random.bounded(570)));
+        REQUIRE_FALSE(lines.isEmpty());
+
+        // The hashes the target may legitimately have: the last acknowledged save's (or the original), and
+        // the temporary file that was about to replace it if a replace had begun.
+        std::set<std::string> allowed{original};
+        int acknowledged = 0;
+        for (const QByteArray& line : lines) {
+            if (numberAfter(line, "ack") > 0) {
+                acknowledged = numberAfter(line, "ack");
+                allowed = {line.mid(line.indexOf("sha=") + 4).toStdString()};
+            }
+        }
+        for (const QByteArray& line : lines)
+            if (numberAfter(line, "replacing") == acknowledged + 1)
+                allowed.insert(line.mid(line.indexOf("sha=") + 4).toStdString());
+
+        const QByteArray last = lines.last();
+        const std::string where = last.startsWith("written") ? "between writing the temporary file and the replace"
+                                  : last.startsWith("replacing") ? "inside the replace"
+                                  : last.startsWith("writing") ? "writing the temporary file"
+                                                               : "between saves";
+        ++landed[where];
+
+        const std::string now = shaOf(target);
+        INFO("killed " << where << " after save " << acknowledged);
+        CHECK(allowed.count(now) == 1);                              // a whole revision, never anything else
+        std::string streamBytes;
+        {
+            const HANDLE read = CreateFileW(wide(target + QStringLiteral(":Zone.Identifier")).c_str(), GENERIC_READ,
+                                            FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            REQUIRE(read != INVALID_HANDLE_VALUE);
+            char buffer[256];
+            DWORD got = 0;
+            ReadFile(read, buffer, sizeof buffer, &got, nullptr);
+            CloseHandle(read);
+            streamBytes.assign(buffer, got);
+        }
+        CHECK(streamBytes == zone.toStdString());                    // the stream survived every replace
+
+        // A stray temporary file the killed probe left is removed by the next save (A-60).
+        tests::CosBackend backend;
+        platform::win::WinDurableFiles durableFiles;
+        auto handle = backend.open(target, nullptr);
+        REQUIRE(handle);
+        core::Document document;
+        REQUIRE(document.hydrate(backend, handle.value()));
+        core::CommandJournal journal(std::move(document), backend.mutationSink(handle.value()));
+        REQUIRE(journal.run(std::make_unique<core::RotatePageCommand>(0, 90)));
+        core::SaveCoordinator coordinator(backend, &durableFiles);
+        auto saved = coordinator.save(journal, target);
+        REQUIRE(saved);
+        CHECK(saved.value().kind == core::SaveOutcome::Kind::Saved);
+        CHECK_FALSE(QFileInfo::exists(core::SaveCoordinator::temporaryPathFor(target, probePid)));
+    }
+
+    std::cout << "kill_saves: where the " << kRuns << " kills landed --";
+    for (const auto& [where, count] : landed)
+        std::cout << " " << where << ": " << count << ";";
+    std::cout << std::endl;
+    CHECK(landed["between writing the temporary file and the replace"] >= 1);
+}

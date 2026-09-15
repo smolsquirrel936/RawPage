@@ -21,7 +21,8 @@
 //   5. `writeRevision` to `<dir>/.<name>.rawpage-<pid>.tmp`: the opened bytes verbatim, the update,
 //      and the re-read that must pass before anything else happens.
 //   6. `syncToDisk` the temporary file, then `replaceFile(target, temporary)`.
-//   7. `adoptRevision(target)`, then `CommandJournal::adoptSavedFile`, which marks the journal saved.
+//   7. `adoptRevision(target)`, then `CommandJournal::adoptSavedFile`, which tells the recovery journal
+//      the document now lives at the target (T9) and marks the journal saved.
 //
 // **A failure at 5 or 6 leaves the target untouched, removes the temporary file, and leaves the
 // journal dirty.** A failure at 7 happens after the replace: the new file IS on disk, the journal
@@ -34,7 +35,8 @@
 // a target naming the document's own file goes through `save()`, so a repaired document cannot be
 // "saved as" itself and escape step 2.
 //
-// NOT HERE: the recovery journal's `meta.json` after a save (T9), and asking the user anything (T10).
+// NOT HERE: asking the user anything (T10). The recovery journal hears about the save through
+// `CommandJournal::adoptSavedFile` and its recorder (T9).
 
 #ifndef RAWPAGE_CORE_DOC_SAVECOORDINATOR_H
 #define RAWPAGE_CORE_DOC_SAVECOORDINATOR_H
@@ -45,6 +47,8 @@
 
 #include <QLatin1String>
 #include <QString>
+
+#include <functional>
 
 namespace rawpage::core {
 
@@ -73,6 +77,11 @@ public:
     // hidden by its leading dot in a directory listing; and named by its writer, so a stray one can be
     // told from a live one.
     static QString temporaryPathFor(const QString& target, qint64 processId);
+
+    // The kill harness's view of where a save is (guide case A-69, Stage 3 T9). Process-wide and empty in
+    // the product; an observer may sleep, to hold a phase open long enough for a kill to land in it.
+    enum class Phase { Writing, Written, Replacing, Replaced };
+    static void setPhaseObserverForTesting(std::function<void(Phase, const QString& temporary)> observer);
 
     // The process id the temporary file is named by. The product's own, unless a test says otherwise.
     void setProcessIdForTesting(qint64 processId) { processId_ = processId; }

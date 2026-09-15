@@ -6,7 +6,7 @@
 > **before any Stage 3 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-09-14; T1's to T8's cases run.** **83 automated** (A-01 … A-83)
+> **Status:** 🟡 **Written 2026-09-14; T1's to T9's cases run.** **83 automated** (A-01 … A-83)
 > and **8 manual** (M-01 … M-08). **Run and passed: A-14 … A-18** (§5.3, T1) and **A-19 … A-27,
 > and A-28's automated half** (§5.4, T2), all 2026-09-14, each ticked with the evidence it was ticked
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
@@ -15,7 +15,7 @@
 > verdict, graded from its readings, is **`go`**. No
 > other manual case has been walked. **Nine issues**: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
-> at T3, **I-08** at T6's first CI run, **I-09** at T8 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — and T8's — A-50 … A-61, A-56 but for T9's `meta.json` — run 2026-09-15.** No S1 or
+> at T3, **I-08** at T6's first CI run, **I-09** at T8 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — T8's — A-50 … A-61 — and T9's — A-62 … A-69, and A-70's Windows half — run 2026-09-15.** No S1 or
 > S2 is open.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -306,7 +306,7 @@ green its cases did not record.
 **Expect** Exit 0; **four** gates named and run; `cmake/RawPageChecks.cmake` no longer says *"THREE of the four"*. **If it fails** S2 — and a `checks` claiming four while running three is the failure this gate set exists to prevent.
 
 **A-09 · The layer and filesystem-write census**
-✅ **2026-09-15, T7 — for T7's half; T9 adds `core/cmd/RecoveryJournal.cpp`'s waivers and re-derives the count.** `layer-lint --explain` lists `ReplaceFileW(`, `MoveFileExW(` and — beyond this case — `DeleteFileW(` among the `filesystem-write` patterns. `gates.layer_lint.win32_{replace,move,delete}_outside_allowed` each fail naming their own call, spelled in `ui/`, `core/` and `app/`, and `win32_write_in_comment_is_allowed` — all three named in comments under `platform/win/` — is clean. **The census reads twelve active escapes**, and the four new ones are all in `platform/win/WinDurableFiles.cpp` (lines 54, 63, 105, 106: the move helper, the flush's `CreateFileW`, `ReplaceFileW`, `DeleteFileW`), each with its reason. `CLAUDE.md` was corrected from eight to twelve. **Controls, each red:** the `ReplaceFileW` waiver removed from the real file (`layer-lint` fails at line 105); the three patterns removed from `rules.json` (all three fixtures pass clean).
+✅ **2026-09-15, T7 and T9.** **T9's half:** `layer-lint --explain` lists **fourteen** active escapes, the two new ones in `core/cmd/RecoveryJournal.cpp` — the journal's append (`QIODevice::Append`, one helper for both opens) and its whole-file write (`QIODevice::WriteOnly`, one helper for `meta.json` and the truncation); `CLAUDE.md` was corrected from twelve. **T7's half:** `layer-lint --explain` lists `ReplaceFileW(`, `MoveFileExW(` and — beyond this case — `DeleteFileW(` among the `filesystem-write` patterns. `gates.layer_lint.win32_{replace,move,delete}_outside_allowed` each fail naming their own call, spelled in `ui/`, `core/` and `app/`, and `win32_write_in_comment_is_allowed` — all three named in comments under `platform/win/` — is clean. **The census reads twelve active escapes**, and the four new ones are all in `platform/win/WinDurableFiles.cpp` (lines 54, 63, 105, 106: the move helper, the flush's `CreateFileW`, `ReplaceFileW`, `DeleteFileW`), each with its reason. `CLAUDE.md` was corrected from eight to twelve. **Controls, each red:** the `ReplaceFileW` waiver removed from the real file (`layer-lint` fails at line 105); the three patterns removed from `rules.json` (all three fixtures pass clean).
 **Steps** `layer-lint.exe --root . --explain`.
 **Expect** `ReplaceFileW(` and `MoveFileExW(` are in the `filesystem-write` patterns, with a fixture each and a **control** (the same call in a comment, which must not fire). **Every waiver is named**, and the new ones are in `platform/win/WinDurableFiles.cpp` and `core/cmd/RecoveryJournal.cpp` only. **The count is recorded from the output**, not predicted here. **If it fails** S2 for an unnamed waiver; S3 for a count that disagrees with `CLAUDE.md`, which is then corrected.
 
@@ -559,7 +559,7 @@ green its cases did not record.
 **Expect** Three updates on the `/Prev` chain; the final file has the first rotation and **not** the second; every earlier revision's bytes unchanged. **If it fails** S1.
 
 **A-56 · Save As moves the document, and leaves the original alone**
-🟡 **2026-09-15, T8 — all but the recovery `meta.json`, which does not exist until T9.** `tst_roundtrip`: rotate, Save As `copy.pdf` → the document's identity now names the copy; rotate again, Save to the copy → both rotations in the copy; the original's hash unchanged since open; and a Save to the ORIGINAL path afterwards is **Save-As required** — it is no longer the document's file. A Save As of an unchanged document is a byte-identical copy.
+✅ **2026-09-15, T8 and T9.** **T9:** `tst_recovery` saves as a copy and reads `meta.json` naming the copy's path and SHA-256. **T8:** `tst_roundtrip`: rotate, Save As `copy.pdf` → the document's identity now names the copy; rotate again, Save to the copy → both rotations in the copy; the original's hash unchanged since open; and a Save to the ORIGINAL path afterwards is **Save-As required** — it is no longer the document's file. A Save As of an unchanged document is a byte-identical copy.
 **Steps** Rotate, Save As to a new path; rotate again, Save.
 **Expect** The second Save writes to the **new** path; the original file's hash is unchanged since open; the recovery `meta.json` names the new path. **If it fails** S1 for a changed original; S2 otherwise.
 
@@ -591,40 +591,49 @@ green its cases did not record.
 ### 5.10 Recovery
 
 **A-62 · Append, discover, replay, truncate**
-☐ **Steps** `tst_recovery`: run three commands; discover from a second journal object; replay into a fresh document; save; discard.
+✅ **2026-09-15, T9.** `tst_recovery`: a run, a group of two, an undo, a redo and an undo journal as `run, groupBegin, run, run, groupEnd, undo, redo, undo` after the `{"format":1}` line. While its owner lives the directory is **not** discovered; dropped without discarding (the case says this stands in for a crash and is not one), it is discovered with the source matching and **8** operation lines, and replay into a fresh document applies **5 steps** and reproduces the **model hash, the history size, the position, and the redo name**. A Save As through `SaveCoordinator` rewrites `meta.json` to the copy — its path and SHA-256 — and truncates the journal to the format line, with no `.tmp` left; a line after the save starts again from the saved file; `discard()` removes the directory, and `discardDirectory` refuses a live one and removes it once its owner is gone. **Controls, each red:** the journal not telling the recorder about a run; a save not truncating the lines.
+**Steps** `tst_recovery`: run three commands; discover from a second journal object; replay into a fresh document; save; discard.
 **Expect** The `{"format":1}` line first; replay reproduces the model hash **and the undo history**; after save the lines are gone and `meta.json` names the saved revision, replaced atomically; discard removes the directory. **If it fails** S1.
 
 **A-63 · Damage stops replay where it is, and only there**
-☐ **Steps** A trailing line with no newline; a malformed line at step 2 of 5; an unterminated trailing group; a failure inside the second of three groups.
+✅ **2026-09-15, T9.** Journals written by hand. **Torn** trailing line after three runs: 3 steps replayed, `tornTrailingLine` reported, no stop. **Malformed** step 2 of 5: step 1 kept, `stoppedAtStep` 2, `error.recovery.malformedLine`, and the applied lines are exactly step 1's. **Unterminated** trailing group: step 1 kept, `droppedUnterminatedGroup`, the group's rotations absent, no group left open. **A failure inside the second of three groups** (a rotation of page 99): group 1 kept, `stoppedAtStep` 2, group 2 **wholly absent** — its first rotation reverted — and nothing in redo. **Controls, each red:** a failed group not abandoned; an unterminated group kept; a torn line replayed as a malformed one.
+**Steps** A trailing line with no newline; a malformed line at step 2 of 5; an unterminated trailing group; a failure inside the second of three groups.
 **Expect** Torn trailing line: ignored **and reported**, all complete steps replayed. Malformed step 2: step 1 kept, step 2 named. Unterminated group: **dropped and reported** (D3-11). Failure in group 2: group 1 kept, group 2 wholly absent, the report names it. **If it fails** S1 for replaying past damage; S2 for a silent drop.
 
 **A-64 · An undo after a save is recovered**
-☐ **Steps** Rotate, save, undo, kill the journal's owner (drop it without closing), replay.
+✅ **2026-09-15, T9.** `tst_recovery`: rotate, Save, undo, drop the journal's owner; discovery finds the source matching (the SAVED file); replay into a document opened from the saved file applies 1 step and page 1 reads **0** — un-rotated relative to the saved file, whose page 1 is at 90 — with the same model hash as the session that crashed. The undo line carried the command, and replay applied its `revert()` as a new step because the rebuilt history does not hold a step from before the save. **Control run:** the undo re-run as the command instead of its inverse — the case failed.
+**Steps** Rotate, save, undo, kill the journal's owner (drop it without closing), replay.
 **Expect** The replayed document is **un**-rotated relative to the saved file, because the undo line carried the command and replay applied its `revert()`. **If it fails** S1.
 
 **A-65 · A live journal is never offered**
-☐ **Steps** Hold a journal open in one object; discover from another; then kill the owning test process (a child) and discover again.
+✅ **2026-09-15, T9.** **In process** (`tst_recovery`): two journals of one file get two directories (`<key>-<pid>-<n>`), neither is offered while both live, and dropping one offers exactly that one. **A killed child** (`platform.recovery.kill_commands`, run 1): while `rawpage_killprobe` runs, discovery offers nothing; after `TerminateProcess`, every one of the twenty runs discovers exactly one candidate — the lock is stale because its process is gone. Two instances with `general/singleInstance` off are two process ids in the directory name; that two PROCESSES of one file get two directories is by construction and is not run as a case. **Control run:** discovery ignoring the lock — two cases red.
+**Steps** Hold a journal open in one object; discover from another; then kill the owning test process (a child) and discover again.
 **Expect** Not offered while its lock is held; offered once the lock is stale. Two instances with `general/singleInstance` off each get their **own** directory. **If it fails** S1 — offering a live journal replays someone's open document into another window.
 
 **A-66 · An unwritable recovery directory degrades to memory, once**
-☐ **Steps** Point the journal at a directory with write denied; run ten commands. Separately, construct it with a null `IDurableFiles`.
+✅ **2026-09-15, T9.** `tst_recovery`, with the log sink replaced to count warnings: a root that is a **file**, so no directory can be made beneath it — ten rotations succeed, `error.recovery.unavailable`, **exactly one** warning, nothing created; a **null `IDurableFiles`** — ten rotations, `error.recovery.noDurableFiles`, one warning naming that key, nothing created; and **a command whose `serialize()` is empty** (Tech-Stack-Plan.md §5.5) — recording ends with `error.recovery.notRecoverable`, one warning, the journal holds only the run before it, and editing goes on. **What the case does not do:** deny write permission on a real directory — a directory's read-only attribute does not stop file creation on Windows, and the file-as-root form fails the same way on both platforms. **Control run:** neither the warn-once guard nor the append's early return — five failures.
+**Steps** Point the journal at a directory with write denied; run ten commands. Separately, construct it with a null `IDurableFiles`.
 **Expect** Editing works; **exactly one** warning over ten commands; nothing on disk. With null `IDurableFiles`: the same degradation, and the log says why. **If it fails** S2; S1 if editing is refused.
 
 **A-67 · Recover to a new file when the source has changed**
-☐ **Steps** Journal three rotations; replace the source with a two-page file; replay.
+✅ **2026-09-15, T9 — the headless half; the untitled document and the prompt are T11's.** `tst_recovery`: three rotations journalled against `text-a4.pdf` (three pages), the source replaced by `text-letter.pdf` (two pages); discovery reports `sourceMatches` **false** — which is what makes it *recover to a new file*, never a replay under the source's path — and replay onto the current two-page file applies 2 steps and stops at **step 3**, `error.command.failed`, the rotation naming a page the file no longer has.
+**Steps** Journal three rotations; replace the source with a two-page file; replay.
 **Expect** Offered as *recover to a new file*; replayed onto the current source into an **untitled** document; a rotation naming a missing page stops at that step and is named. **If it fails** S1 for a replay onto the changed source under its own path.
 
 **A-68 · KILL during commands — twenty times (D3-11)**
-☐ **Goal** A command is recoverable once `run()` has returned — at every instant, including inside `run()`.
+✅ **2026-09-15, T9.** `ctest -R "platform.recovery.kill_commands"` (`tests/platform/tst_recoverykill.cpp`, child `rawpage_killprobe`): twenty runs, each killed with `QProcess::kill()` — `TerminateProcess` — after a random 20–400 ms, the seed printed. Every run: discovery finds the journal, replay stops nowhere, and **replayed steps ≥ the last acknowledged command and ≤ one more**. **Where the kills landed**, measured: *"between apply and the flush: 4; inside the flush: 16"* — both required windows reached, held open by the probe's TEST-ONLY phase observer, which sleeps 15 ms in each; the probe's header says so. No crash handler runs; the case says this is the harsher condition. **Control run:** a line left in Qt's buffer — neither flushed nor synced — **all twenty runs** lost acknowledged commands. **What it does not cover:** a power loss; the OS survives every kill here.
+**Goal** A command is recoverable once `run()` has returned — at every instant, including inside `run()`.
 **Steps** `ctest -R "platform.recovery.kill_commands"`: `rawpage_killprobe` runs rotations in a loop, writing `ack k` to a pipe after each `run()` returns; the harness calls `TerminateProcess` after a random delay, then discovers and replays. Twenty runs. **The probe also reports the phase it was in** — inside `apply`, between apply and the flush, inside the flush, between commands.
 **Expect** Every run: replayed steps ≥ the last acknowledged *k*, and ≤ *k*+1; no replay error except a reported torn line. **Across the twenty: at least one kill landed inside the flush and at least one between apply and the flush** — otherwise the case **fails as unmeasured** (rule 4). No crash handler runs; the case says this is the harsher condition. **If it fails** S1.
 
 **A-69 · KILL during saves — twenty times (D3-4)**
-☐ **Steps** `ctest -R "platform.recovery.kill_saves"`: the probe saves in a loop over a copy of `approval.pdf` carrying a planted `Zone.Identifier` stream; killed at random; phases reported as in A-68.
+✅ **2026-09-15, T9.** `ctest -R "platform.recovery.kill_saves"`: twenty runs over a copy of `signed/approval.pdf` with a planted `Zone.Identifier` stream, the probe saving a rotation in a loop through `SaveCoordinator` and the real `WinDurableFiles`, killed after a random 30–600 ms. Every run: the target's SHA-256 is the last acknowledged save's (or the original's) **or** the temporary file's that the probe reported it was about to replace — never anything else; the stream is present; and the harness's own next save removes the killed probe's temporary file (A-60). **Where the kills landed:** *"between writing the temporary file and the replace: 20"* — the probe's observer holds that window open for 15 ms, which is why it takes every kill; the other windows are microseconds and are A-54's and A-47's to cover.
+**Steps** `ctest -R "platform.recovery.kill_saves"`: the probe saves in a loop over a copy of `approval.pdf` carrying a planted `Zone.Identifier` stream; killed at random; phases reported as in A-68.
 **Expect** Every run: the target's hash is **either** the previous revision's **or** the new one's — never anything else; the stream is present; a stray temporary file is cleaned by the next save (A-60). **At least one kill landed between writing the temporary file and the replace.** **If it fails** S1.
 
 **A-70 · Hostile journals**
-☐ **Steps** A generated set of broken `journal.ndjson` and `meta.json` files — binary junk, a line of 10 MB, deep JSON nesting, a `meta.json` naming a missing source — through discovery and replay, under `portable-asan` too.
+🟡 **2026-09-15, T9 — the Windows half; the `portable-asan` half waits for a CI log.** `tst_recovery`: binary junk in place of a journal → `error.recovery.badJournal`; a line of ten megabytes → step 2 refused after step 1 is kept; JSON nested a hundred thousand deep → refused at step 1, nothing applied; an undo naming ten thousand commands of an unknown type → `error.command.unknownType` at step 1; a junk `meta.json` → a candidate with `error.recovery.badMeta`; a `meta.json` naming a missing source → offered with `sourceMatches` false. None crashes.
+**Steps** A generated set of broken `journal.ndjson` and `meta.json` files — binary junk, a line of 10 MB, deep JSON nesting, a `meta.json` naming a missing source — through discovery and replay, under `portable-asan` too.
 **Expect** Each reported, none crashes, no sanitizer line. **If it fails** S1.
 
 ### 5.11 The UI — `rawpage_ui_tests`, offscreen

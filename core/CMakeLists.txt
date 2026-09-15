@@ -59,6 +59,12 @@ add_library(rawpage_core STATIC
     cmd/commands/PageCommands.h
     cmd/commands/PageCommands.cpp
 
+    # Stage 3 T9 (D3-11): what the journal tells a durable recorder, and the recorder -- the recovery
+    # directory, one flushed line per operation, discovery and replay by undo step.
+    cmd/OperationRecorder.h
+    cmd/RecoveryJournal.h
+    cmd/RecoveryJournal.cpp
+
     # settings/ -- the typed settings store (Stage 1 T5). SettingsKeys.def is listed for the same
     # reason ActionId.def is: it belongs in an IDE's project tree and editing it must re-run the
     # build. It is #included, never compiled.

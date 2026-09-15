@@ -97,9 +97,13 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
     // 3. Record it: into the open group's step, or as a new step that throws away redo.
     const bool wasDirty = isDirty();
     const Scope scope = command->scope();
+    const Command& recorded = *command;
+    std::optional<CatalogText> opensGroup;
     if (groupDepth_ > 0 && groupStepOpen_) {
         history_[position_ - 1].commands.push_back(std::move(command));
     } else {
+        if (groupDepth_ > 0)
+            opensGroup = groupName_;
         if (history_.size() > position_) {
             history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(position_), history_.end());
             if (savedPosition_ && *savedPosition_ > position_)
@@ -113,6 +117,9 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
         if (groupDepth_ > 0)
             groupStepOpen_ = true;
     }
+    // 4. Durable before this returns (D3-11). A recorder that fails degrades itself; it cannot refuse.
+    if (recorder_ != nullptr)
+        recorder_->recordRun(recorded, opensGroup);
     afterOperation(scope, wasDirty);
     return Status{};
 }
@@ -170,6 +177,8 @@ bool CommandJournal::undo()
     if (!revertStep(step))
         return false;
     --position_;
+    if (recorder_ != nullptr)
+        recorder_->recordUndo(step.name, commandsOf(step));
     afterOperation(scopeOf(step), wasDirty);
     return true;
 }
@@ -183,6 +192,8 @@ bool CommandJournal::redo()
     if (!applyStep(step))
         return false;
     ++position_;
+    if (recorder_ != nullptr)
+        recorder_->recordRedo(step.name, commandsOf(step));
     afterOperation(scopeOf(step), wasDirty);
     return true;
 }
@@ -200,9 +211,49 @@ bool CommandJournal::endGroup()
 {
     if (groupDepth_ == 0)
         return false;
-    if (--groupDepth_ == 0)
+    if (--groupDepth_ == 0) {
+        if (groupStepOpen_ && recorder_ != nullptr)
+            recorder_->recordGroupEnd();
         groupStepOpen_ = false;
+    }
     return true;
+}
+
+bool CommandJournal::abandonOpenGroup()
+{
+    if (groupDepth_ == 0)
+        return false;
+    const bool wasDirty = isDirty();
+    groupDepth_ = 0;
+    if (!groupStepOpen_)
+        return true;                          // nothing was run inside it: nothing to take back
+    groupStepOpen_ = false;
+    Step& step = history_[position_ - 1];
+    const Scope scope = scopeOf(step);
+    if (!revertStep(step))
+        return false;
+    history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(position_ - 1));
+    --position_;
+    afterOperation(scope, wasDirty);
+    return true;
+}
+
+std::vector<const Command*> CommandJournal::commandsOf(const Step& step)
+{
+    std::vector<const Command*> commands;
+    for (const auto& command : step.commands)
+        commands.push_back(command.get());
+    return commands;
+}
+
+std::vector<const Command*> CommandJournal::undoStep() const
+{
+    return canUndo() ? commandsOf(history_[position_ - 1]) : std::vector<const Command*>{};
+}
+
+std::vector<const Command*> CommandJournal::redoStep() const
+{
+    return canRedo() ? commandsOf(history_[position_]) : std::vector<const Command*>{};
 }
 
 void CommandJournal::markSaved()
@@ -216,11 +267,13 @@ void CommandJournal::markSaved()
     }
 }
 
-Status CommandJournal::adoptSavedFile(const IDocumentBackend& backend)
+Status CommandJournal::adoptSavedFile(const IDocumentBackend& backend, const QString& path)
 {
     const Status refreshed = document_.refreshFileState(backend);
     if (!refreshed)
         return refreshed;
+    if (recorder_ != nullptr)
+        recorder_->recordSaved(document_, path);
     markSaved();
     return Status{};
 }

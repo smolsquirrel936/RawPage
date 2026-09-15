@@ -12,8 +12,33 @@
 #include <QFileInfo>
 #include <QIODevice>
 
+#include <mutex>
+
 namespace rawpage::core {
 namespace {
+
+std::mutex& observerMutex()
+{
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::function<void(SaveCoordinator::Phase, const QString&)>& phaseObserver()
+{
+    static std::function<void(SaveCoordinator::Phase, const QString&)> instance;
+    return instance;
+}
+
+void notePhase(SaveCoordinator::Phase phase, const QString& temporary)
+{
+    std::function<void(SaveCoordinator::Phase, const QString&)> copy;
+    {
+        std::lock_guard<std::mutex> lock(observerMutex());
+        copy = phaseObserver();
+    }
+    if (copy)
+        copy(phase, temporary);
+}
 
 SaveOutcome saveAsRequired(const char* reasonKey)
 {
@@ -111,12 +136,16 @@ Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const
             << "save: failed before replacing" << target << "--" << QLatin1String(error.messageKey) << error.context;
         return error;
     };
+    notePhase(Phase::Writing, temporary);
     if (const Status written = backend_.writeRevision(handle, temporary); !written)
         return abandon(written.error());
+    notePhase(Phase::Written, temporary);
     if (const Status flushed = durableFiles_->syncToDisk(temporary); !flushed)
         return abandon(flushed.error());
+    notePhase(Phase::Replacing, temporary);
     if (const Status replaced = durableFiles_->replaceFile(target, temporary); !replaced)
         return abandon(replaced.error());
+    notePhase(Phase::Replaced, temporary);
 
     // Step 7, after the replace: see the header for why a failure here asks for Save-As next time.
     if (const Status adopted = backend_.adoptRevision(handle, target); !adopted) {
@@ -125,13 +154,19 @@ Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const
             << QLatin1String(adopted.error().messageKey) << adopted.error().context;
         return adopted.error();
     }
-    if (const Status marked = journal.adoptSavedFile(backend_); !marked)
+    if (const Status marked = journal.adoptSavedFile(backend_, target); !marked)
         return marked.error();
 
     RAWPAGE_LOG_INFO(LogSubsystem::Save) << "save: saved" << target;
     SaveOutcome outcome;
     outcome.path = target;
     return outcome;
+}
+
+void SaveCoordinator::setPhaseObserverForTesting(std::function<void(Phase, const QString&)> observer)
+{
+    std::lock_guard<std::mutex> lock(observerMutex());
+    phaseObserver() = std::move(observer);
 }
 
 } // namespace rawpage::core
