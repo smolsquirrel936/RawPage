@@ -137,7 +137,7 @@ void writeSidecar(const wchar_t* path, const EXCEPTION_RECORD* record, bool dump
     // hook and a hook that ran and did nothing look identical otherwise.
     appendUtf8(text, at, "\r\nlastRites=");
     appendUtf8(text, at, g_lastRitesIsNoOp
-        ? "no-op (RecoveryJournal arrives at Stage 3; the hook is installed and was invoked)"
+        ? "none (D3-11: the recovery journal is on disk before each edit returns; the hook is installed and was invoked)"
         : "invoked");
 
     appendUtf8(text, at, "\r\nminidump=");
@@ -158,7 +158,7 @@ LONG WINAPI unhandledExceptionFilter(EXCEPTION_POINTERS* exception)
     // Last rites first, while the most state is still intact -- see LastRites in the header.
     // Deliberately NOT wrapped in __try/__except: GCC on Windows x64 does not implement SEH
     // in C++, so a wrapper here would be a comment pretending to be a guard. The hook's
-    // contract is instead that it must be small and must not allocate (Stage 3 owns that).
+    // contract is instead that it must be small and must not allocate -- and D3-11 left it empty.
     if (g_lastRites) g_lastRites();
 
     // <dir>\rawpage-YYYYMMDD-HHMMSS-<pid>.dmp, built into a stack buffer.
@@ -264,7 +264,8 @@ void CrashHandler::install(LastRites lastRites)
     // visible in an ordinary session log rather than only in a crash nobody has had.
     RAWPAGE_LOG_INFO(core::LogSubsystem::Ui)
         << "CrashHandler installed; buildId" << buildId() << "; lastRites"
-        << (g_lastRitesIsNoOp ? "no-op (RecoveryJournal arrives at Stage 3)" : "wired");
+        << (g_lastRitesIsNoOp ? "none (D3-11: the recovery journal is on disk before each edit returns)"
+                              : "wired");
 }
 
 QString CrashHandler::crashDirectory()

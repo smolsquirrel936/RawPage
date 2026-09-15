@@ -37,6 +37,7 @@ const char* MessageBar::kindName(Kind kind) noexcept
     case Kind::SaveFailed: return "SaveFailed";
     case Kind::SaveAsRequired: return "SaveAsRequired";
     case Kind::RecoveryUnavailable: return "RecoveryUnavailable";
+    case Kind::Recovered: return "Recovered";
     }
     return "Unknown";
 }

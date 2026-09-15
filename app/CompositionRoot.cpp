@@ -304,7 +304,7 @@ Services CompositionRoot::services()
 {
     return Services{*settings_,  *recentFiles_,     *actions_, *keyBindings_,
                     *logBuffer_, *backend_,         *renderScheduler_, *renderCache_,
-                    *platform_};
+                    *platform_,  options_.recoveryRoot};
 }
 
 void CompositionRoot::applyPerformanceSettings()

@@ -27,6 +27,7 @@
 #include "app/CompositionRoot.h"
 #include "app/CrashHandler.h"
 #include "app/LogFile.h"
+#include "app/RecoveryPrompt.h"
 #include "app/SingleInstance.h"
 
 #include "core/Log.h"
@@ -231,8 +232,10 @@ int main(int argc, char** argv)
     const core::LogSink consoleSink = makeConsoleLogSink();
     core::setLogSink(consoleSink);
 
-    // Stage 3 replaces the default no-op with RecoveryJournal::flushAll(). Until then the hook
-    // is installed, invoked, and records that it is a no-op -- guide case A-66.
+    // NO LAST RITES, BY DECISION (Stage 3 D3-11, `Stage3-Mutation-Plan.md` §3). The hook was built at Stage 1
+    // to flush a buffered recovery journal from the crash path; the journal that shipped has no buffer --
+    // every operation is on disk before the edit returns -- so there is nothing to flush, and I/O inside a
+    // process that is already broken is a hazard rather than a safeguard. `CrashHandler.h` states it.
     app::CrashHandler::install();
 
     if (!dpiSet) {
@@ -489,6 +492,12 @@ int main(int argc, char** argv)
     }
 
     window.show();
+
+    // THE DOCUMENTS A CRASHED SESSION DID NOT SAVE (Stage 3 T11), offered before the command line's files are
+    // opened -- `app/RecoveryPrompt.h` says why that order. A secondary instance never reaches this line: it
+    // forwarded and exited above, and the primary's own open documents are locked and never offered.
+    app::RecoveryPrompt::checkAndOffer(window, root.services());
+
     window.openFiles(intent.files);
 
     return application.exec();

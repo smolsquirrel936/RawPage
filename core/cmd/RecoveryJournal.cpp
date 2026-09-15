@@ -170,14 +170,24 @@ RecoveryJournal::~RecoveryJournal()
 }
 
 std::unique_ptr<RecoveryJournal> RecoveryJournal::open(const QString& root, const QString& sourcePath, const DocumentId& id,
-                                                        platform::IDurableFiles* durableFiles, const QByteArray& seedLines)
+                                                        platform::IDurableFiles* durableFiles, const QByteArray& seedLines,
+                                                        bool untitled)
 {
+    // NEVER A NAME ALREADY ON DISK (Stage 3 T11): a reused process id with a matching counter would otherwise
+    // overwrite a crashed session's journal before anyone was asked about it. Bounded, so a directory full of
+    // hostile names cannot keep this loop going.
     static std::atomic<int> counter{0};
-    const QString directory = QDir(root).filePath(QStringLiteral("%1-%2-%3")
-                                                      .arg(id.key())
-                                                      .arg(QCoreApplication::applicationPid())
-                                                      .arg(counter.fetch_add(1)));
+    QString directory;
+    for (int attempt = 0; attempt < 1000; ++attempt) {
+        directory = QDir(root).filePath(QStringLiteral("%1-%2-%3")
+                                            .arg(id.key())
+                                            .arg(QCoreApplication::applicationPid())
+                                            .arg(counter.fetch_add(1)));
+        if (!QFileInfo::exists(directory))
+            break;
+    }
     std::unique_ptr<RecoveryJournal> journal(new RecoveryJournal(directory, durableFiles));
+    journal->untitled_ = untitled;
     if (durableFiles == nullptr) {
         journal->degrade("error.recovery.noDurableFiles", root);
         return journal;
@@ -220,13 +230,15 @@ void RecoveryJournal::degrade(const char* key, const QString& context)
 
 bool RecoveryJournal::writeMeta(const QString& sourcePath, const DocumentId& id)
 {
-    const QJsonObject meta{
+    QJsonObject meta{
         {QStringLiteral("format"), 1},
         {QStringLiteral("source"), sourcePath},
         {QStringLiteral("size"), static_cast<double>(id.size)},
         {QStringLiteral("modified"), static_cast<double>(id.modifiedMsecs)},
         {QStringLiteral("sha256"), QString::fromLatin1(id.contentHash.toHex())},
     };
+    if (untitled_)
+        meta.insert(QStringLiteral("untitled"), true);   // absent otherwise, so a titled meta is byte-identical to T9's
     return writeWholeFile(*durableFiles_, QDir(directory_).filePath(QStringLiteral("meta.json")), compact(meta));
 }
 
@@ -315,7 +327,9 @@ void RecoveryJournal::recordSaved(const Document& document, const QString& path)
     if (!isRecoverable())
         return;
     // meta.json first: if a kill lands between the two writes, the lines are replayed onto a file that
-    // matches -- and the edits they carry are already in it. See the header's window.
+    // matches -- and the edits they carry are already in it. See the header's window. A saved document has a
+    // file of its own, so it is no longer untitled.
+    untitled_ = false;
     if (!writeMeta(path, document.id())) {
         degrade("error.recovery.unavailable", directory_);
         return;
@@ -394,6 +408,7 @@ std::vector<RecoveryCandidate> RecoveryJournal::discover(const QString& root)
         candidate.meta.size = static_cast<qint64>(meta.value(QStringLiteral("size")).toDouble());
         candidate.meta.modifiedMsecs = static_cast<qint64>(meta.value(QStringLiteral("modified")).toDouble());
         candidate.meta.contentHash = QByteArray::fromHex(meta.value(QStringLiteral("sha256")).toString().toLatin1());
+        candidate.meta.untitled = meta.value(QStringLiteral("untitled")).toBool(false);
 
         const auto journalBytes = readCapped(dir.filePath(QStringLiteral("journal.ndjson")), kMaxJournalBytes, "error.recovery.tooLarge");
         if (!journalBytes) {

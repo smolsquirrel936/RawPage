@@ -6,11 +6,20 @@
 // -------------------------------------------------------------------------------------------
 //   <root>/<DocumentId key>-<pid>-<n>/
 //     lock            QLockFile: a live owner's directory is never offered for recovery
-//     meta.json       {"format":1,"source":…,"size":…,"modified":…,"sha256":…} -- replaced atomically
+//     meta.json       {"format":1,"source":…,"size":…,"modified":…,"sha256":…} -- replaced atomically,
+//                     plus "untitled":true while the document has no file of its own (Stage 3 T11)
 //     journal.ndjson  {"format":1} then one operation per line, each flushed to disk before the edit returns
 //
 // `<n>` makes the same file opened twice in one process two directories; `<pid>` does the same for two
-// processes (two instances with `general/singleInstance` off). The lines, per §5.5:
+// processes (two instances with `general/singleInstance` off). **A name already on disk is never reused**
+// (Stage 3 T11): Windows reuses process ids, and a new session whose pid and counter matched a crashed
+// one's would have overwritten the journal the recovery prompt had not yet been answered about.
+//
+// **UNTITLED** (Stage 3 T11). A document recovered *into a new file* -- its source had changed, D3-11 --
+// has bytes from a file that is not its own. Its meta says so, so a second crash offers it as a new file
+// again rather than as a replay under the source's path; its first successful save clears the flag.
+//
+// The lines, per §5.5:
 //
 //   {"op":"run","cmd":<serialized>}          {"op":"groupBegin","name":<catalog text>}
 //   {"op":"undo","name":<catalog text>,"cmds":[<serialized>…]}     {"op":"groupEnd"}
@@ -86,6 +95,7 @@ struct RecoveryMeta {
     qint64 size = -1;
     qint64 modifiedMsecs = 0;
     QByteArray contentHash;     // SHA-256, raw
+    bool untitled = false;      // the document had no file of its own: recover it as a new file, whatever the source
 };
 
 struct RecoveryCandidate {
@@ -110,9 +120,11 @@ class RecoveryJournal final : public OperationRecorder {
 public:
     // Creates `<root>/<key>-<pid>-<n>/`, takes its lock, and writes `meta.json` and the format line (and
     // `seedLines` after it -- a replayed journal's lines, so a crash after recovery loses nothing). Never
-    // fails: a journal that cannot write degrades to memory and says so.
+    // fails: a journal that cannot write degrades to memory and says so. `untitled`: the document's bytes
+    // came from `sourcePath` but it has no file of its own yet (see the header).
     static std::unique_ptr<RecoveryJournal> open(const QString& root, const QString& sourcePath, const DocumentId& id,
-                                                 platform::IDurableFiles* durableFiles, const QByteArray& seedLines = {});
+                                                 platform::IDurableFiles* durableFiles, const QByteArray& seedLines = {},
+                                                 bool untitled = false);
     ~RecoveryJournal() override;   // releases the lock and KEEPS the files: only `discard()` removes them
 
     RecoveryJournal(const RecoveryJournal&) = delete;
@@ -160,6 +172,7 @@ private:
 
     QString directory_;
     platform::IDurableFiles* durableFiles_;
+    bool untitled_ = false;
     std::unique_ptr<QLockFile> lock_;
     QFile journal_;
     QLatin1String unrecoverableKey_{""};

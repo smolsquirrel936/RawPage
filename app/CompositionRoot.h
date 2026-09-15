@@ -64,6 +64,12 @@ public:
         // empty `Platform` whose members are all null. Used by a headless or diagnostic run that
         // has no business creating a named mutex.
         bool createPlatform = true;
+
+        // Where recovery journals are written and discovered (Stage 3 T11). EMPTY MEANS THE DEFAULT,
+        // `core::RecoveryJournal::defaultRoot()` -- `%LOCALAPPDATA%\RawPage\recovery`. A case composing the
+        // product points it at a temporary directory, so running the suite neither writes into nor offers
+        // the recoveries of whoever runs it. `documents/recoveryDir` (Stage 3 T12) is the user's way to set it.
+        QString recoveryRoot;
     };
 
     explicit CompositionRoot(Options options);

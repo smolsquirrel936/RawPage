@@ -56,6 +56,12 @@ add_executable(rawpage_ui_tests
 
     # Stage 3 T10 -- undo, redo, rotate, save and close: the mutation UI (guide cases A-71 … A-81).
     tst_mutationcommands.cpp
+
+    # Stage 3 T11 -- the recovery prompt at launch (guide cases A-67's untitled half, A-82's prompt half).
+    # app/RecoveryPrompt.cpp is COMPILED IN rather than linked, as tests/unit compiles three app/ units:
+    # app/ is an executable, and this file names core/ and ui/ only, so the target's closure is unchanged.
+    tst_recoverydialog.cpp
+    ${CMAKE_SOURCE_DIR}/app/RecoveryPrompt.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

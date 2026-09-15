@@ -219,4 +219,29 @@ RAWPAGE_SHELL_STRING(MessageBarRecoveryUnavailable, "shell.messageBar.recoveryUn
 RAWPAGE_SHELL_STRING(SaveAsTitle,                   "shell.saveAs.title")
 RAWPAGE_SHELL_STRING(SaveAsFilter,                  "shell.saveAs.filter")
 
+// Stage 3 T11 -- the recovery prompt at launch, and the banner a recovered document carries. The plan's
+// `recovery` catalog family (`Stage3-Mutation-Plan.md` §4) is these `shell.recovery.*` rows, as T10 filed the
+// Rotate Pages dialog's under `shell.rotate.*`: `catalog::translate` looks a key up in the context its first
+// segment names (Stage 3 guide I-10), and every key this table declares is `shell`'s.
+RAWPAGE_SHELL_STRING(RecoveryTitle,                     "shell.recovery.title")
+RAWPAGE_SHELL_STRING(RecoveryIntro,                     "shell.recovery.intro")
+RAWPAGE_SHELL_STRING(RecoveryStateIntoFile,             "shell.recovery.stateIntoFile")
+RAWPAGE_SHELL_STRING(RecoveryStateSourceChanged,        "shell.recovery.stateSourceChanged")
+RAWPAGE_SHELL_STRING(RecoveryStateUntitled,             "shell.recovery.stateUntitled")
+RAWPAGE_SHELL_STRING(RecoveryStateSourceMissing,        "shell.recovery.stateSourceMissing")
+RAWPAGE_SHELL_STRING(RecoveryStateDamaged,              "shell.recovery.stateDamaged")
+RAWPAGE_SHELL_STRING(RecoveryRecover,                   "shell.recovery.recover")
+RAWPAGE_SHELL_STRING(RecoveryRecoverToNewFile,          "shell.recovery.recoverToNewFile")
+RAWPAGE_SHELL_STRING(RecoveryDiscard,                   "shell.recovery.discard")
+RAWPAGE_SHELL_STRING(RecoveryLater,                     "shell.recovery.later")
+RAWPAGE_SHELL_STRING(RecoveryContinue,                  "shell.recovery.continue")
+RAWPAGE_SHELL_STRING(RecoveryLaterAll,                  "shell.recovery.laterAll")
+RAWPAGE_SHELL_STRING(RecoverySuggestedName,             "shell.recovery.suggestedName")
+RAWPAGE_SHELL_STRING(MessageBarRecovered,               "shell.messageBar.recovered")
+RAWPAGE_SHELL_STRING(MessageBarRecoveredSourceChanged,  "shell.messageBar.recoveredSourceChanged")
+RAWPAGE_SHELL_STRING(MessageBarRecoveredUntitled,       "shell.messageBar.recoveredUntitled")
+RAWPAGE_SHELL_STRING(MessageBarRecoveredStopped,        "shell.messageBar.recoveredStopped")
+RAWPAGE_SHELL_STRING(MessageBarRecoveredIncomplete,     "shell.messageBar.recoveredIncomplete")
+RAWPAGE_SHELL_STRING(MessageBarRecoveryFailed,          "shell.messageBar.recoveryFailed")
+
 #undef RAWPAGE_SHELL_STRING

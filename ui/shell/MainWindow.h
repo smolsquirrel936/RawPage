@@ -43,6 +43,7 @@
 
 #include "app/Services.h"
 #include "core/backend.h"
+#include "core/cmd/RecoveryJournal.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 
@@ -124,6 +125,18 @@ public:
     core::Status closeAllDocuments();
 
     // ---------------------------------------------------------------------------------------
+    // Recovery -- Stage 3 T11 (D3-11). `app/RecoveryPrompt` discovers and asks; this acts on one answer.
+    // ---------------------------------------------------------------------------------------
+    // Opens the candidate's source through the backend and replays its journal into a new tab: under the
+    // source's own path when the source is still the file the changes were made to, and otherwise into an
+    // UNTITLED document whose source is never written. The tab says what happened in a `Recovered` banner --
+    // the steps restored, the step *k* that could not be and why, a last change that was still being made.
+    // Once the document holds its steps the crashed session's directory is removed; a refusal -- a damaged
+    // journal, a source that is gone, a journal that cannot be replayed at all, the same file already open
+    // here -- opens nothing and KEEPS it, so nothing is lost by a recovery that did not happen.
+    core::Result<DocumentWindow*> recoverDocument(const core::RecoveryCandidate& candidate);
+
+    // ---------------------------------------------------------------------------------------
     // Mutation and save -- Stage 3 T10.
     // ---------------------------------------------------------------------------------------
     // Runs a Rotate Pages choice through the document's journal: one command, or one group (D3-13).
@@ -136,7 +149,8 @@ public:
     core::Status saveDocumentAs(DocumentWindow* document);
 
     // WHERE A SAVE AS GOES, and the parameterized twin a headless case drives (convention 16). The
-    // answer is handed the document's current path; nothing means the user cancelled. `canAskSavePath()`
+    // answer is handed the path the dialog would propose -- the document's own, or for an untitled document
+    // `DocumentWindow::suggestedSavePath()`; nothing means the user cancelled. `canAskSavePath()`
     // is false offscreen unless an answer is installed, and `file.saveAs` is then disabled.
     using SaveAsAnswer = std::function<std::optional<QString>(const QString& currentPath)>;
     static void setSaveAsAnswerForTesting(SaveAsAnswer answer);

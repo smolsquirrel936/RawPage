@@ -628,8 +628,9 @@ core::Status MainWindow::closeDocument(int index, std::optional<CloseDisposition
                                    document->title()};
             break;
         }
-        index = indexOfPath(document->path());   // a Save As moved the path; the tab has not moved
-        if (index < 0) index = documents_->indexOf(document);
+        // THE TAB BY ITS WIDGET, never by its path: a Save As moved the path, and an untitled document has
+        // none -- two of them would both answer to the empty path, and the first would be closed (Stage 3 T11).
+        index = documents_->indexOf(document);
     }
 
     if (DocumentWindow* released = releaseDocument(index)) released->deleteLater();
@@ -739,11 +740,12 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
     if (!document) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
 
     std::optional<QString> target;
+    const QString proposed = document->suggestedSavePath();
     if (installedSaveAsAnswer()) {
-        target = installedSaveAsAnswer()(document->path());
+        target = installedSaveAsAnswer()(proposed);
     } else if (canPromptTheUser()) {
         const QString chosen = QFileDialog::getSaveFileName(this, catalog::translate(catalog::key::SaveAsTitle),
-                                                            document->path(),
+                                                            proposed,
                                                             catalog::translate(catalog::key::SaveAsFilter));
         if (!chosen.isEmpty()) target = chosen;
     }
@@ -764,9 +766,105 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
 
     document->clearCondition(static_cast<int>(MessageBar::Kind::SaveFailed));
     document->clearCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired));
+    document->clearCondition(static_cast<int>(MessageBar::Kind::Recovered));   // saved: nothing recovered is unsaved now
     if (const int index = documents_->indexOf(document); index >= 0) tabs_->setTabToolTip(index, document->path());
     updateDocumentChrome();
     return {};
+}
+
+core::Result<DocumentWindow*> MainWindow::recoverDocument(const core::RecoveryCandidate& candidate)
+{
+    const QString directory = candidate.directory;
+    const QFileInfo source(candidate.meta.sourcePath);
+
+    // A RECOVERY THAT DID NOT HAPPEN IS SAID, not only logged -- Stage 2 I-32's lesson, where a refused open
+    // produced no tab and no word. A window-scoped banner, one line per refusal, as `openFiles` reports; the
+    // crashed session's directory is kept, so the next launch can offer it again.
+    const auto refuse = [this, &source, &directory](const core::Error& error) -> core::Result<DocumentWindow*> {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "recovery: kept" << directory << "--" << error.messageKey << error.context;
+        if (messageBar_) {
+            const QString name = source.fileName().isEmpty() ? QFileInfo(directory).fileName() : source.fileName();
+            QString text = catalog::translate(catalog::key::MessageBarRecoveryFailed)
+                               .arg(name, catalog::translateError(error.messageKey, error.context));
+            if (messageBar_->isShowing(MessageBar::Kind::OpenFailed))
+                text = messageBar_->textFor(MessageBar::Kind::OpenFailed) + QLatin1Char('\n') + text;
+            messageBar_->showMessage({MessageBar::Kind::OpenFailed, text, {}, {}});
+        }
+        return error;
+    };
+
+    if (candidate.problemKey.size() != 0)
+        return refuse(core::Error{core::ErrorCode::ParseFailure, candidate.problemKey, QFileInfo(directory).fileName()});
+    if (!source.exists() || !source.isFile())
+        return refuse(core::Error{core::ErrorCode::NotFound, QLatin1String("error.recovery.sourceMissing"), source.fileName()});
+
+    // INTO THE FILE only when it is still the file the changes were made to AND the document was that file.
+    // Anything else is a new, untitled document, and the source is never written (D3-11).
+    const bool intoFile = candidate.sourceMatches && !candidate.meta.untitled;
+    const QString sourcePath = source.absoluteFilePath();
+    if (intoFile && indexOfPath(sourcePath) >= 0)
+        return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.recovery.alreadyOpen"), source.fileName()});
+
+    // No password prompt: a document this build could not edit never had a recovery journal, so an encrypted
+    // source means the file was replaced by one -- and the open refuses it by key, which is the right answer.
+    const core::Result<core::DocumentHandle> opened =
+        services_.backend.open(sourcePath, [](int) { return std::optional<QString>(); });
+    if (!opened)
+        return refuse(opened.error());
+
+    auto* document = new DocumentWindow(services_, opened.value(),
+                                        DocumentWindow::Recovery{directory, sourcePath, !intoFile});
+    if (!document->recoveryReport()) {
+        // THE JOURNAL COULD NOT BE REPLAYED AT ALL. The document is closed again -- a clean tab nobody asked for
+        // is not a recovery -- and the crashed session's directory stays for another attempt.
+        const core::Error failure = document->recoveryFailure().value_or(
+            core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.recovery.badJournal"), directory});
+        delete document;
+        return refuse(failure);
+    }
+    const core::ReplayReport report = *document->recoveryReport();
+
+    // THE BANNER, one sentence per fact, one per line -- a locale-neutral join, as `openFiles` joins refusals.
+    QStringList lines;
+    const QString sourceName = source.fileName();
+    lines << catalog::translate(catalog::key::MessageBarRecovered).arg(document->title(), QString::number(report.stepsApplied));
+    if (!intoFile) {
+        lines << catalog::translate(candidate.meta.untitled ? catalog::key::MessageBarRecoveredUntitled
+                                                            : catalog::key::MessageBarRecoveredSourceChanged)
+                     .arg(sourceName);
+    }
+    if (report.stoppedAtStep) {
+        lines << catalog::translate(catalog::key::MessageBarRecoveredStopped)
+                     .arg(QString::number(*report.stoppedAtStep),
+                          catalog::translateError(QString(report.stopKey), report.stopContext));
+    }
+    if (report.tornTrailingLine || report.droppedUnterminatedGroup)
+        lines << catalog::translate(catalog::key::MessageBarRecoveredIncomplete);
+    document->setCondition(static_cast<int>(MessageBar::Kind::Recovered), lines.join(QLatin1Char('\n')));
+
+    RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+        << "recovery:" << report.stepsApplied << "step(s) replayed from" << directory << "into"
+        << (intoFile ? sourcePath : QStringLiteral("an untitled document from ") + sourcePath)
+        << "-- stopped at step" << (report.stoppedAtStep ? *report.stoppedAtStep : 0) << report.stopKey
+        << (report.tornTrailingLine ? "; a torn last line ignored" : "")
+        << (report.droppedUnterminatedGroup ? "; an unfinished group dropped" : "");
+
+    adoptDocument(document);
+    if (intoFile) {
+        tabs_->setTabToolTip(documents_->indexOf(document), sourcePath);
+        services_.recentFiles.note(sourcePath);
+    }
+
+    // THE CRASHED SESSION'S DIRECTORY GOES once its steps are this document's: they are in the new journal,
+    // seeded from what replay applied -- or that journal has said, in its own banner, that it cannot keep them,
+    // which is the state of every document whose recovery is unavailable. Kept on a refusal, and said so.
+    if (const core::Status discarded = core::RecoveryJournal::discardDirectory(directory, services_.platform.durableFiles.get());
+        !discarded) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "recovery: the recovered session's directory was kept --"
+                                             << discarded.error().messageKey << directory;
+    }
+    updateDocumentChrome();
+    return document;
 }
 
 void MainWindow::activateDocument(int index)

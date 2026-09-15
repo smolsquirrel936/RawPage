@@ -29,6 +29,11 @@ add_executable(rawpage
     LogFile.h
     LogFile.cpp
 
+    # Stage 3 T11 -- at launch, the documents a crashed session did not save: discover, ask, and hand each
+    # answer to MainWindow. It names core/ and ui/ only, which is what lets tests/ui compile it in.
+    RecoveryPrompt.h
+    RecoveryPrompt.cpp
+
     # The application manifest, embedded as RT_MANIFEST 1. It opts the process into the Windows 10
     # segment heap -- Stage 2 issue I-35, and rawpage.manifest carries the measurement.
     rawpage.rc

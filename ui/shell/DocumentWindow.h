@@ -29,6 +29,18 @@
 // key -- and no recovery journal, because nothing it does needs recovering.
 //
 // ---------------------------------------------------------------------------------------------
+// A RECOVERED DOCUMENT (Stage 3 T11, D3-11).
+//
+// The second constructor is the first one plus a replay: a crashed session's journal is replayed into the
+// freshly hydrated journal BEFORE a recorder or a subscription is attached -- replay refuses a recording
+// journal, and a view laid out once per replayed step would be work nobody sees -- and the new recovery
+// journal is then SEEDED with the lines replay applied, so a second crash loses nothing the first did not.
+//
+// A document recovered into a NEW FILE (its source changed, or it never had a file of its own) is
+// UNTITLED: its bytes came from `sourcePath()`, its `path()` is empty, Save goes to Save As, and its
+// recovery meta says `untitled` until the first successful save gives it a file.
+//
+// ---------------------------------------------------------------------------------------------
 // IT OWNS THE HANDLE, AND CLOSING IT IS A THREE-STEP PROTOCOL RATHER THAN A CALL.
 //
 // A `DocumentHandle` is the backend's; this class is what closes it, because the tab is what the
@@ -51,18 +63,19 @@
 
 #include "app/Services.h"
 #include "core/backend.h"
+#include "core/cmd/RecoveryJournal.h"
 #include "core/doc/Revision.h"
 #include "core/doc/SaveCoordinator.h"
 
 #include <map>
 #include <memory>
+#include <optional>
 
 #include <QString>
 #include <QWidget>
 
 namespace rawpage::core {
 class CommandJournal;
-class RecoveryJournal;
 }
 
 namespace rawpage::ui {
@@ -82,10 +95,35 @@ public:
     // this class's own case.
     DocumentWindow(app::Services services, QString path, core::DocumentHandle handle,
                    QWidget* parent = nullptr);
+
+    // Stage 3 T11. `handle` is `sourcePath` opened by the backend; `directory` is the crashed session's
+    // recovery directory, which this class READS and never removes -- `MainWindow::recoverDocument` discards
+    // it once the document holds its steps.
+    struct Recovery {
+        QString directory;
+        QString sourcePath;
+        bool untitled = false;     // recover into a new, untitled document rather than into the source
+    };
+    DocumentWindow(app::Services services, core::DocumentHandle handle, const Recovery& recovery,
+                   QWidget* parent = nullptr);
     ~DocumentWindow() override;
 
-    // The absolute path this tab stands for. A Save As moves it.
+    // The absolute path this tab stands for. A Save As moves it. EMPTY for an untitled document.
     const QString& path() const { return path_; }
+
+    // The file the document's bytes came from: `path()`, except for an untitled recovered document, whose
+    // bytes are its source's and whose `path()` is empty (Stage 3 T11).
+    const QString& sourcePath() const { return sourcePath_; }
+    bool isUntitled() const noexcept { return path_.isEmpty() && !sourcePath_.isEmpty(); }
+
+    // Where a Save As proposes to write: the path, or for an untitled document "<source name> (recovered).pdf"
+    // beside its source -- never the source itself, which the user chose not to write into.
+    QString suggestedSavePath() const;
+
+    // What replaying the crashed session did (Stage 3 T11): a report -- steps applied, and where and why it
+    // stopped -- or the error that kept it from starting. Both empty for a document that was not recovered.
+    const std::optional<core::ReplayReport>& recoveryReport() const noexcept { return recoveryReport_; }
+    const std::optional<core::Error>& recoveryFailure() const noexcept { return recoveryFailure_; }
 
     core::DocumentHandle handle() const noexcept { return handle_; }
 
@@ -101,7 +139,8 @@ public:
     bool isEditable() const;
     bool isDirty() const;
 
-    // Through `SaveCoordinator` (D3-4). A Save As that succeeds makes `target` this tab's path.
+    // Through `SaveCoordinator` (D3-4). A Save As that succeeds makes `target` this tab's path. An untitled
+    // document's Save is `SaveAsRequired` by `error.save.untitled`, before the coordinator is asked anything.
     core::Result<core::SaveOutcome> save();
     core::Result<core::SaveOutcome> saveAs(const QString& target);
 
@@ -150,10 +189,12 @@ signals:
     void recoveryUnavailable(const QString& reason);
 
 private:
+    void build(const Recovery* recovery);
     void afterMutation();
 
     app::Services services_;
     QString path_;
+    QString sourcePath_;
     core::DocumentHandle handle_;
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;
@@ -171,6 +212,8 @@ private:
     std::unique_ptr<core::SaveCoordinator> coordinator_;
     bool recoveryReported_ = false;
     std::map<int, QString> conditions_;
+    std::optional<core::ReplayReport> recoveryReport_;
+    std::optional<core::Error> recoveryFailure_;
 };
 
 } // namespace rawpage::ui

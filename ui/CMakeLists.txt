@@ -120,6 +120,11 @@ add_library(rawpage_ui STATIC
     dialogs/RotatePagesDialog.cpp
     dialogs/UnsavedChangesDialog.h
     dialogs/UnsavedChangesDialog.cpp
+
+    # Stage 3 T11. The recovery prompt's question -- recover, discard or decide later, per document -- and
+    # nothing else: app/RecoveryPrompt discovers, and MainWindow::recoverDocument replays.
+    dialogs/RecoveryDialog.h
+    dialogs/RecoveryDialog.cpp
 )
 
 # ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before

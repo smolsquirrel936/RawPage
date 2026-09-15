@@ -1659,6 +1659,86 @@
         <translation>PDF 檔案 (*.pdf)</translation>
     </message>
     <message>
+        <source>shell.recovery.title</source>
+        <translation>復原文件</translation>
+    </message>
+    <message>
+        <source>shell.recovery.intro</source>
+        <translation>RawPage 關閉時未儲存這些文件的變更。請為每份文件選擇處理方式。</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateIntoFile</source>
+        <translation>檔案仍與先前相同，可將變更復原到其中。在您儲存之前，變更不會被儲存。</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateSourceChanged</source>
+        <translation>檔案之後已變更，因此變更只能復原到新的未命名文件中。檔案本身不會被更動。</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateUntitled</source>
+        <translation>這些變更所屬的文件尚未儲存為檔案，因此會復原到新的未命名文件中。</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateSourceMissing</source>
+        <translation>檔案已不存在，因此無法復原其變更。</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateDamaged</source>
+        <translation>復原資訊已損毀，無法復原：%1</translation>
+    </message>
+    <message>
+        <source>shell.recovery.recover</source>
+        <translation>復原</translation>
+    </message>
+    <message>
+        <source>shell.recovery.recoverToNewFile</source>
+        <translation>復原到新檔案</translation>
+    </message>
+    <message>
+        <source>shell.recovery.discard</source>
+        <translation>捨棄</translation>
+    </message>
+    <message>
+        <source>shell.recovery.later</source>
+        <translation>稍後決定</translation>
+    </message>
+    <message>
+        <source>shell.recovery.continue</source>
+        <translation>繼續</translation>
+    </message>
+    <message>
+        <source>shell.recovery.laterAll</source>
+        <translation>全部稍後決定</translation>
+    </message>
+    <message>
+        <source>shell.recovery.suggestedName</source>
+        <translation>%1（已復原）</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recovered</source>
+        <translation>RawPage 意外關閉後已復原 %1：已還原 %2 個復原步驟，尚未儲存。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredSourceChanged</source>
+        <translation>%1 之後已變更，因此變更已復原到這份未命名文件中，檔案本身未被更動。請使用「另存新檔」儲存。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredUntitled</source>
+        <translation>這些對 %1 副本的變更尚未儲存為檔案，因此已復原到這份未命名文件中。請使用「另存新檔」儲存。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredStopped</source>
+        <translation>無法復原第 %1 個步驟：%2此步驟及其後的步驟不在文件中。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredIncomplete</source>
+        <translation>RawPage 關閉時最後一項變更尚未完成，因此未被復原。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveryFailed</source>
+        <translation>無法復原 %1 的變更：%2</translation>
+    </message>
+    <message>
         <source>shell.messageBar.dismiss</source>
         <translation>關閉此訊息</translation>
     </message>
@@ -1858,6 +1938,14 @@
         <translation>無法套用一項復原的變更（%1）；已復原在此之前的變更。</translation>
     </message>
     <message>
+        <source>error.recovery.sourceMissing</source>
+        <translation>做出這些變更的檔案已不存在（%1）。</translation>
+    </message>
+    <message>
+        <source>error.recovery.alreadyOpen</source>
+        <translation>%1 已經開啟，因此不會再次開啟其復原的變更。</translation>
+    </message>
+    <message>
         <source>error.render.documentClosed</source>
         <translation>無法繪製該頁面：文件（%1）在準備期間已關閉。</translation>
     </message>
@@ -1992,6 +2080,10 @@
     <message>
         <source>error.save.repairedDocument</source>
         <translation>此檔案在開啟時需要修復，因此會另存為新檔案。</translation>
+    </message>
+    <message>
+        <source>error.save.untitled</source>
+        <translation>這份文件還沒有自己的檔案。</translation>
     </message>
     <message>
         <source>error.save.fileChanged</source>

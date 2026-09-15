@@ -461,7 +461,7 @@ jobs:
             echo "**\`RAWPAGE_HAS_WINDOWS_RUNNER\` is not \`true\`, so the \`windows\` job did not run.**"
             echo "Nothing below has been exercised by this run:"
             echo ""
-            echo "- \`ui.*\` — the widget suite (D1-4)"
+            echo "- \`ui.*\` — the widget suite (D1-4) AND \`ui.composition.*\`, the product's own composition (Stage 3 A-74)"
             echo "- \`platform.*\` — the Win32 layer"
             echo "- \`render.*\` — the engine suite AND \`render.golden.*\`, every golden baseline"
             echo "- \`bench.*\` — the A-85 / R-9 figure and BOTH A2 figures"

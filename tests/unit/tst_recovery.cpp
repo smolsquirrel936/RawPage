@@ -12,7 +12,8 @@
 //     `TerminateProcess` at random instants during commands and during saves -- are
 //     `tests/platform/tst_recoverykill.cpp` (A-65's child half, A-68, A-69);
 //   * durability: `tests/unit/FakeDurableFiles.h` flushes nothing;
-//   * `ui/`: offering, replaying into an untitled document, and the report dialog are T11's.
+//   * `ui/`: offering, replaying into an untitled document, and the report are T11's --
+//     `tests/ui/tst_recoverydialog.cpp`, and the product's composition `tests/composition/`.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -538,4 +539,86 @@ TEST_CASE("recovery refuses to replay into a journal that is itself recording", 
     REQUIRE_FALSE(report);
     CHECK(keyOf(report.error().messageKey) == "error.recovery.replayWhileRecording");
     session->journal->setRecorder(nullptr);
+}
+
+// ==========================================================================================
+// Stage 3 T11 -- an untitled document's meta, and a directory name never reused
+// ==========================================================================================
+
+TEST_CASE("recovery keeps an untitled document untitled in its meta until it is saved", "[recovery]")
+{
+    // A document recovered INTO A NEW FILE has its source's bytes and no file of its own. Crashing again must
+    // offer it as a new file again -- never as a replay under the source's path, where a Save would write
+    // into a file the user chose not to touch.
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    QTemporaryDir root;
+    REQUIRE(root.isValid());
+    auto recovery = RecoveryJournal::open(root.path(), session->path, session->journal->document().id(), &session->durableFiles,
+                                          {}, /*untitled=*/true);
+    session->journal->setRecorder(recovery.get());
+    const QString directory = recovery->directory();
+    REQUIRE(session->rotate(0));
+
+    SECTION("dropped unsaved, it is discovered untitled with its source still matching")
+    {
+        session->journal->setRecorder(nullptr);
+        recovery.reset();
+        const auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().sourceMatches);        // the source is untouched ...
+        CHECK(candidates.front().meta.untitled);        // ... and the document is still not that file
+    }
+    SECTION("saved as a file of its own, it is no longer untitled")
+    {
+        const QString copy = session->directory.filePath("named.pdf");
+        auto saved = session->coordinator->saveAs(*session->journal, copy);
+        REQUIRE(saved);
+        REQUIRE(saved.value().kind == core::SaveOutcome::Kind::Saved);
+        REQUIRE(session->rotate(1));
+        session->journal->setRecorder(nullptr);
+        recovery.reset();
+        const auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().directory == QDir(directory).absolutePath());
+        CHECK(candidates.front().meta.sourcePath == copy);
+        CHECK_FALSE(candidates.front().meta.untitled);
+        CHECK(candidates.front().sourceMatches);
+    }
+    SECTION("a titled journal's meta carries no untitled key at all")
+    {
+        auto titled = RecoveryJournal::open(root.path(), session->path, session->journal->document().id(), &session->durableFiles);
+        const QJsonObject meta = QJsonDocument::fromJson(tests::readAllBytes(QDir(titled->directory()).filePath("meta.json"))).object();
+        CHECK_FALSE(meta.contains("untitled"));
+        CHECK(meta.keys().size() == 5);
+    }
+}
+
+TEST_CASE("recovery never opens a journal in a directory that is already on disk", "[recovery]")
+{
+    // Windows reuses process ids. A session whose pid and counter matched a crashed session's would have
+    // written over the journal the recovery prompt had not been answered about yet. The next name this
+    // process would choose is planted first -- as a crashed session's directory, with its meta and a line.
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    QTemporaryDir root;
+    REQUIRE(root.isValid());
+    const core::DocumentId id = session->journal->document().id();
+    auto first = RecoveryJournal::open(root.path(), session->path, id, &session->durableFiles);
+    const QString firstName = QFileInfo(first->directory()).fileName();
+    const int counter = firstName.section('-', -1).toInt();
+    const QString planted = plantJournal(root, firstName.section('-', 0, -2) + "-" + QString::number(counter + 1),
+                                         "{\"format\":1}\n" + rotateLine(0) + "\n");
+    {
+        QFile meta(QDir(planted).filePath("meta.json"));
+        REQUIRE(meta.open(QIODevice::WriteOnly));
+        meta.write(R"({"format":1,"source":"elsewhere.pdf","size":1,"modified":0,"sha256":"00"})");
+    }
+    const QByteArray plantedBytes = tests::readAllBytes(QDir(planted).filePath("journal.ndjson"));
+
+    auto second = RecoveryJournal::open(root.path(), session->path, id, &session->durableFiles);
+    REQUIRE(second->isRecoverable());
+    CHECK(QDir(second->directory()).absolutePath() != QDir(planted).absolutePath());
+    CHECK(tests::readAllBytes(QDir(planted).filePath("journal.ndjson")) == plantedBytes);
+    CHECK(tests::readAllBytes(QDir(planted).filePath("meta.json")).contains("elsewhere.pdf"));
 }

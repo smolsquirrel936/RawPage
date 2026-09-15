@@ -31,12 +31,18 @@
 
 namespace rawpage::app {
 
-// Called on the crash path BEFORE the dump is written, so that whatever must reach disk to
-// make recovery possible gets its chance while the process still exists.
+// Called on the crash path BEFORE the dump is written.
 //
-// Stage 3 wires RecoveryJournal::flushAll() here. Until then install() supplies a no-op, and
-// says so in the log and in the dump's sidecar -- an unwired hook that is silent is
-// indistinguishable from one that ran and did nothing (testing guide A-66).
+// NOTHING IS PASSED HERE, AND THAT IS STAGE 3'S DECISION, NOT A GAP (D3-11, `Stage3-Mutation-Plan.md` §3).
+// The hook was built at Stage 1 so a buffered recovery journal could be flushed while the process
+// still existed. The journal that shipped at Stage 3 T9 has no buffer to flush: every operation is
+// written and synced to disk before the edit that made it returns, so a crash -- or a TerminateProcess,
+// which runs no handler at all and is what the kill cases use -- loses at most the edit still in
+// progress. The recovery claim rests on that flush, not on this hook, and doing file I/O inside a process
+// whose heap may be corrupt would add a hazard to the one path that must not fail. So `install()` is
+// called with nothing, and the log line and the dump's sidecar SAY so rather than staying silent -- a
+// silent unwired hook is indistinguishable from one that ran and did nothing (Stage 1 guide A-66). The
+// hook stays for a last rite that is genuinely I/O-free, should one ever be needed.
 using LastRites = std::function<void()>;
 
 class CrashHandler {

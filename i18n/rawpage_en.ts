@@ -1659,6 +1659,86 @@
         <translation>PDF files (*.pdf)</translation>
     </message>
     <message>
+        <source>shell.recovery.title</source>
+        <translation>Recover Documents</translation>
+    </message>
+    <message>
+        <source>shell.recovery.intro</source>
+        <translation>RawPage closed without saving the changes to these documents. Choose what to do with each one.</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateIntoFile</source>
+        <translation>The file is as it was, so its changes can be recovered into it. They will not be saved until you save.</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateSourceChanged</source>
+        <translation>The file has changed since, so its changes can only be recovered into a new, untitled document. The file itself is not touched.</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateUntitled</source>
+        <translation>These changes were in a document that had not been saved as a file yet, so they are recovered into a new, untitled document.</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateSourceMissing</source>
+        <translation>The file is no longer there, so its changes cannot be recovered.</translation>
+    </message>
+    <message>
+        <source>shell.recovery.stateDamaged</source>
+        <translation>The recovery information is damaged and cannot be recovered: %1</translation>
+    </message>
+    <message>
+        <source>shell.recovery.recover</source>
+        <translation>Recover</translation>
+    </message>
+    <message>
+        <source>shell.recovery.recoverToNewFile</source>
+        <translation>Recover to a new file</translation>
+    </message>
+    <message>
+        <source>shell.recovery.discard</source>
+        <translation>Discard</translation>
+    </message>
+    <message>
+        <source>shell.recovery.later</source>
+        <translation>Decide later</translation>
+    </message>
+    <message>
+        <source>shell.recovery.continue</source>
+        <translation>Continue</translation>
+    </message>
+    <message>
+        <source>shell.recovery.laterAll</source>
+        <translation>Decide Later</translation>
+    </message>
+    <message>
+        <source>shell.recovery.suggestedName</source>
+        <translation>%1 (recovered)</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recovered</source>
+        <translation>%1 was recovered after RawPage closed unexpectedly: %2 undo steps restored, not yet saved.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredSourceChanged</source>
+        <translation>%1 had changed since, so the changes were recovered into this untitled document and the file was not touched. Save it with Save As.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredUntitled</source>
+        <translation>These changes to a copy of %1 had not been saved as a file, so they were recovered into this untitled document. Save it with Save As.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredStopped</source>
+        <translation>Step %1 could not be recovered: %2 It and the steps after it are not in the document.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveredIncomplete</source>
+        <translation>The last change was still being made when RawPage closed, and was not recovered.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveryFailed</source>
+        <translation>The changes to %1 could not be recovered: %2</translation>
+    </message>
+    <message>
         <source>shell.messageBar.dismiss</source>
         <translation>Dismiss this message</translation>
     </message>
@@ -1858,6 +1938,14 @@
         <translation>A recovered change could not be applied (%1); the changes before it were recovered.</translation>
     </message>
     <message>
+        <source>error.recovery.sourceMissing</source>
+        <translation>The file these changes were made to is no longer there (%1).</translation>
+    </message>
+    <message>
+        <source>error.recovery.alreadyOpen</source>
+        <translation>%1 is already open, so its recovered changes were not opened again.</translation>
+    </message>
+    <message>
         <source>error.render.documentClosed</source>
         <translation>That page could not be drawn: the document (%1) was closed while it was being prepared.</translation>
     </message>
@@ -1992,6 +2080,10 @@
     <message>
         <source>error.save.repairedDocument</source>
         <translation>This file had to be repaired when it was opened, so it is saved as a new file.</translation>
+    </message>
+    <message>
+        <source>error.save.untitled</source>
+        <translation>This document has no file of its own yet.</translation>
     </message>
     <message>
         <source>error.save.fileChanged</source>

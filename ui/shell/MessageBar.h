@@ -79,6 +79,7 @@ public:
         SaveFailed,           // a Save or Save As failed, with the key-resolved reason
         SaveAsRequired,       // the explanation before a forced Save-As: repaired, or changed on disk
         RecoveryUnavailable,  // edits are kept in memory only -- shown ONCE per document (A-80)
+        Recovered,            // S3 T11 -- recovered after a crash: unsaved, perhaps untitled, perhaps stopped at step k
     };
 
     static const char* kindName(Kind kind) noexcept;

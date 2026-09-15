@@ -12,6 +12,7 @@
 #include "ui/shell/Catalog.h"
 #include "ui/viewer/PageView.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QVBoxLayout>
 
@@ -31,6 +32,21 @@ constexpr int kDrainBudgetMs = 2000;
 DocumentWindow::DocumentWindow(app::Services services, QString path,
                                core::DocumentHandle handle, QWidget* parent)
     : QWidget(parent), services_(services), path_(std::move(path)), handle_(handle)
+{
+    sourcePath_ = path_;
+    build(nullptr);
+}
+
+DocumentWindow::DocumentWindow(app::Services services, core::DocumentHandle handle, const Recovery& recovery,
+                               QWidget* parent)
+    : QWidget(parent), services_(services), handle_(handle)
+{
+    sourcePath_ = recovery.sourcePath;
+    path_ = recovery.untitled ? QString() : recovery.sourcePath;
+    build(&recovery);
+}
+
+void DocumentWindow::build(const Recovery* recovery)
 {
     setObjectName(QStringLiteral("documentWindow"));
 
@@ -54,11 +70,26 @@ DocumentWindow::DocumentWindow(app::Services services, QString path,
         if (document.hydrate(services_.backend, handle_)) {
             journal_ = std::make_unique<core::CommandJournal>(std::move(document), services_.backend.mutationSink(handle_));
             coordinator_ = std::make_unique<core::SaveCoordinator>(services_.backend, services_.platform.durableFiles.get());
+
+            // THE CRASHED SESSION, REPLAYED FIRST (Stage 3 T11): no recorder yet, because replay refuses a
+            // recording journal and the replayed lines are handed to the new recovery journal whole; no
+            // subscription yet, because nothing is on screen to update.
+            QByteArray seedLines;
+            if (recovery) {
+                core::Result<core::ReplayReport> replayed = core::RecoveryJournal::replay(recovery->directory, *journal_);
+                if (replayed) {
+                    recoveryReport_ = replayed.value();
+                    seedLines = recoveryReport_->appliedLines;
+                } else {
+                    recoveryFailure_ = replayed.error();
+                }
+            }
+
             if (isEditable()) {
                 const QString root = services_.recoveryRoot.isEmpty() ? core::RecoveryJournal::defaultRoot()
                                                                       : services_.recoveryRoot;
-                recovery_ = core::RecoveryJournal::open(root, path_, journal_->document().id(),
-                                                        services_.platform.durableFiles.get());
+                recovery_ = core::RecoveryJournal::open(root, sourcePath_, journal_->document().id(),
+                                                        services_.platform.durableFiles.get(), seedLines, isUntitled());
                 journal_->setRecorder(recovery_.get());
             }
             journal_->subscribeMutated([this](const core::Scope& scope) {
@@ -186,6 +217,14 @@ core::Result<core::SaveOutcome> DocumentWindow::save()
 {
     if (!journal_ || !coordinator_)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path_};
+    if (isUntitled()) {
+        // NO FILE OF ITS OWN, SO NOTHING TO SAVE IN PLACE (Stage 3 T11). Its source is not its file: writing
+        // there would be the very write "recover to a new file" promised not to make.
+        core::SaveOutcome outcome;
+        outcome.kind = core::SaveOutcome::Kind::SaveAsRequired;
+        outcome.reasonKey = QLatin1String("error.save.untitled");
+        return outcome;
+    }
     return coordinator_->save(*journal_, path_);
 }
 
@@ -194,9 +233,20 @@ core::Result<core::SaveOutcome> DocumentWindow::saveAs(const QString& target)
     if (!journal_ || !coordinator_)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), target};
     auto result = coordinator_->saveAs(*journal_, target);
-    if (result && result.value().kind == core::SaveOutcome::Kind::Saved)
+    if (result && result.value().kind == core::SaveOutcome::Kind::Saved) {
         path_ = QFileInfo(target).absoluteFilePath();
+        sourcePath_ = path_;                     // an untitled document now has a file of its own
+    }
     return result;
+}
+
+QString DocumentWindow::suggestedSavePath() const
+{
+    if (!isUntitled())
+        return path_;
+    const QFileInfo source(sourcePath_);
+    const QString name = catalog::translate(catalog::key::RecoverySuggestedName).arg(source.completeBaseName());
+    return source.dir().filePath(name + QLatin1String(".pdf"));
 }
 
 void DocumentWindow::discardRecovery()

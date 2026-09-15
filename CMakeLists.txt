@@ -208,6 +208,11 @@ if(NOT RAWPAGE_GATES_ONLY)
         # it. Windows only, because it links rawpage_ui; and a bench under ASan would be a
         # measurement of ASan.
         add_subdirectory(tests/bench)
+
+        # The product's own composition (Stage 3 T11): CompositionRoot with the real engine and OS bundle and a
+        # MainWindow on it, in one binary -- which every target above exists to keep apart, so it is a sixth.
+        # Its cases sit inside the `ui.` prefix. See tests/composition/CMakeLists.txt.
+        add_subdirectory(tests/composition)
     endif()
 endif()
 
