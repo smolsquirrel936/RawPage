@@ -364,6 +364,18 @@ void RecoveryJournal::setPhaseObserverForTesting(std::function<void(Phase)> newO
     observer() = std::move(newObserver);
 }
 
+QString RecoveryJournal::resolveRoot(const QString& configured, const QString& fallback)
+{
+    const QString trimmed = configured.trimmed();
+    if (!trimmed.isEmpty()) {
+        if (QDir::isAbsolutePath(trimmed))
+            return QDir::cleanPath(trimmed);
+        RAWPAGE_LOG_WARNING(LogSubsystem::Save)
+            << "recovery: documents/recoveryDir is not an absolute path and is ignored --" << trimmed;
+    }
+    return fallback.isEmpty() ? defaultRoot() : fallback;
+}
+
 QString RecoveryJournal::defaultRoot()
 {
     // GenericDataLocation is %LOCALAPPDATA% on Windows, whatever the application and organization names

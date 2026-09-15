@@ -156,8 +156,15 @@ public:
     // Removes a discovered directory (the user discarded a recovery). Refuses one whose lock is live.
     static Status discardDirectory(const QString& directory, platform::IDurableFiles* durableFiles);
 
-    // `%LOCALAPPDATA%\RawPage\recovery` on Windows; `documents/recoveryDir` overrides it at T12.
+    // `%LOCALAPPDATA%\RawPage\recovery` on Windows.
     static QString defaultRoot();
+
+    // THE ROOT A JOURNAL IS WRITTEN UNDER AND DISCOVERED IN (Stage 3 T12), in order: `configured` --
+    // `documents/recoveryDir` -- when it is an ABSOLUTE path; else `fallback` -- `app::Services::recoveryRoot`,
+    // which a test composition points at a scratch directory -- when it is not empty; else `defaultRoot()`.
+    // A relative `configured` would resolve against whatever directory the process started in, so it is
+    // ignored and the log says so. Callers read the setting; this file does not name `core/settings/`.
+    static QString resolveRoot(const QString& configured, const QString& fallback);
 
     // The kill harness's view of where a write is (guide cases A-68, A-69). Process-wide; empty in the
     // product. The observer may sleep, to hold a phase open long enough for a kill to land in it.

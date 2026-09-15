@@ -718,13 +718,23 @@ core::Status MainWindow::saveDocument(DocumentWindow* document)
     if (saved.value().kind == core::SaveOutcome::Kind::SaveAsRequired) {
         // THE EXPLANATION FIRST, THEN THE QUESTION (guide case A-77): a Save that opens a Save As with no
         // word of why reads as the product ignoring the command.
-        const QString why = catalog::translate(QString(saved.value().reasonKey));
-        const QString text = catalog::translate(catalog::key::MessageBarSaveAsRequired).arg(document->title(), why);
-        document->setCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired), text);
-        if (document == currentDocument() && messageBar_)
-            messageBar_->showMessage({MessageBar::Kind::SaveAsRequired, text, {}, {}});
+        //
+        // `documents/warnOnRepairedSave` off (Stage 3 T12, D3-6) skips the explanation for a REPAIRED document
+        // and for nothing else -- and skips only the explanation: the Save As below runs either way, because
+        // the setting may never turn the forcing off. A file changed on disk or an untitled document still
+        // says why.
+        const bool repaired = QLatin1String(saved.value().reasonKey) == QLatin1String("error.save.repairedDocument");
+        const bool explain = !repaired || services_.settings.get(core::keys::documents::warnOnRepairedSave);
+        if (explain) {
+            const QString why = catalog::translate(QString(saved.value().reasonKey));
+            const QString text = catalog::translate(catalog::key::MessageBarSaveAsRequired).arg(document->title(), why);
+            document->setCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired), text);
+            if (document == currentDocument() && messageBar_)
+                messageBar_->showMessage({MessageBar::Kind::SaveAsRequired, text, {}, {}});
+        }
         RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "save: Save As required for" << document->path() << "--"
-                                          << saved.value().reasonKey;
+                                          << saved.value().reasonKey
+                                          << (explain ? "" : "(explanation off: documents/warnOnRepairedSave)");
         return saveDocumentAs(document);
     }
 

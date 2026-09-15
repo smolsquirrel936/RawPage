@@ -24,7 +24,9 @@
 // modal in the first place.
 //
 // ---------------------------------------------------------------------------------------------
-// THREE PAGES, AND WHICH THREE.
+// WHICH PAGES SHIP. Three at Stage 1, the argument below; Page Display and Performance at Stage 2 T15;
+// Documents at Stage 3 T12, when its two keys arrived beside the two Stage 1 had declared there with no
+// page. Six of 26. The rule each addition followed is the last paragraph: a page arrives with keys.
 //
 // `Features.md` §9.1 lists 26 preference groups and `Stage1-AppShell-Plan.md` §11 says three ship
 // in Stage 1. The plan's T14 row names two of them -- General and Shortcuts -- and Logging is the
@@ -33,7 +35,7 @@
 // no surface since T5. A generated page costs a row in `shippedPages()`, so the choice was between
 // three pages and three settings nobody could change.
 //
-// The other 23 groups are declared in `SettingsGroup` and have no page. That is not a gap: a page
+// The other groups are declared in `SettingsGroup` and have no page. That is not a gap: a page
 // for a group with no keys is an empty box that says the product has a preference it does not.
 
 #ifndef RAWPAGE_UI_DIALOGS_PREFERENCESDIALOG_H

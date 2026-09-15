@@ -1,6 +1,7 @@
 #include "app/RecoveryPrompt.h"
 
 #include "core/Log.h"
+#include "core/settings/Settings.h"
 #include "platform/platform.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
@@ -36,7 +37,10 @@ ui::RecoveryDialog::Offer RecoveryPrompt::offerFor(const core::RecoveryCandidate
 RecoveryPrompt::Outcome RecoveryPrompt::checkAndOffer(ui::MainWindow& window, const Services& services)
 {
     Outcome outcome;
-    const QString root = services.recoveryRoot.isEmpty() ? core::RecoveryJournal::defaultRoot() : services.recoveryRoot;
+    // Where `documents/recoveryDir` says (Stage 3 T12), as `DocumentWindow` writes -- and only there: journals
+    // left under a directory the setting no longer names are not offered until it names it again.
+    const QString root = core::RecoveryJournal::resolveRoot(services.settings.get(core::keys::documents::recoveryDir),
+                                                            services.recoveryRoot);
     platform::IDurableFiles* durableFiles = services.platform.durableFiles.get();
 
     std::vector<core::RecoveryCandidate> candidates;

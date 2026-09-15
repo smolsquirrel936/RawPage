@@ -2612,6 +2612,10 @@
         <translation>一般</translation>
     </message>
     <message>
+        <source>prefs.group.documents</source>
+        <translation>文件</translation>
+    </message>
+    <message>
         <source>prefs.group.pageDisplay</source>
         <translation>頁面顯示</translation>
     </message>
@@ -2770,6 +2774,14 @@
     <message>
         <source>prefs.setting.documents.recentPinned</source>
         <translation>釘選的文件</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.recoveryDir</source>
+        <translation>復原資料夾（留空則使用預設位置）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.warnOnRepairedSave</source>
+        <translation>說明修復過的文件為何要另存為新檔</translation>
     </message>
     <message>
         <source>prefs.choice.logLevel.error</source>

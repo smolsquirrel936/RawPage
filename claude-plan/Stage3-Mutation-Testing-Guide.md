@@ -6,7 +6,7 @@
 > **before any Stage 3 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-09-14; T1's to T11's cases run.** **83 automated** (A-01 … A-83)
+> **Status:** 🟡 **Written 2026-09-14; T1's to T12's cases run.** **83 automated** (A-01 … A-83)
 > and **8 manual** (M-01 … M-08). **Run and passed: A-14 … A-18** (§5.3, T1) and **A-19 … A-27,
 > and A-28's automated half** (§5.4, T2), all 2026-09-14, each ticked with the evidence it was ticked
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
@@ -15,7 +15,7 @@
 > verdict, graded from its readings, is **`go`**. No
 > other manual case has been walked. **Eleven issues**: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
-> at T3, **I-08** at T6's first CI run, **I-09** at T8, **I-10** at T10, **I-11** at T11 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — T8's — A-50 … A-61 — T9's — A-62 … A-70 — and T10's — A-71 … A-73 and A-75 … A-81, with A-77's settings half waiting for T12 — run 2026-09-15; T11's — A-67's untitled half, A-74, and A-82's prompt and crash-handler half — run 2026-09-16.** No S1 or
+> at T3, **I-08** at T6's first CI run, **I-09** at T8, **I-10** at T10, **I-11** at T11 (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — T8's — A-50 … A-61 — T9's — A-62 … A-70 — and T10's — A-71 … A-73 and A-75 … A-81, with A-77's settings half waiting for T12 — run 2026-09-15; T11's — A-67's untitled half, A-74, and A-82's prompt and crash-handler half — run 2026-09-16; T12's — A-77's setting half and A-82's keys and page — run 2026-09-16.** No S1 or
 > S2 is open.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -180,14 +180,14 @@ claim the single-instance bus.
 
 ### Settings keys that affect these cases
 
-**Defaults are owned by `core/settings/SettingsKeys.def`** and are quoted here only once T12 has
-written them. Until then the column says what the plan intends; **re-read the `.def` rather than this
-table** — Stage 2's I-26 was this table disagreeing with that file in four rows.
+**Defaults are owned by `core/settings/SettingsKeys.def`**, and the two Stage 3 rows below were copied
+from it at T12 (2026-09-16); **re-read the `.def` rather than this table** — Stage 2's I-26 was this
+table disagreeing with that file in four rows.
 
 | Key | Default | Affects |
 |---|---|---|
-| `documents/recoveryDir` | *planned:* empty, meaning `%LOCALAPPDATA%\RawPage\recovery` | A-66, A-82, M-05 |
-| `documents/warnOnRepairedSave` | *planned:* on | A-77, M-06 |
+| `documents/recoveryDir` | empty, meaning `%LOCALAPPDATA%\RawPage\recovery`; only an absolute path counts, a relative one is ignored and logged | A-66, A-82, M-05 |
+| `documents/warnOnRepairedSave` | on (`true`) | A-77, M-06 |
 | `general/singleInstance` | on (`SettingsKeys.def`) | A-65 — two instances, one file |
 | `pageDisplay/layoutMode` | `SingleContinuous` (`SettingsKeys.def`) | A-75, M-01 — a rotated page changes the positions of the pages after it |
 
@@ -669,7 +669,7 @@ green its cases did not record.
 **Expect** The tab and window titles mark a dirty document and unmark it after save **and** after undoing to the saved position. Save and Undo are disabled with their `unavailableKey` text. Undo's label is the command's `command.*` entry, in both locales. **If it fails** S3; S2 for a wrong dirty marker.
 
 **A-77 · A repaired document's Save goes to Save-As — and the setting cannot stop it**
-🟡 **2026-09-15, T10 — the first half.** *"saving a repaired document explains first and then asks for a new file"*: `FakeBackend` reports a `Recovered` repair, so `requiresSaveAs()`; a rotation, then `Ctrl+S` — when the Save As twin is asked, the `SaveAsRequired` banner is already showing and the backend has written nothing; the answer's path becomes the document's, clean, and the original's bytes are unchanged. **Control C5** (no explanation) went red. **The second half — `documents/warnOnRepairedSave` off — waits for T12**, which declares the key.
+✅ **2026-09-15, T10 — the first half; 2026-09-16, T12 — the control.** *"saving a repaired document explains first and then asks for a new file"*: `FakeBackend` reports a `Recovered` repair, so `requiresSaveAs()`; a rotation, then `Ctrl+S` — when the Save As twin is asked, the `SaveAsRequired` banner is already showing and the backend has written nothing; the answer's path becomes the document's, clean, and the original's bytes are unchanged. **Control C5** (no explanation) went red. **The second half, T12** — *"with warnOnRepairedSave off a repaired document still goes to Save As with no explanation"*: the key set off before the window opens, a rotation, `Ctrl+S` — the Save As twin is asked **once**, with **no** `SaveAsRequired` banner showing and none kept as a document condition, and the backend has written nothing; the answer's path becomes the document's, clean, the original's bytes unchanged. Its section *"and it silences the repaired reason only"*: the saved copy then rewritten on disk, a second Save still shows the explanation. **Controls, each red:** the explanation shown whatever the key says; the key off also skipping Save As (the case went red at *asked == 1* and every assertion after it); the key silencing every reason rather than the repaired one.
 **Steps** Open a `requiresSaveAs()` file through `FakeBackend`; rotate; `Ctrl+S`. Repeat with `documents/warnOnRepairedSave` off.
 **Expect** First: the explanation, then the Save-As twin. Second — **the control** — no explanation, and **still** Save-As; no in-place save is attempted. **If it fails** S1 for an in-place save.
 
@@ -696,7 +696,7 @@ green its cases did not record.
 ### 5.12 Settings, recovery prompt, fuzzing, CI, and everything before
 
 **A-82 · The two keys, the Documents page, the prompt, and the crash handler's sentences**
-🟡 **2026-09-16, T11 — the prompt and the sentences; the two keys and the Documents page are T12's.** **The dialog:** *"the recovery dialog describes each journal and answers one disposition per row"* builds the widget over five offers — Recover labelled *Recover* for an unchanged source and *Recover to a new file* for a changed or untitled one; disabled, with Decide later checked, for a missing source and a damaged journal, whose row carries the reason; Recover checked by default elsewhere — and drives it to *Discard, Later, Recover, Later, Later*, a disabled Recover checked by force still answering Later; `canAsk()` is false offscreen and `ask()` returns at once. **Replaying through it** (`tst_recoverydialog`, seven launch cases over `FakeBackend`): M-04's steps 1–3 recovered with **the model hash, history size, position and undo name equal to the crashed session's**, the dirty title, a banner reading *"…: 4 undo steps restored…"*, the old directory gone and the new journal holding all eight lines, two undos returning it clean, and a third window offered nothing while the second lives; Discard removes the directory and the next launch is offered nothing; the report of step *k* (A-67 above); with nobody to ask two journals kept and nothing opened while an empty journal is removed without asking, and a damaged journal answered Recover kept; the file already open refuses the recovery with a window banner resolving `error.recovery.alreadyOpen`, the directory kept; two untitled documents close the one asked about. **The sentences:** `rawpage.exe --dump-ui-strings` (offscreen) logs *"CrashHandler installed; buildId … ; lastRites none (D3-11: the recovery journal is on disk before each edit returns)"*, and `app/CrashHandler.h` states D3-11's decision above `LastRites`. **Where A-82 differs from its Expect:** the dialog does not itself *name step k* — it collects a disposition and closes before any replay, so the step is named by the recovered document's `Recovered` banner (`Stage3-Mutation-Plan.md` T11 row in `Implementation-Plan.md` §4).
+✅ **2026-09-16, T11 — the prompt and the sentences; T12 — the two keys and the Documents page.** **The keys** (`tests/unit/tst_stage3settings.cpp`): the Documents group is exactly *recentCount, recentPinned, recoveryDir, warnOnRepairedSave*, with `documents/saveMode` and `autosaveIntervalSec` declared nowhere; defaults empty and `true`; both round-trip through a real INI — a folder with backslashes, a space, accented letters and CJK, and `false` — and back to their defaults; `RecoveryJournal::resolveRoot` takes an absolute setting (cleaned), then the composition's root, then the default, and ignores two relative values with one warning each. **The page and the redirect** (`tests/ui/tst_recoverydialog.cpp`, *"the Documents page's recovery folder redirects the next journal and the prompt looks there"*): `showPreferences()` → the Documents page lists those four rows, `recoveryDir` a line edit and `warnOnRepairedSave` a check box; the line edit given a folder and `editingFinished` writes the key; a document opened afterwards journals under that folder while one opened before keeps its own; after a crash the prompt finds **one** journal — the new folder's — and leaves the old one on disk; a relative folder sends the next journal back under the composition's root. **`PreferencesDialog::shippedPages()` is six** (`tst_viewsettings`, whose Stage 2 count of five was corrected in place). **Controls, each red:** `DocumentWindow` ignoring the key; the prompt ignoring it; a relative folder accepted; the Documents page not shipped. **The dialog:** *"the recovery dialog describes each journal and answers one disposition per row"* builds the widget over five offers — Recover labelled *Recover* for an unchanged source and *Recover to a new file* for a changed or untitled one; disabled, with Decide later checked, for a missing source and a damaged journal, whose row carries the reason; Recover checked by default elsewhere — and drives it to *Discard, Later, Recover, Later, Later*, a disabled Recover checked by force still answering Later; `canAsk()` is false offscreen and `ask()` returns at once. **Replaying through it** (`tst_recoverydialog`, seven launch cases over `FakeBackend`): M-04's steps 1–3 recovered with **the model hash, history size, position and undo name equal to the crashed session's**, the dirty title, a banner reading *"…: 4 undo steps restored…"*, the old directory gone and the new journal holding all eight lines, two undos returning it clean, and a third window offered nothing while the second lives; Discard removes the directory and the next launch is offered nothing; the report of step *k* (A-67 above); with nobody to ask two journals kept and nothing opened while an empty journal is removed without asking, and a damaged journal answered Recover kept; the file already open refuses the recovery with a window banner resolving `error.recovery.alreadyOpen`, the directory kept; two untitled documents close the one asked about. **The sentences:** `rawpage.exe --dump-ui-strings` (offscreen) logs *"CrashHandler installed; buildId … ; lastRites none (D3-11: the recovery journal is on disk before each edit returns)"*, and `app/CrashHandler.h` states D3-11's decision above `LastRites`. **Where A-82 differs from its Expect:** the dialog does not itself *name step k* — it collects a disposition and closes before any replay, so the step is named by the recovered document's `Recovered` banner (`Stage3-Mutation-Plan.md` T11 row in `Implementation-Plan.md` §4).
 **Steps** Round-trip both keys; set `documents/recoveryDir` and run a command; open Preferences; drive `RecoveryDialog` over a discovered journal (offscreen); read the startup log.
 **Expect** Both keys round-trip; a new journal lands under the configured directory; the Documents page shows both keys beside whatever else `SettingsKeys.def` declares in that group (**six** pages of 26, counted from `PreferencesDialog::shippedPages()`); the dialog lists the journal, replays it, and on a failure names step *k*; the log no longer says *"RecoveryJournal arrives at Stage 3"*, and `app/CrashHandler.h` states D3-11's decision. **If it fails** S2; S3 for the sentences.
 
@@ -715,7 +715,7 @@ that could have been automated is a defect in this guide — say so and I will m
 
 **Walk M-03's probe walk as soon as T2 asks for it** — it is the go/no-go, and every other case waits on
 the stage surviving it. The rest are walkable from T11 (M-04 needs the recovery prompt, built 2026-09-16) and T12 (M-05
-and M-06 need the settings).
+and M-06 need the settings, built 2026-09-16).
 
 Two things about the state you will be walking, so a planned absence is not reported as a defect:
 
@@ -822,7 +822,8 @@ Two things about the state you will be walking, so a planned absence is not repo
 **M-05 · A recovery directory you cannot write** ☐
 - **Goal** `Tech-Stack-Plan.md` §5.5's fallback, as a person sees it.
 - **Pre** Create `C:\ro-recovery`; deny yourself *Write* on it (Properties → Security). Set
-  **Preferences → Documents → recovery directory** to it.
+  **Preferences → Documents → Recovery folder** to `C:\ro-recovery` and press `Tab` or `Enter` — the field
+  applies when editing finishes.
 - **Steps** Open any corpus file; rotate five times; save; rotate again; kill the process; relaunch.
 - **Expect** **One** banner, at the first rotation, saying recovery is unavailable; no further banner;
   editing and saving work. After the kill, **nothing is offered** — which is what the banner said.
@@ -834,7 +835,8 @@ Two things about the state you will be walking, so a planned absence is not repo
 - **Steps**
   1. Rotate page 1; `Ctrl+S`. Read the explanation; choose a new file name.
   2. Reopen the new file in RawPage. Open it in Acrobat.
-  3. Set **Preferences → Documents → warn on repaired save** off; repeat step 1 on a fresh copy.
+  3. Clear **Preferences → Documents → Explain why a repaired document is saved as a new file**; repeat
+     step 1 on a fresh copy.
 - **Expect** Step 1: an explanation, then a Save-As dialog — **never** a silent in-place save; the
   original copy is unchanged. Step 2: **no repair banner** in RawPage; Acrobat opens it without asking
   to save on close. Step 3: **no explanation — and still Save-As.**

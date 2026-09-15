@@ -28,8 +28,11 @@
 #include "core/doc/DocumentId.h"
 #include "core/doc/PageTree.h"
 #include "tests/ui/ShellFixture.h"
+#include "core/settings/Settings.h"
+#include "ui/dialogs/PreferencesDialog.h"
 #include "ui/dialogs/RecoveryDialog.h"
 #include "ui/dialogs/RotatePagesDialog.h"
+#include "ui/dialogs/SettingsPage.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentTabBar.h"
@@ -37,6 +40,7 @@
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/MessageBar.h"
 
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -44,6 +48,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QLayout>
+#include <QLineEdit>
 #include <QRadioButton>
 
 #include <memory>
@@ -617,6 +622,71 @@ TEST_CASE("a recovery that cannot happen says so in a banner and keeps the journ
                                                                   QStringLiteral("edit.pdf")));
     CHECK(text(second->messageBar()->textFor(MessageBar::Kind::OpenFailed)) == text(expected));
     CHECK_FALSE(expected.contains(QStringLiteral("error.recovery")));   // resolved, not the key
+
+    second.reset();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+}
+
+// =============================================================================================
+// Stage 3 T12 -- documents/recoveryDir, set on the Documents page, is where the next journal goes and where
+// the prompt looks (guide case A-82's key half)
+// =============================================================================================
+
+TEST_CASE("the Documents page's recovery folder redirects the next journal and the prompt looks there", "[recoverydialog][preferences]")
+{
+    Answers answers;
+    Fixture fixture;
+    const QString before = fixture.writePdf(QStringLiteral("before.pdf"));
+    const QString after = fixture.writePdf(QStringLiteral("after.pdf"), QByteArray("%PDF-1.7\n% opened after\n"));
+    const QString configured = QDir(fixture.directory.path()).filePath(QStringLiteral("configured recovery"));
+
+    auto first = launch(fixture);
+    ui::DocumentWindow* openedBefore = openIn(*first, before);
+    rotateCurrentPage(fixture, 90);
+    const QString beforeDirectory = openedBefore->recovery()->directory();
+    CHECK(QFileInfo(beforeDirectory).absolutePath() == QFileInfo(fixture.recoveryRoot).absoluteFilePath());
+
+    // THROUGH THE PAGE, not `Settings::set`: the Documents page is generated (convention 17), and its text
+    // editor writes on `editingFinished`.
+    ui::PreferencesDialog* preferences = first->showPreferences();
+    REQUIRE(preferences != nullptr);
+    preferences->showPage(core::SettingsGroup::Documents);
+    ui::SettingsPage* page = preferences->settingsPage(core::SettingsGroup::Documents);
+    REQUIRE(page != nullptr);
+    CHECK(page->rowPaths() == QStringList{QStringLiteral("documents/recentCount"), QStringLiteral("documents/recentPinned"),
+                                          QStringLiteral("documents/recoveryDir"), QStringLiteral("documents/warnOnRepairedSave")});
+    auto* folder = qobject_cast<QLineEdit*>(page->editorFor(QStringLiteral("documents/recoveryDir")));
+    REQUIRE(folder != nullptr);
+    CHECK(qobject_cast<QCheckBox*>(page->editorFor(QStringLiteral("documents/warnOnRepairedSave"))) != nullptr);
+    folder->setText(configured);
+    emit folder->editingFinished();
+    REQUIRE(fixture.settings.get(core::keys::documents::recoveryDir) == configured);
+
+    // A document opened AFTER the change journals under the configured folder; the one opened before keeps its own.
+    ui::DocumentWindow* openedAfter = openIn(*first, after);
+    rotateCurrentPage(fixture, 90);
+    const QString afterDirectory = openedAfter->recovery()->directory();
+    CHECK(QFileInfo(afterDirectory).absolutePath() == QFileInfo(configured).absoluteFilePath());
+    CHECK(openedBefore->recovery()->directory() == beforeDirectory);
+    CHECK(QDir(beforeDirectory).exists());
+
+    // Crashed: the prompt looks where the setting says -- so it offers the document journalled there, and not
+    // the one left under the directory the setting no longer names (stated in SettingsKeys.def).
+    crash(first);
+    auto second = launch(fixture);
+    Recorder recorder(RecoveryDisposition::Recover);
+    const app::RecoveryPrompt::Outcome outcome = app::RecoveryPrompt::checkAndOffer(*second, fixture.services());
+    CHECK(outcome.found == 1);
+    REQUIRE(recorder.shown.size() == 1);
+    REQUIRE(recorder.shown.front().size() == 1);
+    CHECK(text(recorder.shown.front().front().documentName) == "after.pdf");
+    CHECK(QDir(beforeDirectory).exists());
+
+    // A RELATIVE folder is ignored: the next journal goes back under the composition's root.
+    fixture.settings.set(core::keys::documents::recoveryDir, QStringLiteral("relative\recovery"));
+    ui::DocumentWindow* relative = openIn(*second, before);
+    rotateCurrentPage(fixture, 90);
+    CHECK(QFileInfo(relative->recovery()->directory()).absolutePath() == QFileInfo(fixture.recoveryRoot).absoluteFilePath());
 
     second.reset();
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);

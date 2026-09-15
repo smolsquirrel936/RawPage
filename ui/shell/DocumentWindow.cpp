@@ -86,8 +86,10 @@ void DocumentWindow::build(const Recovery* recovery)
             }
 
             if (isEditable()) {
-                const QString root = services_.recoveryRoot.isEmpty() ? core::RecoveryJournal::defaultRoot()
-                                                                      : services_.recoveryRoot;
+                // `documents/recoveryDir` first (Stage 3 T12), read when the document opens: an open document
+                // keeps the journal it has when the setting changes.
+                const QString root = core::RecoveryJournal::resolveRoot(
+                    services_.settings.get(core::keys::documents::recoveryDir), services_.recoveryRoot);
                 recovery_ = core::RecoveryJournal::open(root, sourcePath_, journal_->document().id(),
                                                         services_.platform.durableFiles.get(), seedLines, isUntitled());
                 journal_->setRecorder(recovery_.get());

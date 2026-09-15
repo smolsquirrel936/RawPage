@@ -69,6 +69,7 @@ add_executable(rawpage_tests
     tst_savecoordinator.cpp       # Stage 3 T8  -- guide case A-50, and A-60's coordinator half
     tst_mutationrender.cpp        # Stage 3 T8  -- guide case A-59: a journal rotation reaching the scheduler and cache
     tst_recovery.cpp              # Stage 3 T9  -- guide cases A-62 ... A-67's in-process halves and A-70 (D3-11)
+    tst_stage3settings.cpp        # Stage 3 T12 -- guide case A-82's key half: documents/recoveryDir and warnOnRepairedSave (D3-9)
 
     # Stage 3 T8 -- THE ROUND TRIP, a source directory compiled in rather than a sixth target (D3-18):
     # it links exactly what this target may, and so it runs under portable-asan too.

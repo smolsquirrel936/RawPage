@@ -2612,6 +2612,10 @@
         <translation>General</translation>
     </message>
     <message>
+        <source>prefs.group.documents</source>
+        <translation>Documents</translation>
+    </message>
+    <message>
         <source>prefs.group.pageDisplay</source>
         <translation>Page Display</translation>
     </message>
@@ -2770,6 +2774,14 @@
     <message>
         <source>prefs.setting.documents.recentPinned</source>
         <translation>Pinned documents</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.recoveryDir</source>
+        <translation>Recovery folder (empty uses the default)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.warnOnRepairedSave</source>
+        <translation>Explain why a repaired document is saved as a new file</translation>
     </message>
     <message>
         <source>prefs.choice.logLevel.error</source>

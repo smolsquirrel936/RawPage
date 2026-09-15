@@ -230,6 +230,33 @@ RAWPAGE_SETTING(performance, throttleOnBattery, bool,
                 "performance/throttleOnBattery", true, PerformanceAndCache, true)
 
 // =============================================================================================
+// The two Stage 3 keys -- Stage3-Mutation-Plan.md D3-9, which moved the plan's other two away:
+// `documents/saveMode` to Stage 8 (it needs FullWriter) and `documents/autosaveIntervalSec` to Stage 13
+// (a journal flushed per command has no interval to configure). Both rows are in the `Documents` group,
+// which is what makes the Documents Preferences page ship at T12 (convention 17) -- beside the two
+// Stage 1 rows already declared there.
+// =============================================================================================
+
+// --- Documents -------------------------------------------------------------------------------
+// Where recovery journals are written and discovered. EMPTY MEANS THE DEFAULT,
+// `%LOCALAPPDATA%\RawPage\recovery` (`core::RecoveryJournal::defaultRoot()`), for `language/uiLocale`'s reason: no directory is
+// named by the empty string. Only an ABSOLUTE path counts -- a relative one would resolve against
+// whatever directory the process started in -- so a relative value is ignored and logged
+// (`RecoveryJournal::resolveRoot`). It takes effect for documents opened AFTER the change; an open
+// document keeps the journal it has. Journals already under the old directory are not moved and are not
+// offered from the new one -- the prompt looks where this key says.
+RAWPAGE_SETTING(documents, recoveryDir, QString,
+                "documents/recoveryDir", "", Documents, true)
+
+// Whether a repaired document's forced Save-As says WHY first (D3-6). ON, because a Save that opens a
+// Save As with no word of explanation reads as the product ignoring the command. OFF skips only the
+// explanation: **it can never turn the forcing off** -- a setting that did would make the standing rule
+// *"a repaired document's first save is forced to Save-As"* a preference. Only the repaired reason is
+// gated; a file changed on disk, or an untitled document, still explains itself.
+RAWPAGE_SETTING(documents, warnOnRepairedSave, bool,
+                "documents/warnOnRepairedSave", true, Documents, true)
+
+// =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================
 

@@ -101,17 +101,18 @@ TEST_CASE("the two new Preferences pages are built from the table, not laid out 
     ui::PreferencesDialog dialog(fixture.services());
     driveLayout(&dialog);
 
-    // FIVE OF 26 GROUPS NOW SHIP. The count is asserted as well as the members, because "two new
-    // pages appear" is a claim about the list and a member check stays green when a sixth is added
-    // by accident.
+    // SIX OF 26 GROUPS SHIP -- five when this case was written at Stage 2 T15, six since Stage 3 T12 added
+    // Documents (D3-9); corrected in place rather than loosened. The count is asserted as well as the
+    // members, because "two new pages appear" is a claim about the list and a member check stays green
+    // when another is added by accident.
     const std::vector<SettingsGroup>& pages = ui::PreferencesDialog::shippedPages();
-    CHECK(pages.size() == 5);
+    CHECK(pages.size() == 6);
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::PageDisplay) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::PerformanceAndCache) != pages.end());
 
     QListWidget* list = dialog.findChild<QListWidget*>(QStringLiteral("preferencesPageList"));
     REQUIRE(list != nullptr);
-    CHECK(list->count() == 5);
+    CHECK(list->count() == 6);
 
     // ONE EDITOR PER DECLARED KEY, and the count comes from the TABLE rather than from a literal --
     // a case that said "11" would be a second copy of the row count and would go stale the day a

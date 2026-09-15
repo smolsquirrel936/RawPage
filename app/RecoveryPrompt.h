@@ -19,8 +19,8 @@
 // that is also a recovery candidate would otherwise open clean first, and the recovery would then be refused
 // as already open. Recovered first, the later open finds the tab and focuses it.
 //
-// WHAT IS NOT HERE: which directory is the root. `app::Services::recoveryRoot` carries it -- empty meaning
-// `RecoveryJournal::defaultRoot()` -- and `documents/recoveryDir` (Stage 3 T12) is what sets it.
+// WHERE IT LOOKS: `RecoveryJournal::resolveRoot` over `documents/recoveryDir` (Stage 3 T12) and
+// `app::Services::recoveryRoot` -- the same answer `ui/shell/DocumentWindow` writes under.
 
 #ifndef RAWPAGE_APP_RECOVERYPROMPT_H
 #define RAWPAGE_APP_RECOVERYPROMPT_H

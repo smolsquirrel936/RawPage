@@ -33,14 +33,19 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
 {
     // THE ONE PLACE A PAGE IS ADDED. Everything else -- the list entry, the stacked widget, the
     // rows on the page -- follows from this list and from `SettingsKeys.def`. See the header for
-    // why these three and not the other 23.
+    // why these six and not the other 20.
     static const std::vector<SettingsGroup> pages{
         SettingsGroup::General,
+
+        // S3 T12. `documents/recoveryDir` and `documents/warnOnRepairedSave` (D3-9) beside Stage 1's
+        // `recentCount` and `recentPinned`, which had been declared in this group with no page since
+        // Stage 1. Placed second, where `SettingsGroup` and Features.md §9.1 put it. Six of 26 groups ship.
+        SettingsGroup::Documents,
 
         // S2 T15. Two rows in this list and sixteen in `SettingsKeys.def` are the WHOLE of the
         // Preferences work for them -- `SettingsPage` builds one typed editor per declared key
         // (convention 17), so there is no widget code per setting and no second list saying which
-        // key belongs to which page. Five of 26 groups now ship.
+        // key belongs to which page. Five of 26 groups shipped then.
         SettingsGroup::PageDisplay,
         SettingsGroup::PerformanceAndCache,
 

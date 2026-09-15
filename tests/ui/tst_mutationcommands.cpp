@@ -1,6 +1,6 @@
 // Stage 3 T10 -- the mutation UI: five commands, two dialogs, the dirty marker, the save banners and every
 // way a dirty document can close. Guide cases A-71 … A-73 and A-75 … A-81 (`Stage3-Mutation-Testing-Guide.md`
-// §5.11); A-74 is T11's, because it needs the recovery prompt.
+// §5.11); A-74 is T11's, because it needs the recovery prompt. A-77's setting half arrived at T12.
 //
 // ---------------------------------------------------------------------------------------------
 // WHAT THIS SUITE CANNOT SEE, NAMED HERE (convention 19).
@@ -524,8 +524,64 @@ TEST_CASE("saving a repaired document explains first and then asks for a new fil
     REQUIRE(after.open(QIODevice::ReadOnly));
     CHECK(after.readAll() == originalBytes);   // the repaired original is untouched
 
-    // THE SETTING HALF IS NOT HERE. `documents/warnOnRepairedSave` is declared at Stage 3 T12, and A-77's
-    // control -- the setting off, no explanation, and still Save-As -- is added to this case then.
+    // THE SETTING HALF is the next case (Stage 3 T12): `documents/warnOnRepairedSave` off.
+}
+
+TEST_CASE("with warnOnRepairedSave off a repaired document still goes to Save As with no explanation", "[mutationcommands]")
+{
+    // A-77's CONTROL (guide rule 5): a setting that suppresses a warning must not suppress what the warning is
+    // about. D3-6 -- it skips the explanation and can never turn the forcing off.
+    Answers answers;
+    Editor editor([](Fixture& fixture) {
+        fixture.backend.repairs.add(core::RepairEntry{core::RepairKind::ObjectOffsetWrong,
+                                                      core::RepairSeverity::Recovered, 12, 4096, 0});
+        fixture.settings.set(core::keys::documents::warnOnRepairedSave, false);
+    });
+    REQUIRE(editor.document->journal()->document().repairReport().requiresSaveAs());
+    const QByteArray originalBytes = [&] {
+        QFile file(editor.path);
+        REQUIRE(file.open(QIODevice::ReadOnly));
+        return file.readAll();
+    }();
+    editor.rotateCurrentPage(90);
+
+    const QString target = QDir(editor.fixture.directory.path()).filePath(QStringLiteral("repaired-quiet.pdf"));
+    int asked = 0;
+    bool explained = true;
+    bool conditionKept = true;
+    int writesWhenAsked = -1;
+    ui::MainWindow::setSaveAsAnswerForTesting([&](const QString&) -> std::optional<QString> {
+        ++asked;
+        explained = editor.window->messageBar()->isShowing(MessageBar::Kind::SaveAsRequired);
+        conditionKept = editor.document->conditions().count(static_cast<int>(MessageBar::Kind::SaveAsRequired)) != 0;
+        writesWhenAsked = editor.fixture.backend.writes;
+        return target;
+    });
+
+    CHECK(press(editor.view, Qt::Key_S, Qt::ControlModifier));
+
+    CHECK(asked == 1);                         // STILL Save As ...
+    CHECK_FALSE(explained);                    // ... with no explanation shown ...
+    CHECK_FALSE(conditionKept);                // ... or kept for the next tab switch to show
+    CHECK(writesWhenAsked == 0);               // no in-place save was attempted first
+    CHECK(text(editor.document->path()) == text(QFileInfo(target).absoluteFilePath()));
+    CHECK_FALSE(editor.document->isDirty());
+    QFile after(editor.path);
+    REQUIRE(after.open(QIODevice::ReadOnly));
+    CHECK(after.readAll() == originalBytes);   // the repaired original is untouched
+
+    SECTION("and it silences the repaired reason only: a file changed on disk still says why")
+    {
+        editor.rotateCurrentPage(90);
+        editor.fixture.writePdf(QStringLiteral("repaired-quiet.pdf"), QByteArray("%PDF-1.7\n% somebody else saved this\n"));
+        bool changedExplained = false;
+        ui::MainWindow::setSaveAsAnswerForTesting([&](const QString&) -> std::optional<QString> {
+            changedExplained = editor.window->messageBar()->isShowing(MessageBar::Kind::SaveAsRequired);
+            return std::nullopt;
+        });
+        CHECK_FALSE(editor.window->saveDocument(editor.document));
+        CHECK(changedExplained);
+    }
 }
 
 // =============================================================================================
