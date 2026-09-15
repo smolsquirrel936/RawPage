@@ -23,8 +23,11 @@
 #include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/RevisionWriter.h"
+#include "pdf/cos/XrefRepair.h"
 
 #include <QFile>
+#include <QFileInfo>
 
 #include <map>
 #include <memory>
@@ -71,10 +74,14 @@ public:
             facts.push_back(core::CosPageFacts{walked.effectiveRotate(), box.size});
         }
         entry->tree = core::PageTree(std::move(pages));
+        // The first-party reader's repair report, as the shipped backend's PdfiumDocument produces it
+        // (Stage 3 T8): a repaired file's first save must be a Save-As here too.
+        if (auto opened = pdf::cos::openWithRepair(std::string_view(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size()))))
+            entry->repair = opened.value().report;
         entry->permissions = core::Permissions::assess(
             entry->tree, planted_.value_or(core::CosReading::Read), facts);
         planted_.reset();
-        entry->id = core::DocumentId::of(path, 1'700'000'000'000LL, entry->bytes);
+        entry->id = core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);   // the real time: SaveCoordinator compares it (T8)
         if (entry->permissions.canEditPages())
             entry->sink = std::move(sink).value();
 
@@ -109,6 +116,40 @@ public:
         return entry ? &entry->id : nullptr;
     }
 
+    // Stage 3 T8: the same `pdf/ops/RevisionWriter` the shipped backend calls, so a round trip through
+    // this backend exercises the real write, re-read and adopt -- everything but the engine.
+    core::Status writeRevision(core::DocumentHandle handle, const QString& temporaryPath) override
+    {
+        if (failWrite_)
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.writeFailed"), temporaryPath};
+        auto* entry = findMutable(handle);
+        if (entry == nullptr || !entry->sink)
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
+        return pdf::ops::RevisionWriter::write(*entry->sink, entry->repair.requiresSaveAs(), temporaryPath);
+    }
+
+    core::Status adoptRevision(core::DocumentHandle handle, const QString& path) override
+    {
+        if (failAdopt_)
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.adoptFailed"), path};
+        auto* entry = findMutable(handle);
+        if (entry == nullptr || !entry->sink)
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
+        auto adopted = pdf::ops::RevisionWriter::adopt(*entry->sink, path);
+        if (!adopted)
+            return adopted.error();
+        entry->bytes = std::move(adopted.value().bytes);
+        entry->repair = adopted.value().report;
+        entry->id = core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);
+        ++adoptions_;
+        return core::Status{};
+    }
+
+    // Test seams for `tst_savecoordinator`: make the next write or adopt fail, as a backend can.
+    void failNextWrites(bool fail) { failWrite_ = fail; }
+    void failNextAdopts(bool fail) { failAdopt_ = fail; }
+    int adoptions() const { return adoptions_; }
+
     core::MutationSink* mutationSink(core::DocumentHandle handle) override
     {
         return sinkFor(handle);
@@ -135,6 +176,11 @@ private:
         core::DocumentId id;
         std::unique_ptr<pdf::ops::MutationSinkImpl> sink;
     };
+    Entry* findMutable(core::DocumentHandle handle)
+    {
+        const auto found = entries_.find(handle.id);
+        return found == entries_.end() ? nullptr : found->second.get();
+    }
     const Entry* find(core::DocumentHandle handle) const
     {
         const auto found = entries_.find(handle.id);
@@ -143,6 +189,9 @@ private:
     std::map<std::uint64_t, std::unique_ptr<Entry>> entries_;
     std::uint64_t next_ = 1;
     std::optional<core::CosReading> planted_;
+    bool failWrite_ = false;
+    bool failAdopt_ = false;
+    int adoptions_ = 0;
 };
 
 } // namespace rawpage::tests

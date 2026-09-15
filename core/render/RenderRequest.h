@@ -133,6 +133,16 @@ struct RenderRequest {
     // did not have.
     PageRotation viewRotation = PageRotation::None;
 
+    // THE UNSAVED PAGE ROTATION, as a DELTA (Stage 3 T8, decision D3-15): the model's rotation of this
+    // page minus the rotation the engine loaded. The engine is never mutated and never reloaded, so
+    // a rotation the user has not saved can only reach the pixels through the request -- and it is a
+    // DELTA, not the page's rotation, because PDFium already applies the `/Rotate` it read. After a
+    // save the engine still holds the bytes it loaded, so the delta stays relative to those.
+    //
+    // Part of the KEY, for `viewRotation`'s reason: the same tile at a different delta is different
+    // pixels, and a tile cached before a rotation must not be served after it.
+    PageRotation pageRotationDelta = PageRotation::None;
+
     // Layer visibility, as the set of optional-content group numbers that are OFF. Empty is the
     // ordinary case and hashes to nothing; Stage 4 populates it. It is part of the key because two
     // renders of one tile with different layers hidden are different pixels.
@@ -152,7 +162,8 @@ struct RenderRequest {
     {
         return a.document == b.document && a.pageIndex == b.pageIndex && a.tile == b.tile
                && a.deviceScale == b.deviceScale && a.revision == b.revision && a.flags == b.flags
-               && a.viewRotation == b.viewRotation && a.hiddenLayers == b.hiddenLayers;
+               && a.viewRotation == b.viewRotation && a.pageRotationDelta == b.pageRotationDelta
+               && a.hiddenLayers == b.hiddenLayers;
     }
     friend bool operator!=(const RenderRequest& a, const RenderRequest& b) noexcept
     {
@@ -191,6 +202,8 @@ struct std::hash<rawpage::core::render::RenderRequest> {
                           static_cast<std::uint32_t>(request.flags)));
         seed = mix(seed, static_cast<std::size_t>(
                           static_cast<int>(request.viewRotation)));
+        seed = mix(seed, static_cast<std::size_t>(
+                          static_cast<int>(request.pageRotationDelta)));
         for (const long long layer : request.hiddenLayers)
             seed = mix(seed, std::hash<long long>{}(layer));
         return seed;

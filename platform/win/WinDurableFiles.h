@@ -39,7 +39,8 @@
 // (also measured), which is `error.file.inUse`.
 //
 // FOUR `layer-lint` WAIVERS, one per call spelling: `CreateFileW` (the flush opens for write),
-// `ReplaceFileW`, `MoveFileExW` (both moves go through one helper) and `DeleteFileW` (the backup).
+// `ReplaceFileW`, `MoveFileExW` (both moves go through one helper) and `DeleteFileW` (one helper, for
+// the backup and for `removeFile`, added at T8).
 // Run `layer-lint --explain` for the census.
 //
 // WHAT THE TESTS CANNOT REACH (`tests/platform/tst_durablefiles.cpp` says so at its cases):
@@ -58,6 +59,8 @@ class WinDurableFiles final : public IDurableFiles {
 public:
     Status syncToDisk(const QString& path) override;
     Status replaceFile(const QString& target, const QString& replacement) override;
+    Status removeFile(const QString& path) override;
+    bool processExists(qint64 processId) const override;
 };
 
 } // namespace rawpage::platform::win

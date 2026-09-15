@@ -66,6 +66,12 @@ add_executable(rawpage_tests
     tst_journal.cpp               # Stage 3 T5  -- guide cases A-38 ... A-41 (D3-10)
     tst_command_serialize.cpp     # Stage 3 T5  -- guide cases A-42 and A-45 (D3-12)
     tst_reversibility.cpp         # Stage 3 T5  -- guide cases A-43 and A-44, the property and its control
+    tst_savecoordinator.cpp       # Stage 3 T8  -- guide case A-50, and A-60's coordinator half
+    tst_mutationrender.cpp        # Stage 3 T8  -- guide case A-59: a journal rotation reaching the scheduler and cache
+
+    # Stage 3 T8 -- THE ROUND TRIP, a source directory compiled in rather than a sixth target (D3-18):
+    # it links exactly what this target may, and so it runs under portable-asan too.
+    ../roundtrip/tst_roundtrip.cpp   # guide cases A-51 ... A-56
 
     # THE PARSER ITSELF, compiled in rather than linked from the executable.
     #

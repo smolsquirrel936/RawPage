@@ -45,7 +45,10 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
     // The VIEW rotation is ours and is passed to `FPDF_RenderPageBitmap` below as its `rotate`
     // argument, which is additive -- so here it only swaps the extent we ask for.
     const core::PdfSize pageSize = page->displaySize();
-    const core::PdfSize display = core::swapsAxes(request.viewRotation)
+    // Stage 3 T8 (D3-15): an unsaved page rotation arrives as a DELTA on top of the `/Rotate` PDFium
+    // already applies, and composes with the view rotation exactly as a second view turn would.
+    const core::PageRotation drawn = core::combine(request.viewRotation, request.pageRotationDelta);
+    const core::PdfSize display = core::swapsAxes(drawn)
                                       ? core::PdfSize{pageSize.height, pageSize.width}
                                       : pageSize;
     const int pageWidth =
@@ -135,12 +138,12 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         // the origin is NEGATIVE: that is how `FPDF_RenderPageBitmap` renders a region into a
         // smaller bitmap. Passing the tile's size as the page size scales the entire page into the
         // tile instead, putting a thumbnail of the page in every tile.
-        // `rotate` IS THE VIEW ROTATION AND NOTHING ELSE. PDFium applies the page's `/Rotate`
-        // itself, so passing the combined rotation here would rotate a landscape page twice --
+        // `rotate` IS THE VIEW ROTATION PLUS THE UNSAVED DELTA, AND NOTHING ELSE. PDFium applies the
+        // page's `/Rotate` itself, so passing the page's whole rotation here would rotate it twice --
         // which reads as "rotate view is broken for some documents and fine for others", the worst
         // shape of rendering bug because it depends on the file.
         FPDF_RenderPageBitmap(bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
-                              pageHeight, static_cast<int>(request.viewRotation) / 90, flags);
+                              pageHeight, static_cast<int>(drawn) / 90, flags);
 
         // AND THE WIDGETS, WHICH THE CALL ABOVE DOES NOT DRAW (I-21). PDFium renders every
         // annotation except `/Subtype /Widget` from `FPDF_RenderPageBitmap`; a widget's `/AP` is
@@ -170,7 +173,7 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
             // typed into has nowhere to live across two tiles of the same page.
             FORM_OnAfterLoadPage(enginePage, form);
             FPDF_FFLDraw(form, bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
-                         pageHeight, static_cast<int>(request.viewRotation) / 90, flags);
+                         pageHeight, static_cast<int>(drawn) / 90, flags);
             FORM_OnBeforeClosePage(enginePage, form);
         }
 

@@ -48,6 +48,12 @@ Error fileError(DWORD code, const char* fallbackKey, const QString& path)
     }
 }
 
+// Every deletion this class makes -- the backup, and `removeFile` -- so the census stays one waiver.
+bool deleteFile(const std::wstring& path)
+{
+    return DeleteFileW(path.c_str()) != 0;   // layer-lint: allow-filesystem-write(IDurableFiles -- the backup ReplaceFileW leaves, and a save's temporary file)
+}
+
 // Both moves this class makes: atomic, flushed, and never over an existing file.
 bool moveWriteThrough(const std::wstring& from, const std::wstring& to)
 {
@@ -103,7 +109,7 @@ Status WinDurableFiles::replaceFile(const QString& target, const QString& replac
     const std::wstring wideBackup = toWide(backup);
 
     if (ReplaceFileW(wideTarget.c_str(), wideReplacement.c_str(), wideBackup.c_str(), 0, nullptr, nullptr)) {   // layer-lint: allow-filesystem-write(IDurableFiles -- the replace that keeps the target's streams and creation time, D3-4)
-        if (!DeleteFileW(wideBackup.c_str())) {   // layer-lint: allow-filesystem-write(IDurableFiles -- the backup ReplaceFileW leaves, holding the old content)
+        if (!deleteFile(wideBackup)) {
             RAWPAGE_LOG_WARNING(LogSubsystem::Save)
                 << "durable files: replaced" << QDir::toNativeSeparators(target)
                 << "but could not delete the previous content at" << QDir::toNativeSeparators(backup)
@@ -125,6 +131,29 @@ Status WinDurableFiles::replaceFile(const QString& target, const QString& replac
         }
     }
     return fileError(code, "error.file.replaceFailed", target);
+}
+
+Status WinDurableFiles::removeFile(const QString& path)
+{
+    if (deleteFile(toWide(path)))
+        return Status{};
+    const DWORD code = GetLastError();
+    if (code == ERROR_FILE_NOT_FOUND)
+        return Status{};   // already gone: see the interface
+    return fileError(code, "error.file.removeFailed", path);
+}
+
+bool WinDurableFiles::processExists(qint64 processId) const
+{
+    if (processId <= 0 || processId > static_cast<qint64>(MAXDWORD))
+        return false;
+    const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(processId));
+    if (process == nullptr)
+        return GetLastError() == ERROR_ACCESS_DENIED;   // it exists; we may not look at it
+    DWORD exitCode = 0;
+    const BOOL queried = GetExitCodeProcess(process, &exitCode);
+    CloseHandle(process);
+    return !queried || exitCode == STILL_ACTIVE;   // a handle to a process that has exited stays valid
 }
 
 } // namespace rawpage::platform::win

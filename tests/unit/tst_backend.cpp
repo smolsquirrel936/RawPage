@@ -74,6 +74,16 @@ public:
     const core::Permissions* permissions(core::DocumentHandle) const override { return nullptr; }
     const core::DocumentId* documentId(core::DocumentHandle) const override { return nullptr; }
 
+    // Stage 3 T8: nothing here writes; a save through this backend fails by key.
+    core::Status writeRevision(core::DocumentHandle, const QString&) override
+    {
+        return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notEditable"), QString()};
+    }
+    core::Status adoptRevision(core::DocumentHandle, const QString&) override
+    {
+        return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notEditable"), QString()};
+    }
+
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }
     core::MutationSink* mutationSink(core::DocumentHandle) override { return nullptr; }

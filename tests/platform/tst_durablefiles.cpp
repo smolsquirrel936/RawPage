@@ -320,3 +320,52 @@ TEST_CASE("durable sync flushes a written file and refuses a missing one by key"
     CHECK(keyOf(result.error()) == "error.file.notFound");
     CHECK_FALSE(QFile::exists(missing));                               // OPEN_EXISTING: not created
 }
+
+// ==========================================================================================
+// Stage 3 T8 -- removeFile and processExists, which the save path's temporary files need (A-60)
+// ==========================================================================================
+
+TEST_CASE("durable files remove a file and treat an absent one as already removed", "[platform][durablefiles]")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral(".report.pdf.rawpage-1.tmp"));
+    writeRaw(path, "temporary");
+
+    win::WinDurableFiles files;
+    CHECK(files.removeFile(path));
+    CHECK_FALSE(QFile::exists(path));
+    CHECK(files.removeFile(path));                     // already gone: success, by the interface's rule
+
+    // A file held open without delete sharing cannot be removed, and says so by key.
+    writeRaw(path, "held");
+    HANDLE holder = CreateFileW(wide(path).c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+    REQUIRE(holder != INVALID_HANDLE_VALUE);
+    const Status held = files.removeFile(path);
+    CloseHandle(holder);
+    REQUIRE_FALSE(held);
+    CHECK(keyOf(held.error()) == "error.file.inUse");
+    CHECK(QFile::exists(path));
+}
+
+TEST_CASE("durable files know this process exists and a finished one does not", "[platform][durablefiles]")
+{
+    win::WinDurableFiles files;
+    CHECK(files.processExists(static_cast<qint64>(GetCurrentProcessId())));
+    CHECK_FALSE(files.processExists(0));
+    CHECK_FALSE(files.processExists(-5));
+
+    // A real child that has EXITED: its id must read as gone, even while a handle to it is still open --
+    // which is the case OpenProcess alone gets wrong, since a handle keeps the process object alive.
+    STARTUPINFOW startup{};
+    startup.cb = sizeof startup;
+    PROCESS_INFORMATION child{};
+    std::wstring command = L"cmd.exe /c exit 0";
+    REQUIRE(CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
+                           &startup, &child));
+    REQUIRE(WaitForSingleObject(child.hProcess, 10000) == WAIT_OBJECT_0);
+    CHECK_FALSE(files.processExists(static_cast<qint64>(child.dwProcessId)));
+    CloseHandle(child.hThread);
+    CloseHandle(child.hProcess);
+}

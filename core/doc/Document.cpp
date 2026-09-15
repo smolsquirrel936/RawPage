@@ -57,6 +57,19 @@ QByteArray Document::modelHash() const
     return QCryptographicHash::hash(buffer, QCryptographicHash::Sha256);
 }
 
+Status Document::refreshFileState(const IDocumentBackend& backend)
+{
+    const RepairReport* repair = backend.repairReport(handle_);
+    const DocumentId* id = backend.documentId(handle_);
+    if (repair == nullptr || id == nullptr) {
+        return Error{ErrorCode::NotFound, QLatin1String("error.open.notFound"),
+                     QString::number(static_cast<qulonglong>(handle_.id))};
+    }
+    repair_ = *repair;
+    id_ = *id;
+    return Status{};
+}
+
 Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
 {
     const PageTree* pages = backend.pages(handle);

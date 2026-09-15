@@ -45,13 +45,19 @@ add_executable(rawpage_render_tests
                                   #   not link an engine), and the other cases here call the
                                   #   rasterizer with no scheduler. The assembly the product
                                   #   actually runs had no case until this file.
+    tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
+                                  #   the shipped backend, the real WinDurableFiles, PDFium re-reading
+                                  #   the saved file and drawing it as the unsaved delta drew it
 )
 
 # The corpus, by absolute source path -- the same mechanism tests/unit uses and for the same
 # reason: a test that guessed a relative path would pass or fail on whatever working directory
 # CTest happened to use.
 target_compile_definitions(rawpage_render_tests PRIVATE
-    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
+    # Stage 3 T8: where A-57 saves the four signed files for OpenSSL and for M-03's product walk. The
+    # BUILD tree, never the source tree -- they are measurements, regenerated every run.
+    RAWPAGE_A4_PRODUCT_DIR="${CMAKE_BINARY_DIR}/a4-product")
 
 target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -81,6 +87,19 @@ target_link_libraries(rawpage_render_tests PRIVATE
 )
 
 rawpage_common_flags(rawpage_render_tests)
+
+# --- A-57: risk A4 through the product, judged by OpenSSL ------------------------------------------
+# tests/unit's unit.a4_probe.openssl shape (RunA4Probe.cmake) over D3-1's SECOND half: the shipped
+# save path writes, then CheckSignatures.cmake judges the files on disk, controls first. A missing
+# OpenSSL or Python FAILS it. The verdict is the exit code -- no PASS_REGULAR_EXPRESSION.
+add_test(NAME render.a4_product.openssl
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_render_tests>"
+            "-DPRODUCT_DIR=${CMAKE_BINARY_DIR}/a4-product"
+            "-DCHECKS_DIR=${CMAKE_SOURCE_DIR}/tests/gates"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
+set_tests_properties(render.a4_product.openssl PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 include(Catch)
 catch_discover_tests(rawpage_render_tests

@@ -381,6 +381,24 @@ public:
     // file that had already changed.
     virtual const DocumentId* documentId(DocumentHandle document) const = 0;
 
+    // THE BACKEND'S HALF OF SAVE, added at Stage 3 T8 (`Stage3-Mutation-Plan.md` D3-4, §5.3). Flow F
+    // once sketched one `save(Incremental)` doing the whole job; D3-4 splits it three ways, and these
+    // are the two steps only the backend can take -- `core/doc/SaveCoordinator` owns the order, and
+    // `platform::IDurableFiles` flushes and replaces between them.
+    //
+    // `writeRevision`: write the newest revision on disk, COPIED VERBATIM, followed by the update the
+    // document's mutation sink holds, to `temporaryPath`; then read that file back from its path and
+    // verify it -- the prefix identical, the file opening with no repair, every page as the model
+    // says -- before returning. A document whose opening needed a repair gets D3-6's complete
+    // section. On failure the temporary file does not exist. Refused for a document with no sink.
+    virtual Status writeRevision(DocumentHandle document, const QString& temporaryPath) = 0;
+
+    // `adoptRevision`: after the replace, `path` holds the newest revision on disk. The sink compares
+    // against it from now on, and `repairReport()` and `documentId()` describe it. The ENGINE keeps the
+    // bytes it loaded (D3-15): an unsaved rotation is drawn as a render delta, and the delta stays
+    // relative to those bytes.
+    virtual Status adoptRevision(DocumentHandle document, const QString& path) = 0;
+
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;
     virtual ITextExtractor*  textExtractor(DocumentHandle document) = 0;

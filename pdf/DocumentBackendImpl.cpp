@@ -4,12 +4,14 @@
 #include "core/doc/DocumentId.h"
 #include "core/doc/Permissions.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/RevisionWriter.h"
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumRasterizer.h"
 
 #include <QDateTime>
 #include <QFileInfo>
 
+#include <optional>
 #include <utility>
 
 namespace rawpage::pdf {
@@ -30,6 +32,12 @@ struct DocumentBackendImpl::Open {
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
+
+    // Stage 3 T8. Set once a save has been adopted: the repair report of the file NOW on disk, which
+    // after a correct write is empty. The engine's report describes the bytes it loaded, and those
+    // stop being the newest revision at the first save -- a repaired document must not be forced to
+    // Save-As a second time because the engine still remembers the first file.
+    std::optional<core::RepairReport> savedReport;
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -155,6 +163,48 @@ core::IPageRasterizer* DocumentBackendImpl::rasterizer(core::DocumentHandle docu
     return entry ? entry->rasterizer.get() : nullptr;
 }
 
+// THE LOCK IS HELD ONLY TO FIND THE ENTRY. A save of a large file takes seconds, and `rasterizer()`
+// is asked from the render thread under the same mutex; holding it through the write would stall
+// every tile behind the disk. The entry itself is only destroyed by `close()`, which the UI thread --
+// the same thread that saves -- calls.
+core::Status DocumentBackendImpl::writeRevision(core::DocumentHandle document, const QString& temporaryPath)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr || !entry->sink)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), temporaryPath};
+    const bool complete = entry->savedReport ? entry->savedReport->requiresSaveAs()
+                                             : entry->document->repairReport().requiresSaveAs();
+    return ops::RevisionWriter::write(*entry->sink, complete, temporaryPath);
+}
+
+core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, const QString& path)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr || !entry->sink)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path};
+
+    auto adopted = ops::RevisionWriter::adopt(*entry->sink, path);
+    if (!adopted)
+        return adopted.error();
+    // The sink now holds views into `adopted.bytes`; this assignment keeps that buffer and releases the
+    // previous revision's (the engine keeps its own copy of the bytes it loaded).
+    entry->bytes = std::move(adopted.value().bytes);
+    entry->savedReport = adopted.value().report;
+    entry->id = core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+        << "backend: handle" << static_cast<int>(document.id) << "adopted the revision saved at" << path
+        << "(" << entry->bytes.size() << "bytes)";
+    return core::Status{};
+}
+
 core::ITextExtractor* DocumentBackendImpl::textExtractor(core::DocumentHandle)
 {
     return nullptr;   // Stage 5
@@ -195,7 +245,9 @@ const core::RepairReport* DocumentBackendImpl::repairReport(core::DocumentHandle
 {
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
-    return entry ? &entry->document->repairReport() : nullptr;
+    if (entry == nullptr)
+        return nullptr;
+    return entry->savedReport ? &*entry->savedReport : &entry->document->repairReport();
 }
 
 const core::Permissions* DocumentBackendImpl::permissions(core::DocumentHandle document) const

@@ -1826,6 +1826,42 @@
         <translation>The save failed, and the original file could not be put back. It is here: %1</translation>
     </message>
     <message>
+        <source>error.file.removeFailed</source>
+        <translation>The file could not be removed: %1</translation>
+    </message>
+    <message>
+        <source>error.save.noDurableFiles</source>
+        <translation>This build cannot save safely on this system, so nothing was written (%1).</translation>
+    </message>
+    <message>
+        <source>error.save.nothingToSave</source>
+        <translation>There are no unsaved changes (%1).</translation>
+    </message>
+    <message>
+        <source>error.save.repairedDocument</source>
+        <translation>This file had to be repaired when it was opened, so it is saved as a new file.</translation>
+    </message>
+    <message>
+        <source>error.save.fileChanged</source>
+        <translation>The file was changed or moved by something else since it was opened, so it is saved as a new file.</translation>
+    </message>
+    <message>
+        <source>error.save.notEditable</source>
+        <translation>This document cannot be saved in this build (%1).</translation>
+    </message>
+    <message>
+        <source>error.save.readBackFailed</source>
+        <translation>The saved file could not be read back to check it: %1</translation>
+    </message>
+    <message>
+        <source>error.save.verifyFailed</source>
+        <translation>The saved file did not pass its check (%1), so the original was not replaced.</translation>
+    </message>
+    <message>
+        <source>error.save.writeFailed</source>
+        <translation>The file could not be written: %1</translation>
+    </message>
+    <message>
         <source>error.font.collectionUnavailable</source>
         <translation>The list of installed fonts could not be read, so missing fonts will be substituted by the PDF engine instead.</translation>
     </message>

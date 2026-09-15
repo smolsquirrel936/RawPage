@@ -229,3 +229,27 @@ target_compile_definitions(rawpage_bench_openclose_ui_classicheap PRIVATE
     RAWPAGE_VERSION="${PROJECT_VERSION}")
 add_dependencies(rawpage_bench_openclose_ui_classicheap rawpage_translations rawpage_resources)
 rawpage_common_flags(rawpage_bench_openclose_ui_classicheap)
+# rawpage_bench_save -- Stage 3 T8, guide case A-61: what D3-4's whole-file save and D3-16's whole-file
+# hash cost, through the shipped backend, SaveCoordinator and the real WinDurableFiles, on
+# pages-900.pdf and on a generated 200 MB file. Registered with CTest like the A2 benches, so the figure
+# is re-taken on every Windows run; its exit code is about whether the measurement was POSSIBLE.
+add_executable(rawpage_bench_save bench_save.cpp)
+target_include_directories(rawpage_bench_save PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_bench_save PRIVATE
+    rawpage_core
+    rawpage_cos
+    rawpage_ops
+    rawpage_pdfium
+    rawpage_platform
+)
+rawpage_link_qt(rawpage_bench_save Core)
+target_compile_definitions(rawpage_bench_save PRIVATE
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
+target_sources(rawpage_bench_save PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
+rawpage_common_flags(rawpage_bench_save)
+
+add_test(NAME bench.save.cost COMMAND rawpage_bench_save)
+set_tests_properties(bench.save.cost PROPERTIES
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)

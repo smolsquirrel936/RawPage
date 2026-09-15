@@ -553,7 +553,7 @@ process launching · SVG icon rendering · high-precision timers.
 | `IProcessSandbox` | Launching a restricted child process for protected view uses OS job/token APIs. |
 | `IPowerSession` | Sleep/resume, battery-saver render throttling, and session lock notifications. |
 | `IDisplayTopology` | Monitor enumeration with per-monitor DPI and topology-change notification, beyond what `QScreen` reports. |
-| `IDurableFiles` | Forcing a file's data to stable storage, and replacing a file while keeping its creation time, security descriptor and alternate data streams — the `Zone.Identifier` stream that marks a download among them. `QSaveFile` renames over its target, which gives the result the temporary file's identity, and Qt has no public flush-to-disk. **Added 2026-09-15 at Stage 3 T7** by `Stage3-Mutation-Plan.md` D3-4, whose Save writes a new file and replaces the target with it. |
+| `IDurableFiles` | Forcing a file's data to stable storage, and replacing a file while keeping its creation time, security descriptor and alternate data streams — the `Zone.Identifier` stream that marks a download among them. `QSaveFile` renames over its target, which gives the result the temporary file's identity, and Qt has no public flush-to-disk. **Added 2026-09-15 at Stage 3 T7** by `Stage3-Mutation-Plan.md` D3-4, whose Save writes a new file and replaces the target with it; T8 added removing a temporary file and asking whether its writer process still exists, which Qt also cannot answer. |
 | `IPrinting` | Tray selection by name, the printer's real duplex and colour capabilities, and submitting a job with a page range the driver understands. **Added 2026-08-23 at Stage 1 T7** — `platform/win/WinPrinting` has had a row in [`Architecture-FileMap.md` §3.12](./Architecture-FileMap.md#312-platform--the-os-abstraction) since the map was written, and `platform/win/` may hold nothing that does not implement a declared interface, so this row was missing rather than the file being wrong. *Ordinary* printing stays with `QPrinter` and is **not** behind it. |
 
 **Eighteen interfaces, in seventeen rows** — `ICertificateStore` and `ICryptoProvider` share one. The
@@ -634,10 +634,13 @@ Two artifacts, deliberately separate:
 
 **The document.** Saving appends an **incremental update** to the existing file: the changed
 indirect objects, a new cross-reference section, and a trailer whose `/Prev` points at the previous
-one. The original bytes are never rewritten. This is what makes signature preservation possible
-(§3.3 A4) and what makes a save of one annotation cost kilobytes rather than the whole file.
-`Save As` performs a **full rewrite** with object renumbering and compaction, and is the only path
-that discards revision history. A document opened read-only or with insufficient permissions
+one. The original bytes are never **re-serialized**: since Stage 3 (`Stage3-Mutation-Plan.md` D3-4,
+the user's decision) a save writes them, **copied verbatim**, followed by the update, to a new file
+beside the target, re-reads it, and atomically replaces the target — so the bytes a signature covers
+are identical on disk (§3.3 A4) and no instant leaves a torn file. The update is kilobytes; the save's
+I/O is the whole file, measured at Stage 3 T8 at 1.6 s for a 200 MB file on a local SSD.
+`Save As` at Stage 3 writes through the same incremental path to the chosen file; the **full rewrite**
+with object renumbering and compaction, the only path that discards revision history, is Stage 8's. A document opened read-only or with insufficient permissions
 refuses `run()` before a command is constructed, not after.
 
 **The recovery journal.** `%LOCALAPPDATA%\RawPage\recovery\<docid>\` holds `meta.json` (source path,

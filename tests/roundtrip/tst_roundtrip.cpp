@@ -1,0 +1,312 @@
+// tst_roundtrip -- open, rotate, save, reopen: over the corpus, through the shipped save path. Stage 3 T8,
+// guide cases A-51 … A-56 (`Stage3-Mutation-Testing-Guide.md` §5.9), decisions D3-4, D3-5, D3-6, D3-16.
+//
+// A SOURCE DIRECTORY COMPILED INTO `rawpage_tests`, not a sixth target (D3-18): it links exactly what
+// that target may, and so it also runs under `portable-asan`.
+//
+// EVERY ASSERTION ABOUT THE SAVED FILE READS IT FROM ITS PATH (guide rule 3). The path is what the
+// user's next launch will open; a buffer in memory is what the writer meant to put there.
+//
+// WHAT IT DOES NOT COVER (convention 19):
+//   * the ENGINE -- the backend is `tests/unit/CosBackend.h`. PDFium re-reading these files, and the
+//     pixels, are `tests/render/tst_saveengine.cpp` (A-58);
+//   * the real flush and replace -- `tests/unit/FakeDurableFiles.h` removes and renames. `ReplaceFileW`
+//     is A-47's and A-57's;
+//   * the recovery journal's `meta.json` naming a Save-As target (A-56's last clause) -- T9.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "../unit/SaveSession.h"
+#include "pdf/cos/XrefRepair.h"
+#include "pdf/ops/PageOps.h"
+#include "pdf/ops/RevisionWriter.h"
+
+#include <algorithm>
+#include <iostream>
+#include <set>
+
+using namespace rawpage;
+using core::SaveOutcome;
+using tests::SaveSession;
+
+namespace {
+
+namespace fs = std::filesystem;
+
+std::string_view viewOf(const QByteArray& bytes)
+{
+    return std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+// Every corpus file the product may edit, as far as a headless suite can tell -- `tst_reversibility`'s
+// set, for the same reasons: every PDF outside `encrypted/`, minus the one the two readers count
+// differently (guide issue I-07).
+std::vector<std::string> editableCandidates()
+{
+    std::vector<std::string> files;
+    for (const auto& entry : fs::recursive_directory_iterator(RAWPAGE_CORPUS_DIR)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".pdf")
+            continue;
+        const std::string relative = fs::relative(entry.path(), RAWPAGE_CORPUS_DIR).generic_string();
+        if (relative.rfind("encrypted/", 0) == 0 || relative == "malformed/pages-loop.pdf")
+            continue;
+        files.push_back(relative);
+    }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+struct Reopened {
+    pdf::cos::OpenedFile opened;
+    pdf::ops::PageWalk walk;
+};
+
+std::optional<Reopened> reopen(const QByteArray& bytes)
+{
+    auto opened = pdf::cos::openWithRepair(viewOf(bytes));
+    if (!opened)
+        return std::nullopt;
+    auto walk = pdf::ops::PageOps::walk(opened.value().table);
+    if (!walk)
+        return std::nullopt;
+    return Reopened{std::move(opened).value(), std::move(walk).value()};
+}
+
+// The object numbers whose newest definition sits at or after `boundary` -- what the update wrote.
+std::set<long long> objectsDefinedAfter(const pdf::cos::XrefTable& table, std::size_t boundary)
+{
+    std::set<long long> numbers;
+    for (const auto& [number, entry] : table.entries()) {
+        if (entry.type == pdf::cos::XrefEntryType::InFile && static_cast<std::size_t>(entry.field2) >= boundary)
+            numbers.insert(number);
+    }
+    return numbers;
+}
+
+} // namespace
+
+// ==========================================================================================
+// A-51 and A-52 -- the round trip over the corpus
+// ==========================================================================================
+
+TEST_CASE("roundtrip over every editable corpus file saves the rotation and keeps the opened bytes", "[save][roundtrip]")
+{
+    std::size_t saved = 0;
+    std::size_t savedAs = 0;
+    std::vector<std::string> notEditable;
+
+    for (const std::string& relative : editableCandidates()) {
+        INFO("file: " << relative);
+        auto session = tests::openCopy(relative);
+        if (!session) {
+            notEditable.push_back(relative);
+            continue;
+        }
+        const int lastPage = session->journal->document().pages().count() - 1;
+        REQUIRE(lastPage >= 0);
+        const long long pageObject = session->sink()->pages().pages[static_cast<std::size_t>(lastPage)].number;
+        const int expectedRotation = (session->sink()->desiredRotation(lastPage) + 90) % 360;
+        const bool repaired = session->journal->document().repairReport().requiresSaveAs();
+        REQUIRE(session->rotate(lastPage));
+
+        QString target = session->path;
+        auto result = session->coordinator->save(*session->journal, session->path);
+        REQUIRE(result);
+        if (repaired) {
+            // A-52 (D3-6): the Save is refused into a Save-As, and the Save-As goes to a new file.
+            REQUIRE(result.value().kind == SaveOutcome::Kind::SaveAsRequired);
+            CHECK(std::string(result.value().reasonKey.data()) == "error.save.repairedDocument");
+            target = session->directory.filePath(QStringLiteral("saved-as.pdf"));
+            auto asResult = session->coordinator->saveAs(*session->journal, target);
+            INFO("save-as error: " << (asResult ? std::string() : std::string(asResult.error().messageKey.data()) + " " + asResult.error().context.toStdString()));
+            REQUIRE(asResult);
+            REQUIRE(asResult.value().kind == SaveOutcome::Kind::Saved);
+            CHECK(tests::sha256(tests::readAllBytes(session->path)) == tests::sha256(session->openedBytes));   // the original is untouched
+            ++savedAs;
+        } else {
+            INFO("save error: " << (result.value().kind == SaveOutcome::Kind::Saved ? std::string() : std::string(result.value().reasonKey.data())));
+            REQUIRE(result.value().kind == SaveOutcome::Kind::Saved);
+            ++saved;
+        }
+        CHECK_FALSE(session->journal->isDirty());
+        CHECK(session->strayTemporaries().isEmpty());
+
+        // ---- READ FROM THE PATH ----
+        const QByteArray onDisk = tests::readAllBytes(target);
+        CHECK(onDisk.startsWith(session->openedBytes));                        // the prefix, byte for byte
+        auto again = reopen(onDisk);
+        REQUIRE(again.has_value());
+        CHECK(again->opened.usedOriginalXref);                                 // opened through its own table
+        CHECK_FALSE(again->opened.report.requiresSaveAs());
+        if (!repaired) {
+            // No finding the original did not already have.
+            auto original = reopen(session->openedBytes);
+            REQUIRE(original.has_value());
+            CHECK(again->opened.report.entries().size() <= original->opened.report.entries().size());
+            // The update holds the changed page and nothing else -- apart from an xref stream's own
+            // object, which is the section itself.
+            std::set<long long> written = objectsDefinedAfter(again->opened.table, static_cast<std::size_t>(session->openedBytes.size()));
+            const std::size_t newest = again->opened.table.sections().front().offset;
+            for (auto it = written.begin(); it != written.end();) {
+                const auto* entry = again->opened.table.find(*it);
+                if (entry && static_cast<std::size_t>(entry->field2) == newest)
+                    it = written.erase(it);
+                else
+                    ++it;
+            }
+            CHECK(written == std::set<long long>{pageObject});
+        }
+        REQUIRE(static_cast<int>(again->walk.pages.size()) == lastPage + 1);
+        CHECK(again->walk.pages[static_cast<std::size_t>(lastPage)].effectiveRotate() == expectedRotation);
+    }
+
+    std::cout << "roundtrip: " << saved << " saved in place, " << savedAs
+              << " repaired files saved as a new file; not editable by the first-party writer:";
+    for (const std::string& name : notEditable)
+        std::cout << " " << name;
+    std::cout << "\n";
+    CHECK(saved >= 36);
+    CHECK(savedAs >= 1);
+}
+
+// ==========================================================================================
+// A-53 -- a file changed on disk is never appended to
+// ==========================================================================================
+
+TEST_CASE("roundtrip never appends to a file changed on disk since it was opened", "[save][roundtrip]")
+{
+    auto session = tests::openCopy("ordinary/rotated-pages.pdf");
+    REQUIRE(session);
+    REQUIRE(session->rotate(0));
+    const QByteArray other = tests::readAllBytes(tests::corpusFile("ordinary/text-letter.pdf"));
+    { QFile file(session->path); REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Truncate)); file.write(other); }
+
+    auto result = session->coordinator->save(*session->journal, session->path);
+    REQUIRE(result);
+    CHECK(result.value().kind == SaveOutcome::Kind::SaveAsRequired);
+    CHECK(tests::sha256(tests::readAllBytes(session->path)) == tests::sha256(other));
+    CHECK(session->strayTemporaries().isEmpty());
+    CHECK(session->durableFiles.replaceCalls == 0);
+}
+
+// ==========================================================================================
+// A-54 -- the re-read guards the replace (the headless half: the real replace is A-57's file)
+// ==========================================================================================
+
+TEST_CASE("roundtrip never replaces the target with a file its own reader rejects", "[save][roundtrip]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    REQUIRE(session->rotate(1));
+
+    SECTION("an update that does not parse")
+    {
+        // Cut the composed file inside its update, after the prefix: the prefix check passes and the
+        // parse is what must refuse it.
+        const qsizetype keep = session->openedBytes.size() + 20;
+        pdf::ops::RevisionWriter::setComposeFaultForTesting([keep](QByteArray& bytes) { bytes.truncate(keep); });
+    }
+    SECTION("an update whose rotation reads back wrong")
+    {
+        pdf::ops::RevisionWriter::setComposeFaultForTesting([](QByteArray& bytes) {
+            const qsizetype at = bytes.lastIndexOf("/Rotate 90");   // absent: the save succeeds and the case fails
+            if (at > 0)
+                bytes.replace(at, 10, "/Rotate 00");
+        });
+    }
+    auto result = session->coordinator->save(*session->journal, session->path);
+    pdf::ops::RevisionWriter::setComposeFaultForTesting({});
+
+    REQUIRE_FALSE(result);
+    CHECK(std::string(result.error().messageKey.data()) == "error.save.verifyFailed");
+    INFO("check that refused: " << result.error().context.toStdString());
+    CHECK(session->durableFiles.replaceCalls == 0);
+    CHECK(tests::sha256(tests::readAllBytes(session->path)) == tests::sha256(session->openedBytes));
+    CHECK(session->strayTemporaries().isEmpty());
+    CHECK(session->journal->isDirty());
+}
+
+// ==========================================================================================
+// A-55 -- save after save, and undo after save
+// ==========================================================================================
+
+TEST_CASE("roundtrip chains three saves and an undo after a save writes the page back", "[save][roundtrip]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    const auto sections = [](const QByteArray& bytes) {
+        auto opened = reopen(bytes);
+        REQUIRE(opened.has_value());
+        return opened->opened.table.sections().size();
+    };
+    const std::size_t originalSections = sections(session->openedBytes);
+
+    REQUIRE(session->rotate(0));
+    REQUIRE(session->coordinator->save(*session->journal, session->path));
+    const QByteArray first = tests::readAllBytes(session->path);
+
+    REQUIRE(session->rotate(1));
+    REQUIRE(session->coordinator->save(*session->journal, session->path));
+    const QByteArray second = tests::readAllBytes(session->path);
+
+    REQUIRE(session->journal->undo());                 // un-rotates page 2, which is IN the saved file
+    REQUIRE(session->journal->isDirty());
+    auto third = session->coordinator->save(*session->journal, session->path);
+    REQUIRE(third);
+    REQUIRE(third.value().kind == SaveOutcome::Kind::Saved);
+    const QByteArray last = tests::readAllBytes(session->path);
+
+    CHECK(first.startsWith(session->openedBytes));
+    CHECK(second.startsWith(first));
+    CHECK(last.startsWith(second));
+    CHECK(sections(last) == originalSections + 3);
+
+    auto reopened = reopen(last);
+    REQUIRE(reopened.has_value());
+    CHECK(reopened->walk.pages[0].effectiveRotate() == 90);
+    CHECK(reopened->walk.pages[1].effectiveRotate() == 0);
+}
+
+// ==========================================================================================
+// A-56 -- Save As moves the document and leaves the original alone
+// ==========================================================================================
+
+TEST_CASE("roundtrip Save As moves the document to the new file and leaves the original alone", "[save][roundtrip]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    const QString copy = session->directory.filePath(QStringLiteral("copy.pdf"));
+
+    REQUIRE(session->rotate(0));
+    auto asResult = session->coordinator->saveAs(*session->journal, copy);
+    REQUIRE(asResult);
+    REQUIRE(asResult.value().kind == SaveOutcome::Kind::Saved);
+    CHECK(session->journal->document().id().path == core::DocumentId::normalizePath(copy));
+
+    REQUIRE(session->rotate(2));
+    auto saveResult = session->coordinator->save(*session->journal, copy);
+    REQUIRE(saveResult);
+    REQUIRE(saveResult.value().kind == SaveOutcome::Kind::Saved);
+
+    CHECK(tests::sha256(tests::readAllBytes(session->path)) == tests::sha256(session->openedBytes));      // the original, since open
+    auto reopened = reopen(tests::readAllBytes(copy));
+    REQUIRE(reopened.has_value());
+    CHECK(reopened->walk.pages[0].effectiveRotate() == 90);
+    CHECK(reopened->walk.pages[2].effectiveRotate() == 90);
+
+    // A Save to the ORIGINAL path is now a file that is not the document's: Save-As, not an append.
+    REQUIRE(session->rotate(1));
+    auto stale = session->coordinator->save(*session->journal, session->path);
+    REQUIRE(stale);
+    CHECK(stale.value().kind == SaveOutcome::Kind::SaveAsRequired);
+}
+
+TEST_CASE("roundtrip Save As of an unchanged document is a byte-identical copy", "[save][roundtrip]")
+{
+    auto session = tests::openCopy("ordinary/objstm-xrefstream.pdf");
+    REQUIRE(session);
+    const QString copy = session->directory.filePath(QStringLiteral("unchanged.pdf"));
+    auto result = session->coordinator->saveAs(*session->journal, copy);
+    REQUIRE(result);
+    CHECK(tests::sha256(tests::readAllBytes(copy)) == tests::sha256(session->openedBytes));
+}

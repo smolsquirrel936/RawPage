@@ -1826,6 +1826,42 @@
         <translation>儲存失敗，且無法將原始檔案放回。原始檔案位於：%1</translation>
     </message>
     <message>
+        <source>error.file.removeFailed</source>
+        <translation>無法移除檔案：%1</translation>
+    </message>
+    <message>
+        <source>error.save.noDurableFiles</source>
+        <translation>此版本無法在此系統上安全儲存，因此未寫入任何內容（%1）。</translation>
+    </message>
+    <message>
+        <source>error.save.nothingToSave</source>
+        <translation>沒有未儲存的變更（%1）。</translation>
+    </message>
+    <message>
+        <source>error.save.repairedDocument</source>
+        <translation>此檔案在開啟時需要修復，因此會另存為新檔案。</translation>
+    </message>
+    <message>
+        <source>error.save.fileChanged</source>
+        <translation>此檔案自開啟後已被其他程式變更或移動，因此會另存為新檔案。</translation>
+    </message>
+    <message>
+        <source>error.save.notEditable</source>
+        <translation>此版本無法儲存這份文件（%1）。</translation>
+    </message>
+    <message>
+        <source>error.save.readBackFailed</source>
+        <translation>無法讀回已儲存的檔案以進行檢查：%1</translation>
+    </message>
+    <message>
+        <source>error.save.verifyFailed</source>
+        <translation>已儲存的檔案未通過檢查（%1），因此未取代原始檔案。</translation>
+    </message>
+    <message>
+        <source>error.save.writeFailed</source>
+        <translation>無法寫入檔案：%1</translation>
+    </message>
+    <message>
         <source>error.font.collectionUnavailable</source>
         <translation>無法讀取已安裝的字型清單，因此缺少的字型將改由 PDF 引擎替代。</translation>
     </message>

@@ -216,6 +216,15 @@ void CommandJournal::markSaved()
     }
 }
 
+Status CommandJournal::adoptSavedFile(const IDocumentBackend& backend)
+{
+    const Status refreshed = document_.refreshFileState(backend);
+    if (!refreshed)
+        return refreshed;
+    markSaved();
+    return Status{};
+}
+
 void CommandJournal::afterOperation(const Scope& scope, bool wasDirty)
 {
     document_.advanceRevision();

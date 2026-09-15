@@ -70,6 +70,10 @@ public:
     const core::Permissions* permissions(core::DocumentHandle document) const override;
     const core::DocumentId* documentId(core::DocumentHandle document) const override;
 
+    // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
+    core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;
+    core::Status adoptRevision(core::DocumentHandle document, const QString& path) override;
+
     core::IPageRasterizer* rasterizer(core::DocumentHandle document) override;
     core::ITextExtractor*  textExtractor(core::DocumentHandle document) override;
     core::MutationSink*    mutationSink(core::DocumentHandle document) override;

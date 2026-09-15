@@ -509,6 +509,18 @@ public:
     // A replace that fails leaves BOTH files as they were: the target unchanged, the replacement
     // still present. A read-only target is refused rather than overwritten.
     virtual Status replaceFile(const QString& target, const QString& replacement) = 0;
+
+    // Added at Stage 3 T8, for the save path's temporary files. Removes `path`; a path that does not
+    // exist is SUCCESS, because the caller's question is "is it gone" and a cleanup that failed on an
+    // already-clean directory would fail every save after the first.
+    virtual Status removeFile(const QString& path) = 0;
+
+    // Whether a process with this id is running. A temporary file is named by its writer's process
+    // id, and a stray one is removed only when that process is gone (guide case A-60) -- deleting a
+    // live process's temporary file would fail its save between the write and the replace. Qt has no
+    // call for this. An id that is reused by an unrelated process reads as alive: the stray file
+    // then waits for a later save, which is the safe direction.
+    virtual bool processExists(qint64 processId) const = 0;
 };
 
 // =======================================================================================

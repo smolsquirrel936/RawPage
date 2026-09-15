@@ -40,6 +40,11 @@ public:
     // refuses editing rather than allowing it.
     Status hydrate(const IDocumentBackend& backend, DocumentHandle handle);
 
+    // After a save (Stage 3 T8): re-reads the identity and the repair report the backend now holds for
+    // the file on disk, and NOT the page tree -- the model is already what was saved, and the engine's
+    // tree still describes the bytes it loaded (D3-15). Fails, changing nothing, for an unknown handle.
+    Status refreshFileState(const IDocumentBackend& backend);
+
     DocumentHandle handle() const noexcept { return handle_; }
     const DocumentId& id() const noexcept { return id_; }
 

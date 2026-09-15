@@ -106,6 +106,11 @@ add_library(rawpage_core STATIC
     doc/Permissions.h
     doc/Permissions.cpp
 
+    # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
+    # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.
+    doc/SaveCoordinator.h
+    doc/SaveCoordinator.cpp
+
     # render/ -- the rendering POLICY layer. RenderRequest was T10's by the plan and was built at T9
     # because IPageRasterizer::raster() takes one and T9's exit criterion is a rasterized page;
     # core/backend.h has carried a forward declaration of it since T1.

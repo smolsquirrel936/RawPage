@@ -97,6 +97,11 @@ public:
     Revision revision() const noexcept { return document_.revision(); }
     void markSaved();
 
+    // What `core/doc/SaveCoordinator` calls once the file is on disk and the backend has adopted it
+    // (Stage 3 T8): the document takes the new file's identity and repair report, then `markSaved()`.
+    // The model and the revision are unchanged -- a save is not a mutation.
+    Status adoptSavedFile(const IDocumentBackend& backend);
+
     std::size_t position() const noexcept { return position_; }
     std::size_t historySize() const noexcept { return history_.size(); }
 

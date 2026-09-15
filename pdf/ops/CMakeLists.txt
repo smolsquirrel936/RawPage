@@ -22,6 +22,10 @@ add_library(rawpage_ops STATIC
     PageOps.cpp
     MutationSinkImpl.h
     MutationSinkImpl.cpp
+
+    # Stage 3 T8 (D3-4): compose, write, re-read from the path, verify, adopt -- shared by both backends.
+    RevisionWriter.h
+    RevisionWriter.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")
