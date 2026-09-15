@@ -34,6 +34,9 @@ const char* MessageBar::kindName(Kind kind) noexcept
     case Kind::Signed: return "Signed";
     case Kind::HasForm: return "HasForm";
     case Kind::WriteMode: return "WriteMode";
+    case Kind::SaveFailed: return "SaveFailed";
+    case Kind::SaveAsRequired: return "SaveAsRequired";
+    case Kind::RecoveryUnavailable: return "RecoveryUnavailable";
     }
     return "Unknown";
 }
@@ -134,7 +137,8 @@ void MessageBar::setFailureColors(const QColor& background, const QColor& text)
 
 void MessageBar::paintBanner(QWidget* banner, Kind kind) const
 {
-    const bool failure = kind == Kind::OpenFailed;
+    // A save that failed is a refusal of what the user asked for, like an open that failed (Stage 3 T10).
+    const bool failure = kind == Kind::OpenFailed || kind == Kind::SaveFailed;
 
     // WINDOW AND WINDOWTEXT ONLY. The label honours `WindowText`; the Details button and the close
     // glyph are painted by the native style from the colour scheme and ignore the palette

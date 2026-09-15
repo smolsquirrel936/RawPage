@@ -28,6 +28,8 @@
 #ifndef RAWPAGE_APP_SERVICES_H
 #define RAWPAGE_APP_SERVICES_H
 
+#include <QString>
+
 namespace rawpage::core {
 class ActionRegistry;
 class IDocumentBackend;
@@ -89,6 +91,12 @@ struct Services {
     // `unimplementedInterfaces()` names them, so a Stage 1 window can print what it cannot do
     // rather than discover it by dereferencing.
     platform::Platform&    platform;
+
+    // WHERE RECOVERY JOURNALS GO (Stage 3 T10). Empty means `core::RecoveryJournal::defaultRoot()` --
+    // `%LOCALAPPDATA%\RawPage\recovery`. A value rather than a reference, and last with a default, so
+    // every existing aggregate initialiser still compiles; a test points it at a temporary directory so
+    // a suite never writes into the user's own recovery folder. `documents/recoveryDir` replaces it at T12.
+    QString recoveryRoot = {};
 };
 
 } // namespace rawpage::app

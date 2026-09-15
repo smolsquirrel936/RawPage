@@ -43,12 +43,17 @@
 
 #include "app/Services.h"
 #include "core/backend.h"
+#include "ui/dialogs/RotatePagesDialog.h"
+#include "ui/dialogs/UnsavedChangesDialog.h"
 
 #include <QMainWindow>
 #include <QStringList>
 
+#include <functional>
 #include <memory>
+#include <optional>
 
+class QCloseEvent;
 class QStackedWidget;
 class QToolButton;
 class QVBoxLayout;
@@ -105,8 +110,37 @@ public:
     int             indexOfPath(const QString& absolutePath) const;
 
     void activateDocument(int index);
-    void closeDocument(int index);
-    void closeAllDocuments();
+
+    // CLOSING A DIRTY DOCUMENT NEEDS A DISPOSITION (Stage 3 T10, D3-14). With none given, the user is
+    // asked; where there is nobody to ask (convention 16) the close is REFUSED with `Unavailable` and the
+    // document stays open and dirty -- never closed with its changes silently dropped, never blocked on a
+    // dialog nobody can see. Cancel refuses with `Cancelled`; Discard removes the recovery directory and
+    // closes; Save closes only once the save -- or the Save-As it turned into -- succeeded. A clean
+    // document closes without a question, whatever is passed.
+    core::Status closeDocument(int index, std::optional<CloseDisposition> disposition = std::nullopt);
+
+    // Every document, first to last, STOPPING at the first refusal -- a Cancel on the second of three
+    // leaves the second and the third open.
+    core::Status closeAllDocuments();
+
+    // ---------------------------------------------------------------------------------------
+    // Mutation and save -- Stage 3 T10.
+    // ---------------------------------------------------------------------------------------
+    // Runs a Rotate Pages choice through the document's journal: one command, or one group (D3-13).
+    core::Status rotatePages(DocumentWindow* document, const RotatePagesDialog::Choice& choice);
+
+    // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
+    // or changed on disk since it was opened -- first shows WHY, as a `SaveAsRequired` banner, and then
+    // goes to `saveDocumentAs` (D3-6, D3-16). A failure is a `SaveFailed` banner as well as the result.
+    core::Status saveDocument(DocumentWindow* document);
+    core::Status saveDocumentAs(DocumentWindow* document);
+
+    // WHERE A SAVE AS GOES, and the parameterized twin a headless case drives (convention 16). The
+    // answer is handed the document's current path; nothing means the user cancelled. `canAskSavePath()`
+    // is false offscreen unless an answer is installed, and `file.saveAs` is then disabled.
+    using SaveAsAnswer = std::function<std::optional<QString>(const QString& currentPath)>;
+    static void setSaveAsAnswerForTesting(SaveAsAnswer answer);
+    static bool canAskSavePath();
 
     // `Ctrl+Tab` / `Ctrl+Shift+Tab` once T13 wires the chords. Wraps at both ends, which is what
     // every tab strip does and what makes the chord usable without looking.
@@ -190,6 +224,11 @@ protected:
     // the same answer a desktop does.
     void changeEvent(QEvent* event) override;
 
+    // EVERY WAY A WINDOW CLOSES -- its close box, `file.quit`, a torn-off window's close -- asks about each
+    // dirty document through `closeDocument` (D3-14, guide case A-78), and a refusal keeps the window.
+    // Clean documents stay in the window as they always did; only a dirty one needs a disposition.
+    void closeEvent(QCloseEvent* event) override;
+
     // The debug half of D1-7, in both of its forms -- no direct connection, and no QAction that
     // resolves its own key. Runs at SHOW time rather than at construction because an action can
     // be added to the window after the constructor -- a dialog's, a pane's -- and the check is worth
@@ -231,6 +270,11 @@ private:
     // updating three of the four is how a title bar ends up naming a closed document.
     void updateDocumentChrome();
 
+    // The tab texts and the window title, with the dirty marker (Stage 3 T10). Separate from
+    // `updateDocumentChrome()` because a mutation moves the marker and must NOT re-raise the document's
+    // banners: one the user dismissed would come back with every command (guide case A-80).
+    void updateDocumentTitles();
+
     // Pushes the current view's page number and zoom into the status bar, and re-asks
     // `ActionFactory` for every action's enabled state and tooltip (I-53). One function, because
     // the three move together: a page changes, the Next Page button greys out, and its tooltip has
@@ -245,6 +289,12 @@ private:
     // already 250 lines: the registration mechanism, the once-per-registry guard and the
     // resolve-at-dispatch rule are all identical and all argued there.
     void registerViewerActions();
+
+    // `edit.undo`, `edit.redo`, `page.rotate`, `file.save` and `file.saveAs` -- Stage 3 T10.
+    void registerMutationActions();
+
+    // A failed save, as a banner the document keeps (Stage 3 T10).
+    void reportSaveFailure(DocumentWindow* document, const core::Error& error);
 
     // The two Viewer commands that ask the user a question. Both are refused where there is no one
     // to ask (convention 16, Stage 1's I-23), and both end in the same `PageView` call a chord or

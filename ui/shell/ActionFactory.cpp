@@ -106,6 +106,9 @@ QString ActionFactory::tooltipFor(const core::ActionRegistry& registry, core::Ac
     // sentence is the fallback. Falling back to the LABEL instead, which is what an available
     // action does, would put the command's own name in a tooltip explaining why it is greyed out.
     if (!registry.isEnabled(id)) {
+        // The document's own reason first (Stage 3 T10) -- "this document is encrypted" -- then the key.
+        if (const QString specific = registry.unavailableText(id); !specific.isEmpty())
+            return specific;
         const QString why = resolve(registry.unavailableKey(id));
         return why.isEmpty() ? catalog::translate(catalog::key::RibbonTooltipUnavailable).arg(label)
                              : why.arg(label);
@@ -114,6 +117,8 @@ QString ActionFactory::tooltipFor(const core::ActionRegistry& registry, core::Ac
     // 3. AVAILABLE. The registration's own tooltip if it named one, and otherwise the label --
     // never the *unavailable* key, which is the opposite statement and which the first attempt at
     // this function put on every enabled Viewer button by reusing one field for both.
+    if (const QString specific = registry.tooltipText(id); !specific.isEmpty())
+        return specific;                    // "Undo: rotate page 3 by 90 degrees" (Stage 3 T10)
     const QString tooltip = resolve(registry.tooltipKey(id));
     return tooltip.isEmpty() ? label : tooltip;
 }

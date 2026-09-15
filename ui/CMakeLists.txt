@@ -112,6 +112,14 @@ add_library(rawpage_ui STATIC
     # (Stage 1's I-23), which is what keeps a headless run from hanging on a modal.
     dialogs/PasswordDialog.h
     dialogs/PasswordDialog.cpp
+
+    # Stage 3 T10. Two dialogs that collect a parameter and construct nothing else: which pages to
+    # rotate (D3-13), and what to do with a dirty document being closed (D3-14). Each has a
+    # parameterized twin a headless case answers through, and neither is raised where nobody can answer.
+    dialogs/RotatePagesDialog.h
+    dialogs/RotatePagesDialog.cpp
+    dialogs/UnsavedChangesDialog.h
+    dialogs/UnsavedChangesDialog.cpp
 )
 
 # ui/ reads res/ribbon.json at startup, and res/'s own target is what proves that file sound before

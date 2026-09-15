@@ -5,6 +5,8 @@
 // header, so it widens nothing -- convention 9's list of what `ui/` looks OUTWARD to is unchanged.
 #include "core/backend.h"
 #include "core/cmd/ActionRegistry.h"
+#include "core/cmd/CommandJournal.h"
+#include "core/doc/Document.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
@@ -28,6 +30,7 @@
 #include "ui/shell/ToolFinder.h"
 #include "ui/shell/UiCustomization.h"
 
+#include <QCloseEvent>
 #include <QEvent>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -101,6 +104,12 @@ MainWindow* g_activeShell = nullptr;
 bool canPromptTheUser()
 {
     return QGuiApplication::platformName() != QLatin1String("offscreen");
+}
+
+MainWindow::SaveAsAnswer& installedSaveAsAnswer()
+{
+    static MainWindow::SaveAsAnswer answer;
+    return answer;
 }
 
 } // namespace
@@ -522,6 +531,26 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
                 [this](int, int, double) { updateViewChrome(); });
     }
 
+    // THE DOCUMENT TELLS THE CHROME TOO (Stage 3 T10): a command, an undo or a redo re-asks every action
+    // and moves the dirty marker; a recovery journal that stopped recording becomes a banner the document
+    // keeps. Disconnected in `releaseDocument`, so a tab torn off into another window stops reaching this one.
+    disconnect(document, nullptr, this, nullptr);
+    connect(document, &DocumentWindow::mutated, this, [this] {
+        updateDocumentTitles();
+        updateViewChrome();
+    });
+    connect(document, &DocumentWindow::dirtyChanged, this, [this](bool) {
+        updateDocumentTitles();
+        updateViewChrome();
+    });
+    connect(document, &DocumentWindow::recoveryUnavailable, this, [this, document](const QString& reason) {
+        const QString text = catalog::translate(catalog::key::MessageBarRecoveryUnavailable)
+                                 .arg(document->title(), reason);
+        document->setCondition(static_cast<int>(MessageBar::Kind::RecoveryUnavailable), text);
+        if (document == currentDocument() && messageBar_)
+            messageBar_->showMessage({MessageBar::Kind::RecoveryUnavailable, text, {}, {}});
+    });
+
     const int at = (index < 0 || index > documentCount()) ? documentCount() : index;
     documents_->insertWidget(at, document);
     tabs_->insertTab(at, document->title());
@@ -539,6 +568,7 @@ DocumentWindow* MainWindow::releaseDocument(int index)
     // REMOVED, NOT DELETED -- and reparented to nothing, so the caller genuinely owns it. A tab
     // moved between windows keeps its identity; at Stage 2 that identity is a document, a journal
     // and a scroll position, and a move that destroyed and rebuilt it would discard all three.
+    disconnect(document, nullptr, this, nullptr);
     documents_->removeWidget(document);
     document->setParent(nullptr);
     tabs_->removeTab(index);
@@ -568,14 +598,175 @@ void MainWindow::closeIfEmptied()
     close();
 }
 
-void MainWindow::closeDocument(int index)
+core::Status MainWindow::closeDocument(int index, std::optional<CloseDisposition> disposition)
 {
-    if (DocumentWindow* document = releaseDocument(index)) document->deleteLater();
+    DocumentWindow* document = documentAt(index);
+    if (!document) return {};
+
+    if (document->isDirty()) {
+        if (!disposition) {
+            // The question is about a document, so that document is in front while it is asked.
+            activateDocument(index);
+            disposition = UnsavedChangesDialog::ask(this, document->title());
+        }
+        if (!disposition) {
+            RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "close refused: unsaved changes and nobody to ask about"
+                                                 << document->path();
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.close.needsDisposition"),
+                               document->title()};
+        }
+        switch (*disposition) {
+        case CloseDisposition::Cancel:
+            return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.close.cancelled"), document->title()};
+        case CloseDisposition::Discard:
+            RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "close: changes discarded for" << document->path();
+            document->discardRecovery();
+            break;
+        case CloseDisposition::Save:
+            if (!saveDocument(document) || document->isDirty())
+                return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.close.notSaved"),
+                                   document->title()};
+            break;
+        }
+        index = indexOfPath(document->path());   // a Save As moved the path; the tab has not moved
+        if (index < 0) index = documents_->indexOf(document);
+    }
+
+    if (DocumentWindow* released = releaseDocument(index)) released->deleteLater();
+    return {};
 }
 
-void MainWindow::closeAllDocuments()
+core::Status MainWindow::closeAllDocuments()
 {
-    while (documentCount() > 0) closeDocument(0);
+    while (documentCount() > 0) {
+        if (core::Status closed = closeDocument(0); !closed) return closed;
+    }
+    return {};
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    for (int index = documentCount() - 1; index >= 0; --index) {
+        DocumentWindow* document = documentAt(index);
+        if (!document || !document->isDirty()) continue;
+        if (const core::Status closed = closeDocument(index); !closed) {
+            event->ignore();
+            return;
+        }
+    }
+    QMainWindow::closeEvent(event);
+}
+
+void MainWindow::setSaveAsAnswerForTesting(SaveAsAnswer answer)
+{
+    installedSaveAsAnswer() = std::move(answer);
+}
+
+bool MainWindow::canAskSavePath()
+{
+    return static_cast<bool>(installedSaveAsAnswer()) || canPromptTheUser();
+}
+
+core::Status MainWindow::rotatePages(DocumentWindow* document, const RotatePagesDialog::Choice& choice)
+{
+    if (!document || !document->journal())
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
+
+    const int current = document->view() ? document->view()->controller().currentPage() : 0;
+    RotationPlan plan = planRotation(choice, current, document->pageCount());
+    core::CommandJournal& journal = *document->journal();
+
+    // ONE GROUP, ONE UNDO STEP (D3-13). A command refused part-way leaves the ones before it applied and in
+    // the step -- `CommandJournal`'s rule -- so the group is still closed, and one `Ctrl+Z` takes it back.
+    if (plan.group) journal.beginGroup(*plan.group);
+    core::Status status;
+    for (std::unique_ptr<core::Command>& command : plan.commands) {
+        status = journal.run(std::move(command));
+        if (!status) break;
+    }
+    if (plan.group) journal.endGroup();
+
+    if (!status) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "rotate refused for" << document->path() << "--"
+                                             << status.error().messageKey;
+    }
+    return status;
+}
+
+void MainWindow::reportSaveFailure(DocumentWindow* document, const core::Error& error)
+{
+    RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "save failed for" << document->path() << "--" << error.messageKey
+                                         << error.context;
+    const QString text = catalog::translate(catalog::key::MessageBarSaveFailed)
+                             .arg(document->title(), catalog::translateError(error.messageKey, error.context));
+    document->setCondition(static_cast<int>(MessageBar::Kind::SaveFailed), text);
+    if (document == currentDocument() && messageBar_)
+        messageBar_->showMessage({MessageBar::Kind::SaveFailed, text, {}, {}});
+}
+
+core::Status MainWindow::saveDocument(DocumentWindow* document)
+{
+    if (!document) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
+
+    core::Result<core::SaveOutcome> saved = document->save();
+    if (!saved) {
+        reportSaveFailure(document, saved.error());
+        return saved.error();
+    }
+
+    if (saved.value().kind == core::SaveOutcome::Kind::SaveAsRequired) {
+        // THE EXPLANATION FIRST, THEN THE QUESTION (guide case A-77): a Save that opens a Save As with no
+        // word of why reads as the product ignoring the command.
+        const QString why = catalog::translate(QString(saved.value().reasonKey));
+        const QString text = catalog::translate(catalog::key::MessageBarSaveAsRequired).arg(document->title(), why);
+        document->setCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired), text);
+        if (document == currentDocument() && messageBar_)
+            messageBar_->showMessage({MessageBar::Kind::SaveAsRequired, text, {}, {}});
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "save: Save As required for" << document->path() << "--"
+                                          << saved.value().reasonKey;
+        return saveDocumentAs(document);
+    }
+
+    document->clearCondition(static_cast<int>(MessageBar::Kind::SaveFailed));
+    if (messageBar_ && document == currentDocument()) messageBar_->dismiss(MessageBar::Kind::SaveFailed);
+    updateDocumentTitles();
+    updateViewChrome();
+    return {};
+}
+
+core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
+{
+    if (!document) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
+
+    std::optional<QString> target;
+    if (installedSaveAsAnswer()) {
+        target = installedSaveAsAnswer()(document->path());
+    } else if (canPromptTheUser()) {
+        const QString chosen = QFileDialog::getSaveFileName(this, catalog::translate(catalog::key::SaveAsTitle),
+                                                            document->path(),
+                                                            catalog::translate(catalog::key::SaveAsFilter));
+        if (!chosen.isEmpty()) target = chosen;
+    }
+    if (!target) return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.save.cancelled"), document->title()};
+
+    core::Result<core::SaveOutcome> saved = document->saveAs(*target);
+    if (!saved) {
+        reportSaveFailure(document, saved.error());
+        return saved.error();
+    }
+    if (saved.value().kind == core::SaveOutcome::Kind::SaveAsRequired) {
+        // The target named the document's own file, which still cannot be saved in place. Not asked again
+        // in a loop: the banner already says why, and the user chooses another path with Save As.
+        const core::Error refused{core::ErrorCode::Unavailable, saved.value().reasonKey, document->title()};
+        reportSaveFailure(document, refused);
+        return refused;
+    }
+
+    document->clearCondition(static_cast<int>(MessageBar::Kind::SaveFailed));
+    document->clearCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired));
+    if (const int index = documents_->indexOf(document); index >= 0) tabs_->setTabToolTip(index, document->path());
+    updateDocumentChrome();
+    return {};
 }
 
 void MainWindow::activateDocument(int index)
@@ -644,9 +835,7 @@ void MainWindow::updateDocumentChrome()
     body_->setCurrentIndex(count > 0 ? 1 : 0);
 
     DocumentWindow* current = currentDocument();
-    setWindowTitle(current ? catalog::translate(catalog::key::WindowTitleWithDocument)
-                                 .arg(current->title())
-                           : catalog::translate(catalog::key::WindowTitle));
+    updateDocumentTitles();
 
     if (status_) {
         // The status bar was built DISABLED at T9 because there was no document, and it stayed
@@ -668,6 +857,23 @@ void MainWindow::updateDocumentChrome()
     }
 
     updateViewChrome();
+}
+
+void MainWindow::updateDocumentTitles()
+{
+    // THE DIRTY MARKER IS THE CATALOG'S, not a hard-coded asterisk: `shell.document.dirtyTitle` places it,
+    // and a locale that marks a changed document differently says so there (guide case A-76).
+    const auto titleOf = [](const DocumentWindow* document) {
+        return document->isDirty() ? catalog::translate(catalog::key::DocumentDirtyTitle).arg(document->title())
+                                   : document->title();
+    };
+    if (tabs_) {
+        for (int index = 0; index < documentCount() && index < tabs_->count(); ++index)
+            if (const DocumentWindow* document = documentAt(index)) tabs_->setTabText(index, titleOf(document));
+    }
+    const DocumentWindow* current = currentDocument();
+    setWindowTitle(current ? catalog::translate(catalog::key::WindowTitleWithDocument).arg(titleOf(current))
+                           : catalog::translate(catalog::key::WindowTitle));
 }
 
 void MainWindow::promptForZoom()
@@ -1026,6 +1232,10 @@ void MainWindow::showDocumentConditions(DocumentWindow* document)
                                     .arg(document->title());
         messageBar_->showMessage(std::move(protectedMessage));
     }
+
+    // What the document itself keeps (Stage 3 T10): a failed save, a forced Save As's reason, recovery off.
+    for (const auto& [kind, text] : document->conditions())
+        messageBar_->showMessage({static_cast<MessageBar::Kind>(kind), text, {}, {}});
 }
 
 PageView* MainWindow::currentView() const
@@ -1230,8 +1440,11 @@ void MainWindow::registerActions()
     // one window's document and `file.quit` is the application. Closing them in reverse order so
     // that the set is not mutated from under the loop.
     registerAction(ActionId::FileQuit, [](KeyContext) {
+        // A window that refuses -- a dirty document whose close was cancelled -- stops the quit there: the
+        // windows before it in the loop are closed, it and the rest stay (D3-14).
         const QList<MainWindow*> windows = shellWindows();
-        for (auto it = windows.crbegin(); it != windows.crend(); ++it) (*it)->close();
+        for (auto it = windows.crbegin(); it != windows.crend(); ++it)
+            if (!(*it)->close()) return;
     });
 
     // --- The Quick Access Toolbar and the tool finder (T11) ---------------------------------
@@ -1388,6 +1601,9 @@ void MainWindow::registerActions()
     // --- The §8 Viewer commands (S2 T14) ----------------------------------------------------
     registerViewerActions();
 
+    // --- Undo, redo, rotate, save (Stage 3 T10) -----------------------------------------------
+    registerMutationActions();
+
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a
     // name and a suffix and reads not one byte (D1-2, guide case A-58). It is registered here
@@ -1446,6 +1662,139 @@ void MainWindow::registerActions()
         window->show();
         window->raiseToForeground();
     });
+}
+
+void MainWindow::registerMutationActions()
+{
+    // SAME MECHANISM AS `registerActions()` -- once per registry, nothing captured, the window and its
+    // document resolved at dispatch (convention 14). What is new is `tooltipText`/`unavailableText`: text
+    // that depends on the document in front, which a key alone cannot carry.
+    const auto registerRegistration = [this](ActionId id, core::ActionRegistry::Registration registration) {
+        if (services_.actions.isRegistered(id)) return;
+        const core::Result<void> registered = services_.actions.register_(id, std::move(registration));
+        if (registered) return;
+        const std::string_view name = core::actionStringId(id);
+        RAWPAGE_LOG_ERROR(LogSubsystem::Ui)
+            << "mutation action registration refused for"
+            << QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())) << "--"
+            << registered.error().messageKey;
+    };
+
+    const auto currentDocumentOfActiveShell = []() -> DocumentWindow* {
+        MainWindow* window = activeShell();
+        return window ? window->currentDocument() : nullptr;
+    };
+    const auto journalInFront = [currentDocumentOfActiveShell]() -> core::CommandJournal* {
+        DocumentWindow* document = currentDocumentOfActiveShell();
+        return document ? document->journal() : nullptr;
+    };
+    const auto afterHistoryMove = [] {
+        if (MainWindow* window = activeShell()) {
+            window->updateDocumentTitles();
+            window->updateViewChrome();
+        }
+    };
+
+    // --- edit.undo / edit.redo ------------------------------------------------------------------
+    // The tooltip names the step: "Undo: Rotate page 3 by 90 degrees", in the locale in front, from the
+    // step's `command.*` entry (guide case A-76).
+    const auto registerHistory = [&](ActionId id, bool undo) {
+        core::ActionRegistry::Registration registration;
+        registration.handler = [journalInFront, afterHistoryMove, undo](KeyContext) {
+            if (core::CommandJournal* journal = journalInFront()) {
+                if (undo ? journal->undo() : journal->redo()) afterHistoryMove();
+            }
+        };
+        registration.enable = [journalInFront, undo] {
+            const core::CommandJournal* journal = journalInFront();
+            return journal && (undo ? journal->canUndo() : journal->canRedo());
+        };
+        registration.tooltipText = [journalInFront, undo] {
+            const core::CommandJournal* journal = journalInFront();
+            if (!journal) return QString();
+            const std::optional<core::CatalogText> name = undo ? journal->undoName() : journal->redoName();
+            if (!name) return QString();
+            return catalog::translate(undo ? catalog::key::TooltipUndoCommand : catalog::key::TooltipRedoCommand)
+                .arg(catalog::translateText(*name));
+        };
+        registration.unavailableKey = undo ? "shell.tooltip.nothingToUndo" : "shell.tooltip.nothingToRedo";
+        registerRegistration(id, std::move(registration));
+    };
+    registerHistory(ActionId::EditUndo, true);
+    registerHistory(ActionId::EditRedo, false);
+
+    // WHY A DOCUMENT CANNOT BE CHANGED, in its own words -- the permissions' refusal ("this document is
+    // encrypted"), or the generic sentence when there is no document or no sink (guide case A-79).
+    const auto whyNotEditable = [currentDocumentOfActiveShell](ActionId id) {
+        return [currentDocumentOfActiveShell, id] {
+            const DocumentWindow* document = currentDocumentOfActiveShell();
+            if (!document)
+                return catalog::translate(catalog::key::TooltipNeedsDocument).arg(catalog::translateAction(id));
+            if (document->journal() && !document->journal()->document().permissions().canEditPages()) {
+                const core::Permissions& permissions = document->journal()->document().permissions();
+                return catalog::translateError(QString(permissions.refusalKey()), permissions.refusalContext());
+            }
+            if (!document->isEditable())
+                return catalog::translate(catalog::key::TooltipNotEditable).arg(catalog::translateAction(id));
+            return QString();   // editable: the reason is the command's own key
+        };
+    };
+    const auto editableInFront = [currentDocumentOfActiveShell] {
+        const DocumentWindow* document = currentDocumentOfActiveShell();
+        return document && document->isEditable() && document->pageCount() > 0;
+    };
+
+    // --- page.rotate ----------------------------------------------------------------------------
+    // `Ctrl+R` in Viewer and Page Thumbnails (Features.md §8). The dialog collects a choice; the window runs
+    // the commands it means. Disabled where nobody can answer the dialog (convention 16).
+    {
+        core::ActionRegistry::Registration rotate;
+        rotate.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            if (!document) return;
+            if (const std::optional<RotatePagesDialog::Choice> choice = RotatePagesDialog::ask(window))
+                window->rotatePages(document, *choice);
+        };
+        rotate.enable = [editableInFront] { return editableInFront() && RotatePagesDialog::canAsk(); };
+        rotate.unavailableText = whyNotEditable(ActionId::PageRotate);
+        registerRegistration(ActionId::PageRotate, std::move(rotate));
+    }
+
+    // --- file.save / file.saveAs ----------------------------------------------------------------
+    // Save needs something to save; Save As needs somebody to name the file (convention 16). A clean
+    // document is not saved -- `SaveCoordinator` would refuse it by key, and a Save that did nothing
+    // should say so before the click rather than after it.
+    {
+        core::ActionRegistry::Registration save;
+        save.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (DocumentWindow* document = window ? window->currentDocument() : nullptr)
+                window->saveDocument(document);
+        };
+        save.enable = [currentDocumentOfActiveShell] {
+            const DocumentWindow* document = currentDocumentOfActiveShell();
+            return document && document->isEditable() && document->isDirty();
+        };
+        const auto whyNot = whyNotEditable(ActionId::FileSave);
+        save.unavailableText = whyNot;
+        save.unavailableKey = "shell.tooltip.nothingToSave";
+        registerRegistration(ActionId::FileSave, std::move(save));
+    }
+    {
+        core::ActionRegistry::Registration saveAs;
+        saveAs.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (DocumentWindow* document = window ? window->currentDocument() : nullptr)
+                window->saveDocumentAs(document);
+        };
+        saveAs.enable = [currentDocumentOfActiveShell] {
+            const DocumentWindow* document = currentDocumentOfActiveShell();
+            return document && document->isEditable() && canAskSavePath();
+        };
+        saveAs.unavailableText = whyNotEditable(ActionId::FileSaveAs);
+        registerRegistration(ActionId::FileSaveAs, std::move(saveAs));
+    }
 }
 
 PreferencesDialog* MainWindow::showPreferences()

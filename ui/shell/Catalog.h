@@ -28,6 +28,8 @@
 #include "core/cmd/KeyContext.h"
 #include "core/settings/SettingsSchema.h"
 
+#include "core/cmd/Command.h"
+
 #include <QString>
 #include <QStringList>
 
@@ -45,6 +47,10 @@ QString translateAction(core::ActionId id);
 // catalog entry provides. This is the boundary Result.h describes: core/ carries a key plus a file
 // name, ui/ turns the pair into a sentence in the user's language.
 QString translateError(const QString& messageKey, const QString& context);
+
+// A key and its `%1`… arguments, as `core/` expresses a message it cannot write (Stage 3 T10): a command's
+// `name()`, an undo step's name. The arguments are untranslated data -- page numbers, degrees.
+QString translateText(const core::CatalogText& text);
 
 // ---------------------------------------------------------------------------------------
 // Keys that are BUILT from a table rather than written down -- T14

@@ -1559,6 +1559,106 @@
         <translation>%1：已經是最後一頁。</translation>
     </message>
     <message>
+        <source>shell.rotate.title</source>
+        <translation>旋轉頁面</translation>
+    </message>
+    <message>
+        <source>shell.rotate.direction</source>
+        <translation>方向</translation>
+    </message>
+    <message>
+        <source>shell.rotate.clockwise</source>
+        <translation>順時針 90 度</translation>
+    </message>
+    <message>
+        <source>shell.rotate.half</source>
+        <translation>180 度</translation>
+    </message>
+    <message>
+        <source>shell.rotate.counterClockwise</source>
+        <translation>逆時針 90 度</translation>
+    </message>
+    <message>
+        <source>shell.rotate.pages</source>
+        <translation>頁面</translation>
+    </message>
+    <message>
+        <source>shell.rotate.currentPage</source>
+        <translation>目前頁面</translation>
+    </message>
+    <message>
+        <source>shell.rotate.allPages</source>
+        <translation>所有頁面</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.title</source>
+        <translation>未儲存的變更</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.question</source>
+        <translation>關閉 %1 之前要儲存變更嗎？</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.save</source>
+        <translation>儲存</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.discard</source>
+        <translation>不要儲存</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.undoCommand</source>
+        <translation>復原：%1</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.redoCommand</source>
+        <translation>重做：%1</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.nothingToUndo</source>
+        <translation>%1：沒有可復原的動作。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.nothingToRedo</source>
+        <translation>%1：沒有可重做的動作。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.nothingToSave</source>
+        <translation>%1：沒有未儲存的變更。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.notEditable</source>
+        <translation>%1：此版本無法變更這份文件。</translation>
+    </message>
+    <message>
+        <source>shell.document.dirtyTitle</source>
+        <translation>%1 *</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.saveFailed</source>
+        <translation>無法儲存 %1。%2</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.saveAsRequired</source>
+        <translation>%1：%2請選擇儲存位置。</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveryUnavailable</source>
+        <translation>%1 的變更只保留在記憶體中，當機後無法復原。%2</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.title</source>
+        <translation>另存新檔</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.filter</source>
+        <translation>PDF 檔案 (*.pdf)</translation>
+    </message>
+    <message>
         <source>shell.messageBar.dismiss</source>
         <translation>關閉此訊息</translation>
     </message>
@@ -1914,6 +2014,10 @@
         <translation>無法寫入檔案：%1</translation>
     </message>
     <message>
+        <source>error.save.cancelled</source>
+        <translation>已取消儲存 %1。</translation>
+    </message>
+    <message>
         <source>error.font.collectionUnavailable</source>
         <translation>無法讀取已安裝的字型清單，因此缺少的字型將改由 PDF 引擎替代。</translation>
     </message>
@@ -2050,8 +2154,16 @@
         <translation>內部錯誤：此文件尚未經過編輯檢查。未變更任何內容。</translation>
     </message>
     <message>
-        <source>command.page.rotate</source>
-        <translation>將第 %1 頁旋轉 %2 度</translation>
+        <source>error.close.needsDisposition</source>
+        <translation>%1 有未儲存的變更，且沒有人可以決定如何處理，因此未關閉。</translation>
+    </message>
+    <message>
+        <source>error.close.cancelled</source>
+        <translation>已取消關閉 %1。</translation>
+    </message>
+    <message>
+        <source>error.close.notSaved</source>
+        <translation>由於無法儲存變更，%1 未關閉。</translation>
     </message>
     <message>
         <source>error.command.failed</source>
@@ -2746,6 +2858,17 @@
     <message>
         <source>prefs.log.discarded</source>
         <translation>先前已捨棄 %1 筆記錄。</translation>
+    </message>
+</context>
+<context>
+    <name>command</name>
+    <message>
+        <source>command.page.rotate</source>
+        <translation>將第 %1 頁旋轉 %2 度</translation>
+    </message>
+    <message>
+        <source>command.page.rotateAll</source>
+        <translation>將全部 %1 頁旋轉 %2 度</translation>
     </message>
 </context>
 </TS>

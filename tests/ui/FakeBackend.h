@@ -17,8 +17,12 @@
 #include "core/backend.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageTree.h"
+#include "core/doc/DocumentId.h"
+#include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
 
+#include <QDateTime>
+#include <QFile>
 #include <QFileInfo>
 #include <QString>
 #include <QStringList>
@@ -30,8 +34,32 @@
 
 namespace rawpage::uitest {
 
+// Stage 3 T10: a sink that accepts every rotation and records the last one per page. What it wrote is
+// `tests/unit`'s and `tests/render`'s to judge; the widget suite needs a document it may edit.
+class FakeSink final : public core::MutationSink {
+public:
+    core::Status setPageRotation(int pageIndex, int degrees) override
+    {
+        rotations[pageIndex] = ((degrees % 360) + 360) % 360;
+        ++calls;
+        return {};
+    }
+    std::map<int, int> rotations;
+    int calls = 0;
+};
+
 class FakeBackend final : public core::IDocumentBackend {
 public:
+    // STAGE 3 T10 -- EDITING. Off by default, which keeps every Stage 2 case's document read-only exactly
+    // as before. On, a document is assessed as the first-party reader would assess `editableReading`
+    // (`Read` edits; `Encrypted` refuses by key, as the shipped backend refuses the encrypted corpus),
+    // takes its identity from the file on disk, and saves by writing the opened bytes plus a marker line.
+    bool editable = false;
+    core::CosReading editableReading = core::CosReading::Read;
+    bool failWrites = false;     // a save's write step fails by key
+    int writes = 0;
+    int adoptions = 0;
+
     // What to answer for a given path. The default opens everything, so a harness that does not
     // care about opening writes nothing; a case that does sets this.
     std::function<bool(const QString&)> accepts = [](const QString&) { return true; };
@@ -81,6 +109,16 @@ public:
                                                 core::PdfSize{595.276, 841.89}});
         }
         trees[handle.id] = std::make_unique<core::PageTree>(std::move(built));
+        if (editable) {
+            auto entry = std::make_unique<EditState>();
+            std::vector<core::CosPageFacts> facts;
+            for (const core::Page& page : trees[handle.id]->pages())
+                facts.push_back(core::CosPageFacts{static_cast<int>(page.rotation()), page.mediaBox().size});
+            entry->permissions = core::Permissions::assess(*trees[handle.id], editableReading, facts);
+            entry->sourcePath = path;
+            entry->id = identityOf(path);
+            edits[handle.id] = std::move(entry);
+        }
 
         return handle;
     }
@@ -89,6 +127,7 @@ public:
     {
         ++closes;
         trees.erase(handle.id);
+        edits.erase(handle.id);
         return {};
     }
 
@@ -111,30 +150,78 @@ public:
 
     core::RepairReport repairs;
 
-    // Null for both (Stage 3 T4): no UI case yet reads whether a document may be edited or which file
-    // it is. A null permissions pointer hydrates to "not assessed", which refuses editing -- the safe
-    // reading for a fake whose pages come from nowhere.
-    const core::Permissions* permissions(core::DocumentHandle) const override { return nullptr; }
-    const core::DocumentId* documentId(core::DocumentHandle) const override { return nullptr; }
-
-    // Stage 3 T8: nothing here writes; a save through this backend fails by key.
-    core::Status writeRevision(core::DocumentHandle, const QString&) override
+    // Null for both unless `editable` (Stage 3 T10). A null permissions pointer hydrates to "not assessed",
+    // which refuses editing -- the safe reading for a fake whose pages come from nowhere.
+    const core::Permissions* permissions(core::DocumentHandle handle) const override
     {
-        return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notEditable"), QString()};
+        const auto found = edits.find(handle.id);
+        return found == edits.end() ? nullptr : &found->second->permissions;
     }
-    core::Status adoptRevision(core::DocumentHandle, const QString&) override
+    const core::DocumentId* documentId(core::DocumentHandle handle) const override
     {
-        return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notEditable"), QString()};
+        const auto found = edits.find(handle.id);
+        return found == edits.end() ? nullptr : &found->second->id;
+    }
+
+    // Stage 3 T10: the opened file's bytes plus a line naming the save, so a saved file differs from the one
+    // before it -- enough for `SaveCoordinator`'s identity check and for the chrome's dirty marker.
+    core::Status writeRevision(core::DocumentHandle handle, const QString& temporaryPath) override
+    {
+        const auto found = edits.find(handle.id);
+        if (found == edits.end() || !found->second->permissions.canEditPages())
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
+        if (failWrites)
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.writeFailed"), temporaryPath};
+        QFile source(found->second->sourcePath);
+        QByteArray bytes = source.open(QIODevice::ReadOnly) ? source.readAll() : QByteArray();
+        bytes += "\n% saved revision " + QByteArray::number(++writes) + "\n";
+        QFile out(temporaryPath);
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(bytes) != bytes.size())
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.writeFailed"), temporaryPath};
+        return {};
+    }
+    core::Status adoptRevision(core::DocumentHandle handle, const QString& path) override
+    {
+        const auto found = edits.find(handle.id);
+        if (found == edits.end())
+            return core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), path};
+        found->second->sourcePath = path;
+        found->second->id = identityOf(path);
+        repairs = core::RepairReport{};          // a saved file needs no repair
+        ++adoptions;
+        return {};
     }
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }
-    core::MutationSink* mutationSink(core::DocumentHandle) override { return nullptr; }
+    core::MutationSink* mutationSink(core::DocumentHandle handle) override
+    {
+        const auto found = edits.find(handle.id);
+        return found != edits.end() && found->second->permissions.canEditPages() ? &found->second->sink : nullptr;
+    }
+    FakeSink* sinkFor(core::DocumentHandle handle)
+    {
+        const auto found = edits.find(handle.id);
+        return found == edits.end() ? nullptr : &found->second->sink;
+    }
     core::ISigner* signer(core::DocumentHandle) override { return nullptr; }
     core::IOcrEngine* ocrEngine() override { return nullptr; }
     core::IIndexer* indexer() override { return nullptr; }
 
 private:
+    struct EditState {
+        core::Permissions permissions;
+        core::DocumentId id;
+        FakeSink sink;
+        QString sourcePath;
+    };
+    static core::DocumentId identityOf(const QString& path)
+    {
+        QFile file(path);
+        const QByteArray bytes = file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray("fake");
+        return core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), bytes);
+    }
+    std::map<std::uint64_t, std::unique_ptr<EditState>> edits;
     // `mutable` because `pages()` is const and `open()` is not: the map is the fake's storage, and
     // the constness belongs to the interface rather than to this object's bookkeeping.
     mutable std::map<std::uint64_t, std::unique_ptr<core::PageTree>> trees;

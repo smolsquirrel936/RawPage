@@ -74,6 +74,11 @@ public:
         Signed,      // S11
         HasForm,     // S9
         WriteMode,   // S13
+        // Stage 3 T10 -- the save and the recovery journal. All three belong to the DOCUMENT, and
+        // `DocumentWindow` keeps them, so a tab switch away and back shows them again.
+        SaveFailed,           // a Save or Save As failed, with the key-resolved reason
+        SaveAsRequired,       // the explanation before a forced Save-As: repaired, or changed on disk
+        RecoveryUnavailable,  // edits are kept in memory only -- shown ONCE per document (A-80)
     };
 
     static const char* kindName(Kind kind) noexcept;

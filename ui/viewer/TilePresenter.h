@@ -84,8 +84,9 @@ public:
     // The document this presenter draws. Setting a different one drops every tile and every ticket
     // held for the old one -- a presenter that kept them would paint the previous document's pixels
     // into the new one's rectangles, which is a defect that looks like corruption.
+    // `enginePages` (Stage 3 T10, D3-15): what the engine loaded, when it differs from `pages`, the model.
     void setDocument(core::DocumentHandle document, core::Revision revision,
-                     const core::PageTree* pages);
+                     const core::PageTree* pages, const core::PageTree* enginePages = nullptr);
 
     core::DocumentHandle document() const noexcept { return document_; }
 
@@ -181,6 +182,7 @@ private:
     core::DocumentHandle document_;
     core::Revision revision_;
     const core::PageTree* pages_ = nullptr;
+    const core::PageTree* enginePages_ = nullptr;
 
     std::unordered_map<core::render::RenderRequest, Held> tiles_;
     std::unordered_map<core::render::RenderRequest, core::render::RenderTicket> tickets_;

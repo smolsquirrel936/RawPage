@@ -10,10 +10,23 @@
 // return was that the stub would calcify.
 //
 // It did not. This class now holds exactly what `Architecture-FileMap.md` §3.13 said it would grow:
-// the open document's handle, its revision, and the viewer. What it still does NOT hold is a
-// `CommandJournal`, a split container or a pane set -- Stages 3 and 4 -- because Stage 2 has no
-// mutation of any kind and a journal with nothing to record would be a member built ahead of its
-// first caller.
+// the open document's handle, its revision, and the viewer -- and, from Stage 3 T10, the document's
+// `CommandJournal`, its `RecoveryJournal` and its `SaveCoordinator`. It still holds no split container
+// and no pane set; those are Stage 4's.
+//
+// ---------------------------------------------------------------------------------------------
+// THE JOURNAL (Stage 3 T10, D3-10, D3-11, D3-15).
+//
+// It is the only holder of a mutable `Document`: `ui/` sees `journal()->document()` as a const
+// reference and changes the document by handing the journal a `Command`. Every mutation does three
+// things here, in order: tells `RenderScheduler` the scope and the new revision (so a tile rendered
+// before it is dropped and the rest are re-keyed), lays the view out again from the MODEL's page tree
+// -- geometry before pixels, Stage 1's I-36 -- and says so, so the window can re-ask every action.
+// The view is handed the engine's tree as well, and each tile request carries the model's rotation
+// minus the engine's as its delta (D3-15).
+//
+// A document the backend refuses to edit still gets a journal -- its permissions refuse every run by
+// key -- and no recovery journal, because nothing it does needs recovering.
 //
 // ---------------------------------------------------------------------------------------------
 // IT OWNS THE HANDLE, AND CLOSING IT IS A THREE-STEP PROTOCOL RATHER THAN A CALL.
@@ -39,9 +52,18 @@
 #include "app/Services.h"
 #include "core/backend.h"
 #include "core/doc/Revision.h"
+#include "core/doc/SaveCoordinator.h"
+
+#include <map>
+#include <memory>
 
 #include <QString>
 #include <QWidget>
+
+namespace rawpage::core {
+class CommandJournal;
+class RecoveryJournal;
+}
 
 namespace rawpage::ui {
 
@@ -62,15 +84,36 @@ public:
                    QWidget* parent = nullptr);
     ~DocumentWindow() override;
 
-    // The absolute path this tab stands for.
+    // The absolute path this tab stands for. A Save As moves it.
     const QString& path() const { return path_; }
 
     core::DocumentHandle handle() const noexcept { return handle_; }
 
-    // The revision this tab's document is at. `Revision::initial()` for every document Stage 2 can
-    // open, because Stage 2 has no mutation -- it moves at Stage 3, and every tile key carries it
-    // so that nothing rendered before a change can be shown after one (D2-12).
-    core::Revision revision() const noexcept { return revision_; }
+    // The revision this tab's document is at: the journal's, which every run, undo and redo moves (Stage 3
+    // T10). Every tile key carries it, so nothing rendered before a change can be shown after one (D2-12).
+    core::Revision revision() const noexcept;
+
+    // Stage 3 T10. Null only for an invalid handle.
+    core::CommandJournal* journal() const noexcept { return journal_.get(); }
+    core::RecoveryJournal* recovery() const noexcept { return recovery_.get(); }
+
+    // Whether this build may change the document: a sink, and permissions that allow editing pages.
+    bool isEditable() const;
+    bool isDirty() const;
+
+    // Through `SaveCoordinator` (D3-4). A Save As that succeeds makes `target` this tab's path.
+    core::Result<core::SaveOutcome> save();
+    core::Result<core::SaveOutcome> saveAs(const QString& target);
+
+    // The user discarded the document's changes (D3-14): its recovery directory goes with them.
+    void discardRecovery();
+
+    // THE DOCUMENT'S OWN BANNERS (Stage 3 T10), by `MessageBar::Kind` value: a failed save, a forced
+    // Save-As's explanation, recovery unavailable. Kept HERE so they survive a tab switch -- the window
+    // clears every document banner when the tab in front changes and shows the new tab's from this.
+    void setCondition(int kind, const QString& text) { conditions_[kind] = text; }
+    void clearCondition(int kind) { conditions_.erase(kind); }
+    const std::map<int, QString>& conditions() const noexcept { return conditions_; }
 
     int pageCount() const;
 
@@ -99,7 +142,16 @@ public:
     // there is no second copy to disagree with the path after a rename.
     QString title() const;
 
+signals:
+    // A command, an undo or a redo changed the model; the revision has moved.
+    void mutated();
+    void dirtyChanged(bool dirty);
+    // The recovery journal stopped recording -- said ONCE, the first time it is noticed (A-80).
+    void recoveryUnavailable(const QString& reason);
+
 private:
+    void afterMutation();
+
     app::Services services_;
     QString path_;
     core::DocumentHandle handle_;
@@ -111,6 +163,14 @@ private:
     // outlives the object it was installed for is a call into freed memory, and `Settings` outlives
     // every tab by construction -- it belongs to the composition root.
     int settingsSubscription_ = 0;
+
+    // Stage 3 T10. Declared AFTER the view so they are destroyed BEFORE it: the journal's subscriptions
+    // call into the view, and a journal outliving it would call into a destroyed widget.
+    std::unique_ptr<core::CommandJournal> journal_;
+    std::unique_ptr<core::RecoveryJournal> recovery_;
+    std::unique_ptr<core::SaveCoordinator> coordinator_;
+    bool recoveryReported_ = false;
+    std::map<int, QString> conditions_;
 };
 
 } // namespace rawpage::ui

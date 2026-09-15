@@ -63,10 +63,13 @@ TEST_CASE("the toolbar starts at the factory defaults and renders every one of t
     // is what fails if a mutation ever stops rebuilding the row.
     CHECK(qat->renderedCommands() == ui::QuickAccessToolbar::factoryDefaults());
 
-    // Two of the three defaults are declared and not yet registered -- they are on the toolbar,
-    // disabled, exactly as they are on the ribbon. A default toolbar of only the commands that
-    // already work would look complete and then grow silently over thirteen stages.
-    CHECK_FALSE(fixture.actions.isRegistered(ActionId::FileSave));
+    // One of the three defaults is declared and not yet registered -- it is on the toolbar, disabled,
+    // exactly as it is on the ribbon. A default toolbar of only the commands that already work would
+    // look complete and then grow silently over thirteen stages. `file.save` was the second until
+    // Stage 3 T10 registered it, and is now on the toolbar and disabled for a different reason: there is
+    // nothing to save.
+    CHECK(fixture.actions.isRegistered(ActionId::FileSave));
+    CHECK_FALSE(fixture.actions.isEnabled(ActionId::FileSave));
     CHECK_FALSE(fixture.actions.isRegistered(ActionId::FilePrint));
 }
 

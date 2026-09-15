@@ -131,6 +131,22 @@ std::string_view ActionRegistry::unavailableKey(ActionId id) const
     return slot.occupied ? slot.registration.unavailableKey : std::string_view{};
 }
 
+QString ActionRegistry::tooltipText(ActionId id) const
+{
+    const std::size_t index = static_cast<std::size_t>(id);
+    if (index >= slots_.size()) return {};
+    const Slot& slot = slots_[index];
+    return slot.occupied && slot.registration.tooltipText ? slot.registration.tooltipText() : QString();
+}
+
+QString ActionRegistry::unavailableText(ActionId id) const
+{
+    const std::size_t index = static_cast<std::size_t>(id);
+    if (index >= slots_.size()) return {};
+    const Slot& slot = slots_[index];
+    return slot.occupied && slot.registration.unavailableText ? slot.registration.unavailableText() : QString();
+}
+
 std::string_view ActionRegistry::tooltipKey(ActionId id) const
 {
     const auto index = static_cast<std::size_t>(id);

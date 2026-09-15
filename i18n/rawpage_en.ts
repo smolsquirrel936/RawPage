@@ -1559,6 +1559,106 @@
         <translation>%1: this is already the last page.</translation>
     </message>
     <message>
+        <source>shell.rotate.title</source>
+        <translation>Rotate Pages</translation>
+    </message>
+    <message>
+        <source>shell.rotate.direction</source>
+        <translation>Direction</translation>
+    </message>
+    <message>
+        <source>shell.rotate.clockwise</source>
+        <translation>90 degrees clockwise</translation>
+    </message>
+    <message>
+        <source>shell.rotate.half</source>
+        <translation>180 degrees</translation>
+    </message>
+    <message>
+        <source>shell.rotate.counterClockwise</source>
+        <translation>90 degrees counter-clockwise</translation>
+    </message>
+    <message>
+        <source>shell.rotate.pages</source>
+        <translation>Pages</translation>
+    </message>
+    <message>
+        <source>shell.rotate.currentPage</source>
+        <translation>Current page</translation>
+    </message>
+    <message>
+        <source>shell.rotate.allPages</source>
+        <translation>All pages</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.title</source>
+        <translation>Unsaved Changes</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.question</source>
+        <translation>Save the changes to %1 before closing it?</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.save</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.discard</source>
+        <translation>Don't Save</translation>
+    </message>
+    <message>
+        <source>shell.unsaved.cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.undoCommand</source>
+        <translation>Undo: %1</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.redoCommand</source>
+        <translation>Redo: %1</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.nothingToUndo</source>
+        <translation>%1: there is nothing to undo.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.nothingToRedo</source>
+        <translation>%1: there is nothing to redo.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.nothingToSave</source>
+        <translation>%1: there are no unsaved changes.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.notEditable</source>
+        <translation>%1: this document cannot be changed in this build.</translation>
+    </message>
+    <message>
+        <source>shell.document.dirtyTitle</source>
+        <translation>%1 *</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.saveFailed</source>
+        <translation>%1 could not be saved. %2</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.saveAsRequired</source>
+        <translation>%1: %2 Choose where to save it.</translation>
+    </message>
+    <message>
+        <source>shell.messageBar.recoveryUnavailable</source>
+        <translation>Changes to %1 are kept in memory only and cannot be recovered after a crash. %2</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.title</source>
+        <translation>Save As</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.filter</source>
+        <translation>PDF files (*.pdf)</translation>
+    </message>
+    <message>
         <source>shell.messageBar.dismiss</source>
         <translation>Dismiss this message</translation>
     </message>
@@ -1914,6 +2014,10 @@
         <translation>The file could not be written: %1</translation>
     </message>
     <message>
+        <source>error.save.cancelled</source>
+        <translation>Saving %1 was cancelled.</translation>
+    </message>
+    <message>
         <source>error.font.collectionUnavailable</source>
         <translation>The list of installed fonts could not be read, so missing fonts will be substituted by the PDF engine instead.</translation>
     </message>
@@ -2050,8 +2154,16 @@
         <translation>Internal error: this document has not been checked for editing. Nothing was changed.</translation>
     </message>
     <message>
-        <source>command.page.rotate</source>
-        <translation>Rotate page %1 by %2 degrees</translation>
+        <source>error.close.needsDisposition</source>
+        <translation>%1 has unsaved changes and nobody was asked what to do with them, so it was not closed.</translation>
+    </message>
+    <message>
+        <source>error.close.cancelled</source>
+        <translation>Closing %1 was cancelled.</translation>
+    </message>
+    <message>
+        <source>error.close.notSaved</source>
+        <translation>%1 was not closed because its changes could not be saved.</translation>
     </message>
     <message>
         <source>error.command.failed</source>
@@ -2746,6 +2858,17 @@
     <message>
         <source>prefs.log.discarded</source>
         <translation>%1 earlier records were discarded.</translation>
+    </message>
+</context>
+<context>
+    <name>command</name>
+    <message>
+        <source>command.page.rotate</source>
+        <translation>Rotate page %1 by %2 degrees</translation>
+    </message>
+    <message>
+        <source>command.page.rotateAll</source>
+        <translation>Rotate all %1 pages by %2 degrees</translation>
     </message>
 </context>
 </TS>

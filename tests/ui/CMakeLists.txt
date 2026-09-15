@@ -53,6 +53,9 @@ add_executable(rawpage_ui_tests
     # S2 I-39 -- guide case A-73's second clause: a saved shortcut and a saved toolbar survive an
     # action rename, driven through the real Shortcuts page and the real toolbar restore.
     tst_aliassurvival.cpp
+
+    # Stage 3 T10 -- undo, redo, rotate, save and close: the mutation UI (guide cases A-71 … A-81).
+    tst_mutationcommands.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

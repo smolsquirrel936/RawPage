@@ -71,9 +71,9 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // FORTY-EIGHT, and named. 361 ids are declared; an id that is declared and UNREGISTERED
+    // FIFTY-THREE, and named. 361 ids are declared; an id that is declared and UNREGISTERED
     // renders as a visible, disabled control saying it is not built yet, which is the honest state.
-    // Registering a stub handler for the other 313 would make every one of them look available.
+    // Registering a stub handler for the other 308 would make every one of them look available.
     //
     // Nineteen at Stage 1 T14. Three joined on 2026-08-31, each because a manual walk reached for
     // something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
@@ -81,12 +81,13 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // drag-to-reorder. Those three are the only ids Stage 1 ADDED to the 358 the plan declared.
     // **Twenty-five more at Stage 2 T14**: the §8 Viewer subset `Implementation-Plan.md` § Stage 2
     // lists, and not one id beyond it -- the rest of that table belongs to Stages 3 to 13 and stays
-    // unregistered, which is asserted below rather than assumed.
+    // unregistered, which is asserted below rather than assumed. **Five more at Stage 3 T10**: `edit.undo`,
+    // `edit.redo`, `page.rotate`, `file.save` and `file.saveAs` (`Stage3-Mutation-Plan.md` §6).
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 48);
+    CHECK(fixture.actions.registeredCount() == 53);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -138,15 +139,19 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // that implements MOST of a context's table invites someone to complete it -- so the absence is
     // an assertion rather than a note.
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ViewReflow));        // S13
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageRotate));        // S3, destructive
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageRotate));              // S3 T10 -- see below
+    CHECK(fixture.actions.isRegistered(core::ActionId::EditUndo));
+    CHECK(fixture.actions.isRegistered(core::ActionId::EditRedo));
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileSave));
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveAs));
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));      // S4
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));    // S6
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
-    // yet is NotFound, not a silent no-op. `file.save` is one of the ~340 that are declared and
-    // unregistered; it used to be `file.open`, which T12 registered.
+    // yet is NotFound, not a silent no-op. `file.print` is one of the ~310 that are declared and
+    // unregistered; it used to be `file.open`, which T12 registered, then `file.save`, which Stage 3 T10 did.
     const core::Result<void> notYet =
-        fixture.actions.dispatch(core::ActionId::FileSave, core::KeyContext::Global);
+        fixture.actions.dispatch(core::ActionId::FilePrint, core::KeyContext::Global);
     REQUIRE_FALSE(notYet);
     CHECK(notYet.error().code == core::ErrorCode::NotFound);
 

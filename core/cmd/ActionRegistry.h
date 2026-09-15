@@ -32,6 +32,8 @@
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
 
+#include <QString>
+
 #include <functional>
 #include <vector>
 
@@ -69,6 +71,14 @@ public:
         // fill it in whenever it can be more specific: "this is already the first page" is useful
         // and the generic sentence is not, on a command that is plainly looking at a document.
         std::string_view unavailableKey;
+
+        // TEXT THAT DEPENDS ON THE DOCUMENT IN FRONT, added at Stage 3 T10. A key cannot say *Undo rotate page 3
+        // by 90 degrees* or *this document is encrypted*: the first needs the command's own name and the
+        // second the document's refusal. Each function is written in `ui/`, where `tr()` lives, and returns
+        // already-resolved text -- `core/` stores it and never produces a sentence (convention 5). An empty
+        // function, or one returning an empty string, falls back to the key above it.
+        std::function<QString()> tooltipText;        // while available
+        std::function<QString()> unavailableText;    // while refused
     };
 
     ActionRegistry() = default;
@@ -119,6 +129,10 @@ public:
     // The registration's *why it is refused* key, or empty. Read by `ui/shell/ActionFactory` only
     // while the action is disabled -- see `Registration::unavailableKey`.
     std::string_view unavailableKey(ActionId id) const;
+
+    // The registration's dynamic text (Stage 3 T10), or an empty string when it supplied none.
+    QString tooltipText(ActionId id) const;
+    QString unavailableText(ActionId id) const;
 
     std::size_t registeredCount() const { return registeredCount_; }
 

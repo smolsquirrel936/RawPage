@@ -154,12 +154,13 @@ TEST_CASE("a command that is declared but not built yet is shown disabled rather
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // `file.saveAs` is one of the ~340 declared and unregistered. It used to be `file.close`, which
-    // T12 registered -- and picking a command that a later task will register is how a case like
-    // this quietly stops testing what it says it does.
-    const std::vector<Match> matches = fixture.rank(QStringLiteral("save as"), 0);
+    // `file.print` is one of the ~310 declared and unregistered. It used to be `file.close`, which
+    // T12 registered, and then `file.saveAs`, which Stage 3 T10 registered -- picking a command that a
+    // later task will register is how a case like this quietly stops testing what it says it does, and
+    // printing is Stage 8's.
+    const std::vector<Match> matches = fixture.rank(QStringLiteral("print"), 0);
     const auto unregistered = std::find_if(matches.begin(), matches.end(), [](const Match& match) {
-        return match.id == ActionId::FileSaveAs;
+        return match.id == ActionId::FilePrint;
     });
     REQUIRE(unregistered != matches.end());
     CHECK_FALSE(unregistered->registered);
@@ -296,8 +297,10 @@ TEST_CASE("choosing a result runs the command through the registry", "[toolfinde
 
     // An unregistered hit is offered and refuses. A dispatch that failed silently would leave the
     // user believing a command ran -- the exact failure `ErrorCode::NotFound` was introduced for.
-    finder->setQuery(QStringLiteral("Save As"));
+    // `Print`, not `Save As`: Stage 3 T10 registered `file.saveAs`.
+    finder->setQuery(QStringLiteral("Print"));
     REQUIRE_FALSE(finder->results().empty());
+    REQUIRE(finder->results().front().id == ActionId::FilePrint);
     CHECK_FALSE(finder->results().front().registered);
     CHECK_FALSE(finder->activate(0));
 

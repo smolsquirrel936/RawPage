@@ -49,6 +49,14 @@ QString translateError(const QString& messageKey, const QString& context)
     return context.isEmpty() ? text : text.arg(context);
 }
 
+QString translateText(const core::CatalogText& text)
+{
+    QString resolved = translate(QString::fromLatin1(text.key.data(), text.key.size()));
+    for (const QString& argument : text.arguments)
+        resolved = resolved.arg(argument);
+    return resolved;
+}
+
 QString settingsGroupKey(core::SettingsGroup group)
 {
     // `PageDisplay` becomes `pageDisplay`; `Units & Guides` becomes `unitsGuides`. Lower-cased

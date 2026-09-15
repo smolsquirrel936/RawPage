@@ -563,9 +563,14 @@ TEST_CASE("a chord whose command is not registered yet leaves the key alone", "[
     MainWindow window(fixture.services());
     window.show();
 
-    // Ctrl+S is file.save: declared, and nothing registers it until Stage 3. The event must come
-    // back UNACCEPTED, so whatever else would have handled it still can.
-    QKeyEvent press(QEvent::KeyPress, Qt::Key_S, Qt::ControlModifier);
+    // Ctrl+P is file.print: declared, and not registered as of Stage 3 T10. The event must come back
+    // UNACCEPTED, so whatever else would have handled it still can.
+    //
+    // MOVED, NOT DELETED (Stage 3 guide case A-81). This case pressed Ctrl+S until Stage 3 T10 registered
+    // `file.save`; a registered command that is refused CONSUMES its key (`ShortcutBinder::consumes`), so
+    // Ctrl+S no longer says anything about an unregistered one. What the case proves is unchanged.
+    REQUIRE_FALSE(fixture.actions.isRegistered(core::ActionId::FilePrint));
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_P, Qt::ControlModifier);
     press.ignore();
     QCoreApplication::sendEvent(&window, &press);
     CHECK_FALSE(press.isAccepted());
@@ -580,9 +585,9 @@ TEST_CASE("a text field keeps the keys it edits with", "[chord]")
     MainWindow window(fixture.services());
     window.show();
 
-    // REGISTERED FOR THIS CASE, because Stage 1 registers nothing that collides with a text field
-    // and a test of a collision needs one. Stage 3 registers `edit.selectAll` for real, and this is
-    // the moment that would otherwise have broken every line edit in the product.
+    // REGISTERED FOR THIS CASE, because nothing registers `edit.selectAll` as of Stage 3 T10 and a test of
+    // a collision needs one. Whichever task registers it for real is the moment that would otherwise break
+    // every line edit in the product -- and the REQUIRE below fails that day, so this line is revisited.
     bool selectAllDispatched = false;
     REQUIRE(fixture.actions.register_(
         core::ActionId::EditSelectAll,

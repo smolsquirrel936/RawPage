@@ -85,11 +85,12 @@ PageView::~PageView()
 }
 
 void PageView::setDocument(core::DocumentHandle document, core::Revision revision,
-                           const core::PageTree* pages)
+                           const core::PageTree* pages, const core::PageTree* enginePages)
 {
     document_ = document;
     revision_ = revision;
     pages_ = pages;
+    enginePages_ = enginePages;
 
     engine_.setDocument(pages);
     presenter_->setDocument(document, revision, pages);
@@ -98,6 +99,16 @@ void PageView::setDocument(core::DocumentHandle document, core::Revision revisio
     controller_->setCurrentPage(0);
     controller_->setScroll(core::DevicePoint{0.0, 0.0});
 
+    refresh();
+}
+
+void PageView::modelChanged(core::Revision revision)
+{
+    revision_ = revision;
+    // The tree is the same object, mutated, and `refresh()` lays out from it again -- which is what makes a
+    // rotated page's display size, and every page below it, move. GEOMETRY FIRST, then tiles (Stage 1's
+    // I-36). No `engine_.setDocument` here: it only forgets the cached layout, which `refresh()` rebuilds
+    // anyway, and guide case A-75's control measured the call as doing nothing (Stage 3 T10).
     refresh();
 }
 
@@ -492,7 +503,7 @@ void PageView::refresh()
 
     updateScrollBars();
 
-    presenter_->setDocument(document_, revision_, pages_);
+    presenter_->setDocument(document_, revision_, pages_, enginePages_);
     presenter_->requestTiles(engine_.layout(), engine_.resolution(), controller_->visibleRect(),
                              controller_->viewRotation());
 

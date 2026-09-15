@@ -112,10 +112,21 @@ public:
 
     // The document to draw. `pages` is owned by the backend and must outlive this view; passing
     // null (with an invalid handle) is how a view is emptied.
+    //
+    // Stage 3 T10 (D3-15): `pages` is the MODEL -- `Document::pages()`, whose rotations include the
+    // unsaved ones -- and `enginePages` is what the engine loaded. Layout reads the model; every tile
+    // request carries the difference as `RenderRequest::pageRotationDelta`. Null `enginePages` means
+    // they are the same tree, which is what a document that cannot be edited passes.
     void setDocument(core::DocumentHandle document, core::Revision revision,
-                     const core::PageTree* pages);
+                     const core::PageTree* pages, const core::PageTree* enginePages = nullptr);
+
+    // The model changed IN PLACE -- a rotation -- and is now at `revision`. Lays out again and asks for
+    // tiles at the new revision, keeping the current page and the scroll where they are: unlike
+    // `setDocument`, which is a document ARRIVING and starts at page 1.
+    void modelChanged(core::Revision revision);
 
     core::DocumentHandle document() const noexcept { return document_; }
+    core::Revision revision() const noexcept { return revision_; }
     int pageCount() const;
 
     // `controller()`, NOT `viewport()`. `QAbstractScrollArea::viewport()` is the scrolled WIDGET
@@ -252,6 +263,7 @@ private:
     core::DocumentHandle document_;
     core::Revision revision_;
     const core::PageTree* pages_ = nullptr;
+    const core::PageTree* enginePages_ = nullptr;   // Stage 3 T10: the engine's reading, for the delta
 
     // Guards the scrollbar <-> controller round trip. Setting a scrollbar's value emits
     // `scrollContentsBy`, which would write the controller, which would set the scrollbar again --

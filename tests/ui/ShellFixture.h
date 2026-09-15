@@ -55,6 +55,7 @@
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
 #include "tests/ui/FakeBackend.h"
+#include "tests/unit/FakeDurableFiles.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -63,6 +64,7 @@
 #include <QString>
 #include <QTemporaryDir>
 
+#include <atomic>
 #include <memory>
 #include <span>
 
@@ -73,6 +75,11 @@ namespace rawpage::uitest {
 inline constexpr int kFakeTileRed = 0x20;
 inline constexpr int kFakeTileGreen = 0x60;
 inline constexpr int kFakeTileBlue = 0xd0;
+
+// THE ROTATION DELTA THE LAST REQUEST FOR PAGE 1 CARRIED, in degrees, or -1 before any (Stage 3 T10, D3-15). The
+// fake paints the same blue whatever the rotation, so a case about an unsaved rotation reaching the engine
+// reads this rather than the pixels. Atomic because the rasterizer runs on the scheduler's worker.
+inline std::atomic<int> fakeFirstPageRotationDelta{-1};
 
 class FakeRasterizer final : public core::IPageRasterizer {
 public:
@@ -86,6 +93,8 @@ public:
         // THE TRANSPARENCY FLAG IS HONOURED, because a fake that ignored it would make
         // `pageDisplay/transparencyGrid` untestable here -- and untestable is how that option came
         // to be implemented as a viewer-only paint in the first place, which showed nothing.
+        if (request.pageIndex == 0) fakeFirstPageRotationDelta = static_cast<int>(request.pageRotationDelta);
+
         const bool transparent = core::render::hasFlag(
             request.flags, core::render::RenderFlags::TransparentBackground);
 
@@ -139,10 +148,18 @@ struct ShellFixture {
     core::ActionRegistry  actions;
     core::KeyBindingStore keyBindings;
     core::LogBuffer       logBuffer;
-    platform::Platform    platform;   // every interface null: the honest state of a test bundle
+    // Every interface null -- the honest state of a test bundle -- EXCEPT `durableFiles` (Stage 3 T10): a
+    // document window saves and records through it, and with none every editable document would open
+    // with a *recovery unavailable* banner and refuse every save. It is the headless suite's fake, which
+    // writes real files and replaces NON-atomically; what that does not cover is in its own header.
+    platform::Platform    platform = platformWithDurableFiles();
     FakeBackend           backend;    // S2 T9: Services carries the engine
 
     core::render::RenderCache renderCache;
+
+    // WHERE THIS FIXTURE'S RECOVERY JOURNALS GO: inside its own temporary directory, never the user's
+    // `%LOCALAPPDATA%\RawPage\recovery` (Stage 3 T10).
+    QString recoveryRoot{QDir(directory.path()).filePath(QStringLiteral("recovery"))};
 
     // DECLARED LAST of the render pair, so it is DESTROYED FIRST. Its destructor joins the worker,
     // and a worker still inside `FakeRasterizer` when the cache went away would be reaching into a
@@ -153,7 +170,7 @@ struct ShellFixture {
     app::Services services()
     {
         return app::Services{settings,    recentFiles,     actions,     keyBindings, logBuffer,
-                             backend,     renderScheduler, renderCache, platform};
+                             backend,     renderScheduler, renderCache, platform,    recoveryRoot};
     }
 
     // Runs queued work until every tile has been rasterized and delivered. Returns how many results
@@ -172,6 +189,13 @@ struct ShellFixture {
         } while (renderScheduler.pendingCount() > 0 && timer.elapsed() < budgetMs);
 
         return delivered;
+    }
+
+    static platform::Platform platformWithDurableFiles()
+    {
+        platform::Platform bundle;
+        bundle.durableFiles = std::make_unique<tests::FakeDurableFiles>();
+        return bundle;
     }
 
     // Writes `contents` as the settings file in `dir` and returns its path. Used only by the seeded

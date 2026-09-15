@@ -142,15 +142,38 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     // these as Stages 3 to 13's; a stage that implements MOST of a context's table invites someone
     // to finish it, and an unregistered id must leave the key UNCONSUMED so whatever else would
     // have handled it still can.
+    //
+    // DERIVED, NOT TYPED (Stage 3 guide case A-81). Until Stage 3 T10 this was a hand-written list of seven
+    // chords with `Ctrl+R` among them; T10 registered `page.rotate`, and a typed list would have gone on
+    // asserting a chord was unimplemented after it was built. The list is now every `Viewer` row of
+    // `KeyBindingDefaults.def` (through the store) whose command the window did not register.
     Viewer viewer(4);
 
-    const char* const notYet[] = {"Ctrl+4", "Ctrl+R", "S", "Ctrl+B", "Ctrl+E", "Ctrl+L", "Ctrl+U"};
-    for (const char* chord : notYet) {
+    int unregistered = 0;
+    int registered = 0;
+    for (const core::KeyBinding& binding : viewer.fixture.keyBindings.allBindings()) {
+        if (binding.context != core::KeyContext::Viewer || !binding.action) continue;
+        const std::string chord = binding.chord.toString();
         INFO("chord: " << chord);
-        const ui::ShortcutBinder::Outcome outcome = viewer.press(chord);
-        CHECK(outcome == ui::ShortcutBinder::Outcome::NotImplemented);
-        CHECK_FALSE(ui::ShortcutBinder::consumes(outcome));
+        const ui::ShortcutBinder::Outcome outcome = viewer.binder->activate(binding.chord);
+        if (viewer.fixture.actions.isRegistered(*binding.action)) {
+            ++registered;
+            CHECK(ui::ShortcutBinder::consumes(outcome));
+        } else {
+            ++unregistered;
+            CHECK(outcome == ui::ShortcutBinder::Outcome::NotImplemented);
+            CHECK_FALSE(ui::ShortcutBinder::consumes(outcome));
+        }
     }
+
+    // `Ctrl+R` is built now, and consumed -- disabled here, because `FakeBackend` is not editable.
+    CHECK(viewer.fixture.actions.isRegistered(core::ActionId::PageRotate));
+    CHECK(ui::ShortcutBinder::consumes(viewer.press("Ctrl+R")));
+
+    // THE CENSUS, re-counted from the table: 26 dispatched Viewer rows registered, 13 not, as of Stage 3
+    // T10. A change to either is a registration or a table edit, and belongs in the same change as this.
+    CHECK(registered == 26);
+    CHECK(unregistered == 13);
 }
 
 // =============================================================================================

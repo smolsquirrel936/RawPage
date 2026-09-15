@@ -116,14 +116,15 @@ TilePresenter::~TilePresenter()
 }
 
 void TilePresenter::setDocument(core::DocumentHandle document, core::Revision revision,
-                               const core::PageTree* pages)
+                               const core::PageTree* pages, const core::PageTree* enginePages)
 {
-    if (document == document_ && revision == revision_ && pages == pages_) return;
+    if (document == document_ && revision == revision_ && pages == pages_ && enginePages == enginePages_) return;
 
     clear();
     document_ = document;
     revision_ = revision;
     pages_ = pages;
+    enginePages_ = enginePages;
 }
 
 void TilePresenter::setRenderFlags(core::render::RenderFlags flags)
@@ -182,6 +183,13 @@ RenderRequest TilePresenter::requestFor(int pageIndex, const TileRect& tile,
     // served the unrotated tile straight out of the cache -- the rotate command appearing to do
     // nothing, with no error and no failing test (D2-12's argument, on a field T10 did not have).
     request.viewRotation = viewRotation;
+    // THE UNSAVED ROTATION, as a delta on top of the `/Rotate` the engine already applies (Stage 3 T10,
+    // D3-15). Also part of the key: a tile drawn before a rotation must not be served after it.
+    if (pages_ != nullptr && enginePages_ != nullptr && enginePages_ != pages_) {
+        const int model = static_cast<int>(pages_->rotation(pageIndex));
+        const int engine = static_cast<int>(enginePages_->rotation(pageIndex));
+        request.pageRotationDelta = core::rotateBy(core::PageRotation::None, (((model - engine) % 360) + 360) % 360 / 90);
+    }
     request.flags = flags_;
     return request;
 }

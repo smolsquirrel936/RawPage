@@ -1,6 +1,9 @@
 #include "ui/shell/DocumentWindow.h"
 
 #include "core/Log.h"
+#include "core/cmd/CommandJournal.h"
+#include "core/cmd/RecoveryJournal.h"
+#include "core/doc/Document.h"
 #include "core/doc/PageTree.h"
 #include "core/settings/Settings.h"
 #include "core/render/RenderCache.h"
@@ -43,10 +46,36 @@ DocumentWindow::DocumentWindow(app::Services services, QString path,
     // before there is a document to open at them.
     applyViewSettings();
 
-    // The page tree comes from the BACKEND, through `core::IDocumentBackend` -- moved onto that
-    // interface at T13 for exactly this call, because `ui/` may never name `pdf/` (Stage 2 guide
-    // issue I-08). Null is an ordinary answer for an invalid handle and the view draws nothing.
-    view_->setDocument(handle_, revision_, services_.backend.pages(handle_));
+    // THE DOCUMENT AND ITS JOURNAL (Stage 3 T10). Hydrated from the backend -- a copy of its page tree, so
+    // a rotation changes the model and never the engine's reading (D3-15). A handle the backend does not
+    // know hydrates nothing, and the view draws nothing.
+    if (handle_.isValid()) {
+        core::Document document;
+        if (document.hydrate(services_.backend, handle_)) {
+            journal_ = std::make_unique<core::CommandJournal>(std::move(document), services_.backend.mutationSink(handle_));
+            coordinator_ = std::make_unique<core::SaveCoordinator>(services_.backend, services_.platform.durableFiles.get());
+            if (isEditable()) {
+                const QString root = services_.recoveryRoot.isEmpty() ? core::RecoveryJournal::defaultRoot()
+                                                                      : services_.recoveryRoot;
+                recovery_ = core::RecoveryJournal::open(root, path_, journal_->document().id(),
+                                                        services_.platform.durableFiles.get());
+                journal_->setRecorder(recovery_.get());
+            }
+            journal_->subscribeMutated([this](const core::Scope& scope) {
+                services_.renderScheduler.documentChanged(handle_, scope, journal_->revision());
+                afterMutation();
+            });
+            journal_->subscribeDirty([this](bool dirty) { emit dirtyChanged(dirty); });
+        }
+    }
+
+    // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15).
+    if (journal_) {
+        view_->setDocument(handle_, journal_->revision(), &journal_->document().pages(),
+                           services_.backend.pages(handle_));
+    } else {
+        view_->setDocument(handle_, revision_, services_.backend.pages(handle_));
+    }
 
     // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
     // who turns off image smoothing expects it off everywhere, and a tab that kept the old value
@@ -91,6 +120,15 @@ DocumentWindow::~DocumentWindow()
     // convention 10, in the form where the caller is a settings store rather than a signal.
     if (settingsSubscription_ != 0) services_.settings.unsubscribe(settingsSubscription_);
 
+    // NOTHING UNSAVED, NOTHING TO RECOVER. A document closed clean takes its recovery directory with it;
+    // one closed dirty -- which only a Discard or a process ending reaches -- keeps it for the next
+    // launch unless the Discard already removed it (D3-14).
+    if (journal_ && recovery_) {
+        journal_->setRecorder(nullptr);
+        if (!journal_->isDirty())
+            recovery_->discard();
+    }
+
     // ORDER, and the header argues each step. Cancel first, then drain, then drop the tiles, then
     // close -- a `close()` that ran while a worker was inside this document's PDFium handle would
     // be a use-after-free in the engine, which `IDocumentBackend::close()` states as the caller's
@@ -115,6 +153,59 @@ DocumentWindow::~DocumentWindow()
                 << "close: backend refused" << path_ << "--" << closed.error().messageKey;
         }
     }
+}
+
+core::Revision DocumentWindow::revision() const noexcept
+{
+    return journal_ ? journal_->revision() : revision_;
+}
+
+bool DocumentWindow::isEditable() const
+{
+    return journal_ && services_.backend.mutationSink(handle_) != nullptr
+           && journal_->document().permissions().canEditPages();
+}
+
+bool DocumentWindow::isDirty() const
+{
+    return journal_ && journal_->isDirty();
+}
+
+void DocumentWindow::afterMutation()
+{
+    view_->modelChanged(journal_->revision());
+    if (recovery_ && !recovery_->isRecoverable() && !recoveryReported_) {
+        recoveryReported_ = true;
+        emit recoveryUnavailable(catalog::translateError(QString::fromLatin1(recovery_->unrecoverableKey()),
+                                                         recovery_->unrecoverableContext()));
+    }
+    emit mutated();
+}
+
+core::Result<core::SaveOutcome> DocumentWindow::save()
+{
+    if (!journal_ || !coordinator_)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path_};
+    return coordinator_->save(*journal_, path_);
+}
+
+core::Result<core::SaveOutcome> DocumentWindow::saveAs(const QString& target)
+{
+    if (!journal_ || !coordinator_)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), target};
+    auto result = coordinator_->saveAs(*journal_, target);
+    if (result && result.value().kind == core::SaveOutcome::Kind::Saved)
+        path_ = QFileInfo(target).absoluteFilePath();
+    return result;
+}
+
+void DocumentWindow::discardRecovery()
+{
+    if (!recovery_)
+        return;
+    if (journal_)
+        journal_->setRecorder(nullptr);
+    recovery_->discard();
 }
 
 int DocumentWindow::pageCount() const
