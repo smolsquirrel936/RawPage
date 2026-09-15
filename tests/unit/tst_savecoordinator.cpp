@@ -103,6 +103,13 @@ TEST_CASE("save coordinator sends a file changed on disk to Save-As", "[save][co
             QFile file(session->path);
             REQUIRE(file.open(QIODevice::ReadWrite));
             file.write(altered);
+        }   // closed: the write is flushed before the time is set
+        {
+            // A SEPARATE open, with nothing written. Setting the time on the handle that wrote -- the first
+            // version of this case -- passed on Windows and failed on CI's Linux ASan job (run 34913473783):
+            // QFile flushed its buffered write at close, AFTER setFileTime, and the flush moved the time again.
+            QFile file(session->path);
+            REQUIRE(file.open(QIODevice::ReadWrite));
             REQUIRE(file.setFileTime(modified, QFileDevice::FileModificationTime));
         }
         REQUIRE(QFileInfo(session->path).lastModified() == modified);
