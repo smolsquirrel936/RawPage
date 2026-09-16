@@ -12,8 +12,8 @@
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
 > recorded in the plan's §7 row rather than ticked here, because its case also covers CI jobs that were
 > not read. Every other box is ☐. **M-03's probe walk was walked and signed off by the user** (§6), and A4's probe
-> verdict, graded from its readings, is **`go`**. **M-01, M-02 and M-03's product walk were signed off by the user
-> on 2026-09-17**; M-04 … M-08 have not been walked. **Fourteen issues**: I-01 and I-02 raised by reading
+> verdict, graded from its readings, is **`go`**. **M-01, M-02, M-03's product walk and M-04 were signed off by the user
+> on 2026-09-17**; M-05 … M-08 have not been walked. **Fourteen issues**: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
 > at T3, **I-08** at T6's first CI run, **I-09** at T8, **I-10** at T10, **I-11** at T11, **I-12** at T13 — by `fuzz_cos_roundtrip`'s body, before its first push — and **I-13** by that target's first ten-minute soak, and **I-14** by M-02's walk (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — T8's — A-50 … A-61 — T9's — A-62 … A-70 — and T10's — A-71 … A-73 and A-75 … A-81, with A-77's settings half waiting for T12 — run 2026-09-15; T11's — A-67's untitled half, A-74, and A-82's prompt and crash-handler half — run 2026-09-16; T12's — A-77's setting half and A-82's keys and page — run 2026-09-16; T13's — A-57 re-run, A-83's (a), (c) and (d) — run 2026-09-17, with A4's product verdict recorded as PARTIAL.** No S1 or
 > S2 is open.
@@ -809,7 +809,8 @@ Two things about the state you will be walking, so a planned absence is not repo
   single change as the one that invalidates the certification. `approval-then-update.pdf`'s earlier
   corpus `/Info` revision is not listed as a change, consistent with I-06's D1.
 
-**M-04 · Kill the real product mid-edit, and recover** ☐
+**M-04 · Kill the real product mid-edit, and recover** ✅ signed off by the user, 2026-09-17
+- **Walk result** Every step as expected, on a copy of `text-letter.pdf` in a folder outside the repository, killed with `Stop-Process -Force`. **Read from the log and disk afterwards:** step 3 recovered into the file, and after two undos the window title read *"text-letter.pdf — RawPage"* (clean) while the recovered journal held the replayed history and both undo lines; step 4 — *"recovery: 4 step(s) replayed … into an untitled document"* over the replaced 4-page file, `Ctrl+S` → *"Save As required … error.save.untitled"*, the dialog proposing *"text-letter (recovered).pdf"* (the user's reading; that save was not completed, the document closed with *"changes discarded"*), the file left as the copied-in PDF; step 5 — *"offered 1 -- recovered 0 discarded 1 kept 0"*, and the relaunch after it logged no recovery at all; the recovery folder empty at the end. **Walking note, not a defect:** the yellow *Recovered* banner is not the unsaved marker — it says what was replayed (*"4 undo steps restored"* counts the replayed journal steps, including the undo, not the steps left to undo) and stays after undoing back to clean; the marker is the ` *` in the tab and window title. The user first read the banner as the marker.
 - **Goal** A-68 kills a probe; this kills the product, and meets the dialog a person meets.
 - **Pre** P-5. A copy of `corpus\ordinary\text-letter.pdf` open in RawPage.
 - **Steps**
