@@ -40,7 +40,10 @@
 //     and the allocator's next number; `/Root` and `/Info` carried from the merged trailer; `/Prev`
 //     = the newest section's offset; and an `/ID` whose FIRST element is kept and whose SECOND is a
 //     hash of the update. A deterministic `/ID` is what lets an expected update be a committed
-//     fixture (guide case A-24).
+//     fixture (guide case A-24). **After a hybrid file, `/XRefStm` too**, the newest trailer's value
+//     unchanged: Acrobat reads the key from the newest trailer only, and reports a file whose packed
+//     objects it cannot reach as damaged -- a defect our reader and PDFium cannot see, because both
+//     follow `/Prev` to the older trailer (Stage 3 guide I-14, found by M-02's walk).
 //   * **Never** `/Info` or XMP changes, and never an `/Encrypt`: an encrypted document is refused,
 //     because every string and stream written into it would have to be encrypted (D3-7; Stage 10).
 //

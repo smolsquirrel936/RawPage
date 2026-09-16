@@ -350,38 +350,74 @@ TEST_CASE("cos writer appends an xref stream after an xref stream and lifts a pa
 
 TEST_CASE("cos writer appends a classic section after a hybrid file and keeps its packed objects", "[cos][writer]")
 {
-    Loaded before = load(readFile(corpus("ordinary/hybrid-xrefstm.pdf")));
-    REQUIRE(before.table.sections().size() == 2);
-    const long long page = firstPage(before.table);
-    REQUIRE(before.table.find(page)->type == XrefEntryType::InObjectStream);
+    // TWO SHAPES of hybrid file (Stage 3 guide issue I-14). The corpus file is Word's: a classic table,
+    // then an empty section whose trailer carries /Prev and /XRefStm. The ONE-SECTION form -- the
+    // same first section, its only trailer naming the stream -- is what the corpus file was until
+    // M-02's walk found that Acrobat reports it damaged; it is valid by ISO 32000-1 7.5.8.4 and other
+    // producers may write it, so the writer is proven on it too, built here from the corpus bytes.
+    const std::string word = readFile(corpus("ordinary/hybrid-xrefstm.pdf"));
+    REQUIRE_FALSE(word.empty());
+    const std::string oneSection = [&word] {
+        std::string first = word.substr(0, word.find("%%EOF\n") + 6);
+        const std::size_t open = first.rfind("trailer\n<<");
+        REQUIRE(open != std::string::npos);
+        const Loaded probe = load(word);
+        first.insert(open + 10, " /XRefStm "
+                                    + std::to_string(probe.table.sections().front().trailer.get("XRefStm").integerValue()));
+        return first;
+    }();
 
-    auto catalog = before.table.fetch(before.table.trailer().get("Root").reference().number);
-    REQUIRE(catalog);
-    const long long pagesNumber = catalog.value().object.get("Pages").reference().number;
-    auto pagesNode = before.table.fetch(pagesNumber);
-    REQUIRE(pagesNode);
-    const long long secondPage = pagesNode.value().object.get("Kids").items().at(1).reference().number;
+    for (const auto& [shape, bytes] : {std::pair<const char*, const std::string*>{"Word's two sections", &word},
+                                       {"one section", &oneSection}}) {
+        INFO("shape: " << shape);
+        Loaded before = load(*bytes);
+        REQUIRE(before.table.sections()[1].fromXrefStm);   // the stream, reached from the newest trailer
+        const long long hybridStream = before.table.sections().front().trailer.get("XRefStm").integerValue(-1);
+        REQUIRE(hybridStream > 0);
+        const long long page = firstPage(before.table);
+        REQUIRE(before.table.find(page)->type == XrefEntryType::InObjectStream);
 
-    ObjectDelta delta(before.table);
-    delta.replace(page, rotated(before.table, page, 90));
-    auto update = IncrementalWriter::append(*before.bytes, before.table, delta);
-    REQUIRE(update);
-    CHECK(update.value().kind == SectionKind::Classic);
-    CHECK(update.value().bytes.find("XRefStm") == std::string::npos);
+        auto catalog = before.table.fetch(before.table.trailer().get("Root").reference().number);
+        REQUIRE(catalog);
+        const long long pagesNumber = catalog.value().object.get("Pages").reference().number;
+        auto pagesNode = before.table.fetch(pagesNumber);
+        REQUIRE(pagesNode);
+        const long long secondPage = pagesNode.value().object.get("Kids").items().at(1).reference().number;
 
-    Loaded after = load(*before.bytes + update.value().bytes);
-    REQUIRE(after.table.sections().size() == 3);
-    CHECK_FALSE(after.table.sections()[0].isStream);
-    CHECK(after.table.sections()[2].fromXrefStm);
-    CHECK(rotationOf(after.table, page) == 90);
+        ObjectDelta delta(before.table);
+        delta.replace(page, rotated(before.table, page, 90));
+        auto update = IncrementalWriter::append(*before.bytes, before.table, delta);
+        REQUIRE(update);
+        CHECK(update.value().kind == SectionKind::Classic);
 
-    // THE CONTROL for losing packed objects: the ones only `/XRefStm` lists still resolve.
-    for (long long packed : {pagesNumber, secondPage}) {
-        INFO("packed object " << packed);
-        const XrefEntry* entry = after.table.find(packed);
-        REQUIRE(entry != nullptr);
-        CHECK(entry->type == XrefEntryType::InObjectStream);
-        CHECK(after.table.fetch(packed));
+        Loaded after = load(*before.bytes + update.value().bytes);
+        CHECK(startsWith(*after.bytes, *before.bytes));
+        // One section more than before: the new table; the stream it names is the one already there,
+        // and the older trailer naming it too is not read twice.
+        REQUIRE(after.table.sections().size() == before.table.sections().size() + 1);
+        CHECK_FALSE(after.table.sections()[0].isStream);
+        CHECK(after.table.sections()[0].offset == update.value().sectionOffset);
+        CHECK(after.table.sections()[1].fromXrefStm);
+
+        // I-14's REGRESSION, read from the trailer ACROBAT reads -- the newest. Our reader and PDFium
+        // reach the stream through /Prev without it, so no re-read below could see this line fail.
+        CHECK(after.table.sections()[0].trailer.get("XRefStm").integerValue(-1) == hybridStream);
+
+        // The page's new row beats the stream's old one, although the stream is now read in the same
+        // revision: the classic table is read first, and first seen wins.
+        const XrefEntry* pageAfter = after.table.find(page);
+        REQUIRE(pageAfter != nullptr);
+        CHECK(pageAfter->type == XrefEntryType::InFile);
+        CHECK(rotationOf(after.table, page) == 90);
+
+        // THE CONTROL for losing packed objects: the ones only `/XRefStm` lists still resolve.
+        for (long long packed : {pagesNumber, secondPage}) {
+            INFO("packed object " << packed);
+            const XrefEntry* entry = after.table.find(packed);
+            REQUIRE(entry != nullptr);
+            CHECK(entry->type == XrefEntryType::InObjectStream);
+            CHECK(after.table.fetch(packed));
+        }
     }
 }
 

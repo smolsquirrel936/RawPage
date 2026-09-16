@@ -211,8 +211,9 @@ TEST_CASE("cos xref clears the spans of every value inside a packed object", "[c
 TEST_CASE("cos xref reaches objects that only a hybrid file's XRefStm lists", "[cos][xref]")
 {
     // `corpus/ordinary/hybrid-xrefstm.pdf` (Stage 3 T1, guide case A-17 of
-    // `Stage3-Mutation-Testing-Guide.md`): a classic table whose trailer carries `/XRefStm`. The
-    // fonts, the `/Pages` node and both page dictionaries are packed in an object stream and are
+    // `Stage3-Mutation-Testing-Guide.md`): a classic table, then an EMPTY update section whose trailer
+    // carries `/Prev` and `/XRefStm` -- the shape Word writes and Acrobat requires (guide issue I-14).
+    // The fonts, the `/Pages` node and both page dictionaries are packed in an object stream and are
     // ABSENT from the classic table, so the cross-reference stream is the only way to them.
     //
     // What this does NOT cover: a hybrid file that lists its packed objects in the classic table as
@@ -227,11 +228,14 @@ TEST_CASE("cos xref reaches objects that only a hybrid file's XRefStm lists", "[
     REQUIRE(loaded);
     XrefTable& table = loaded.value();
 
-    REQUIRE(table.sections().size() == 2);
+    // Newest first: the empty section, the stream its trailer names, then the classic table by /Prev.
+    REQUIRE(table.sections().size() == 3);
     CHECK_FALSE(table.sections()[0].isStream);
     CHECK_FALSE(table.sections()[0].fromXrefStm);
     CHECK(table.sections()[1].isStream);
     CHECK(table.sections()[1].fromXrefStm);
+    CHECK_FALSE(table.sections()[2].isStream);
+    CHECK_FALSE(table.sections()[2].fromXrefStm);
     CHECK(table.noteCount(XrefNote::SizeDisagrees) == 0);
 
     // The page tree, followed from the catalog. Every step past the catalog is a packed object.
@@ -270,7 +274,7 @@ TEST_CASE("cos xref reaches objects that only a hybrid file's XRefStm lists", "[
 
     auto without = XrefTable::load(blind);
     REQUIRE(without);
-    CHECK(without.value().sections().size() == 1);
+    CHECK(without.value().sections().size() == 2);   // both classic sections, and no stream
     CHECK(without.value().find(pagesNumber) == nullptr);
     CHECK_FALSE(without.value().fetch(pagesNumber));
 }

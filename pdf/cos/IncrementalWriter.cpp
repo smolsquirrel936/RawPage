@@ -314,6 +314,7 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
 
     std::size_t previousSection = 0;
     SectionKind kind = SectionKind::Classic;
+    const CosObject* hybridStream = nullptr;
     if (mode == Mode::Chained) {
         if (table.sections().empty())
             return writeError(core::ErrorCode::Unavailable, "error.pdf.writeNoRevision");
@@ -323,6 +324,16 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
         // `/XRefStm` names -- so "the newest section's kind" is classic there, as D3-5 requires.
         previousSection = table.sections().front().offset;
         kind = table.sections().front().isStream ? SectionKind::Stream : SectionKind::Classic;
+        // A HYBRID file's newest trailer names its cross-reference stream, and our update's trailer
+        // names it again (Stage 3 guide I-14). Acrobat reads `/XRefStm` from the NEWEST trailer only:
+        // without it the packed objects -- a page tree, often -- are gone and the file is "damaged",
+        // while PDFium and `XrefTable` follow `/Prev` to the older trailer and never notice. The
+        // offset is into the original, which the update never moves.
+        if (kind == SectionKind::Classic) {
+            const CosObject* named = table.sections().front().trailer.find("XRefStm");
+            if (named != nullptr && named->isInteger())
+                hybridStream = named;
+        }
     }
 
     // --- Validate the whole delta before producing a byte. A refusal half-way through would have
@@ -413,6 +424,8 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
         if (mode == Mode::Chained)
             entries.push_back({"Prev", CosObject::makeInteger(
                                            static_cast<long long>(previousSection))});
+        if (hybridStream != nullptr)
+            entries.push_back({"XRefStm", *hybridStream});
         return entries;
     };
 

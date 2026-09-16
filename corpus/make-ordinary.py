@@ -1624,9 +1624,11 @@ def rotate_inherited():
 
 @generator("hybrid-xrefstm.pdf")
 def hybrid_xrefstm():
-    """A HYBRID-REFERENCE file (ISO 32000-1 section 7.5.8.4): a classic cross-reference table whose
-    trailer also carries `/XRefStm`, pointing at a cross-reference stream that lists the objects
-    packed in an object stream -- here the fonts, the `/Pages` node and both page dictionaries.
+    """A HYBRID-REFERENCE file (ISO 32000-1 section 7.5.8.4): a classic cross-reference table, then
+    an empty update section whose trailer carries `/Prev` and `/XRefStm`, pointing at a
+    cross-reference stream that lists the objects packed in an object stream -- here the fonts, the
+    `/Pages` node and both page dictionaries. The two-section shape is Word's and Acrobat's; see the
+    comment above the second section for why the one-section shape is not used (issue I-14).
 
     Those four objects are ABSENT from the classic table, not listed as free, so they are reachable
     ONLY through `/XRefStm`. A reader that ignores the key sees a catalog whose page tree does not
@@ -1714,10 +1716,23 @@ def hybrid_xrefstm():
         out += b"%d %d\n" % (run[0], len(run))
         for number in run:
             out += b"%010d 00000 n \n" % offsets[number]
-    trailer = [(b"/Size", pb.num(size)), (b"/Root", pb.ref(catalog)), (b"/Info", pb.ref(info)),
-               (b"/XRefStm", pb.num(xrefstm_offset)), (b"/ID", pdf._file_id(bytes(out)))]  # noqa
-    out += b"trailer\n" + pb.dictionary(trailer) + b"\n"
+    file_id = pdf._file_id(bytes(out))                               # noqa: SLF001
+    common = [(b"/Size", pb.num(size)), (b"/Root", pb.ref(catalog)), (b"/Info", pb.ref(info)),
+              (b"/ID", file_id)]
+    out += b"trailer\n" + pb.dictionary(common) + b"\n"
     out += b"startxref\n%d\n%%%%EOF\n" % classic_offset
+
+    # The second section: an EMPTY classic table whose trailer alone names the stream, chained by
+    # /Prev. Word writes hybrid files this way, and Acrobat requires it: it reads /XRefStm only from
+    # a trailer that has /Prev. The one-section form -- /XRefStm in the only trailer -- is valid by
+    # ISO 32000-1 7.5.8.4 and opens in PDFium, and Acrobat reports it DAMAGED (Stage 3 guide I-14,
+    # measured by M-02's walk on 2026-09-17). That form is kept as bytes built inline in
+    # tests/unit/tst_incrementalwriter.cpp, where the writer is proven on both.
+    update_offset = len(out)
+    out += b"xref\n0 0\n"
+    out += b"trailer\n" + pb.dictionary(common + [(b"/Prev", pb.num(classic_offset)),
+                                                  (b"/XRefStm", pb.num(xrefstm_offset))]) + b"\n"
+    out += b"startxref\n%d\n%%%%EOF\n" % update_offset
     return bytes(out)
 
 
