@@ -96,6 +96,12 @@ public:
     // A new object, numbered by the allocator. Returns the number, so a caller can reference it.
     long long add(CosObject object, std::optional<std::string> streamData = {});
 
+    // True when `number` is already replaced or added by this delta.
+    bool touches(long long number) const noexcept;
+
+    // See `ObjectAllocator::reserveThrough`. Called by `IncrementalWriter::protectOriginal`.
+    void reserveNumbersThrough(long long number) noexcept { allocator_.reserveThrough(number); }
+
     const std::vector<ObjectChange>& changes() const noexcept { return changes_; }
     bool isEmpty() const noexcept { return changes_.empty(); }
     const ObjectAllocator& allocator() const noexcept { return allocator_; }
@@ -132,6 +138,26 @@ public:
     static core::Result<WrittenUpdate> appendComplete(std::string_view original,
                                                       const XrefTable& table,
                                                       const ObjectDelta& delta);
+
+    // BEFORE EITHER OF THEM, whenever anything will be appended: make `delta` safe to put after
+    // `table`'s bytes. Stage 3 guide issue I-12, found by `fuzz_cos_roundtrip` (D3-17) -- the prefix
+    // property says every original BYTE survives, and two things let an append change what those
+    // bytes MEAN anyway:
+    //
+    //   * **An object that runs to the end of the file.** An unterminated dictionary, array or string,
+    //     or a stream with no `endstream`, is parsed up to the last byte -- and after an append, into
+    //     the update, taking its keys or its data for its own. Every such object is re-written into
+    //     the update exactly as it was READ, so the new table places the copy whose meaning is fixed
+    //     and the original bytes, kept verbatim, are no longer what any reader resolves.
+    //   * **A number the file references without defining.** A dangling `9 0 R` means null; the
+    //     allocator's floor (`/Size`, the largest defined number) cannot see it, and the xref stream
+    //     a complete section writes would take 9 and give that reference a meaning. The delta's
+    //     allocator is raised past the largest number any object references.
+    //
+    // It walks every object the table places, once -- the cost of a save of a file, not of a page,
+    // which `rawpage_bench_save` measures. It never fails: an object that will not fetch is one no
+    // reader resolves either, and is left where it is. Not const, because `XrefTable::fetch` caches.
+    static void protectOriginal(XrefTable& table, ObjectDelta& delta);
 };
 
 // A direct object in PDF syntax, from its VALUES (spans ignored -- see the note above). A Stream

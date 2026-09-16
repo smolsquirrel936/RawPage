@@ -65,6 +65,12 @@ core::Result<ComposedRevision> RevisionWriter::compose(MutationSinkImpl& sink, b
     ComposedRevision composed;
     composed.complete = complete;
 
+    // Whenever anything will follow the original, the delta must not let it change what the original
+    // MEANS -- an object that runs to the end of the file, a number referenced and never defined
+    // (Stage 3 guide issue I-12; `IncrementalWriter::protectOriginal` says how).
+    if (complete || !delta.value().isEmpty())
+        cos::IncrementalWriter::protectOriginal(sink.table(), delta.value());
+
     if (!complete && delta.value().isEmpty()) {
         // Nothing to append and no table to complete: the next revision IS the newest one on disk.
         composed.bytes = QByteArray(original.data(), static_cast<qsizetype>(original.size()));

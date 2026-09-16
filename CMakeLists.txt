@@ -58,7 +58,7 @@ option(RAWPAGE_GATES_ONLY
     OFF)
 
 option(RAWPAGE_BUILD_FUZZERS
-    "Build the libFuzzer targets (portable-fuzz preset). No targets exist until Stage 2."
+    "Build the libFuzzer targets (portable-fuzz preset): fuzz_cos_lexer, fuzz_cos_parser, fuzz_cos_roundtrip."
     OFF)
 
 set(RAWPAGE_TARGET_ARCH "x64" CACHE STRING "Target architecture: x64, or arm64 (unresolved -- see O6)")
@@ -180,6 +180,11 @@ if(NOT RAWPAGE_GATES_ONLY)
     if(RAWPAGE_BUILD_FUZZERS)
         add_subdirectory(tests/fuzz)
     endif()
+
+    # The seed writer for fuzz_cos_roundtrip (Stage 3 T13, D3-17) is NOT behind that guard: it is a
+    # plain executable over the portable libraries, so it builds and its case runs on Windows and under
+    # portable-asan too. A subdirectory of tests/fuzz only on disk -- see tests/fuzz/seeds/CMakeLists.txt.
+    add_subdirectory(tests/fuzz/seeds)
 
     # The platform suite is Windows-only and deliberately a SEPARATE target: tests/unit must keep
     # linking core/ and pdf/ and nothing else, which is what portable-asan proves on a machine with

@@ -382,20 +382,20 @@ is a fact this plan establishes:
 
 **Owed with the code**:
 
-- ⚠️ Every ⚠️ row in §4, with its file.
-- ⚠️ **Flow F** (`Architecture-FileMap.md` §5) is rewritten at T8 to §5.3's transaction: it currently
+- ✅ Every ⚠️ row in §4, with its file — checked at T13: `WinDurableFiles`, `SaveCoordinator`, `rawpage_killprobe` and `UnsavedChangesDialog` each have their `Architecture-FileMap.md` row.
+- ✅ *(paid at T8)* **Flow F** (`Architecture-FileMap.md` §5) is rewritten at T8 to §5.3's transaction: it currently
   shows `IDocumentBackend.save(Incremental)` doing the whole job, and D3-4 splits it three ways.
-- ⚠️ **`Tech-Stack-Plan.md` §4.3**'s interface count — seventeen — becomes eighteen at T7, and so do
+- ✅ *(paid at T7)* **`Tech-Stack-Plan.md` §4.3**'s interface count — seventeen — becomes eighteen at T7, and so do
   `Implementation-Plan.md` §7's §10 row, `tests/platform/`'s census assertion and `CLAUDE.md`'s
   architecture paragraph. **Counted from the header at T7**, not edited in advance.
-- ⚠️ **`Tech-Stack-Plan.md` §5.4**'s *"The original bytes are never rewritten"* gains D3-4's precision —
+- ✅ *(paid at T8)* **`Tech-Stack-Plan.md` §5.4**'s *"The original bytes are never rewritten"* gains D3-4's precision —
   copied, never re-serialized — at T8, where the behaviour exists.
-- ⚠️ **`CLAUDE.md`'s gate table** flips `mutation-lint` to live at T6, and its *"Four are specified;
+- ✅ *(paid at T6, T7 and T9)* **`CLAUDE.md`'s gate table** flips `mutation-lint` to live at T6, and its *"Four are specified;
   THREE are live"* sentence with it. **The waiver census** in the same file is re-derived from
   `layer-lint --explain` at T7 and T9, which each add waivers — the number is not predicted here.
-- ⚠️ **`Implementation-Plan.md` § Stage 8's key bindings** list `Ctrl+Shift+S`, which Stage 3 now
+- ✅ *(paid at T10)* **`Implementation-Plan.md` § Stage 8's key bindings** list `Ctrl+Shift+S`, which Stage 3 now
   registers (D3-16). Annotated at T10: Stage 8 changes what the binding writes, not whether it exists.
-- ⚠️ **`Features.md` §9.2**'s *"Autosave of in-progress edits at an interval"* is a capability statement
+- ✅ *(nothing to change, re-read at T13)* **`Features.md` §9.2**'s *"Autosave of in-progress edits at an interval"* is a capability statement
   and stays; D3-9 only moves the key. Recorded so a reader does not take the move for a removal.
 
 ---

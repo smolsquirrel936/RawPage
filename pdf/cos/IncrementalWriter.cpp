@@ -503,6 +503,80 @@ long long ObjectDelta::add(CosObject object, std::optional<std::string> streamDa
     return number;
 }
 
+bool ObjectDelta::touches(long long number) const noexcept
+{
+    return std::any_of(changes_.begin(), changes_.end(),
+                       [number](const ObjectChange& change) { return change.number == number; });
+}
+
+void IncrementalWriter::protectOriginal(XrefTable& table, ObjectDelta& delta)
+{
+    const std::string_view source = table.source();
+    const std::size_t size = source.size();
+
+    // A snapshot of the numbers: `fetch` fills caches, and a loop over the live map while it does is
+    // one refactor away from iterator invalidation.
+    std::vector<std::pair<long long, XrefEntryType>> placed;
+    placed.reserve(table.entryCount());
+    for (const auto& [number, entry] : table.entries()) {
+        if (entry.type != XrefEntryType::Free && number > 0)
+            placed.emplace_back(number, entry.type);
+    }
+
+    long long largestReferenced = -1;
+    std::vector<const CosObject*> stack;
+    for (const auto& [number, type] : placed) {
+        auto fetched = table.fetch(number);
+        if (!fetched || fetched.value().number != number)
+            continue;
+        const IndirectObject& indirect = fetched.value();
+
+        // Every reference, iteratively -- the tree is input, and `pdf/cos/Parser` bounds its depth,
+        // but a recursive walk here would still be the one place that trusted it.
+        stack.assign(1, &indirect.object);
+        while (!stack.empty()) {
+            const CosObject* value = stack.back();
+            stack.pop_back();
+            if (value->isReference())
+                largestReferenced = std::max(largestReferenced, value->reference().number);
+            for (const CosObject& item : value->items())
+                stack.push_back(&item);
+            for (const CosObject::Entry& entry : value->entries())
+                stack.push_back(&entry.value);
+        }
+
+        // Open-ended: only a loose object can be -- a packed one's span is into a decoded payload, and
+        // its container is itself a loose object that this loop meets.
+        if (type != XrefEntryType::InFile || delta.touches(number))
+            continue;
+        const CosSpan& span = indirect.span;
+        const bool objectReachesEnd = span.valid && span.offset <= size && span.length >= size - span.offset;
+        bool dataReachesEnd = false;
+        bool dataInSource = false;
+        if (indirect.object.isStream()) {
+            const CosStreamData& data = indirect.object.streamData();
+            dataInSource = data.dataOffset <= size && data.dataLength <= size - data.dataOffset;
+            dataReachesEnd = dataInSource && data.dataLength == size - data.dataOffset;
+        }
+        if (!objectReachesEnd && !dataReachesEnd)
+            continue;
+
+        if (indirect.object.isStream() && dataInSource) {
+            const CosStreamData& data = indirect.object.streamData();
+            delta.replace(number, indirect.object, std::string(source.substr(data.dataOffset, data.dataLength)));
+        } else if (indirect.object.isStream()) {
+            // A stream whose data is not in this buffer has nothing a copy could carry; its dictionary
+            // is what every reader of it has ever had.
+            std::vector<CosObject::Entry> entries(indirect.object.entries().begin(),
+                                                  indirect.object.entries().end());
+            delta.replace(number, CosObject::makeDictionary(std::move(entries)));
+        } else {
+            delta.replace(number, indirect.object);
+        }
+    }
+    delta.reserveNumbersThrough(largestReferenced);
+}
+
 core::Result<WrittenUpdate> IncrementalWriter::append(std::string_view original,
                                                       const XrefTable& table,
                                                       const ObjectDelta& delta)

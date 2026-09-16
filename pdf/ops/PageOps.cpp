@@ -135,6 +135,7 @@ core::Result<std::optional<CosObject>> PageOps::rotatedPage(cos::XrefTable& tabl
     if (!fetched || !fetched.value().object.isDictionary())
         return pageError(core::ErrorCode::NotFound, "error.pdf.objectMissing", page.number);
     const CosObject& current = fetched.value().object;
+    const cos::XrefEntry* placed = table.find(page.number);
 
     // Re-read from the CURRENT dictionary rather than trusting `page`: the entry may describe an
     // older revision than the table it is handed with, and D3-5 computes against the newest.
@@ -156,6 +157,20 @@ core::Result<std::optional<CosObject>> PageOps::rotatedPage(cos::XrefTable& tabl
     }
     if (degrees != page.inheritedRotate)
         entries.push_back({"Rotate", CosObject::makeInteger(degrees)});
+
+    // A PAGE THAT IS A STREAM stays one (Stage 3 guide issue I-12, found by `fuzz_cos_roundtrip`). The
+    // walk calls any reachable dictionary without `/Kids` a page, and a stream is a dictionary -- so a
+    // damaged file can make an object stream's container page 1. Written back as a plain dictionary,
+    // the container loses its data and every object packed inside it goes with it: the catalog, the
+    // page tree. So a loose stream keeps its data, copied verbatim; a stream that came out of an object
+    // stream has no data in this buffer to keep, and nothing packed can live inside it.
+    const bool looseStream = current.isStream() && placed != nullptr && placed->type == cos::XrefEntryType::InFile;
+    if (looseStream) {
+        const std::size_t size = table.source().size();
+        const cos::CosStreamData& data = current.streamData();
+        if (data.dataOffset <= size && data.dataLength <= size - data.dataOffset)
+            return std::optional<CosObject>{CosObject::makeStream(std::move(entries), data)};
+    }
     return std::optional<CosObject>{CosObject::makeDictionary(std::move(entries))};
 }
 

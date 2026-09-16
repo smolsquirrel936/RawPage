@@ -120,7 +120,8 @@ void expandObjectStreams(std::string_view source,
             // A packed object only wins where the scan found nothing at top level: an object that
             // exists BOTH loose in the file and inside a container is almost always a later
             // incremental update of the packed one, and last-wins at top level is the newer.
-            if (entries.find(item.number) == entries.end()) {
+            // Object 0 is never recovered -- see the header scan in openWithRepair().
+            if (item.number > 0 && entries.find(item.number) == entries.end()) {
                 XrefEntry entry;
                 entry.type = XrefEntryType::InObjectStream;
                 entry.field2 = containerNumber;
@@ -295,7 +296,7 @@ core::Result<OpenedFile> openWithRepair(std::string_view source)
         // actually holds the object they name survive -- which is checked by `XrefTable::fetch`,
         // and is why this is not simply a copy.
         for (const auto& [number, entry] : loaded.value().entries()) {
-            if (entry.type == XrefEntryType::Free)
+            if (entry.type == XrefEntryType::Free || number <= 0)
                 continue;
             auto object = loaded.value().fetch(number);
             if (object && object.value().number == number) {
@@ -308,6 +309,13 @@ core::Result<OpenedFile> openWithRepair(std::string_view source)
     Parser parser(source);
     std::size_t reconstructed = 0;
     for (const auto& [number, offset] : headers) {
+        // OBJECT 0 IS NEVER RECOVERED (Stage 3 guide issue I-12, found by `fuzz_cos_roundtrip`). It is
+        // the head of the free list in every PDF (ISO 32000-1 7.5.4), so no cross-reference section
+        // can place it: a repaired table that did would open, and the complete section a Save-As
+        // writes for it (D3-6) would list 0 as free under a `/Root 0 0 R` -- a file that needs repair
+        // again. A `0 0 obj` header is damage, and is skipped like any other that fails to verify.
+        if (number <= 0)
+            continue;
         const auto existing = entries.find(number);
         if (existing != entries.end())
             continue;                       // the file's own table already places this one

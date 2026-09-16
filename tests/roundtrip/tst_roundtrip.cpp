@@ -13,10 +13,15 @@
 //   * the real flush and replace -- `tests/unit/FakeDurableFiles.h` removes and renames. `ReplaceFileW`
 //     is A-47's and A-57's;
 //   * the recovery journal's `meta.json` naming a Save-As target (A-56's last clause) -- T9.
+//
+// Stage 3 T13 adds the replay of `fuzz_cos_roundtrip`'s body (D3-17, guide case A-83) at the end of the
+// file: the corpus through the SAME function the fuzz target calls, and the three controls that prove
+// its checks fire. It is not fuzzing; `portable-fuzz` is.
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "../unit/SaveSession.h"
+#include "tests/fuzz/RoundtripFuzzBody.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/RevisionWriter.h"
@@ -309,4 +314,305 @@ TEST_CASE("roundtrip Save As of an unchanged document is a byte-identical copy",
     auto result = session->coordinator->saveAs(*session->journal, copy);
     REQUIRE(result);
     CHECK(tests::sha256(tests::readAllBytes(copy)) == tests::sha256(session->openedBytes));
+}
+
+// ==========================================================================================
+// A-83 -- fuzz_cos_roundtrip's body, replayed over the corpus (D3-17)
+// ==========================================================================================
+//
+// The seed set `fuzz_cos_roundtrip` starts from, through `tests/fuzz/RoundtripFuzzBody.h`. What it
+// claims: every corpus file the first-party reader can edit takes a rotation of page 1, composed with
+// the product's choice of section, and reads back through its own table with every input byte in front
+// and `RevisionWriter::verify` agreeing. What it does NOT cover (convention 19): anything the fuzzer
+// would find, the disk (this composes in memory -- the tests above write), and the engine.
+
+namespace {
+
+std::vector<std::string> everyCorpusPdf()
+{
+    std::vector<std::string> files;
+    for (const auto& entry : fs::recursive_directory_iterator(RAWPAGE_CORPUS_DIR)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".pdf")
+            files.push_back(fs::relative(entry.path(), RAWPAGE_CORPUS_DIR).generic_string());
+    }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+fuzz::RoundtripVerdict fuzzBodyOver(const std::string& relative)
+{
+    const QByteArray bytes = tests::readAllBytes(tests::corpusFile(relative));
+    return fuzz::roundtripFuzzOnce(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                   static_cast<std::size_t>(bytes.size()));
+}
+
+// The fault seam is process-wide; a failed REQUIRE must not leave it set for the next case.
+struct ComposeFaultScope {
+    explicit ComposeFaultScope(pdf::ops::RevisionWriter::ComposeFault fault)
+    {
+        pdf::ops::RevisionWriter::setComposeFaultForTesting(std::move(fault));
+    }
+    ~ComposeFaultScope() { pdf::ops::RevisionWriter::setComposeFaultForTesting({}); }
+    ComposeFaultScope(const ComposeFaultScope&) = delete;
+    ComposeFaultScope& operator=(const ComposeFaultScope&) = delete;
+};
+
+} // namespace
+
+TEST_CASE("roundtrip fuzz body holds its invariants over every corpus file", "[save][roundtrip][fuzz]")
+{
+    std::size_t examined = 0;
+    std::size_t editable = 0;
+    std::size_t written = 0;
+    std::size_t complete = 0;
+    std::size_t encryptedDeclined = 0;
+
+    for (const std::string& relative : everyCorpusPdf()) {
+        const auto verdict = fuzzBodyOver(relative);
+        INFO("file: " << relative);
+        INFO("failure: " << verdict.failure);
+        REQUIRE(verdict.ok);
+        ++examined;
+        if (verdict.editable)
+            ++editable;
+        if (verdict.written)
+            ++written;
+        if (verdict.complete)
+            ++complete;
+        // The not-editable branch is reached, and for the reason D2-6 gives: an encrypted file is
+        // declined by name before anything is composed.
+        if (relative.rfind("encrypted/", 0) == 0) {
+            CHECK_FALSE(verdict.editable);
+            ++encryptedDeclined;
+        }
+    }
+
+    std::cout << "roundtrip fuzz body: examined " << examined << ", editable " << editable << ", written "
+              << written << " (" << complete << " with a complete section), encrypted declined "
+              << encryptedDeclined << "\n";
+
+    // Floors, so a corpus file added later does not redden a case about the writer, and zero -- the
+    // directory moved, the loop checked nothing -- does.
+    CHECK(examined >= 67);
+    CHECK(written >= 55);
+    CHECK(written == editable);      // every editable file was written: no refusal survived REQUIRE above
+    CHECK(complete >= 1);            // D3-6's complete section is on the replayed path, not just /Prev
+    CHECK(encryptedDeclined >= 1);
+}
+
+TEST_CASE("roundtrip fuzz body reports each planted fault by the invariant it breaks", "[save][roundtrip][fuzz]")
+{
+    // Convention 7: a replay that is green over good files proves nothing about whether its checks can
+    // fail. Each fault corrupts what `RevisionWriter::compose` returns, before the body checks it, and
+    // must be named by the check it breaks -- and in each, `RevisionWriter::verify` must refuse too, so
+    // the message carries no "verify ACCEPTED" suffix. A guard that accepts what the body rejects is
+    // the one direction no fault here can plant without editing the guard; it is named, not covered.
+    const std::string file = "ordinary/text-a4.pdf";
+    REQUIRE(fuzzBodyOver(file).written);                       // the unplanted control
+    const qsizetype originalSize = tests::readAllBytes(tests::corpusFile(file)).size();
+
+    SECTION("a changed input byte is PREFIX")
+    {
+        const ComposeFaultScope scope([](QByteArray& bytes) { bytes[0] = bytes[0] == 'X' ? 'Y' : 'X'; });
+        const auto verdict = fuzzBodyOver(file);
+        INFO("failure: " << verdict.failure);
+        CHECK_FALSE(verdict.ok);
+        CHECK(verdict.failure.rfind("prefix:", 0) == 0);
+        CHECK(verdict.failure.find("ACCEPTED") == std::string::npos);
+    }
+    SECTION("an update whose startxref points nowhere is OWN TABLE or REPARSE")
+    {
+        // Measured at T13: cutting the update twenty bytes in is NOT this fault -- the reader finds the
+        // ORIGINAL's startxref, opens cleanly, and the body names it ROTATION, as the next section does.
+        // Aiming the update's own startxref at byte 1 is what leaves the reader only its repair scan.
+        const ComposeFaultScope scope([originalSize](QByteArray& bytes) {
+            const qsizetype at = bytes.lastIndexOf("startxref");
+            if (at > originalSize) {                                   // absent: nothing planted, the case fails
+                qsizetype digits = at + 9;                             // past "startxref"
+                while (digits < bytes.size() && (bytes[digits] == '\r' || bytes[digits] == '\n' || bytes[digits] == ' '))
+                    ++digits;
+                qsizetype end = digits;
+                while (end < bytes.size() && bytes[end] >= '0' && bytes[end] <= '9')
+                    ++end;
+                bytes.replace(digits, end - digits, "1");
+            }
+        });
+        const auto verdict = fuzzBodyOver(file);
+        INFO("failure: " << verdict.failure);
+        CHECK_FALSE(verdict.ok);
+        CHECK((verdict.failure.rfind("own table:", 0) == 0 || verdict.failure.rfind("reparse:", 0) == 0));
+        CHECK(verdict.failure.find("ACCEPTED") == std::string::npos);
+    }
+    SECTION("an update that is not there is ROTATION")
+    {
+        // The whole update dropped: the output IS the input, which opens cleanly and has page 1 where it was.
+        const ComposeFaultScope scope([originalSize](QByteArray& bytes) { bytes.truncate(originalSize); });
+        const auto verdict = fuzzBodyOver(file);
+        INFO("failure: " << verdict.failure);
+        CHECK_FALSE(verdict.ok);
+        CHECK(verdict.failure.rfind("rotation: page 1 reads", 0) == 0);
+        CHECK(verdict.failure.find("ACCEPTED") == std::string::npos);
+    }
+}
+
+// ==========================================================================================
+// Stage 3 guide issue I-12 -- what fuzz_cos_roundtrip found on its first run, one case per cause
+// ==========================================================================================
+//
+// Each input is built here, a few objects long, rather than kept as the mutated corpus file the fuzzer
+// produced: the case then says what it is about. None has a cross-reference table, so each opens
+// through `XrefRepair` and saves through D3-6's COMPLETE section -- which is where all 88 findings of
+// the first local run were. Each passes through the fuzz body, and asserts the lower-level property
+// the body cannot see where there is one.
+
+namespace {
+
+QByteArray pdfOf(std::initializer_list<QByteArray> objects)
+{
+    QByteArray bytes("%PDF-1.7\n");
+    for (const QByteArray& object : objects)
+        bytes.append(object);
+    return bytes;
+}
+
+// A stream object whose /Length is its payload's.
+QByteArray streamObject(long long number, const QByteArray& dictionaryBody, const QByteArray& payload)
+{
+    return QByteArray::number(number) + " 0 obj\n<< " + dictionaryBody + " /Length "
+           + QByteArray::number(payload.size()) + " >>\nstream\n" + payload + "\nendstream\nendobj\n";
+}
+
+fuzz::RoundtripVerdict fuzzBodyOverBytes(const QByteArray& bytes, bool keepOutput = false)
+{
+    return fuzz::roundtripFuzzOnce(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                   static_cast<std::size_t>(bytes.size()), keepOutput);
+}
+
+} // namespace
+
+TEST_CASE("roundtrip I-12 an object that runs to the end of the file keeps its meaning after the update", "[save][roundtrip][fuzz]")
+{
+    SECTION("an unterminated page dictionary")
+    {
+        // Page 2 has no `>>`. Read before the save, it is a page with no /Rotate; appended to, it would
+        // read on into the update and take page 1's new `/Rotate 90` as its own.
+        const QByteArray input = pdfOf({
+            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+            "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R 4 0 R ] /Count 2 >>\nendobj\n",
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] >>\nendobj\n",
+            "4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ]\n",
+        });
+        const auto verdict = fuzzBodyOverBytes(input);
+        INFO("failure: " << verdict.failure);
+        REQUIRE(verdict.editable);
+        CHECK(verdict.pages == 2);
+        CHECK(verdict.complete);
+        CHECK(verdict.ok);
+        CHECK(verdict.written);
+    }
+    SECTION("a content stream with no endstream")
+    {
+        // The body checks pages and rotations, and a stream's DATA is invisible to it -- the direction
+        // the writer's own guard cannot see either. So this section reads the data back itself.
+        const QByteArray input = pdfOf({
+            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+            "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n",
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] /Contents 4 0 R >>\nendobj\n",
+            "4 0 obj\n<< >>\nstream\nBT /F1 12 Tf 72 720 Td (cut off) Tj ET\n",
+        });
+        auto before = pdf::cos::openWithRepair(viewOf(input));
+        REQUIRE(before);
+        auto contentBefore = before.value().table.fetch(4);
+        REQUIRE(contentBefore);
+        REQUIRE(contentBefore.value().object.isStream());
+        const auto dataBefore = contentBefore.value().object.streamData();
+        const std::string payloadBefore(viewOf(input).substr(dataBefore.dataOffset, dataBefore.dataLength));
+        REQUIRE(dataBefore.dataOffset + dataBefore.dataLength == static_cast<std::size_t>(input.size()));   // it does run to the end
+
+        const auto verdict = fuzzBodyOverBytes(input, true);
+        INFO("failure: " << verdict.failure);
+        REQUIRE(verdict.written);
+        auto after = pdf::cos::openWithRepair(viewOf(verdict.output));
+        REQUIRE(after);
+        auto contentAfter = after.value().table.fetch(4);
+        REQUIRE(contentAfter);
+        REQUIRE(contentAfter.value().object.isStream());
+        const auto dataAfter = contentAfter.value().object.streamData();
+        CHECK(std::string(viewOf(verdict.output).substr(dataAfter.dataOffset, dataAfter.dataLength)) == payloadBefore);
+        CHECK(dataAfter.dataOffset >= static_cast<std::size_t>(input.size()));   // the copy, not the original
+    }
+}
+
+TEST_CASE("roundtrip I-12 a number the file references and never defines is not given to a new object", "[save][roundtrip][fuzz]")
+{
+    // Page 2 is `7 0 R`, and there is no object 7: a reader resolves it to null and skips it. Object 6
+    // lives in an object stream, so the complete section must be an xref STREAM -- a new object -- and
+    // the allocator's floor (largest defined number + 1) is exactly 7.
+    const QByteArray input = pdfOf({
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R 7 0 R ] /Count 2 >>\nendobj\n",
+        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] /Resources << /Font << /F1 6 0 R >> >> >>\nendobj\n",
+        streamObject(5, "/Type /ObjStm /N 1 /First 4", "6 0 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    });
+    auto opened = pdf::cos::openWithRepair(viewOf(input));
+    REQUIRE(opened);
+    REQUIRE(opened.value().table.find(6) != nullptr);
+    REQUIRE(opened.value().table.find(7) == nullptr);
+
+    const auto verdict = fuzzBodyOverBytes(input, true);
+    INFO("failure: " << verdict.failure);
+    CHECK(verdict.pages == 1);
+    REQUIRE(verdict.written);
+
+    auto after = pdf::cos::openWithRepair(viewOf(verdict.output));
+    REQUIRE(after);
+    CHECK(after.value().table.find(7) == nullptr);           // still nothing there
+    REQUIRE(!after.value().table.sections().empty());
+    CHECK(after.value().table.sections().front().isStream);  // and the section is the kind that needed a number
+}
+
+TEST_CASE("roundtrip I-12 a page that is also an object stream keeps the objects packed inside it", "[save][roundtrip][fuzz]")
+{
+    // The walk calls any dictionary without /Kids a page, and a stream is a dictionary: object 3 is page 1
+    // AND the container holding the page tree. Rewritten as a plain dictionary, the tree goes with it.
+    const QByteArray input = pdfOf({
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        streamObject(3, "/Type /ObjStm /N 1 /First 4", "2 0 << /Type /Pages /Kids [ 3 0 R ] /Count 1 >>"),
+    });
+    auto opened = pdf::cos::openWithRepair(viewOf(input));
+    REQUIRE(opened);
+    const auto* packed = opened.value().table.find(2);
+    REQUIRE(packed != nullptr);
+    REQUIRE(packed->type == pdf::cos::XrefEntryType::InObjectStream);
+
+    const auto verdict = fuzzBodyOverBytes(input);
+    INFO("failure: " << verdict.failure);
+    REQUIRE(verdict.editable);
+    CHECK(verdict.pages == 1);
+    CHECK(verdict.ok);
+    CHECK(verdict.written);
+}
+
+TEST_CASE("roundtrip I-12 an object numbered 0 is never recovered", "[save][roundtrip][fuzz]")
+{
+    // Object 0 heads the free list in every PDF, so no section can place it -- and a repaired table that
+    // did would save as a file whose `/Root 0 0 R` needs repair again. The same file numbered 9 is the
+    // control: the catalog is found and the document is editable.
+    const QByteArray pages = "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n";
+    const QByteArray page = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] >>\nendobj\n";
+    const QByteArray zero = pdfOf({"0 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n", pages, page});
+    const QByteArray nine = pdfOf({"9 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n", pages, page});
+
+    auto openedZero = pdf::cos::openWithRepair(viewOf(zero));
+    REQUIRE(openedZero);
+    const auto* entry = openedZero.value().table.find(0);
+    CHECK((entry == nullptr || entry->type == pdf::cos::XrefEntryType::Free));
+    const auto verdictZero = fuzzBodyOverBytes(zero);
+    INFO("failure: " << verdictZero.failure);
+    CHECK(verdictZero.ok);
+    CHECK_FALSE(verdictZero.editable);
+
+    const auto verdictNine = fuzzBodyOverBytes(nine);
+    INFO("control failure: " << verdictNine.failure);
+    CHECK(verdictNine.written);
 }

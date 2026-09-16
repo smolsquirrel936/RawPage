@@ -86,8 +86,16 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
         auto dictionary = PageOps::rotatedPage(table_, page, degrees);
         if (!dictionary)
             return dictionary.error();
-        if (dictionary.value())
+        if (!dictionary.value())
+            continue;
+        if (dictionary.value()->isStream()) {
+            // `rotatedPage` returns a stream only when its data lies in this buffer (issue I-12).
+            const cos::CosStreamData& data = dictionary.value()->streamData();
+            std::string payload(bytes_.substr(data.dataOffset, data.dataLength));
+            delta.replace(page.number, std::move(*dictionary.value()), std::move(payload));
+        } else {
             delta.replace(page.number, std::move(*dictionary.value()));
+        }
     }
     return delta;
 }

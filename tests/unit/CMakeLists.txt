@@ -234,5 +234,10 @@ rawpage_add_compile_case(NAME unit.cos.compile.fuzz_entrypoint
 rawpage_add_compile_case(NAME unit.cos.compile.fuzz_entrypoint_parser
     SOURCE fuzz-entrypoint-parser.cpp EXPECT_FAIL 0)
 
+# And Stage 3 T13's (D3-17): `fuzz_cos_roundtrip` reaches into pdf/ops/ as well, so a signature change
+# in the sink or RevisionWriter is one more way for an entry point nobody builds here to break.
+rawpage_add_compile_case(NAME unit.cos.compile.fuzz_entrypoint_roundtrip
+    SOURCE fuzz-entrypoint-roundtrip.cpp EXPECT_FAIL 0)
+
 rawpage_add_compile_case(NAME unit.commandline.compile.arguments_list_control
     SOURCE arguments-list.cpp EXPECT_FAIL 0)

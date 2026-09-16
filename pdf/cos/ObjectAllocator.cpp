@@ -20,6 +20,15 @@ ObjectAllocator::ObjectAllocator(long long firstNumber) noexcept
 {
 }
 
+void ObjectAllocator::reserveThrough(long long number) noexcept
+{
+    if (number < next_ || number > kMaxObjectNumber)
+        return;
+    if (next_ == first_)
+        first_ = number + 1;
+    next_ = number + 1;
+}
+
 long long ObjectAllocator::allocate() noexcept
 {
     return next_++;

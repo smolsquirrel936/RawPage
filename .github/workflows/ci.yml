@@ -385,9 +385,10 @@ jobs:
 
       # A-25's S2 half, made mechanical: the binaries exist and are executable. Checked before they
       # are run, because "it did not crash" is also what a missing file produces if nobody looks.
-      - name: A-25 / A-26 -- both targets linked
+      # THREE from Stage 3 T13 (D3-17): fuzz_cos_roundtrip, the reader and the writer against each other.
+      - name: A-25 / A-26 / A-83 -- all three targets linked
         run: |
-          for target in fuzz_cos_lexer fuzz_cos_parser; do
+          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip; do
             path="build/portable-fuzz/bin/$target"
             if [ ! -x "$path" ]; then
               echo "::error::$path was not built -- a preset that has never linked anything has not been proven to link anything"
@@ -415,6 +416,23 @@ jobs:
 
       - name: A-26 -- fuzz_cos_parser, the primary target, seeded
         run: ./build/portable-fuzz/bin/fuzz_cos_parser corpus/malformed -max_total_time=60 -error_exitcode=1
+
+      # Stage 3 T13, D3-17: "seeds gain the writer's own outputs". rawpage_fuzz_seeds runs the SAME body
+      # the target does over the corpus and keeps every revision it composed -- files carrying an update
+      # section written by this code, which no generator in corpus/ produces. It exits non-zero on a
+      # finding or on zero seeds, so a broken seed step cannot hand the fuzzer an empty directory.
+      - name: A-83 -- the writer's own outputs, as seeds
+        run: ./build/portable-fuzz/bin/rawpage_fuzz_seeds fuzz-seeds/roundtrip corpus/ordinary corpus/signed corpus/malformed
+
+      # The FIRST directory is where libFuzzer writes what it finds, so it is scratch; the checked-in
+      # corpus is passed after it, read-only. The body's first local run found Stage 3 guide issue I-12 --
+      # four ways an append changed what a repaired file's original bytes meant -- so a finding here is
+      # the target doing its job, reproduced by adding the input to tests/roundtrip/tst_roundtrip.cpp.
+      - name: A-83 -- fuzz_cos_roundtrip, seeded with the corpus and the writer's outputs
+        run: |
+          mkdir -p fuzz-work/roundtrip
+          ./build/portable-fuzz/bin/fuzz_cos_roundtrip fuzz-work/roundtrip fuzz-seeds/roundtrip \
+              corpus/malformed corpus/ordinary corpus/signed -max_total_time=60 -error_exitcode=1
 
   # =====================================================================================
   # 5. The coverage this run did NOT have.
@@ -465,6 +483,8 @@ jobs:
             echo "- \`platform.*\` — the Win32 layer"
             echo "- \`render.*\` — the engine suite AND \`render.golden.*\`, every golden baseline"
             echo "- \`bench.*\` — the A-85 / R-9 figure and BOTH A2 figures"
+            echo "- \`platform.recovery.kill*\` — the kill harness (Stage 3 A-68, A-69): TerminateProcess during"
+            echo "  commands and saves, which exists on Windows only and so is never in a Linux job"
             echo "- \`gates.wrong_compiler.*\` — the toolchain pin (Windows-only by design)"
             echo "- the real-configuration gate run, which is the only place \`qt-modules.txt\`"
             echo "  and \`compiler-plugins.txt\` exist, so the Qt Charts and GCC-plugin checks"

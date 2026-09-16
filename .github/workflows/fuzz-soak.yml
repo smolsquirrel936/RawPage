@@ -8,10 +8,13 @@
 # concurrency group cancels an in-progress run when a newer push arrives, and a soak cancelled at
 # minute eight has proven nothing while still reading as "cancelled" rather than "failed".
 #
-# WHAT A GREEN RUN CLAIMS, AND ONLY THIS: libFuzzer, seeded from corpus/malformed/, drove each target
-# for the stated time under ASan + UBSan with -fno-sanitize-recover=all and found no crash, no
-# leak, no sanitizer report and no input slower than -timeout. It does not claim the reader is
-# correct, and it says nothing about code outside pdf/cos/'s lexer and parser.
+# WHAT A GREEN RUN CLAIMS, AND ONLY THIS: libFuzzer, seeded from corpus/malformed/ (and, for the round
+# trip, corpus/ordinary/, corpus/signed/ and the writer's own outputs), drove each target for the stated
+# time under ASan + UBSan with -fno-sanitize-recover=all and found no crash, no leak, no sanitizer report,
+# no input slower than -timeout, and -- for fuzz_cos_roundtrip -- no input whose appended rotation failed
+# to read back through its own table with every original byte in front of it
+# (tests/fuzz/RoundtripFuzzBody.h). It does not claim the reader or the writer is correct, and it says
+# nothing about code outside pdf/cos/ and pdf/ops/.
 #
 # THE LOG IS READ, NOT JUST THE EXIT CODE. Stage 2 I-38: every fuzz run from T18 to 2026-09-14 logged
 # a UBSan finding under a green tick, because the preset let UBSan report and continue. The preset
@@ -43,10 +46,18 @@ jobs:
     # runner for GitHub's six-hour default.
     timeout-minutes: 45
     strategy:
-      # Both targets report even when one fails: a finding in the lexer says nothing about the parser.
+      # Every target reports even when one fails: a finding in the lexer says nothing about the parser.
       fail-fast: false
       matrix:
-        target: [fuzz_cos_lexer, fuzz_cos_parser]
+        # Three from Stage 3 T13 (D3-17). `seeds` are the read-only directories after the scratch one;
+        # the round trip's include the writer's own outputs, made by the step below.
+        include:
+          - target: fuzz_cos_lexer
+            seeds: corpus/malformed
+          - target: fuzz_cos_parser
+            seeds: corpus/malformed
+          - target: fuzz_cos_roundtrip
+            seeds: fuzz-seeds/roundtrip corpus/malformed corpus/ordinary corpus/signed
     env:
       SOAK_SECONDS: ${{ github.event.inputs.seconds || '600' }}
     steps:
@@ -75,6 +86,14 @@ jobs:
       - name: Build ${{ matrix.target }}
         run: cmake --build --preset portable-fuzz --target ${{ matrix.target }}
 
+      # D3-17's "seeds gain the writer's own outputs" -- the same body as the target, over the corpus,
+      # keeping each revision it composed. Non-zero on a finding or on zero seeds.
+      - name: The writer's own outputs, as seeds
+        if: matrix.target == 'fuzz_cos_roundtrip'
+        run: |
+          cmake --build --preset portable-fuzz --target rawpage_fuzz_seeds
+          ./build/portable-fuzz/bin/rawpage_fuzz_seeds fuzz-seeds/roundtrip corpus/ordinary corpus/signed corpus/malformed
+
       - name: The target linked
         run: |
           path="build/portable-fuzz/bin/${{ matrix.target }}"
@@ -97,7 +116,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p soak/corpus soak/artifacts
-          ./build/portable-fuzz/bin/${{ matrix.target }} soak/corpus corpus/malformed \
+          ./build/portable-fuzz/bin/${{ matrix.target }} soak/corpus ${{ matrix.seeds }} \
               -max_total_time="$SOAK_SECONDS" \
               -timeout=30 \
               -error_exitcode=1 \

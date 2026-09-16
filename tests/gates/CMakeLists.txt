@@ -698,6 +698,48 @@ rawpage_add_headless_test(NAME gates.headless_assert.ui_edge_still_caught
     EXPECT_EXIT 1 EXPECT_MATCH "rawpage_ui")
 
 # --------------------------------------------------------------------------------------
+# rawpage_assert_fuzz_target_count() -- Stage 3 guide case A-83(a), and Stage 2's A-27 proven to fire.
+#
+# "Ten minutes with no crashes" is passed by a target that does not exist, so tests/fuzz fails configure
+# on the wrong count. The assertion moved to cmake/RawPageFuzzTargets.cmake at Stage 3 T13 so that these
+# cases -- which run on every preset, the bare Linux gates runner included -- drive the real function;
+# before, it could only run inside the portable-fuzz configure, and had never been seen to refuse.
+# --------------------------------------------------------------------------------------
+set(FC_PROJECT "${FIXTURES}/fuzz-count/project")
+
+function(rawpage_add_fuzz_count_test)
+    cmake_parse_arguments(FC "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXTRA" "" ${ARGN})
+    rawpage_add_gate_test(NAME ${FC_NAME}
+        COMMAND ${CMAKE_COMMAND} --fresh
+                -S ${FC_PROJECT}
+                -B ${CMAKE_BINARY_DIR}/gate-fixtures/${FC_NAME}
+                -G Ninja
+                -DRAWPAGE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+                ${FC_EXTRA}
+        EXPECT_EXIT ${FC_EXPECT_EXIT} EXPECT_MATCH "${FC_EXPECT_MATCH}")
+endfunction()
+
+# THE CONTROL: the count Stage 3 ships, as it ships it -- three targets and a helper beside them.
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.three_of_three_with_a_helper
+    EXTRA "-DFIXTURE_TARGETS=3|-DFIXTURE_EXPECTED=3|-DFIXTURE_HELPER=ON"
+    EXPECT_EXIT 0 EXPECT_MATCH "as expected")
+
+# A-83(a) in its own words: a graph declaring two targets where three are expected.
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.two_of_three_fails
+    EXTRA "-DFIXTURE_TARGETS=2|-DFIXTURE_EXPECTED=3"
+    EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
+
+# Zero is a failure, not a pass -- A-27's sentence, and the case it was written for.
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.zero_fails
+    EXTRA "-DFIXTURE_TARGETS=0|-DFIXTURE_EXPECTED=3"
+    EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
+
+# And the helper cannot stand in for a missing target: two targets plus a helper is still two.
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.helper_is_not_a_target
+    EXTRA "-DFIXTURE_TARGETS=2|-DFIXTURE_EXPECTED=3|-DFIXTURE_HELPER=ON"
+    EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
+
+# --------------------------------------------------------------------------------------
 # The PDFium pin (PA-1 .. PA-5) -- guide case A-05, Stage 2 T2, decision D2-3.
 #
 # A golden-image baseline is a claim about ONE rasterizer, so the engine's version is asserted at

@@ -43,6 +43,18 @@ public:
     // The next number, and it is consumed. Strictly increasing within one allocator.
     long long allocate() noexcept;
 
+    // Never hand out `number` or anything below it -- for a number the file REFERENCES without defining
+    // (Stage 3 guide issue I-12, found by `fuzz_cos_roundtrip`). A dangling `9 0 R` means null to every
+    // reader; allocate 9 and it means whatever the update put there, which is an edit nobody asked
+    // for. `/Size` and the largest defined number cannot see such a reference, which is why the
+    // floor above is not enough on its own. Numbers above `kMaxObjectNumber` are ignored: ISO 32000-1
+    // Annex C caps a file at that many indirect objects, and a reference past it names nothing a
+    // conforming reader resolves. Raising the floor before anything was handed out moves
+    // `firstNumber()` with it, so the writer's "this number is ours" test stays exact.
+    void reserveThrough(long long number) noexcept;
+
+    static constexpr long long kMaxObjectNumber = 8388607;
+
     // The first number NOT yet handed out -- which is the `/Size` an update must declare at least,
     // because `/Size` is one more than the highest object number in the file.
     long long nextNumber() const noexcept { return next_; }

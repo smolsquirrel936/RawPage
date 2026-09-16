@@ -107,7 +107,7 @@
       "name": "portable-fuzz",
       "inherits": "_portable",
       "displayName": "Portable libFuzzer (Linux, clang)",
-      "description": "libFuzzer over the COS lexer and parser. Seed it from corpus/malformed/. It said NO TARGETS EXIST from Stage 0 until Stage 2 T5, which gave it fuzz_cos_lexer; fuzz_cos_parser arrives at T6. tests/fuzz now FAILS CONFIGURE on the wrong target count, because ten clean minutes is passed trivially by a target that builds nothing.",
+      "description": "libFuzzer over the COS lexer and parser (Stage 2 T5, T6) and, from Stage 3 T13, over the reader and writer together (fuzz_cos_roundtrip). Seed the first two from corpus/malformed/; the round trip also from corpus/ordinary/, corpus/signed/ and rawpage_fuzz_seeds output. tests/fuzz FAILS CONFIGURE on the wrong target count (cmake/RawPageFuzzTargets.cmake), because ten clean minutes is passed trivially by a target that builds nothing.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_C_COMPILER": "clang",

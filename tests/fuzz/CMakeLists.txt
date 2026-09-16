@@ -1,4 +1,5 @@
-# tests/fuzz -- libFuzzer targets over the first-party COS reader. Stage 2 T5 and T6.
+# tests/fuzz -- libFuzzer targets over the first-party COS reader (Stage 2 T5 and T6) and, from
+# Stage 3 T13, over the reader and the writer together (fuzz_cos_roundtrip, D3-17).
 #
 # ONLY BUILT BY `portable-fuzz`. MinGW GCC has no libFuzzer, so these cannot be Windows targets;
 # the root CMakeLists guards the add_subdirectory on RAWPAGE_BUILD_FUZZERS, which only that preset
@@ -7,7 +8,9 @@
 # x64-debug before calling it fixed.
 #
 # WHAT KEEPS THESE FROM ROTTING between Linux runs. The invariants are in tests/fuzz/*FuzzBody.h,
-# and tests/unit replays corpus/malformed/ through the same functions on every Windows ctest run.
+# and tests/unit replays corpus/malformed/ through the same functions on every Windows ctest run --
+# and, for the round trip (RoundtripFuzzBody.h), tests/roundtrip/tst_roundtrip.cpp replays every corpus
+# file, and tests/fuzz/seeds/ builds the seed writer on every preset.
 # That is not fuzzing and does not pretend to be -- it is what makes a target that this machine
 # cannot build still compile-checked and still reproducible here.
 #
@@ -20,7 +23,7 @@
 function(rawpage_add_fuzz_target name source)
     add_executable(${name} ${source})
     target_include_directories(${name} PRIVATE "${CMAKE_SOURCE_DIR}")
-    target_link_libraries(${name} PRIVATE rawpage_cos rawpage_core)
+    target_link_libraries(${name} PRIVATE ${ARGN} rawpage_cos rawpage_core)
     target_link_options(${name} PRIVATE -fsanitize=fuzzer)
     # No rawpage_strict(): these are drivers, not product code, and the strict list turns the
     # sanitizer's own warnings into errors on some clang versions. The LIBRARY under test is strict.
@@ -29,24 +32,18 @@ endfunction()
 rawpage_add_fuzz_target(fuzz_cos_lexer fuzz_cos_lexer.cpp)
 rawpage_add_fuzz_target(fuzz_cos_parser fuzz_cos_parser.cpp)   # T6, and the PRIMARY target (A-26)
 
-# Guide case A-27: "Enumerate the portable-fuzz build graph. Expect exactly two fuzz targets. ZERO
-# IS A FAILURE, NOT A PASS." That case exists because A-25 and A-26 -- "no crashes in ten minutes"
-# -- are passed trivially by a target that builds nothing. The count is asserted here, at configure
-# time, so the build graph cannot quietly become empty between now and the Linux run.
-#
-# It was 1 at T5 and became 2 at T6 with fuzz_cos_parser, exactly as that comment said it would.
-# The next task to add or remove a target changes this number in the same commit.
-set(RAWPAGE_EXPECTED_FUZZ_TARGETS 2)
-get_property(_fuzz_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
-list(LENGTH _fuzz_targets _fuzz_target_count)
-if(NOT _fuzz_target_count EQUAL RAWPAGE_EXPECTED_FUZZ_TARGETS)
-    message(FATAL_ERROR
-        "\ntests/fuzz declares ${_fuzz_target_count} target(s); ${RAWPAGE_EXPECTED_FUZZ_TARGETS} "
-        "expected.\n\n"
-        "Guide case A-27 (Stage2-Rendering-Testing-Guide.md 5.4) says zero fuzz targets is a "
-        "FAILURE rather than a pass, because \"ten minutes with no crashes\" is satisfied by a "
-        "target that does not exist. If a target was added or removed on purpose, change "
-        "RAWPAGE_EXPECTED_FUZZ_TARGETS in this file in the same commit.\n")
-endif()
+# Stage 3 T13, decision D3-17: the reader and the writer against each other. It links rawpage_ops --
+# the portable mutation library (D3-3) -- which is the reason that library builds on Linux at all.
+rawpage_add_fuzz_target(fuzz_cos_roundtrip fuzz_cos_roundtrip.cpp rawpage_ops)
 
-message(STATUS "  fuzz targets    ${_fuzz_targets}")
+# Guide case A-27 (Stage 2) and A-83(a) (Stage 3): "Expect exactly N fuzz targets. ZERO IS A FAILURE,
+# NOT A PASS." That case exists because A-25 and A-26 -- "no crashes in ten minutes" -- are passed
+# trivially by a target that builds nothing. The count is asserted here, at configure time, so the
+# build graph cannot quietly become empty between now and the Linux run.
+#
+# It was 1 at Stage 2 T5, 2 from T6, and 3 from Stage 3 T13 with fuzz_cos_roundtrip. The next task to
+# add or remove a target changes this number in the same commit. The assertion itself is
+# cmake/RawPageFuzzTargets.cmake, where the gates.fuzz_count.* cases can prove it fires.
+set(RAWPAGE_EXPECTED_FUZZ_TARGETS 3)
+include("${CMAKE_SOURCE_DIR}/cmake/RawPageFuzzTargets.cmake")
+rawpage_assert_fuzz_target_count(${RAWPAGE_EXPECTED_FUZZ_TARGETS})

@@ -73,6 +73,9 @@ public:
     const PageWalk& pages() const noexcept { return walk_; }
     std::string_view bytes() const noexcept { return bytes_; }
     const cos::XrefTable& table() const noexcept { return table_; }
+    // For `RevisionWriter::compose`, which hands it to `IncrementalWriter::protectOriginal` -- whose
+    // walk fetches, and fetching caches.
+    cos::XrefTable& table() noexcept { return table_; }
 
     // The rotation page `pageIndex` will display at once the desired state is written.
     int desiredRotation(int pageIndex) const;
