@@ -31,6 +31,7 @@
 
 #include "core/doc/RepairReport.h"
 #include "pdf/cos/XrefRepair.h"
+#include "pdf/cos/XrefTable.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -425,4 +426,108 @@ TEST_CASE("cos repair takes the last definition of a duplicated object", "[cos][
     REQUIRE(headers.size() == 1);
     CHECK(headers[0].first == 5);
     CHECK(headers[0].second == source.rfind("5 0 obj"));
+}
+
+// ==========================================================================================
+// Stage 3 guide issue I-13 -- an object number past ISO 32000-1's limit is never placed
+// ==========================================================================================
+//
+// Found by `fuzz_cos_roundtrip`'s first ten-minute soak (`fuzz-soak.yml` run 35134357858): UBSan,
+// *"signed integer overflow: 9223372036854775807 + 1"* at the rebuilt trailer's `/Size`. A number the
+// file writes is a CLAIM, and three places took it as a table key with no bound: an object stream's
+// pair table, a classic subsection's `<start>`, and an xref stream's `/Index`. The last two ADD to it
+// (`start + index`), which is undefined behaviour of its own before any `/Size` is computed. On this
+// toolchain there is no UBSan, so these cases assert what the product must never hold -- a placed
+// number above 8,388,607 -- rather than the overflow itself, which is `portable-asan`'s to see.
+
+namespace {
+
+constexpr long long kIsoLimit = rawpage::pdf::cos::kMaxObjectNumber;
+
+void requireEveryNumberWithinLimit(const rawpage::pdf::cos::XrefTable& table)
+{
+    for (const auto& [number, entry] : table.entries()) {
+        (void)entry;
+        INFO("placed object number " << number);
+        CHECK(number >= 0);
+        CHECK(number <= kIsoLimit);
+    }
+    CHECK(table.largestObjectNumber() <= kIsoLimit);
+}
+
+std::string streamObject(long long number, const std::string& dictionaryBody, const std::string& payload)
+{
+    return std::to_string(number) + " 0 obj\n<< " + dictionaryBody + " /Length "
+           + std::to_string(payload.size()) + " >>\nstream\n" + payload + "\nendstream\nendobj\n";
+}
+
+} // namespace
+
+TEST_CASE("cos repair never places an object number an object stream claims past the limit", "[cos][repair]")
+{
+    // No cross-reference table, so the repair's object-stream expansion places the packed objects. The
+    // pair table names 6 (real), then 9223372036854775807 and 8388608 -- neither may become a key.
+    const std::string pairs = "6 0 9223372036854775807 12 8388608 16 ";
+    const std::string body = "<< /A 1 >> << /B 2 >> << /C 3 >>";
+    std::string source = "%PDF-1.7\n"
+                         "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                         "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n"
+                         "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] >>\nendobj\n";
+    source += streamObject(5, "/Type /ObjStm /N 3 /First " + std::to_string(pairs.size()), pairs + body);
+
+    auto opened = openWithRepair(source);
+    REQUIRE(opened);
+    requireEveryNumberWithinLimit(opened.value().table);
+    const auto* six = opened.value().table.find(6);
+    REQUIRE(six != nullptr);                                            // the honest one is still placed
+    CHECK(six->type == rawpage::pdf::cos::XrefEntryType::InObjectStream);
+    CHECK(opened.value().table.trailer().get("Size").integerValue() <= kIsoLimit + 1);
+}
+
+TEST_CASE("cos xref table never places a classic subsection that starts past the limit", "[cos][xref]")
+{
+    // A healthy three-object table, plus a second subsection starting at 9223372036854775800. Reading
+    // `start + index` for it is the overflow; the subsection is refused and the first one kept.
+    std::string head = "%PDF-1.7\n";
+    const std::size_t at1 = head.size();
+    head += "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    const std::size_t at2 = head.size();
+    head += "2 0 obj\n<< /Type /Pages /Kids [ ] /Count 0 >>\nendobj\n";
+    const std::size_t xrefAt = head.size();
+    auto row = [](std::size_t offset) {
+        std::string digits = std::to_string(offset);
+        return std::string(10 - digits.size(), '0') + digits + " 00000 n \n";
+    };
+    std::string source = head + "xref\n0 3\n0000000000 65535 f \n" + row(at1) + row(at2)
+                         + "9223372036854775800 3\n" + row(at1) + row(at1) + row(at1)
+                         + "trailer\n<< /Size 3 /Root 1 0 R >>\nstartxref\n" + std::to_string(xrefAt) + "\n%%EOF\n";
+
+    auto loaded = rawpage::pdf::cos::XrefTable::load(source);
+    REQUIRE(loaded);
+    requireEveryNumberWithinLimit(loaded.value());
+    CHECK(loaded.value().find(2) != nullptr);                          // the first subsection is kept
+    CHECK(loaded.value().noteCount(rawpage::pdf::cos::XrefNote::SubsectionMalformed) >= 1);
+}
+
+TEST_CASE("cos xref table never places an xref stream index range that starts past the limit", "[cos][xref]")
+{
+    // An unfiltered cross-reference stream, `/W [1 2 1]`, whose `/Index` is `[0 3 9223372036854775800 2]`.
+    std::string source = "%PDF-1.7\n";
+    const std::size_t at1 = source.size();
+    source += "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    const std::size_t at2 = source.size();
+    source += "2 0 obj\n<< /Type /Pages /Kids [ ] /Count 0 >>\nendobj\n";
+    const std::size_t xrefAt = source.size();
+    auto row = [](int type, std::size_t field2, int field3) {
+        return std::string{static_cast<char>(type), static_cast<char>((field2 >> 8) & 0xff),
+                           static_cast<char>(field2 & 0xff), static_cast<char>(field3)};
+    };
+    const std::string rows = row(0, 0, 0) + row(1, at1, 0) + row(1, at2, 0) + row(1, at1, 0) + row(1, at1, 0);
+    source += streamObject(3, "/Type /XRef /Size 3 /Root 1 0 R /W [ 1 2 1 ] /Index [ 0 3 9223372036854775800 2 ]", rows);
+    source += "startxref\n" + std::to_string(xrefAt) + "\n%%EOF\n";
+
+    auto loaded = rawpage::pdf::cos::XrefTable::load(source);
+    REQUIRE(loaded);
+    requireEveryNumberWithinLimit(loaded.value());
+    CHECK(loaded.value().find(2) != nullptr);                          // the first range is kept
 }

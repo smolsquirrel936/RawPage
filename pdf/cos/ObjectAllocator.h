@@ -53,7 +53,7 @@ public:
     // `firstNumber()` with it, so the writer's "this number is ours" test stays exact.
     void reserveThrough(long long number) noexcept;
 
-    static constexpr long long kMaxObjectNumber = 8388607;
+    static constexpr long long kMaxObjectNumber = 8388607;   // == cos::kMaxObjectNumber, asserted in the .cpp
 
     // The first number NOT yet handed out -- which is the `/Size` an update must declare at least,
     // because `/Size` is one more than the highest object number in the file.

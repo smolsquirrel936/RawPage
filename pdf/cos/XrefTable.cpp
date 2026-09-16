@@ -82,6 +82,10 @@ void XrefTable::mergeEntry(long long number, const XrefEntry& entry)
     // NEWEST WINS. Sections are walked newest first, so an object number already present came from
     // a newer revision and is not overwritten. Reversing this reads the document as it was two
     // saves ago, with no error anywhere -- which is why the rule lives in one place.
+    // The backstop for kMaxObjectNumber (XrefTable.h, Stage 3 guide I-13). Each caller also checks
+    // BEFORE it adds, because the addition is where the overflow was.
+    if (number < 0 || number > kMaxObjectNumber)
+        return;
     entries_.emplace(number, entry);
 }
 
@@ -128,7 +132,9 @@ XrefTable::SectionResult XrefTable::readClassic(std::size_t offset, int revision
             note(XrefNote::SubsectionMalformed, subsectionAt);
             break;
         }
-        if (count.integer < 0 || start.integer < 0) {
+        // A start past the limit is refused before `start + index` is ever computed: near
+        // LLONG_MAX that sum overflows (Stage 3 guide I-13, found by `fuzz_cos_roundtrip`'s soak).
+        if (count.integer < 0 || start.integer < 0 || start.integer > kMaxObjectNumber) {
             note(XrefNote::SubsectionMalformed, subsectionAt, count.integer);
             break;
         }
@@ -146,6 +152,14 @@ XrefTable::SectionResult XrefTable::readClassic(std::size_t offset, int revision
                 || kind.type != TokenType::Keyword) {
                 note(XrefNote::EntryMalformed, entryAt, start.integer + index);
                 index = count.integer;   // this subsection is unusable past here
+                break;
+            }
+
+            // `start` is at most kMaxObjectNumber and `index` counts records actually read from the
+            // buffer, so the sum cannot overflow; past the limit, the rest of the subsection names
+            // nothing a reader resolves.
+            if (index > kMaxObjectNumber - start.integer) {
+                note(XrefNote::SubsectionMalformed, subsectionAt, start.integer);
                 break;
             }
 
@@ -246,13 +260,15 @@ XrefTable::SectionResult XrefTable::readStream(std::size_t offset, int revision)
     }
 
     std::size_t cursor = 0;
+    // Accumulated UNSIGNED: an eight-byte field (`/W` allows 8) shifts a signed value's high bits out
+    // of range, which is undefined (Stage 3 guide I-13). The conversion back is modular in C++20.
     auto readField = [&rows, &cursor](int bytes) -> long long {
-        long long value = 0;
+        unsigned long long value = 0;
         for (int byte = 0; byte < bytes; ++byte) {
-            value = (value << 8) | rows[cursor];
+            value = (value << 8) | static_cast<unsigned long long>(rows[cursor]);
             ++cursor;
         }
-        return value;
+        return static_cast<long long>(value);
     };
 
     for (const auto& [firstNumber, count] : ranges) {
@@ -279,6 +295,13 @@ XrefTable::SectionResult XrefTable::readStream(std::size_t offset, int revision)
             case 1:  entry.type = XrefEntryType::InFile; break;
             case 2:  entry.type = XrefEntryType::InObjectStream; break;
             default: entry.type = XrefEntryType::Free; break;   // reserved; treated as absent
+            }
+            // Read the row either way, so the cursor stays on the next one; place it only when the
+            // number is one a file may use -- checked before `firstNumber + item` is computed
+            // (Stage 3 guide I-13).
+            if (firstNumber < 0 || firstNumber > kMaxObjectNumber || item > kMaxObjectNumber - firstNumber) {
+                note(XrefNote::XrefStreamFieldsBad, offset, firstNumber);
+                continue;
             }
             mergeEntry(firstNumber + item, entry);
         }

@@ -8,6 +8,9 @@
 
 namespace rawpage::pdf::cos {
 
+// One limit, in the reader and in the allocator (Stage 3 guide I-13).
+static_assert(ObjectAllocator::kMaxObjectNumber == kMaxObjectNumber);
+
 ObjectAllocator ObjectAllocator::forTable(const XrefTable& table) noexcept
 {
     const long long declared = table.declaredSize();

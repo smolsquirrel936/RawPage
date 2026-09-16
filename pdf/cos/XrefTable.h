@@ -97,6 +97,14 @@ struct XrefSection {
     CosObject trailer;
 };
 
+// The largest object number a file may use -- ISO 32000-1 Annex C, "8,388,607 indirect objects in a
+// file". A number the file writes is a claim like any other, and this reader NEVER PLACES one above it:
+// not from a classic subsection, an xref stream's /Index, an object stream's pair table or a repair
+// scan (Stage 3 guide issue I-13, found by `fuzz_cos_roundtrip`'s soak). Past it, a number is not an
+// object any conforming reader resolves -- and it is what let `largest + 1` overflow. One definition:
+// `ObjectAllocator` uses the same limit for what an update may allocate.
+inline constexpr long long kMaxObjectNumber = 8'388'607;
+
 class XrefTable {
 public:
     // Follows `startxref` and the whole `/Prev` chain. Fails only when there is no usable table at
