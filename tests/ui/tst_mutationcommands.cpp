@@ -288,9 +288,20 @@ TEST_CASE("the Rotate Pages dialog answers a choice and the plan is one command 
     REQUIRE(model.hydrate(fixture.backend, opened.value()));
     core::CommandJournal journal(std::move(model), fixture.backend.mutationSink(opened.value()));
 
-    // THE WIDGET, driven. It holds radio buttons and nothing else: its constructor takes no document, no
-    // journal and no window state, which is what "constructs commands and nothing else" means in a type.
-    RotatePagesDialog dialog;
+    // THE WIDGET, driven. It holds radio buttons and nothing else: its constructor takes no document and no
+    // journal -- only the zero-based page it names -- which is what "constructs commands and nothing else"
+    // means in a type.
+    RotatePagesDialog dialog(2);
+
+    // "Current page" says WHICH page, one-based (M-01's walk: a person could not tell which page was current).
+    // NOT COVERED here (convention 19): that the product passes the page the viewer counts as current --
+    // `MainWindow` reads it through the same `rotationPageOf` it rotates, and an installed answer never
+    // builds this widget, so only a person meeting the real dialog sees the two agree.
+    CHECK(dialog.currentPageButton()->text()
+          == ui::catalog::translate(ui::catalog::key::RotateCurrentPage).arg(3));
+    CHECK(dialog.currentPageButton()->text().contains(QLatin1Char('3')));
+    CHECK_FALSE(dialog.currentPageButton()->text().contains(QLatin1String("%1")));
+
     dialog.currentPageButton()->setChecked(true);
     dialog.clockwiseButton()->setChecked(true);
     CHECK(dialog.choice() == RotatePagesDialog::Choice{90, false});

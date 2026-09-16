@@ -1584,7 +1584,7 @@
     </message>
     <message>
         <source>shell.rotate.currentPage</source>
-        <translation>Current page</translation>
+        <translation>Current page (page %1)</translation>
     </message>
     <message>
         <source>shell.rotate.allPages</source>

@@ -40,7 +40,9 @@ public:
         friend bool operator==(const Choice&, const Choice&) = default;
     };
 
-    explicit RotatePagesDialog(QWidget* parent = nullptr);
+    // `currentPage` is zero-based: the page "current page" rotates, named on its button as *"Current page
+    // (page n)"* so a person need not guess which page the viewer counts as current (M-01's walk).
+    explicit RotatePagesDialog(int currentPage, QWidget* parent = nullptr);
 
     Choice choice() const;
 
@@ -56,7 +58,7 @@ public:
 
     // Shows the dialog and returns the choice, or nothing for Cancel -- or the test's answer, if one is
     // installed. Nothing, immediately, when `canAsk()` is false.
-    static std::optional<Choice> ask(QWidget* parent);
+    static std::optional<Choice> ask(QWidget* parent, int currentPage);
 
     using Answer = std::function<std::optional<Choice>()>;
     static void setAnswerForTesting(Answer answer);

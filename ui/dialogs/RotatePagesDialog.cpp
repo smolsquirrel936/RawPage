@@ -20,7 +20,7 @@ RotatePagesDialog::Answer& installedAnswer()
 
 } // namespace
 
-RotatePagesDialog::RotatePagesDialog(QWidget* parent) : QDialog(parent)
+RotatePagesDialog::RotatePagesDialog(int currentPage, QWidget* parent) : QDialog(parent)
 {
     setObjectName(QStringLiteral("rotatePagesDialog"));
     setWindowTitle(catalog::translate(catalog::key::RotateTitle));
@@ -43,7 +43,7 @@ RotatePagesDialog::RotatePagesDialog(QWidget* parent) : QDialog(parent)
 
     auto* pages = new QGroupBox(catalog::translate(catalog::key::RotatePages), this);
     auto* pagesColumn = new QVBoxLayout(pages);
-    currentPage_ = new QRadioButton(catalog::translate(catalog::key::RotateCurrentPage), pages);
+    currentPage_ = new QRadioButton(catalog::translate(catalog::key::RotateCurrentPage).arg(currentPage + 1), pages);
     allPages_ = new QRadioButton(catalog::translate(catalog::key::RotateAllPages), pages);
     currentPage_->setChecked(true);
     pagesColumn->addWidget(currentPage_);
@@ -70,13 +70,13 @@ bool RotatePagesDialog::canAsk()
            || QGuiApplication::platformName() != QLatin1String("offscreen");
 }
 
-std::optional<RotatePagesDialog::Choice> RotatePagesDialog::ask(QWidget* parent)
+std::optional<RotatePagesDialog::Choice> RotatePagesDialog::ask(QWidget* parent, int currentPage)
 {
     if (installedAnswer())
         return installedAnswer()();
     if (!canAsk())
         return std::nullopt;
-    RotatePagesDialog dialog(parent);
+    RotatePagesDialog dialog(currentPage, parent);
     if (dialog.exec() != QDialog::Accepted)
         return std::nullopt;
     return dialog.choice();

@@ -1584,7 +1584,7 @@
     </message>
     <message>
         <source>shell.rotate.currentPage</source>
-        <translation>目前頁面</translation>
+        <translation>目前頁面（第 %1 頁）</translation>
     </message>
     <message>
         <source>shell.rotate.allPages</source>

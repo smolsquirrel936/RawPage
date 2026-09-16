@@ -668,13 +668,23 @@ bool MainWindow::canAskSavePath()
     return static_cast<bool>(installedSaveAsAnswer()) || canPromptTheUser();
 }
 
+namespace {
+
+// The page "current page" means. ONE reading for the dialog's label and the rotation, so the page the
+// dialog names is the page that turns.
+int rotationPageOf(const DocumentWindow& document)
+{
+    return document.view() ? document.view()->controller().currentPage() : 0;
+}
+
+} // namespace
+
 core::Status MainWindow::rotatePages(DocumentWindow* document, const RotatePagesDialog::Choice& choice)
 {
     if (!document || !document->journal())
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
 
-    const int current = document->view() ? document->view()->controller().currentPage() : 0;
-    RotationPlan plan = planRotation(choice, current, document->pageCount());
+    RotationPlan plan = planRotation(choice, rotationPageOf(*document), document->pageCount());
     core::CommandJournal& journal = *document->journal();
 
     // ONE GROUP, ONE UNDO STEP (D3-13). A command refused part-way leaves the ones before it applied and in
@@ -1861,7 +1871,7 @@ void MainWindow::registerMutationActions()
             MainWindow* window = activeShell();
             DocumentWindow* document = window ? window->currentDocument() : nullptr;
             if (!document) return;
-            if (const std::optional<RotatePagesDialog::Choice> choice = RotatePagesDialog::ask(window))
+            if (const std::optional<RotatePagesDialog::Choice> choice = RotatePagesDialog::ask(window, rotationPageOf(*document)))
                 window->rotatePages(document, *choice);
         };
         rotate.enable = [editableInFront] { return editableInFront() && RotatePagesDialog::canAsk(); };

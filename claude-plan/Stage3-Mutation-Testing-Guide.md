@@ -727,7 +727,12 @@ Two things about the state you will be walking, so a planned absence is not repo
 
 ---
 
-**M-01 · The first mutation, by hand** ☐
+**M-01 · The first mutation, by hand** ✅ signed off by the user, 2026-09-17
+- **Walk result** Every step as expected. **One refinement from the walk:** a person could not tell which
+  page *Current page* meant, so the Rotate Pages dialog now names it — *"Current page (page n)"*, key
+  `shell.rotate.currentPage` taking the one-based page (`ui/dialogs/RotatePagesDialog`), read through the
+  same `rotationPageOf` in `ui/shell/MainWindow.cpp` that the rotation uses; A-73's case checks the label,
+  with a planted off-by-one control that went red.
 - **Goal** The whole of flow D as a person meets it: chord, dialog, ribbon, undo, redo, and the page on
   screen agreeing with the model at every step.
 - **Pre** Open `corpus\ordinary\mixed-page-sizes.pdf` — portrait and landscape pages — in
