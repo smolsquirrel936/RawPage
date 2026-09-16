@@ -79,7 +79,7 @@
       "name": "_portable",
       "hidden": true,
       "inherits": "_base",
-      "description": "core/ + pdf/cos/ only, on Linux. NOT a shipping build: the toolchain pin is deliberately not applied, because the whole point is compiling the same sources with a different compiler on a different OS.",
+      "description": "core/ + pdf/cos/ + pdf/ops/ (Stage 3 T3, D3-3) only, on Linux. NOT a shipping build: the toolchain pin is deliberately not applied, because the whole point is compiling the same sources with a different compiler on a different OS.",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

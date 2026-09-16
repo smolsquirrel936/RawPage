@@ -101,7 +101,7 @@ include(RawPageChecks)
 # every rendering regression as a baseline update. PA-1 .. PA-5 are in cmake/PdfiumAssert.cmake.
 #
 # Skipped for the same two configurations the toolchain pin is: the `gates` build has no layers at
-# all, and the portable subset is core/ + pdf/cos/ on Linux, where there is no PDFium to pin -- which
+# all, and the portable subset is core/ + pdf/cos/ + pdf/ops/ on Linux, where there is no PDFium to pin -- which
 # is exactly the property D2-2's library split exists to keep true.
 if(RAWPAGE_PORTABLE_SUBSET OR RAWPAGE_GATES_ONLY)
     message(STATUS "Gate build: PDFium pin NOT applied -- no engine is linked here")

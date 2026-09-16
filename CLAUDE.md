@@ -74,7 +74,7 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Architecture-FileMap.md` | What every planned file does, plus the call-trace flows A–K. |
 | `claude-plan/Implementation-Plan.md` | Stage ordering, **live status**, shared conventions, testing strategy, Definition of Done, traceability. |
 | `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order, its stage-local design decisions (`D<N>-n`) and its blocking preconditions. **Four exist:** `Stage0-Toolchain-Plan.md`, `Stage1-AppShell-Plan.md`, `Stage2-Rendering-Plan.md` and `Stage3-Mutation-Plan.md`, each written before that stage's code. **A stage plan owns no product facts and no live status** — those stay in the four documents above. |
-| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Four exist**, one per stage built or next: `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed), `Stage1-AppShell-Testing-Guide.md` (fully run and fully walked, issues I-01…I-55, none open), `Stage2-Rendering-Testing-Guide.md` (automated half run; manual half **fully walked and signed off**, the last case on 2026-09-14; every §9 item met, and the stage signed off by the user, on 2026-09-14) and `Stage3-Mutation-Testing-Guide.md` (written 2026-09-14 from its plan; **T1's to T12's cases run**, M-03's probe walk signed off by the user). **Each guide owns its own case counts, results and issue states — read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Each is written right after its stage's plan and **before that stage's code**, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
+| `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Four exist**, one per stage built or next: `Stage0-Toolchain-Testing-Guide.md` (run, signed off, closed), `Stage1-AppShell-Testing-Guide.md` (fully run and fully walked, issues I-01…I-55, none open), `Stage2-Rendering-Testing-Guide.md` (automated half run; manual half **fully walked and signed off**, the last case on 2026-09-14; every §9 item met, and the stage signed off by the user, on 2026-09-14) and `Stage3-Mutation-Testing-Guide.md` (written 2026-09-14 from its plan; **every task's cases run through T13**, six early automated cases never recorded, M-03's probe walk signed off by the user and its product walk not yet walked). **Each guide owns its own case counts, results and issue states — read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Each is written right after its stage's plan and **before that stage's code**, per the workflow section below. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
@@ -222,8 +222,8 @@ Each rule below cost this project a defect or a wrong decision; the incident is 
 - **CMake ≥ 3.25 + presets + vcpkg manifest mode (`x64-mingw-dynamic`) + Ninja**; Catch2 v3;
   MSI (WiX v4) + MSIX, shipping the GCC runtime DLLs beside the Qt ones.
 - **Sanitizers and fuzzing do not run on Windows.** MinGW GCC has no ASan/UBSan runtime and no
-  libFuzzer, so the `portable-asan` / `portable-fuzz` presets build `core/` + `pdf/cos/` — the two
-  layers that are portable by rule — on Linux instead. A finding there is reproduced in `x64-debug`
+  libFuzzer, so the `portable-asan` / `portable-fuzz` presets build `core/`, `pdf/cos/` and — since Stage 3 T3 (D3-3) —
+  `pdf/ops/`, the layers that are portable by rule, on Linux instead. A finding there is reproduced in `x64-debug`
   before it counts as fixed. Debug info is DWARF, not PDB: crash dumps symbolize against archived
   unstripped binaries.
 - **Async tiled rendering** at physical DPI on a worker pool; the UI thread never parses or rasterizes.
@@ -525,7 +525,8 @@ every preset, `tests/fuzz/seeds/`). It needs clang and libFuzzer, neither of whi
 on this machine, so it runs only on Linux CI, in two places: `ci.yml`'s `portable-fuzz` job runs each
 target for 60 s on every push, and **`.github/workflows/fuzz-soak.yml` is the ten-minute soak** (guide
 cases A-25 and A-26). The soak runs weekly and by hand, never on push:
-`gh workflow run fuzz-soak.yml -f seconds=600`. Its first run, 34781013867, was clean. `tests/fuzz/CMakeLists.txt` fails configure when its target count is
+`gh workflow run fuzz-soak.yml -f seconds=600`. Its first run, 34781013867, was clean over two targets; over three,
+run 35134357858 found Stage 3 guide I-13 and run 35137107236, on the fix, was clean. `tests/fuzz/CMakeLists.txt` fails configure when its target count is
 wrong — **1 at T5, 2 from T6, 3 from Stage 3 T13**, asserted by `cmake/RawPageFuzzTargets.cmake`, whose
 `gates.fuzz_count.*` cases prove it fires — because "ten minutes with no crashes" is passed trivially by a
 target that builds nothing.

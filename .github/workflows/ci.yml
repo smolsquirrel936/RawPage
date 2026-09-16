@@ -275,7 +275,7 @@ jobs:
   # =====================================================================================
   # 3. The sanitizer gate MinGW GCC cannot give us on Windows (risk R7).
   #
-  # This job is also the standing proof of the layer contract: core/ and pdf/cos/ must build
+  # This job is also the standing proof of the layer contract: core/, pdf/cos/ and pdf/ops/ must build
   # and pass with no display and no PDF engine. Here there is genuinely neither.
   # =====================================================================================
   portable-asan:
@@ -307,7 +307,7 @@ jobs:
       - name: Configure
         run: cmake --preset portable-asan
 
-      - name: Build core/ and pdf/cos/
+      - name: Build core/, pdf/cos/ and pdf/ops/
         run: cmake --build --preset portable-asan
 
       # -fno-sanitize-recover=all is set in the preset, so any finding aborts rather than
@@ -325,7 +325,7 @@ jobs:
             echo "::error::$leaked ui./platform./bench. case(s) in the portable subset -- it is core/ + pdf/cos/ by rule"
             exit 1
           fi
-          echo "A-82/A-83: the portable subset is core/ + pdf/cos/, with no display and no engine."
+          echo "A-82/A-83: the portable subset is core/ + pdf/cos/ + pdf/ops/, with no display and no engine."
 
       - name: Run the headless suite under ASan+UBSan
         run: ctest --preset portable-asan
