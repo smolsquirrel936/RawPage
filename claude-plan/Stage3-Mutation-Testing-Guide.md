@@ -6,7 +6,7 @@
 > **before any Stage 3 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-09-14; T1's to T13's cases run; A-83 met 2026-09-17, its re-soak clean on the I-13 fix.** **83 automated** (A-01 … A-83)
+> **Status:** ✅ **CLOSED — the stage was signed off by the user on 2026-09-18, with every §9 item met.** Written 2026-09-14; T1's to T13's cases run; A-83 met 2026-09-17, its re-soak clean on the I-13 fix; the last six automated cases and M-08's walk recorded 2026-09-18, confirmed on CI run 35269511665. **83 automated** (A-01 … A-83)
 > and **8 manual** (M-01 … M-08). **Every case now carries a result**, the last six — A-01, A-02, A-06, A-07, A-12, A-13 — on 2026-09-18. **Run and passed: A-14 … A-18** (§5.3, T1) and **A-19 … A-27,
 > and A-28's automated half** (§5.4, T2), all 2026-09-14, each ticked with the evidence it was ticked
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
