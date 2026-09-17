@@ -1,0 +1,8 @@
+# A manual walk's working folder (CLAUDE.md, "What the manual passes keep teaching"): every M-nn case
+# works in tests\manual\<case>, so its files are here rather than on a desktop or in %TEMP%. What a walk
+# produces -- a copy of a corpus file, what the product saved over it, a log or hash read back -- is
+# EVIDENCE FOR ONE RUN, not history: it is re-made by walking the case again, and a saved PDF differs
+# byte-for-byte every run (the writer stamps a date). So the artifacts are ignored and this file, which
+# keeps the folder tracked, is not. A walk RESULT is recorded in the stage's testing guide, never here.
+*
+!.gitignore

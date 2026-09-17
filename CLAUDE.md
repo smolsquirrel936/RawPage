@@ -380,6 +380,16 @@ finding was then *automated*. **Write the manual half for what the harness struc
 when a manual finding turns out to be measurable, move it.** Every manual case in this project was
 walked and signed off by the user: **I do not mark a manual case.**
 
+**A manual walk works inside `tests/`, and nowhere else.** Every `M-nn` case's working folder is
+`tests\manual\<case>` under the repository root
+(`D:\Users\squirrel\Documents\SideProject\RawPage\tests` on this machine) — the copy of the
+corpus file being edited, what the product saves over it, and anything read back afterwards. Not the
+Desktop, not `Documents`, not `%TEMP%`: a walk that scatters its files leaves nothing for the next
+person to re-read when a result is disputed, and a walk must never edit the corpus file itself, which
+is generated and checked byte-for-byte. `tests\manual\.gitignore` keeps the artifacts out of the
+history while the folder stays tracked. **This binds the manual half only** — CTest's working
+directory and the scratch directories tests create for themselves are unchanged.
+
 `claude-plan/skills-specs-generation/` is a **vendored third-party skill set** (its own nested git
 repo, MIT-ish LICENSE) that generated these docs. Don't edit it as part of product work.
 
