@@ -1271,7 +1271,16 @@ incremental writer to a fresh file.
 
 ### Stage 4 — Viewing and navigation surface
 
-**Status:** ⚪ **Not started.**
+**Status:** ⚪ **Not started — but planned.** Its execution plan
+([`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md), decisions **D4-1 … D4-17**,
+tasks **T1 … T14**, preconditions **P-1 … P-4**) and its testing guide
+([`Stage4-ViewingSurface-Testing-Guide.md`](./Stage4-ViewingSurface-Testing-Guide.md), **79
+automated** and **12 manual** cases) were both written on **2026-09-18**, the day Stage 3 was signed
+off and **before any Stage 4 code**, per §5. **One precondition is open: P-2**, a way to remove a
+monitor while the product is running, which is the only rig element D4-8's fingerprint and D4-12's
+topology clause cannot be judged without. **This entry was corrected in the same change as that
+plan** — the four corrections are marked *(D4-n)* below, and each is a contradiction the plan found
+between this file and another owning document rather than a change of scope.
 
 **Objectives.** Everything in [`Features.md` §1](./Features.md#1-view--find-) that is not text or
 search: the sidebar panes, split views, rulers/grid/guides, full-screen and presentation, window
@@ -1279,55 +1288,104 @@ arrangement, and session restore.
 
 **Components & responsibilities.**
 - `ui/panes/ThumbnailsPane` — `void setPageSize(int)`, `QVector<PageIndex> selection() const`.
-- `ui/panes/BookmarksPane` (navigation only), `ui/panes/DestinationsPane` (read-only).
+- `ui/panes/BookmarksPane` (navigation only), `ui/panes/DestinationsPane` (read-only) — the second
+  **re-tagged in `Architecture-FileMap.md` from ○ (S7) to ○ (S4 read, S7 edit)** to match this list,
+  which it contradicted *(D4-3)*.
 - `ui/viewer/SplitViewContainer` — `void split(Orientation)`, `void freeze(int row, int col)`.
-- `ui/viewer/RulerWidget`, `ui/viewer/GridGuideLayer` — `QPointF snap(QPointF, SnapFlags) const`.
+- `ui/viewer/RulerWidget`, `ui/viewer/GridGuideLayer` —
+  `QPointF snap(QPointF, SnapFlags, std::span<const Edge>) const`, the object edges passed in and
+  empty until Stage 6 *(D4-6)*.
 - `ui/viewer/FullScreenController` — `void enter(ScreenIndex)`, `void setTransition(Transition)`,
-  `void setAutoAdvance(int sec)`, `void blank(BlankMode)`.
+  `void setAutoAdvance(int sec)`, `void blank(BlankMode)`. **The first caller of
+  `platform::IPowerSession::setPresentationModeActive`**, built at Stage 2 T12 and never called.
 - `ui/viewer/ToolController` + `tools/{HandTool,SelectTool,MarqueeZoomTool,LoupeTool}`.
 - `ui/shell/WindowArranger` — `void tile(Orientation)`, `void cascade()`, `void mergeWindows()`,
-  `void syncScroll(bool)`.
+  `void syncScroll(bool)`. Qt geometry over `IDisplayTopology`; no new `platform/` interface *(D4-17)*.
 - `core/settings/SessionState` — `void capture(const MainWindow&)`, `void restore(MainWindow&)`.
-- `ui/dialogs/GoToPageDialog`, `ui/dialogs/DocumentPropertiesDialog`.
-- `core/doc/Outline` (read — `BookmarksPane` is its first reader) and `core/doc/Metadata`
-  (`DocumentPropertiesDialog` is its first reader), **moved here from Stage 3 on 2026-09-14** by the
-  user (`Stage3-Mutation-Plan.md` D3-8): a model type arrives with its first caller.
+  The first reader of `general/restoreSession`, declared at Stage 1 and read by nothing.
+- `ui/dialogs/DocumentPropertiesDialog`. *(`GoToPageDialog` was **folded at Stage 2 T14** into
+  `MainWindow::promptForPage` and is no longer a file — `Architecture-FileMap.md` §3.15 carries the
+  ⤵ breadcrumb.)*
+- `core/doc/Outline` (read — `BookmarksPane` is its first reader), `core/doc/Destinations` (read —
+  `DestinationsPane` is its first reader) and `core/doc/Metadata` (**the Info dictionary only**;
+  XMP and editing are Stage 8's — *D4-4*). `Outline` and `Metadata` were **moved here from Stage 3
+  on 2026-09-14** by the user (`Stage3-Mutation-Plan.md` D3-8): a model type arrives with its first
+  caller. All three are read through the PDFium facade *(D4-3)*.
 
-**Key bindings handled** — [Viewer](./Features.md#viewer-review-mode): `Ctrl+4`, `Ctrl+U`, `Ctrl+'`,
-`Ctrl+;`, `Ctrl+L` (reading mode), `S` (snapshot). [Global](./Features.md#global-active-in-every-context):
-`F11`, `Ctrl+Shift+P`, `Ctrl+Shift+B`. Full [Thumbnails](./Features.md#page-thumbnails-pane) context:
-`Enter`, arrows, `+`/`-`. [Bookmarks](./Features.md#bookmarks-pane): `Enter`, `→`/`←`, `*`/`/`.
-Full [Full Screen & Presentation](./Features.md#full-screen--presentation) table.
+**Key bindings handled** — [Viewer](./Features.md#viewer-review-mode): `Ctrl+U`, `Ctrl+'`, `Ctrl+;`,
+`Ctrl+L` (reading mode), and `Ctrl+3` (Fit Visible) **re-asserted on the zoom rather than the mode**,
+which is Stage 2's **I-28**. [Global](./Features.md#global-active-in-every-context): `F11`,
+`Ctrl+Shift+P`, `Ctrl+Shift+B`, `Ctrl+D` (Document Properties). Full
+[Thumbnails](./Features.md#page-thumbnails-pane) context: `Enter`, arrows, `+`/`-`, and `Ctrl+R`
+dispatching **Stage 3's** `page.rotate`. [Bookmarks](./Features.md#bookmarks-pane) — the navigation
+rows only: `Enter`, `→`/`←`, `*`/`/`. Full
+[Full Screen & Presentation](./Features.md#full-screen--presentation) table.
+**`Ctrl+4` (Reflow) and `S` (Snapshot) move to Stage 5** *(D4-15)* — the first needs
+`core/text/LayoutAnalyzer` and the second `platform::IRichClipboard`, both of which are Stage 5's,
+whose component list already names `SnapshotTool`. `Features.md` §8 is unchanged: the chords are
+right, their stage was wrong.
 
-**Data / settings keys.** `pageDisplay/continuousScroll`, `pageDisplay/autoScrollSpeed`,
-`units/rulerUnit`, `units/gridSpacing`, `units/gridSubdivisions`, `units/gridColour`,
-`units/gridOffset`, `units/snapToGrid`, `units/snapToGuides`, `units/snapToObjects`,
-`fullScreen/transition`, `fullScreen/autoAdvanceSec`, `fullScreen/loop`, `fullScreen/monitor`,
-`fullScreen/showCursor`, `general/rememberPaneLayout`, `general/rememberWindowLayout`.
+**Data / settings keys** — **fifteen** *(D4-5)*. `pageDisplay/autoScrollSpeed`; `units/rulerUnit`,
+`units/gridSpacing`, `units/gridSubdivisions`, `units/gridColour`, `units/gridOffset`,
+`units/snapToGrid`, `units/snapToGuides`; `fullScreen/transition`, `fullScreen/autoAdvanceSec`,
+`fullScreen/loop`, `fullScreen/monitor`, `fullScreen/showCursor`; `general/rememberPaneLayout`,
+`general/rememberWindowLayout`. The **Units & Guides** and **Full Screen** Preferences pages ship —
+eight of 26. **`pageDisplay/continuousScroll` is not declared** — `pageDisplay/layoutMode` already
+encodes it, and a second key for one fact is two truths — and **`units/snapToObjects` moves to
+Stage 6** with the objects it would snap to, exactly as D3-9 moved two keys out of Stage 3.
 
-**Cross-cutting additions.** No new commands (this stage is all view state, no document mutation —
-a useful check that view and document changes stay separate). i18n: `panes.*`, `fullscreen.*`,
-`units.*`.
+**Cross-cutting additions.** **No new commands, and the check is mechanical** *(D4-1)*: this stage is
+all view state, so `mutation-lint` reports *"1 command(s): RotatePageCommand"* on the last day of the
+stage as it did on the first, and `core/cmd/Commands.def` is byte-unchanged across it. i18n: a
+`panes` key family; the full-screen and units strings live in the existing `shell.` and `prefs.`
+families, because a family is added for a new namespace and not for a new feature (Stage 3 guide
+I-16).
 
 **Algorithms & notes.** Snapping resolves in a fixed precedence — object edges, then guides, then
-grid — with one threshold in device pixels so it feels the same at every zoom. Session restore must
-survive a monitor that no longer exists: geometry is stored per monitor-arrangement fingerprint and
-clamped to the current desktop on restore. Thumbnails share the Stage 2 render pipeline at a low
-resolution rather than owning a second one.
+grid — with one threshold in **device** pixels so it feels the same at every zoom; the object edges
+are a parameter and the product passes none until Stage 6. Session restore must survive a monitor
+that no longer exists: geometry is stored per **monitor-arrangement fingerprint** built from
+`IDisplayTopology::monitors()` and **clamped** into the current virtual desktop on restore, so a wrong
+fingerprint is cosmetic rather than a window nobody can reach. Restore reopens **documents, never
+unsaved work** — that is the recovery journal's (D3-11) — and runs *after* `RecoveryPrompt`, skipping
+any path recovery already opened. Thumbnails share the Stage 2 render pipeline at a low resolution
+rather than owning a second one: `RenderPriority::Speculative` (declared at Stage 2 for this stage
+and used only by tests until now), the shared cache, and a request set bounded by the **pane's own
+viewport** rather than by the document. Rulers, grid, guides and the colour transforms are painted
+**over** the tiles and are never in the cache key, so changing the grid spacing re-rasterizes nothing.
+**Fit Visible gets a real content bounding box** through the engine, closing Stage 2's **I-28**, with
+`corpus/ordinary/cropbox-margins.pdf` as the first file on which sheet, CropBox and content are three
+different rectangles.
 
 **Testing.**
-*Automated:* `tst_snap` (precedence and threshold), `tst_sessionstate` (round-trip; restore onto a
-smaller desktop clamps), `tst_presentation_modes`, `tst_thumbnail_selection`.
-*Manual:* → queued **`Stage4-ViewingSurface-Testing-Guide.md`** (see §5). Emphasis: two monitors at
-different scaling, full-screen on the secondary monitor, unplugging a monitor while a window is on
-it, and spreadsheet-split freezing.
+*Automated:* `tst_sessionstate` and `tst_fingerprint` (round-trip; an unknown arrangement; restore
+onto a smaller desktop clamps, and a window already on-screen does not move), `tst_snap` (precedence
+and one device-pixel threshold at 50 % and 400 %, with the outside-the-threshold control),
+`tst_outline`, `tst_metadata`, `tst_panes`, `tst_tools`, `tst_split`, `tst_presentation`,
+`tst_arranger`, `tst_contentbox`, `tst_restore` (through `CompositionRoot`), and
+`bench_pipeline --stage4` for the stage's verdict.
+*Manual:* **[`Stage4-ViewingSurface-Testing-Guide.md`](./Stage4-ViewingSurface-Testing-Guide.md) §6**,
+twelve cases — the largest manual half of any stage, because this stage's subject is what a person
+sees: two monitors at different scaling, full-screen on the secondary monitor, **a monitor removed
+while a window is on it and while a presentation is running**, a session restored onto a changed
+desktop, a 900-page thumbnails pane judged for smoothness, guides dragged by hand, and
+spreadsheet-split freezing.
 
 **Exit criteria.** All four layout modes plus split views work; rulers, grid, guides, and snapping
-behave identically at 50% and 400% zoom; full-screen and presentation work on a chosen monitor;
-window arrangement and session restore survive a monitor topology change.
+behave identically at 50% and 400% zoom; full-screen and presentation work on a chosen monitor, and
+release the screen-saver suppression they took; window arrangement and session restore survive a
+monitor topology change; **Fit Visible fits the content and Stage 2's I-28 is closed in Stage 2's
+guide**; **nothing this stage builds changes a document**, proved by `mutation-lint`'s unchanged
+count; and **the A2-at-Stage-4 verdict is recorded** in `Tech-Stack-Plan.md` §3.3 — with it, whether
+`platform::IAcceleratedSurface` is needed, which its FileMap row has deferred to this stage since
+Stage 2 T16.
 
-**Deferrals.** Comparison view (Stage 5, needs text). Pane *editing* — bookmark edit is Stage 7,
-comments Stage 6, fields Stage 9, layers/tags Stage 7. AI assistant (Stage 16).
+**Deferrals.** Comparison view (Stage 5, needs text). Text selection — `SelectTool` arms and selects
+nothing (Stage 5). Reflow and Snapshot (Stage 5, *D4-15*). Object snapping and `units/snapToObjects`
+(Stage 6). Pane *editing* — bookmark and destination edit is Stage 7, page operations from the
+thumbnails pane Stage 7, comments Stage 6, fields Stage 9, layers/tags Stage 7. XMP and metadata
+editing (Stage 8). Touch mode — `general/touchMode` stays declared and inert (Stage 14). AI assistant
+(Stage 16).
 
 ---
 
@@ -1357,7 +1415,10 @@ files, and diff two documents.
 **Key bindings handled** — the whole [Find / Search](./Features.md#find--search) table
 (`KeyContext::Search`): `Ctrl+F`, `F3`/`Shift+F3`, `Ctrl+G`/`Ctrl+Shift+G`, `Ctrl+Shift+F`, `Enter`,
 `↑`/`↓`, `Alt+R`, `Alt+W`, `Alt+C`, `Esc`. [Viewer](./Features.md#viewer-review-mode):
-`Ctrl+Alt+C` (compare), `Ctrl+]`/`Ctrl+[` (next/previous difference).
+`Ctrl+Alt+C` (compare), `Ctrl+]`/`Ctrl+[` (next/previous difference), and — **moved here from Stage 4
+on 2026-09-18** (`Stage4-ViewingSurface-Plan.md` D4-15) — **`Ctrl+4`** (Reflow view, which needs this
+stage's `LayoutAnalyzer`) and **`S`** (Snapshot, which needs this stage's `WinRichClipboard` and whose
+`SnapshotTool` this stage's component list already named).
 [Common](./Features.md#common-all-contexts-unless-a-context-above-overrides-the-chord): `Ctrl+C`,
 `Ctrl+A` in the Viewer context.
 
@@ -1434,7 +1495,10 @@ scroll and Forms-Fill toggle), `Ctrl+Shift+K`, `Ctrl+F`, `Ctrl+.`/`Ctrl+,`. [Glo
 `commenting/defaultThickness.<tool>`, `commenting/stickyTool`, `commenting/popupBehaviour`,
 `commenting/showPopupsOnHover`, `commenting/printComments`, `commenting/summaryLayout`,
 `commenting/spellCheckComments`, `measuring/scaleRatio`, `measuring/displayUnit`,
-`measuring/precision`, `measuring/snapToPaths`, `measuring/writeToComment`.
+`measuring/precision`, `measuring/snapToPaths`, `measuring/writeToComment`, and — **moved here from
+Stage 4 on 2026-09-18** (`Stage4-ViewingSurface-Plan.md` D4-5) — **`units/snapToObjects`**, which
+arrives with the first objects there are to snap to; Stage 4 builds the snap resolver and passes it an
+empty edge list.
 
 **Cross-cutting additions.** Commands registered: `AddAnnotation`, `EditAnnotation`, `MoveAnnotation`,
 `DeleteAnnotation`, `ReplyToAnnotation`, `SetAnnotationStatus`, `SetAnnotationAppearance`,
@@ -2136,15 +2200,16 @@ Each guide carries **two sections**, per §2:
   section above; this one is the residue and should shrink over the project's life.
 
 Stages whose surface is entirely headless still get a guide — its manual section is short or empty,
-and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1, 2 and 3 have theirs**, each
-written from its plan before its code; every other row below is a schedule, not a backlog of missing
+and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1, 2, 3 and 4 have theirs**, each
+written from its plan before its code — Stage 4's on 2026-09-18, the day Stage 3 was signed off; every other row below is a schedule, not a backlog of missing
 documents.
 
 **A stage's §4 entry may also be expanded into a `Stage<N>-<Area>-Plan.md` execution document** when
 its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md),
 [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md),
-[`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md) and
-[`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md) are the four that exist. Such a document
+[`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md),
+[`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md) and
+[`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md) are the five that exist. Such a document
 owns **only** that stage's
 task ordering and its stage-local design choices; the objectives, components, and exit criteria stay
 here, and the stage's live status stays in its §4 status block. It sits between plan and guide in the
@@ -2157,7 +2222,7 @@ guide.**
 | 1 — App shell | [`Stage1-AppShell-Testing-Guide.md`](./Stage1-AppShell-Testing-Guide.md) | ✅ **Written 2026-08-19** from [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md), before any Stage 1 code · 🟡 **partly run — T1…T13 verified 2026-08-24**. 68 automated (A-01…A-85, plus **A-67** added at T7), 12 manual (M-01…M-12); the manual half is large by design, since A3 is judged on a real screen. Carries the **A3** ribbon go/no-go, **recorded**. Twenty-five issues, **none open** (I-04 closed at T8; I-12…I-16 at T8/T9; **I-17** by the first `portable-asan` run to reach Stage 1's code; **I-18…I-20** by T10's first run against a real, shown window; **I-24 and I-25 at T13, both of them the harness rather than the product** — **CI now green at `gates` 45/45 and `portable-asan` 177/177**, run 32649932954, with the `windows` job still skipped for want of a registered runner, which is why **A-80 stays open**); **fifteen of the twenty were found by running something rather than by reading it**, including both S1s |
 | 2 — Rendering | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) | ✅ **Written 2026-08-31** from [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md), before any Stage 2 code · 🟡 **partly run — T1–T9's cases have results, the stage's EXIT CRITERION (A-21) is met on Windows, and A-46 is closed.** **78 automated** (A-01…A-78: A-75 added 2026-08-31 with I-02, A-76…A-78 at T4), **10 manual** (M-01…M-10). **Four automated cases are Linux jobs this machine cannot run — A-04, A-24, A-25 and A-26** — and are recorded as such rather than as pending. Six issues: I-01 and I-03 closed, **I-02 half-closed at T7**, I-04, I-05 and **I-06** (T7's JBIG2 scope finding) open. The manual half is **smaller than Stage 1's**, on purpose: most of this stage is pure arithmetic and is automated, so what is left is the irreducible residue — two monitors at different scaling, perceived smoothness while scrolling, fidelity judged beside a reference, and a memory checker the CI runner does not have. **Needs two monitors at different scaling** (satisfied — the rig matches A2's specification exactly) and carries the **A2** verdict, plus **O7** and **O10**. One issue, **I-01**, raised by reading rather than running and closed the same day |
 | 3 — Mutation & save | [`Stage3-Mutation-Testing-Guide.md`](./Stage3-Mutation-Testing-Guide.md) | ✅ **Written 2026-09-14** from [`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md), before any Stage 3 code · **Every task's cases run, T1 to T13** (2026-09-14 … 2026-09-17), the last six — A-01, A-02, A-06, A-07, A-12, A-13 — on 2026-09-18, **so every case carries a result**. **Every manual case is signed off by the user**: M-03's probe walk 2026-09-14 (A4's probe verdict `go`); M-01, M-02, M-03's product walk and M-04 … M-07 on 2026-09-17 (M-02's walk found I-14, S1, closed); **M-08 on 2026-09-18**, its walk having found I-15 (S2, fixed the same day and confirmed by a re-walk). **The stage was signed off by the user on 2026-09-18.** The guide's own status line and §9 checklist are authoritative. **83 automated** (A-01…A-83), **8 manual** (M-01…M-08). Carries the **A4** verdict, measured twice and judged by OpenSSL (integrity) and Acrobat (policy). ~~Needs a hex editor~~ — the byte comparison is automated against bytes read back from disk; **killing mid-edit is automated too**, with `TerminateProcess` at instants the harness must prove it reached, and the manual residue is the real product killed by hand. **Sixteen issues, none open**: **I-01** and **I-02** raised by reading, **I-03** at T1, **I-04** to **I-06** at T2, **I-07** at T3, **I-08** at T6, **I-09** at T8, **I-10** at T10, **I-11** at T11, **I-12** and **I-13** at T13 — found by the new fuzz target — **I-14** by M-02's walk (S1, closed) and **I-15** by M-08's (S2, fixed the same day), and **I-16** by A-12's first run (S4, this guide's own Expect) (§8 of the guide) |
-| 4 — Viewing surface | `Stage4-ViewingSurface-Testing-Guide.md` | ⚪ Queued |
+| 4 — Viewing surface | [`Stage4-ViewingSurface-Testing-Guide.md`](./Stage4-ViewingSurface-Testing-Guide.md) | ✅ **Written 2026-09-18** from [`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md), the same day and **before any Stage 4 code** · ⚪ **not yet run** — no case has a result. **79 automated** (A-01…A-79), **12 manual** (M-01…M-12). Carries the **A2-at-Stage-4** verdict, which also answers `platform::IAcceleratedSurface`. **The manual half is the largest of any stage** and says why: this stage's subject is what a person sees on hardware the harness does not have — two monitors at different scaling, a monitor removed mid-presentation, a session restored onto a desktop that changed shape, a 900-page thumbnails pane judged for smoothness. **One precondition is open, P-2** (a way to remove a monitor while the product runs). It inherits and closes Stage 2's **I-28** (Fit Visible), and its §8 issue log is empty because nothing has been run |
 | 5 — Text, selection, search | `Stage5-TextSearch-Testing-Guide.md` | ⚪ Queued — near-entirely automated; the manual section covers selection feel and RTL/CJK rendering only |
 | 6 — Annotations | `Stage6-Annotations-Testing-Guide.md` | ⚪ Queued |
 | 7 — Assembly | `Stage7-Assembly-Testing-Guide.md` | ⚪ Queued |

@@ -16,8 +16,8 @@ order.
 | ② | **[Tech-Stack-Plan.md](./Tech-Stack-Plan.md)** | The locked stack and license posture, the directory layout and **inward-only dependency rule**, the **mutation-through-commands** cross-cutting design, and the risk-reducing first milestone. |
 | ③ | **[Architecture-FileMap.md](./Architecture-FileMap.md)** | What **every file** does and what it interacts with, plus the primary call-trace flows. |
 | ④ | **[Implementation-Plan.md](./Implementation-Plan.md)** | **Stage ordering and live status**, the shared conventions, the testing strategy and Definition of Done, milestones, and traceability. |
-| ⑤ | `Stage<N>-<Area>-Plan.md` — **written for [Stage 0](./Stage0-Toolchain-Plan.md), [Stage 1](./Stage1-AppShell-Plan.md), [Stage 2](./Stage2-Rendering-Plan.md) and [Stage 3](./Stage3-Mutation-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
-| ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **written for [Stage 0](./Stage0-Toolchain-Testing-Guide.md), [Stage 1](./Stage1-AppShell-Testing-Guide.md), [Stage 2](./Stage2-Rendering-Testing-Guide.md) and [Stage 3](./Stage3-Mutation-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
+| ⑤ | `Stage<N>-<Area>-Plan.md` — **written for [Stage 0](./Stage0-Toolchain-Plan.md), [Stage 1](./Stage1-AppShell-Plan.md), [Stage 2](./Stage2-Rendering-Plan.md), [Stage 3](./Stage3-Mutation-Plan.md) and [Stage 4](./Stage4-ViewingSurface-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
+| ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **written for [Stage 0](./Stage0-Toolchain-Testing-Guide.md), [Stage 1](./Stage1-AppShell-Testing-Guide.md), [Stage 2](./Stage2-Rendering-Testing-Guide.md), [Stage 3](./Stage3-Mutation-Testing-Guide.md) and [Stage 4](./Stage4-ViewingSurface-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
 
 **⑤ and ⑥ are forms, not a full set of existing files.** One guide per stage, written **immediately
 after that stage's plan and before its first line of code** — the sequence is
@@ -27,7 +27,8 @@ confirms whatever got built, including the parts built wrong. The schedule is
 [the roadmap's §5](./Implementation-Plan.md#5-per-stage-testing-guides), and both of ⑥'s sections
 passing is part of that stage's Definition of Done.
 
-**Stages 0, 1 and 2 have both.** Every later stage has neither yet, and that absence is the correct
+**Stages 0 to 4 have both** — Stage 4's pair written on 2026-09-18, the day Stage 3 was signed off and
+before any Stage 4 code. Every later stage has neither yet, and that absence is the correct
 state rather than a gap — those files are written when their stage comes up, not in advance.
 
 ## Where to look for a given question
@@ -44,7 +45,7 @@ state rather than a gap — those files are written when their stage comes up, n
 | Which stage implements catalog section §N? | ④ §7 |
 | What is still undecided? | ② §10 (risks) and ④ §8 (open decisions) |
 | What are the concrete tasks for the stage we are on? | ⑤ where it exists; ④'s *Components* otherwise |
-| What must I set up before work can start? | ⑤ §7 — the precondition checklist (Stage 1's is P-1…P-4; Stage 2's is P-1…P-4 too, with P-2 withdrawn and none open; **Stage 3's is P-1…P-5**, with P-4 replaced by automation) |
+| What must I set up before work can start? | ⑤ §7 — the precondition checklist (Stage 1's is P-1…P-4; Stage 2's is P-1…P-4 too, with P-2 withdrawn and none open; Stage 3's is P-1…P-5, with P-4 replaced by automation; **Stage 4's is P-1…P-4, and its P-2 — a way to remove a monitor while the product runs — is OPEN**) |
 | How do I verify stage N by hand? | ④'s *Testing → Manual* line now; ⑥ once stage N is under way |
 
 ## Current state
@@ -59,15 +60,19 @@ where the work is and points at the owner; the numbers live there and are re-mea
 | 0 — Toolchain | ✅ complete, signed off 2026-08-19 | [⑥ Stage 0](./Stage0-Toolchain-Testing-Guide.md) |
 | 1 — App shell | ✅ complete, signed off 2026-08-31 | [④'s Stage 1 block](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance), [⑥ Stage 1](./Stage1-AppShell-Testing-Guide.md) |
 | 2 — Engine boundary and tiled rendering | ✅ complete, signed off 2026-09-14 | [④'s Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering), [⑥ Stage 2](./Stage2-Rendering-Testing-Guide.md) — §6 carries each manual case's ✅ or ☐, §8 the issue log |
-| 3 — Document model, command journal, incremental save | 🟡 **in progress** — plan and guide written 2026-09-14, before any code; **T1 complete** 2026-09-14; **T2 complete**, A4's probe verdict **`go`**; **T3 and T4 complete**; **T5 to T10 complete** 2026-09-15; **T11 and T12 complete** 2026-09-16; **T13 complete** 2026-09-17 (A4's product verdict partial; issues I-12 and I-13 found by the new fuzz target and closed); sign-off outstanding — six automated cases unticked and the manual walks | [⑤ Stage 3](./Stage3-Mutation-Plan.md), [⑥ Stage 3](./Stage3-Mutation-Testing-Guide.md), [④'s Stage 3 entry](./Implementation-Plan.md#stage-3--document-model-command-journal-incremental-save) |
-| 4 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
+| 3 — Document model, command journal, incremental save | ✅ complete, signed off 2026-09-18 | [⑤ Stage 3](./Stage3-Mutation-Plan.md), [⑥ Stage 3](./Stage3-Mutation-Testing-Guide.md), [④'s Stage 3 block](./Implementation-Plan.md#stage-3--document-model-command-journal-incremental-save) |
+| 4 — Viewing and navigation surface | ⚪ **planned, not started** — plan and guide written 2026-09-18, before any code; no case run; **precondition P-2 open** | [⑤ Stage 4](./Stage4-ViewingSurface-Plan.md), [⑥ Stage 4](./Stage4-ViewingSurface-Testing-Guide.md), [④'s Stage 4 entry](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface) |
+| 5 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
 
 **What is live, in one sentence each, with the owner of every figure:**
 
-- **The product reads and draws, and writes nothing.** `rawpage.exe` opens PDFs into tabs and renders
-  their pages through the pinned PDFium behind our own facade, with a first-party COS reader beneath;
-  the incremental writer is Stage 3's. What each file does is ③; how far each stage got is ④.
-- **Verdicts** A2, A3, A5 and A6 are recorded in ② §3.3, each with its measurement.
+- **The product reads, draws, edits one thing and saves it.** `rawpage.exe` opens PDFs into tabs,
+  renders them through the pinned PDFium behind our own facade with a first-party COS reader beneath,
+  rotates a page through a journalled command, saves incrementally through our own writer, and offers
+  what was unsaved after a crash. What each file does is ③; how far each stage got is ④.
+- **Verdicts** A2, A3, A4, A5 and A6 are recorded in ② §3.3, each with its measurement and its bound.
+  **A2 is re-measured at Stage 4** for that stage's workload, which also decides
+  `platform::IAcceleratedSurface`.
 - **Test counts, gate figures and waivers** are quoted, re-measured, in [`CLAUDE.md`](../CLAUDE.md) →
   *Where the work is* and *Commands*, and per stage in ⑥.
 - **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single
