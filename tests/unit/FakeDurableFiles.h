@@ -38,7 +38,12 @@ public:
     core::Status replaceFile(const QString& target, const QString& replacement) override
     {
         ++replaceCalls;
-        if (failReplace)
+        // `failReplace` refuses EVERY target; `failReplaceTarget` refuses ONE, which is the shape a
+        // read-only or held file has -- the refusal is a fact about that path, and another path works.
+        // A case that offers Save-As needs the second, or its new target is refused as well.
+        if (failReplace
+            || (!failReplaceTarget.isEmpty()
+                && QFileInfo(target).absoluteFilePath() == QFileInfo(failReplaceTarget).absoluteFilePath()))
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.file.inUse"), target};
         if (!QFileInfo::exists(replacement))
             return core::Error{core::ErrorCode::NotFound, QLatin1String("error.file.notFound"), replacement};
@@ -56,6 +61,8 @@ public:
             return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.file.removeFailed"), path};
         return core::Status{};
     }
+
+    QString failReplaceTarget;   // refuse only this target (see `replaceFile`)
 
     bool processExists(qint64 processId) const override { return liveProcesses.count(processId) > 0; }
 

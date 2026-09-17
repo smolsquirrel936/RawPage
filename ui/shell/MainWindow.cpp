@@ -736,7 +736,10 @@ core::Status MainWindow::saveDocument(DocumentWindow* document)
         const bool repaired = QLatin1String(saved.value().reasonKey) == QLatin1String("error.save.repairedDocument");
         const bool explain = !repaired || services_.settings.get(core::keys::documents::warnOnRepairedSave);
         if (explain) {
-            const QString why = catalog::translate(QString(saved.value().reasonKey));
+            // `translateError`, not `translate`: since I-15 a reason can be a file-system refusal
+            // whose text takes the path (`error.file.readOnly`). A reason that takes no argument is
+            // returned unchanged, so the three older ones read exactly as before.
+            const QString why = catalog::translateError(QString(saved.value().reasonKey), saved.value().reasonContext);
             const QString text = catalog::translate(catalog::key::MessageBarSaveAsRequired).arg(document->title(), why);
             document->setCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired), text);
             if (document == currentDocument() && messageBar_)
@@ -777,9 +780,12 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
         return saved.error();
     }
     if (saved.value().kind == core::SaveOutcome::Kind::SaveAsRequired) {
-        // The target named the document's own file, which still cannot be saved in place. Not asked again
-        // in a loop: the banner already says why, and the user chooses another path with Save As.
-        const core::Error refused{core::ErrorCode::Unavailable, saved.value().reasonKey, document->title()};
+        // Either the target named the document's own file, which still cannot be saved in place, or the
+        // chosen path refused the write on its own account (I-15). Not asked again in a loop: the banner
+        // already says why, and the user chooses another path with Save As.
+        const core::Error refused{core::ErrorCode::Unavailable, saved.value().reasonKey,
+                                  saved.value().reasonContext.isEmpty() ? document->title()
+                                                                        : saved.value().reasonContext};
         reportSaveFailure(document, refused);
         return refused;
     }

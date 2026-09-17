@@ -56,7 +56,8 @@ public:
     // takes its identity from the file on disk, and saves by writing the opened bytes plus a marker line.
     bool editable = false;
     core::CosReading editableReading = core::CosReading::Read;
-    bool failWrites = false;     // a save's write step fails by key
+    bool failWrites = false;     // a save's write step fails by key -- `IoFailure`, THE PLACE (Save-As is offered)
+    bool failVerify = false;     // the composed bytes fail their own re-read -- `Corrupted`, OUR BYTES (refused)
     int writes = 0;
     int adoptions = 0;
 
@@ -172,6 +173,11 @@ public:
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
         if (failWrites)
             return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.writeFailed"), temporaryPath};
+        // What `pdf/ops/RevisionWriter` returns when the file it wrote does not read back as the document
+        // it composed: no other path would take those bytes either, so this one is never a Save-As offer.
+        if (failVerify)
+            return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.save.verifyFailed"),
+                               QStringLiteral("pages")};
         QFile source(found->second->sourcePath);
         QByteArray bytes = source.open(QIODevice::ReadOnly) ? source.readAll() : QByteArray();
         bytes += "\n% saved revision " + QByteArray::number(++writes) + "\n";

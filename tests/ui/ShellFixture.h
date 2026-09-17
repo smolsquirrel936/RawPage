@@ -191,6 +191,13 @@ struct ShellFixture {
         return delivered;
     }
 
+    // The fake by its own type, so a case can make the FILE SYSTEM refuse -- the bundle holds it as the
+    // interface, and `failReplace` / `failSync` are the fake's own (Stage 3 guide I-15).
+    tests::FakeDurableFiles& durableFiles()
+    {
+        return *static_cast<tests::FakeDurableFiles*>(platform.durableFiles.get());
+    }
+
     static platform::Platform platformWithDurableFiles()
     {
         platform::Platform bundle;

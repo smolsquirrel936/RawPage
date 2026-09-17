@@ -25,7 +25,18 @@
 //      the document now lives at the target (T9) and marks the journal saved.
 //
 // **A failure at 5 or 6 leaves the target untouched, removes the temporary file, and leaves the
-// journal dirty.** A failure at 7 happens after the replace: the new file IS on disk, the journal
+// journal dirty** -- and asks for **Save-As** when another place might work, which is the second half
+// of D3-16: *"a target that is read-only, locked by another process or in a directory that cannot hold
+// the temporary file fails with a named error **and offers Save-As**"*. The named error becomes the
+// outcome's `reasonKey` and `reasonContext`, so the caller says why before it asks where.
+//
+// **The line is WHERE the failure came from, not how bad it was.** A refusal by the file system is
+// about this PLACE -- `IoFailure` (the temporary could not be written here), `PermissionDenied`
+// (read-only, or denied), `Unavailable` (another process holds it), `NotFound` (the directory is
+// gone) -- and another path is a real answer to it. `Corrupted` is not: that is `RevisionWriter`
+// refusing the bytes we composed (`error.save.verifyFailed`), which every path would refuse
+// identically, so it stays an error and no dialog opens. T8 built the named error and, until Stage 3
+// guide I-15, not the offer. A failure at 7 happens after the replace: the new file IS on disk, the journal
 // stays dirty, and the backend's identity still names the previous file -- so the next Save sees a
 // changed file and asks for Save-As rather than appending to bytes it did not compute against. That is
 // the conservative direction, and the error says the adopt failed.
@@ -58,6 +69,7 @@ struct SaveOutcome {
     enum class Kind { Saved, SaveAsRequired };
     Kind kind = Kind::Saved;
     QLatin1String reasonKey{""};   // SaveAsRequired: why, as a catalog key
+    QString reasonContext;         // SaveAsRequired: that key's argument, when its text takes one
     QString path;                  // Saved: the file now on disk
 };
 

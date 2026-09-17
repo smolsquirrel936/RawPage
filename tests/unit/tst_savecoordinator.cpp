@@ -138,12 +138,16 @@ TEST_CASE("save coordinator leaves the target and the journal alone when a step 
     REQUIRE(session);
     REQUIRE(session->rotate(0));
 
-    SECTION("the write")
+    // D3-16, second half: a step that failed because THIS PLACE refused asks for Save-As and carries the
+    // named error as its reason; one that failed because our own bytes are wrong stays an error, since no
+    // other path would take them either (Stage 3 guide I-15). Each section says which it is.
+    SECTION("the write -- the place refused, so Save-As is offered")
     {
         session->backend.failNextWrites(true);
         auto result = session->coordinator->save(*session->journal, session->path);
-        REQUIRE_FALSE(result);
-        CHECK(keyOf(result.error()) == "error.save.writeFailed");
+        REQUIRE(result);
+        CHECK(result.value().kind == SaveOutcome::Kind::SaveAsRequired);
+        CHECK(std::string(result.value().reasonKey.data()) == "error.save.writeFailed");
         CHECK(session->durableFiles.syncCalls == 0);
     }
     SECTION("the re-read")
@@ -152,24 +156,29 @@ TEST_CASE("save coordinator leaves the target and the journal alone when a step 
         pdf::ops::RevisionWriter::setComposeFaultForTesting([](QByteArray& bytes) { bytes[0] = 'X'; });
         auto result = session->coordinator->save(*session->journal, session->path);
         pdf::ops::RevisionWriter::setComposeFaultForTesting({});
+        // NOT Save-As: the bytes are the fault, and every path would refuse them identically.
         REQUIRE_FALSE(result);
         CHECK(keyOf(result.error()) == "error.save.verifyFailed");
         CHECK(session->durableFiles.syncCalls == 0);
     }
-    SECTION("the flush")
+    SECTION("the flush -- the place refused, so Save-As is offered")
     {
         session->durableFiles.failSync = true;
         auto result = session->coordinator->save(*session->journal, session->path);
-        REQUIRE_FALSE(result);
-        CHECK(keyOf(result.error()) == "error.file.syncFailed");
+        REQUIRE(result);
+        CHECK(result.value().kind == SaveOutcome::Kind::SaveAsRequired);
+        CHECK(std::string(result.value().reasonKey.data()) == "error.file.syncFailed");
         CHECK(session->durableFiles.replaceCalls == 0);
     }
-    SECTION("the replace")
+    SECTION("the replace -- the place refused, so Save-As is offered, and it carries the target")
     {
         session->durableFiles.failReplace = true;
         auto result = session->coordinator->save(*session->journal, session->path);
-        REQUIRE_FALSE(result);
-        CHECK(keyOf(result.error()) == "error.file.inUse");
+        REQUIRE(result);
+        CHECK(result.value().kind == SaveOutcome::Kind::SaveAsRequired);
+        CHECK(std::string(result.value().reasonKey.data()) == "error.file.inUse");
+        // The reason's ARGUMENT travels with it, or the banner renders a placeholder (`%1`).
+        CHECK(result.value().reasonContext == session->path);
     }
     requireNothingChanged(*session);
     CHECK(session->backend.adoptions() == 0);

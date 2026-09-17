@@ -143,8 +143,10 @@ public:
     core::Status rotatePages(DocumentWindow* document, const RotatePagesDialog::Choice& choice);
 
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
-    // or changed on disk since it was opened -- first shows WHY, as a `SaveAsRequired` banner, and then
-    // goes to `saveDocumentAs` (D3-6, D3-16). A failure is a `SaveFailed` banner as well as the result.
+    // changed on disk since it was opened, or refused by the file system (read-only, held by another
+    // process, a directory that cannot hold the temporary file) -- first shows WHY, as a `SaveAsRequired`
+    // banner, and then goes to `saveDocumentAs` (D3-6, D3-16; the last of the three since Stage 3 guide
+    // I-15). A failure no other path could answer is a `SaveFailed` banner as well as the result.
     core::Status saveDocument(DocumentWindow* document);
     core::Status saveDocumentAs(DocumentWindow* document);
 

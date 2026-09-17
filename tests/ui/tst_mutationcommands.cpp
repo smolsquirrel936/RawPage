@@ -18,6 +18,7 @@
 // * **Tiles are pumped by hand**, as everywhere in `tests/ui` -- `ShellFixture.h` names that back door.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
@@ -596,6 +597,71 @@ TEST_CASE("with warnOnRepairedSave off a repaired document still goes to Save As
 }
 
 // =============================================================================================
+// I-15 -- a save the FILE SYSTEM refuses says why and offers Save As (D3-16, second half).
+//
+// The gap M-08 walked into: A-77 covers the three reasons that are decided BEFORE anything is written
+// (repaired, changed on disk, untitled), and `tst_durablefiles` covers the refusals themselves below
+// the UI. Neither drives a save that fails AT THE FILE SYSTEM through the shell, which is the only
+// place that can say what the user is then offered.
+// =============================================================================================
+
+TEST_CASE("a save the file system refuses explains and then asks for another file", "[mutationcommands]")
+{
+    Answers answers;
+    Editor editor;
+    editor.rotateCurrentPage(90);
+
+    // The fake replaces non-atomically and refuses on demand; what it does NOT cover is a real
+    // `ReplaceFileW` (its own header). The key it returns is the one `WinDurableFiles` returns for a
+    // target another process holds, measured at T7 as `ERROR_SHARING_VIOLATION`.
+    editor.fixture.durableFiles().failReplaceTarget = editor.path;   // THIS file, the way read-only works
+
+    const QString target = QDir(editor.fixture.directory.path()).filePath(QStringLiteral("elsewhere.pdf"));
+    bool explainedFirst = false;
+    QString explanation;
+    QString proposed;
+    ui::MainWindow::setSaveAsAnswerForTesting([&](const QString& path) -> std::optional<QString> {
+        explainedFirst = editor.window->messageBar()->isShowing(MessageBar::Kind::SaveAsRequired);
+        explanation = editor.window->messageBar()->textFor(MessageBar::Kind::SaveAsRequired);
+        proposed = path;
+        return target;
+    });
+
+    CHECK(press(editor.view, Qt::Key_S, Qt::ControlModifier));
+
+    CHECK(explainedFirst);                                  // the reason, THEN the question
+    CHECK(text(proposed) == text(editor.path));             // proposing the file it could not write
+    CHECK(text(editor.document->path()) == text(QFileInfo(target).absoluteFilePath()));
+    CHECK_FALSE(editor.document->isDirty());                // the rotation is saved, at the new path
+
+    // THE REASON IS RENDERED, not left as a key or a `%1`: the banner carries the refusal's own words
+    // and the path it was refused for. `translate` alone would have left the placeholder.
+    CHECK_THAT(text(explanation), Catch::Matchers::ContainsSubstring("could not be replaced"));
+    CHECK_THAT(text(explanation), Catch::Matchers::ContainsSubstring(text(QFileInfo(editor.path).fileName())));
+    CHECK_THAT(text(explanation), !Catch::Matchers::ContainsSubstring("%1"));
+    CHECK_THAT(text(explanation), !Catch::Matchers::ContainsSubstring("error.file."));
+
+    SECTION("and the refusal is not silently a success: with nobody to ask, nothing is written")
+    {
+        // Convention 16 and flow K: the same refusal with no answer installed cancels rather than
+        // blocking on a dialog -- and rather than reporting a save that did not happen.
+        editor.rotateCurrentPage(90);
+        editor.fixture.durableFiles().failReplaceTarget = editor.document->path();
+        ui::MainWindow::setSaveAsAnswerForTesting({});
+        const auto bytesOf = [](const QString& path) {
+            QFile file(path);
+            REQUIRE(file.open(QIODevice::ReadOnly));
+            return file.readAll();
+        };
+        const QByteArray before = bytesOf(editor.document->path());
+
+        CHECK_FALSE(editor.window->saveDocument(editor.document));
+        CHECK(editor.document->isDirty());
+        CHECK(bytesOf(editor.document->path()) == before);
+    }
+}
+
+// =============================================================================================
 // A-78 -- closing a dirty document asks, every way it can close.
 // =============================================================================================
 
@@ -802,12 +868,17 @@ TEST_CASE("a degraded journal a failed save and a changed file each raise their 
         CHECK(editor.window->messageBar()->messageCount() == 0);
     }
 
-    SECTION("a failed save")
+    SECTION("a failed save no other path could answer")
     {
-        Editor editor([](Fixture& fixture) { fixture.backend.failWrites = true; });
+        // `Corrupted` -- the bytes we composed are wrong, so Save-As is NOT offered and the banner is the
+        // refusal itself (I-15 draws that line; `SaveCoordinator.h` argues it). A save refused by the FILE
+        // SYSTEM takes the other branch, and its own case is above.
+        Editor editor([](Fixture& fixture) { fixture.backend.failVerify = true; });
         editor.rotateCurrentPage(90);
         const core::Status saved = editor.window->saveDocument(editor.document);
         REQUIRE_FALSE(saved);
+        CHECK(saved.error().code == core::ErrorCode::Corrupted);
+        CHECK_FALSE(editor.window->messageBar()->isShowing(MessageBar::Kind::SaveAsRequired));
         CHECK(editor.window->messageBar()->isShowing(MessageBar::Kind::SaveFailed));
         CHECK(editor.window->messageBar()->messageCount() == 1);
         const QString shown = editor.window->messageBar()->textFor(MessageBar::Kind::SaveFailed);

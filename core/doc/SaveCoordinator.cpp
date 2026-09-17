@@ -48,6 +48,22 @@ SaveOutcome saveAsRequired(const char* reasonKey)
     return outcome;
 }
 
+// D3-16's second half (the header argues the line): would ANOTHER path be a real answer to this
+// failure? A refusal by the file system is about this place; `Corrupted` is about the bytes we
+// composed, and every path would refuse them the same way.
+bool anotherPlaceMightWork(const Error& error)
+{
+    switch (error.code) {
+    case ErrorCode::IoFailure:          // the temporary could not be written in this directory
+    case ErrorCode::PermissionDenied:   // read-only, or denied by the OS
+    case ErrorCode::Unavailable:        // another process holds the target
+    case ErrorCode::NotFound:           // the directory, or the replacement, is gone
+        return true;
+    default:
+        return false;
+    }
+}
+
 // D3-16: is the file at `path` still the one the document's identity describes? Read and hashed here,
 // once per save -- a real cost on a large file, which `rawpage_bench_save` measures (A-61).
 bool stillTheOpenedFile(const DocumentId& opened, const QString& path)
@@ -132,9 +148,20 @@ Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const
     // Steps 5 and 6. Every failure here leaves the target as it was and the temporary file gone.
     auto abandon = [&](const Error& error) -> Result<SaveOutcome> {
         durableFiles_->removeFile(temporary);
+        const bool elsewhere = anotherPlaceMightWork(error);
         RAWPAGE_LOG_WARNING(LogSubsystem::Save)
-            << "save: failed before replacing" << target << "--" << QLatin1String(error.messageKey) << error.context;
-        return error;
+            << "save: failed before replacing" << target << "--" << QLatin1String(error.messageKey) << error.context
+            << (elsewhere ? "-- Save As required" : "-- refused");
+        if (!elsewhere)
+            return error;
+        // The error is not swallowed: it becomes the reason the caller shows BEFORE it asks where to
+        // put the file (D3-16). A caller with nobody to ask refuses by `error.save.cancelled` and
+        // writes nothing -- flow K reaches this line and never blocks on a dialog.
+        SaveOutcome outcome;
+        outcome.kind = SaveOutcome::Kind::SaveAsRequired;
+        outcome.reasonKey = error.messageKey;
+        outcome.reasonContext = error.context;
+        return outcome;
     };
     notePhase(Phase::Writing, temporary);
     if (const Status written = backend_.writeRevision(handle, temporary); !written)
