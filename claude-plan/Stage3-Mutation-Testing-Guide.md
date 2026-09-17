@@ -12,8 +12,8 @@
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
 > recorded in the plan's §7 row rather than ticked here, because its case also covers CI jobs that were
 > not read. Every other box is ☐. **M-03's probe walk was walked and signed off by the user** (§6), and A4's probe
-> verdict, graded from its readings, is **`go`**. **M-01, M-02, M-03's product walk, M-04, M-05 and M-06 were signed off by the user
-> on 2026-09-17**; M-07 and M-08 have not been walked. **Fourteen issues**: I-01 and I-02 raised by reading
+> verdict, graded from its readings, is **`go`**. **M-01, M-02, M-03's product walk and M-04 … M-07 were signed off by the user
+> on 2026-09-17**; M-08 has not been walked. **Fourteen issues**: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
 > at T3, **I-08** at T6's first CI run, **I-09** at T8, **I-10** at T10, **I-11** at T11, **I-12** at T13 — by `fuzz_cos_roundtrip`'s body, before its first push — and **I-13** by that target's first ten-minute soak, and **I-14** by M-02's walk (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — T8's — A-50 … A-61 — T9's — A-62 … A-70 — and T10's — A-71 … A-73 and A-75 … A-81, with A-77's settings half waiting for T12 — run 2026-09-15; T11's — A-67's untitled half, A-74, and A-82's prompt and crash-handler half — run 2026-09-16; T12's — A-77's setting half and A-82's keys and page — run 2026-09-16; T13's — A-57 re-run, A-83's (a), (c) and (d) — run 2026-09-17, with A4's product verdict recorded as PARTIAL.** No S1 or
 > S2 is open.
@@ -888,7 +888,21 @@ Two things about the state you will be walking, so a planned absence is not repo
   to save on close. Step 3: **no explanation — and still Save-As.**
 - **If it fails** S1 for an in-place save; S2 for a new file that still reads as repaired.
 
-**M-07 · Closing with unsaved changes** ☐
+**M-07 · Closing with unsaved changes** ✅ signed off by the user, 2026-09-17
+- **Walk result** Every step as expected, reported by the user, on copies `one.pdf` (`text-letter.pdf`) and
+  `two.pdf` (`text-a4.pdf`) in `tests\m07\`, both open in one window with page 1 rotated: the tab's × —
+  *Cancel*; `Ctrl+W` — *Cancel*; `two.pdf` torn into its own window and that window closed — **Don't Save**
+  (the dialog's name for *Discard*: *"Unsaved Changes — Save the changes to <name> before closing it?"*,
+  Save / Don't Save / Cancel); `Ctrl+Q` — *Save*; each prompt naming its document, nothing closing without
+  one; on relaunch nothing offered, and `one.pdf` reopened rotated and clean. **Read from the logs and disk
+  afterwards** (`rawpage-20260917-185634-980.log`, relaunch `…-185911-643.log`): both files opened, two
+  rotations, then `close: changes discarded for …/two.pdf`, then `save: saved …/one.pdf` (4,287 bytes) and
+  the session's end in the same second — Save, then quit; `two.pdf` still hashes as the corpus `text-a4.pdf`;
+  `one.pdf` is the corpus `text-letter.pdf` (3,974 bytes) as an unchanged prefix plus one update, page object
+  6 with `/Rotate 90`, `/Prev 3618`; `%LOCALAPPDATA%\RawPage\recovery` **empty before the relaunch** — so
+  *not offered* is because the discard and the save left no journal, not because the prompt missed one —
+  and the relaunch's log holds no `recovery:` line. **Not in the log, so the user's reading alone:** the two
+  Cancels and the tear-off — neither is logged.
 - **Goal** D3-14 on every path a person closes by.
 - **Pre** Two corpus files open, both rotated, neither saved.
 - **Steps** Close a tab with its ×, and with `Ctrl+W` — *Cancel*. Tear one tab into its own window and
