@@ -12,8 +12,8 @@
 > on. **A-26** was read from CI run 34834009577's `portable-asan` log and passed. **A-06** passed with P-2 and is
 > recorded in the plan's §7 row rather than ticked here, because its case also covers CI jobs that were
 > not read. Every other box is ☐. **M-03's probe walk was walked and signed off by the user** (§6), and A4's probe
-> verdict, graded from its readings, is **`go`**. **M-01, M-02, M-03's product walk, M-04 and M-05 were signed off by the user
-> on 2026-09-17**; M-06 … M-08 have not been walked. **Fourteen issues**: I-01 and I-02 raised by reading
+> verdict, graded from its readings, is **`go`**. **M-01, M-02, M-03's product walk, M-04, M-05 and M-06 were signed off by the user
+> on 2026-09-17**; M-07 and M-08 have not been walked. **Fourteen issues**: I-01 and I-02 raised by reading
 > while this guide was written, **I-03** found at T1, **I-04**, **I-05** and **I-06** found at T2, **I-07**
 > at T3, **I-08** at T6's first CI run, **I-09** at T8, **I-10** at T10, **I-11** at T11, **I-12** at T13 — by `fuzz_cos_roundtrip`'s body, before its first push — and **I-13** by that target's first ten-minute soak, and **I-14** by M-02's walk (§8). **T3's cases — A-03, A-05, A-29 … A-33 — and T4's — A-34 … A-37 — run 2026-09-14; T5's — A-38 … A-45 — T6's — A-08, A-10, A-11 — T7's — A-09, A-46 … A-49 — T8's — A-50 … A-61 — T9's — A-62 … A-70 — and T10's — A-71 … A-73 and A-75 … A-81, with A-77's settings half waiting for T12 — run 2026-09-15; T11's — A-67's untitled half, A-74, and A-82's prompt and crash-handler half — run 2026-09-16; T12's — A-77's setting half and A-82's keys and page — run 2026-09-16; T13's — A-57 re-run, A-83's (a), (c) and (d) — run 2026-09-17, with A4's product verdict recorded as PARTIAL.** No S1 or
 > S2 is open.
@@ -859,7 +859,23 @@ Two things about the state you will be walking, so a planned absence is not repo
   editing and saving work. After the kill, **nothing is offered** — which is what the banner said.
 - **If it fails** S2; S1 if editing is refused.
 
-**M-06 · A repaired file's first save** ☐
+**M-06 · A repaired file's first save** ✅ signed off by the user, 2026-09-17
+- **Walk result** Every step as expected, reported by the user, walked twice (the second a re-walk after a
+  slip, sessions `rawpage-20260917-183814-495.log` and `…-184501-879.log`), on two copies `a.pdf` and `b.pdf`
+  in `tests\m06\`. **The user's readings:** step 1 the explanation, then Save As, saved as `a-saved.pdf`;
+  step 2 no repair banner on reopening it in RawPage, and in Acrobat **the control — the untouched `b.pdf`
+  — asked to save on close**, while `a-saved.pdf` showed page 1 rotated and **did not ask**; step 3 no
+  explanation, and Save As still, saved as `b-saved.pdf`. **Read from the logs and disk afterwards:** in
+  both sessions `open: repaired a.pdf -- reconstructed 9 of 11 objects`, then `save: Save As required …
+  error.save.repairedDocument`, then `saved …/a-saved.pdf`; `a-saved.pdf` reopened with **no** `repaired`
+  line; for `b.pdf`, `Save As required … (explanation off: documents/warnOnRepairedSave)`. `a.pdf` and
+  `b.pdf` still hash as the corpus file (`51359B4A…`, dated 2026-09-01) — **nothing saved in place**.
+  `a.pdf` is an unchanged prefix of `a-saved.pdf` (10,627 → 11,161 bytes); the update is page object 7 with
+  `/Rotate 90` and **one complete section, entries 0–11, with no `/Prev`**, and every in-use offset in it
+  lands on its `N 0 obj` — **with the control** that the same check over `a.pdf`'s own table finds objects
+  4–11 wrong, the corpus file's fault. `a-saved.pdf` and `b-saved.pdf` are byte-identical: the explanation
+  setting changes nothing written. **Walking note:** the Save As dialog proposes the repaired document's
+  **own** path; accepting it is refused with a banner, so the walker has to change the name.
 - **Goal** D3-6, end to end, with a reader that repairs silently in the comparison.
 - **Pre** P-1. A copy of `corpus\malformed\xref-offsets-short.pdf` (its banner says it was repaired).
 - **Steps**
