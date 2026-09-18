@@ -410,7 +410,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 924/924 as of Stage 4 T2, 1 skipped
+ctest --preset x64-release --output-on-failure        # 965/965 as of Stage 4 T4, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
