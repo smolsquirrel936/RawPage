@@ -50,7 +50,11 @@ std::optional<QDateTime> Metadata::parseDate(const QString& stored)
         return QDateTime(date, time, QTimeZone::utc());
 
     const int offsetSeconds = (part(8, 0) * 3600 + part(9, 0) * 60) * (sign == QLatin1String("-") ? -1 : 1);
-    return QDateTime(date, time, QTimeZone::fromSecondsAheadOfUtc(offsetSeconds));
+    // `QTimeZone(int)`, NOT `QTimeZone::fromSecondsAheadOfUtc`. The two do the same thing, and the
+    // second is Qt 6.5+: `core/` is portable BY RULE and its CI builds it against the distro QtCore
+    // on ubuntu-latest, which is 6.4 (convention 24, `Implementation-Plan.md` section 1.5). The
+    // newer spelling compiled here against the pinned 6.11 and broke both Linux jobs.
+    return QDateTime(date, time, QTimeZone(offsetSeconds));
 }
 
 } // namespace rawpage::core

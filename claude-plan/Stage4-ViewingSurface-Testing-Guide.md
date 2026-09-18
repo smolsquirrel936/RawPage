@@ -772,6 +772,7 @@ fix — the shape every earlier stage's log uses.
 |---|---|---|---|
 | **I-01** | **S3** | **Guides are keyed by `DocumentId`, and a save changes the `DocumentId`** | ⚪ **Open — owned by D4-7, revisited at T13** |
 | **I-02** | **S4** | **Seven new Catch2 case names carried a COMMA, so none could be selected by name** | ✅ **Closed 2026-09-19 at T4**, by renaming them |
+| **I-03** | **S3** | **A Qt 6.5+ API in `core/` broke both Linux jobs: the portable subset builds against Ubuntu's Qt 6.4** | ✅ **Closed 2026-09-19**, and written up as **convention 24** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -793,6 +794,14 @@ The second is the one that matters in use: rotate a page, press `Ctrl+S`, and th
 **Why the suite did not catch it.** It cannot: a full `ctest` run executes every case regardless of its name, so all seven were green the whole time. What breaks is selecting one BY NAME — which is how every planted-bug control in this project is run.
 
 **How it surfaced, and what it nearly cost.** The T4 controls reported five reds. They were spurious: the filters matched nothing, and a Catch2 run that matches nothing exits non-zero, which the driver read as *the control fired*. **A no-tests-ran guard was added to the driver before anything was believed**, the names were fixed, and all five were re-run and fired for real. Uncaught, it would have recorded five controls that had never executed a line of the code they were supposed to break — convention 7's *"a control that does not fail for the right reason is worse than none"*, in its purest form.
+
+**I-03 · `core/` used a Qt API newer than the Qt its own CI builds it against.** *(Raised by CI run 35396454515 on T4's push, 2026-09-19; fixed the same day.)*
+
+**Mechanism.** `core/doc/Metadata::parseDate` applied a date's UTC offset with `QTimeZone::fromSecondsAheadOfUtc`, which Qt added in **6.5**. Local builds and the Windows job use the pinned **Qt 6.11.1** and compiled it clean; `portable-asan` and `portable-fuzz` build `core/`, `pdf/cos/` and `pdf/ops/` on `ubuntu-latest` against `qt6-base-dev`, which is **6.4**. Both failed at the first object file: *‘fromSecondsAheadOfUtc’ is not a member of ‘QTimeZone’*. **Fixed with `QTimeZone(int)`** — the same thing, present since Qt 5.2, and not deprecated in 6.11, which was settled by reading the pinned Qt's own header rather than remembered.
+
+**Why the suite did not catch it.** It structurally cannot. Every local preset and the Windows job use one Qt; the only build that uses the other is on Linux, on a runner, after the push. 965/965 on both Windows presets and four clean gates said nothing about it.
+
+**What changed beyond the fix.** The lesson is not about one function, so it is written where it binds later work: **convention 24** (`Implementation-Plan.md` §1.5) — the three portable layers may use only Qt APIs the distro Qt has, and the way to settle a doubt is to read `\since` in the pinned Qt's header. The issue log keeps the incident; the convention keeps the rule.
 
 ---
 

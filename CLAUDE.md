@@ -319,7 +319,7 @@ Plus the standing conventions:
 
 ## Conventions discovered while building — these bind all later work
 
-**Twenty-three of them, and the full text with the measurement behind each is
+**Twenty-four of them, and the full text with the measurement behind each is
 [`Implementation-Plan.md` §1.5](claude-plan/Implementation-Plan.md).** Most were written the day a
 defect got past a green test suite, so the reasoning is the load-bearing part and it lives there
 rather than here. **The numbers are stable and are cited across the document set** — several guides
@@ -349,6 +349,7 @@ know when to go and read one:
 21. **A palette is not a theme: the native style paints from the COLOUR SCHEME, and it wins.**
 22. **A case proving a mechanism FIRES is half of proving it fires WHEN IT SHOULD — and the criterion will not ask for the other half.**
 23. **A button that shows a command is an `ActionToolButton`, never a stock `QToolButton` with a default action — and anything retained per document is measured as LIVE heap, never as private bytes.**
+24. **`core/`, `pdf/cos/` and `pdf/ops/` may use only Qt APIs the DISTRO Qt has** — CI builds them against Ubuntu's Qt **6.4**, not the pinned 6.11.1, and the Windows suite cannot catch the difference.
 
 **Three are cited often enough to state in full here**, because they are the ones a new change
 breaks:

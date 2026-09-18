@@ -301,6 +301,20 @@ to prevent, one level up — and **CI runs
    busy heap blocks; `rawpage_bench_openclose_ui` is the harness (**Stage 2 · I-35**, guide case **A-92**).
    *(Stage 2, found in manual case M-09 and fixed the same day.)*
 
+24. **`core/`, `pdf/cos/` and `pdf/ops/` may use only Qt APIs that the DISTRO Qt has, not the
+   pinned one.** Those three layers are portable by rule and CI builds them on Linux against
+   `qt6-base-dev` from `ubuntu-latest` — **Qt 6.4** — while every local build and the Windows job
+   use the pinned **Qt 6.11.1**. So a Qt 6.5+ API compiles clean here, passes the whole Windows
+   suite on both presets, and fails `portable-asan` and `portable-fuzz` minutes after the push,
+   at a step that builds nothing else. *(Stage 4 T4: `core/doc/Metadata` used
+   `QTimeZone::fromSecondsAheadOfUtc`, added in 6.5. `QTimeZone(int)` does the same thing, has
+   existed since Qt 5.2, and is not deprecated in 6.11 — checked in the pinned Qt's own header,
+   which is the way to settle it. Guide issue **I-03**.)* **The check is cheap and belongs before
+   the push**: for any Qt call new to these layers, read `\since` in the pinned Qt's header and
+   compare it against the distro's version, or write the older spelling when both exist. The
+   Windows suite cannot catch this class at all, which is the whole reason it is written down
+   rather than left to be re-learned.
+
 ---
 
 ## 2. Cross-cutting testing strategy
