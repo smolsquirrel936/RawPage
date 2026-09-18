@@ -45,7 +45,7 @@ state rather than a gap — those files are written when their stage comes up, n
 | Which stage implements catalog section §N? | ④ §7 |
 | What is still undecided? | ② §10 (risks) and ④ §8 (open decisions) |
 | What are the concrete tasks for the stage we are on? | ⑤ where it exists; ④'s *Components* otherwise |
-| What must I set up before work can start? | ⑤ §7 — the precondition checklist (Stage 1's is P-1…P-4; Stage 2's is P-1…P-4 too, with P-2 withdrawn and none open; Stage 3's is P-1…P-5, with P-4 replaced by automation; **Stage 4's is P-1…P-4, and its P-2 — a way to remove a monitor while the product runs — is OPEN**) |
+| What must I set up before work can start? | ⑤ §7 — the precondition checklist (Stage 1's is P-1…P-4; Stage 2's is P-1…P-4 too, with P-2 withdrawn and none open; Stage 3's is P-1…P-5, with P-4 replaced by automation; **Stage 4's is P-1…P-4, all cleared — its P-2, a way to remove a monitor while the product runs, was answered on 2026-09-19 as `Win`+`P` → *PC screen only***) |
 | How do I verify stage N by hand? | ④'s *Testing → Manual* line now; ⑥ once stage N is under way |
 
 ## Current state
@@ -61,7 +61,7 @@ where the work is and points at the owner; the numbers live there and are re-mea
 | 1 — App shell | ✅ complete, signed off 2026-08-31 | [④'s Stage 1 block](./Implementation-Plan.md#stage-1--app-shell-action-layer-settings-and-single-instance), [⑥ Stage 1](./Stage1-AppShell-Testing-Guide.md) |
 | 2 — Engine boundary and tiled rendering | ✅ complete, signed off 2026-09-14 | [④'s Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering), [⑥ Stage 2](./Stage2-Rendering-Testing-Guide.md) — §6 carries each manual case's ✅ or ☐, §8 the issue log |
 | 3 — Document model, command journal, incremental save | ✅ complete, signed off 2026-09-18 | [⑤ Stage 3](./Stage3-Mutation-Plan.md), [⑥ Stage 3](./Stage3-Mutation-Testing-Guide.md), [④'s Stage 3 block](./Implementation-Plan.md#stage-3--document-model-command-journal-incremental-save) |
-| 4 — Viewing and navigation surface | ⚪ **planned, not started** — plan and guide written 2026-09-18, before any code; no case run; **precondition P-2 open** | [⑤ Stage 4](./Stage4-ViewingSurface-Plan.md), [⑥ Stage 4](./Stage4-ViewingSurface-Testing-Guide.md), [④'s Stage 4 entry](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface) |
+| 4 — Viewing and navigation surface | 🟡 **in progress — T1 complete 2026-09-19** (the corpus: 70 files, 65 golden cases), plan and guide written 2026-09-18 before any code; guide cases A-10 and A-13 recorded, A-11 and A-12 owed to T12 and T4; **all four preconditions cleared** | [⑤ Stage 4](./Stage4-ViewingSurface-Plan.md), [⑥ Stage 4](./Stage4-ViewingSurface-Testing-Guide.md), [④'s Stage 4 entry](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface) |
 | 5 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
 
 **What is live, in one sentence each, with the owner of every figure:**

@@ -16,3 +16,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 24 (filtered on `signed/`, `ordinary/rotate-inherited`, `ordinary/hybrid-xrefstm`)
 - **Reason** Stage 3 T1: six corpus files added (corpus/signed/ four, ordinary/rotate-inherited.pdf, ordinary/hybrid-xrefstm.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files.
+
+## 2026-09-18T18:39:48Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 9 (filtered on `cropbox-margins`, `dests-named`, `ordinary/transitions`)
+- **Reason** Stage 4 T1: three corpus files added (ordinary/cropbox-margins.pdf, ordinary/dests-named.pdf, ordinary/transitions.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files.

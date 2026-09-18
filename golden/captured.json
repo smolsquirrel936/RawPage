@@ -906,6 +906,66 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/cropbox-margins.pdf",
+            "height": 931,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 602
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/cropbox-margins.pdf",
+            "height": 1396,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 903
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/cropbox-margins.pdf",
+            "height": 1862,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1204
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/dests-named.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/dests-named.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/dests-named.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/font-not-embedded.pdf",
             "height": 1123,
             "page": 0,
@@ -2022,6 +2082,36 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/transitions.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/transitions.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/transitions.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/transparency-groups.pdf",
             "height": 1123,
             "page": 0,
@@ -2231,7 +2321,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-09-14T09:57:58Z",
+    "capturedUtc": "2026-09-18T18:39:48Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 3 T1: six corpus files added (corpus/signed/ four, ordinary/rotate-inherited.pdf, ordinary/hybrid-xrefstm.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files."
+    "reason": "Stage 4 T1: three corpus files added (ordinary/cropbox-margins.pdf, ordinary/dests-named.pdf, ordinary/transitions.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files."
 }

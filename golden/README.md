@@ -1,8 +1,9 @@
 # `golden/` — reference rasters
 
-**222 PNGs, 62 corpus files, 74 pages, three resolutions, one rasterizer.** Produced by
-`tools/golden-update` — 198 at Stage 2 T17, and 24 more at Stage 3 T1 for the six corpus files that
-task added, in one filtered capture that regenerated none of the 198 — and compared on every `ctest` run by `tests/golden`
+**231 PNGs, 65 corpus files, 77 pages, three resolutions, one rasterizer.** Produced by
+`tools/golden-update` — 198 at Stage 2 T17, 24 more at Stage 3 T1 for the six corpus files that
+task added, and 9 more at Stage 4 T1 for its three — each one filtered capture that regenerated
+none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
@@ -108,7 +109,9 @@ PNG, through QtGui's built-in handler — a raster class that needs no display a
 `tools/license-audit` sees nothing new.
 
 **Baselines whose every pixel has `R == G == B` are stored as 8-bit grey** — 171 of the 198 at T17,
-and 192 of 222 re-counted at Stage 3 T1 from each PNG's colour-type byte — and expanded back to RGB
+192 of 222 re-counted at Stage 3 T1 from each PNG's colour-type byte, and **198 of 231** re-counted
+the same way at Stage 4 T1, whose nine are six grey and three RGB — `cropbox-margins.pdf` is the
+one of its three files that carries colour — and expanded back to RGB
 on read, which is lossless in both directions and took the T17 tree from 30.5 MB to 13.1 MB. The comparison reads the three colour bytes on both sides, so the encoding is
 invisible above `readPng`.
 

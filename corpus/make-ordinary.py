@@ -1736,6 +1736,233 @@ def hybrid_xrefstm():
     return bytes(out)
 
 
+# ---------------------------------------------------------------------------------------------
+# Page geometry, navigation and presentation structure (Stage 4 T1)
+# ---------------------------------------------------------------------------------------------
+
+# The three rectangles of cropbox-margins.pdf, named once so the generator, the page's own printed
+# caption and `corpus/PROVENANCE.md` cannot drift apart. 72 pt separates each from the next on
+# every side, which is twice the 36 pt the Stage 4 guide's case A-11 requires -- the slack is for
+# glyph bounds, since a text object's box is the FONT's extent and not the string's.
+CROPBOX_MEDIA = pb.A4                                 # 0 0 595.276 841.89
+CROPBOX_CROP = (72.0, 72.0, 523.276, 769.89)
+CROPBOX_INK = (144.0, 160.0, 451.276, 681.89)
+
+
+@generator("cropbox-margins.pdf")
+def cropbox_margins():
+    """A /CropBox well inside the /MediaBox, and ink well inside the /CropBox: THREE rectangles.
+
+    Stage 2's I-28 (`Stage2-Rendering-Testing-Guide.md` section 8) is that Fit Visible fits the
+    CropBox, so on every document whose CropBox IS its MediaBox -- which was every file in this
+    corpus -- `Ctrl+3` is `Ctrl+0` under another name and no test can tell. Separating the three
+    boxes is the only way a case can assert the difference, and D4-14
+    (`Stage4-ViewingSurface-Plan.md` section 3) names this file as the fixture that does it.
+
+    PAGE 2 IS DELIBERATELY EMPTY -- a well-formed page with a zero-length content stream and
+    therefore no page objects at all. It is the other half of D4-14: a content box cannot be
+    computed from nothing, and the fallback to the CropBox needs a page that has nothing. Its boxes
+    are page 1's, so a fallback that lands on the MediaBox instead shows up as a different size
+    rather than having to be inferred."""
+    pdf = pb.Pdf()
+    regular = pb.base14(pdf, "Helvetica")
+    bold = pb.base14(pdf, "Helvetica-Bold")
+    resources = _font_resource(regular, bold)
+    x0, y0, x1, y1 = CROPBOX_INK
+    width, height = x1 - x0, y1 - y0
+
+    body = [
+        b"q 0.878 0.910 0.961 rg %s %s %s %s re f Q" % (pb.num(x0), pb.num(y0),
+                                                        pb.num(width), pb.num(height)),
+        b"q 2 w 0.129 0.243 0.451 RG %s %s %s %s re S Q" % (pb.num(x0), pb.num(y0),
+                                                            pb.num(width), pb.num(height)),
+        pb.show_text(168, 648, 12, "cropbox-margins.pdf", b"/F2"),
+        pb.show_text(168, 628, 9, "MediaBox  0 0 595.276 841.89 - the sheet"),
+        pb.show_text(168, 614, 9, "CropBox   72 72 523.276 769.89 - what a reader shows"),
+        pb.show_text(168, 600, 9, "content   144 160 451.276 681.89 - this panel"),
+        pb.show_text(168, 572, 9, "72 pt of sheet outside the CropBox, every side."),
+        pb.show_text(168, 558, 9, "72 pt of empty CropBox outside the ink, every side."),
+        pb.show_text(168, 530, 9, "Fit Page fills the window with the CropBox."),
+        pb.show_text(168, 516, 9, "Fit Visible fills it with this panel."),
+        pb.show_text(168, 502, 9, "Three boxes, three zooms - that is the whole fixture."),
+    ]
+    # NOT `_body_block`, which starts every line at x = 48 -- the page margin every other fixture
+    # uses and the one place this file cannot put ink. Its first capture spilled body text across
+    # the whole sheet, which left the content box very nearly the MediaBox and quietly destroyed
+    # the only thing the file is for; the capture was discarded with it.
+    for index, line in enumerate(pb.text_body(71, 24, words_per_line=6)):
+        body.append(pb.show_text(168, 470 - index * 10.5, 8, line))
+    contents = pb.content_stream(pdf, b"\n".join(body) + b"\n")
+    # A zero-length content stream rather than no /Contents at all: a page with no objects is the
+    # ordinary shape of an inserted blank, and a missing key would also be testing how a reader
+    # handles a missing key.
+    empty = pdf.add_stream([], b"")
+
+    crop = pb.rect(*CROPBOX_CROP)
+    pages_number = pdf.reserve()
+    page_numbers = []
+    for stream in (contents, empty):
+        page_numbers.append(pdf.add(pb.dictionary([
+            (b"/Type", b"/Page"), (b"/Parent", pb.ref(pages_number)),
+            (b"/MediaBox", pb.rect(0, 0, CROPBOX_MEDIA[0], CROPBOX_MEDIA[1])),
+            (b"/CropBox", crop),
+            (b"/Resources", resources), (b"/Contents", pb.ref(stream))])))
+    pdf.set(pages_number, pb.dictionary([
+        (b"/Type", b"/Pages"), (b"/Kids", pb.array([pb.ref(n) for n in page_numbers])),
+        (b"/Count", pb.num(len(page_numbers)))]))
+    catalog = pdf.add(pb.dictionary([
+        (b"/Type", b"/Catalog"), (b"/Pages", pb.ref(pages_number))]))
+    return pdf.serialize(catalog,
+                         pb.info_object(pdf, "RawPage corpus: media, crop and content boxes"))
+
+
+# An object number no file in this corpus comes close to allocating. `ghost-page` points here, and
+# a reference to an object outside /Size resolves to null by ISO 32000-1 7.3.10 -- which is what a
+# named destination left behind by a deleted page actually looks like in the wild.
+ABSENT_OBJECT = 9999
+
+
+@generator("dests-named.pdf")
+def dests_named():
+    """Named destinations in BOTH forms, three destination kinds, and one that dangles.
+
+    The two forms are not alternatives a reader may pick between: `/Names /Dests` is PDF 1.2's
+    name TREE, `/Dests` in the catalog is PDF 1.1's flat DICTIONARY, and a file may carry either or
+    both -- this one carries both, because a resolver that implements one and silently answers
+    nothing for the other looks identical to a document with no destinations.
+
+    The tree is a real two-level tree with /Kids and /Limits rather than a single /Names array,
+    since walking it is the part that goes wrong. Its first kid writes its destinations in the
+    dictionary form `<< /D [...] >>` and its second in the bare array form; both are legal and both
+    are common.
+
+    THE CONTROL IS `ghost-page`, whose destination names an object that does not exist. It is not
+    damage -- the file opens and renders -- it is a dead link, which is what deleting a page leaves
+    behind. D4-3 requires such a destination to be REPORTED as unresolvable rather than silently
+    dropped, and a fixture where every destination resolves cannot tell the two apart."""
+    pdf = pb.Pdf()
+    regular = pb.base14(pdf, "Helvetica")
+    bold = pb.base14(pdf, "Helvetica-Bold")
+    resources = _font_resource(regular, bold)
+
+    pointed_at = [
+        "chapter-one, /XYZ 72 720 null (name tree, /D dictionary form)",
+        "chapter-two, /Fit (name tree, bare array form)",
+        "table-of-figures, /FitH 640 (name tree, bare array form)",
+        "appendix, /XYZ 72 400 2 (old-style /Dests dictionary)",
+        "preface, /Fit (old-style /Dests dictionary)",
+    ]
+    pages_number = pdf.reserve()
+    page_numbers = [pdf.reserve() for _ in range(5)]
+    for index, number in enumerate(page_numbers):
+        body = b"\n".join([
+            _label("dests-named.pdf - page %d of 5" % (index + 1)),
+            pb.show_text(48, 700, 10, "a destination lands here:"),
+            pb.show_text(48, 684, 10, pointed_at[index]),
+        ] + _body_block(80 + index, 20, top=650)) + b"\n"
+        contents = pb.content_stream(pdf, body)
+        pdf.set(number, pb.dictionary([
+            (b"/Type", b"/Page"), (b"/Parent", pb.ref(pages_number)),
+            (b"/MediaBox", pb.rect(0, 0, pb.A4[0], pb.A4[1])),
+            (b"/Resources", resources), (b"/Contents", pb.ref(contents))]))
+    pdf.set(pages_number, pb.dictionary([
+        (b"/Type", b"/Pages"), (b"/Kids", pb.array([pb.ref(n) for n in page_numbers])),
+        (b"/Count", pb.num(len(page_numbers)))]))
+
+    # The name tree. /Names entries must be sorted by key in byte order within a node, and a node's
+    # /Limits must bound its keys -- a reader is entitled to binary-search on both, so a tree that
+    # lies here is a tree whose later names simply cannot be found.
+    chapter_one = pb.dictionary([(b"/D", pb.array(
+        [pb.ref(page_numbers[0]), b"/XYZ", pb.num(72), pb.num(720), b"null"]))])
+    kid_a = pdf.add(pb.dictionary([
+        (b"/Limits", pb.array([pb.literal("chapter-one"), pb.literal("chapter-two")])),
+        (b"/Names", pb.array([
+            pb.literal("chapter-one"), chapter_one,
+            pb.literal("chapter-two"), pb.array([pb.ref(page_numbers[1]), b"/Fit"])]))]))
+    kid_b = pdf.add(pb.dictionary([
+        (b"/Limits", pb.array([pb.literal("ghost-page"), pb.literal("table-of-figures")])),
+        (b"/Names", pb.array([
+            pb.literal("ghost-page"), pb.array([pb.ref(ABSENT_OBJECT), b"/Fit"]),
+            pb.literal("table-of-figures"),
+            pb.array([pb.ref(page_numbers[2]), b"/FitH", pb.num(640)])]))]))
+    dests_tree = pdf.add(pb.dictionary([(b"/Kids", pb.array([pb.ref(kid_a), pb.ref(kid_b)]))]))
+    names = pdf.add(pb.dictionary([(b"/Dests", pb.ref(dests_tree))]))
+
+    # The PDF 1.1 form: a flat dictionary in the catalog, keyed by NAME objects rather than by
+    # strings. Its keys are a different namespace from the tree's and may collide with them; these
+    # two do not, so a resolver that merges the two and one that searches them in order agree here.
+    old_style = pdf.add(pb.dictionary([
+        (b"/preface", pb.array([pb.ref(page_numbers[4]), b"/Fit"])),
+        (b"/appendix", pb.array([pb.ref(page_numbers[3]), b"/XYZ",
+                                 pb.num(72), pb.num(400), pb.num(2)]))]))
+
+    catalog = pdf.add(pb.dictionary([
+        (b"/Type", b"/Catalog"), (b"/Pages", pb.ref(pages_number)),
+        (b"/Names", pb.ref(names)), (b"/Dests", pb.ref(old_style))]))
+    return pdf.serialize(catalog, pb.info_object(pdf, "RawPage corpus: named destinations"))
+
+
+@generator("transitions.pdf")
+def transitions():
+    """Per-page /Trans of three kinds, two /Dur values, and /PageMode /FullScreen.
+
+    A presentation reads three things the viewer's own settings cannot supply: what the document
+    asks to happen BETWEEN pages (/Trans), how long it asks a page to stay (/Dur), and whether it
+    asks to open full-screen at all (/PageMode). Stage 4's `fullScreen/transition` and
+    `fullScreen/autoAdvanceSec` are DEFAULTS, and a default is only observable against a document
+    that overrides it.
+
+    PAGE 4 CARRIES NEITHER KEY, and that is the control: it is the page where the preference must
+    win. A fixture whose every page overrides cannot distinguish "the document's transition was
+    used" from "the preference was ignored"."""
+    pdf = pb.Pdf()
+    regular = pb.base14(pdf, "Helvetica")
+    bold = pb.base14(pdf, "Helvetica-Bold")
+    resources = _font_resource(regular, bold)
+
+    # /S is the style, /D its duration in seconds, /Dm and /Di the dimension and direction a style
+    # takes, /M whether it moves inward or outward. /Dur is the PAGE's display time and is a
+    # different clock from /Trans's /D -- conflating the two is the obvious way to get this wrong,
+    # so the file separates them: page 1 and page 3 are the ones that auto-advance.
+    spec = [
+        ("Wipe, 1 s, left to right; the page shows for 3 s",
+         pb.dictionary([(b"/S", b"/Wipe"), (b"/D", pb.num(1)), (b"/Di", pb.num(0))]),
+         pb.num(3)),
+        ("Dissolve, 0.5 s; no /Dur, so the preference decides",
+         pb.dictionary([(b"/S", b"/Dissolve"), (b"/D", pb.num(0.5))]), None),
+        ("Split, 1.5 s, vertical, outward; the page shows for 5 s",
+         pb.dictionary([(b"/S", b"/Split"), (b"/D", pb.num(1.5)),
+                        (b"/Dm", b"/V"), (b"/M", b"/O")]),
+         pb.num(5)),
+        ("no /Trans and no /Dur - the control page", None, None),
+    ]
+
+    pages_number = pdf.reserve()
+    page_numbers = []
+    for index, (caption, transition, duration) in enumerate(spec):
+        body = b"\n".join([
+            _label("transitions.pdf - page %d of 4" % (index + 1)),
+            pb.show_text(48, 700, 11, caption),
+        ] + _body_block(90 + index, 22, top=666)) + b"\n"
+        contents = pb.content_stream(pdf, body)
+        pairs = [(b"/Type", b"/Page"), (b"/Parent", pb.ref(pages_number)),
+                 (b"/MediaBox", pb.rect(0, 0, pb.A4[0], pb.A4[1])),
+                 (b"/Resources", resources), (b"/Contents", pb.ref(contents))]
+        if transition is not None:
+            pairs.append((b"/Trans", transition))
+        if duration is not None:
+            pairs.append((b"/Dur", duration))
+        page_numbers.append(pdf.add(pb.dictionary(pairs)))
+    pdf.set(pages_number, pb.dictionary([
+        (b"/Type", b"/Pages"), (b"/Kids", pb.array([pb.ref(n) for n in page_numbers])),
+        (b"/Count", pb.num(len(page_numbers)))]))
+
+    catalog = pdf.add(pb.dictionary([
+        (b"/Type", b"/Catalog"), (b"/Pages", pb.ref(pages_number)),
+        (b"/PageMode", b"/FullScreen")]))
+    return pdf.serialize(catalog, pb.info_object(pdf, "RawPage corpus: page transitions"))
+
+
 def generate():
     return {"ordinary/" + name: builder() for name, builder in FILES.items()}
 
