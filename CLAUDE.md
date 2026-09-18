@@ -12,17 +12,17 @@ number goes stale. When something changes, **fix the owning document**; never re
 
 **RawPage** — a Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives
 under `claude-plan/`. Stage 0 (toolchain), Stage 1 (app shell), Stage 2 (PDF engine boundary and
-tiled rendering) and **Stage 3 (mutation and save) are complete and signed off, the last on 2026-09-18**. Risk A4's probe verdict is `go` and its product verdict is recorded as partial, both over RawPage's own generated signatures. **Stage 4 is IN PROGRESS**: its plan and testing guide were written on 2026-09-18 before any of its code, and **T1, the corpus the stage is judged on, is complete (2026-09-19)** — no other Stage 4 code exists yet.
+tiled rendering) and **Stage 3 (mutation and save) are complete and signed off, the last on 2026-09-18**. Risk A4's probe verdict is `go` and its product verdict is recorded as partial, both over RawPage's own generated signatures. **Stage 4 is IN PROGRESS**: its plan and testing guide were written on 2026-09-18 before any of its code, and **T1 (the corpus) and T2 (the workload measurement and the `IAcceleratedSurface` verdict) are complete, both 2026-09-19** — no pane, split or presentation code exists yet, which is the order the plan chose so a no-go could still reshape them.
 
 ### Where the work is right now — read this first
 
 | | |
 |---|---|
-| **Stage** | **Stage 3 is SIGNED OFF by the user, 2026-09-18** — thirteen tasks (T1 2026-09-14 … T13 2026-09-17), then the last two `Stage3-Mutation-Testing-Guide.md` §9 items on 2026-09-18: M-08's sign-off and the six automated cases that had never been recorded. **Stage 2 was signed off 2026-09-14**, Stage 1 and Stage 0 before it. **Stage 4 is in progress — T1 complete 2026-09-19**, which added three corpus files and their baselines and nothing else; its `Implementation-Plan.md` §4 entry, [`Stage4-ViewingSurface-Plan.md`](claude-plan/Stage4-ViewingSurface-Plan.md) (D4-1 … D4-17, T1 … T14, P-1 … P-4) and [`Stage4-ViewingSurface-Testing-Guide.md`](claude-plan/Stage4-ViewingSurface-Testing-Guide.md) (79 automated, 12 manual) were all written on 2026-09-18, before any of its code. |
-| **Next action** | **Stage 4 T2** — the Stage 4 workload measurement and the `platform::IAcceleratedSurface` verdict (`Stage4-ViewingSurface-Plan.md` §6, D4-16), which is the stage's go/no-go and **comes before any pane**. **T1 is complete (2026-09-19)**: the corpus is 70 files and the golden suite 65 cases over 231 images. **Its preconditions are all cleared** (`Stage4-ViewingSurface-Plan.md` §7): P-2 is `Win`+`P` → *PC screen only* and P-4 is a wheel mouse with no pen or touch, both answered 2026-09-19, each with what it does not reach recorded beside it. Nothing is owed to Stage 3. |
+| **Stage** | **Stage 3 is SIGNED OFF by the user, 2026-09-18** — thirteen tasks (T1 2026-09-14 … T13 2026-09-17), then the last two `Stage3-Mutation-Testing-Guide.md` §9 items on 2026-09-18: M-08's sign-off and the six automated cases that had never been recorded. **Stage 2 was signed off 2026-09-14**, Stage 1 and Stage 0 before it. **Stage 4 is in progress — T1 and T2 complete 2026-09-19**: three corpus files with their baselines, and the stage's verdict measured before any pane exists; its `Implementation-Plan.md` §4 entry, [`Stage4-ViewingSurface-Plan.md`](claude-plan/Stage4-ViewingSurface-Plan.md) (D4-1 … D4-17, T1 … T14, P-1 … P-4) and [`Stage4-ViewingSurface-Testing-Guide.md`](claude-plan/Stage4-ViewingSurface-Testing-Guide.md) (79 automated, 12 manual) were all written on 2026-09-18, before any of its code. |
+| **Next action** | **Stage 4 T3** — `core/settings/SessionState` (`Stage4-ViewingSurface-Plan.md` §6): D4-8's monitor-arrangement fingerprint and its clamp, D4-9's restore rules, and guides as view state (D4-7), all provable headless. **T1 and T2 are complete (2026-09-19)**: the corpus is 70 files and 65 golden cases, and **A2 at Stage 4 is recorded as `go, with named custom work`** — the named work is **T11's** (an unfocused window enqueues at `Prefetch`), T5's pane design is unchanged, and `IAcceleratedSurface` is answered: not built. **Its preconditions are all cleared** (`Stage4-ViewingSurface-Plan.md` §7): P-2 is `Win`+`P` → *PC screen only* and P-4 is a wheel mouse with no pen or touch, both answered 2026-09-19, each with what it does not reach recorded beside it. Nothing is owed to Stage 3. |
 | **Then** | Stage 4's code, task by task, each task updating `Architecture-FileMap.md` rows and the `Implementation-Plan.md` §4 status block in the same change. |
 | **Authority for status** | The **Stage 0 to Stage 3 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **923/923** on `x64-release` and **923/923** on `x64-debug`, one explicitly skipped (the battery case, on a desktop that has none) — re-measured on both presets at Stage 4 T1, 2026-09-19, which adds corpus data and no case. The `gates` preset is 124/124 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **924/924** on `x64-release` and **924/924** on `x64-debug`, one explicitly skipped (the battery case, on a desktop that has none) — re-measured on both presets at Stage 4 T2, 2026-09-19, which added one case: `bench.render.a2_stage4`, the workload measurement registered so it cannot rot. The `gates` preset is 124/124 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -37,10 +37,13 @@ whole editable corpus in tests — and **since T10 a person reaches it**: `Ctrl+
 `Ctrl+S`/`Ctrl+Shift+S` save, and closing a changed document asks first. **Since T11 a launch after a crash offers what was not saved**: recover it — into the file, or into an untitled document when the file changed — discard it, or decide later.
 
 **What is deliberately absent, so it is not reported as a defect.** `platform::IAcceleratedSurface`
-is declared and unimplemented — **Stage 4 decides it** (`Stage4-ViewingSurface-Plan.md` D4-16): A2's
-figures were measured over one viewport, and Stage 4's T2 measures the workload that stage creates —
-a thumbnails pane, a split view and a presentation over one scheduler, one worker and one cache —
-before any pane is built, because a no-go reshapes the pane. Font substitution
+is declared and unimplemented, and **Stage 4 T2 decided on 2026-09-19 that it stays that way** — the row
+stops deferring and records a measurement (`Tech-Stack-Plan.md` §3.3, *A2 at Stage 4*): under the
+workload this stage creates the viewport's p95 is **10.59–10.74 ms against a 16.667 ms budget**, and
+the reason it is not built is structural rather than comfortable — a surface presents finished pixels
+and does not rasterize them, while the cost measured is PDFium behind I-05's engine lock, where 1, 2, 4
+and 8 workers give 13.199, 14.078, 14.093 and 13.808 ms. **T14 re-reads the figure through the shipped
+panes** before the verdict is final. Font substitution
 runs through our own policy but has **no UI**: only the log names the face. `pageDisplay/lineWeight`
 is a checkbox that does nothing — **I-06** and **I-11** (`Stage2-Rendering-Testing-Guide.md` §8) are
 both open **by decision**, each a feature the engine or the licence cannot deliver, kept as a
@@ -406,7 +409,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 923/923 as of guide I-15's fix, 1 skipped
+ctest --preset x64-release --output-on-failure        # 924/924 as of Stage 4 T2, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a

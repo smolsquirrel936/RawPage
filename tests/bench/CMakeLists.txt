@@ -155,6 +155,16 @@ set_tests_properties(bench.render.a2_product PROPERTIES
         "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
 
+# Stage 4 T2 (D4-16). The SAME binary in its `--stage4` mode, registered for the same reason the
+# line above is: a measurement nothing runs is a measurement that rots, and this one carries a
+# VERDICT -- A2 at Stage 4, recorded in Tech-Stack-Plan.md 3.3 -- which T14 re-reads through the
+# shipped panes. Its exit code is still only about whether the measurement was possible.
+add_test(NAME bench.render.a2_stage4 COMMAND rawpage_bench_pipeline --stage4)
+set_tests_properties(bench.render.a2_stage4 PROPERTIES
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)
+
 # rawpage_bench_openclose -- Stage 2 issue I-35's reproducer: private bytes and handles per round of
 # ten documents opened, rendered and closed with no window. NOT registered with CTest: it reports a
 # trend over dozens of rounds, and no threshold for that trend has been decided. It links the
