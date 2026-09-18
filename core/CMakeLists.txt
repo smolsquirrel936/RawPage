@@ -122,6 +122,16 @@ add_library(rawpage_core STATIC
     doc/SaveCoordinator.h
     doc/SaveCoordinator.cpp
 
+    # S4 T4 (D4-3, D4-4) -- the READ-ONLY halves of what a document says about itself. Hydrated
+    # through the PDFium facade at open; the editing halves are Stage 7's and Stage 8's, and they
+    # arrive with a first-party writer rather than with a second reader.
+    doc/Outline.h
+    doc/Outline.cpp
+    doc/Destinations.h
+    doc/Destinations.cpp
+    doc/Metadata.h
+    doc/Metadata.cpp
+
     # render/ -- the rendering POLICY layer. RenderRequest was T10's by the plan and was built at T9
     # because IPageRasterizer::raster() takes one and T9's exit criterion is a rasterized page;
     # core/backend.h has carried a forward declaration of it since T1.

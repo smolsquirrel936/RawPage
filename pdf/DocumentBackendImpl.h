@@ -70,6 +70,11 @@ public:
     const core::Permissions* permissions(core::DocumentHandle document) const override;
     const core::DocumentId* documentId(core::DocumentHandle document) const override;
 
+    // S4 T4 (D4-3, D4-4). Each forwards to what `PdfiumDocument` read once at open.
+    const core::Outline* outline(core::DocumentHandle document) const override;
+    const core::Destinations* destinations(core::DocumentHandle document) const override;
+    const core::Metadata* metadata(core::DocumentHandle document) const override;
+
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
     core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;
     core::Status adoptRevision(core::DocumentHandle document, const QString& path) override;

@@ -353,26 +353,32 @@ green its cases did not record.
 
 ### 5.6 The read-only models (T4)
 
-**A-25 · The outline is read with its structure and its open state** ☐
+**A-25 · The outline is read with its structure and its open state**
+✅ **2026-09-19, T4.** `render.` over `ordinary/outline-labels.pdf`: two roots, **three nodes over two levels**, and the parent/child relationship asserted by name — an outline read as a flat list of three would satisfy the count and fail a user. Each node's destination resolves to a page INDEX (3, 4 and 7) with its fit kind, and the nested section's `/XYZ null 780 null` keeps `hasY` true with `hasX` and `hasZoom` **false**, because null is not zero: conflating them scrolls every such link to the page's bottom-left corner. The open flag is what the FILE asks for (ISO 32000-1 Table 153, a positive `/Count`). **Controls run red:** forcing `openByDefault` false, and never walking the children.
 **Steps** `tst_outline` over `ordinary/outline-labels.pdf`.
 **Expect** Two levels, the parent/child relationships, the open/closed flag, and each node's destination resolved to a page index. **If it fails** S2.
 
-**A-26 · Destinations of three kinds resolve, and a dangling one is reported** ☐
+**A-26 · Destinations of three kinds resolve, and a dangling one is reported**
+✅ **2026-09-19, T4 — and this is T1's A-12 paid off.** `render.` over T1's `ordinary/dests-named.pdf`: `/XYZ` gives page 0 with the point (72, 720), `/Fit` gives page 1 and nothing else, `/FitH` gives page 2 with top 640. **`ghost-page` is present in the table and unresolved** — `pageIndex` −1, `unresolvedCount()` 1 — and the reader did not stop at it, which the entries read after it prove. **Control run red:** dropping unresolved entries silently. **What this does not prove**, at the assertion: WHICH of the two PDF tables each name came from — PDFium merges the name tree and the flat `/Dests` dictionary into one enumeration and the facade keeps that merge, so a file carrying only the tree would satisfy every assertion here. That `dests-named.pdf` carries both forms is asserted over its BYTES, by T1's corpus check and `PROVENANCE.md`.
 **Steps** `tst_outline`/`tst_metadata` over `dests-named.pdf`.
 **Expect** `/XYZ` gives a page and a point, `/Fit` a page, `/FitH` a page and a top; **the dangling destination is reported and resolves to nothing**, and the reader does not stop at it. **If it fails** S2.
 
-**A-27 · A document with no outline and no destinations answers empty** ☐
+**A-27 · A document with no outline and no destinations answers empty**
+✅ **2026-09-19, T4.** `render.` over `ordinary/text-a4.pdf`: `outline()` and `destinations()` are **empty, not null and not a failure**. `core/backend.h` makes the distinction explicit — null means *not a handle of mine*, empty means *this document has none* — so a pane can show its empty state without an error to distinguish. The pane half is T6's.
 **Expect** `outline()` and `destinations()` on `text-a4.pdf` return an empty model, not a failure, and the panes show their empty state rather than an error. **If it fails** S3.
 
-**A-28 · Info is read; XMP is not claimed** ☐
+**A-28 · Info is read; XMP is not claimed**
+✅ **2026-09-19, T4**, over all three inputs the case asks for. **With `/Info`:** `ordinary/text-a4.pdf` — title, producer and both dates read, the dates **raw as stored** (`D:20260831000000Z`, the corpus's one fixed instant), and the PDF version **1.7** from the file header rather than from any Info field. **Without:** `corpus/minimal.pdf`, Stage 0's seed, carries no `/Info` at all — `isEmpty()` is true and the version still reads, since every PDF has a header. **With a malformed date:** no corpus file has one and T1's corpus is closed, so the document is built in BYTES in the case and opened through `openBytes` — `(Tuesday afternoon)` comes back **exactly as written**, and `Metadata::parseDate` refuses it rather than inventing a date. The `unit.` half exercises the parser over the forms producers write and the ones they mangle, with a control that it is not merely lenient. **No XMP is read, and the case says so** (D4-4): there is no API on `core::Metadata` that could answer an XMP question, which is the mechanical form of the same claim. **Control run red:** the title never read from the file.
 **Steps** `tst_metadata` over a file with `/Info`, one without, and one whose `/Info` holds a malformed date.
 **Expect** Every Info field read as text; a missing `/Info` is empty rather than an error; a malformed date is shown as it was stored rather than invented. **The case states that no XMP is read** (D4-4). **If it fails** S3; S2 for a field invented.
 
 **A-29 · Page labels, and the page box that reads them** ☐
+⚪ **Not T4's, and not owed by it — recorded here so its ☐ is not read as a gap.** Page labels are already read into `core/doc/PageTree` (Stage 2), and everything this case asserts is a SURFACE: the status bar showing the label beside the physical index, and *Go to Page* accepting `iv` and `A-12`. The plan's §6 gives both to **T12**, which is where this case will be run.
 **Goal** §1.4's *jump by logical page label*, on the file `PROVENANCE.md` says exists for it.
 **Expect** Over `outline-labels.pdf`, index 3 is labelled **"1"**; the status bar shows the label and the physical index; *Go to Page* accepts `iv` and `A-12` as well as a number, and an unknown label is refused without moving the view. **If it fails** S2.
 
-**A-30 · The readers are hydrated once, at open** ☐
+**A-30 · The readers are hydrated once, at open**
+🟡 **2026-09-19, T4 — met by construction, and the half that needs a pane is owed.** Each reader is called exactly once, in `PdfiumDocument::open`, and the models are plain `core/` values held on the document; `IDocumentBackend::{outline,destinations,metadata}` return a pointer to what was already read and touch no engine. **A pane cannot re-read on show even if it tried**: there is no API that would let it — the `FPDF_DOCUMENT` never leaves `pdf/render/`. **What is NOT run yet:** the case as written says *"opening the Bookmarks pane on an already-open document reads nothing from the engine"*, and there is no pane until **T6**. Re-read there against the real pane rather than ticked here on an argument.
 **Expect** Opening a document calls each reader once; opening the Bookmarks pane on an already-open document reads nothing from the engine. **If it fails** S3 — a pane that re-reads on every show is a cost nobody measured.
 
 ### 5.7 The panes (T5, T6)
@@ -765,6 +771,7 @@ fix — the shape every earlier stage's log uses.
 | # | Sev | Title | State |
 |---|---|---|---|
 | **I-01** | **S3** | **Guides are keyed by `DocumentId`, and a save changes the `DocumentId`** | ⚪ **Open — owned by D4-7, revisited at T13** |
+| **I-02** | **S4** | **Seven new Catch2 case names carried a COMMA, so none could be selected by name** | ✅ **Closed 2026-09-19 at T4**, by renaming them |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -778,6 +785,14 @@ The second is the one that matters in use: rotate a page, press `Ctrl+S`, and th
 **Why the suite did not catch it.** Every A-18 assertion is a round trip through one object with one document identity; nothing in §5.5 saves a document, because T3 has no document to save. The case that would catch it belongs where capture and restore meet the shell.
 
 **What is absent, and who owns it.** There is no re-keying of a session entry when a document is saved, and this task did not invent one: the repair is a decision for **D4-7**, taken where the mechanism is wired — **T13**. `SessionState` stores what the decision says today. Recorded here rather than in a commit message because the log outlives the fix.
+
+**I-02 · A comma in a Catch2 case name makes the case unselectable.** *(Raised and closed 2026-09-19 at T4.)*
+
+**Mechanism.** Convention 2 (`CLAUDE.md`) says a Catch2 test name is ASCII **and contains no comma**, because a comma separates test specs in a filter: `rawpage_tests.exe "a, b"` asks for two cases named `a` and `b`, matches neither, and exits **non-zero with “No tests ran”**. Seven names added at T3 and T4 carried one.
+
+**Why the suite did not catch it.** It cannot: a full `ctest` run executes every case regardless of its name, so all seven were green the whole time. What breaks is selecting one BY NAME — which is how every planted-bug control in this project is run.
+
+**How it surfaced, and what it nearly cost.** The T4 controls reported five reds. They were spurious: the filters matched nothing, and a Catch2 run that matches nothing exits non-zero, which the driver read as *the control fired*. **A no-tests-ran guard was added to the driver before anything was believed**, the names were fixed, and all five were re-run and fired for real. Uncaught, it would have recorded five controls that had never executed a line of the code they were supposed to break — convention 7's *"a control that does not fail for the right reason is worse than none"*, in its purest form.
 
 ---
 

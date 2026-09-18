@@ -43,6 +43,9 @@
 
 #include "core/Result.h"
 #include "core/backend.h"
+#include "core/doc/Destinations.h"
+#include "core/doc/Metadata.h"
+#include "core/doc/Outline.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/RepairReport.h"
 
@@ -89,6 +92,18 @@ public:
     const core::RepairReport& repairReport() const noexcept { return repair_; }
     bool wasRepaired() const noexcept { return !repair_.isEmpty(); }
 
+    // WHAT THE DOCUMENT SAYS ABOUT ITSELF -- read ONCE, here, at open (S4 T4, D4-3 and D4-4, guide
+    // case A-30). Each is empty for a document that carries none, which is the ordinary case and
+    // not a failure.
+    //
+    // They are read at open rather than on demand because the alternative is a pane that walks the
+    // engine's outline every time it is shown, and because `PdfiumDocument` is the only place that
+    // may hold an `FPDF_DOCUMENT` at all: a lazy reader would have to keep the handle reachable
+    // from `core/`, which is the layering the facade exists to prevent.
+    const core::Outline& outline() const noexcept { return outline_; }
+    const core::Destinations& destinations() const noexcept { return destinations_; }
+    const core::Metadata& metadata() const noexcept { return metadata_; }
+
     // The bytes, for `pdf/cos/`. A view, not a copy: they live as long as this object, because
     // PDFium holds a pointer into them.
     QByteArray bytes() const { return bytes_; }
@@ -119,6 +134,9 @@ private:
     QString path_;
     core::PageTree pages_;
     core::RepairReport repair_;
+    core::Outline outline_;
+    core::Destinations destinations_;
+    core::Metadata metadata_;
 };
 
 } // namespace rawpage::pdf::render

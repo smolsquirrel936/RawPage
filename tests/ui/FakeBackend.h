@@ -14,6 +14,9 @@
 #ifndef RAWPAGE_TESTS_UI_FAKEBACKEND_H
 #define RAWPAGE_TESTS_UI_FAKEBACKEND_H
 
+#include "core/doc/Destinations.h"
+#include "core/doc/Metadata.h"
+#include "core/doc/Outline.h"
 #include "core/backend.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageTree.h"
@@ -163,6 +166,20 @@ public:
         const auto found = edits.find(handle.id);
         return found == edits.end() ? nullptr : &found->second->id;
     }
+    // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
+    // null means *not a handle of mine*, and empty means *this document has none*, which is the
+    // distinction `core/backend.h` asks callers to make. A case that needs an outline fills these.
+    const core::Outline* outline(core::DocumentHandle) const override { return &outline_; }
+    const core::Destinations* destinations(core::DocumentHandle) const override
+    {
+        return &destinations_;
+    }
+    const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
+
+    core::Outline outline_;
+    core::Destinations destinations_;
+    core::Metadata metadata_;
+
 
     // Stage 3 T10: the opened file's bytes plus a line naming the save, so a saved file differs from the one
     // before it -- enough for `SaveCoordinator`'s identity check and for the chrome's dirty marker.

@@ -44,6 +44,12 @@ add_executable(rawpage_tests
     # every case in it would pass with an empty session file.
     tst_sessionstate.cpp
     tst_fingerprint.cpp
+
+    # S4 T4 -- the read-only models VOCABULARY: counting a tree, finding a name, parsing a PDF
+    # date. The claims about real documents are tests/render/tst_docmodels.cpp's, because they are
+    # claims about a READER and this target may never link the engine.
+    tst_outline.cpp
+    tst_metadata.cpp
     tst_commandline.cpp           # Stage 1 T8
     tst_logbuffer.cpp             # Stage 1 T14
     tst_singleinstance.cpp        # Stage 1 T15 -- guide case A-61

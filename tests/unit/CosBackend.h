@@ -17,6 +17,9 @@
 #ifndef RAWPAGE_TESTS_UNIT_COSBACKEND_H
 #define RAWPAGE_TESTS_UNIT_COSBACKEND_H
 
+#include "core/doc/Destinations.h"
+#include "core/doc/Metadata.h"
+#include "core/doc/Outline.h"
 #include "core/backend.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/PageTree.h"
@@ -115,6 +118,20 @@ public:
         const auto* entry = find(handle);
         return entry ? &entry->id : nullptr;
     }
+    // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
+    // null means *not a handle of mine*, and empty means *this document has none*, which is the
+    // distinction `core/backend.h` asks callers to make. A case that needs an outline fills these.
+    const core::Outline* outline(core::DocumentHandle) const override { return &outline_; }
+    const core::Destinations* destinations(core::DocumentHandle) const override
+    {
+        return &destinations_;
+    }
+    const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
+
+    core::Outline outline_;
+    core::Destinations destinations_;
+    core::Metadata metadata_;
+
 
     // Stage 3 T8: the same `pdf/ops/RevisionWriter` the shipped backend calls, so a round trip through
     // this backend exercises the real write, re-read and adopt -- everything but the engine.

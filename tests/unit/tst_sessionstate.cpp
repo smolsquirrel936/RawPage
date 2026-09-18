@@ -80,7 +80,7 @@ const SessionState::FileExists kEverythingExists = [](const QString&) { return t
 
 } // namespace
 
-TEST_CASE("a session round-trips through the file, field by field", "[session]")
+TEST_CASE("a session round-trips through the file field by field", "[session]")
 {
     QTemporaryDir scratch;
     REQUIRE(scratch.isValid());
@@ -427,7 +427,7 @@ TEST_CASE("an unusable session file is replaced by the next clean quit", "[sessi
     REQUIRE(reloaded.session().windows.size() == 1);
 }
 
-TEST_CASE("restoring from a state that was never loaded gives nothing, not a crash", "[session]")
+TEST_CASE("restoring from a state that was never loaded gives nothing rather than crashing", "[session]")
 {
     QTemporaryDir scratch;
     REQUIRE(scratch.isValid());

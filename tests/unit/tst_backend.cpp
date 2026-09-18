@@ -25,6 +25,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/doc/Destinations.h"
+#include "core/doc/Metadata.h"
+#include "core/doc/Outline.h"
 #include "core/backend.h"
 
 #include <algorithm>
@@ -73,6 +76,20 @@ public:
     const core::RepairReport* repairReport(core::DocumentHandle) const override { return nullptr; }
     const core::Permissions* permissions(core::DocumentHandle) const override { return nullptr; }
     const core::DocumentId* documentId(core::DocumentHandle) const override { return nullptr; }
+    // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
+    // null means *not a handle of mine*, and empty means *this document has none*, which is the
+    // distinction `core/backend.h` asks callers to make. A case that needs an outline fills these.
+    const core::Outline* outline(core::DocumentHandle) const override { return &outline_; }
+    const core::Destinations* destinations(core::DocumentHandle) const override
+    {
+        return &destinations_;
+    }
+    const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
+
+    core::Outline outline_;
+    core::Destinations destinations_;
+    core::Metadata metadata_;
+
 
     // Stage 3 T8: nothing here writes; a save through this backend fails by key.
     core::Status writeRevision(core::DocumentHandle, const QString&) override

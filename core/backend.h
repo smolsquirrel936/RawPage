@@ -82,6 +82,9 @@ class PageTree;              // core/doc/PageTree.h        -- Stage 2 T9 (read h
 class RepairReport;          // core/doc/RepairReport.h    -- Stage 2 T8
 class Permissions;           // core/doc/Permissions.h     -- Stage 3 T4 (pre-flight half, D3-7)
 struct DocumentId;           // core/doc/DocumentId.h      -- Stage 3 T4
+class Outline;               // core/doc/Outline.h         -- Stage 4 T4 (read half, D4-3)
+class Destinations;          // core/doc/Destinations.h    -- Stage 4 T4 (read half, D4-3)
+struct Metadata;             // core/doc/Metadata.h        -- Stage 4 T4 (Info only, D4-4)
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -380,6 +383,25 @@ public:
     // only possible where the bytes are read, and a second read of the file by a caller could hash a
     // file that had already changed.
     virtual const DocumentId* documentId(DocumentHandle document) const = 0;
+
+    // WHAT THE DOCUMENT SAYS ABOUT ITSELF -- the outline, the named destinations and the Info
+    // dictionary -- or null for a handle this backend did not open. Added at Stage 4 T4 (D4-3,
+    // D4-4), and read ONCE, at open, like everything else on this interface (guide case A-30): a
+    // pane that re-read the engine every time it was shown would be a cost nobody measured.
+    //
+    // THREE MEMBERS RATHER THAN A FOURTH SUB-INTERFACE, deliberately. `BackendInterface` names the
+    // seven capabilities a build may or may not have -- rasterizing, extracting text, signing -- and
+    // these are not capabilities: opening a document and saying what is in it are the same
+    // responsibility, which is `pages()`'s argument (Stage 2 I-08) reaching its third and fourth
+    // subjects. The implemented-interface census is therefore unchanged by this task.
+    //
+    // **EMPTY IS THE ORDINARY ANSWER AND IS NOT A FAILURE.** Most documents have no outline and no
+    // named destinations; most generated ones have no `/Info` either. A caller distinguishes *this
+    // handle is not mine* (null) from *this document has none* (empty), and a pane shows its empty
+    // state for the second rather than an error.
+    virtual const Outline* outline(DocumentHandle document) const = 0;
+    virtual const Destinations* destinations(DocumentHandle document) const = 0;
+    virtual const Metadata* metadata(DocumentHandle document) const = 0;
 
     // THE BACKEND'S HALF OF SAVE, added at Stage 3 T8 (`Stage3-Mutation-Plan.md` D3-4, §5.3). Flow F
     // once sketched one `save(Incremental)` doing the whole job; D3-4 splits it three ways, and these

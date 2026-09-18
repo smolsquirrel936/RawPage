@@ -264,4 +264,25 @@ const core::DocumentId* DocumentBackendImpl::documentId(core::DocumentHandle doc
     return entry ? &entry->id : nullptr;
 }
 
+const core::Outline* DocumentBackendImpl::outline(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? &entry->document->outline() : nullptr;
+}
+
+const core::Destinations* DocumentBackendImpl::destinations(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? &entry->document->destinations() : nullptr;
+}
+
+const core::Metadata* DocumentBackendImpl::metadata(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? &entry->document->metadata() : nullptr;
+}
+
 } // namespace rawpage::pdf

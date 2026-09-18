@@ -30,6 +30,9 @@ find_package(Catch2 3 REQUIRED)
 add_executable(rawpage_render_tests
     tst_pdfiuminit.cpp            # Stage 2 T2 -- guide cases A-07's engine half, and A-45's first
     tst_pdfiumdoc.cpp             # Stage 2 T9 -- guide cases A-42 and A-43
+    tst_docmodels.cpp             # Stage 4 T4 -- guide cases A-25 to A-28 and A-30: what the
+                                  #   facade actually reads out of a file for core/doc/Outline,
+                                  #   Destinations and Metadata
     tst_pageopsengine.cpp         # Stage 3 T3 -- guide case A-29: pdf/ops/PageOps against the engine,
                                   #   page by page, over every corpus file both readers open
     tst_backendedit.cpp           # Stage 3 T4 -- guide cases A-36's corpus half, A-37, A-34's engine half
