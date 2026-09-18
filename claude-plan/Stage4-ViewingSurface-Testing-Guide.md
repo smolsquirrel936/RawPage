@@ -319,28 +319,35 @@ green its cases did not record.
 
 ### 5.5 `SessionState` — headless, and the fingerprint (T3)
 
-**A-18 · A session round-trips** ☐
+**A-18 · A session round-trips**
+✅ **2026-09-19, T3.** `unit.` — three documents in one window through capture → `save()` → `load()` → `restore()`, asserted **field by field** rather than by count: tab order by filename in order, active tab, geometry, maximized, pane layout, and per document the layout mode, the fit intent, the zoom, the page index, both scroll offsets, all four `DocumentId` fields, and **both guides with their orientation, position, page and locked flag**. A document with no guides comes back with none. The enums round-trip as their NAMES (`layoutModeName`, `fitModeName`), not as numbers, so inserting a value into either enum cannot silently reinterpret an old file.
 **Expect** Three documents, tab order, active tab, per-window geometry, per-document layout mode, zoom intent, scroll position and guides survive capture → write → read → restore, field by field. **If it fails** S2.
 
-**A-19 · The fingerprint is stable, and sensitive to what it must be** ☐
+**A-19 · The fingerprint is stable, and sensitive to what it must be**
+✅ **2026-09-19, T3.** `unit.` over synthetic `MonitorInfo` values — and the case says so at the top of the file, naming what it therefore does **not** cover: that `WinDisplayTopology` reports what Windows believes, which is M-04's and M-05's on the P-1 rig. Identical arrangements hash identically **whatever order they were enumerated in**; a moved monitor, a changed resolution, 150 %→125 %, the primary flag moving, a monitor going away (P-2's `Win`+`P`) and a different device at the same position each change the hash; **`friendlyName` and `physicalDpi` do not**. An empty topology hashes stably rather than crashing. **Controls run red:** including `friendlyName` in the hash, and removing the sort, each turn the matching case red.
 **Goal** D4-8, over **synthetic** `MonitorInfo` values — the case says so, and names what it therefore does not cover: a real topology, which is M-05's.
 **Expect** Identical arrangements hash identically whatever order `monitors()` returned them in; a changed `scaleFactor`, position, pixel size, `primary` flag or monitor count changes the hash; **`friendlyName` does not** (it may be empty and is not unique — `platform.h`). **If it fails** S2.
 
-**A-20 · An unknown arrangement falls back to the most recent** ☐
+**A-20 · An unknown arrangement falls back to the most recent**
+✅ **2026-09-19, T3.** Geometry saved under *desk*, restored under a fingerprint never seen, comes from *desk* with `usedFallbackArrangement` set. **And the control the criterion does not ask for** (convention 22): with TWO arrangements stored, restoring a KNOWN one uses that one and **not** the most recent — without which "falls back" and "always uses the newest" are the same code. Both controls run red: deleting the fallback branch, and making the lookup never match.
 **Expect** Geometry saved under arrangement A, restored under unknown arrangement B, comes from A rather than from nothing — and is then clamped (A-21). **If it fails** S2.
 
-**A-21 · Every restored window is clamped onto a desktop that exists** ☐
+**A-21 · Every restored window is clamped onto a desktop that exists**
+✅ **2026-09-19, T3.** A session captured across a 5760×2160 desktop — one window at x = 4200, another at x = 2000 — restored onto a synthetic 1920×1080: **every** window ends wholly inside the one screen, keeping its size where it fits, and a window larger than the desktop is shrunk onto it. The title-bar cases are asserted directly: a window whose title bar is above the desktop is brought down, and one with a 10 px sliver on screen is pulled back — `kMinimumVisibleWidth`, because *intersects at all* is not something a person can grab. **The control:** a window already on screen is not moved by a single pixel, and one **straddling two adjacent screens** is left alone. **What the control does not test, measured rather than assumed:** planting a bug in the clamp's early return leaves the already-on-screen case GREEN — for a contained window the fallback arithmetic is a no-op, so that assertion is about behaviour two paths satisfy, and the straddling case is the one that holds the branch up. Both facts are recorded at the assertions.
 **Goal** The S1 this stage most plausibly ships: a window nobody can reach.
 **Steps** Restore a session captured on a 5760×2160 virtual desktop onto a synthetic 1920×1080 one.
 **Expect** Every window's rectangle **intersects** an available screen by at least a stated minimum, and its title bar is on-screen. **The control:** a window already fully on-screen is **not moved by a single pixel**. **If it fails** S1.
 
-**A-22 · The arrangement store is bounded** ☐
+**A-22 · The arrangement store is bounded**
+✅ **2026-09-19, T3.** The case reads `SessionState::kMaxArrangements` **from the code** rather than repeating a number, captures four more arrangements than that, and asserts the count is the bound, the newest is at the front, and the oldest is gone. Seeing an arrangement again **moves** it to the front with its new geometry rather than duplicating it. **Control run red:** removing the bound.
 **Expect** Remembering N arrangements evicts the least recently used and never grows without limit; the bound is read from the code, not from this guide. **If it fails** S3.
 
-**A-23 · A document that no longer exists is dropped with one report** ☐
+**A-23 · A document that no longer exists is dropped with one report**
+✅ **2026-09-19, T3.** With the middle document's file absent, restore reports that path **once**, returns the other two in order, and the next capture of what restore produced does not carry it. The active-tab index pointed AT the dropped document and is answered in `SessionState` rather than left to the shell. **The control:** with every file present nothing is dropped and the active tab is unchanged. **Control run red:** dropping the path silently. Existence is a predicate parameter, so the case needs no disk — the host answers a question of fact and the domain rule stays in `core/` (convention 11).
 **Expect** Restore reports the missing path **once**, opens nothing for it, and the next capture does not carry it. **If it fails** S3; S2 if it is reported on every launch.
 
-**A-24 · A corrupt or future session file is ignored, not fatal** ☐
+**A-24 · A corrupt or future session file is ignored, not fatal**
+✅ **2026-09-19, T3.** Five inputs, each its own section: no file at all (the first launch — **not** reported, because nothing was wrong), truncated JSON, an empty file, `"format":99` from a newer build, and a directory where the file should be. Each loads nothing, reports once, and leaves the object usable; restoring from a state that was never loaded returns an empty session rather than crashing. A further case writes a good session over an unusable file and reads it back, which is the *"replaced on the next clean quit"* half. A future format is **ignored rather than guessed at**: a newer build's fields are not knowable from here.
 **Steps** Truncated JSON, a schema version above ours, an empty file, a directory where the file should be.
 **Expect** The product starts with no session restored and one log line each; the file is replaced on the next clean quit. **If it fails** S1 for a failure to start.
 
@@ -757,7 +764,20 @@ fix — the shape every earlier stage's log uses.
 
 | # | Sev | Title | State |
 |---|---|---|---|
-| — | — | *(none yet)* | — |
+| **I-01** | **S3** | **Guides are keyed by `DocumentId`, and a save changes the `DocumentId`** | ⚪ **Open — owned by D4-7, revisited at T13** |
+
+**I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
+
+**Mechanism.** D4-7 says guides *"live in `SessionState`, keyed by `DocumentId`"*, and justifies that key with *"a renamed file keeps its guides and a different file at the same path does not inherit them"*. `core/doc/DocumentId` (D3-16) is derived from **four** facts — the normalized path, the size, the modification time and the SHA-256 of the content — so:
+
+- a **rename** changes the path and therefore the identity, so the renamed file does **not** keep its guides; and
+- a **save** changes the size, the modification time and the hash, so the first save after a guide is placed leaves that guide keyed to an identity no longer on disk.
+
+The second is the one that matters in use: rotate a page, press `Ctrl+S`, and the guides are orphaned. Only the *"a different file at the same path does not inherit them"* half of D4-7's reasoning actually follows from the type.
+
+**Why the suite did not catch it.** Every A-18 assertion is a round trip through one object with one document identity; nothing in §5.5 saves a document, because T3 has no document to save. The case that would catch it belongs where capture and restore meet the shell.
+
+**What is absent, and who owns it.** There is no re-keying of a session entry when a document is saved, and this task did not invent one: the repair is a decision for **D4-7**, taken where the mechanism is wired — **T13**. `SessionState` stores what the decision says today. Recorded here rather than in a commit message because the log outlives the fix.
 
 ---
 

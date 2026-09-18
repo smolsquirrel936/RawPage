@@ -1846,6 +1846,10 @@
         <translation>Settings could not be saved to %1</translation>
     </message>
     <message>
+        <source>error.session.write</source>
+        <translation>The session could not be saved to %1</translation>
+    </message>
+    <message>
         <source>error.recent.emptyPath</source>
         <translation>That document has no file path, so it cannot be pinned.</translation>
     </message>

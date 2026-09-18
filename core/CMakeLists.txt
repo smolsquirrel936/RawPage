@@ -76,6 +76,11 @@ add_library(rawpage_core STATIC
     settings/RecentFiles.h
     settings/RecentFiles.cpp
 
+    # S4 T3 -- session state: the open-document set, per-arrangement window geometry, and guides.
+    # In core/settings/ because it WRITES a file, which is that directory's one added privilege.
+    settings/SessionState.h
+    settings/SessionState.cpp
+
     # doc/ -- the document VOCABULARY, and the first thing in core/doc/ (Stage 2 T8).
     #
     # Revision and Scope are BROUGHT FORWARD FROM STAGE 3 by decision D2-5, because Stage 2 already

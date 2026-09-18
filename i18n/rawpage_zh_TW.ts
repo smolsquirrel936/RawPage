@@ -1846,6 +1846,10 @@
         <translation>無法將設定儲存至 %1</translation>
     </message>
     <message>
+        <source>error.session.write</source>
+        <translation>無法將工作階段儲存至 %1</translation>
+    </message>
+    <message>
         <source>error.recent.emptyPath</source>
         <translation>該文件沒有檔案路徑，因此無法釘選。</translation>
     </message>

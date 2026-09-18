@@ -37,6 +37,13 @@ add_executable(rawpage_tests
     # them over.
     tst_stage2settings.cpp        # Stage 2 T15 -- guide case A-63
     tst_recentfiles.cpp           # Stage 1 T5
+
+    # S4 T3 -- session restore, the one Stage 4 feature that fails BETWEEN runs, and the only
+    # stage-4 subject a headless suite can reach in full. tst_fingerprint.cpp is separate because
+    # its subject is ARITHMETIC over synthetic MonitorInfo values -- the hash and the clamp -- and
+    # every case in it would pass with an empty session file.
+    tst_sessionstate.cpp
+    tst_fingerprint.cpp
     tst_commandline.cpp           # Stage 1 T8
     tst_logbuffer.cpp             # Stage 1 T14
     tst_singleinstance.cpp        # Stage 1 T15 -- guide case A-61
