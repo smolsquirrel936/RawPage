@@ -238,6 +238,12 @@ public:
     // could not be built anyway, because `layer-lint`'s `bare-qaction` rule is non-escapable.
     ActionFactory*      actionFactory() const { return actionFactory_.get(); }
 
+    // The ruler's and the guide's context menu (S4 T8). It lives here rather than on
+    // `DocumentWindow` because every item in it is an `ActionId` through `ActionFactory`
+    // (D1-7(a)), and the factory belongs to the window. `guideIndex` < 0 is a right-click on a
+    // ruler, which offers the same commands minus the two that need a guide.
+    void showGuideMenu(int guideIndex, QPoint global);
+
     // The viewer of the tab in front, or null when there is no document. Every §8 Viewer command
     // resolves through here at DISPATCH time -- convention 14: a handler that captured a view
     // would act for a tab that has since been closed or torn off into another window.

@@ -10,10 +10,14 @@
 #include "core/render/RenderScheduler.h"
 #include "platform/platform.h"
 #include "ui/shell/Catalog.h"
+#include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/RulerWidget.h"
 
 #include <QDir>
 #include <QFileInfo>
+#include <QGridLayout>
+#include <QLabel>
 #include <QVBoxLayout>
 
 namespace rawpage::ui {
@@ -54,8 +58,83 @@ void DocumentWindow::build(const Recovery* recovery)
     column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
 
-    view_ = new PageView(services_.renderScheduler, services_.platform.displayTopology.get(), this);
-    column->addWidget(view_);
+    // THE PAGE SURFACE AND ITS TWO RULERS, in a grid: the corner box, the horizontal ruler above
+    // the view and the vertical ruler beside it (S4 T8). A grid rather than nested boxes because
+    // the rulers must share the view's COLUMN and ROW exactly -- a ruler one pixel wider than the
+    // surface it measures reads the wrong number everywhere, and only a grid guarantees that
+    // without arithmetic.
+    auto* surface = new QWidget(this);
+    auto* grid = new QGridLayout(surface);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setSpacing(0);
+
+    view_ = new PageView(services_.renderScheduler, services_.platform.displayTopology.get(), surface);
+    horizontalRuler_ = new RulerWidget(Qt::Horizontal, surface);
+    verticalRuler_ = new RulerWidget(Qt::Vertical, surface);
+
+    // The corner box names the unit ONCE, so the ticks carry numbers rather than five characters
+    // of "mm" apiece. A label and not a button: the unit is `units/rulerUnit` and its surface is
+    // the Units & Guides Preferences page, which convention 17 generates from the row -- a second
+    // control for it here would be a second place to keep in agreement.
+    rulerCorner_ = new QLabel(surface);
+    rulerCorner_->setAlignment(Qt::AlignCenter);
+    rulerCorner_->setFixedSize(RulerWidget::kThickness, RulerWidget::kThickness);
+
+    grid->addWidget(rulerCorner_, 0, 0);
+    grid->addWidget(horizontalRuler_, 0, 1);
+    grid->addWidget(verticalRuler_, 1, 0);
+    grid->addWidget(view_, 1, 1);
+    grid->setRowStretch(1, 1);
+    grid->setColumnStretch(1, 1);
+    column->addWidget(surface);
+
+    // A SCROLL EMITS THIS TOO, which is what makes the rulers follow a drag: `scrollContentsBy`
+    // writes the controller, the controller's `changed` reaches `refresh()`, and `refresh()` emits
+    // `viewChanged`. A connection to a scrollbar signal instead would miss every scroll that came
+    // from a key, a wheel or the hand tool.
+    connect(view_, &PageView::viewChanged, this, [this](int, int, double) { updateRulerMappings(); });
+
+    connect(view_, &PageView::cursorMoved, this, [this](QPoint position, bool onSurface) {
+        const QPoint offset = viewportOffset();
+        horizontalRuler_->setCursorPixel(onSurface ? position.x() + offset.x() : -1.0);
+        verticalRuler_->setCursorPixel(onSurface ? position.y() + offset.y() : -1.0);
+    });
+
+    connect(view_, &PageView::guideContextMenuRequested, this,
+            [this](int guideIndex, QPoint global) { raiseGuideMenu(guideIndex, global); });
+
+    for (RulerWidget* ruler : {horizontalRuler_, verticalRuler_}) {
+        connect(ruler, &RulerWidget::contextMenuRequested, this,
+                [this](QPoint global) { raiseGuideMenu(-1, global); });
+
+        // THE DRAG IS TRACKED ON THE RULER AND DROPPED ON THE PAGE. Qt keeps the mouse grab where
+        // the press landed, so the moves arrive here in global coordinates and this is the only
+        // object that can map them onto the surface. The marker on that ruler is the feedback
+        // during the drag -- without it a guide appears from nowhere on release.
+        connect(ruler, &RulerWidget::guideDragged, this,
+                [this](Qt::Orientation orientation, QPoint global) {
+                    const QPoint local = view_->viewport()->mapFromGlobal(global);
+                    const QPoint offset = viewportOffset();
+                    if (orientation == Qt::Horizontal)
+                        horizontalRuler_->setCursorPixel(local.x() + offset.x());
+                    else
+                        verticalRuler_->setCursorPixel(local.y() + offset.y());
+                });
+
+        connect(ruler, &RulerWidget::guideDropped, this,
+                [this](Qt::Orientation orientation, QPoint global) {
+                    const QPoint local = view_->viewport()->mapFromGlobal(global);
+
+                    // A DROP THAT IS NOT ON THE SURFACE MAKES NO GUIDE -- a press on the ruler
+                    // that goes nowhere is how a person changes their mind, and `dropGuide`
+                    // refuses a point off the page for the same reason.
+                    if (view_->viewport()->rect().contains(local))
+                        view_->guides().dropGuide(view_->layoutEngine().layout(),
+                                                  view_->toContentPoint(local), orientation);
+                });
+    }
+
+    applyGuideSettings();
 
     // THE PREFERENCES BEFORE THE DOCUMENT. `layoutMode` and `defaultZoom` are applied only on the
     // first `applySettings` call -- they are what a document OPENS at -- so they have to be in place
@@ -118,6 +197,10 @@ void DocumentWindow::build(const Recovery* recovery)
             || change.group == core::SettingsGroup::PerformanceAndCache) {
             applyViewSettings();
         }
+
+        // S4 T8, and it reaches every open tab for the reason above: a person who turns the grid
+        // on expects it on, not on in the tab they happened to be looking at.
+        if (change.group == core::SettingsGroup::UnitsAndGuides) applyGuideSettings();
     });
 }
 
@@ -147,12 +230,119 @@ void DocumentWindow::applyViewSettings()
     view_->applySettings(view);
 }
 
+void DocumentWindow::applyGuideSettings()
+{
+    if (!view_) return;
+
+    const core::Settings& settings = services_.settings;
+
+    GuideSettings guides;
+    guides.unit             = settings.get(core::keys::units::rulerUnit);
+    guides.showRulers       = settings.get(core::keys::units::showRulers);
+    guides.showGrid         = settings.get(core::keys::units::showGrid);
+    guides.showGuides       = settings.get(core::keys::units::showGuides);
+    guides.gridSpacing      = settings.get(core::keys::units::gridSpacing);
+    guides.gridSubdivisions = settings.get(core::keys::units::gridSubdivisions);
+    guides.gridColour       = settings.get(core::keys::units::gridColour);
+    guides.gridOriginX      = settings.get(core::keys::units::gridOriginX);
+    guides.gridOriginY      = settings.get(core::keys::units::gridOriginY);
+    guides.snapToGrid       = settings.get(core::keys::units::snapToGrid);
+    guides.snapToGuides     = settings.get(core::keys::units::snapToGuides);
+
+    view_->applyGuideSettings(guides);
+
+    horizontalRuler_->setUnit(guides.unit);
+    verticalRuler_->setUnit(guides.unit);
+    horizontalRuler_->setVisible(guides.showRulers);
+    verticalRuler_->setVisible(guides.showRulers);
+    rulerCorner_->setVisible(guides.showRulers);
+
+    // The unit's SYMBOL, not a translated word: "mm" is "mm" in every locale `Features.md` §9.1
+    // lists, and `core/Units.h` says why treating one as a string to translate is an invitation to
+    // translate it wrongly.
+    rulerCorner_->setText(QString::fromUtf8(core::unitSuffix(guides.unit)));
+
+    updateRulerMappings();
+}
+
+QPoint DocumentWindow::viewportOffset() const
+{
+    return view_ ? view_->viewport()->mapTo(view_, QPoint(0, 0)) : QPoint(0, 0);
+}
+
+void DocumentWindow::updateRulerMappings()
+{
+    if (!view_ || !horizontalRuler_) return;
+
+    // `isHidden()`, NOT `isVisible()`. A widget whose ancestors are not on screen yet is not
+    // *visible*, and this runs during `build()` -- before the tab is in the window and before the
+    // window is shown. Asking `isVisible()` skipped every mapping until something else changed the
+    // view, so the rulers came up blank and a drag off one produced nothing (found by
+    // `tst_rulers`'s first case, which is why it drags rather than calling `dropGuide`).
+    if (horizontalRuler_->isHidden() && verticalRuler_->isHidden()) return;
+
+    const core::render::PageLayout& layout = view_->layoutEngine().layout();
+    const core::DeviceRect visible = view_->controller().visibleRect();
+    const double dpr = view_->devicePixelRatioF() > 0.0 ? view_->devicePixelRatioF() : 1.0;
+    const QPoint offset = viewportOffset();
+
+    // THE PAGE IN FRONT OF THE PERSON, falling back to the first one laid out. A ruler measured
+    // from a page that is off screen would put its zero somewhere nobody can see, which is worse
+    // than measuring the wrong one of two visible pages.
+    const core::render::PageSlot* slot = layout.slotForPage(view_->controller().currentPage());
+    if (slot == nullptr && !layout.pageSlots().empty()) slot = &layout.pageSlots().front();
+
+    RulerWidget::Mapping horizontal;
+    RulerWidget::Mapping vertical;
+
+    if (slot != nullptr && layout.presentedScale() > 0.0) {
+        // LOGICAL pixels per PDF point. `presentedScale()` is DEVICE pixels per point, and the
+        // ruler paints in the same logical coordinates its mouse events arrive in -- a mapping
+        // that skipped this division is correct at 100 % and two thirds of the way along at 150 %.
+        const double pixelsPerPoint = layout.presentedScale() / dpr;
+
+        horizontal.valid = true;
+        horizontal.pixelsPerPoint = pixelsPerPoint;
+        horizontal.zeroPixel = offset.x() + (slot->rect.left() - visible.left()) / dpr;
+        horizontal.extentPoints = slot->rect.size.width / layout.presentedScale();
+
+        vertical.valid = true;
+        vertical.pixelsPerPoint = pixelsPerPoint;
+        vertical.zeroPixel = offset.y() + (slot->rect.top() - visible.top()) / dpr;
+        vertical.extentPoints = slot->rect.size.height / layout.presentedScale();
+    }
+
+    horizontalRuler_->setMapping(horizontal);
+    verticalRuler_->setMapping(vertical);
+}
+
+void DocumentWindow::raiseGuideMenu(int guideIndex, QPoint global)
+{
+    if (!view_) return;
+
+    // THE TARGET IS RECORDED BEFORE THE MENU EXISTS, because the commands in it take no argument
+    // and will ask the view which guide they are about (I-50's rule). -1 is a ruler click, and it
+    // clears the target rather than leaving the last one standing.
+    view_->guides().setContextGuide(guideIndex);
+    emit guideMenuRequested(guideIndex, global);
+}
+
 DocumentWindow::~DocumentWindow()
 {
     // BEFORE ANYTHING ELSE. `Settings` belongs to the composition root and outlives every tab, so a
     // subscription left behind is a call into a destroyed widget on the next preference change --
     // convention 10, in the form where the caller is a settings store rather than a signal.
     if (settingsSubscription_ != 0) services_.settings.unsubscribe(settingsSubscription_);
+
+    // AND THE CHILDREN'S SIGNALS, which is convention 10 in its original form (Stage 1's I-12): a
+    // lambda bound to a CHILD's signal and holding `this` outlives the derived object, because
+    // `~QWidget` deletes the children after this body has run. `QEvent::Leave` is the one that
+    // makes it real rather than theoretical here -- Qt delivers it to a widget under the pointer
+    // as it goes away, `PageView` turns it into `cursorMoved`, and the slot would then ask a
+    // half-destroyed window for its rulers.
+    if (view_) disconnect(view_, nullptr, this, nullptr);
+    if (horizontalRuler_) disconnect(horizontalRuler_, nullptr, this, nullptr);
+    if (verticalRuler_) disconnect(verticalRuler_, nullptr, this, nullptr);
 
     // NOTHING UNSAVED, NOTHING TO RECOVER. A document closed clean takes its recovery directory with it;
     // one closed dirty -- which only a Discard or a process ending reaches -- keeps it for the next

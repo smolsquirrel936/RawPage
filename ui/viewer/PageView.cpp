@@ -7,6 +7,7 @@
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/viewer/TilePresenter.h"
 
+#include <QContextMenuEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -84,10 +85,17 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
         // leaving tracking on for every tool would deliver a move event per pixel to tools that
         // discard them -- and would make the hand tool's `isDragging()` the only thing standing
         // between a hover and a pan.
-        viewport()->setMouseTracking(tools_->activeTool().tracksHover());
+        updateMouseTracking();
         viewport()->update();
         emit toolChanged(kind);
     });
+
+    // THE GRID AND GUIDES (S4 T8). Built after the tools because its mouse gesture takes
+    // PRECEDENCE over theirs -- see `mousePressEvent` -- and because `updateMouseTracking()` reads
+    // both. A change to it repaints and REACHES NOTHING ELSE: the whole of D4-11 is that a grid
+    // line never becomes a render request (guide case A-50).
+    guides_ = std::make_unique<GridGuideLayer>(this);
+    connect(guides_.get(), &GridGuideLayer::changed, this, [this] { viewport()->update(); });
 
     // The cursor the default tool shows, applied once at construction: `cursorChanged` only fires
     // on a CHANGE, so nothing would have set it otherwise and the viewer would open with the
@@ -388,8 +396,55 @@ const QPixmap* PageView::lastFrame() const
     return frame_.isNull() ? nullptr : &frame_;
 }
 
+core::DevicePoint PageView::toContentPoint(QPoint viewportPosition) const
+{
+    const double dpr = devicePixelRatioF();
+    const core::DeviceRect visible = controller_->visibleRect();
+    return core::DevicePoint{visible.left() + viewportPosition.x() * dpr,
+                             visible.top() + viewportPosition.y() * dpr};
+}
+
+void PageView::updateMouseTracking()
+{
+    // The loupe wants moves with no button down; so do the rulers, which draw a marker at the
+    // pointer. Anything else gets none, because a move per pixel delivered to a tool that
+    // discards it is the cost this flag exists to avoid.
+    viewport()->setMouseTracking(tools_->activeTool().tracksHover()
+                                 || guides_->settings().showRulers);
+}
+
+void PageView::applyGuideSettings(const GuideSettings& settings)
+{
+    guides_->setSettings(settings);
+    updateMouseTracking();
+    viewport()->update();
+}
+
+void PageView::setInvertColors(bool invert)
+{
+    if (invertColors_ == invert) return;
+    invertColors_ = invert;
+
+    // A REPAINT AND NOTHING ELSE. No layout, no `refresh()`, no tile request: the pixels are the
+    // ones already in the cache and the map is applied on the way to the screen (D4-11).
+    viewport()->update();
+}
+
 void PageView::mousePressEvent(QMouseEvent* event)
 {
+    // A GUIDE IS PICKED UP BEFORE THE TOOL SEES THE PRESS, and that order is the decision. Every
+    // Stage 4 tool takes a press anywhere on the surface -- the hand pans from any pixel -- so a
+    // tool-first order would make a guide impossible to grab with anything but the Select tool
+    // armed, which is the tool that does nothing until Stage 5. The guide is a thin line the
+    // person aimed at; the tool has the rest of the page.
+    if (event->button() == Qt::LeftButton) {
+        const int guide = guides_->guideAt(engine_.layout(), toContentPoint(event->pos()));
+        if (guide >= 0 && guides_->beginDrag(guide)) {
+            event->accept();
+            return;
+        }
+    }
+
     if (!tools_->press(event->pos(), event->button(), event->modifiers())) {
         QAbstractScrollArea::mousePressEvent(event);
         return;
@@ -399,6 +454,16 @@ void PageView::mousePressEvent(QMouseEvent* event)
 
 void PageView::mouseMoveEvent(QMouseEvent* event)
 {
+    // The rulers' marker follows every move, dragging or not -- it is where the HAND is, not what
+    // the hand is doing.
+    emit cursorMoved(event->pos(), true);
+
+    if (guides_->dragging()) {
+        guides_->dragTo(engine_.layout(), toContentPoint(event->pos()));
+        event->accept();
+        return;
+    }
+
     if (!tools_->move(event->pos(), event->modifiers())) {
         QAbstractScrollArea::mouseMoveEvent(event);
         return;
@@ -408,6 +473,12 @@ void PageView::mouseMoveEvent(QMouseEvent* event)
 
 void PageView::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (guides_->dragging() && event->button() == Qt::LeftButton) {
+        guides_->endDrag();
+        event->accept();
+        return;
+    }
+
     if (!tools_->release(event->pos(), event->button())) {
         QAbstractScrollArea::mouseReleaseEvent(event);
         return;
@@ -603,6 +674,14 @@ void PageView::keyPressEvent(QKeyEvent* event)
     // A cancel that found nothing to cancel does NOT accept the event, so the key travels on to
     // whatever else would have had it. That is guide case A-42's control.
     if (event->key() == Qt::Key_Escape && !event->modifiers()) {
+        // A GUIDE DRAG IS CANCELLED FIRST, for the reason the press is taken first: the two
+        // gestures cannot both be live, and the guide's is the one in front of the person. It
+        // puts the guide back where the drag started, which is the same promise `Esc` makes to a
+        // tool (S4 T8).
+        if (guides_->cancelDrag()) {
+            event->accept();
+            return;
+        }
         if (tools_->cancel()) {
             event->accept();
             return;
@@ -669,6 +748,30 @@ bool PageView::event(QEvent* event)
     return QAbstractScrollArea::event(event);
 }
 
+void PageView::contextMenuEvent(QContextMenuEvent* event)
+{
+    // The position arrives in THIS widget's coordinates; the guides are hit-tested in the
+    // viewport's, which differ by the scroll area's frame.
+    const QPoint inViewport = viewport()->mapFrom(this, event->pos());
+    const int guide = guides_->guideAt(engine_.layout(), toContentPoint(inViewport));
+    if (guide < 0) {
+        // NOT SWALLOWED. Stage 5's text surface and Stage 6's annotations both want this event,
+        // and a widget that accepted every right-click would be the reason their menus never
+        // appeared (the same argument the unregistered `edit.cancel` records for a key).
+        QAbstractScrollArea::contextMenuEvent(event);
+        return;
+    }
+
+    emit guideContextMenuRequested(guide, event->globalPos());
+    event->accept();
+}
+
+bool PageView::viewportEvent(QEvent* event)
+{
+    if (event->type() == QEvent::Leave) emit cursorMoved(QPoint(), false);
+    return QAbstractScrollArea::viewportEvent(event);
+}
+
 void PageView::paintContent(QPainter& painter, const QRect& area)
 {
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
@@ -683,6 +786,31 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
 
     presenter_->paint(painter, engine_.layout(), engine_.resolution(), controller_->visibleRect(),
                       devicePixelRatioF(), settings_.transparencyGrid);
+
+    const core::DeviceRect visible = controller_->visibleRect();
+    const double dpr = devicePixelRatioF();
+
+    // INVERSION, OVER THE PAGES AND NOT OVER THE DESK (D4-11). `RasterOp_NotDestination` is an
+    // exact bitwise complement, so toggling twice restores the pixels rather than approximately
+    // restoring them -- which is what A-52 means by *"toggling back is exact"* and what a
+    // composition mode with an alpha would not give. Each page's sheet is inverted separately:
+    // inverting the whole viewport would turn the surround black and leave the page the only
+    // thing that looked normal.
+    if (invertColors_) {
+        painter.save();
+        painter.setCompositionMode(QPainter::RasterOp_NotDestination);
+        for (const core::render::PageSlot& slot : engine_.layout().slotsIntersecting(visible)) {
+            painter.fillRect(QRectF((slot.rect.left() - visible.left()) / dpr,
+                                    (slot.rect.top() - visible.top()) / dpr,
+                                    slot.rect.size.width / dpr, slot.rect.size.height / dpr),
+                             Qt::white);
+        }
+        painter.restore();
+    }
+
+    // The grid and the guides go OVER the inversion, so a guide keeps its colour on an inverted
+    // page rather than becoming its complement.
+    guides_->paint(painter, engine_.layout(), visible, dpr);
 }
 
 void PageView::paintEvent(QPaintEvent* event)

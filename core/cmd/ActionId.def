@@ -122,6 +122,24 @@ RAWPAGE_ACTION(ViewToggleGrid,         "view.toggleGrid",         Viewer, "actio
 RAWPAGE_ACTION(ViewToggleSnapToGrid,   "view.toggleSnapToGrid",   Viewer, "action.view.toggleSnapToGrid")
 RAWPAGE_ACTION(ViewToggleGuides,       "view.toggleGuides",       Viewer, "action.view.toggleGuides")
 
+// THREE IDS DECLARED AT STAGE 4 T8, on the rule T7's note above states: a feature reachable only
+// from a widget is unfinished (D1-7(a)), and `Features.md` §1.3 asks to *"move, lock, and delete
+// individual guides; clear all guides"*. Moving one is a DRAG and rightly has no id -- no more
+// than a scroll does -- but the other three are menu items, and a menu item is a command or it is
+// a lambda the Stage 14 batch runner cannot reach.
+//
+// **None of them takes an argument, because dispatch does not.** `view.lockGuide` and
+// `view.deleteGuide` act on the guide the context menu was raised over, which
+// `ui/viewer/GridGuideLayer::setContextGuide` records at that moment -- Stage 1's **I-50** in a
+// second place: *what is under the cursor decides, not which call site raised the menu.* Each is
+// DISABLED when there is no such guide rather than silently doing nothing.
+//
+// No `Features.md` §8 row is added: none of the three has a chord, so §10's *"§8 is not touched"*
+// still holds for this stage.
+RAWPAGE_ACTION(ViewLockGuide,          "view.lockGuide",          Viewer, "action.view.lockGuide")
+RAWPAGE_ACTION(ViewDeleteGuide,        "view.deleteGuide",        Viewer, "action.view.deleteGuide")
+RAWPAGE_ACTION(ViewClearGuides,        "view.clearGuides",        Viewer, "action.view.clearGuides")
+
 // --- Navigation (§1.4) --------------------------------------------------------------------------
 RAWPAGE_ACTION(NavGoToPage,            "nav.goToPage",            Viewer, "action.nav.goToPage")
 RAWPAGE_ACTION(NavFirstPage,           "nav.firstPage",           Viewer, "action.nav.firstPage")

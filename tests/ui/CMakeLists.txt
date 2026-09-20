@@ -74,6 +74,13 @@ add_executable(rawpage_ui_tests
     # -> tool, rather than calling the tool directly: "the chord arms it" and "the drag reaches it"
     # are different claims and only the second is about the wiring.
     tst_tools.cpp
+
+    # Stage 4 T8 -- the rulers, the guides on the surface, the grid's painting and the inversion
+    # (guide cases A-47, A-49 ... A-52). The ARITHMETIC is tests/unit/tst_snap.cpp's, headless; what
+    # is here is what only a widget can answer, and two of its cases assert a NEGATIVE on the
+    # scheduler's own counter -- a grid and an inversion that reached the rasterizer would be D4-11
+    # broken, and nothing about the picture would look wrong.
+    tst_rulers.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

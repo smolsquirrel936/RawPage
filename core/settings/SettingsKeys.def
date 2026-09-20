@@ -268,6 +268,108 @@ RAWPAGE_SETTING(documents, warnOnRepairedSave, bool,
                 "documents/warnOnRepairedSave", true, Documents, true)
 
 // =============================================================================================
+// The eleven Stage 4 `units/` rows -- S4 T8, D4-5 and D4-6. They fill the `UnitsAndGuides` group,
+// which has existed in `SettingsGroup` since Stage 1 with NO KEYS, and adding them is the whole of
+// the Preferences work: `PreferencesDialog::shippedPages()` gains one line and `SettingsPage`
+// builds one typed editor per row (convention 17). **Units & Guides is the seventh page of 26.**
+//
+// ELEVEN ROWS FOR NINE FACTS, and the arithmetic is worth writing down because three documents
+// counted it three ways before the code existed (`Stage4-ViewingSurface-Plan.md` §4 said seven
+// `units/*` keys, its §6 said eight, and D4-5's total said fifteen for the stage):
+//
+//   * **The origin offset is ONE fact in TWO rows.** `Features.md` §1.3 asks to "configure grid
+//     spacing, subdivisions, colour, and origin offset"; an origin is a POINT, there is no point
+//     codec, and a single `units/gridOffset` holding "12,18" would be a compound value parsed by
+//     hand -- which is what convention 4 exists to prevent.
+//   * **`showRulers`, `showGrid` and `showGuides` are three VISIBILITY rows for the three things
+//     this group draws.** `Ctrl+U`, `Ctrl+'` and `view.toggleGuides` each have to write their
+//     state somewhere or the toggles do not survive a restart, and `units/snapToGrid` -- a
+//     View-menu toggle that D4-5 declares as a preference -- is the precedent that says where.
+//     Two of the three with the third somewhere else would be arbitrary.
+//
+// So: fifteen becomes EIGHTEEN for the stage, with D4-5's two EXCLUSIONS untouched --
+// `pageDisplay/continuousScroll` is still not declared (`layoutMode` already encodes it) and
+// `units/snapToObjects` still moves to Stage 6 with the objects it would snap to. The stage plan
+// and `Implementation-Plan.md` are corrected in the same change as this file.
+// =============================================================================================
+
+// --- Units and guides ---------------------------------------------------------------------------
+// What the rulers read in. INCHES, and the reason is the PDF point itself: 1 pt is 1/72 inch BY
+// DEFINITION of the PDF user space, so an inch is the one unit whose ticks are exact at every
+// subdivision this product can draw. A locale-derived default (mm where the paper is A4) is a real
+// idea and is NOT done here, because a default that differs per machine is a default two users
+// cannot compare over a support call; changing it is one row.
+RAWPAGE_SETTING(units, rulerUnit, Unit,
+                "units/rulerUnit", Unit::Inches, UnitsAndGuides, true)
+
+// `Ctrl+U` and `Ctrl+'` (Features.md §8, Viewer). OFF, which is what every reader opens as: a
+// ruler is a tool a person reaches for, and two of them take 40 px from a first run that should be
+// all page. The chord writes this row, so the choice survives the session -- the commands do not
+// carry a second copy of the state (rule 2 across surfaces rather than across call sites).
+RAWPAGE_SETTING(units, showRulers, bool,
+                "units/showRulers", false, UnitsAndGuides, true)
+
+RAWPAGE_SETTING(units, showGrid, bool,
+                "units/showGrid", false, UnitsAndGuides, true)
+
+// `view.toggleGuides`, which has no chord in `Features.md` §8 and is reached from the ribbon, the
+// tool finder and the batch runner. ON, unlike the other two: hiding a guide does not delete it,
+// so a person who drags one out and cannot see it has lost work with no other surface -- whereas a
+// ruler and a grid that are off have simply not been asked for.
+RAWPAGE_SETTING(units, showGuides, bool,
+                "units/showGuides", true, UnitsAndGuides, true)
+
+// POINTS, and every length in this group is. The editor `SettingsPage` generates for a `double` is
+// a plain spin box with no unit awareness, so the LABEL says which unit it is in; a spacing that
+// followed `rulerUnit` would be a number whose meaning changed when a different control moved.
+// 72 pt is one inch -- the spacing every grid in this domain starts at. The floor of 1 pt is where
+// a grid stops being distinguishable from a fill at 100 %, and 720 pt is ten inches, past which
+// the page holds no line at all.
+RAWPAGE_SETTING_RANGED(units, gridSpacing, double,
+                       "units/gridSpacing", 72.0, UnitsAndGuides, true, 1.0, 720.0)
+
+// Minor lines per major interval. **The FINEST line is what snapping uses and what is drawn** --
+// see `core/Snap.h` -- so this is not a decoration: raising it makes the snap finer. 1 means no
+// minor lines at all, which is why the range starts there rather than at 2.
+RAWPAGE_SETTING_RANGED(units, gridSubdivisions, int,
+                       "units/gridSubdivisions", 4, UnitsAndGuides, true, 1, 20)
+
+// `#RRGGBB`, as TEXT rather than as a colour type: `core/` may not name a Qt GUI type (convention
+// 3) and `QColor` is QtGui, so the parse happens in `ui/viewer/GridGuideLayer` and an unreadable
+// value falls back there rather than here. **A FIXED default in both themes is correct here and is
+// not convention 20's defect**: the grid is painted over the PAGE, whose raster is the document's
+// own white in a light theme and in a dark one, so a colour that followed the theme would be
+// chosen against a backdrop it never meets.
+RAWPAGE_SETTING(units, gridColour, QString,
+                "units/gridColour", "#6699CC", UnitsAndGuides, true)
+
+// The page-space point the grid is measured FROM, in points -- so a non-zero offset moves the
+// LINES and not the page. Two rows for one fact; see the note at the top of this block. The bound
+// is the largest page ISO 32000 permits in either direction (14400 pt = 200 in), beyond which an
+// offset cannot put a line on any page.
+RAWPAGE_SETTING_RANGED(units, gridOriginX, double,
+                       "units/gridOriginX", 0.0, UnitsAndGuides, true, -14400.0, 14400.0)
+
+RAWPAGE_SETTING_RANGED(units, gridOriginY, double,
+                       "units/gridOriginY", 0.0, UnitsAndGuides, true, -14400.0, 14400.0)
+
+// `Ctrl+;`. OFF: a snap nobody asked for moves a drag the person could see was where they wanted
+// it, and the chord exists precisely because it is turned on for a task and off again.
+RAWPAGE_SETTING(units, snapToGrid, bool,
+                "units/snapToGrid", false, UnitsAndGuides, true)
+
+// ON, and the asymmetry with `snapToGrid` above is deliberate: a grid appears because a preference
+// was set, while a guide exists because a person dragged it onto this page for this task. Snapping
+// to it is what it was placed for.
+//
+// **`units/snapToObjects` IS ABSENT** and is Stage 6's (D4-5, following D3-9): the resolver already
+// takes an object-edge span (D4-6) and every product caller passes it EMPTY, so Stage 6 adds a
+// source and a key, not an algorithm. A third checkbox here that read back as set and did nothing
+// would be Stage 2's I-11 by construction rather than by constraint.
+RAWPAGE_SETTING(units, snapToGuides, bool,
+                "units/snapToGuides", true, UnitsAndGuides, true)
+
+// =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================
 

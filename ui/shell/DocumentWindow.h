@@ -74,6 +74,8 @@
 #include <QString>
 #include <QWidget>
 
+class QLabel;
+
 namespace rawpage::core {
 class CommandJournal;
 }
@@ -81,6 +83,7 @@ class CommandJournal;
 namespace rawpage::ui {
 
 class PageView;
+class RulerWidget;
 
 class DocumentWindow : public QWidget {
     Q_OBJECT
@@ -177,11 +180,25 @@ public:
     // viewport`, which is why it asserts a HELD PAGE COUNT rather than that the value was stored.
     void applyViewSettings();
 
+    // The ten `units/*` keys (S4 T8): the rulers' visibility and unit, the grid's appearance, and
+    // the two snap switches. A second method rather than a tenth of `applyViewSettings`, because
+    // the two groups are subscribed to separately and a `pageDisplay/` change must not repaint a
+    // grid it did not move.
+    void applyGuideSettings();
+
+    RulerWidget* horizontalRuler() const noexcept { return horizontalRuler_; }
+    RulerWidget* verticalRuler() const noexcept { return verticalRuler_; }
+
     // The tab's text and the window title's `%1`: the file's name, derived rather than stored, so
     // there is no second copy to disagree with the path after a rename.
     QString title() const;
 
 signals:
+    // A right-click on a ruler (`guideIndex` -1) or on a guide. `MainWindow` builds the menu; the
+    // TARGET is already recorded on the view's `GridGuideLayer`, so the commands in it need no
+    // argument -- see `GridGuideLayer::setContextGuide`.
+    void guideMenuRequested(int guideIndex, QPoint global);
+
     // A command, an undo or a redo changed the model; the revision has moved.
     void mutated();
     void dirtyChanged(bool dirty);
@@ -192,6 +209,22 @@ private:
     void build(const Recovery* recovery);
     void afterMutation();
 
+    // ---- The rulers (S4 T8) ----------------------------------------------------------------
+    // Recomputes both mappings from the page in front of the person. Called on every `viewChanged`
+    // -- which a scroll emits as well as a zoom, because `scrollContentsBy` writes the controller
+    // and the controller's `changed` reaches `refresh()`.
+    void updateRulerMappings();
+
+    // The offset of the page surface's VIEWPORT within the `PageView` widget. A scroll area draws
+    // a frame, so the two differ by a pixel or two -- and a ruler out by two pixels is a ruler
+    // that reads the wrong number at exactly the edge a person measures to.
+    QPoint viewportOffset() const;
+
+    // A right-click on a ruler or on a guide, turned into `guideMenuRequested`. The MENU is
+    // `MainWindow`'s: every item in it is an `ActionId` through `ActionFactory` (D1-7(a)), and the
+    // factory belongs to the window rather than to a tab.
+    void raiseGuideMenu(int guideIndex, QPoint global);
+
     app::Services services_;
     QString path_;
     QString sourcePath_;
@@ -199,6 +232,13 @@ private:
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;
     PageView* view_ = nullptr;
+
+    // S4 T8. Always constructed, shown only while `units/showRulers` is on: a ruler that is built
+    // when the preference is turned on would have no mapping until the next view change, so the
+    // first thing a person saw after `Ctrl+U` would be two blank strips.
+    RulerWidget* horizontalRuler_ = nullptr;
+    RulerWidget* verticalRuler_ = nullptr;
+    QLabel*      rulerCorner_ = nullptr;
 
     // The `Settings` subscription, released in the destructor. Convention 10: a subscriber that
     // outlives the object it was installed for is a call into freed memory, and `Settings` outlives

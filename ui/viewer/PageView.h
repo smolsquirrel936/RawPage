@@ -43,6 +43,7 @@
 #include "core/doc/Revision.h"
 #include "core/render/PagePresentation.h"
 #include "core/render/RenderRequest.h"
+#include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/ViewportController.h"
@@ -218,6 +219,28 @@ public:
     ToolController&       tools() noexcept { return *tools_; }
     const ToolController& tools() const noexcept { return *tools_; }
 
+    // ---- The grid, the guides and the page colour (S4 T8) --------------------------------------
+    // The layer is a view of THIS document's guides and of the `units/*` preferences; the shell
+    // hands both in. It is owned here rather than by `DocumentWindow` because everything it paints
+    // is in the page surface's own two coordinate spaces, and because a split (T9) gives one
+    // document two of these and each needs its own drag state.
+    GridGuideLayer&       guides() noexcept { return *guides_; }
+    const GridGuideLayer& guides() const noexcept { return *guides_; }
+    void applyGuideSettings(const GuideSettings& settings);
+
+    // **A PAINT, NOT A RENDER FLAG** (D4-11). Inversion is a per-pixel map over pixels the
+    // scheduler already returned, so toggling it enqueues nothing and changes no cache key --
+    // guide case A-52 asserts exactly that. `RenderFlags::Grayscale` is the one that stays a
+    // render flag, because PDFium's grey is a conversion inside the rasterizer.
+    void setInvertColors(bool invert);
+    bool invertColors() const noexcept { return invertColors_; }
+
+    // A point in the viewport's logical pixels, in CONTENT device space -- the space
+    // `PageLayout` and `ViewportController::visibleRect` are in. Public because the shell maps a
+    // ruler's drop into it, and because one place for *scroll offset plus device-pixel ratio* is
+    // the whole point: those are the two things every caller gets half right.
+    core::DevicePoint toContentPoint(QPoint viewportPosition) const;
+
     // Forces the layout, the scrollbars and the tile set to agree with the controller. Public
     // because a test drives it after `show()` and `activate()`, which is convention 12's rule
     // about a widget test having to drive layout itself.
@@ -242,6 +265,16 @@ signals:
 
     void toolChanged(ToolKind kind);
 
+    // Where the pointer is over the page surface, in VIEWPORT logical pixels -- what the two
+    // rulers draw their cursor marker at (S4 T8). `onSurface` false means it left, and the
+    // markers are cleared rather than frozen at the last place it was seen.
+    void cursorMoved(QPoint viewportPosition, bool onSurface);
+
+    // A right-click that landed ON a guide. The menu itself is the shell's -- it is words, and
+    // `ui/viewer/` holds no catalog key (the same split `RulerWidget::contextMenuRequested`
+    // makes). A right-click anywhere else is left alone rather than swallowed.
+    void guideContextMenuRequested(int guideIndex, QPoint global);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -253,11 +286,22 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     bool event(QEvent* event) override;
 
+    // The pointer LEAVING the surface, which is what clears the rulers' cursor marker (S4 T8).
+    // `QEvent::Leave` goes to the viewport, not to this widget, and `viewportEvent` is the hook
+    // `QAbstractScrollArea` provides for exactly that -- an event filter would be a second
+    // mechanism for what the base class already routes.
+    bool viewportEvent(QEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
+
 private:
     // The page and its surround, with no tool overlay. Split out of `paintEvent` at S4 T7 so the
     // same content can go either straight onto the viewport or into the pixmap the loupe
     // magnifies -- one painting path, two destinations, rather than two paths that could drift.
     void paintContent(QPainter& painter, const QRect& area);
+
+    // Moves with no button down are delivered only while something wants them -- the loupe, or a
+    // ruler tracking the cursor. See the comment at the connection in the constructor.
+    void updateMouseTracking();
 
     void updateScrollBars();
     void syncControllerFromScrollBars();
@@ -313,6 +357,11 @@ private:
     // nothing -- see `ui/viewer/tools/LoupeTool.h` for what the choice buys and what it does not.
     std::unique_ptr<ToolController> tools_;
     QPixmap                         frame_;
+
+    // S4 T8: the grid and the guides painted over the tiles, and the page-colour inversion that
+    // is painted the same way and for the same reason (D4-11).
+    std::unique_ptr<GridGuideLayer> guides_;
+    bool                            invertColors_ = false;
 };
 
 } // namespace rawpage::ui

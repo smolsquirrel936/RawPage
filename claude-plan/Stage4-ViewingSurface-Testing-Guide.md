@@ -7,11 +7,13 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **33 of the 79 carry
+> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **41 of the 79 carry
 > a result** as of 2026-09-21 — T1's corpus cases, T2's four A2 cases, T3's seven session cases,
-> T4's four reader cases, T5's seven pane cases, T6's two plus the two re-reads T5 owed, and
-> **T7's five tool cases**. **No manual case has been walked.** §8 holds six issues: **I-01 and
-> I-05 open, both S3**; I-02, I-03, I-04 and I-06 closed.
+> T4's four reader cases, T5's seven pane cases, T6's two plus the two re-reads T5 owed,
+> **T7's five tool cases** and **T8's eight ruler, grid, guide and snap cases** (one of them, A-52,
+> ✅ for its inversion half and 🟡 for the substitution it names — **I-07**). **No manual case has
+> been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
+> I-02, I-03, I-04 and I-06 closed.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -450,31 +452,122 @@ green its cases did not record.
 
 ### 5.9 Rulers, grid, guides, snapping (T8)
 
-**A-45 · The snap precedence is object → guide → grid** ☐
+**A-45 · The snap precedence is object → guide → grid** ✅ **2026-09-21, T8.**
+`unit.` — `tests/unit/tst_snap.cpp`, over synthetic geometry with no display. The three kinds are
+placed **deliberately out of distance order** — the guide nearest, the object edge furthest — so a
+resolver that took the nearest candidate regardless of kind would answer *guide* on every line and
+the case would be about nothing. With all three in reach the object edge wins on both axes; with no
+object the guide; with neither, the grid. A fourth section proves the precedence is **per axis**: a
+guide on x and an object edge on y resolve independently, which is the half a whole-point rule
+loses. The control is `SnapFlags::None` — nothing snaps and the point comes back untouched. **The
+case states at its assertions that no product surface supplies an object edge** (convention 19):
+`GridGuideLayer::activeFlags()` never sets `ObjectEdges`, the key that would is Stage 6's (D4-5),
+and the branch is tested now because the precedence is what a later stage would otherwise have to
+discover under a drag.
 **Goal** D4-6, over synthetic geometry, exhaustively.
 **Expect** With candidates of all three kinds inside the threshold, the object edge wins; with no object, the guide; with neither, the grid. **The case states that no product surface supplies object edges until Stage 6** (convention 19). **If it fails** S2.
 
-**A-46 · One threshold, in device pixels, at every zoom** ☐
+**A-46 · One threshold, in device pixels, at every zoom** ✅ **2026-09-21, T8.**
+`unit.` — two scales an eightfold apart, 0.5 and 4.0 device pixels per point. A point **7 device
+pixels** from the candidate snaps at both; **9 device pixels** snaps at neither, which is the
+control and the half the criterion does not ask for (convention 22). The case also asserts that the
+tolerance in POINTS really did differ — 18 pt at one scale and 2.25 pt at the other — so the two
+results are a statement about screen pixels rather than a coincidence. **A measurement changed the
+case: the candidate is a lone GUIDE, not a grid line.** At 0.5 device pixels per point the declared
+grid's 18 pt step is 9 screen pixels, so no point on the page is more than 4.5 pixels from some
+line and an 8-pixel threshold catches every one of them — correct behaviour, and useless as a
+control, because *one pixel further does not snap* cannot be said of a point that is always within
+reach of the NEXT line. A second section covers a view with nothing presented in it: a non-positive
+scale snaps nothing rather than dividing into an infinite tolerance that grabs the page.
 **Goal** The stage's exit criterion, made a number.
 **Expect** At 50 % and at 400 %, a point the same number of **screen** pixels from a grid line snaps, and a point one pixel further **does not** — the control, and the half the criterion does not ask for (convention 22). **If it fails** S2.
 
-**A-47 · Guides are created, moved, locked, deleted and cleared** ☐
+**A-47 · Guides are created, moved, locked, deleted and cleared** ✅ **2026-09-21, T8.**
+`ui.` — `tests/ui/tst_rulers.cpp`, and every guide in it is **dragged off a real ruler by real
+mouse events** rather than made by calling `dropGuide`: the gesture travels ruler → global
+coordinates → `DocumentWindow` → page surface, which is the wiring, and calling the method would
+have asserted the arithmetic twice and the wiring never. The top ruler makes a vertical guide and
+the left ruler a horizontal one, each landing within a pixel's worth of points of the pointer's page
+coordinate. A drag moves it; `Esc` mid-drag puts it back where the drag started; a **locked** guide
+refuses the drag (the press falls through to the tool) and survives a clear-all, and the same clear
+takes it once unlocked — which is what makes the first half a statement about the LOCK rather than
+about a clear that does nothing. A zoom to 400 % and a view rotation leave the stored coordinate
+untouched, because it is a page fact (D4-7). **The control**: a press on the ruler released on the
+ruler makes no guide — that is how a person changes their mind. **This case found the wiring
+defect** the task's own §4 notes: `updateRulerMappings()` asked `isVisible()` while running inside
+`build()`, before the tab is in the window, so every mapping was skipped and a ruler could not be
+dragged from at all.
 **Expect** A guide dragged from a ruler lands at the pointer's page coordinate; a locked guide does not move; clear-all removes them; a guide's coordinate is unchanged by a zoom or a rotation of the view. **If it fails** S2.
 
-**A-48 · Guides round-trip through `SessionState` and never through the file** ☐
+**A-48 · Guides round-trip through `SessionState` and never through the file** ✅
+**2026-09-21, T8 — with a stated bound.** `unit.` — a capture, a `save()`, a fresh `load()` and a
+`restore()` bring back **every field**: orientation, the fractional position in PDF points, the page
+index and the lock. Asserting all four matters — a round trip that dropped the lock or the page
+index would leave a guide that reads back as unlocked on page 0 — and the fractional positions
+(216.5 and 72.25 pt) are the tell that nothing rounded them into pixels on the way.
+**WHAT THIS DOES NOT COVER, stated rather than implied (convention 19):** the case does **not**
+SHA-256 a document before and after, because no Stage 4 surface writes one — the claim that nothing
+about a guide reaches `pdf/` is structural here (`core/settings/SessionState` names no PDF type,
+`ui/` may not mutate a `Document`, and **`mutation-lint` reports one command on this stage's sixth
+task as on its first**, which is D4-1's whole mechanism). A byte comparison over a real save belongs
+with the first Stage 4 surface that saves one, and **T13** is where session capture meets a
+document. **I-01 is the open issue underneath this case** and T8 is what created the guides it is
+about: the `DocumentId` a guide is keyed by changes on the first save.
 **Goal** D4-7.
 **Expect** Guides survive a close and a reopen in the same session and across a restore; **the document's bytes on disk are identical before and after** (SHA-256, read back from the path). **If it fails** S1 for a changed byte.
 
-**A-49 · The rulers read out the cursor's page coordinates in the chosen unit** ☐
+**A-49 · The rulers read out the cursor's page coordinates in the chosen unit** ✅
+**2026-09-21, T8.** `ui.` — the reading at the page's drawn edge is 0, and 144 points along it reads
+144 points, which `core/Units.h` converts to exactly 2 inches (through `Length`, not through a
+number spelled in the case). The same page point reads the same at 50 % and at 400 %. **The tick
+STEP, however, changes, and the case asserts that it does**: a ruler that kept its step across an
+eightfold zoom would draw ticks a pixel apart at one end of it — the reading is a page fact, the
+tick spacing is a legibility choice. Changing `units/rulerUnit` to millimetres moves both rulers and
+the corner box, and the step is then round in **millimetres** rather than in points. The cursor
+marker follows a move over the surface and is **cleared when the pointer leaves**, which is caught
+in `viewportEvent` because `QEvent::Leave` goes to the viewport and not to the scroll area.
+**What it cannot judge is legibility** — whether the numbers read at `general/uiFontScale` 0.75 and
+whether the ticks are distinguishable on a real panel are manual case **M-07**'s.
 **Expect** `units/rulerUnit` changes the readout and the ruler's ticks; the readout at a known page point matches `core/Units.h`'s conversion; at 400 % the readout is the same page coordinate as at 50 %. **If it fails** S3.
 
-**A-50 · The grid obeys spacing, subdivisions, colour and origin offset** ☐
+**A-50 · The grid obeys spacing, subdivisions, colour and origin offset** ✅ **2026-09-21,
+T8.** `ui.` — the viewport is rendered to a pixmap and hashed; turning the grid on changes the hash,
+and so does each of `units/gridSpacing`, `units/gridSubdivisions`, `units/gridColour`,
+`units/gridOriginX` and `units/gridOriginY` in turn. **The load-bearing assertion is a NEGATIVE:
+`RenderScheduler::stats().enqueued` does not move, and the cache's entry count does not move**,
+across every one of those changes — which is the whole of D4-11. A grid composed into the tile would
+have put its spacing, colour and offset into the cache key, and each line above would have
+re-rasterized the document while the picture looked right. A section covers an unreadable colour
+(`units/gridColour=blueish`): still a grid, still no render, because `core/` holds the text and
+`ui/` decides whether it is a colour. **The case asserts pixels CHANGED, not lines in the right
+places**, and says so: counting drawn lines would be a copy of the painter.
 **Expect** Each key changes the drawn grid; the offset moves the origin rather than the whole page; **the tiles are not re-rendered** when any of them changes (D4-11) — asserted on the scheduler's request count, which must not move. **If it fails** S2 for a re-render.
 
-**A-51 · `Ctrl+U`, `Ctrl+'` and `Ctrl+;` dispatch from a key event and toggle what they name** ☐
+**A-51 · `Ctrl+U`, `Ctrl+'` and `Ctrl+;` dispatch from a key event and toggle what they name**
+✅ **2026-09-21, T8.** `ui.` — each chord is a real `QKeyEvent` to the focused viewer; each flips its
+`units/*` row, and pressing it again flips it back, so the case is a round trip rather than one
+direction of it. **The command's `checked` state is read from the SETTING**, not from a copy beside
+the toggle — a ribbon button disagreeing with the Preferences page would be two truths. The rulers
+start OFF, as they ship, so the first `Ctrl+U` is what turns them on: a case that started with them
+on could not tell a toggle from a no-op. A second `MainWindow` over the same settings store opens
+with the rulers already on, which is how a headless case states *the choice survives a restart*
+without restarting a process. A companion case covers the three T8 command ids: with no guide under
+the pointer `view.lockGuide` and `view.deleteGuide` are **DISABLED** (convention 16, with a target
+rather than a user as the missing thing) while `view.clearGuides` is enabled because a guide exists;
+with one, lock checks, delete refuses a LOCKED guide, and clearing the last guide disables itself.
 **Expect** Rulers, grid and snap-to-grid each toggle, and the setting they write round-trips. **If it fails** S2.
 
-**A-52 · Colour inversion and a custom page background are applied over the tiles** ☐
+**A-52 · Colour inversion and a custom page background are applied over the tiles** 🟡
+**2026-09-21, T8 — the inversion is built and asserted; the SUBSTITUTION is not built (I-07).**
+`ui.` — dispatching `view.invertColors` changes the rendered viewport, **enqueues nothing** and
+leaves the cache's entry count where it was, and dispatching it again restores the **exact same
+bytes** — which is what `RasterOp_NotDestination` buys over a composition mode with an alpha. The
+inversion is applied per page SHEET rather than over the viewport, so the desk around the page stays
+itself. **The second half of this case's title is not built and the case asserts that instead of
+implying it**: `Features.md` §1.2 offers *invert **or substitute*** page colours, and substitution
+needs a colour pair that none of D4-5's declared keys holds — so `view.pageBackground` stays
+declared and **unregistered**, which consumes nothing, and the case asserts it is unregistered.
+Raised as **I-07** (§8).
 **Goal** D4-11's second half.
 **Expect** Toggling inversion changes what is painted and **enqueues no render request**; the cache's entry count is unchanged; toggling back is exact. **If it fails** S2 — an inversion in the cache key doubles the cache for a toggle.
 
@@ -793,6 +886,7 @@ uses.
 | **I-04** | **S2** | **A pane swallowed `Alt+↑`/`Alt+↓` and moved the selection — a Stage 7 chord doing something plausible and wrong** | ✅ **Closed 2026-09-20 at T5** (Thumbnails) **and again 2026-09-21 at T6** (Bookmarks): one mechanism, two panes, two layers of Qt |
 | **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ⚪ **Open — the arithmetic is T12's (D4-14), and this task did not guess it** |
 | **I-06** | **S2** | **Registering `edit.cancel` — §8's `Common` row — swallowed `Esc` application-wide, including the tool finder's mouse-grabbing popup** | ✅ **Closed 2026-09-21 at T7**: the id is left unregistered and `Esc` is handled where the drag is |
+| **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -858,6 +952,37 @@ For `/Fit`, for `/XYZ` with no coordinates, and for any destination at the top o
 **What changed beyond the fix.** The lesson is not about one function, so it is written where it binds later work: **convention 24** (`Implementation-Plan.md` §1.5) — the three portable layers may use only Qt APIs the distro Qt has, and the way to settle a doubt is to read `\since` in the pinned Qt's header. The issue log keeps the incident; the convention keeps the rule.
 
 ---
+
+**I-07 · Half of a `Features.md` line is built, and the other half has nowhere to keep its value.**
+*(Raised 2026-09-21 at T8, while writing A-52 rather than by a failing case — the case exists
+because the finding did, and asserts the absence instead of leaving it remembered.)*
+
+**Mechanism.** `Features.md` §1.2 offers *"invert / substitute page colors for high-contrast
+reading"*, and `core/cmd/ActionId.def` has carried **two** ids for it since Stage 1:
+`view.invertColors` and `view.pageBackground`. T8 builds the first — it is D4-11's second half, a
+per-pixel map over pixels the scheduler already returned, and it costs no settings key because it is
+a per-VIEW reading convenience like the view rotation beside it. The second needs a **colour pair**
+(a page colour and a text colour) that has to live somewhere, and **none of D4-5's declared keys
+holds one**: this stage's eighteen are one `pageDisplay/`, eleven `units/`, five `fullScreen/` and
+two `general/`. Minting a `pageDisplay/pageBackground` here would be a Stage 4 key no document
+planned, decided by the task that happened to notice.
+
+**So `view.pageBackground` stays declared and UNREGISTERED**, which is the same posture
+`edit.cancel` is in for a different reason (I-06) and the posture 292 of the 366 declared ids are
+in: it consumes nothing, it offers nothing, and there is a row to fill in the day the colours have a
+home. It is **not** the shape Stage 2's **I-11** warns about — a declared-and-inert *control* that
+reads back as set and does nothing — precisely because no control exists.
+
+**Why the suite did not catch it.** Nothing could have: A-52's title names both halves and the guide
+was written from a plan whose §6 line for T8 names neither, so the first moment the gap is visible is
+the moment somebody implements the case. That is why A-52 is recorded **🟡 rather than ✅** and why
+its assertion is `CHECK_FALSE(isRegistered(ViewPageBackground))` — a green tick over a half-built
+feature is worth less than an honest amber one, and an assertion that the id is unregistered fails
+the day somebody registers it without giving it a key.
+
+**Owner.** Stage 8, whose colour and conversion work is where a page-colour pair belongs; or any
+earlier stage that finds it needs one, which would then be a `SettingsKeys.def` row and two lines of
+painting, since the paint path (`PageView::paintContent`, over the tiles) is already there.
 
 ## 9. Sign-off criteria
 

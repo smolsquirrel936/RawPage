@@ -99,10 +99,18 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **`edit.cancel` is NOT among them** and that is deliberate -- it is §8's `Common` row, four
     // unbuilt contexts override it, and a registered-but-disabled command consumes the key.
     //
+    // **Eight more at Stage 4 T8**: the three §8 chords that toggle a `units/*` row
+    // (`view.toggleRulers`, `view.toggleGrid`, `view.toggleSnapToGrid`), `view.toggleGuides` and
+    // `view.invertColors` -- both declared since Stage 1 and chordless -- and the three ids T8
+    // declares, `view.lockGuide`, `view.deleteGuide` and `view.clearGuides`, because a menu item
+    // is a command or it is a lambda the batch runner cannot reach (D1-7(a)).
+    // **`view.pageBackground` is NOT among them**: substituting a page colour needs a colour pair
+    // no declared key holds, so the id stays declared and unregistered and consumes nothing.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 66);
+    CHECK(fixture.actions.registeredCount() == 74);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));

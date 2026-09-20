@@ -260,6 +260,18 @@
         <translation>切換輔助線</translation>
     </message>
     <message>
+        <source>action.view.lockGuide</source>
+        <translation>鎖定參考線</translation>
+    </message>
+    <message>
+        <source>action.view.deleteGuide</source>
+        <translation>刪除參考線</translation>
+    </message>
+    <message>
+        <source>action.view.clearGuides</source>
+        <translation>清除所有參考線</translation>
+    </message>
+    <message>
         <source>action.nav.goToPage</source>
         <translation>前往頁面…</translation>
     </message>
@@ -1559,6 +1571,10 @@
         <translation>%1 需要先開啟文件。</translation>
     </message>
     <message>
+        <source>shell.tooltip.needsGuide</source>
+        <translation>%1 需要指標下方有參考線。</translation>
+    </message>
+    <message>
         <source>shell.tooltip.atFirstPage</source>
         <translation>%1：已經是第一頁。</translation>
     </message>
@@ -2638,6 +2654,74 @@
     <message>
         <source>prefs.group.performanceCache</source>
         <translation>效能與快取</translation>
+    </message>
+    <message>
+        <source>prefs.group.unitsGuides</source>
+        <translation>單位與參考線</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.rulerUnit</source>
+        <translation>尺規單位</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.showRulers</source>
+        <translation>顯示尺規</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.showGrid</source>
+        <translation>顯示格線</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.showGuides</source>
+        <translation>顯示參考線</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridSpacing</source>
+        <translation>格線間距（點）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridSubdivisions</source>
+        <translation>格線細分數</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridColour</source>
+        <translation>格線顏色（#RRGGBB）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridOriginX</source>
+        <translation>格線原點：水平（點）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridOriginY</source>
+        <translation>格線原點：垂直（點）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.snapToGrid</source>
+        <translation>貼齊格線</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.snapToGuides</source>
+        <translation>貼齊參考線</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.pt</source>
+        <translation>點</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.in</source>
+        <translation>英吋</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.mm</source>
+        <translation>公釐</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.cm</source>
+        <translation>公分</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.pc</source>
+        <translation>派卡</translation>
     </message>
     <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>

@@ -28,6 +28,7 @@
 #define RAWPAGE_CORE_SETTINGS_SETTINGSSCHEMA_H
 
 #include "core/Log.h"
+#include "core/Units.h"
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
 
@@ -351,6 +352,18 @@ template <> struct SettingsCodec<render::FitMode> {
     static render::FitMode fromDefault(render::FitMode value) { return value; }
 };
 
+// The Stage 4 enum -- `units/rulerUnit`. The token is the UNIT SUFFIX, which `core/Units.h`
+// already owns and which `parseLength` already accepts: "mm" in the settings file, "mm" on the
+// ruler, "12mm" in a field. A second table of enum names would be a third spelling of five words.
+template <> struct SettingsCodec<Unit> {
+    static QVariant toVariant(Unit value) { return QVariant(QString::fromUtf8(unitSuffix(value))); }
+    static std::optional<Unit> fromVariant(const QVariant& variant)
+    {
+        return unitFromSuffix(settingsVariantText(variant).trimmed().toLower().toStdString());
+    }
+    static Unit fromDefault(Unit value) { return value; }
+};
+
 template <> struct SettingsCodec<LogLevel> {
     static QVariant toVariant(LogLevel value) { return QVariant(QString::fromUtf8(logLevelName(value))); }
     static std::optional<LogLevel> fromVariant(const QVariant& variant)
@@ -531,6 +544,20 @@ template <> struct SettingsEditorTraits<LogLevel> {
                                      LogLevel::Debug, LogLevel::Trace}) {
             const std::string token = logLevelName(level);
             out.push_back(SettingsChoice{token, "prefs.choice.logLevel." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<Unit> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const Unit unit : {Unit::Points, Unit::Inches, Unit::Millimetres, Unit::Centimetres,
+                                Unit::Picas}) {
+            const std::string token = unitSuffix(unit);
+            out.push_back(SettingsChoice{token, "prefs.choice.unit." + token});
         }
         return out;
     }

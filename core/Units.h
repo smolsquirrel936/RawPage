@@ -14,6 +14,8 @@
 #include <QString>
 
 #include <cmath>
+#include <optional>
+#include <string_view>
 
 namespace rawpage::core {
 
@@ -94,6 +96,22 @@ constexpr const char* unitSuffix(Unit unit) {
     case Unit::Picas:       return "pc";
     }
     return "";
+}
+
+inline constexpr int kUnitCount = 5;
+
+// The suffix is also the PERSISTED TOKEN -- `SettingsCodec<Unit>` writes `units/rulerUnit=mm`
+// (S4 T8). One spelling rather than two: a settings file, a ruler label and a parsed "12mm" all
+// mean the same five strings, and a second table of enum names would be the list that disagrees.
+// Unknown text answers `nullopt`, which is what makes a hand-edited INI fall back to the declared
+// default and log it rather than silently mean something real.
+constexpr std::optional<Unit> unitFromSuffix(std::string_view suffix) {
+    if (suffix == "pt") return Unit::Points;
+    if (suffix == "in") return Unit::Inches;
+    if (suffix == "mm") return Unit::Millimetres;
+    if (suffix == "cm") return Unit::Centimetres;
+    if (suffix == "pc") return Unit::Picas;
+    return std::nullopt;
 }
 
 // Formatting is for rulers, measurement readouts, and property dialogs. The suffix is a

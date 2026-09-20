@@ -21,6 +21,7 @@
 #include "ui/dialogs/PasswordDialog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MessageBar.h"
+#include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -44,6 +45,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QShowEvent>
 #include <QStackedWidget>
 #include <QToolButton>
@@ -592,6 +594,8 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         }
         updateViewChrome();
     });
+    connect(document, &DocumentWindow::guideMenuRequested, this,
+            [this](int guideIndex, QPoint global) { showGuideMenu(guideIndex, global); });
     connect(document, &DocumentWindow::dirtyChanged, this, [this](bool) {
         updateDocumentTitles();
         updateViewChrome();
@@ -1442,6 +1446,175 @@ void MainWindow::registerViewerActions()
         if (!services_.actions.isRegistered(ActionId::ViewAutoScroll))
             services_.actions.register_(ActionId::ViewAutoScroll, std::move(autoScroll));
     }
+
+    // --- Rulers, grid, guides and the page colour (S4 T8) ----------------------------------------
+    //
+    // **THE THREE §8 CHORDS WRITE A SETTING, AND THAT IS THE WHOLE HANDLER.** `Ctrl+U`, `Ctrl+'`
+    // and `Ctrl+;` toggle `units/showRulers`, `units/showGrid` and `units/snapToGrid`; every open
+    // `DocumentWindow` subscribes to the `UnitsAndGuides` group and applies the change. A handler
+    // that reached into the view in front of it instead would make the toggle mean *this tab* on
+    // Monday and *the preference* on Tuesday, and the state would not survive a restart.
+    //
+    // `checked` therefore reads the SETTING and not the widget, which is the same fact read from
+    // the place that owns it (`SettingsKeys.def` rule 2 across surfaces).
+    // **THE HANDLER MUST NOT CAPTURE THIS WINDOW** -- convention 14, and it cost a crash here
+    // before it cost a comment. A registration outlives the window that made it: the guard above
+    // means the FIRST window to open registers these, and the second window's ribbon then asks
+    // the first window's captured `services_` for a value. In `tst_recoverydialog`, where a case
+    // launches twice, that read was of a destroyed object and the segfault was inside
+    // `Settings::get` with `this == nullptr` -- during `ActionFactory::create`, before a single
+    // assertion had run. `activeShell()` is the way to reach the window in front, and it is the
+    // way every other registration in this file already does it.
+    const auto settingsInFront = []() -> core::Settings* {
+        MainWindow* window = activeShell();
+        return window ? &window->services_.settings : nullptr;
+    };
+
+    const auto registerSettingToggle = [this, hasView, settingsInFront](ActionId id,
+                                                                       core::Key<bool> key) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [settingsInFront, key](KeyContext) {
+            if (core::Settings* settings = settingsInFront())
+                settings->set(key, !settings->get(key));
+        };
+        registration.checked = [settingsInFront, key] {
+            const core::Settings* settings = settingsInFront();
+            return settings != nullptr && settings->get(key);
+        };
+        registration.enable = hasView;
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    registerSettingToggle(ActionId::ViewToggleRulers, core::keys::units::showRulers);
+    registerSettingToggle(ActionId::ViewToggleGrid, core::keys::units::showGrid);
+    registerSettingToggle(ActionId::ViewToggleSnapToGrid, core::keys::units::snapToGrid);
+    registerSettingToggle(ActionId::ViewToggleGuides, core::keys::units::showGuides);
+
+    // `view.invertColors` has no chord and no settings row: it is a per-VIEW reading convenience,
+    // like the view rotation beside it, and a person reading one scanned document inverted does
+    // not mean *every document from now on*. **A paint, not a render flag** -- D4-11, and guide
+    // case A-52 asserts that toggling it enqueues nothing.
+    //
+    // **`view.pageBackground` IS DELIBERATELY NOT REGISTERED.** `Features.md` §1.2 offers *invert
+    // OR SUBSTITUTE* page colours, and substitution needs a colour pair that no declared key holds
+    // -- D4-5's fifteen (eighteen as built) contain none, and inventing one here would be a Stage
+    // 4 key nothing planned. The id stays declared and unregistered, which leaves nothing consumed
+    // and leaves a row to fill in; `Stage4-ViewingSurface-Testing-Guide.md` §8 carries it.
+    if (!services_.actions.isRegistered(ActionId::ViewInvertColors)) {
+        core::ActionRegistry::Registration invert;
+        invert.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (PageView* view = window->currentView()) {
+                view->setInvertColors(!view->invertColors());
+                window->updateViewChrome();
+            }
+        };
+        invert.checked = [] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->invertColors();
+        };
+        invert.enable = hasView;
+        invert.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewInvertColors, std::move(invert));
+    }
+
+    // --- The three guide commands (S4 T8) ---------------------------------------------------------
+    // None takes an argument, because `dispatch` does not: lock and delete act on the guide the
+    // context menu was raised over, recorded by `GridGuideLayer::setContextGuide` at that moment
+    // (Stage 1's I-50). Each is DISABLED when there is no such guide -- convention 16's rule, in
+    // the form where the missing thing is a target rather than a user.
+    const auto layerInFront = []() -> GridGuideLayer* {
+        MainWindow* window = activeShell();
+        PageView* view = window ? window->currentView() : nullptr;
+        return view ? &view->guides() : nullptr;
+    };
+
+    if (!services_.actions.isRegistered(ActionId::ViewLockGuide)) {
+        core::ActionRegistry::Registration lock;
+        lock.handler = [layerInFront](KeyContext) {
+            GridGuideLayer* layer = layerInFront();
+            if (!layer) return;
+            const int index = layer->contextGuide();
+            if (index < 0) return;
+            layer->setGuideLocked(index, !layer->guides()[static_cast<std::size_t>(index)].locked);
+        };
+        lock.checked = [layerInFront] {
+            const GridGuideLayer* layer = layerInFront();
+            if (!layer) return false;
+            const int index = layer->contextGuide();
+            return index >= 0 && layer->guides()[static_cast<std::size_t>(index)].locked;
+        };
+        lock.enable = [layerInFront] {
+            const GridGuideLayer* layer = layerInFront();
+            return layer != nullptr && layer->contextGuide() >= 0;
+        };
+        lock.unavailableKey = "shell.tooltip.needsGuide";
+        services_.actions.register_(ActionId::ViewLockGuide, std::move(lock));
+    }
+
+    if (!services_.actions.isRegistered(ActionId::ViewDeleteGuide)) {
+        core::ActionRegistry::Registration remove;
+        remove.handler = [layerInFront](KeyContext) {
+            GridGuideLayer* layer = layerInFront();
+            if (layer) layer->removeGuide(layer->contextGuide());
+        };
+        // A LOCKED GUIDE IS NOT DELETED FROM HERE. `GridGuideLayer::clearGuides` makes the same
+        // refusal for the same reason: the lock's meaning is *leave this one alone*, and a delete
+        // that ignored it would make locking protection against nothing.
+        remove.enable = [layerInFront] {
+            const GridGuideLayer* layer = layerInFront();
+            if (!layer) return false;
+            const int index = layer->contextGuide();
+            return index >= 0 && !layer->guides()[static_cast<std::size_t>(index)].locked;
+        };
+        remove.unavailableKey = "shell.tooltip.needsGuide";
+        services_.actions.register_(ActionId::ViewDeleteGuide, std::move(remove));
+    }
+
+    if (!services_.actions.isRegistered(ActionId::ViewClearGuides)) {
+        core::ActionRegistry::Registration clear;
+        clear.handler = [layerInFront](KeyContext) {
+            if (GridGuideLayer* layer = layerInFront()) layer->clearGuides();
+        };
+        clear.enable = [layerInFront] {
+            const GridGuideLayer* layer = layerInFront();
+            return layer != nullptr && layer->guideCount(-1) > 0;
+        };
+        clear.unavailableKey = "shell.tooltip.needsGuide";
+        services_.actions.register_(ActionId::ViewClearGuides, std::move(clear));
+    }
+}
+
+void MainWindow::showGuideMenu(int guideIndex, QPoint global)
+{
+    if (!actionFactory_) return;
+
+    // Parented and `WA_DeleteOnClose`, exactly as the QAT's is: the items are `RawPageAction`s,
+    // and a menu kept between right-clicks would accumulate a set of them per click.
+    auto* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+
+    // THE TWO THAT NEED A GUIDE ARE OFFERED ONLY OVER ONE, rather than shown disabled: a
+    // right-click on a ruler is not a failed attempt to lock something, and listing *Delete Guide*
+    // greyed out there would read as a product that could not tell what was under the cursor.
+    if (guideIndex >= 0) {
+        actionFactory_->addToMenu(menu, ActionId::ViewLockGuide);
+        actionFactory_->addToMenu(menu, ActionId::ViewDeleteGuide);
+        actionFactory_->addMenuSeparator(menu);
+    }
+
+    actionFactory_->addToMenu(menu, ActionId::ViewToggleGuides);
+    actionFactory_->addToMenu(menu, ActionId::ViewClearGuides);
+    actionFactory_->addMenuSeparator(menu);
+    actionFactory_->addToMenu(menu, ActionId::ViewToggleRulers);
+    actionFactory_->addToMenu(menu, ActionId::ViewToggleGrid);
+    actionFactory_->addToMenu(menu, ActionId::ViewToggleSnapToGrid);
+
+    menu->popup(global);
 }
 
 void MainWindow::showDocumentConditions(DocumentWindow* document)

@@ -21,6 +21,13 @@ add_library(rawpage_core STATIC
     Geometry.h
     Units.h
 
+    # The snap resolver -- S4 T8, D4-6. Page space in, page space out, with a scale so the ONE
+    # threshold can be stated in device pixels; no widget and no painter, which is what lets
+    # tests/unit/tst_snap.cpp exercise the whole precedence with no display. ui/viewer/GridGuideLayer
+    # holds the guides and the drag and calls this for the sums.
+    Snap.h
+    Snap.cpp
+
     # The ENGINE boundary (Stage 2 T1, decision D2-7). The second of the two interface headers this
     # architecture rests on -- header-only, like platform/platform.h, and constrained by its own
     # tools/layer-lint entry because core/, pdf/, ui/ and app/ all include it.

@@ -116,6 +116,17 @@ add_library(rawpage_ui STATIC
     viewer/tools/LoupeTool.cpp
     viewer/ToolController.h
     viewer/ToolController.cpp
+
+    # S4 T8 -- the rulers, the grid, the guides and the snap they feed (D4-6, D4-11). The
+    # ARITHMETIC is core/Snap.h, not here: Stage4-ViewingSurface-Plan.md puts tst_snap in
+    # rawpage_tests, which links no display, so the precedence and the device-pixel threshold have
+    # to be provable with no widget. What is here is what a widget must hold -- the guides, the
+    # appearance, the drag, and a painter that runs OVER the tiles and never into them.
+    viewer/GridGuideLayer.h
+    viewer/GridGuideLayer.cpp
+    viewer/RulerWidget.h
+    viewer/RulerWidget.cpp
+
     viewer/PageView.h
     viewer/PageView.cpp
 

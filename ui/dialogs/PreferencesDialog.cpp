@@ -47,6 +47,13 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
         // (convention 17), so there is no widget code per setting and no second list saying which
         // key belongs to which page. Five of 26 groups shipped then.
         SettingsGroup::PageDisplay,
+
+        // S4 T8. The `UnitsAndGuides` group has existed in `SettingsGroup` since Stage 1 with no
+        // keys in it; the eleven `units/*` rows fill it, and this ONE LINE is the whole of the
+        // page (convention 17). **Seven of 26 groups ship.** Placed where `SettingsGroup` and
+        // `Features.md` §9.1 put it: beside the other page-appearance pages rather than at the end.
+        SettingsGroup::UnitsAndGuides,
+
         SettingsGroup::PerformanceAndCache,
 
         SettingsGroup::Logging,

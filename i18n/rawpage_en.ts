@@ -260,6 +260,18 @@
         <translation>Toggle Guides</translation>
     </message>
     <message>
+        <source>action.view.lockGuide</source>
+        <translation>Lock Guide</translation>
+    </message>
+    <message>
+        <source>action.view.deleteGuide</source>
+        <translation>Delete Guide</translation>
+    </message>
+    <message>
+        <source>action.view.clearGuides</source>
+        <translation>Clear All Guides</translation>
+    </message>
+    <message>
         <source>action.nav.goToPage</source>
         <translation>Go to Page…</translation>
     </message>
@@ -1559,6 +1571,10 @@
         <translation>%1 needs a document to be open.</translation>
     </message>
     <message>
+        <source>shell.tooltip.needsGuide</source>
+        <translation>%1 needs a guide under the pointer.</translation>
+    </message>
+    <message>
         <source>shell.tooltip.atFirstPage</source>
         <translation>%1: this is already the first page.</translation>
     </message>
@@ -2638,6 +2654,74 @@
     <message>
         <source>prefs.group.performanceCache</source>
         <translation>Performance and Cache</translation>
+    </message>
+    <message>
+        <source>prefs.group.unitsGuides</source>
+        <translation>Units and Guides</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.rulerUnit</source>
+        <translation>Ruler unit</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.showRulers</source>
+        <translation>Show rulers</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.showGrid</source>
+        <translation>Show the grid</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.showGuides</source>
+        <translation>Show guides</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridSpacing</source>
+        <translation>Grid spacing (points)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridSubdivisions</source>
+        <translation>Grid subdivisions</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridColour</source>
+        <translation>Grid colour (#RRGGBB)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridOriginX</source>
+        <translation>Grid origin, across (points)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.gridOriginY</source>
+        <translation>Grid origin, down (points)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.snapToGrid</source>
+        <translation>Snap to the grid</translation>
+    </message>
+    <message>
+        <source>prefs.setting.units.snapToGuides</source>
+        <translation>Snap to guides</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.pt</source>
+        <translation>Points</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.in</source>
+        <translation>Inches</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.mm</source>
+        <translation>Millimetres</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.cm</source>
+        <translation>Centimetres</translation>
+    </message>
+    <message>
+        <source>prefs.choice.unit.pc</source>
+        <translation>Picas</translation>
     </message>
     <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>

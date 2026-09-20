@@ -45,6 +45,12 @@ add_executable(rawpage_tests
     tst_sessionstate.cpp
     tst_fingerprint.cpp
 
+    # S4 T8 -- the snap resolver's arithmetic (D4-6) and the guide round trip. HEADLESS by design:
+    # the plan puts tst_snap in this target precisely because the precedence and the device-pixel
+    # threshold must be provable with no widget; the ruler, the drag and the repaint are
+    # tests/ui/tst_rulers.cpp's half.
+    tst_snap.cpp
+
     # S4 T4 -- the read-only models VOCABULARY: counting a tree, finding a name, parsing a PDF
     # date. The claims about real documents are tests/render/tst_docmodels.cpp's, because they are
     # claims about a READER and this target may never link the engine.

@@ -119,6 +119,10 @@ RAWPAGE_SHELL_STRING(RibbonTooltipUnregistered, "ribbon.tooltip.unregistered")
 // nothing at all.
 RAWPAGE_SHELL_STRING(RibbonTooltipUnavailable,  "shell.ribbon.tooltip.unavailable")
 RAWPAGE_SHELL_STRING(TooltipNeedsDocument,      "shell.tooltip.needsDocument")
+// S4 T8. What `view.lockGuide` and `view.deleteGuide` say when the pointer is not over a guide:
+// they are DISABLED there rather than absent, wherever they are reached from a surface that shows
+// every command (the tool finder, the QAT). The context menu offers them only over a guide.
+RAWPAGE_SHELL_STRING(TooltipNeedsGuide,         "shell.tooltip.needsGuide")
 RAWPAGE_SHELL_STRING(TooltipAtFirstPage,        "shell.tooltip.atFirstPage")
 RAWPAGE_SHELL_STRING(TooltipAtLastPage,         "shell.tooltip.atLastPage")
 

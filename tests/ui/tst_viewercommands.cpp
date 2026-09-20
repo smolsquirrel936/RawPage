@@ -170,10 +170,12 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     CHECK(viewer.fixture.actions.isRegistered(core::ActionId::PageRotate));
     CHECK(ui::ShortcutBinder::consumes(viewer.press("Ctrl+R")));
 
-    // THE CENSUS, re-counted from the table: 26 dispatched Viewer rows registered, 13 not, as of Stage 3
-    // T10. A change to either is a registration or a table edit, and belongs in the same change as this.
-    CHECK(registered == 26);
-    CHECK(unregistered == 13);
+    // THE CENSUS, re-counted from the table: 29 dispatched Viewer rows registered, 10 not, as of
+    // Stage 4 T8 -- 26 and 13 from Stage 3 T10 until `Ctrl+U`, `Ctrl+'` and `Ctrl+;` moved across
+    // it. A change to either is a registration or a table edit, and belongs in the same change as
+    // this.
+    CHECK(registered == 29);
+    CHECK(unregistered == 10);
 }
 
 // =============================================================================================
