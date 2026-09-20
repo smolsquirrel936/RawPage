@@ -2979,4 +2979,15 @@
         <translation>Rotate all %1 pages by %2 degrees</translation>
     </message>
 </context>
+<context>
+    <name>panes</name>
+    <message>
+        <source>panes.thumbnails.title</source>
+        <translation>Page Thumbnails</translation>
+    </message>
+    <message>
+        <source>panes.thumbnails.empty</source>
+        <translation>No document is open.</translation>
+    </message>
+</context>
 </TS>

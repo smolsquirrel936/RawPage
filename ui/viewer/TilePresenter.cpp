@@ -20,15 +20,6 @@ using core::render::RenderPriority;
 using core::render::RenderRequest;
 using core::render::TileRect;
 
-QImage::Format formatFor(core::PixelFormat format) noexcept
-{
-    // Both are 32 bits per pixel in BGRA byte order on a little-endian machine, which is what
-    // `core/backend.h` says and what makes this a wrap rather than a conversion. The alpha byte is
-    // the only difference, and getting it backwards produces a page that is either transparent or
-    // opaque where it should be the other -- visible only over a non-white background.
-    return format == core::PixelFormat::Bgra8888 ? QImage::Format_ARGB32 : QImage::Format_RGB32;
-}
-
 // A tile's rectangle in CONTENT space. The tile is in RASTER pixels within its page, and a capped
 // resolution renders fewer pixels and presents them larger -- `Resolution::upscale`. Forgetting the
 // factor here is `DpiPolicy`'s named zoom bug arriving at the one place that would show it.
@@ -93,15 +84,11 @@ TilePresenter::TilePresenter(core::render::RenderScheduler& scheduler, QObject* 
                 return;
             }
 
-            Held held;
-            held.bytes = image.pixels;
-            held.image = QImage(reinterpret_cast<const uchar*>(held.bytes.constData()), image.width,
-                                image.height, image.bytesPerLine, formatFor(image.format));
-
-            // A DEEP COPY of the QImage's header is not enough and a deep copy of the pixels is not
-            // wanted: `held.bytes` keeps the buffer alive and `QImage` borrows it, which is the
-            // arrangement `core/backend.h` designed the boundary for.
-            tiles_[request] = std::move(held);
+            // ONE CONVERSION IN THE PRODUCT, and it is `ui/viewer/HeldRaster` since Stage 4 T5
+            // gave the boundary a second consumer. `bytes` keeps the buffer alive and `QImage`
+            // borrows it -- a deep copy of the header would not be enough, and a deep copy of the
+            // pixels would double the resident bytes of every tile on screen to buy nothing.
+            tiles_[request] = holdRaster(image);
             emit tilesArrived();
         });
 }

@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -54,6 +54,12 @@
     "A reference ENDING IN A DOT is a namespace and is skipped by both rules: several families are",
     "built from a table at runtime -- one key per KeyContext, per settings path, per log subsystem --",
     "so the whole key appears in no source and only the prefix does (T14, issue I-27).",
+    "",
+    "`panes` JOINED AT Stage 4 T5 (plan `Stage4-ViewingSurface-Plan.md` §4), with the first",
+    "`ui/panes/` widget that is a view of a DOCUMENT. It is added because the NAMESPACE is new, not",
+    "because a feature is -- Stage 3's I-16 is the record of the other reading, where a case required",
+    "a `recovery` family for strings that shipped, correctly, as `shell.recovery.*`. The pane's own",
+    "chrome inside the sidebar stays `shell.sidebar.*` for the same reason.",
     "",
     "Adding a family here is how a new catalog namespace becomes enforced. Leaving one out is a",
     "silent gap, which is why the list is short and why it lives beside scannedPaths rather than in",

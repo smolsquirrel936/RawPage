@@ -12,17 +12,17 @@ number goes stale. When something changes, **fix the owning document**; never re
 
 **RawPage** — a Windows-first desktop PDF editor modeled on Right PDF Professional. The design lives
 under `claude-plan/`. Stage 0 (toolchain), Stage 1 (app shell), Stage 2 (PDF engine boundary and
-tiled rendering) and **Stage 3 (mutation and save) are complete and signed off, the last on 2026-09-18**. Risk A4's probe verdict is `go` and its product verdict is recorded as partial, both over RawPage's own generated signatures. **Stage 4 is IN PROGRESS**: its plan and testing guide were written on 2026-09-18 before any of its code, and **T1 (the corpus), T2 (the workload measurement and the `IAcceleratedSurface` verdict), T3 (`core/settings/SessionState`) and T4 (the `core/doc/` read-only models) are complete, all 2026-09-19** — no pane, split or presentation code exists yet, which is the order the plan chose so a no-go could still reshape them.
+tiled rendering) and **Stage 3 (mutation and save) are complete and signed off, the last on 2026-09-18**. Risk A4's probe verdict is `go` and its product verdict is recorded as partial, both over RawPage's own generated signatures. **Stage 4 is IN PROGRESS**: its plan and testing guide were written on 2026-09-18 before any of its code, and **T1 (the corpus), T2 (the workload measurement and the `IAcceleratedSurface` verdict), T3 (`core/settings/SessionState`) and T4 (the `core/doc/` read-only models) are complete, all 2026-09-19, with T5 (the sidebar's pane registry and the Thumbnails pane) complete 2026-09-20** — no split or presentation code exists yet, and the measurement came before the panes so a no-go could still have reshaped them.
 
 ### Where the work is right now — read this first
 
 | | |
 |---|---|
-| **Stage** | **Stage 3 is SIGNED OFF by the user, 2026-09-18** — thirteen tasks (T1 2026-09-14 … T13 2026-09-17), then the last two `Stage3-Mutation-Testing-Guide.md` §9 items on 2026-09-18: M-08's sign-off and the six automated cases that had never been recorded. **Stage 2 was signed off 2026-09-14**, Stage 1 and Stage 0 before it. **Stage 4 is in progress — T1 to T4 complete 2026-09-19**: three corpus files with their baselines, the stage's verdict measured before any pane exists, `SessionState`, and the three `core/doc/` read-only models; its `Implementation-Plan.md` §4 entry, [`Stage4-ViewingSurface-Plan.md`](claude-plan/Stage4-ViewingSurface-Plan.md) (D4-1 … D4-17, T1 … T14, P-1 … P-4) and [`Stage4-ViewingSurface-Testing-Guide.md`](claude-plan/Stage4-ViewingSurface-Testing-Guide.md) (79 automated, 12 manual) were all written on 2026-09-18, before any of its code. |
-| **Next action** | **Stage 4 T5** — `SidebarDock`'s pane registry and `ThumbnailsPane` (`Stage4-ViewingSurface-Plan.md` §6, D4-2 and D4-10): the first document pane, riding the shipped scheduler at `RenderPriority::Speculative` and bounded to the slots it can show. **T2's verdict says its design is unchanged.** **T1 to T4 are complete (2026-09-19)**: the corpus is 70 files and 65 golden cases, **A2 at Stage 4 is recorded as `go, with named custom work`** — the named work is **T11's** (an unfocused window enqueues at `Prefetch`), T5's pane design is unchanged, and `IAcceleratedSurface` is answered: not built — and `core/settings/SessionState` and the three `core/doc/` read-only models are in, with **I-01 (S3) open against D4-7**: guides are keyed by a `DocumentId` that the first save changes. **Its preconditions are all cleared** (`Stage4-ViewingSurface-Plan.md` §7): P-2 is `Win`+`P` → *PC screen only* and P-4 is a wheel mouse with no pen or touch, both answered 2026-09-19, each with what it does not reach recorded beside it. Nothing is owed to Stage 3. |
+| **Stage** | **Stage 3 is SIGNED OFF by the user, 2026-09-18** — thirteen tasks (T1 2026-09-14 … T13 2026-09-17), then the last two `Stage3-Mutation-Testing-Guide.md` §9 items on 2026-09-18: M-08's sign-off and the six automated cases that had never been recorded. **Stage 2 was signed off 2026-09-14**, Stage 1 and Stage 0 before it. **Stage 4 is in progress — T1 to T4 complete 2026-09-19 and T5 complete 2026-09-20**: three corpus files with their baselines, the stage's verdict measured before any pane existed, `SessionState`, the three `core/doc/` read-only models, and the sidebar's pane registry with the Thumbnails pane; its `Implementation-Plan.md` §4 entry, [`Stage4-ViewingSurface-Plan.md`](claude-plan/Stage4-ViewingSurface-Plan.md) (D4-1 … D4-17, T1 … T14, P-1 … P-4) and [`Stage4-ViewingSurface-Testing-Guide.md`](claude-plan/Stage4-ViewingSurface-Testing-Guide.md) (79 automated, 12 manual) were all written on 2026-09-18, before any of its code. |
+| **Next action** | **Stage 4 T6** — `BookmarksPane` and `DestinationsPane` (`Stage4-ViewingSurface-Plan.md` §6, D4-2 and D4-3): **navigation only**, over the two `core/doc/` models T4 already read, into the pane registry T5 built. Every EDITING row in §8's Bookmarks table stays unregistered and leaves its key alone — that is the task's control, and Stage 7 owns the other half. It also re-reads two cases T5 could not finish: **A-30**, whose *opening a pane reads nothing from the engine* half needs a pane over a model, and **A-37**, written against a list of THREE. **T1 to T5 are complete** (T1–T4 2026-09-19, T5 2026-09-20): the corpus is 70 files and 65 golden cases; **A2 at Stage 4 is recorded as `go, with named custom work`** — the named work is **T11's** (an unfocused window enqueues at `Prefetch`), and `IAcceleratedSurface` is answered: not built; `core/settings/SessionState` and the three `core/doc/` read-only models are in, with **I-01 (S3) open against D4-7** (guides are keyed by a `DocumentId` that the first save changes, revisited at T13); and the sidebar hosts its first real pane, riding the shipped scheduler at `RenderPriority::Speculative` and bounded to the slots it can show. **Its preconditions are all cleared** (`Stage4-ViewingSurface-Plan.md` §7): P-2 is `Win`+`P` → *PC screen only* and P-4 is a wheel mouse with no pen or touch, both answered 2026-09-19, each with what it does not reach recorded beside it. Nothing is owed to Stage 3. |
 | **Then** | Stage 4's code, task by task, each task updating `Architecture-FileMap.md` rows and the `Implementation-Plan.md` §4 status block in the same change. |
 | **Authority for status** | The **Stage 0 to Stage 3 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **965/965** on `x64-release` and **965/965** on `x64-debug`, one explicitly skipped (the battery case, on a desktop that has none) — re-measured on both presets at Stage 4 T4, 2026-09-19. The `gates` preset is 124/124 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **985/985** on `x64-release` and **985/985** on `x64-debug`, one explicitly skipped (the battery case, on a desktop that has none) — re-measured on both presets at Stage 4 T5, 2026-09-20. The `gates` preset is 124/124 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 192 controls), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -35,6 +35,7 @@ modes, type a page number, pan, marquee-zoom, and read a banner saying a file wa
 `SaveCoordinator`, `pdf/ops/RevisionWriter` and `platform::IDurableFiles` save a rotation over the
 whole editable corpus in tests — and **since T10 a person reaches it**: `Ctrl+R` rotates pages, `Ctrl+Z`/`Ctrl+Y` undo and redo,
 `Ctrl+S`/`Ctrl+Shift+S` save, and closing a changed document asks first. **Since T11 a launch after a crash offers what was not saved**: recover it — into the file, or into an untitled document when the file changed — discard it, or decide later.
+**And since Stage 4 T5 the sidebar holds a real pane**: page thumbnails, one per page with its label, which a click or `Enter` navigates by, `↑`/`↓` walk, `+`/`-` resize, and `Ctrl+R` rotates through Stage 3's command — rendered on the same scheduler and cache as the page, at `Speculative`, and bounded to what the pane can show.
 
 **What is deliberately absent, so it is not reported as a defect.** `platform::IAcceleratedSurface`
 is declared and unimplemented, and **Stage 4 T2 decided on 2026-09-19 that it stays that way** — the row
@@ -48,8 +49,9 @@ runs through our own policy but has **no UI**: only the log names the face. `pag
 is a checkbox that does nothing — **I-06** and **I-11** (`Stage2-Rendering-Testing-Guide.md` §8) are
 both open **by decision**, each a feature the engine or the licence cannot deliver, kept as a
 declared-and-inert surface so there is a row to fill in the day the constraint lifts. Thirteen §8 Viewer chords (re-counted 2026-09-15, Stage 3 T10) stay `NotFound` and deliberately leave the key unconsumed. `Select` arms a tool that selects
-nothing until Stage 5. **308 of 361 declared commands are unregistered**, which is the honest state
-rather than a shortcut.
+nothing until Stage 5. **304 of 361 declared commands are unregistered** (re-derived 2026-09-20, Stage 4 T5), which is the honest state
+rather than a shortcut — including the nine §8 Page Thumbnails rows that need a `Command`, and the seven
+`Ctrl+Shift+*` panes whose models do not exist, each of which leaves its key unconsumed.
 
 **Two verdicts worth knowing before quoting a number.** **A2 = `go` on both of D2-1's measurements**
 — probe p95 **0.532 ms** of engine service time, product p95 **13.03–13.20 ms** of queued latency against
@@ -410,7 +412,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 965/965 as of Stage 4 T4, 1 skipped
+ctest --preset x64-release --output-on-failure        # 985/985 as of Stage 4 T5, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -450,7 +452,7 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 .\build\x64-debug\bin\rawpage.exe   --crash-test           # debug only; writes a minidump
 .\scripts\symbolize.ps1 -Dump <path.dmp>                   # resolves the faulting frame
 .\build\x64-release\bin\rawpage.exe --dump-ui-strings     # every shell key + action label, resolved
-.\build\x64-release\bin\rawpage.exe --list-actions        # 361 declared / 53 registered / 308 not (S3 T10), + effective chords (A-72)
+.\build\x64-release\bin\rawpage.exe --list-actions        # 361 declared / 57 registered / 304 not (S4 T5), + effective chords (A-72)
 .\build\x64-release\bin\rawpage.exe --print-screen-metrics # the QScreen-to-MonitorInfo join, and which source won (I-20)
 .\build\x64-release\bin\rawpage.exe --lang zh-TW --dump-ui-strings   # guide case A-72
 .\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error

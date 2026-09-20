@@ -94,11 +94,24 @@ add_library(rawpage_ui STATIC
     viewer/PageLayoutEngine.cpp
     viewer/TilePresenter.h
     viewer/TilePresenter.cpp
+
+    # S4 T5. The engine boundary's Qt side, extracted from TilePresenter when the thumbnails pane
+    # became its second consumer: a QImage over a RasterImage's bytes, HELD TOGETHER with them.
+    # Both of its mistakes -- ignoring bytesPerLine, and letting the buffer die under a borrowing
+    # QImage -- are silent, which is why there is one of it rather than two.
+    viewer/HeldRaster.h
+    viewer/HeldRaster.cpp
     viewer/PageView.h
     viewer/PageView.cpp
 
     panes/LogPane.h
     panes/LogPane.cpp
+
+    # S4 T5 -- the first pane that is a view of a DOCUMENT, and the first product caller of
+    # RenderPriority::Speculative. It is a VIEWPORT over the page set rather than a view of it
+    # (D4-10): a 900-page document costs the visible slots plus one screen, never 900 requests.
+    panes/ThumbnailsPane.h
+    panes/ThumbnailsPane.cpp
     dialogs/SettingsPage.h
     dialogs/SettingsPage.cpp
     dialogs/ShortcutsPage.h

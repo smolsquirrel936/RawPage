@@ -71,9 +71,9 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // FIFTY-THREE, and named. 361 ids are declared; an id that is declared and UNREGISTERED
+    // FIFTY-SEVEN, and named. 361 ids are declared; an id that is declared and UNREGISTERED
     // renders as a visible, disabled control saying it is not built yet, which is the honest state.
-    // Registering a stub handler for the other 308 would make every one of them look available.
+    // Registering a stub handler for the other 304 would make every one of them look available.
     //
     // Nineteen at Stage 1 T14. Three joined on 2026-08-31, each because a manual walk reached for
     // something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
@@ -83,11 +83,15 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // lists, and not one id beyond it -- the rest of that table belongs to Stages 3 to 13 and stays
     // unregistered, which is asserted below rather than assumed. **Five more at Stage 3 T10**: `edit.undo`,
     // `edit.redo`, `page.rotate`, `file.save` and `file.saveAs` (`Stage3-Mutation-Plan.md` §6).
+    // **Four more at Stage 4 T5**: `pane.thumbnails`, `page.goToSelected`, `page.thumbnailsLarger`
+    // and `page.thumbnailsSmaller` -- the Thumbnails pane and the three §8 Page Thumbnails rows it
+    // services. `page.rotate` is in that table too and is NOT a fifth: the pane reaches Stage 3's
+    // registration by declaring its context, which is D4-1's claim made structural.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 53);
+    CHECK(fixture.actions.registeredCount() == 57);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -144,8 +148,26 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::EditRedo));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSave));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveAs));
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));      // S4
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));      // S5 (D4-15)
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));    // S6
+
+    // S4 T5's FOUR: the Thumbnails pane and the three §8 Page Thumbnails rows it services. The
+    // other nine rows in that table need a `Command` and are Stage 7's, so they stay unregistered
+    // and leave their keys unconsumed -- D4-1, and `tst_panes` presses each of them to prove it.
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneThumbnails));
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageGoToSelected));
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageThumbnailsLarger));
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageThumbnailsSmaller));
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageSelectAll));     // S7
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageDelete));        // S7
+
+    // And the seven panes whose MODELS do not exist are not registered either (D4-2): a pane
+    // cannot precede its model, and a chord that opened an empty dock would be indistinguishable
+    // from a pane that is broken. `pane.bookmarks` and `pane.destinations` arrive at T6.
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneBookmarks));     // S4 T6
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneDestinations));  // S4 T6
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneComments));      // S6
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneLayers));        // S7
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op. `file.print` is one of the ~310 that are declared and

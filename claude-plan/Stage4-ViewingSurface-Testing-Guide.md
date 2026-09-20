@@ -6,9 +6,11 @@
 > **before any Stage 4 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** ⚪ **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off.
-> No case has a result.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12). No issue is
-> open, because none has been raised: §8 is empty and stays empty until something is run or read.
+> **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
+> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **26 of the 79 carry
+> a result** as of 2026-09-20 — T1's corpus cases, T2's four A2 cases, T3's seven session cases,
+> T4's four reader cases and **T5's seven pane cases**. **No manual case has been walked.** §8 holds
+> four issues: **I-01 open (S3)**, I-02, I-03 and I-04 closed.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -383,19 +385,23 @@ green its cases did not record.
 
 ### 5.7 The panes (T5, T6)
 
-**A-31 · The Thumbnails pane declares its context, and its chords resolve from a KEY EVENT** ☐
+**A-31 · The Thumbnails pane declares its context, and its chords resolve from a KEY EVENT**
+✅ **2026-09-20, T5.** `ui.` — `activeContext()` answers `PageThumbnails` through the WINDOW'S OWN binder with the focus in the pane, and every chord below is a real `QKeyEvent` sent to the focus widget, not an `activate()` call on a chord. **`Enter` is asserted on the EFFECT** (rule 1): the VIEW moved to the selected page, not that `page.goToSelected` dispatched. The four arrows move the selection and **leave the view where it was** — the control that separates *move the selection* from *navigate*. **`Ctrl+R` is consumed by Stage 3's `page.rotate`** in this context and the pane constructs nothing; what that does NOT cover is stated at the assertion — the dialog is refused offscreen (convention 16), so the rotation itself stays `tst_mutationcommands`' A-75. **The control found I-04** (§8): two of the nine Stage 7 rows were consumed on its first run.
 **Goal** `KeyContext::PageThumbnails` has been reachable in tests only since Stage 3 T10 (D3-13).
 **Expect** With focus in the pane, `activeContext()` is `PageThumbnails`; `Enter`, `+`, `-` and the arrows do what §8 says, sent as key events to a shown, laid-out widget (rule 4); **`Ctrl+R` dispatches Stage 3's `page.rotate`**, and the pane itself constructs nothing (D4-1). **If it fails** S2.
 
-**A-32 · The pane is a viewport, not a document** ☐
+**A-32 · The pane is a viewport, not a document**
+✅ **2026-09-20, T5.** `ui.` over a 900-page document, laid out in a 1200×900 window: the pane enqueues the **visible slots plus one screen of margin each way** and the census is bounded by 3× the visible count and by 60 absolutely — never 900. Every visible slot IS among them, so the bound was not met by asking for less than is on screen. **The control is a second document**: twelve pages and nine hundred cost the same, which is the assertion a pane that asked for the document would fail. A long scroll drops the pages that left (the first page before it is gone from the set afterwards) and the bound still holds after the scroll. **What it does not cover, stated at the case:** the priority as the SCHEDULER recorded it — `RenderTicket` carries none back — which is T2's bench (A-16), instrumented at the enqueue over the same scheduler.
 **Goal** D4-10's bound.
 **Steps** Open `pages-900.pdf`, show the pane, record every enqueued request.
 **Expect** Only the visible thumbnail slots plus the stated margin are enqueued, **all at `Speculative`**; scrolling the pane cancels what left and enqueues what arrived; **the control** — the count does not grow with the document's page count. **If it fails** S1 for 900 requests; S2 for a wrong priority.
 
-**A-33 · Clicking a thumbnail moves the view, and the view moves the selection — without a loop** ☐
+**A-33 · Clicking a thumbnail moves the view, and the view moves the selection — without a loop**
+✅ **2026-09-20, T5.** `ui.` — a counter on the pane's gesture signal asserts **exactly one round per gesture**, in both directions: activating a thumbnail moves the view to that page and the pane's selection follows, with the count still 1; and `goToPage` from the view moves the pane's selection with the count still **0**. The termination is structural rather than guarded — `activated()` is emitted only by a gesture and `setCurrentPage()` emits nothing — so there is no window in which a flag could be missed.
 **Expect** A click scrolls the view to that page and records a view-history entry; scrolling the view updates the pane's selection; **neither triggers the other a second time** (a counter asserts exactly one round per gesture). **If it fails** S2 — a feedback loop here is a scroll that fights the user.
 
-**A-34 · Thumbnail size, and its bounds** ☐
+**A-34 · Thumbnail size, and its bounds**
+✅ **2026-09-20, T5.** `ui.` — `+` and `-` step the size from a key event and return to where they started. The bounds are **walked** rather than checked at one step (a clamp in `setThumbnailWidth` and forgotten in `larger()` would pass a single step): twenty steps land exactly on the maximum, a twenty-first does not move it, and the command reports itself **unavailable** at the bound rather than refusing after the press (convention 16). The size survives closing and reopening the pane **in one session**; surviving a restart is `SessionState`'s at T13, and D4-5 declares no key for it. A third case asserts that a new size **re-keys** every request — `deviceScale` and the tile width both grow — rather than scaling what is held, which would be a column that never sharpens (D2-12).
 **Expect** `+`/`-` step the size between a minimum and a maximum; the size survives closing and reopening the pane in one session; a size at the bound does not step past it. **If it fails** S3.
 
 **A-35 · The Bookmarks pane navigates, and edits nothing** ☐
@@ -404,14 +410,17 @@ green its cases did not record.
 **A-36 · The Destinations pane lists and navigates** ☐
 **Expect** Over `dests-named.pdf`: every resolvable destination listed with its name and page, sortable; the dangling one shown as unresolvable rather than omitted silently; activating one moves the view. **If it fails** S2.
 
-**A-37 · The sidebar lists only panes that exist** ☐
+**A-37 · The sidebar lists only panes that exist**
+✅ **2026-09-20, T5, for the one pane that exists.** `ui.` — the registry holds exactly **one** entry, `pane.thumbnails`, and the chooser built from it holds one row and is hidden entirely; there is no greyed row and no placeholder row, and `paneWidget(PaneBookmarks)` is null rather than a stub. Each of the seven unbuilt `Ctrl+Shift+*` chords is unregistered, **leaves its key unconsumed**, and adds nothing to the list. `Ctrl+Shift+P` from the Viewer shows the sidebar, selects the pane and **moves the focus into it**, which is asserted through `activeContext()` becoming `PageThumbnails`. **Re-read at T6**, when the list becomes three and the chooser becomes visible — the case as written says *exactly Thumbnails, Bookmarks and Destinations*, and two of those do not exist yet.
 **Goal** D4-2.
 **Expect** The pane list holds exactly Thumbnails, Bookmarks and Destinations (plus the bottom log dock, which is a view of the application, not of the document); the seven remaining `Ctrl+Shift+*` chords are `NotImplemented` and leave the key alone; **no greyed or placeholder row appears**. **If it fails** S2 — Stage 2's I-11 shape.
 
-**A-38 · Dock, float, auto-hide and peek still work with real content in them** ☐
+**A-38 · Dock, float, auto-hide and peek still work with real content in them**
+✅ **2026-09-20, T5, offscreen.** `ui.` — Stage 1's behaviours re-asserted with a pane rather than a label: width memory survives an auto-hide, `peek()` reveals **without pinning** (`isAutoHidden()` stays true through it, which is what I-39's strip logic asks about), `unpeek()` puts it back, and docking right then left leaves the pane laid out with a **non-zero** visible count each time — the assertion that would catch a pane that came back 0 pixels wide. **What this does not cover** (convention 19): the pointer ARRIVING on the edge strip (I-37), which is a hover no synthetic run reproduces, and floating the dock into its own top-level window, where the binder's `window() == scope_` test means a chord resolves differently. Both are manual **M-07**'s.
 **Expect** Stage 1's `SidebarDock` behaviours, re-asserted with a pane rather than a placeholder: dock left and right, float, auto-hide, the strip peeking on pointer arrival (Stage 1's I-37) and the strip disappearing while the pane is out (I-39). **If it fails** S2.
 
-**A-39 · Two documents, two pane states** ☐
+**A-39 · Two documents, two pane states**
+✅ **2026-09-20, T5.** `ui.` — two documents with **different page counts**, so *which document the pane is showing* is a question its own state can answer; two identical documents would make a pane that never switched indistinguishable from one that did. Switching tabs gives the new document's page count and handle, and the pane is **the same object** — not a rebuild, which is what keeps a tab switch from discarding thumbnails the one worker had just produced. Every request afterwards names the new handle, so no ticket into the previous document survives. A second case closes the last document and asserts the pane empties and holds **no ticket into a handle its window has closed** — the half that would be a use-after-free in the backend rather than a cosmetic error.
 **Expect** Switching tabs shows the new document's thumbnails, bookmarks and destinations — not the previous document's, and not a rebuild of an identical pane. **If it fails** S2.
 
 ### 5.8 Tools (T7)
@@ -764,15 +773,16 @@ Behaviours that look like defects and are not. **A wrong row here is worse than 
 
 ## 8. Issue log
 
-Numbered `I-nn`, **this stage's own namespace**. Empty: nothing has been run or read yet. The first
-entry will carry its mechanism, why the suite missed it, and the control that was run red before the
-fix — the shape every earlier stage's log uses.
+Numbered `I-nn`, **this stage's own namespace**. Each entry carries its mechanism, why the suite
+missed it, and the control that was run red before the fix — the shape every earlier stage's log
+uses.
 
 | # | Sev | Title | State |
 |---|---|---|---|
 | **I-01** | **S3** | **Guides are keyed by `DocumentId`, and a save changes the `DocumentId`** | ⚪ **Open — owned by D4-7, revisited at T13** |
 | **I-02** | **S4** | **Seven new Catch2 case names carried a COMMA, so none could be selected by name** | ✅ **Closed 2026-09-19 at T4**, by renaming them |
 | **I-03** | **S3** | **A Qt 6.5+ API in `core/` broke both Linux jobs: the portable subset builds against Ubuntu's Qt 6.4** | ✅ **Closed 2026-09-19**, and written up as **convention 24** |
+| **I-04** | **S2** | **The Thumbnails pane swallowed `Alt+↑`/`Alt+↓` and moved the selection — a Stage 7 chord doing something plausible and wrong** | ✅ **Closed 2026-09-20 at T5**, in two places: the pane, and Qt's scroll area behind it |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -798,6 +808,16 @@ The second is the one that matters in use: rotate a page, press `Ctrl+S`, and th
 **I-03 · `core/` used a Qt API newer than the Qt its own CI builds it against.** *(Raised by CI run 35396454515 on T4's push, 2026-09-19; fixed the same day.)*
 
 **Mechanism.** `core/doc/Metadata::parseDate` applied a date's UTC offset with `QTimeZone::fromSecondsAheadOfUtc`, which Qt added in **6.5**. Local builds and the Windows job use the pinned **Qt 6.11.1** and compiled it clean; `portable-asan` and `portable-fuzz` build `core/`, `pdf/cos/` and `pdf/ops/` on `ubuntu-latest` against `qt6-base-dev`, which is **6.4**. Both failed at the first object file: *‘fromSecondsAheadOfUtc’ is not a member of ‘QTimeZone’*. **Fixed with `QTimeZone(int)`** — the same thing, present since Qt 5.2, and not deprecated in 6.11, which was settled by reading the pinned Qt's own header rather than remembered.
+
+**I-04 · A pane's arrow handler ate a chord that belongs to a later stage — and so did Qt, behind it.** *(Raised and closed 2026-09-20 at T5, by the CONTROL case rather than by the case.)*
+
+**Mechanism.** §8's Page Thumbnails table binds `Alt+↑` and `Alt+↓` to `page.moveEarlier` and `page.moveLater` — Stage 7's commands, deliberately unregistered here (D4-1, §11). An unregistered id resolves to `NotImplemented`, which by design does **not** consume the key, so the event reaches the focused widget. `ThumbnailsPane::keyPressEvent` switched on `event->key()` and never looked at `event->modifiers()`, so `Alt+↑` arrived as a bare `Up` and **moved the selection**. Not a no-op and not an error: a documented chord doing something plausible and wrong, which is worse than doing nothing, and a landmine for the stage that implements it — Stage 7 would have found a selection walking under its own reorder.
+
+**Then it did not go away.** Testing the modifiers and falling through to the base class left the control still red, and the second consumer is the one that would not have been guessed: **`QAbstractScrollArea::keyPressEvent` scrolls on an arrow key and does not look at the modifiers either.** So the key was still consumed, by Qt, one layer below the fix. The repair is to `ignore()` a modified arrow and return without calling the base — *leave the key alone* means the widget lets go of it too, not only the binder.
+
+**Why the suite did not catch it — and what did.** No positive case could: every case about the arrows asserts that they move the selection, which they did. It was found by the case written from **what must NOT happen** (convention 22, guide rule 5), which presses each of the nine Stage 7 rows and requires the key to come back unconsumed. Two of the nine were red on its first run. The same case is what refused to go green after the incomplete first fix, which is convention 7 earning its keep twice in one task: a control that fires for the right reason keeps firing until the reason is gone.
+
+**What this does not cover** (convention 19). The control asserts that the key is *not consumed*, which is the claim §8 makes at Stage 4. It does not assert what `Alt+↑` eventually reaches — nothing, today — and it will need re-reading at Stage 7, when the chord acquires a command and the binder consumes it before the widget ever sees it.
 
 **Why the suite did not catch it.** It structurally cannot. Every local preset and the Windows job use one Qt; the only build that uses the other is on Linux, on a runner, after the push. 965/965 on both Windows presets and four clean gates said nothing about it.
 

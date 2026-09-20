@@ -65,6 +65,7 @@ class ActionFactory;
 class DocumentTabBar;
 class DocumentWindow;
 class LogPane;
+class ThumbnailsPane;
 class MessageBar;
 class PageView;
 class PreferencesDialog;
@@ -215,6 +216,11 @@ public:
     // log pane showing is a shell that looks like it is in trouble. `pane.log` toggles it.
     LogPane*            logPane() const { return logPane_; }
 
+    // The document panes the sidebar hosts -- Stage 4 T5. ONE PER WINDOW, re-pointed at the tab in
+    // front by `updateDocumentPanes()`; see the construction comment for why it is not one per
+    // document. Null only before `buildCentralSurface()` has run.
+    ThumbnailsPane*     thumbnailsPane() const { return thumbnails_; }
+
     // The Preferences dialog, built on first use and kept. Null until `file.preferences` has been
     // dispatched once. Modeless, so this is not a blocking call's return value -- see
     // `ui/dialogs/PreferencesDialog.h` for why modeless is the load-bearing choice.
@@ -285,6 +291,10 @@ private:
     // from the document set. One function, called after every change to it: four call sites each
     // updating three of the four is how a title bar ends up naming a closed document.
     void updateDocumentChrome();
+
+    // Points the sidebar's panes at the document in front -- Stage 4 T5. Called from
+    // `updateDocumentChrome()`, so a tab switch, an open and a close all take one path.
+    void updateDocumentPanes();
 
     // The tab texts and the window title, with the dirty marker (Stage 3 T10). Separate from
     // `updateDocumentChrome()` because a mutation moves the marker and must NOT re-raise the document's
@@ -361,8 +371,9 @@ private:
     QStackedWidget* documents_ = nullptr;
     QWidget*        placeholder_ = nullptr;
 
-    SidebarDock* sidebar_ = nullptr;
-    LogPane*     logPane_ = nullptr;
+    SidebarDock*    sidebar_ = nullptr;
+    ThumbnailsPane* thumbnails_ = nullptr;
+    LogPane*        logPane_ = nullptr;
     StatusBar*   status_ = nullptr;
     MessageBar*  messageBar_ = nullptr;
 

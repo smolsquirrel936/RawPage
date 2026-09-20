@@ -3,12 +3,16 @@
 #include "core/cmd/ActionRegistry.h"
 #include "ui/shell/Catalog.h"
 
+#include <QComboBox>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QResizeEvent>
+#include <QStackedWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace rawpage::ui {
 namespace {
@@ -52,9 +56,9 @@ SidebarDock::SidebarDock(core::ActionRegistry& actions, QWidget* parent)
     titleLayout->setContentsMargins(8, 2, 2, 2);
     titleLayout->setSpacing(2);
 
-    auto* titleLabel = new QLabel(catalog::translate(catalog::key::SidebarTitle), titleBar);
-    titleLabel->setObjectName(QStringLiteral("sidebarTitleLabel"));
-    titleLayout->addWidget(titleLabel);
+    titleLabel_ = new QLabel(catalog::translate(catalog::key::SidebarTitle), titleBar);
+    titleLabel_->setObjectName(QStringLiteral("sidebarTitleLabel"));
+    titleLayout->addWidget(titleLabel_);
     titleLayout->addStretch(1);
 
     auto* pinButton = makeChromeButton(catalog::translate(catalog::key::SidebarAutoHide),
@@ -88,14 +92,44 @@ SidebarDock::SidebarDock(core::ActionRegistry& actions, QWidget* parent)
     auto* body = new QWidget(this);
     body->setObjectName(QStringLiteral("sidebarBody"));
     auto* bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(12, 12, 12, 12);
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+    bodyLayout->setSpacing(0);
 
-    placeholder_ = new QLabel(catalog::translate(catalog::key::SidebarEmpty), body);
+    // THE PANE CHOOSER, and it DISPATCHES rather than switching the stack itself. Selecting a pane
+    // is `pane.thumbnails` -- a declared command with a §8 chord, reachable from the ribbon, the
+    // tool finder and the Stage 14 batch runner -- so a combo that called `showPane()` directly
+    // would be a second way to do the same thing that none of those three could share. It is the
+    // close button's argument (above), arriving at the one other control here that has an id.
+    //
+    // Hidden while there are fewer than two panes: a chooser with one entry is furniture.
+    chooser_ = new QComboBox(body);
+    chooser_->setObjectName(QStringLiteral("sidebarPaneChooser"));
+    chooser_->hide();
+    connect(chooser_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (suppressChooserSignal_ || index < 0 || index >= static_cast<int>(panes_.size())) return;
+        const core::ActionId id = panes_[static_cast<std::size_t>(index)].id;
+        const core::Result<void> dispatched = actions_.dispatch(id, core::KeyContext::Global);
+        if (!dispatched) showPane(id);   // unregistered: still switch, as the close button still closes
+    });
+    bodyLayout->addWidget(chooser_);
+
+    stack_ = new QStackedWidget(body);
+    stack_->setObjectName(QStringLiteral("sidebarPaneStack"));
+
+    // PAGE 0 IS THE PLACEHOLDER, and it is what a shell with no panes registered shows. Its wrapper
+    // carries the margins the panes do not want: a thumbnail column draws to its own edges.
+    auto* placeholderPage = new QWidget(stack_);
+    auto* placeholderLayout = new QVBoxLayout(placeholderPage);
+    placeholderLayout->setContentsMargins(12, 12, 12, 12);
+    placeholder_ = new QLabel(catalog::translate(catalog::key::SidebarEmpty), placeholderPage);
     placeholder_->setObjectName(QStringLiteral("sidebarPlaceholder"));
     placeholder_->setWordWrap(true);
     placeholder_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    bodyLayout->addWidget(placeholder_);
-    bodyLayout->addStretch(1);
+    placeholderLayout->addWidget(placeholder_);
+    placeholderLayout->addStretch(1);
+    stack_->addWidget(placeholderPage);
+
+    bodyLayout->addWidget(stack_, 1);
 
     setWidget(body);
     updateTitleBarState();
@@ -106,6 +140,87 @@ SidebarDock::~SidebarDock() = default;
 void SidebarDock::setPlaceholderText(const QString& text)
 {
     if (placeholder_ != nullptr) placeholder_->setText(text);
+}
+
+// =============================================================================================
+// The pane registry -- D4-2
+// =============================================================================================
+
+bool SidebarDock::addPane(core::ActionId id, const QString& title, QWidget* pane)
+{
+    if (pane == nullptr) return false;
+    if (std::any_of(panes_.begin(), panes_.end(), [id](const Pane& p) { return p.id == id; }))
+        return false;
+
+    panes_.push_back(Pane{id, title, pane});
+    stack_->addWidget(pane);
+    updateChooser();
+
+    // THE FIRST PANE COMES TO THE FRONT, which is what makes the placeholder invisible from the
+    // moment one exists rather than after the first click.
+    if (panes_.size() == 1) showPane(id);
+    return true;
+}
+
+bool SidebarDock::showPane(core::ActionId id)
+{
+    const auto found = std::find_if(panes_.begin(), panes_.end(),
+                                    [id](const Pane& p) { return p.id == id; });
+    if (found == panes_.end()) return false;
+
+    stack_->setCurrentWidget(found->widget);
+
+    // The title names the pane in front rather than saying "Panes", because a dock showing
+    // thumbnails under a heading that says "Panes" tells the reader nothing they cannot already
+    // see. The chooser follows without re-dispatching -- see `suppressChooserSignal_`.
+    if (titleLabel_ != nullptr) titleLabel_->setText(found->title);
+    if (chooser_ != nullptr) {
+        const auto index = static_cast<int>(std::distance(panes_.begin(), found));
+        if (chooser_->currentIndex() != index) {
+            suppressChooserSignal_ = true;
+            chooser_->setCurrentIndex(index);
+            suppressChooserSignal_ = false;
+        }
+    }
+
+    emit currentPaneChanged(id);
+    return true;
+}
+
+std::optional<core::ActionId> SidebarDock::currentPane() const
+{
+    if (panes_.empty() || stack_ == nullptr) return std::nullopt;
+    const QWidget* front = stack_->currentWidget();
+    for (const Pane& pane : panes_)
+        if (pane.widget == front) return pane.id;
+    return std::nullopt;
+}
+
+QWidget* SidebarDock::paneWidget(core::ActionId id) const
+{
+    for (const Pane& pane : panes_)
+        if (pane.id == id) return pane.widget;
+    return nullptr;
+}
+
+void SidebarDock::updateChooser()
+{
+    if (chooser_ == nullptr) return;
+
+    // REBUILT FROM `panes_`, never appended to. A combo maintained incrementally beside a vector is
+    // two lists of the same thing, which is the shape convention 17 is about: the surface reads the
+    // table rather than a running description of it.
+    suppressChooserSignal_ = true;
+    const std::optional<core::ActionId> front = currentPane();
+    chooser_->clear();
+    for (const Pane& pane : panes_) chooser_->addItem(pane.title);
+    if (front) {
+        for (std::size_t i = 0; i < panes_.size(); ++i)
+            if (panes_[i].id == *front) chooser_->setCurrentIndex(static_cast<int>(i));
+    }
+    suppressChooserSignal_ = false;
+
+    chooser_->setVisible(panes_.size() > 1);
 }
 
 void SidebarDock::setRememberedWidth(int width)

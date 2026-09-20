@@ -12,6 +12,7 @@
 #include "platform/platform.h"
 #include "ui/dialogs/PreferencesDialog.h"
 #include "ui/panes/LogPane.h"
+#include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentTabBar.h"
@@ -172,6 +173,25 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     sidebar_ = new SidebarDock(services_.actions, this);
     addDockWidget(Qt::LeftDockWidgetArea, sidebar_);
     resizeDocks({sidebar_}, {sidebar_->rememberedWidth()}, Qt::Horizontal);
+
+    // THE DOCUMENT PANES -- Stage 4 T5, D4-2. ONE PANE PER WINDOW, RE-POINTED AT WHICHEVER TAB IS IN
+    // FRONT, never one pane per document: a pane rebuilt on every tab switch would throw away the
+    // thumbnails it had just rendered and ask the one worker for them again, which is the cost
+    // D4-10 exists to bound. `updateDocumentPanes()` is what re-points it.
+    //
+    // Only Thumbnails at T5; Bookmarks and Destinations are T6's and are registered there. The
+    // other seven panes in `Features.md` §1.1 are not listed at all until their models exist --
+    // D4-2, and the reason the registry has no notion of a disabled row.
+    thumbnails_ = new ThumbnailsPane(services_.renderScheduler, sidebar_);
+    sidebar_->addPane(core::ActionId::PaneThumbnails,
+                      catalog::translate(catalog::key::PanesThumbnailsTitle), thumbnails_);
+
+    // ONE DIRECTION PER GESTURE (plan §5.3). The pane emits only on a gesture and `setCurrentPage`
+    // emits nothing, so this connection cannot come back around: the view's `viewChanged` reaches
+    // `updateViewChrome()`, which sets the selection silently.
+    connect(thumbnails_, &ThumbnailsPane::activated, this, [this](int pageIndex) {
+        if (PageView* view = currentView()) view->goToPage(pageIndex);
+    });
 
     // THE LOG PANE -- T14. Its own dock along the bottom rather than a pane in the sidebar: the
     // sidebar's subject is the document and the log's is the application. Hidden, because a shell
@@ -535,8 +555,17 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     // and moves the dirty marker; a recovery journal that stopped recording becomes a banner the document
     // keeps. Disconnected in `releaseDocument`, so a tab torn off into another window stops reaching this one.
     disconnect(document, nullptr, this, nullptr);
-    connect(document, &DocumentWindow::mutated, this, [this] {
+    connect(document, &DocumentWindow::mutated, this, [this, document] {
         updateDocumentTitles();
+        // THE PANE IS TOLD THE NEW REVISION, not re-pointed at the document (Stage 4 T5). A
+        // `setDocument` would reset the selection and the scroll, so rotating page 40 would send
+        // the pane back to page 1 -- and the revision is part of every request's key, so a pane
+        // that was not told would show the un-rotated page with no error and no failing test
+        // (D2-12's argument, arriving at the second consumer of the scheduler).
+        if (thumbnails_ && document == currentDocument()) {
+            if (const core::CommandJournal* journal = document->journal())
+                thumbnails_->modelChanged(journal->revision());
+        }
         updateViewChrome();
     });
     connect(document, &DocumentWindow::dirtyChanged, this, [this](bool) {
@@ -971,6 +1000,8 @@ void MainWindow::updateDocumentChrome()
                                     : catalog::translate(catalog::key::StatusNoDocument));
     }
 
+    updateDocumentPanes();
+
     if (messageBar_) {
         // THE BANNER BELONGS TO THE TAB, not to the window. A "this file was repaired" banner left
         // on screen over the document that replaced it is worse than no banner: it is a false
@@ -1368,6 +1399,30 @@ PageView* MainWindow::currentView() const
     return document ? document->view() : nullptr;
 }
 
+void MainWindow::updateDocumentPanes()
+{
+    if (!thumbnails_) return;
+
+    DocumentWindow* current = currentDocument();
+    if (current == nullptr) {
+        thumbnails_->setDocument({}, {}, nullptr);
+        return;
+    }
+
+    // THE MODEL'S TREE FOR WHAT IS SHOWN, THE ENGINE'S FOR THE DELTA (D3-15) -- the same pair
+    // `DocumentWindow` hands `PageView`, so an unsaved rotation is in the thumbnail and in the page
+    // for the same reason and at the same revision. A document the backend would not hydrate has no
+    // journal, and the engine's tree stands alone.
+    if (const core::CommandJournal* journal = current->journal()) {
+        thumbnails_->setDocument(current->handle(), journal->revision(),
+                                 &journal->document().pages(),
+                                 services_.backend.pages(current->handle()));
+    } else {
+        thumbnails_->setDocument(current->handle(), current->revision(),
+                                 services_.backend.pages(current->handle()));
+    }
+}
+
 void MainWindow::updateViewChrome()
 {
     if (status_) {
@@ -1375,6 +1430,14 @@ void MainWindow::updateViewChrome()
             status_->setPageState(view->controller().currentPage(), view->pageCount());
             status_->setZoom(view->controller().zoom().factor);
         }
+    }
+
+    // THE PANE FOLLOWS THE VIEW, SILENTLY. `setCurrentPage` emits nothing (see `ThumbnailsPane.h`),
+    // which is what makes this safe to call from the very signal a pane click ends up producing --
+    // the structural answer to a selection and a scroll chasing each other.
+    if (thumbnails_) {
+        if (const PageView* view = currentView())
+            thumbnails_->setCurrentPage(view->controller().currentPage());
     }
 
     // EVERY ACTION IS RE-ASKED, not only the ones that obviously moved. Enablement predicates read
@@ -1570,6 +1633,68 @@ void MainWindow::registerActions()
         for (auto it = windows.crbegin(); it != windows.crend(); ++it)
             if (!(*it)->close()) return;
     });
+
+    // --- The document panes (S4 · T5, D4-2) --------------------------------------------------
+    // FOUR IDS, and not one more. `pane.thumbnails` opens the pane; `page.goToSelected`,
+    // `page.thumbnailsLarger` and `page.thumbnailsSmaller` are the three §8 Page Thumbnails rows
+    // this stage services. `Ctrl+R` is in that table too and is NOT here: `page.rotate` was
+    // registered at Stage 3 T10 and the pane reaches it by declaring its context and nothing else,
+    // which is D4-1's claim made structural rather than promised.
+    //
+    // The other nine rows in that table -- delete, cut, copy, paste, move earlier/later, extract,
+    // duplicate, select-all -- are Stage 7's and stay unregistered, so their keys reach the widget
+    // unconsumed rather than being swallowed by a handler that does nothing.
+    const auto activeThumbnails = []() -> ThumbnailsPane* {
+        MainWindow* window = activeShell();
+        return window ? window->thumbnailsPane() : nullptr;
+    };
+
+    registerAction(ActionId::PaneThumbnails, [activeThumbnails](KeyContext) {
+        MainWindow* window = activeShell();
+        if (!window || !window->sidebar()) return;
+
+        // SHOW, SELECT, FOCUS -- in that order, and all three. A command that selected a pane
+        // inside a sidebar that is closed or auto-hidden would read as doing nothing; and the focus
+        // is what makes the §8 Page Thumbnails table live, because `activeContext()` is computed
+        // from the focus chain (D1-5).
+        window->sidebar()->setAutoHidden(false);
+        window->sidebar()->show();
+        window->sidebar()->showPane(ActionId::PaneThumbnails);
+        if (ThumbnailsPane* pane = activeThumbnails()) pane->setFocus(Qt::OtherFocusReason);
+    });
+
+    // THE THREE PANE-CONTEXT COMMANDS. Each is DISABLED where there is no pane to act on rather
+    // than refused after the press -- convention 16's shape, and what makes the ribbon button say
+    // so before it is clicked.
+    registerAction(
+        ActionId::PageGoToSelected,
+        [activeThumbnails](KeyContext) {
+            if (ThumbnailsPane* pane = activeThumbnails()) pane->activateCurrentPage();
+        },
+        [activeThumbnails] {
+            const ThumbnailsPane* pane = activeThumbnails();
+            return pane != nullptr && pane->pageCount() > 0;
+        });
+
+    registerAction(
+        ActionId::PageThumbnailsLarger,
+        [activeThumbnails](KeyContext) {
+            if (ThumbnailsPane* pane = activeThumbnails()) pane->larger();
+        },
+        [activeThumbnails] {
+            const ThumbnailsPane* pane = activeThumbnails();
+            return pane != nullptr && pane->thumbnailWidth() < ThumbnailsPane::kMaxThumbnailWidth;
+        });
+
+    registerAction(
+        ActionId::PageThumbnailsSmaller,
+        [activeThumbnails](KeyContext) {
+            if (ThumbnailsPane* pane = activeThumbnails()) pane->smaller();
+        },
+        [activeThumbnails] {
+            const ThumbnailsPane* pane = activeThumbnails();
+            return pane != nullptr && pane->thumbnailWidth() > ThumbnailsPane::kMinThumbnailWidth;
+        });
 
     // --- The Quick Access Toolbar and the tool finder (T11) ---------------------------------
     // `ui.customize` is deliberately NOT registered. The customization dialog is T14, and a handler

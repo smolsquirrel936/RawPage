@@ -62,6 +62,12 @@ add_executable(rawpage_ui_tests
     # app/ is an executable, and this file names core/ and ui/ only, so the target's closure is unchanged.
     tst_recoverydialog.cpp
     ${CMAKE_SOURCE_DIR}/app/RecoveryPrompt.cpp
+
+    # Stage 4 T5 -- the sidebar's pane registry and the Thumbnails pane (guide cases A-31 … A-34,
+    # A-37 … A-39). Every case in it drives layout and REQUIREs a non-zero visible slot count
+    # before it looks at what was enqueued: a pane that was never laid out asks for nothing, and
+    # every "only the visible slots" assertion would pass vacuously (convention 12, guide rule 4).
+    tst_panes.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

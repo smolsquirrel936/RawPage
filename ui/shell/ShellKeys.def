@@ -46,6 +46,20 @@ RAWPAGE_SHELL_STRING(SidebarFloat,           "shell.sidebar.float")
 RAWPAGE_SHELL_STRING(SidebarDockLeft,        "shell.sidebar.dockLeft")
 RAWPAGE_SHELL_STRING(SidebarDockRight,       "shell.sidebar.dockRight")
 
+// --- The panes (S4 T5) ---------------------------------------------------------------------------
+// A NEW FAMILY, `panes.`, added to `tools/i18n-lint/rules.json` in the same change. It is added
+// because the NAMESPACE is new, not because the feature is -- Stage 3's I-16 is the record of the
+// other reading, where a case demanded a `recovery` family for strings that shipped, correctly, as
+// `shell.recovery.*`. A pane is a `ui/panes/` widget with its own catalog namespace; its chrome
+// inside the sidebar stays `shell.sidebar.*`.
+//
+// They live in THIS table rather than in one of their own so that `catalog::dumpStrings()` -- which
+// is generated from this file -- keeps covering every string the product can put on screen. Guide
+// case A-72 compares an `en` run against a `--lang zh-TW` run and is worth exactly as much as that
+// coverage; `ui/panes/LogPane` set the precedent by taking its keys from here at T14.
+RAWPAGE_SHELL_STRING(PanesThumbnailsTitle,   "panes.thumbnails.title")
+RAWPAGE_SHELL_STRING(PanesThumbnailsEmpty,   "panes.thumbnails.empty")
+
 // --- The status bar ----------------------------------------------------------------------------
 RAWPAGE_SHELL_STRING(StatusReady,            "shell.status.ready")
 RAWPAGE_SHELL_STRING(StatusNoDocument,       "shell.status.noDocument")

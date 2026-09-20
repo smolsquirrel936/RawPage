@@ -2979,4 +2979,15 @@
         <translation>將全部 %1 頁旋轉 %2 度</translation>
     </message>
 </context>
+<context>
+    <name>panes</name>
+    <message>
+        <source>panes.thumbnails.title</source>
+        <translation>頁面縮圖</translation>
+    </message>
+    <message>
+        <source>panes.thumbnails.empty</source>
+        <translation>目前沒有開啟的文件。</translation>
+    </message>
+</context>
 </TS>

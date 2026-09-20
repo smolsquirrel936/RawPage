@@ -391,11 +391,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
 
     // Registration happened once -- the second window found the commands already there and did not
     // try to register them again, which would have been FORTY-EIGHT "duplicate registration"
-    // errors. The number grew by 25 at Stage 2 T14 (the §8 Viewer commands) and by 5 at Stage 3 T10 (undo,
-    // redo, rotate, save, save as), and the point of
+    // errors. The number grew by 25 at Stage 2 T14 (the §8 Viewer commands), by 5 at Stage 3 T10 (undo,
+    // redo, rotate, save, save as) and by 4 at Stage 4 T5 (the Thumbnails pane), and the point of
     // asserting it here is unchanged: this case is about registration happening once per REGISTRY
     // rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 53);
+    CHECK(fixture.actions.registeredCount() == 57);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

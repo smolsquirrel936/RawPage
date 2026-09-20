@@ -2,19 +2,17 @@
 // Stage 2 T13.
 //
 // ---------------------------------------------------------------------------------------------
-// THIS IS THE ONLY PLACE IN THE PRODUCT WHERE A `RasterImage` BECOMES A `QImage`.
+// WHERE A `RasterImage` BECOMES A `QImage` -- `ui/viewer/HeldRaster`, SINCE STAGE 4 T5.
 //
 // `core/backend.h` returns width, height, **stride**, pixel format and bytes, deliberately and not
 // a `QImage`: `core/` may not name a QtGui type, and the engine boundary carries buffers rather
-// than objects. The far side of that boundary is here. Two things about the conversion are not
-// optional and each has a failure that looks like a rendering defect rather than an arithmetic one:
-//
-//   * **`bytesPerLine` is passed to `QImage`, never `width * 4`.** A rasterizer is entitled to
-//     align its rows, and a `QImage` constructed over a padded buffer without its stride draws the
-//     page sheared into diagonal garbage.
-//   * **The bytes are kept alive by the `QByteArray` the image was built over.** `QImage`'s
-//     borrowing constructor does not copy, so the buffer must outlive every paint. Each entry here
-//     holds both, and the `QImage` is never handed out on its own.
+// than objects. The far side of that boundary was this file alone from Stage 2 T13 until T5 gave it
+// a second consumer -- `ui/panes/ThumbnailsPane` asks the same scheduler for a whole page at
+// thumbnail scale -- at which point the conversion moved into `HeldRaster` rather than being
+// copied. Its header carries the two rules, both of which fail silently: the stride must be passed
+// (a padded buffer read as tight draws the page sheared into diagonal garbage) and the bytes must
+// outlive every paint (`QImage`'s borrowing constructor does not copy). This class stores the pair
+// it returns and never hands the image out on its own.
 //
 // ---------------------------------------------------------------------------------------------
 // A MISSING TILE IS DRAWN, NOT SKIPPED.
@@ -52,6 +50,7 @@
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
 #include "core/render/TileGrid.h"
+#include "ui/viewer/HeldRaster.h"
 
 #include <QColor>
 #include <QImage>
@@ -163,12 +162,6 @@ signals:
     void tilesArrived();
 
 private:
-    struct Held {
-        // BOTH, and the order matters: `image` borrows `bytes`, so the buffer is destroyed second.
-        QByteArray bytes;
-        QImage image;
-    };
-
     void cancelAll();
     core::render::RenderRequest requestFor(int pageIndex, const core::render::TileRect& tile,
                                            const core::render::Resolution& resolution,
@@ -184,7 +177,7 @@ private:
     const core::PageTree* pages_ = nullptr;
     const core::PageTree* enginePages_ = nullptr;
 
-    std::unordered_map<core::render::RenderRequest, Held> tiles_;
+    std::unordered_map<core::render::RenderRequest, HeldRaster> tiles_;
     std::unordered_map<core::render::RenderRequest, core::render::RenderTicket> tickets_;
 
     core::render::RenderScheduler::SubscriptionToken subscription_ = 0;
