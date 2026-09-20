@@ -22,6 +22,7 @@
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MessageBar.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/ToolController.h"
 #include "ui/shell/QuickAccessToolbar.h"
 #include "ui/shell/Ribbon.h"
 #include "ui/shell/RibbonModel.h"
@@ -1359,12 +1360,13 @@ void MainWindow::registerViewerActions()
         services_.actions.register_(ActionId::ViewTogglePageMode, std::move(toggle));
     }
 
-    // --- The three tools, and only as much of them as Stage 2 owns ------------------------------
-    // `ui/viewer/ToolController` and the `ui/viewer/tools/` family are ○ (S4) -- the sticky-tool
-    // state machine, the temporary-hand modifier, `Esc` cancellation and seventeen tool classes.
-    // What `Implementation-Plan.md` § Stage 2 lists is the three BINDINGS, and what makes them
-    // honest is `PageView::setTool`: a cursor, and what a drag does. See `PageView.h`.
-    const auto registerTool = [this, hasView](ActionId id, PageView::Tool tool) {
+    // --- The tools (S2 T14's three bindings; S4 T7's real state machine) ------------------------
+    // Stage 2 registered three ids against a three-value enum on `PageView`. **T7 re-points them
+    // at `ui/viewer/ToolController`** and adds a fourth, the Loupe -- the sticky arming, the
+    // temporary-hand modifier, `Esc` cancellation and the cursor now live there. The registrations
+    // themselves are unchanged in shape, which is the point of having had them: the chord, the
+    // ribbon button and the tool finder all reached `setTool` before and still do.
+    const auto registerTool = [this, hasView](ActionId id, ToolKind tool) {
         if (services_.actions.isRegistered(id)) return;
         core::ActionRegistry::Registration registration;
         registration.handler = [tool](KeyContext) {
@@ -1385,9 +1387,61 @@ void MainWindow::registerViewerActions()
         services_.actions.register_(id, std::move(registration));
     };
 
-    registerTool(ActionId::ToolHand, PageView::Tool::Hand);
-    registerTool(ActionId::ToolSelect, PageView::Tool::Select);
-    registerTool(ActionId::ToolMarqueeZoom, PageView::Tool::MarqueeZoom);
+    registerTool(ActionId::ToolHand, ToolKind::Hand);
+    registerTool(ActionId::ToolSelect, ToolKind::Select);
+    registerTool(ActionId::ToolMarqueeZoom, ToolKind::MarqueeZoom);
+
+    // S4 · T7's FOURTH TOOL. `tool.loupe` is one of the two ids this stage declares — see the
+    // note at its `ActionId.def` row — and it has no §8 chord, so it is reached from the ribbon,
+    // the tool finder and the batch runner. `Features.md` §8 is untouched by this stage.
+    registerTool(ActionId::ToolLoupe, ToolKind::Loupe);
+
+    // --- `view.autoScroll` (S4 · T7) --------------------------------------------------------------
+    //
+    // **`edit.cancel` IS DELIBERATELY NOT REGISTERED HERE, AND THE REASON IS ITS CONTEXT.** `Esc`
+    // is `Common`'s row in §8 — it applies in every context unless one overrides it — and the
+    // contexts that DO override it belong to stages that do not exist yet: `find.close` in
+    // FindSearch (S5), `form.revertField` in FormsFill (S9), `present.exit` in FullScreen (T10),
+    // `edit.cancel` again in AnnotationTools (S6). Registering the Common row here would make T7
+    // the owner of what `Esc` means in nine contexts it did not build.
+    //
+    // It would also break `Esc` everywhere immediately, which is how this was found rather than
+    // reasoned: a registered command that is DISABLED answers `Unavailable`, and
+    // `ShortcutBinder::consumes` counts that as consuming the key — so a disabled `edit.cancel`
+    // ate the `Esc` that puts the tool finder's result popup away, and `tst_toolfinder`'s
+    // *the result list can always be put away* went red. That list is a `Qt::Popup` holding a
+    // mouse grab (Stage 1's **I-44**), so swallowing its `Esc` is not cosmetic.
+    //
+    // So cancelling a drag is handled where the drag is: `PageView::keyPressEvent`. A drag is not
+    // a command and neither is abandoning one — no more than a mouse-move is — and leaving the id
+    // unregistered keeps the key unconsumed for the tool finder, the find bar and the form field.
+    // The day `edit.cancel` is registered, it needs an owner that knows all nine contexts.
+    {
+        const auto toolsInFront = []() -> ToolController* {
+            MainWindow* window = activeShell();
+            PageView* view = window ? window->currentView() : nullptr;
+            return view ? &view->tools() : nullptr;
+        };
+
+        core::ActionRegistry::Registration autoScroll;
+        autoScroll.handler = [toolsInFront](KeyContext) {
+            if (ToolController* tools = toolsInFront()) tools->toggleAutoScroll();
+        };
+        // DISABLED AT ZERO SPEED, because starting an auto-scroll that cannot move is a command
+        // that reports success and does nothing. The speed is `pageDisplay/autoScrollSpeed`, and
+        // its SIGN is the direction — reverse has no id of its own for that reason.
+        autoScroll.enable = [toolsInFront] {
+            const ToolController* tools = toolsInFront();
+            return tools != nullptr && tools->autoScrollSpeed() != 0;
+        };
+        autoScroll.checked = [toolsInFront] {
+            const ToolController* tools = toolsInFront();
+            return tools != nullptr && tools->autoScrollRunning();
+        };
+        autoScroll.unavailableKey = "shell.tooltip.needsDocument";
+        if (!services_.actions.isRegistered(ActionId::ViewAutoScroll))
+            services_.actions.register_(ActionId::ViewAutoScroll, std::move(autoScroll));
+    }
 }
 
 void MainWindow::showDocumentConditions(DocumentWindow* document)

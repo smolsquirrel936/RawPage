@@ -71,9 +71,11 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // SIXTY-FOUR, and named. 361 ids are declared; an id that is declared and UNREGISTERED
-    // renders as a visible, disabled control saying it is not built yet, which is the honest state.
-    // Registering a stub handler for the other 297 would make every one of them look available.
+    // SIXTY-SIX, and named. 363 ids are declared -- **361 until Stage 4 T7 added `tool.loupe` and
+    // `view.autoScroll`**, the two Features.md §1.2 features that had no name (see their rows in
+    // `ActionId.def`). An id that is declared and UNREGISTERED renders as a visible, disabled
+    // control saying it is not built yet, which is the honest state; registering a stub handler
+    // for the other 297 would make every one of them look available.
     //
     // Nineteen at Stage 1 T14. Three joined on 2026-08-31, each because a manual walk reached for
     // something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
@@ -91,11 +93,16 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // Bookmarks rows that are NAVIGATION -- `bookmark.goTo`, `expand`, `collapse`, `expandAll`,
     // `collapseAll`. The other eight rows in that table are the EDITING ones and each needs a
     // `Command`, so they are Stage 7's and stay unregistered.
+    // **Two more at Stage 4 T7**: `tool.loupe` and `view.autoScroll`, the stage's only two new
+    // ids. `tool.hand`, `tool.select` and `tool.marqueeZoom` were already registered at Stage 2
+    // T14 and T7 re-points them at `ToolController` rather than registering them again.
+    // **`edit.cancel` is NOT among them** and that is deliberate -- it is §8's `Common` row, four
+    // unbuilt contexts override it, and a registered-but-disabled command consumes the key.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 64);
+    CHECK(fixture.actions.registeredCount() == 66);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -185,6 +192,13 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkRename));    // S7
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkDelete));    // S7
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkNew));       // S7
+
+    // S4 T7's two, and the one that must stay absent.
+    CHECK(fixture.actions.isRegistered(core::ActionId::ToolLoupe));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewAutoScroll));
+    CHECK(fixture.actions.isRegistered(core::ActionId::ToolHand));        // S2 T14, re-pointed
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::EditCancel));
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));   // S5 (D4-15)
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op. `file.print` is one of the ~310 that are declared and

@@ -764,7 +764,7 @@ TEST_CASE("a Viewer chord does not fire from the tool finder's search box", "[co
     // effect. The registration is now asserted rather than performed: a case that re-registered
     // would be refused (property 3) and, worse, would be observing its own lambda again.
     REQUIRE(fixture.actions.isRegistered(core::ActionId::ToolHand));
-    REQUIRE(view->tool() == ui::PageView::Tool::Select);
+    REQUIRE(view->tool() == ui::ToolKind::Select);
 
     ShortcutBinder binder(fixture.actions, fixture.keyBindings, &window);
     const std::optional<core::Chord> h = core::Chord::parse("H");
@@ -775,17 +775,17 @@ TEST_CASE("a Viewer chord does not fire from the tool finder's search box", "[co
     view->setFocus();
     REQUIRE(binder.activeContext() == core::KeyContext::Viewer);
     CHECK(binder.activate(*h) == ShortcutBinder::Outcome::Dispatched);
-    CHECK(view->tool() == ui::PageView::Tool::Hand);
+    CHECK(view->tool() == ui::ToolKind::Hand);
 
     // IN THE SEARCH BOX IT DOES NOT. `H` has no Global and no Common row, so the resolution finds
     // nothing and the key is deliberately left unconsumed -- which is what lets the line edit type
     // an `h`.
-    view->setTool(ui::PageView::Tool::Select);
+    view->setTool(ui::ToolKind::Select);
     window.toolFinder()->searchBox()->setFocus();
     REQUIRE(binder.activeContext() == core::KeyContext::Global);
     CHECK(binder.activate(*h) == ShortcutBinder::Outcome::NoBinding);
     CHECK_FALSE(ShortcutBinder::consumes(binder.activate(*h)));
-    CHECK(view->tool() == ui::PageView::Tool::Select);
+    CHECK(view->tool() == ui::ToolKind::Select);
 
     // AND THE KEY REALLY REACHES THE FIELD. Stage 1's I-54 is the warning attached to this case:
     // that defect existed because every tool-finder case typed at `searchBox()`, the one address a
@@ -797,5 +797,5 @@ TEST_CASE("a Viewer chord does not fire from the tool finder's search box", "[co
     press.ignore();
     QCoreApplication::sendEvent(&window, &press);
     CHECK_FALSE(press.isAccepted());
-    CHECK(view->tool() == ui::PageView::Tool::Select);
+    CHECK(view->tool() == ui::ToolKind::Select);
 }

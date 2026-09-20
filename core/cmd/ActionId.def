@@ -113,6 +113,8 @@ RAWPAGE_ACTION(ViewRotateViewCcw,      "view.rotateViewCcw",      Viewer, "actio
 RAWPAGE_ACTION(ViewResetRotation,      "view.resetRotation",      Viewer, "action.view.resetRotation")
 RAWPAGE_ACTION(ViewInvertColors,       "view.invertColors",       Viewer, "action.view.invertColors")
 RAWPAGE_ACTION(ViewPageBackground,     "view.pageBackground",     Viewer, "action.view.pageBackground")
+// S4 T7. The toggle IS the pause -- see `tool.loupe` above for why there is no `reverse` id.
+RAWPAGE_ACTION(ViewAutoScroll,         "view.autoScroll",         Viewer, "action.view.autoScroll")
 
 // --- Rulers, grid, guides (§1.3) ----------------------------------------------------------------
 RAWPAGE_ACTION(ViewToggleRulers,       "view.toggleRulers",       Viewer, "action.view.toggleRulers")
@@ -140,6 +142,25 @@ RAWPAGE_ACTION(ToolHand,               "tool.hand",               Viewer, "actio
 RAWPAGE_ACTION(ToolSelect,             "tool.select",             Viewer, "action.tool.select")
 RAWPAGE_ACTION(ToolMarqueeZoom,        "tool.marqueeZoom",        Viewer, "action.tool.marqueeZoom")
 RAWPAGE_ACTION(ToolSnapshot,           "tool.snapshot",           Viewer, "action.tool.snapshot")
+// TWO IDS DECLARED AT STAGE 4 T7, and the reason is worth reading before adding a third.
+//
+// `Stage4-ViewingSurface-Plan.md` §2's inherited ledger says this stage *"declares no new id"* --
+// but that line is a MEASUREMENT of the 70 ids already in this stage's namespaces, taken before
+// anyone checked whether every Stage 4 feature had one. Two do not: `Features.md` §1.2 lists the
+// Loupe and auto-scroll, `Stage4-ViewingSurface-Plan.md` §6 gives both to T7, and neither had a
+// row here nor a chord in §8.
+//
+// The standing rule decides it: *no feature that the headless batch path (flow K) cannot reach --
+// reachable only from a widget means unfinished*. Building a tool nobody can dispatch would have
+// broken that; deferring two features the plan schedules would have been a scope cut. So both get
+// a name, and **neither gets a §8 binding** -- `Features.md` §8 is untouched by this stage (plan
+// §10), and `pane.destinations` at T6 is the precedent for a registered id with no default chord.
+//
+// THERE IS NO THIRD ID FOR *REVERSE*. Speed and direction are one signed value,
+// `pageDisplay/autoScrollSpeed`, so reverse is a negative number reachable from Preferences, the
+// settings file and the batch runner. Minting a permanent public name for the sign of a number
+// that already has a home is the thing this comment exists to prevent.
+RAWPAGE_ACTION(ToolLoupe,              "tool.loupe",              Viewer, "action.tool.loupe")
 
 // --- Full Screen and Presentation (§1.2, §8's Full Screen table) --------------------------------
 RAWPAGE_ACTION(PresentExit,            "present.exit",            FullScreen, "action.present.exit")

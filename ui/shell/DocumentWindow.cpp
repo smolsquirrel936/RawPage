@@ -141,6 +141,7 @@ void DocumentWindow::applyViewSettings()
     view.transparencyGrid  = settings.get(core::keys::pageDisplay::transparencyGrid);
     view.maxRenderDpi      = settings.get(core::keys::pageDisplay::maxRenderResolution);
     view.wheelZooms        = settings.get(core::keys::pageDisplay::wheelZooms);
+    view.autoScrollSpeed   = settings.get(core::keys::pageDisplay::autoScrollSpeed);
     view.prefetchPages     = settings.get(core::keys::performance::prefetchPages);
 
     view_->applySettings(view);

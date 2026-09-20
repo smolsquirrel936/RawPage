@@ -4,6 +4,14 @@
 <context>
     <name>action</name>
     <message>
+        <source>action.view.autoScroll</source>
+        <translation>自動捲動</translation>
+    </message>
+    <message>
+        <source>action.tool.loupe</source>
+        <translation>放大鏡</translation>
+    </message>
+    <message>
         <source>action.file.new</source>
         <translation>新增</translation>
     </message>
@@ -2599,6 +2607,10 @@
 </context>
 <context>
     <name>prefs</name>
+    <message>
+        <source>prefs.setting.pageDisplay.autoScrollSpeed</source>
+        <translation>自動捲動速度（每秒像素；負值為反向）</translation>
+    </message>
     <message>
         <source>prefs.window.title</source>
         <translation>偏好設定</translation>

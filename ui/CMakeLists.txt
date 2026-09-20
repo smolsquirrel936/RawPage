@@ -101,6 +101,21 @@ add_library(rawpage_ui STATIC
     # QImage -- are silent, which is why there is one of it rather than two.
     viewer/HeldRaster.h
     viewer/HeldRaster.cpp
+
+    # S4 T7 -- the tool state machine and the first four of the seventeen tools
+    # Architecture-FileMap.md section 3.14 schedules across Stages 4 to 10. A tool is handed a
+    # ToolHost rather than a PageView, so the family names no widget: that is what keeps the
+    # thirteen later files off the widget and lets a case drive a tool with no window.
+    viewer/tools/Tool.h
+    viewer/tools/HandTool.h
+    viewer/tools/HandTool.cpp
+    viewer/tools/SelectTool.h
+    viewer/tools/MarqueeZoomTool.h
+    viewer/tools/MarqueeZoomTool.cpp
+    viewer/tools/LoupeTool.h
+    viewer/tools/LoupeTool.cpp
+    viewer/ToolController.h
+    viewer/ToolController.cpp
     viewer/PageView.h
     viewer/PageView.cpp
 

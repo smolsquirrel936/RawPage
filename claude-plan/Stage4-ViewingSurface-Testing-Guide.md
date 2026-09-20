@@ -7,11 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **28 of the 79 carry
+> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **33 of the 79 carry
 > a result** as of 2026-09-21 — T1's corpus cases, T2's four A2 cases, T3's seven session cases,
-> T4's four reader cases, T5's seven pane cases and **T6's two, plus the two re-reads T5 owed**
-> (A-30's pane half, and A-37 against all three panes). **No manual case has been walked.** §8 holds
-> five issues: **I-01 and I-05 open, both S3**; I-02, I-03 and I-04 closed.
+> T4's four reader cases, T5's seven pane cases, T6's two plus the two re-reads T5 owed, and
+> **T7's five tool cases**. **No manual case has been walked.** §8 holds six issues: **I-01 and
+> I-05 open, both S3**; I-02, I-03, I-04 and I-06 closed.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -428,19 +428,24 @@ green its cases did not record.
 
 ### 5.8 Tools (T7)
 
-**A-40 · `H`, `V`, `Z` arm their tool from a key event, and the cursor follows** ☐
+**A-40 · `H`, `V`, `Z` arm their tool from a key event, and the cursor follows**
+✅ **2026-09-21, T7.** `ui.` — each chord is a real `QKeyEvent` to the focused viewer, and the cursor is read back off the **viewport widget** as well as off the controller: a controller reporting the right shape while the widget still showed an arrow would pass every other line. Select is the default and shows an I-beam, Hand an open hand, Marquee a cross. **The case states that `SelectTool` selects nothing** (convention 19) and asserts it — a full drag with `V` armed moves no scroll and no zoom — because text selection needs `ITextExtractor`, which the backend census names as missing at every launch and which is **Stage 5's**. The **Loupe is armed by dispatch**, not by a chord: `tool.loupe` is one of this stage's two new ids and §8 gives it no binding.
 **Expect** Each chord dispatches and the controller reports the armed tool and its cursor. **The case states that `SelectTool` selects nothing** (Stage 5) — convention 19. **If it fails** S2.
 
-**A-41 · The temporary hand modifier pans without disarming the tool** ☐
+**A-41 · The temporary hand modifier pans without disarming the tool**
+✅ **2026-09-21, T7.** `ui.` — the modifier is **`Shift`**, and the choice is forced rather than preferred: §8 gives `Space` to `nav.nextScreen`, a bare `Alt` to `app.ribbonKeyTips` and `Ctrl` to the wheel, and this stage does not touch §8 (plan §10). `ToolController.h` records all three, and records what `Shift` collides with. Holding it makes `effective()` the Hand while `armed()` stays MarqueeZoom; the drag pans, **and the case asserts the DIRECTION** — dragging up and left grows the scroll offset — because the classic hand-tool defect is a sign error that is unmistakable to a person and invisible to a case checking only that something moved. Releasing restores the tool and its cursor. **The off-window release** is asserted on the EFFECT: no release event ever arrives, the next press re-derives, and the pan the stale modifier would have caused does not happen. **What it does not cover, at the assertion**: a HOVER does not correct the state, because with a non-tracking tool armed Qt delivers no move at all — bounded and cosmetic, and written down rather than left to be found. A third case is the control: the modifier does **not** swap tools under a live drag, or a release would reach a tool that never saw the press.
 **Expect** Holding the modifier pans; releasing it restores the previously armed tool and its cursor, including when the modifier is released outside the widget. **If it fails** S2.
 
-**A-42 · `Esc` cancels a drag and leaves the view where it was** ☐
+**A-42 · `Esc` cancels a drag and leaves the view where it was**
+✅ **2026-09-21, T7, and it moved a design decision.** `ui.` — both halves, because they fail differently: a cancelled MARQUEE has nothing to restore (it changes nothing until release, so the case asserts the zoom and scroll are *exactly* as before, and that the release still in the user's hand does not then complete the gesture), while a cancelled HAND pan has been moving the view all along and must put the scroll back. **The control** — `Esc` with no drag changes neither the tool nor the view, **and does not consume the key**. That second clause is what changed the design: registering `edit.cancel` made a disabled command answer `Unavailable`, which `ShortcutBinder::consumes` counts as consuming, and `Esc` stopped reaching the tool finder's popup — `tst_toolfinder`'s *the result list can always be put away* went red, and that popup holds a mouse grab (Stage 1's **I-44**). So `edit.cancel` is left UNREGISTERED and `Esc` is handled in `PageView::keyPressEvent`; the reasoning is at the id's absent registration and in §8 as **I-06**.
 **Expect** A marquee-zoom drag cancelled with `Esc` leaves the zoom and scroll exactly as before; **the control** — `Esc` with no drag in progress changes neither the tool nor the view. **If it fails** S2.
 
-**A-43 · Marquee zoom zooms to the rectangle, and the loupe magnifies without moving the view** ☐
+**A-43 · Marquee zoom zooms to the rectangle, and the loupe magnifies without moving the view**
+✅ **2026-09-21, T7.** `ui.` — a band a quarter of the viewport on both axes gives **about 4×**, asserted within a **stated 10 %** tolerance rather than by bare equality, because the band is integral pixels, the viewport is not exactly divisible and `Zoom::clamped()` may round; 10 % is far tighter than the failure the case exists to catch. **The control**: a drag below `MarqueeZoomTool::kMinDragPixels` is a CLICK and does not zoom — zooming to a two-pixel band lands at 6400 % with no obvious way back. The loupe moves **nothing**: scroll, zoom and history are unchanged, it tracks a hover with no button down (and the case asserts mouse tracking is on for it and for no other tool), and `Esc` puts the lens away and reports that it did. **What is not covered, at the case**: whether the magnified picture is the right region and readable — manual **M-12**'s. The lens magnifies the last painted FRAME rather than re-rasterizing, which `LoupeTool.h` argues from A2: a second rasterization would lag the pointer and compete with the viewport's own tiles.
 **Expect** The zoom after a marquee matches the dragged rectangle within a stated tolerance; the loupe changes no scroll position and no zoom. **If it fails** S2.
 
-**A-44 · Auto-scroll runs at the configured speed, pauses and reverses** ☐
+**A-44 · Auto-scroll runs at the configured speed, pauses and reverses**
+✅ **2026-09-21, T7.** `ui.` — 60 px/s moves **59–61 px in a stepped second**, and 240 px/s moves more than 3.5× as far over the same interval: the rate is asserted, not merely that it moved, which is the difference between a setting that is read and one that is read and ignored (`pageDisplay/lineWeight` is the standing example). The toggle IS the pause, and a paused auto-scroll advanced by the harness moves nothing. **Reverse is a negative `pageDisplay/autoScrollSpeed`** — which is why there is no third `ActionId` for it: the sign lives in a settings key and is therefore reachable from Preferences, the file and the batch runner. It **stops at the end of the document** rather than spinning against a clamped offset, it refuses to start at zero and the command reports itself unavailable there, and `Esc` stops it. A last case asserts the key reaches the CONTROLLER — `settings.set(autoScrollSpeed, 175)` and the controller says 175 — which is the half that would otherwise be a preference nothing reads, exactly as `performance/prefetchPages` was until S2 T15. **The harness is a back door** (`advanceAutoScrollForTesting`) and the suite header says what it therefore does not cover: that the timer fires.
 **Expect** `pageDisplay/autoScrollSpeed` changes the rate measurably; a pause stops it; a reverse reverses it; it stops at the end of the document rather than spinning. **If it fails** S3.
 
 ### 5.9 Rulers, grid, guides, snapping (T8)
@@ -787,6 +792,7 @@ uses.
 | **I-03** | **S3** | **A Qt 6.5+ API in `core/` broke both Linux jobs: the portable subset builds against Ubuntu's Qt 6.4** | ✅ **Closed 2026-09-19**, and written up as **convention 24** |
 | **I-04** | **S2** | **A pane swallowed `Alt+↑`/`Alt+↓` and moved the selection — a Stage 7 chord doing something plausible and wrong** | ✅ **Closed 2026-09-20 at T5** (Thumbnails) **and again 2026-09-21 at T6** (Bookmarks): one mechanism, two panes, two layers of Qt |
 | **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ⚪ **Open — the arithmetic is T12's (D4-14), and this task did not guess it** |
+| **I-06** | **S2** | **Registering `edit.cancel` — §8's `Common` row — swallowed `Esc` application-wide, including the tool finder's mouse-grabbing popup** | ✅ **Closed 2026-09-21 at T7**: the id is left unregistered and `Esc` is handled where the drag is |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -834,6 +840,18 @@ For `/Fit`, for `/XYZ` with no coordinates, and for any destination at the top o
 **Why no case caught it.** None could: nothing before T6 navigated by destination, and the cases T6 added were written from the plan's *"both panes navigate"*, which this satisfies. It was found by reading `Destination`'s own fields while wiring the pane and noticing that five of its eight were going nowhere.
 
 **What is absent, and who owns it.** There is no conversion from a destination's PDF-space point to a scroll offset, and **this task did not invent one**. It needs the page's slot rectangle in content space and the resolution that produced it — the arithmetic **T12** builds for Fit Visible over the content box (D4-14) — so the repair belongs there, beside the other place in this stage that turns a page-space rectangle into a zoom and a scroll. A second conversion written here would be a second reader to keep in agreement, and a wrong one scrolls the reader silently to the wrong place. The bound is stated at both panes' headers and asserted as a case, so it is visible from the code as well as from this log.
+
+**I-06 · A `Common`-scoped registration took a key that four unbuilt contexts and one widget needed.** *(Raised and closed 2026-09-21 at T7, by an EXISTING case in another suite rather than by anything T7 wrote.)*
+
+**Mechanism.** T7's first version registered `edit.cancel` so that `Esc` could cancel a tool's drag, with an `enable` predicate that answered false when there was nothing to cancel — which looked like the careful thing to do (convention 16). It is not, because of how the five outcomes are defined: `ShortcutBinder::consumes` counts **both** `Dispatched` and `Unavailable` as consuming the key. A registered-but-disabled command therefore eats the keystroke just as thoroughly as a working one; the only outcome that leaves a key alone is `NotImplemented`, which means *nothing is registered at all*.
+
+`edit.cancel` is §8's **Common** row — it applies in every context unless one overrides it. So one registration in the viewer took `Esc` everywhere: from `ui/shell/ToolFinder`'s result popup, and in due course from `find.close` (S5), `form.revertField` (S9) and `present.exit` (T10), none of which exist yet.
+
+**How it surfaced.** `tst_toolfinder`'s *the result list can always be put away* went red — a Stage 1 case written for **I-44**, which is the defect where that popup could not be dismissed. The popup is a `Qt::Popup` holding an application-wide mouse grab, so an `Esc` that does not reach it is an application answering no click anywhere. The case had been green for a year and caught this on the first run after the registration.
+
+**Why T7's own cases did not.** They could not: every one of them presses `Esc` with the viewer focused, where the handler would have run. The failure is in every OTHER context, and only a case belonging to one of those contexts could see it. That is convention 22 from an unusual angle — the control that mattered was not written for this mechanism at all, and would not have been thought of.
+
+**The repair, and the rule it leaves.** `edit.cancel` stays unregistered; `Esc` is handled in `PageView::keyPressEvent`, which the key reaches precisely because nothing consumed it. A drag is not a command and abandoning one is not either — no more than a mouse-move is — so this is where it belongs anyway. **The rule for whoever registers `edit.cancel` one day:** a `Common` row needs an owner that knows every context that overrides it, and registering one to serve a single context is over-claiming even when the handler is careful.
 
 **Why the suite did not catch it.** It structurally cannot. Every local preset and the Windows job use one Qt; the only build that uses the other is on Linux, on a runner, after the push. 965/965 on both Windows presets and four clean gates said nothing about it.
 

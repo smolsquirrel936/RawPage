@@ -64,11 +64,15 @@ TEST_CASE("the sixteen Stage 2 keys are declared, in the two groups the plan nam
         paths.insert(info.path);
     }
 
-    // ELEVEN AND FIVE, exactly as `Implementation-Plan.md` § Stage 2 lists them. The counts are
-    // asserted as well as the names, for `tst_shell`'s reason about the action census: a name-only
-    // check stays green when a seventeenth row is added by accident, and "the sixteen keys" is a
+    // ELEVEN AND FIVE AT STAGE 2, exactly as `Implementation-Plan.md` § Stage 2 lists them. The
+    // counts are asserted as well as the names, for `tst_shell`'s reason about the action census:
+    // a name-only check stays green when a row is added by accident, and "the sixteen keys" is a
     // claim about the whole set.
-    CHECK(pageDisplay == 11);
+    //
+    // **`PageDisplay` IS TWELVE FROM STAGE 4 T7**, and the twelfth is named below rather than
+    // absorbed into a looser bound: `pageDisplay/autoScrollSpeed` is the first of D4-5's fifteen
+    // Stage 4 keys. Stage 2's eleven are still asserted by name, which is what this case is for.
+    CHECK(pageDisplay == 12);
     CHECK(performance == 5);
 
     for (const char* path : {"pageDisplay/layoutMode", "pageDisplay/defaultZoom",

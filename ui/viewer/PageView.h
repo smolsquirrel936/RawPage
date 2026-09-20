@@ -43,10 +43,12 @@
 #include "core/doc/Revision.h"
 #include "core/render/PagePresentation.h"
 #include "core/render/RenderRequest.h"
+#include "ui/viewer/ToolController.h"
 #include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/ViewportController.h"
 
 #include <QAbstractScrollArea>
+#include <QPixmap>
 #include <QPoint>
 
 #include <memory>
@@ -96,9 +98,15 @@ struct ViewSettings {
     int maxRenderDpi = 2400;
     bool wheelZooms = false;
     int prefetchPages = 1;
+
+    // S4 T7. Device pixels per second, and the SIGN IS THE DIRECTION -- see
+    // `core/settings/SettingsKeys.def`. It rides here with the eleven `pageDisplay/` keys because
+    // `DocumentWindow` re-reads that whole group on every change, so the speed follows a
+    // Preferences edit into a running auto-scroll without a second subscription.
+    int autoScrollSpeed = 60;
 };
 
-class PageView : public QAbstractScrollArea {
+class PageView : public QAbstractScrollArea, public ToolHost {
     Q_OBJECT
 
 public:
@@ -133,8 +141,8 @@ public:
     // and this class calls it constantly; a same-named accessor here would hide the base's and the
     // diagnostics would be about `->` on a non-pointer rather than about the collision. The same
     // trap `PageLayout::pageSlots()` records for Qt's `slots` macro, in a second spelling.
-    ViewportController& controller() noexcept { return *controller_; }
-    const ViewportController& controller() const noexcept { return *controller_; }
+    ViewportController& controller() noexcept override { return *controller_; }
+    const ViewportController& controller() const noexcept override { return *controller_; }
     const PageLayoutEngine& layoutEngine() const noexcept { return engine_; }
     const TilePresenter& tiles() const noexcept { return *presenter_; }
 
@@ -195,30 +203,44 @@ public:
     void rotateViewCounterClockwise();
     core::PageRotation viewRotation() const;
 
-    // ---- The tool (T14, and only as much of it as Stage 2 owns) -------------------------------
-    // `Features.md` §8 binds `H`, `V` and `Z` in the Viewer context and `Implementation-Plan.md`
-    // lists all three under Stage 2. What Stage 2 does NOT own is `ui/viewer/ToolController` and
-    // the `ui/viewer/tools/` family — those are ○ (S4), and they are the sticky-tool state machine,
-    // the temporary-hand modifier, `Esc` cancellation and seventeen tool classes.
+    // ---- The tool (S2 T14's minimum; S4 T7's real one) ----------------------------------------
+    // Stage 2 T14 carried a three-value enum and a `dragging_` flag here, and said it was *"the
+    // minimum that makes the three bindings honest rather than the maximum that could be built"*.
+    // **T7 built the maximum and this is now a forwarder**: `ui/viewer/ToolController` owns the
+    // sticky arming, the temporary-hand modifier, `Esc` cancellation, the cursor and auto-scroll,
+    // over four `ui/viewer/tools/` classes — and a fourth tool, the Loupe, that the enum never had.
     //
-    // So this is the minimum that makes the three bindings honest rather than the maximum that
-    // could be built: which tool is armed, what cursor it shows, and what a drag does. Hand pans,
-    // Marquee Zoom zooms to the dragged rectangle, and Select is the default and selects nothing
-    // until Stage 5 gives it text to select — which is stated here rather than discovered.
-    enum class Tool { Select, Hand, MarqueeZoom };
-    Tool tool() const noexcept { return tool_; }
-    void setTool(Tool tool);
+    // `PageView::Tool` is GONE rather than aliased to `ToolKind`: two names for one enum is D1-6's
+    // complaint in miniature, and the two callers were a `setTool` line each.
+    ToolKind tool() const noexcept;
+    void     setTool(ToolKind kind);
+
+    ToolController&       tools() noexcept { return *tools_; }
+    const ToolController& tools() const noexcept { return *tools_; }
 
     // Forces the layout, the scrollbars and the tile set to agree with the controller. Public
     // because a test drives it after `show()` and `activate()`, which is convention 12's rule
     // about a widget test having to drive layout itself.
     void refresh();
 
+    // ---- The rest of `ToolHost` (S4 T7) -------------------------------------------------------
+    // `controller()` above is the first member of this interface and has been on this class since
+    // S2 T13 -- it is the override rather than a second accessor beside it. The others are here.
+    //
+    // Implemented on the widget rather than handed to each tool as a `PageView&`, so that the
+    // seventeen tools `Architecture-FileMap.md` §3.14 schedules across Stages 4 to 10 name no
+    // widget and can be driven by a case with no window. See `ui/viewer/tools/Tool.h`.
+    QSize          viewportSize() const override;
+    double         devicePixelRatio() const override { return devicePixelRatioF(); }
+    void           requestRepaint() override;
+    void           recordView() override;
+    const QPixmap* lastFrame() const override;
+
 signals:
     // For `ui/shell/StatusBar`: the page number and the zoom the user is looking at.
     void viewChanged(int currentPage, int pageCount, double zoomFactor);
 
-    void toolChanged(Tool tool);
+    void toolChanged(ToolKind kind);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -232,6 +254,11 @@ protected:
     bool event(QEvent* event) override;
 
 private:
+    // The page and its surround, with no tool overlay. Split out of `paintEvent` at S4 T7 so the
+    // same content can go either straight onto the viewport or into the pixmap the loupe
+    // magnifies -- one painting path, two destinations, rather than two paths that could drift.
+    void paintContent(QPainter& painter, const QRect& area);
+
     void updateScrollBars();
     void syncControllerFromScrollBars();
     // The page a step of one SPREAD from `from` lands on, in `direction` (+1 / -1). What
@@ -280,11 +307,12 @@ private:
     ViewSettings settings_;
     bool settingsApplied_ = false;
 
-    Tool tool_ = Tool::Select;
-    bool dragging_ = false;
-    QPoint dragStart_;          // widget coordinates
-    QPoint dragCurrent_;
-    core::DevicePoint dragScrollOrigin_;
+
+    // S4 T7: the tool state machine, and the frame the LOUPE magnifies. The frame is captured
+    // only while the armed tool asks for one (`Tool::needsFrame()`), so an unarmed loupe costs
+    // nothing -- see `ui/viewer/tools/LoupeTool.h` for what the choice buys and what it does not.
+    std::unique_ptr<ToolController> tools_;
+    QPixmap                         frame_;
 };
 
 } // namespace rawpage::ui

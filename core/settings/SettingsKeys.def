@@ -179,6 +179,17 @@ RAWPAGE_SETTING_RANGED(pageDisplay, maxRenderResolution, int,
 RAWPAGE_SETTING(pageDisplay, wheelZooms, bool,
                 "pageDisplay/wheelZooms", false, PageDisplay, true)
 
+// S4 T7, and the first of D4-5's fifteen Stage 4 keys. Device pixels per second, and the SIGN IS
+// THE DIRECTION: `Features.md` §1.2 asks for auto-scroll *"with pause and reverse"*, and this is
+// where reverse lives -- a negative speed -- so that `view.autoScroll` can be one toggle rather
+// than three commands. Zero means stopped, and `view.autoScroll` is DISABLED there rather than
+// starting something that cannot move.
+//
+// The range is symmetric and modest: 2000 px/s is about a screen every half-second, which is past
+// readable and is the point at which a bound stops being a limit and starts being a guard.
+RAWPAGE_SETTING_RANGED(pageDisplay, autoScrollSpeed, int,
+                       "pageDisplay/autoScrollSpeed", 60, PageDisplay, true, -2000, 2000)
+
 // --- Performance and cache -----------------------------------------------------------------------
 // ONE, and it is I-05's answer rather than a placeholder: PDFium cannot be called from two threads
 // at once, so the shipped arrangement is one render thread with a queue. The range goes to 16 because

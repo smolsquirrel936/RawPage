@@ -68,6 +68,12 @@ add_executable(rawpage_ui_tests
     # before it looks at what was enqueued: a pane that was never laid out asks for nothing, and
     # every "only the visible slots" assertion would pass vacuously (convention 12, guide rule 4).
     tst_panes.cpp
+
+    # Stage 4 T7 -- the tool state machine and the four tools (guide cases A-40 … A-44). Every
+    # gesture is sent as a real mouse event to the viewport so it travels PageView -> ToolController
+    # -> tool, rather than calling the tool directly: "the chord arms it" and "the drag reaches it"
+    # are different claims and only the second is about the wiring.
+    tst_tools.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

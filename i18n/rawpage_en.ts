@@ -4,6 +4,14 @@
 <context>
     <name>action</name>
     <message>
+        <source>action.view.autoScroll</source>
+        <translation>Auto-Scroll</translation>
+    </message>
+    <message>
+        <source>action.tool.loupe</source>
+        <translation>Loupe</translation>
+    </message>
+    <message>
         <source>action.file.new</source>
         <translation>New</translation>
     </message>
@@ -2599,6 +2607,10 @@
 </context>
 <context>
     <name>prefs</name>
+    <message>
+        <source>prefs.setting.pageDisplay.autoScrollSpeed</source>
+        <translation>Auto-scroll speed (pixels per second; negative scrolls backwards)</translation>
+    </message>
     <message>
         <source>prefs.window.title</source>
         <translation>Preferences</translation>

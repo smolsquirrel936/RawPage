@@ -439,18 +439,18 @@ TEST_CASE("the rotate chords rotate from the key event a keyboard sends", "[view
 TEST_CASE("the three tool chords arm a tool and report which is armed", "[viewercommands]")
 {
     Viewer viewer(3);
-    CHECK(viewer.view->tool() == ui::PageView::Tool::Select);
+    CHECK(viewer.view->tool() == ui::ToolKind::Select);
 
     REQUIRE(viewer.press("H") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->tool() == ui::PageView::Tool::Hand);
+    CHECK(viewer.view->tool() == ui::ToolKind::Hand);
     CHECK(viewer.fixture.actions.isChecked(core::ActionId::ToolHand));
     CHECK_FALSE(viewer.fixture.actions.isChecked(core::ActionId::ToolSelect));
 
     REQUIRE(viewer.press("Z") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->tool() == ui::PageView::Tool::MarqueeZoom);
+    CHECK(viewer.view->tool() == ui::ToolKind::MarqueeZoom);
 
     REQUIRE(viewer.press("V") == ui::ShortcutBinder::Outcome::Dispatched);
-    CHECK(viewer.view->tool() == ui::PageView::Tool::Select);
+    CHECK(viewer.view->tool() == ui::ToolKind::Select);
 
     // WHAT IS NOT HERE, said at the assertion rather than discovered (convention 19): the sticky
     // tool, the temporary-hand modifier, `Esc` cancellation and the seventeen tool classes are
@@ -464,7 +464,7 @@ TEST_CASE("the hand tool pans the page the way the hand moves", "[viewercommands
 {
     Viewer viewer(12);
     viewer.view->controller().setScroll(core::DevicePoint{0.0, 400.0});
-    viewer.view->setTool(ui::PageView::Tool::Hand);
+    viewer.view->setTool(ui::ToolKind::Hand);
 
     const double before = viewer.view->controller().scroll().y;
 
@@ -486,7 +486,7 @@ TEST_CASE("the hand tool pans the page the way the hand moves", "[viewercommands
 
     // AND THE SELECT TOOL DOES NOT PAN -- the negative control, without which a `PageView` that
     // panned on every drag regardless of tool would pass the case above.
-    viewer.view->setTool(ui::PageView::Tool::Select);
+    viewer.view->setTool(ui::ToolKind::Select);
     const double parked = viewer.view->controller().scroll().y;
     QMouseEvent press2(QEvent::MouseButtonPress, QPointF(200, 200), QPointF(200, 200),
                        Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);

@@ -72,6 +72,27 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
     connect(presenter_.get(), &TilePresenter::tilesArrived, this,
             [this] { viewport()->update(); });
 
+    // THE TOOLS (S4 T7). Built after the controller, because it is the controller a tool reaches
+    // through `ToolHost`, and this widget IS that host.
+    tools_ = std::make_unique<ToolController>(*this, this);
+
+    connect(tools_.get(), &ToolController::cursorChanged, this,
+            [this](Qt::CursorShape shape) { viewport()->setCursor(shape); });
+
+    connect(tools_.get(), &ToolController::armedChanged, this, [this](ToolKind kind) {
+        // MOUSE TRACKING FOLLOWS THE TOOL. Only the loupe wants moves with no button down, and
+        // leaving tracking on for every tool would deliver a move event per pixel to tools that
+        // discard them -- and would make the hand tool's `isDragging()` the only thing standing
+        // between a hover and a pan.
+        viewport()->setMouseTracking(tools_->activeTool().tracksHover());
+        viewport()->update();
+        emit toolChanged(kind);
+    });
+
+    // The cursor the default tool shows, applied once at construction: `cursorChanged` only fires
+    // on a CHANGE, so nothing would have set it otherwise and the viewer would open with the
+    // window's arrow over a surface whose tool says I-beam.
+    viewport()->setCursor(tools_->cursor());
     viewport()->setAutoFillBackground(true);
 }
 
@@ -144,6 +165,11 @@ core::render::RenderFlags PageView::renderFlags() const noexcept
 
 void PageView::applySettings(const ViewSettings& settings)
 {
+    // S4 T7: LIVE, like the other nine. A speed change reaches a running auto-scroll -- and a
+    // change to zero stops it, which `ToolController::setAutoScrollSpeed` owns rather than this
+    // call site, so the rule holds wherever the speed comes from.
+    if (tools_) tools_->setAutoScrollSpeed(settings.autoScrollSpeed);
+
     const ViewSettings previous = settings_;
     settings_ = settings;
 
@@ -329,117 +355,66 @@ core::PageRotation PageView::viewRotation() const
     return controller_->viewRotation();
 }
 
-void PageView::setTool(Tool tool)
+ToolKind PageView::tool() const noexcept
 {
-    if (tool == tool_) return;
-    tool_ = tool;
+    // THE ARMED TOOL, not the effective one. A caller asking "which tool is the user in" means the
+    // sticky choice; the temporary hand is a transient that `ToolController::effective()` answers
+    // and that a case about the modifier must read instead (guide case A-41).
+    return tools_->armed();
+}
 
-    // The cursor IS the feedback at this stage -- there is no tool palette until Stage 4, so a
-    // person pressing `H` has no other way to see that anything happened.
-    switch (tool_) {
-    case Tool::Hand:
-        viewport()->setCursor(Qt::OpenHandCursor);
-        break;
-    case Tool::MarqueeZoom:
-        viewport()->setCursor(Qt::CrossCursor);
-        break;
-    case Tool::Select:
-        viewport()->setCursor(Qt::ArrowCursor);
-        break;
-    }
+void PageView::setTool(ToolKind kind)
+{
+    tools_->arm(kind);
+}
 
-    emit toolChanged(tool_);
+QSize PageView::viewportSize() const
+{
+    return viewport()->size();
+}
+
+void PageView::requestRepaint()
+{
+    viewport()->update();
+}
+
+void PageView::recordView()
+{
+    controller_->recordView();
+}
+
+const QPixmap* PageView::lastFrame() const
+{
+    return frame_.isNull() ? nullptr : &frame_;
 }
 
 void PageView::mousePressEvent(QMouseEvent* event)
 {
-    if (event->button() != Qt::LeftButton || tool_ == Tool::Select) {
+    if (!tools_->press(event->pos(), event->button(), event->modifiers())) {
         QAbstractScrollArea::mousePressEvent(event);
         return;
     }
-
-    dragging_ = true;
-    dragStart_ = event->pos();
-    dragCurrent_ = dragStart_;
-    dragScrollOrigin_ = controller_->scroll();
-    if (tool_ == Tool::Hand) viewport()->setCursor(Qt::ClosedHandCursor);
     event->accept();
 }
 
 void PageView::mouseMoveEvent(QMouseEvent* event)
 {
-    if (!dragging_) {
+    if (!tools_->move(event->pos(), event->modifiers())) {
         QAbstractScrollArea::mouseMoveEvent(event);
         return;
     }
-
-    dragCurrent_ = event->pos();
-
-    if (tool_ == Tool::Hand) {
-        // The page follows the hand, so the SCROLL moves the other way. Getting the sign wrong here
-        // is the classic hand-tool bug and it is not subtle to a user and completely invisible to a
-        // test that only checks that something moved -- so the case asserts the direction.
-        const double dpr = devicePixelRatioF();
-        const QPoint moved = dragCurrent_ - dragStart_;
-        controller_->setScroll(core::DevicePoint{dragScrollOrigin_.x - moved.x() * dpr,
-                                                 dragScrollOrigin_.y - moved.y() * dpr});
-    } else {
-        viewport()->update();   // the marquee rubber band
-    }
-
     event->accept();
 }
 
 void PageView::mouseReleaseEvent(QMouseEvent* event)
 {
-    if (!dragging_ || event->button() != Qt::LeftButton) {
+    if (!tools_->release(event->pos(), event->button())) {
         QAbstractScrollArea::mouseReleaseEvent(event);
         return;
     }
-
-    dragging_ = false;
-    if (tool_ == Tool::Hand) {
-        viewport()->setCursor(Qt::OpenHandCursor);
-        event->accept();
-        return;
-    }
-
-    const QRect band = QRect(dragStart_, event->pos()).normalized();
-    dragCurrent_ = event->pos();
-    viewport()->update();
-
-    // A CLICK IS NOT A ZOOM. A marquee smaller than a few pixels is somebody clicking, and zooming
-    // to it would jump to 6400 % on a mis-click with no obvious way back.
-    if (band.width() < kMinMarqueePixels || band.height() < kMinMarqueePixels) {
-        event->accept();
-        return;
-    }
-
-    const double dpr = devicePixelRatioF();
-    const double bandWidth = std::max(1.0, band.width() * dpr);
-    const double bandHeight = std::max(1.0, band.height() * dpr);
-
-    // The zoom that makes the band fill the viewport, limited by the tighter axis so the whole band
-    // stays visible -- the same rule fit-page follows, and for the same reason.
-    const double factor = std::min(controller_->viewportSize().width / bandWidth,
-                                   controller_->viewportSize().height / bandHeight);
-
-    const core::DevicePoint centre{
-        controller_->scroll().x + (band.center().x() * dpr),
-        controller_->scroll().y + (band.center().y() * dpr)};
-
-    const core::render::Zoom target =
-        core::render::Zoom{controller_->zoom().factor * factor}.clamped();
-    const double ratio = target.factor / controller_->zoom().factor;
-
-    controller_->setFitMode(FitMode::None);
-    controller_->setZoom(target);
-    controller_->setScroll(
-        core::DevicePoint{centre.x * ratio - controller_->viewportSize().width / 2.0,
-                          centre.y * ratio - controller_->viewportSize().height / 2.0});
-    controller_->recordView();
     event->accept();
 }
+
 
 void PageView::goToPage(int pageIndex)
 {
@@ -619,6 +594,26 @@ void PageView::wheelEvent(QWheelEvent* event)
 
 void PageView::keyPressEvent(QKeyEvent* event)
 {
+    // `Esc` CANCELS THE TOOL'S GESTURE, and it is handled here rather than through `edit.cancel`
+    // (S4 T7). See the note at that id's absent registration in `MainWindow::registerViewerActions`:
+    // `Esc` is §8's `Common` row, four unbuilt contexts override it, and a registered-but-disabled
+    // command CONSUMES the key -- which swallowed the tool finder's own `Esc` the first time this
+    // was tried.
+    //
+    // A cancel that found nothing to cancel does NOT accept the event, so the key travels on to
+    // whatever else would have had it. That is guide case A-42's control.
+    if (event->key() == Qt::Key_Escape && !event->modifiers()) {
+        if (tools_->cancel()) {
+            event->accept();
+            return;
+        }
+    }
+
+    // EVERY KEY RE-DERIVES THE MODIFIER STATE, which is what makes the temporary hand reliable:
+    // a modifier released while the pointer is outside this widget produces no release event
+    // here, so the state is read from whatever arrives next rather than remembered (A-41).
+    tools_->setModifiers(event->modifiers());
+
     // THE ARROW KEYS ARE `RAWPAGE_BINDING_NATIVE` ROWS (`core/cmd/KeyBindingDefaults.def`): the
     // focused widget owns them, so the boundary behaviour `Features.md` §8 specifies for them --
     // *"Scroll the page (paging at page boundaries)"* -- is this widget's to implement and not an
@@ -674,32 +669,53 @@ bool PageView::event(QEvent* event)
     return QAbstractScrollArea::event(event);
 }
 
-void PageView::paintEvent(QPaintEvent* event)
+void PageView::paintContent(QPainter& painter, const QRect& area)
 {
-    QPainter painter(viewport());
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     // The surround, FROM THE PALETTE rather than a hard-coded grey. `ThemeManager` writes the
     // application palette from its tokens, so taking the desk colour from `QPalette::Window`
     // is taking it from the theme -- and a hard-coded light grey here would be a dark-theme
     // contrast defect in a brand-new widget, which is exactly what I-40 was (convention 20).
-    painter.fillRect(event->rect(), palette().color(QPalette::Window));
+    painter.fillRect(area, palette().color(QPalette::Window));
 
     if (!document_.isValid() || pages_ == nullptr || pages_->isEmpty()) return;
 
     presenter_->paint(painter, engine_.layout(), engine_.resolution(), controller_->visibleRect(),
                       devicePixelRatioF(), settings_.transparencyGrid);
+}
 
-    // The marquee, on top of everything. Drawn from the palette's highlight rather than a
-    // hard-coded blue, so it is visible in both themes (convention 20).
-    if (dragging_ && tool_ == Tool::MarqueeZoom) {
-        const QRect band = QRect(dragStart_, dragCurrent_).normalized();
-        QColor fill = palette().color(QPalette::Highlight);
-        fill.setAlpha(60);
-        painter.fillRect(band, fill);
-        painter.setPen(palette().color(QPalette::Highlight));
-        painter.drawRect(band);
+void PageView::paintEvent(QPaintEvent* event)
+{
+    // TWO PATHS, AND THE SECOND ONE COSTS SOMETHING (S4 T7). Ordinarily the page is painted
+    // straight onto the viewport. When the armed tool needs a FRAME -- only the loupe does -- the
+    // same content goes into a pixmap first, which is then blitted and handed to the tool to
+    // magnify. That is one extra viewport-sized copy per paint, paid only while the loupe is
+    // armed and never otherwise; `ui/viewer/tools/LoupeTool.h` says why the alternative (asking
+    // the engine for a magnified raster) was refused.
+    if (tools_->activeTool().needsFrame()) {
+        const double ratio = devicePixelRatioF();
+        const QSize pixels(static_cast<int>(viewport()->width() * ratio),
+                           static_cast<int>(viewport()->height() * ratio));
+        if (frame_.size() != pixels) frame_ = QPixmap(pixels);
+        frame_.setDevicePixelRatio(ratio);
+        {
+            QPainter into(&frame_);
+            paintContent(into, viewport()->rect());
+        }
+        QPainter painter(viewport());
+        painter.drawPixmap(0, 0, frame_);
+        tools_->paint(painter);
+        return;
     }
+
+    // The frame is dropped as soon as nothing wants it, so an armed-then-disarmed loupe does not
+    // leave a viewport-sized pixmap resident for the life of the tab.
+    if (!frame_.isNull()) frame_ = QPixmap();
+
+    QPainter painter(viewport());
+    paintContent(painter, event->rect());
+    tools_->paint(painter);
 }
 
 } // namespace rawpage::ui
