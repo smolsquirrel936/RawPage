@@ -141,7 +141,7 @@ TEST_CASE("a live id outranks an alias of the same spelling", "[actionid][alias]
     // `ViewFullScreen`. Resolution must ignore it.
     //
     // `tst_actionregistry.cpp` has a case with this name over the shipped table, and over an empty
-    // alias array it cannot fail: it walks 361 live ids and finds each of them, which is true
+    // alias array it cannot fail: it walks all 363 live ids and finds each of them, which is true
     // whatever the alias path does. Here there is an alias that would give the wrong answer if the
     // order were reversed, so the assertion has a way of being false.
     STATIC_REQUIRE(resolve("file.open") == ActionId::FileOpen);

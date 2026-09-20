@@ -69,7 +69,7 @@ Planned absences, itemized in [`Stage4-ViewingSurface-Plan.md` §11](./Stage4-Vi
 | **Seven pane chords — `Ctrl+Shift+C`, `Ctrl+Shift+I`, `Ctrl+Shift+L`, `Ctrl+Shift+E`, `Ctrl+Shift+A`, `Ctrl+Shift+G` and `Ctrl+Shift+O` — do nothing**, and the sidebar lists no pane for them (D4-2) | per pane's stage |
 | **Hairlines still ignore `pageDisplay/lineWeight`** — Stage 2's **I-11**, open by decision, a PDFium capability gap and not a Stage 4 defect | when an engine can honour it |
 | **Ribbon key tips still stop at the tab level** — Stage 2's **I-34**, untouched by this stage | Stage 14's keyboard pass |
-| Most of the 361 declared commands are still unregistered | per feature stage |
+| Most of the **363** declared commands are still unregistered — 297 of them, re-derived 2026-09-21 (the catalog was 361 until T7 named the Loupe and auto-scroll) | per feature stage |
 
 ### What this evidence cannot tell us
 

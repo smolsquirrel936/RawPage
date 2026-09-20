@@ -1359,12 +1359,24 @@ eight of 26. **`pageDisplay/continuousScroll` is not declared** — `pageDisplay
 encodes it, and a second key for one fact is two truths — and **`units/snapToObjects` moves to
 Stage 6** with the objects it would snap to, exactly as D3-9 moved two keys out of Stage 3.
 
-**Cross-cutting additions.** **No new commands, and the check is mechanical** *(D4-1)*: this stage is
-all view state, so `mutation-lint` reports *"1 command(s): RotatePageCommand"* on the last day of the
-stage as it did on the first, and `core/cmd/Commands.def` is byte-unchanged across it. i18n: a
-`panes` key family; the full-screen and units strings live in the existing `shell.` and `prefs.`
-families, because a family is added for a new namespace and not for a new feature (Stage 3 guide
-I-16).
+**Cross-cutting additions.** **No new `Command`, and the check is mechanical** *(D4-1)*: this stage
+is all view state, so `mutation-lint` reports *"1 command(s): RotatePageCommand"* on the last day of
+the stage as it did on the first, and `core/cmd/Commands.def` is byte-unchanged across it.
+
+**Two new `ActionId`s, which is a different thing and is NOT what D4-1 forbids** *(T7,
+corrected here 2026-09-21)*: `tool.loupe` and `view.autoScroll`, taking the catalog from 361 to
+**363**. The word *command* means both a `core::Command` — an undoable document change, of which
+this stage adds none — and a named, dispatchable `ActionId`; D4-1 is about the first. The plan's §2
+ledger predicted the stage would declare no id, which was a measurement of the 70 ids already in
+this stage's namespaces rather than a decision, and `Features.md` §1.2's Loupe and auto-scroll turned
+out to have no row and no chord. The standing rule settled it — *no feature the headless batch path
+can not reach* — and **neither id has a §8 binding**, so `Features.md` §8 is still untouched by this
+stage and `pane.destinations` (T6) is the precedent. **`edit.cancel` is deliberately NOT registered**
+(guide I-06): it is §8's `Common` row, and a registered-but-disabled command consumes its key.
+
+i18n: a `panes` key family; the full-screen and units strings live in the existing `shell.` and
+`prefs.` families, because a family is added for a new namespace and not for a new feature (Stage 3
+guide I-16).
 
 **Algorithms & notes.** Snapping resolves in a fixed precedence — object edges, then guides, then
 grid — with one threshold in **device** pixels so it feels the same at every zoom; the object edges
