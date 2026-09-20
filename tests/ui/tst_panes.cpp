@@ -40,6 +40,10 @@
 #include "core/doc/Document.h"
 #include "core/render/RenderScheduler.h"
 #include "tests/ui/ShellFixture.h"
+#include "core/doc/Destinations.h"
+#include "core/doc/Outline.h"
+#include "ui/panes/BookmarksPane.h"
+#include "ui/panes/DestinationsPane.h"
 #include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
@@ -555,23 +559,24 @@ TEST_CASE("the sidebar's pane list holds exactly the panes that exist", "[panes]
     ui::SidebarDock* sidebar = thumbs.window->sidebar();
     REQUIRE(sidebar != nullptr);
 
-    // ONE AT T5. Bookmarks and Destinations join at T6 and this count moves with them; the other
-    // seven panes in `Features.md` §1.1 are not listed until their models exist.
-    REQUIRE(sidebar->panes().size() == 1);
+    // THREE, AND THE FIRST IS THUMBNAILS. This case was written at T5 against a list of ONE and
+    // is corrected here rather than left beside T6's own version of it (convention 8: correct a
+    // stale claim in place). The other seven panes in `Features.md` §1.1 are still not listed,
+    // which is the half that does not move until their models exist.
+    REQUIRE(sidebar->panes().size() == 3);
     CHECK(sidebar->panes().front().id == ActionId::PaneThumbnails);
     CHECK(sidebar->currentPane() == ActionId::PaneThumbnails);
 
     // NO GREYED ROW, NO PLACEHOLDER ROW. The chooser is built from the registry, so this is the
     // same claim read through the surface a person actually sees -- convention 17's rule that a
-    // generated surface reads the TABLE. It is hidden entirely while there is one pane.
+    // generated surface reads the TABLE.
     auto* chooser = sidebar->findChild<QComboBox*>(QStringLiteral("sidebarPaneChooser"));
     REQUIRE(chooser != nullptr);
-    CHECK(chooser->count() == 1);
-    CHECK_FALSE(chooser->isVisible());
+    CHECK(chooser->count() == 3);
 
     // The Stage 1 placeholder is still there and is not what is on screen.
     CHECK(sidebar->paneWidget(ActionId::PaneThumbnails) == thumbs.pane);
-    CHECK(sidebar->paneWidget(ActionId::PaneBookmarks) == nullptr);
+    CHECK(sidebar->paneWidget(ActionId::PaneComments) == nullptr);
 }
 
 TEST_CASE("the seven unbuilt pane chords are NotImplemented and leave the key alone", "[panes]")
@@ -593,13 +598,17 @@ TEST_CASE("the seven unbuilt pane chords are NotImplemented and leave the key al
         INFO(std::string(core::actionStringId(row.id)));
         CHECK_FALSE(thumbs.fixture.actions.isRegistered(row.id));
         CHECK_FALSE(thumbs.press(row.key, Qt::ControlModifier | Qt::ShiftModifier));
-        CHECK(thumbs.window->sidebar()->panes().size() == 1);
+
+        // AND THE LIST DID NOT GROW. A chord that opened an empty dock is the failure this case
+        // exists to catch, and it would show here rather than in the outcome above.
+        CHECK(thumbs.window->sidebar()->panes().size() == 3);
     }
 
-    // T6's two are unregistered here as well, and are named so that T5 is not read as having
-    // skipped them: `pane.bookmarks` and `pane.destinations` arrive with their models' panes.
-    CHECK_FALSE(thumbs.fixture.actions.isRegistered(ActionId::PaneBookmarks));
-    CHECK_FALSE(thumbs.fixture.actions.isRegistered(ActionId::PaneDestinations));
+    // `pane.bookmarks` and `pane.destinations` ARE registered as of T6, and are named here so the
+    // seven above are read as the seven whose MODELS do not exist rather than as everything that
+    // happens to be unbuilt. The line asserting them absent was T5's and was corrected with T6.
+    CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneBookmarks));
+    CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneDestinations));
 }
 
 TEST_CASE("Ctrl+Shift+P opens the pane and puts the focus in it", "[panes]")
@@ -737,4 +746,461 @@ TEST_CASE("closing the last document empties the pane rather than leaving it sta
     // and holds no ticket into a handle its window has closed, which is the half that would be a
     // use-after-free in the backend rather than a cosmetic error.
     CHECK(thumbs.pane->pendingTicketCount() == 0);
+}
+
+// =============================================================================================
+// T6 -- the two navigation panes. Guide cases A-35, A-36, and the re-reads A-30 and A-37 owed.
+//
+// THE MODELS ARE THE FAKE BACKEND'S, and what that does and does not buy is worth saying once.
+// `core/doc/Outline` and `core/doc/Destinations` are plain value types that T4 fills from PDFium;
+// a fake filling them by hand exercises the PANE over exactly the shapes the engine produces --
+// a two-level tree, three fit kinds, and a destination naming a page that is not there. What it
+// does NOT cover (convention 19) is that PDFium produces those shapes, which is `tests/render`'s
+// `tst_docmodels` and went green at T4 over the real `dests-named.pdf` and `outline-labels.pdf`.
+// =============================================================================================
+
+namespace {
+
+core::OutlineItem bookmark(const QString& title, int page, bool open = false)
+{
+    core::OutlineItem item;
+    item.title = title;
+    item.destination.pageIndex = page;
+    item.destination.fit = core::Destination::Fit::Fit;
+    item.openByDefault = open;
+    return item;
+}
+
+// The shape `ordinary/outline-labels.pdf` carries and `tst_outline` asserts at T4: two levels, with
+// the file's own open/closed state on the roots.
+core::Outline twoLevelOutline()
+{
+    core::Outline outline;
+    core::OutlineItem first = bookmark(QStringLiteral("Chapter One"), 0, /*open=*/true);
+    first.children.push_back(bookmark(QStringLiteral("Section 1.1"), 1));
+    first.children.push_back(bookmark(QStringLiteral("Section 1.2"), 2));
+
+    core::OutlineItem second = bookmark(QStringLiteral("Chapter Two"), 3, /*open=*/false);
+    second.children.push_back(bookmark(QStringLiteral("Section 2.1"), 4));
+
+    outline.roots().push_back(std::move(first));
+    outline.roots().push_back(std::move(second));
+    return outline;
+}
+
+// `dests-named.pdf`'s shape: three kinds, and ONE THAT NAMES A PAGE THAT DOES NOT EXIST -- T1 put
+// it there as the control, and it is the row this pane must show rather than drop.
+core::Destinations namedDestinations()
+{
+    core::Destinations destinations;
+
+    core::NamedDestination xyz;
+    xyz.name = QStringLiteral("chapter-one");
+    xyz.destination.pageIndex = 0;
+    xyz.destination.fit = core::Destination::Fit::XYZ;
+    xyz.destination.hasY = true;
+    xyz.destination.y = 700.0;
+    destinations.add(xyz);
+
+    core::NamedDestination fit;
+    fit.name = QStringLiteral("appendix");
+    fit.destination.pageIndex = 9;
+    fit.destination.fit = core::Destination::Fit::Fit;
+    destinations.add(fit);
+
+    core::NamedDestination fitH;
+    fitH.name = QStringLiteral("bibliography");
+    fitH.destination.pageIndex = 4;
+    fitH.destination.fit = core::Destination::Fit::FitH;
+    destinations.add(fitH);
+
+    core::NamedDestination dangling;
+    dangling.name = QStringLiteral("removed-section");
+    dangling.destination.pageIndex = -1;          // UNRESOLVED -- the control
+    destinations.add(dangling);
+
+    return destinations;
+}
+
+// A window whose document has both models, with the named pane in front and focused.
+struct Panes {
+    Fixture                         fixture;
+    std::unique_ptr<ui::MainWindow> window;
+    ui::BookmarksPane*              bookmarks = nullptr;
+    ui::DestinationsPane*           destinations = nullptr;
+
+    explicit Panes(int pages = 12)
+    {
+        fixture.backend.pagesPerDocument = pages;
+        fixture.backend.outline_ = twoLevelOutline();
+        fixture.backend.destinations_ = namedDestinations();
+
+        window = std::make_unique<ui::MainWindow>(fixture.services());
+        window->resize(1200, 900);
+        window->openFiles({fixture.writeFile(QStringLiteral("book.pdf"))});
+        driveLayout(window.get());
+
+        bookmarks = window->bookmarksPane();
+        destinations = window->destinationsPane();
+        REQUIRE(bookmarks != nullptr);
+        REQUIRE(destinations != nullptr);
+
+        window->raiseToForeground();
+    }
+
+    void focusBookmarks()
+    {
+        REQUIRE(window->sidebar()->showPane(ActionId::PaneBookmarks));
+        driveLayout(window.get());
+        bookmarks->setFocus(Qt::OtherFocusReason);
+        QCoreApplication::processEvents();
+
+        // RULE 4, for a tree: the layout must have given it rows to draw. A pane that was never
+        // laid out reports zero and every assertion about expansion below would pass vacuously.
+        REQUIRE(bookmarks->width() > 80);
+        REQUIRE(bookmarks->visibleRowCount() > 0);
+    }
+
+    void focusDestinations()
+    {
+        REQUIRE(window->sidebar()->showPane(ActionId::PaneDestinations));
+        driveLayout(window.get());
+        destinations->setFocus(Qt::OtherFocusReason);
+        QCoreApplication::processEvents();
+        REQUIRE(destinations->width() > 80);
+        REQUIRE(destinations->rowCount() > 0);
+    }
+
+    bool press(Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+               const QString& text = QString()) const
+    {
+        QWidget* focus = window->focusWidget();
+        REQUIRE(focus != nullptr);
+        QKeyEvent event(QEvent::KeyPress, key, modifiers, text);
+        event.ignore();
+        QCoreApplication::sendEvent(focus, &event);
+        QCoreApplication::processEvents();
+        return event.isAccepted();
+    }
+
+    ui::PageView* view() const { return window->currentView(); }
+};
+
+} // namespace
+
+// =============================================================================================
+// A-35 -- the Bookmarks pane navigates, and edits nothing.
+// =============================================================================================
+
+TEST_CASE("the bookmarks pane shows the document's tree with the file's own open state", "[panes]")
+{
+    Panes panes;
+    panes.focusBookmarks();
+
+    CHECK(panes.bookmarks->nodeCount() == 5);       // two roots, three children
+    CHECK(panes.bookmarks->topLevelItemCount() == 2);
+
+    // THE FILE'S OWN OPEN/CLOSED STATE, not a default of ours: Chapter One is open in the model and
+    // Chapter Two is not, so four rows are drawn rather than two or five. A pane that expanded
+    // everything would throw away what the document's author said about its own structure.
+    CHECK(panes.bookmarks->visibleRowCount() == 4);
+}
+
+TEST_CASE("Enter in the bookmarks pane goes to the bookmark's destination", "[panes]")
+{
+    Panes panes;
+    panes.focusBookmarks();
+    REQUIRE(panes.view() != nullptr);
+    REQUIRE(panes.window->shortcutBinder()->activeContext() == core::KeyContext::Bookmarks);
+
+    // Walk to "Section 1.2", whose destination is page 2. `Down` is in NO Bookmarks row, so it
+    // resolves to nothing, is not consumed, and the tree walks the selection natively -- which is
+    // itself worth asserting, because it is a third behaviour from the same table.
+    panes.press(Qt::Key_Down);
+    panes.press(Qt::Key_Down);
+    CHECK(panes.bookmarks->selectedTitle() == QStringLiteral("Section 1.2"));
+
+    CHECK(panes.press(Qt::Key_Return));
+
+    // THE EFFECT, NOT THE INTENT (rule 1): the view moved, rather than `bookmark.goTo` dispatching.
+    CHECK(panes.view()->controller().currentPage() == 2);
+}
+
+TEST_CASE("right and left expand and collapse the selected bookmark, from a key event", "[panes]")
+{
+    Panes panes;
+    panes.focusBookmarks();
+
+    // Chapter Two is closed in the file. Select it and open it with the chord section 8 binds --
+    // which in THIS context is a registered command, unlike the thumbnails pane where the same
+    // physical keys are `WidgetNative` and the item view owns them. One table, two answers,
+    // neither decided in the pane.
+    panes.bookmarks->setCurrentItem(panes.bookmarks->topLevelItem(1));
+    REQUIRE(panes.bookmarks->selectedTitle() == QStringLiteral("Chapter Two"));
+    const int before = panes.bookmarks->visibleRowCount();
+
+    CHECK(panes.press(Qt::Key_Right));
+    CHECK(panes.bookmarks->visibleRowCount() == before + 1);
+
+    CHECK(panes.press(Qt::Key_Left));
+    CHECK(panes.bookmarks->visibleRowCount() == before);
+}
+
+TEST_CASE("star and slash expand and collapse the whole tree, from a key event", "[panes]")
+{
+    Panes panes;
+    panes.focusBookmarks();
+
+    CHECK(panes.press(Qt::Key_Asterisk, Qt::NoModifier, QStringLiteral("*")));
+    CHECK(panes.bookmarks->visibleRowCount() == 5);   // every node drawn
+
+    CHECK(panes.press(Qt::Key_Slash, Qt::NoModifier, QStringLiteral("/")));
+    CHECK(panes.bookmarks->visibleRowCount() == 2);   // the two roots only
+}
+
+TEST_CASE("every editing chord in the bookmarks table is unregistered and leaves its key alone",
+          "[panes]")
+{
+    // THE CONTROL A-35 names, and the reason T6 is navigation-only (D4-2, D4-3). Eight rows, each
+    // needing a `Command` that Stage 7 owns. An unregistered id must answer `NotImplemented` and
+    // NOT consume the key: a handler that did nothing would be indistinguishable from one that is
+    // broken, which is Stage 2's I-11 in the shape a pane invites.
+    Panes panes(12);
+    panes.focusBookmarks();
+
+    struct Row { Qt::Key key; Qt::KeyboardModifiers modifiers; ActionId id; };
+    const Row rows[] = {
+        {Qt::Key_F2,      Qt::NoModifier,                          ActionId::BookmarkRename},
+        {Qt::Key_Delete,  Qt::NoModifier,                          ActionId::BookmarkDelete},
+        {Qt::Key_B,       Qt::ControlModifier,                     ActionId::BookmarkNew},
+        {Qt::Key_Tab,     Qt::NoModifier,                          ActionId::BookmarkDemote},
+        {Qt::Key_Backtab, Qt::ShiftModifier,                       ActionId::BookmarkPromote},
+        {Qt::Key_Up,      Qt::AltModifier,                         ActionId::BookmarkMoveUp},
+        {Qt::Key_Down,    Qt::AltModifier,                         ActionId::BookmarkMoveDown},
+        {Qt::Key_D,       Qt::ControlModifier | Qt::ShiftModifier, ActionId::BookmarkSetDestination},
+    };
+
+    const std::size_t nodesBefore = panes.bookmarks->nodeCount();
+
+    for (const Row& row : rows) {
+        INFO(std::string(core::actionStringId(row.id)));
+        CHECK_FALSE(panes.fixture.actions.isRegistered(row.id));
+        CHECK_FALSE(panes.press(row.key, row.modifiers));
+
+        // `Tab` MOVES THE FOCUS when nobody consumes it, which is exactly what *leaves the key
+        // alone* means -- so the focus is put back before the next row rather than letting the
+        // rest of the loop press keys at some other widget and pass for the wrong reason.
+        panes.bookmarks->setFocus(Qt::OtherFocusReason);
+        QCoreApplication::processEvents();
+    }
+
+    // AND THE TREE IS UNCHANGED. The pane is a view: no row was added, renamed or removed by any
+    // of the eight, and the document behind it is clean.
+    CHECK(panes.bookmarks->nodeCount() == nodesBefore);
+    ui::DocumentWindow* document = panes.window->currentDocument();
+    REQUIRE(document != nullptr);
+    CHECK_FALSE(document->isDirty());
+}
+
+// =============================================================================================
+// A-36 -- the Destinations pane lists and navigates.
+// =============================================================================================
+
+TEST_CASE("the destinations pane lists every destination, the unresolvable one included", "[panes]")
+{
+    Panes panes;
+    panes.focusDestinations();
+
+    // FOUR ROWS FROM FOUR ENTRIES. The dangling one is SHOWN, marked, not dropped: a destination
+    // silently missing from the list reads as a document with fewer than it has, and
+    // `dests-named.pdf` carries one deliberately as T1's control.
+    CHECK(panes.destinations->rowCount() == 4);
+    CHECK(panes.destinations->unresolvedRowCount() == 1);
+
+    // AND THE READER CAN SEE WHICH ONE. The line above reads the MODEL behind each row, and a
+    // planted-bug control proved that is a weaker claim than it looks: marking every row
+    // unresolvable ON SCREEN left it at 1 and this case green. So the page column is read too --
+    // three numbers and one statement, which is what a person actually sees (convention 22).
+    CHECK(panes.destinations->pageTextAt(0) == QStringLiteral("10"));   // appendix
+    CHECK(panes.destinations->pageTextAt(1) == QStringLiteral("5"));    // bibliography
+    CHECK(panes.destinations->pageTextAt(2) == QStringLiteral("1"));    // chapter-one
+    CHECK(panes.destinations->pageTextAt(3) != QStringLiteral("0"));    // removed-section: not a page
+    CHECK_FALSE(panes.destinations->pageTextAt(3).isEmpty());
+
+    // BY NAME, ASCENDING, and the pane sets that explicitly rather than inheriting whatever sort
+    // indicator the header carried (see its constructor). For a `/Names /Dests` tree -- which is
+    // lexically ordered by the specification -- this is the file's own order rather than a
+    // re-arrangement of it.
+    CHECK(panes.destinations->nameAt(0) == QStringLiteral("appendix"));
+    CHECK(panes.destinations->nameAt(1) == QStringLiteral("bibliography"));
+    CHECK(panes.destinations->nameAt(2) == QStringLiteral("chapter-one"));
+    CHECK(panes.destinations->nameAt(3) == QStringLiteral("removed-section"));
+}
+
+TEST_CASE("the destinations pane sorts by name and by page, and a page sorts as a number",
+          "[panes]")
+{
+    Panes panes;
+    panes.focusDestinations();
+
+    panes.destinations->sortByColumn(0, Qt::AscendingOrder);
+    CHECK(panes.destinations->nameAt(0) == QStringLiteral("appendix"));
+    CHECK(panes.destinations->nameAt(1) == QStringLiteral("bibliography"));
+
+    // BY PAGE, AND AS A NUMBER. Page 10 must not sort before page 5, which is what a lexicographic
+    // compare on the column's TEXT would do -- a sort that looks correct on a nine-page document
+    // and is wrong on every larger one. `appendix` is page 10 and `bibliography` page 5.
+    panes.destinations->sortByColumn(1, Qt::AscendingOrder);
+    CHECK(panes.destinations->nameAt(0) == QStringLiteral("chapter-one"));    // page 1
+    CHECK(panes.destinations->nameAt(1) == QStringLiteral("bibliography"));   // page 5
+    CHECK(panes.destinations->nameAt(2) == QStringLiteral("appendix"));       // page 10
+
+    // The unresolvable row sorts LAST rather than as page 0: it has no page to be between two
+    // others, and "goes nowhere" at the top of the list is not an ordering anyone wants.
+    CHECK(panes.destinations->nameAt(3) == QStringLiteral("removed-section"));
+}
+
+TEST_CASE("activating a destination moves the view, and an unresolvable one does nothing",
+          "[panes]")
+{
+    Panes panes(12);
+    panes.focusDestinations();
+    REQUIRE(panes.view() != nullptr);
+
+    panes.destinations->sortByColumn(1, Qt::AscendingOrder);
+    panes.destinations->setCurrentItem(panes.destinations->topLevelItem(1));   // bibliography, p5
+    REQUIRE(panes.destinations->selectedName() == QStringLiteral("bibliography"));
+
+    panes.destinations->goToSelected();
+    QCoreApplication::processEvents();
+    CHECK(panes.view()->controller().currentPage() == 4);
+
+    // THE CONTROL: the unresolvable row does not navigate, and does not scroll to page 1 either --
+    // which is what a naive `goToPage(destination.pageIndex)` would do with a -1 clamped. It is
+    // also not SELECTABLE, so this drives the entry point directly rather than through a click
+    // that could not happen, and says so.
+    const int stayedAt = panes.view()->controller().currentPage();
+    panes.destinations->setCurrentItem(panes.destinations->topLevelItem(3));
+    panes.destinations->goToSelected();
+    QCoreApplication::processEvents();
+    CHECK(panes.view()->controller().currentPage() == stayedAt);
+}
+
+TEST_CASE("a destination's fit is carried but not yet applied, and the case says so", "[panes]")
+{
+    // I-05 (section 8), stated as a case rather than left as a surprise. `chapter-one` is `/XYZ`
+    // with a y of 700 -- the model carries the point, T4's `tst_outline` asserts it, and NOTHING
+    // here throws it away. What Stage 4 T6 does is go to the PAGE.
+    Panes panes(12);
+    panes.focusDestinations();
+    REQUIRE(panes.view() != nullptr);
+
+    // BY NAME, so `chapter-one` -- the `/XYZ` one -- is row 2. Selected by NAME rather than by a
+    // row number, because a case that hard-codes an index is a case that silently tests a
+    // different row the day the default order changes.
+    int row = -1;
+    for (int i = 0; i < panes.destinations->rowCount(); ++i)
+        if (panes.destinations->nameAt(i) == QStringLiteral("chapter-one")) row = i;
+    REQUIRE(row >= 0);
+
+    panes.destinations->setCurrentItem(panes.destinations->topLevelItem(row));
+    const core::Destination selected = panes.destinations->selectedDestination();
+    CHECK(selected.fit == core::Destination::Fit::XYZ);
+    CHECK(selected.hasY);
+    CHECK(selected.y == 700.0);
+
+    panes.destinations->goToSelected();
+    QCoreApplication::processEvents();
+    CHECK(panes.view()->controller().currentPage() == 0);
+
+    // WHAT IS NOT COVERED, at the assertion (convention 19): that the view lands at y = 700 within
+    // the page. It does not, and it is not meant to yet -- turning a PDF-space point into a scroll
+    // offset needs the page's slot rectangle and the resolution that made it, which is T12's
+    // arithmetic for Fit Visible (D4-14). A second conversion invented here would be a wrong one
+    // scrolling the reader silently to the wrong place.
+}
+
+// =============================================================================================
+// The two re-reads T5 owed -- A-30's pane half, and A-37 against a list of three.
+// =============================================================================================
+
+TEST_CASE("showing a pane on an already-open document re-reads no model", "[panes]")
+{
+    // A-30's owed half. The `pdf/render/` side is met by construction -- the `FPDF_DOCUMENT` never
+    // leaves that directory, so a pane could not re-hydrate if it tried -- and this is the widget
+    // side: showing, hiding and re-showing a pane must not walk the document again.
+    Panes panes;
+    panes.focusBookmarks();
+
+    const int outlineReadsAfterOpen = panes.fixture.backend.outlineReads;
+    const int destinationReadsAfterOpen = panes.fixture.backend.destinationReads;
+    REQUIRE(outlineReadsAfterOpen > 0);   // it was read at least once, or this proves nothing
+
+    for (int i = 0; i < 5; ++i) {
+        panes.window->sidebar()->showPane(ActionId::PaneDestinations);
+        panes.window->sidebar()->showPane(ActionId::PaneBookmarks);
+        driveLayout(panes.window.get());
+    }
+
+    // SELECTING A PANE IS NOT A READ. The models are fetched when the DOCUMENT in front changes,
+    // which is `updateDocumentPanes()`, and showing a pane is neither.
+    CHECK(panes.fixture.backend.outlineReads == outlineReadsAfterOpen);
+    CHECK(panes.fixture.backend.destinationReads == destinationReadsAfterOpen);
+
+    // And the tree is still the tree -- a pane that had quietly rebuilt itself from nothing would
+    // pass the counter check and fail this one.
+    CHECK(panes.bookmarks->nodeCount() == 5);
+}
+
+TEST_CASE("the sidebar now lists exactly three panes, and still no more", "[panes]")
+{
+    // A-37 re-read at T6, where the case as written -- "exactly Thumbnails, Bookmarks and
+    // Destinations" -- finally has all three to check.
+    Panes panes;
+    ui::SidebarDock* sidebar = panes.window->sidebar();
+
+    REQUIRE(sidebar->panes().size() == 3);
+    CHECK(sidebar->panes()[0].id == ActionId::PaneThumbnails);
+    CHECK(sidebar->panes()[1].id == ActionId::PaneBookmarks);
+    CHECK(sidebar->panes()[2].id == ActionId::PaneDestinations);
+
+    // THE CHOOSER IS VISIBLE NOW, which it was not at T5: it is hidden below two panes, because a
+    // chooser with one entry is furniture. The surface reads the registry rather than a second
+    // list of the same names (convention 17).
+    driveLayout(panes.window.get());
+    auto* chooser = sidebar->findChild<QComboBox*>(QStringLiteral("sidebarPaneChooser"));
+    REQUIRE(chooser != nullptr);
+    CHECK(chooser->count() == 3);
+    CHECK(chooser->isVisible());
+
+    // And the seven that have no model are still absent -- the D4-2 claim, re-asserted where the
+    // list has grown, because "only panes that exist" is a claim about the whole set.
+    CHECK(sidebar->paneWidget(ActionId::PaneComments) == nullptr);
+    CHECK(sidebar->paneWidget(ActionId::PaneLayers) == nullptr);
+    CHECK(sidebar->paneWidget(ActionId::PaneSignatures) == nullptr);
+}
+
+TEST_CASE("Ctrl+Shift+B opens the bookmarks pane, and the destinations pane has no chord",
+          "[panes]")
+{
+    Panes panes;
+    panes.window->sidebar()->showPane(ActionId::PaneThumbnails);
+    REQUIRE(panes.view() != nullptr);
+    panes.view()->setFocus(Qt::OtherFocusReason);
+    QCoreApplication::processEvents();
+
+    CHECK(panes.press(Qt::Key_B, Qt::ControlModifier | Qt::ShiftModifier));
+    driveLayout(panes.window.get());
+    CHECK(panes.window->sidebar()->currentPane() == ActionId::PaneBookmarks);
+    CHECK(panes.window->shortcutBinder()->activeContext() == core::KeyContext::Bookmarks);
+
+    // `pane.destinations` IS REGISTERED AND HAS NO DEFAULT CHORD, which is section 8's arrangement
+    // rather than an omission here: the Global table binds nine `Ctrl+Shift+*` panes and this is
+    // not one of them, and `Features.md` section 8 is not touched by this stage (plan section 10).
+    // So it is reached by DISPATCH -- from the sidebar's chooser, the ribbon, the tool finder or
+    // the batch runner.
+    CHECK(panes.fixture.actions.isRegistered(ActionId::PaneDestinations));
+    CHECK(panes.fixture.actions.dispatch(ActionId::PaneDestinations, core::KeyContext::Global));
+    driveLayout(panes.window.get());
+    CHECK(panes.window->sidebar()->currentPane() == ActionId::PaneDestinations);
 }

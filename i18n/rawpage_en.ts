@@ -2989,5 +2989,33 @@
         <source>panes.thumbnails.empty</source>
         <translation>No document is open.</translation>
     </message>
+    <message>
+        <source>panes.bookmarks.title</source>
+        <translation>Bookmarks</translation>
+    </message>
+    <message>
+        <source>panes.bookmarks.empty</source>
+        <translation>This document has no bookmarks.</translation>
+    </message>
+    <message>
+        <source>panes.destinations.title</source>
+        <translation>Destinations</translation>
+    </message>
+    <message>
+        <source>panes.destinations.empty</source>
+        <translation>This document has no named destinations.</translation>
+    </message>
+    <message>
+        <source>panes.destinations.column.name</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>panes.destinations.column.page</source>
+        <translation>Page</translation>
+    </message>
+    <message>
+        <source>panes.destinations.unresolved</source>
+        <translation>Goes nowhere — its page is not in this document</translation>
+    </message>
 </context>
 </TS>

@@ -112,6 +112,16 @@ add_library(rawpage_ui STATIC
     # (D4-10): a 900-page document costs the visible slots plus one screen, never 900 requests.
     panes/ThumbnailsPane.h
     panes/ThumbnailsPane.cpp
+
+    # S4 T6 -- the two navigation panes over the read-only models T4 hydrated (D4-3). Both are
+    # QTreeWidgets rather than hand-drawn surfaces: a bookmark tree and a destination table are
+    # what an item view is for, and neither is a viewport over a render stream the way the
+    # thumbnails pane is. Navigation only; every editing row in Features.md section 8's Bookmarks
+    # table stays unregistered and leaves its key alone, which is T6's control.
+    panes/BookmarksPane.h
+    panes/BookmarksPane.cpp
+    panes/DestinationsPane.h
+    panes/DestinationsPane.cpp
     dialogs/SettingsPage.h
     dialogs/SettingsPage.cpp
     dialogs/ShortcutsPage.h

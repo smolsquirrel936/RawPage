@@ -169,12 +169,27 @@ public:
     // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
     // null means *not a handle of mine*, and empty means *this document has none*, which is the
     // distinction `core/backend.h` asks callers to make. A case that needs an outline fills these.
-    const core::Outline* outline(core::DocumentHandle) const override { return &outline_; }
+    const core::Outline* outline(core::DocumentHandle) const override
+    {
+        ++outlineReads;
+        return &outline_;
+    }
     const core::Destinations* destinations(core::DocumentHandle) const override
     {
+        ++destinationReads;
         return &destinations_;
     }
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
+
+    // S4 T6: how many times a caller ASKED for each model. Guide case A-30 claims the readers are
+    // hydrated once at open and that showing a pane re-reads nothing; the `pdf/render/` half of
+    // that is met by construction (the `FPDF_DOCUMENT` never leaves that directory), and this
+    // counter is what lets the WIDGET half be asserted rather than argued -- a pane that rebuilt
+    // its tree on every show would be visible here as a growing number. `mutable` because the
+    // accessors are const by interface, which is itself the point: fetching a model is a read of
+    // something already in memory.
+    mutable int outlineReads = 0;
+    mutable int destinationReads = 0;
 
     core::Outline outline_;
     core::Destinations destinations_;

@@ -64,6 +64,8 @@ namespace rawpage::ui {
 class ActionFactory;
 class DocumentTabBar;
 class DocumentWindow;
+class BookmarksPane;
+class DestinationsPane;
 class LogPane;
 class ThumbnailsPane;
 class MessageBar;
@@ -220,6 +222,8 @@ public:
     // front by `updateDocumentPanes()`; see the construction comment for why it is not one per
     // document. Null only before `buildCentralSurface()` has run.
     ThumbnailsPane*     thumbnailsPane() const { return thumbnails_; }
+    BookmarksPane*      bookmarksPane() const { return bookmarks_; }
+    DestinationsPane*   destinationsPane() const { return destinations_; }
 
     // The Preferences dialog, built on first use and kept. Null until `file.preferences` has been
     // dispatched once. Modeless, so this is not a blocking call's return value -- see
@@ -371,9 +375,11 @@ private:
     QStackedWidget* documents_ = nullptr;
     QWidget*        placeholder_ = nullptr;
 
-    SidebarDock*    sidebar_ = nullptr;
-    ThumbnailsPane* thumbnails_ = nullptr;
-    LogPane*        logPane_ = nullptr;
+    SidebarDock*      sidebar_ = nullptr;
+    ThumbnailsPane*   thumbnails_ = nullptr;
+    BookmarksPane*    bookmarks_ = nullptr;
+    DestinationsPane* destinations_ = nullptr;
+    LogPane*          logPane_ = nullptr;
     StatusBar*   status_ = nullptr;
     MessageBar*  messageBar_ = nullptr;
 

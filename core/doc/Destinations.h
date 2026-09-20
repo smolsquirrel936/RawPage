@@ -25,6 +25,7 @@
 #ifndef RAWPAGE_CORE_DOC_DESTINATIONS_H
 #define RAWPAGE_CORE_DOC_DESTINATIONS_H
 
+#include <QMetaType>
 #include <QString>
 
 #include <cstddef>
@@ -104,5 +105,14 @@ private:
 };
 
 } // namespace rawpage::core
+
+// Declared here rather than in each `ui/` file that needs it (Stage 4 T6). A `Destination` is a
+// value type that travels in a Qt signal and rides in a `QVariant` on a tree item, and
+// `Q_DECLARE_METATYPE` must be seen exactly once for a type -- two UI headers each declaring it
+// would be an ODR question nobody wants to answer at link time. It is `QMetaType`, which is
+// QtCore: `core/` may name QtCore by the documented exception and may not name a QtGui type
+// (convention 3), and this is the former. Present since Qt 5, so the portable presets' Qt 6.4
+// builds it unchanged (convention 24).
+Q_DECLARE_METATYPE(rawpage::core::Destination)
 
 #endif // RAWPAGE_CORE_DOC_DESTINATIONS_H

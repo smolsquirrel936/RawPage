@@ -2989,5 +2989,33 @@
         <source>panes.thumbnails.empty</source>
         <translation>目前沒有開啟的文件。</translation>
     </message>
+    <message>
+        <source>panes.bookmarks.title</source>
+        <translation>書籤</translation>
+    </message>
+    <message>
+        <source>panes.bookmarks.empty</source>
+        <translation>本文件沒有書籤。</translation>
+    </message>
+    <message>
+        <source>panes.destinations.title</source>
+        <translation>命名目的地</translation>
+    </message>
+    <message>
+        <source>panes.destinations.empty</source>
+        <translation>本文件沒有命名目的地。</translation>
+    </message>
+    <message>
+        <source>panes.destinations.column.name</source>
+        <translation>名稱</translation>
+    </message>
+    <message>
+        <source>panes.destinations.column.page</source>
+        <translation>頁數</translation>
+    </message>
+    <message>
+        <source>panes.destinations.unresolved</source>
+        <translation>無法到達 — 其頁面不在本文件中</translation>
+    </message>
 </context>
 </TS>

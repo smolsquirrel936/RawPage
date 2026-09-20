@@ -59,6 +59,17 @@ RAWPAGE_SHELL_STRING(SidebarDockRight,       "shell.sidebar.dockRight")
 // coverage; `ui/panes/LogPane` set the precedent by taking its keys from here at T14.
 RAWPAGE_SHELL_STRING(PanesThumbnailsTitle,   "panes.thumbnails.title")
 RAWPAGE_SHELL_STRING(PanesThumbnailsEmpty,   "panes.thumbnails.empty")
+RAWPAGE_SHELL_STRING(PanesBookmarksTitle,    "panes.bookmarks.title")
+RAWPAGE_SHELL_STRING(PanesBookmarksEmpty,    "panes.bookmarks.empty")
+RAWPAGE_SHELL_STRING(PanesDestinationsTitle, "panes.destinations.title")
+RAWPAGE_SHELL_STRING(PanesDestinationsEmpty, "panes.destinations.empty")
+RAWPAGE_SHELL_STRING(PanesDestinationsColumnName, "panes.destinations.column.name")
+RAWPAGE_SHELL_STRING(PanesDestinationsColumnPage, "panes.destinations.column.page")
+
+// Shown on a bookmark or a destination whose page is not in the document -- `dests-named.pdf`
+// carries one deliberately, as T1's control. It is a STATEMENT rather than an error: the row stays
+// in the list, because a destination silently missing reads as a document with fewer than it has.
+RAWPAGE_SHELL_STRING(PanesDestinationsUnresolved, "panes.destinations.unresolved")
 
 // --- The status bar ----------------------------------------------------------------------------
 RAWPAGE_SHELL_STRING(StatusReady,            "shell.status.ready")

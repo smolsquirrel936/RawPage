@@ -12,6 +12,8 @@
 #include "platform/platform.h"
 #include "ui/dialogs/PreferencesDialog.h"
 #include "ui/panes/LogPane.h"
+#include "ui/panes/BookmarksPane.h"
+#include "ui/panes/DestinationsPane.h"
 #include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
@@ -192,6 +194,27 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     connect(thumbnails_, &ThumbnailsPane::activated, this, [this](int pageIndex) {
         if (PageView* view = currentView()) view->goToPage(pageIndex);
     });
+
+    // S4 · T6 -- the two navigation panes, over the models T4 hydrated at open (D4-3). Both are
+    // read-only halves: every editing row in §8's Bookmarks table is Stage 7's and stays
+    // unregistered, so its key reaches the tree unconsumed rather than a handler that does nothing.
+    bookmarks_ = new BookmarksPane(sidebar_);
+    sidebar_->addPane(core::ActionId::PaneBookmarks,
+                      catalog::translate(catalog::key::PanesBookmarksTitle), bookmarks_);
+
+    destinations_ = new DestinationsPane(sidebar_);
+    sidebar_->addPane(core::ActionId::PaneDestinations,
+                      catalog::translate(catalog::key::PanesDestinationsTitle), destinations_);
+
+    // ONE NAVIGATION, whichever pane asked. Both panes hand up a `core::Destination` and this is
+    // the single place that turns one into a movement, so a bookmark and a named destination
+    // cannot land in different places for the same target.
+    const auto goToDestination = [this](const core::Destination& destination) {
+        if (!destination.isResolved()) return;
+        if (PageView* view = currentView()) view->goToPage(destination.pageIndex);
+    };
+    connect(bookmarks_, &BookmarksPane::activated, this, goToDestination);
+    connect(destinations_, &DestinationsPane::activated, this, goToDestination);
 
     // THE LOG PANE -- T14. Its own dock along the bottom rather than a pane in the sidebar: the
     // sidebar's subject is the document and the log's is the application. Hidden, because a shell
@@ -1406,8 +1429,21 @@ void MainWindow::updateDocumentPanes()
     DocumentWindow* current = currentDocument();
     if (current == nullptr) {
         thumbnails_->setDocument({}, {}, nullptr);
+        if (bookmarks_) bookmarks_->setDocument({}, nullptr);
+        if (destinations_) destinations_->setDocument({}, nullptr);
         return;
     }
+
+    // THE BACKEND'S OWN MODELS, hydrated ONCE at open (D4-3, guide case A-30) and handed out by
+    // pointer -- these calls read nothing and touch no engine, which is what makes re-pointing a
+    // pane on every tab change free. A null answer means *not a handle of mine*; an EMPTY model
+    // means *this document has none*, and each pane shows its empty state for the second rather
+    // than an error (`core/backend.h` draws that distinction deliberately).
+    if (bookmarks_)
+        bookmarks_->setDocument(current->handle(), services_.backend.outline(current->handle()));
+    if (destinations_)
+        destinations_->setDocument(current->handle(),
+                                   services_.backend.destinations(current->handle()));
 
     // THE MODEL'S TREE FOR WHAT IS SHOWN, THE ENGINE'S FOR THE DELTA (D3-15) -- the same pair
     // `DocumentWindow` hands `PageView`, so an unsaved rotation is in the thumbnail and in the page
@@ -1695,6 +1731,63 @@ void MainWindow::registerActions()
             const ThumbnailsPane* pane = activeThumbnails();
             return pane != nullptr && pane->thumbnailWidth() > ThumbnailsPane::kMinThumbnailWidth;
         });
+
+    // --- The two navigation panes (S4 · T6, D4-2 and D4-3) -----------------------------------
+    // SEVEN IDS. `pane.bookmarks` and `pane.destinations` open them, and five of §8's thirteen
+    // Bookmarks rows are serviced: `Enter`, `→`, `←`, `*`, `/`. The other eight are the EDITING
+    // rows — rename, delete, new, demote, promote, move up, move down, set-destination — and they
+    // stay unregistered, because each needs a `Command` and this stage adds none (D4-1). Their keys
+    // therefore reach the tree unconsumed, which `tst_panes` presses each of them to prove.
+    //
+    // **`pane.destinations` has no chord, and that is §8's rather than an omission here.** The
+    // Global table binds nine `Ctrl+Shift+*` panes and this is not one of them; the command is
+    // reachable from the sidebar's chooser, the ribbon, the tool finder and the batch runner.
+    // `Features.md` §8 is not touched by this stage (plan §10), so it is recorded rather than given
+    // one.
+    const auto activeBookmarks = []() -> BookmarksPane* {
+        MainWindow* window = activeShell();
+        return window ? window->bookmarksPane() : nullptr;
+    };
+
+    // Both panes open the same way the Thumbnails pane does: show, select, FOCUS. The focus is what
+    // makes §8's Bookmarks table live at all, because `activeContext()` is computed from the focus
+    // chain (D1-5) — and it is why the destinations pane, which declares no context, still needs it.
+    const auto showPane = [](ActionId id) {
+        return [id](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window || !window->sidebar()) return;
+            window->sidebar()->setAutoHidden(false);
+            window->sidebar()->show();
+            window->sidebar()->showPane(id);
+            if (QWidget* pane = window->sidebar()->paneWidget(id))
+                pane->setFocus(Qt::OtherFocusReason);
+        };
+    };
+    registerAction(ActionId::PaneBookmarks, showPane(ActionId::PaneBookmarks));
+    registerAction(ActionId::PaneDestinations, showPane(ActionId::PaneDestinations));
+
+    // The five navigation rows. Each is DISABLED where there is no bookmark to act on rather than
+    // refused after the press (convention 16), so a ribbon button says so before it is clicked.
+    const auto withBookmarks = [activeBookmarks](void (BookmarksPane::*method)()) {
+        return [activeBookmarks, method](KeyContext) {
+            if (BookmarksPane* pane = activeBookmarks()) (pane->*method)();
+        };
+    };
+    const auto haveBookmarks = [activeBookmarks] {
+        const BookmarksPane* pane = activeBookmarks();
+        return pane != nullptr && pane->nodeCount() > 0;
+    };
+
+    registerAction(ActionId::BookmarkGoTo, withBookmarks(&BookmarksPane::goToSelected),
+                   haveBookmarks);
+    registerAction(ActionId::BookmarkExpand, withBookmarks(&BookmarksPane::expandSelected),
+                   haveBookmarks);
+    registerAction(ActionId::BookmarkCollapse, withBookmarks(&BookmarksPane::collapseSelected),
+                   haveBookmarks);
+    registerAction(ActionId::BookmarkExpandAll, withBookmarks(&BookmarksPane::expandAllItems),
+                   haveBookmarks);
+    registerAction(ActionId::BookmarkCollapseAll, withBookmarks(&BookmarksPane::collapseAllItems),
+                   haveBookmarks);
 
     // --- The Quick Access Toolbar and the tool finder (T11) ---------------------------------
     // `ui.customize` is deliberately NOT registered. The customization dialog is T14, and a handler

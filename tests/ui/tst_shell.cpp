@@ -71,9 +71,9 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // FIFTY-SEVEN, and named. 361 ids are declared; an id that is declared and UNREGISTERED
+    // SIXTY-FOUR, and named. 361 ids are declared; an id that is declared and UNREGISTERED
     // renders as a visible, disabled control saying it is not built yet, which is the honest state.
-    // Registering a stub handler for the other 304 would make every one of them look available.
+    // Registering a stub handler for the other 297 would make every one of them look available.
     //
     // Nineteen at Stage 1 T14. Three joined on 2026-08-31, each because a manual walk reached for
     // something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
@@ -87,11 +87,15 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // and `page.thumbnailsSmaller` -- the Thumbnails pane and the three §8 Page Thumbnails rows it
     // services. `page.rotate` is in that table too and is NOT a fifth: the pane reaches Stage 3's
     // registration by declaring its context, which is D4-1's claim made structural.
+    // **Seven more at Stage 4 T6**: `pane.bookmarks` and `pane.destinations`, plus the five §8
+    // Bookmarks rows that are NAVIGATION -- `bookmark.goTo`, `expand`, `collapse`, `expandAll`,
+    // `collapseAll`. The other eight rows in that table are the EDITING ones and each needs a
+    // `Command`, so they are Stage 7's and stay unregistered.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 57);
+    CHECK(fixture.actions.registeredCount() == 64);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -164,10 +168,23 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // And the seven panes whose MODELS do not exist are not registered either (D4-2): a pane
     // cannot precede its model, and a chord that opened an empty dock would be indistinguishable
     // from a pane that is broken. `pane.bookmarks` and `pane.destinations` arrive at T6.
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneBookmarks));     // S4 T6
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneDestinations));  // S4 T6
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneComments));      // S6
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneLayers));        // S7
+
+    // S4 T6's SEVEN: the two navigation panes and the five §8 Bookmarks rows that navigate.
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneBookmarks));
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneDestinations));
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkGoTo));
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkExpand));
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkCollapse));
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkExpandAll));
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkCollapseAll));
+
+    // And the eight EDITING rows of the same table are not, because each needs a `Command` and
+    // Stage 4 adds none (D4-1). `tst_panes` presses every one of them and requires the key back.
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkRename));    // S7
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkDelete));    // S7
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkNew));       // S7
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op. `file.print` is one of the ~310 that are declared and
