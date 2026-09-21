@@ -291,8 +291,21 @@ Token Lexer::lexNumber()
         // A Real still reports an integer, truncated, so a caller reading `integer` off a `4.0`
         // that a producer wrote where an integer belonged gets 4 rather than 0.
         const double truncated = std::trunc(token.real);
+
+        // The UPPER bound is 2^63 and the comparison against it is STRICT, and both halves of that
+        // matter. `static_cast<double>(LLONG_MAX)` is not 2^63-1: that value has no double, so the
+        // conversion rounds UP to 2^63 -- and a `<=` against it therefore admitted 2^63 itself,
+        // whose conversion back to `long long` is undefined. `9223372036854775807.` is the whole
+        // input it takes, and the fuzzer needed 581,097 executions to write one
+        // (Stage2-Rendering-Testing-Guide.md I-42). Spelling the bound as -(double)LLONG_MIN keeps
+        // it EXACT, because -2^63 is representable and its negation is the bound we want.
+        //
+        // The LOWER bound needs none of this care for the same reason: LLONG_MIN converts exactly,
+        // so `>=` is right there. NaN and both infinities fail one comparison or the other and so
+        // leave `integer` at 0, which is already what an out-of-range real like 1e30 does.
+        constexpr double kUpperBound = -static_cast<double>(std::numeric_limits<long long>::min());
         if (truncated >= static_cast<double>(std::numeric_limits<long long>::min())
-            && truncated <= static_cast<double>(std::numeric_limits<long long>::max()))
+            && truncated < kUpperBound)
             token.integer = static_cast<long long>(truncated);
     }
 

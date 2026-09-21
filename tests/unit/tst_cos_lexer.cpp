@@ -23,6 +23,7 @@
 #include "tests/fuzz/LexerFuzzBody.h"
 
 #include <filesystem>
+#include <limits>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -300,6 +301,42 @@ TEST_CASE("cos lexer clamps an out-of-range integer instead of wrapping", "[cos]
     const Token corpusValue = lexOne("4294967295");
     CHECK(corpusValue.note == LexNote::None);
     CHECK(corpusValue.integer == 4294967295LL);
+}
+
+TEST_CASE("cos lexer leaves a real outside long long alone instead of converting it",
+          "[cos][lexer][tolerance]")
+{
+    // Stage2-Rendering-Testing-Guide.md I-42, found by fuzz_cos_parser in soak run 35580712267 at
+    // execution 581,097 -- a nineteen-day-old UB that four earlier soaks over the same code missed.
+    //
+    // `9223372036854775807.` is LLONG_MAX with a point after it, so it lexes as a Real; and
+    // LLONG_MAX has no `double`, so `token.real` is the value ABOVE it, 2^63 exactly. The old
+    // range guard compared `<=` against `static_cast<double>(LLONG_MAX)`, which is that same 2^63,
+    // admitted the value, and converted it back to `long long` -- undefined, and on x86-64 it
+    // yields LLONG_MIN, i.e. a huge POSITIVE real arriving at a caller as the most negative
+    // integer there is. That is `huge-length-claim.pdf`'s hazard through a door the integer path
+    // had already been fixed to shut.
+    const Token atBound = lexOne("9223372036854775807.");
+    CHECK(atBound.type == TokenType::Real);
+    CHECK(atBound.real == 9223372036854775808.0);       // 2^63: what the nearest double actually is
+    CHECK(atBound.integer == 0);                        // out of range, so untouched -- never LLONG_MIN
+
+    // The same value without the point is the INTEGER path, which clamps and says so. The two
+    // paths disagree by design; this pins the disagreement so nobody 'fixes' one into the other by
+    // accident.
+    const Token asInteger = lexOne("9223372036854775807");
+    CHECK(asInteger.type == TokenType::Integer);
+    CHECK(asInteger.note == LexNote::None);
+    CHECK(asInteger.integer == std::numeric_limits<long long>::max());
+
+    // Either side of the bound, and the negative bound, which is exactly representable and so was
+    // never broken -- a control, so this case cannot be satisfied by a lexer that abandons the
+    // truncated-integer contract altogether.
+    CHECK(lexOne("-9223372036854775808.").integer == std::numeric_limits<long long>::min());
+    CHECK(lexOne("9223372036854774784.").integer == 9223372036854774784LL);  // the double below 2^63,
+                                                        //   which is 1024 less: an ulp up there is not 1
+    CHECK(lexOne("99999999999999999999999999.0").integer == 0);   // far outside, untouched as before
+    CHECK(lexOne("4.0").integer == 4);                  // the contract the guard exists to serve
 }
 
 TEST_CASE("cos lexer tolerates a bad name escape", "[cos][lexer][tolerance]")

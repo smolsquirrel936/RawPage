@@ -22,7 +22,7 @@ tiled rendering) and **Stage 3 (mutation and save) are complete and signed off, 
 | **Next action** | **Stage 4 T11** — `WindowArranger` (`Stage4-ViewingSurface-Plan.md` §6, **D4-17**): tile, cascade, merge windows, the window list, sync scroll between windows, and **`window.new` as a second view of one document** — which is the one place a second `DocumentHandle` is correct, and D4-13's stated exception. It depends on T9. **T1 to T10 are complete** (T1–T4 2026-09-19, T5 2026-09-20, T6 to T10 2026-09-21): the corpus is 70 files and 65 golden cases; **A2 at Stage 4 is `go, with named custom work`** — **and the named work is T11's**, so this is the task that inherits it; `IAcceleratedSurface` is answered: not built; `SessionState` and the three `core/doc/` read-only models are in; all three document panes ship; the page surface has its tools, rulers, grid, guides and snap; the split is in; and the presentation is in, with its transitions read from the document itself. **Three issues are open, none blocking**: **I-01** (S3 — guides keyed by a `DocumentId` the first save changes; D4-7's, revisited at T13, and **T8 created the guides it is about**), **I-05** (S3 — a destination's fit carried and not applied, T12's) and **I-07** (S4 — a page colour can be inverted but not substituted, because no declared key holds a colour pair; Stage 8's). **Four traps T11 inherits:** an item view or scroll area will quietly take a MODIFIED arrow §8 promised elsewhere (**I-04**, met twice); a registered-but-DISABLED command consumes its key (**I-06**); **a command handler may not capture the window that registered it** (convention 14) — T8's first version did, and seven `ui.` cases segfaulted inside `ActionFactory::create` before a single assertion ran; and **`ShortcutBinder` answers for ONE window and the windows it owns** (T10 widened it from one window exactly) — a tiled set is many PEER windows, each with its own binder, which is the arrangement that test was written against. **All four preconditions are cleared** (plan §7). Nothing is owed to Stage 3. |
 | **Then** | Stage 4's code, task by task, each task updating `Architecture-FileMap.md` rows and the `Implementation-Plan.md` §4 status block in the same change. |
 | **Authority for status** | The **Stage 0 to Stage 3 status blocks** in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue. **Read them rather than trusting a figure remembered from here.** |
-| **Tests** | **1055/1055** on `x64-release` and **1055/1055** on `x64-debug`, one explicitly skipped (the battery case, on a desktop that has none) — re-measured on both presets at Stage 4 T10, 2026-09-21. The `gates` preset is 124/124 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
+| **Tests** | **1056/1056** on `x64-release` and **1056/1056** on `x64-debug`, one explicitly skipped (the battery case, on a desktop that has none) — re-measured on both presets 2026-09-21, after Stage 2 I-42's case joined the unit suite. The `gates` preset is 124/124 with no Qt, measured the same day on Windows. Re-measure rather than quote: a count in prose goes stale silently. |
 
 **What works today.** `rawpage.exe` opens real PDFs into tabs and draws their pages: a ribbon
 (9 tabs, 58 groups, 197 controls -- re-derived 2026-09-21 at S4 T10), a customizable Quick Access Toolbar, a tool finder, document tabs, a
@@ -417,7 +417,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 1055/1055 as of Stage 4 T10, 1 skipped
+ctest --preset x64-release --output-on-failure        # 1056/1056 as of Stage 2 I-42, 1 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -548,7 +548,7 @@ and the writer against each other, seeded also from `rawpage_fuzz_seeds`' output
 every preset, `tests/fuzz/seeds/`). It needs clang and libFuzzer, neither of which is
 on this machine, so it runs only on Linux CI, in two places: `ci.yml`'s `portable-fuzz` job runs each
 target for 60 s on every push, and **`.github/workflows/fuzz-soak.yml` is the ten-minute soak** (guide
-cases A-25 and A-26). The soak runs weekly and by hand, never on push:
+cases A-25 and A-26). The soak runs nightly and by hand, never on push:
 `gh workflow run fuzz-soak.yml -f seconds=600`. Its first run, 34781013867, was clean over two targets; over three,
 run 35134357858 found Stage 3 guide I-13 and run 35137107236, on the fix, was clean. `tests/fuzz/CMakeLists.txt` fails configure when its target count is
 wrong — **1 at T5, 2 from T6, 3 from Stage 3 T13**, asserted by `cmake/RawPageFuzzTargets.cmake`, whose
