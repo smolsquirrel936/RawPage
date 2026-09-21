@@ -81,6 +81,13 @@ add_executable(rawpage_ui_tests
     # scheduler's own counter -- a grid and an inversion that reached the rasterizer would be D4-11
     # broken, and nothing about the picture would look wrong.
     tst_rulers.cpp
+
+    # Stage 4 T9 -- the split (guide cases A-53 ... A-56). The claim the task rests on is a
+    # NEGATIVE one, that a split does not open a second document, so its first case asserts an
+    # IDENTITY between two views rather than anything either one draws: a split that quietly opened
+    # a second DocumentHandle would look right in every screenshot and be wrong in the two places
+    # nothing on screen reports -- the close protocol, which exists once, and the memory.
+    tst_split.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

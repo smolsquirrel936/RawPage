@@ -7,11 +7,12 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **41 of the 79 carry
-> a result** as of 2026-09-21 — T1's corpus cases, T2's four A2 cases, T3's seven session cases,
-> T4's four reader cases, T5's seven pane cases, T6's two plus the two re-reads T5 owed,
-> **T7's five tool cases** and **T8's eight ruler, grid, guide and snap cases** (one of them, A-52,
-> ✅ for its inversion half and 🟡 for the substitution it names — **I-07**). **No manual case has
+> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **45 of the 79 carry
+> a result** as of 2026-09-21 (re-derived from this file: 79 case headers, 34 still boxed) — T1's
+> corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
+> pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
+> grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
+> substitution it names — **I-07**) and **T9's four split cases**. **No manual case has
 > been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
 > I-02, I-03, I-04 and I-06 closed.
 >
@@ -573,16 +574,75 @@ Raised as **I-07** (§8).
 
 ### 5.10 Splits (T9)
 
-**A-53 · A split is two views over one document** ☐
+**A-53 · A split is two views over one document** ✅
+**2026-09-21, T9 — asserted as an IDENTITY, which is the only way this case can fail usefully.**
+`ui.` — after `window.split` the container holds two `PageView`s, and the two are checked
+`document() == document()`, both equal to the tab's handle, both at the same `revision()`, and that
+revision equal to the one `CommandJournal` the tab holds. **Why an equality and not a count of
+handles:** a split that opened a second handle would render both panes correctly and look right in
+every screenshot — it is wrong only in the two places nothing on screen reports, the three-step
+close protocol that exists once and the memory the document costs. Both panes also report the full
+page count and a non-zero height, without which every assertion below would hold vacuously over a
+pane that was never laid out. **And the horizontal split really divides horizontally**: the second
+pane's `y` is below the first's and its `x` equal, which is the only assertion that catches
+`Mode::Horizontal` built as a `QSplitter(Qt::Horizontal)` — the coin flip
+`SplitViewContainer.h` warns about. The vertical split is its mirror in a second case, whose
+**control** is that pressing the same mode twice leaves the same two pane OBJECTS rather than a
+rebuilt pair.
 **Expect** After a horizontal split: two `PageView`s, **one** `DocumentHandle`, one `CommandJournal`, one revision. **If it fails** S1 — a second handle is a second copy of the document and a second close protocol.
 
-**A-54 · A mutation in one view appears in both** ☐
+**A-54 · A mutation in one view appears in both** ✅
+**2026-09-21, T9 — geometry before pixels, and the revision is the half that could rot silently.**
+`ui.` — `page.rotate` through the registry over a two-pane horizontal split: the model's page 0
+is at 90°, the journal's revision has moved, and **both** panes report the new revision. The
+assertion on the second pane's LAYOUT is what makes the case about the rotation rather than about a
+tile — its first page slot's width and height have swapped (Stage 1's **I-36**). **Why the
+revision is asserted separately:** it is part of every tile's key (D2-12), so a pane that was not
+told would go on showing the un-rotated page with no error, no crash and no failing test. A second
+case covers the same fan-out for GUIDES, which the plan did not name: a guide added in one pane
+appears in the other and a clear in one clears both, because a guide is a page fact in PDF points
+(D4-7) and what is per-view is the drag.
 **Expect** `Ctrl+R` in one pane of a split rotates the page in both, at the same revision, geometry before pixels (Stage 1's I-36). **If it fails** S2.
 
-**A-55 · Synchronized scrolling, and the spreadsheet freeze** ☐
+**A-55 · Synchronized scrolling, and the spreadsheet freeze** ✅
+**2026-09-21, T9 — and the corner is the control the other three assertions need.**
+`ui.` — synchronization is **on by default**, because `Features.md` §1.2 says *"two
+synchronized panes"* and a split that opened unsynchronized would make that word mean nothing.
+Scrolling either pane moves the other — asserted **in both directions**, since a one-way mirror
+is a leader and a follower rather than a synchronization and would be invisible until someone
+scrolled the second pane — and `window.syncScroll` frees them, after which the parked pane does
+not move. The mirror is carried through **PDF points** rather than device pixels, so two panes at
+different zooms stay on the same place in the document; at a shared zoom the ratio is exactly 1.0.
+The spreadsheet split is taken with the body already scrolled, and its four assertions are the
+freeze written out: the top pane follows the body in **x only**, the left pane in **y only**, and
+**the corner moves in neither** — which is the control, because three panes that all followed
+the body would satisfy two of the first four. The two rows of panes are asserted to be the same
+widths, which is what makes the frozen column one column rather than two panes that happen to be on
+the left. A third case asserts `window.syncScroll` is **refused** in a spreadsheet split: the
+derivation is the mode, not an option on it (Stage 1's **I-53**).
+**What this case does NOT cover** (convention 19): the splitter handles are real, and the sizes a
+person drags them to are the widget's and die with the window; that dragging one row's handle moves
+the other's is **M-09**'s, and so is whether the panes LOOK locked together while a wheel turns.
 **Expect** Sync on: both views scroll together; off: independently. The frozen row and column stay put while the body scrolls, and the frozen regions scroll **only** in their own axis. **If it fails** S2.
 
-**A-56 · Removing a split leaves one view and no leaked tickets** ☐
+**A-56 · Removing a split leaves one view and no leaked tickets** ✅
+**2026-09-21, T9 — and the case asserts the TICKETS rather than the widget, on purpose.**
+`ui.` — the pane about to be retired is first REQUIREd to hold at least one tile, or what
+follows would hold vacuously over a pane that was never drawing. After `window.removeSplit`:
+`viewRetired` named that pane, one view remains and it is the primary, the tab reports it as
+`view()`, and the retired pane holds **no ticket, no tile and no valid handle** — with the
+scheduler's own pending count at zero once deferred deletes are flushed. **Why the claim is about
+tickets and not existence:** the command runs from inside `ShortcutBinder`'s application event
+filter while a key event is still being delivered to the very pane it destroys, so the widget must
+go through `deleteLater` — but that alone would leave its tickets in flight until the event loop
+got round to it, so the pane is handed an EMPTY document first, which cancels them now. The
+surviving pane is asserted untouched, because a removal that cleared the wrong view would pass
+everything above. **The control** is a second case: *Remove Split* is **refused** on an unsplit
+window, enabled once split, and refused again after the removal — a control that silently does
+nothing cannot be told from one that is broken (Stage 1's **I-53**). A third case asserts the active
+pane follows FOCUS and that `view.zoomIn` — registered at Stage 2 T14 and untouched by this task
+— lands on it and not on the other pane, which is the whole claim that a split needed no change
+to any of the twenty-five §8 Viewer commands.
 **Expect** One view remains, the scheduler reports no outstanding tickets for the removed view, and no tile of the removed view is left in the cache keyed to a dead viewport. **If it fails** S2.
 
 ### 5.11 Full Screen and presentation (T10)

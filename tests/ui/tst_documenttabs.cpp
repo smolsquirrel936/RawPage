@@ -394,11 +394,12 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // errors. The number grew by 25 at Stage 2 T14 (the §8 Viewer commands), by 5 at Stage 3 T10 (undo,
     // redo, rotate, save, save as), by 4 at Stage 4 T5 (the Thumbnails pane) and by 7 at T6 (the
     // two navigation panes and the five navigating Bookmarks rows) and by 2 at T7 (the loupe and
-    // auto-scroll, two of this stage's five new ids) and by 8 at T8 (the rulers, the grid, the
-    // snap, the guides, the inversion and the three guide commands), and the point of
-    // asserting it here is unchanged: this case is about registration happening once per REGISTRY
-    // rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 74);
+    // auto-scroll) and by 8 at T8 (the rulers, the grid, the snap, the guides, the inversion and
+    // the three guide commands) and by 5 at T9 (the three split modes, the removal and the
+    // synchronized-scrolling switch), and the point of asserting it here is unchanged: this case
+    // is about registration happening once per REGISTRY rather than once per window, and a count
+    // is how "once" is stated.
+    CHECK(fixture.actions.registeredCount() == 79);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

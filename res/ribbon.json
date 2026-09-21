@@ -593,6 +593,10 @@
           "controls": [
             { "action": "window.new", "size": "small" },
             { "action": "window.split", "size": "small" },
+            { "action": "window.splitVertical", "size": "small" },
+            { "action": "window.spreadsheetSplit", "size": "small" },
+            { "action": "window.removeSplit", "size": "small" },
+            { "action": "window.syncScroll", "size": "small" },
             { "action": "window.tileVertical", "size": "small" },
             { "action": "window.cascade", "size": "small" }
           ]

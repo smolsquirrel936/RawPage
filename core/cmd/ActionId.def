@@ -68,7 +68,19 @@ RAWPAGE_ACTION(WindowPrevTab,          "window.prevTab",          Global, "actio
 RAWPAGE_ACTION(WindowNext,             "window.next",             Global, "action.window.next")
 RAWPAGE_ACTION(WindowPrev,             "window.prev",             Global, "action.window.prev")
 RAWPAGE_ACTION(WindowNew,              "window.new",              Global, "action.window.new")
+// THE FOUR *Split views* ROWS OF `Features.md` §1.2, AND THE SWITCH THAT SYNCHRONIZES THEM.
+// `window.split` is the HORIZONTAL split and has been declared since Stage 1; the other four are
+// Stage 4 T9's, declared for the same reason T7 declared `tool.loupe` -- `Features.md` lists the
+// capability, the ribbon needs a control for it, and a menu item that is a lambda rather than a
+// command is one the headless batch runner (flow K) cannot reach.
+//
+// **None of the five takes a §8 chord**, so `KeyBindingDefaults.def` is untouched and the twelve
+// deliberate Write-mode collisions keep the keys they have.
 RAWPAGE_ACTION(WindowSplit,            "window.split",            Global, "action.window.split")
+RAWPAGE_ACTION(WindowSplitVertical,    "window.splitVertical",    Global, "action.window.splitVertical")
+RAWPAGE_ACTION(WindowSpreadsheetSplit, "window.spreadsheetSplit", Global, "action.window.spreadsheetSplit")
+RAWPAGE_ACTION(WindowRemoveSplit,      "window.removeSplit",      Global, "action.window.removeSplit")
+RAWPAGE_ACTION(WindowSyncScroll,       "window.syncScroll",       Global, "action.window.syncScroll")
 RAWPAGE_ACTION(WindowTileHorizontal,   "window.tileHorizontal",   Global, "action.window.tileHorizontal")
 RAWPAGE_ACTION(WindowTileVertical,     "window.tileVertical",     Global, "action.window.tileVertical")
 RAWPAGE_ACTION(WindowCascade,          "window.cascade",          Global, "action.window.cascade")

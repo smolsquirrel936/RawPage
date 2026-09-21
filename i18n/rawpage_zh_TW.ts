@@ -92,6 +92,22 @@
         <translation>分割視窗</translation>
     </message>
     <message>
+        <source>action.window.splitVertical</source>
+        <translation>垂直分割</translation>
+    </message>
+    <message>
+        <source>action.window.spreadsheetSplit</source>
+        <translation>表格分割</translation>
+    </message>
+    <message>
+        <source>action.window.removeSplit</source>
+        <translation>移除分割</translation>
+    </message>
+    <message>
+        <source>action.window.syncScroll</source>
+        <translation>同步捲動</translation>
+    </message>
+    <message>
         <source>action.window.tileHorizontal</source>
         <translation>水平並排</translation>
     </message>

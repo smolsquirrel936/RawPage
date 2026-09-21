@@ -23,6 +23,7 @@
 #include "ui/shell/MessageBar.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/shell/QuickAccessToolbar.h"
 #include "ui/shell/Ribbon.h"
@@ -576,6 +577,23 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         connect(view, &PageView::viewChanged, this,
                 [this](int, int, double) { updateViewChrome(); });
     }
+
+    // AND IT FOLLOWS THE SPLIT'S ACTIVE PANE (S4 T9). The connection above is to ONE view, and a
+    // split gives a tab up to four -- so the status bar would go on reporting the page and zoom of
+    // whichever pane happened to be active when the tab was adopted, which is the confident wrong
+    // answer the block above exists to prevent, arriving by a second route.
+    //
+    // EVERY PANE OF THIS TAB IS DISCONNECTED AND THE NEW ACTIVE ONE RECONNECTED, rather than the
+    // previously bound pane being remembered. A second copy of "which pane was the status bar
+    // listening to" is a second thing to keep in agreement with the container, which already
+    // knows; walking at most four views costs nothing and cannot disagree.
+    disconnect(document, &DocumentWindow::activeViewChanged, this, nullptr);
+    connect(document, &DocumentWindow::activeViewChanged, this, [this, document](PageView* view) {
+        for (PageView* pane : document->split()->views())
+            disconnect(pane, &PageView::viewChanged, this, nullptr);
+        connect(view, &PageView::viewChanged, this, [this](int, int, double) { updateViewChrome(); });
+        updateViewChrome();
+    });
 
     // THE DOCUMENT TELLS THE CHROME TOO (Stage 3 T10): a command, an undo or a redo re-asks every action
     // and moves the dirty marker; a recovery journal that stopped recording becomes a banner the document
@@ -2231,6 +2249,89 @@ void MainWindow::registerActions()
         window->show();
         window->raiseToForeground();
     });
+
+    // --- The split (S4 T9, D4-13) ----------------------------------------------------------------
+    // Nothing is captured and the split is resolved at DISPATCH (convention 14), which matters more
+    // here than almost anywhere else: the container these act on is destroyed and rebuilt by these
+    // very commands, so a handler holding one would be holding a widget it had just retired.
+    const auto splitOfActiveShell = []() -> SplitViewContainer* {
+        MainWindow* window = activeShell();
+        DocumentWindow* document = window ? window->currentDocument() : nullptr;
+        return document ? document->split() : nullptr;
+    };
+
+    const auto setSplitMode = [splitOfActiveShell](SplitViewContainer::Mode mode) {
+        return [splitOfActiveShell, mode](KeyContext) {
+            if (SplitViewContainer* split = splitOfActiveShell()) split->setMode(mode);
+            if (MainWindow* window = activeShell()) window->updateViewChrome();
+        };
+    };
+
+    // A DOCUMENT IS THE PRECONDITION, and an EMPTY one is not a document for this purpose: splitting
+    // a tab that is drawing nothing gives two panes drawing nothing, which reads as a broken split
+    // rather than as an empty tab. The same reading `registerViewerActions`'s `hasView` uses.
+    const auto hasPages = [splitOfActiveShell] {
+        SplitViewContainer* split = splitOfActiveShell();
+        return split != nullptr && split->primaryView()->pageCount() > 0;
+    };
+
+    const auto registerSplit = [this, hasPages](ActionId id, core::ActionRegistry::Handler handler,
+                                                core::ActionRegistry::Enable enable,
+                                                core::ActionRegistry::Checked checked) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = std::move(handler);
+        registration.enable = std::move(enable);
+        registration.checked = std::move(checked);
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    // CHECKED RATHER THAN THREE SEPARATE STATES, because the three modes are mutually exclusive and
+    // the ribbon shows which one the window is in. Pressing the mode it is already in does nothing
+    // (`SplitViewContainer::setMode`), so a second press is not a second split.
+    const auto inMode = [splitOfActiveShell](SplitViewContainer::Mode mode) {
+        return [splitOfActiveShell, mode] {
+            SplitViewContainer* split = splitOfActiveShell();
+            return split != nullptr && split->mode() == mode;
+        };
+    };
+
+    registerSplit(ActionId::WindowSplit, setSplitMode(SplitViewContainer::Mode::Horizontal),
+                  hasPages, inMode(SplitViewContainer::Mode::Horizontal));
+    registerSplit(ActionId::WindowSplitVertical, setSplitMode(SplitViewContainer::Mode::Vertical),
+                  hasPages, inMode(SplitViewContainer::Mode::Vertical));
+    registerSplit(ActionId::WindowSpreadsheetSplit, setSplitMode(SplitViewContainer::Mode::Spreadsheet),
+                  hasPages, inMode(SplitViewContainer::Mode::Spreadsheet));
+
+    // REFUSED WHEN THERE IS NO SPLIT, rather than silently doing nothing. A *Remove Split* that is
+    // enabled on an unsplit window is a control that cannot be told apart from one that is broken --
+    // Stage 1's I-53, which is why `unavailableKey` exists at all.
+    registerSplit(ActionId::WindowRemoveSplit, setSplitMode(SplitViewContainer::Mode::None),
+                  [splitOfActiveShell] {
+                      SplitViewContainer* split = splitOfActiveShell();
+                      return split != nullptr && split->mode() != SplitViewContainer::Mode::None;
+                  },
+                  {});
+
+    // AND SYNCHRONIZED SCROLLING IS REFUSED IN A SPREADSHEET SPLIT, not merely ignored there. The
+    // frozen panes' scroll is DERIVED from the body's -- that is the mode, not an option on it --
+    // so a switch offered in that state would be one that could not do anything.
+    registerSplit(ActionId::WindowSyncScroll,
+                  [splitOfActiveShell](KeyContext) {
+                      if (SplitViewContainer* split = splitOfActiveShell())
+                          split->setSynchronizedScrolling(!split->synchronizedScrolling());
+                  },
+                  [splitOfActiveShell] {
+                      SplitViewContainer* split = splitOfActiveShell();
+                      return split != nullptr
+                             && (split->mode() == SplitViewContainer::Mode::Horizontal
+                                 || split->mode() == SplitViewContainer::Mode::Vertical);
+                  },
+                  [splitOfActiveShell] {
+                      SplitViewContainer* split = splitOfActiveShell();
+                      return split != nullptr && split->synchronizedScrolling();
+                  });
 }
 
 void MainWindow::registerMutationActions()

@@ -13,6 +13,7 @@
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/RulerWidget.h"
+#include "ui/viewer/SplitViewContainer.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -68,7 +69,13 @@ void DocumentWindow::build(const Recovery* recovery)
     grid->setContentsMargins(0, 0, 0, 0);
     grid->setSpacing(0);
 
-    view_ = new PageView(services_.renderScheduler, services_.platform.displayTopology.get(), surface);
+    // THE SURFACE IS A SPLIT CONTAINER WITH ONE PANE IN IT (S4 T9, D4-13), not a `PageView`. A
+    // document that is never split is one view inside one container and costs a widget; the
+    // alternative -- swapping a `PageView` for a container the first time someone splits -- would
+    // put a second construction path under the document, which is where the difference between
+    // "the pane a document opened into" and "a pane a split made" gets in.
+    split_ = new SplitViewContainer(services_.renderScheduler,
+                                    services_.platform.displayTopology.get(), surface);
     horizontalRuler_ = new RulerWidget(Qt::Horizontal, surface);
     verticalRuler_ = new RulerWidget(Qt::Vertical, surface);
 
@@ -83,25 +90,25 @@ void DocumentWindow::build(const Recovery* recovery)
     grid->addWidget(rulerCorner_, 0, 0);
     grid->addWidget(horizontalRuler_, 0, 1);
     grid->addWidget(verticalRuler_, 1, 0);
-    grid->addWidget(view_, 1, 1);
+    grid->addWidget(split_, 1, 1);
     grid->setRowStretch(1, 1);
     grid->setColumnStretch(1, 1);
     column->addWidget(surface);
 
-    // A SCROLL EMITS THIS TOO, which is what makes the rulers follow a drag: `scrollContentsBy`
-    // writes the controller, the controller's `changed` reaches `refresh()`, and `refresh()` emits
-    // `viewChanged`. A connection to a scrollbar signal instead would miss every scroll that came
-    // from a key, a wheel or the hand tool.
-    connect(view_, &PageView::viewChanged, this, [this](int, int, double) { updateRulerMappings(); });
-
-    connect(view_, &PageView::cursorMoved, this, [this](QPoint position, bool onSurface) {
-        const QPoint offset = viewportOffset();
-        horizontalRuler_->setCursorPixel(onSurface ? position.x() + offset.x() : -1.0);
-        verticalRuler_->setCursorPixel(onSurface ? position.y() + offset.y() : -1.0);
+    // THE THREE THINGS A SPLIT CHANGES ABOUT THIS CLASS (S4 T9). A pane the container adds is
+    // adopted here and nowhere else; a pane it retires stops being the bound one; and the rulers
+    // follow whichever pane has focus.
+    connect(split_, &SplitViewContainer::viewAdded, this, [this](PageView* view) { adoptView(view); });
+    connect(split_, &SplitViewContainer::viewRetired, this, [this](PageView* view) {
+        if (view == boundView_) unbindActiveView();
+    });
+    connect(split_, &SplitViewContainer::activeViewChanged, this, [this](PageView* view) {
+        bindActiveView(view);
+        updateRulerMappings();
+        emit activeViewChanged(view);
     });
 
-    connect(view_, &PageView::guideContextMenuRequested, this,
-            [this](int guideIndex, QPoint global) { raiseGuideMenu(guideIndex, global); });
+    bindActiveView(split_->primaryView());
 
     for (RulerWidget* ruler : {horizontalRuler_, verticalRuler_}) {
         connect(ruler, &RulerWidget::contextMenuRequested, this,
@@ -113,7 +120,7 @@ void DocumentWindow::build(const Recovery* recovery)
         // during the drag -- without it a guide appears from nowhere on release.
         connect(ruler, &RulerWidget::guideDragged, this,
                 [this](Qt::Orientation orientation, QPoint global) {
-                    const QPoint local = view_->viewport()->mapFromGlobal(global);
+                    const QPoint local = view()->viewport()->mapFromGlobal(global);
                     const QPoint offset = viewportOffset();
                     if (orientation == Qt::Horizontal)
                         horizontalRuler_->setCursorPixel(local.x() + offset.x());
@@ -123,14 +130,19 @@ void DocumentWindow::build(const Recovery* recovery)
 
         connect(ruler, &RulerWidget::guideDropped, this,
                 [this](Qt::Orientation orientation, QPoint global) {
-                    const QPoint local = view_->viewport()->mapFromGlobal(global);
+                    // THE ACTIVE PANE, WHICH IS THE ONE THE RULERS MEASURE (S4 T9). A drop over
+                    // another pane of a split therefore lands outside this one's viewport and is
+                    // refused below, which is the same answer as a drop over the scrollbars: a
+                    // guide is only made where the ruler that made it is reading.
+                    PageView* target = view();
+                    const QPoint local = target->viewport()->mapFromGlobal(global);
 
                     // A DROP THAT IS NOT ON THE SURFACE MAKES NO GUIDE -- a press on the ruler
                     // that goes nowhere is how a person changes their mind, and `dropGuide`
                     // refuses a point off the page for the same reason.
-                    if (view_->viewport()->rect().contains(local))
-                        view_->guides().dropGuide(view_->layoutEngine().layout(),
-                                                  view_->toContentPoint(local), orientation);
+                    if (target->viewport()->rect().contains(local))
+                        target->guides().dropGuide(target->layoutEngine().layout(),
+                                                   target->toContentPoint(local), orientation);
                 });
     }
 
@@ -181,13 +193,10 @@ void DocumentWindow::build(const Recovery* recovery)
         }
     }
 
-    // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15).
-    if (journal_) {
-        view_->setDocument(handle_, journal_->revision(), &journal_->document().pages(),
-                           services_.backend.pages(handle_));
-    } else {
-        view_->setDocument(handle_, revision_, services_.backend.pages(handle_));
-    }
+    // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15). EVERY
+    // pane, because `adoptView` routes a pane a split adds back through the same two lines and a
+    // second spelling of them here is a second reading of D3-15 to keep in agreement.
+    for (PageView* pane : split_->views()) handDocumentTo(pane);
 
     // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
     // who turns off image smoothing expects it off everywhere, and a tab that kept the old value
@@ -204,9 +213,112 @@ void DocumentWindow::build(const Recovery* recovery)
     });
 }
 
+PageView* DocumentWindow::view() const noexcept
+{
+    return split_ ? split_->activeView() : nullptr;
+}
+
+void DocumentWindow::handDocumentTo(PageView* pane)
+{
+    // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15).
+    if (journal_) {
+        pane->setDocument(handle_, journal_->revision(), &journal_->document().pages(),
+                          services_.backend.pages(handle_));
+    } else {
+        pane->setDocument(handle_, revision_, services_.backend.pages(handle_));
+    }
+}
+
+void DocumentWindow::adoptView(PageView* pane)
+{
+    // THE PREFERENCES BEFORE THE DOCUMENT, which is the order `build()` uses and for the reason it
+    // states: `layoutMode` and `defaultZoom` are applied only on a view's FIRST `applySettings`,
+    // so they have to be in place before there is a document to open at them.
+    applyViewSettings();
+    applyGuideSettings();
+    handDocumentTo(pane);
+
+    // AND THEN IT IS PUT WHERE THE PERSON IS LOOKING. `setDocument` starts a view at page 1 with
+    // no zoom of its own -- it is a document ARRIVING -- so a pane adopted and left there would
+    // send half the window back to the top of the file the moment anyone split it. The source is
+    // the primary rather than the active pane because the active one may be this very pane: the
+    // container makes a view active as soon as it takes focus.
+    PageView* source = split_->primaryView();
+    if (pane == source) return;
+
+    pane->setLayoutMode(source->controller().layoutMode());
+    pane->controller().setViewRotation(source->controller().viewRotation());
+    pane->setFitMode(source->controller().fitMode());
+    pane->setZoom(source->controller().zoom());
+    pane->controller().setCurrentPage(source->controller().currentPage());
+    pane->controller().setScroll(source->controller().scroll());
+
+    // THE GUIDES ARE THE PAGE'S, NOT THE PANE'S (D4-7). `core::Guide::position` is in PDF points in
+    // page space, so the same guide is in the same place in both halves of a split -- and a
+    // `GridGuideLayer` per view is a per-view DRAG, which is what `PageView`'s header said a split
+    // would need, not a per-view guide list.
+    pane->guides().setGuides(source->guides().guides());
+    pane->refresh();
+}
+
+void DocumentWindow::bindActiveView(PageView* pane)
+{
+    if (pane == boundView_) return;
+    unbindActiveView();
+    if (pane == nullptr) return;
+    boundView_ = pane;
+
+    // A SCROLL EMITS THIS TOO, which is what makes the rulers follow a drag: `scrollContentsBy`
+    // writes the controller, the controller's `changed` reaches `refresh()`, and `refresh()` emits
+    // `viewChanged`. A connection to a scrollbar signal instead would miss every scroll that came
+    // from a key, a wheel or the hand tool.
+    connect(pane, &PageView::viewChanged, this, [this](int, int, double) { updateRulerMappings(); });
+
+    connect(pane, &PageView::cursorMoved, this, [this](QPoint position, bool onSurface) {
+        const QPoint offset = viewportOffset();
+        horizontalRuler_->setCursorPixel(onSurface ? position.x() + offset.x() : -1.0);
+        verticalRuler_->setCursorPixel(onSurface ? position.y() + offset.y() : -1.0);
+    });
+
+    connect(pane, &PageView::guideContextMenuRequested, this,
+            [this](int guideIndex, QPoint global) { raiseGuideMenu(guideIndex, global); });
+
+    // AND THE GUIDES FOLLOW THE DOCUMENT RATHER THAN THE PANE (D4-7, S4 T9). Every gesture that
+    // changes a guide -- a drag off a ruler, a move, a lock, a delete, `view.clearGuides` -- runs
+    // on the ACTIVE pane, because focus is what makes a pane active and all five need the pointer
+    // or the focus to be in it. So mirroring from the bound pane covers every one of them, and the
+    // followers are not connected, which is what makes the copy unable to echo back.
+    connect(&pane->guides(), &GridGuideLayer::changed, this, [this] { mirrorGuides(); });
+}
+
+void DocumentWindow::mirrorGuides()
+{
+    PageView* source = view();
+    if (source == nullptr) return;
+    for (PageView* pane : split_->views())
+        if (pane != source) pane->guides().setGuides(source->guides().guides());
+}
+
+void DocumentWindow::unbindActiveView()
+{
+    // Convention 10 (Stage 1's I-12), and `QEvent::Leave` is what makes it real rather than
+    // theoretical: Qt delivers it to a widget under the pointer as it goes away, `PageView` turns
+    // it into `cursorMoved`, and the slot would then ask a half-destroyed window for its rulers.
+    // A retired pane of a split reaches this the same way a destructor does.
+    //
+    // TWO OBJECTS, NOT ONE: the layer is a CHILD of the view and a separate `QObject`, so
+    // disconnecting the view leaves the guide connection standing. It was found by reading rather
+    // than by a failure, which is what convention 10 is for.
+    if (boundView_ != nullptr) {
+        disconnect(&boundView_->guides(), nullptr, this, nullptr);
+        disconnect(boundView_, nullptr, this, nullptr);
+    }
+    boundView_ = nullptr;
+}
+
 void DocumentWindow::applyViewSettings()
 {
-    if (!view_) return;
+    if (!split_) return;
 
     // ONE READ PER KEY, AND NO DEFAULTS SPELLED HERE. `Settings::get` never asks a caller for a
     // fallback -- `SettingsKeys.def` rule 2 -- so this cannot disagree with the table.
@@ -227,12 +339,15 @@ void DocumentWindow::applyViewSettings()
     view.autoScrollSpeed   = settings.get(core::keys::pageDisplay::autoScrollSpeed);
     view.prefetchPages     = settings.get(core::keys::performance::prefetchPages);
 
-    view_->applySettings(view);
+    // EVERY PANE OF THE SPLIT (S4 T9). The eleven `pageDisplay/` keys are the document's, not one
+    // pane's: a person who turns off image smoothing expects it off in both halves of a split for
+    // exactly the reason S2 T15 gives about it reaching every open tab.
+    for (PageView* pane : split_->views()) pane->applySettings(view);
 }
 
 void DocumentWindow::applyGuideSettings()
 {
-    if (!view_) return;
+    if (!split_) return;
 
     const core::Settings& settings = services_.settings;
 
@@ -249,7 +364,7 @@ void DocumentWindow::applyGuideSettings()
     guides.snapToGrid       = settings.get(core::keys::units::snapToGrid);
     guides.snapToGuides     = settings.get(core::keys::units::snapToGuides);
 
-    view_->applyGuideSettings(guides);
+    for (PageView* pane : split_->views()) pane->applyGuideSettings(guides);
 
     horizontalRuler_->setUnit(guides.unit);
     verticalRuler_->setUnit(guides.unit);
@@ -267,11 +382,16 @@ void DocumentWindow::applyGuideSettings()
 
 QPoint DocumentWindow::viewportOffset() const
 {
-    return view_ ? view_->viewport()->mapTo(view_, QPoint(0, 0)) : QPoint(0, 0);
+    // MAPPED TO THE CONTAINER, not to the view. The rulers share the container's row and column
+    // in the grid, so with one pane this is the scroll area's frame inset and with a split it is
+    // that PLUS the pane's own position -- which is the number the ruler needs in both cases.
+    PageView* active = view();
+    return active ? active->viewport()->mapTo(split_, QPoint(0, 0)) : QPoint(0, 0);
 }
 
 void DocumentWindow::updateRulerMappings()
 {
+    PageView* view_ = view();
     if (!view_ || !horizontalRuler_) return;
 
     // `isHidden()`, NOT `isVisible()`. A widget whose ancestors are not on screen yet is not
@@ -318,6 +438,7 @@ void DocumentWindow::updateRulerMappings()
 
 void DocumentWindow::raiseGuideMenu(int guideIndex, QPoint global)
 {
+    PageView* view_ = view();
     if (!view_) return;
 
     // THE TARGET IS RECORDED BEFORE THE MENU EXISTS, because the commands in it take no argument
@@ -340,7 +461,8 @@ DocumentWindow::~DocumentWindow()
     // makes it real rather than theoretical here -- Qt delivers it to a widget under the pointer
     // as it goes away, `PageView` turns it into `cursorMoved`, and the slot would then ask a
     // half-destroyed window for its rulers.
-    if (view_) disconnect(view_, nullptr, this, nullptr);
+    unbindActiveView();
+    if (split_) disconnect(split_, nullptr, this, nullptr);
     if (horizontalRuler_) disconnect(horizontalRuler_, nullptr, this, nullptr);
     if (verticalRuler_) disconnect(verticalRuler_, nullptr, this, nullptr);
 
@@ -397,7 +519,11 @@ bool DocumentWindow::isDirty() const
 
 void DocumentWindow::afterMutation()
 {
-    view_->modelChanged(journal_->revision());
+    // EVERY PANE, AT THE SAME REVISION (S4 T9, guide case A-54). A pane that was not told would go
+    // on showing the un-rotated page with no error and no failing test, because the revision is
+    // part of every tile's key -- D2-12's argument, arriving at its third consumer after the
+    // thumbnails pane.
+    for (PageView* pane : split_->views()) pane->modelChanged(journal_->revision());
     if (recovery_ && !recovery_->isRecoverable() && !recoveryReported_) {
         recoveryReported_ = true;
         emit recoveryUnavailable(catalog::translateError(QString::fromLatin1(recovery_->unrecoverableKey()),

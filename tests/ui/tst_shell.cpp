@@ -71,11 +71,12 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     Fixture fixture;
     ui::MainWindow window(fixture.services());
 
-    // SIXTY-SIX, and named. 363 ids are declared -- **361 until Stage 4 T7 added `tool.loupe` and
-    // `view.autoScroll`**, the two Features.md §1.2 features that had no name (see their rows in
-    // `ActionId.def`). An id that is declared and UNREGISTERED renders as a visible, disabled
-    // control saying it is not built yet, which is the honest state; registering a stub handler
-    // for the other 297 would make every one of them look available.
+    // SEVENTY-NINE, and named. 370 ids are declared -- **361 until Stage 4 T7 added `tool.loupe`
+    // and `view.autoScroll`, 363 until T8 added the three guide commands, and 366 until T9 added
+    // the four split ids** (see their rows in `ActionId.def`). An id that is declared and
+    // UNREGISTERED renders as a visible, disabled control saying it is not built yet, which is the
+    // honest state; registering a stub handler for the other 291 would make every one of them look
+    // available.
     //
     // Nineteen at Stage 1 T14. Three joined on 2026-08-31, each because a manual walk reached for
     // something the shell could do and could not be asked to do: `app.ribbonKeyTips` (I-42),
@@ -107,10 +108,16 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **`view.pageBackground` is NOT among them**: substituting a page colour needs a colour pair
     // no declared key holds, so the id stays declared and unregistered and consumes nothing.
     //
+    // **Five more at Stage 4 T9**: the three split modes (`window.split` is the HORIZONTAL one and
+    // has been declared since Stage 1), `window.removeSplit` and `window.syncScroll`. Four of the
+    // five are ids T9 declares, for the reason T7's two were declared -- `Features.md` §1.2 lists
+    // the capability and a menu item that is a lambda is one the batch runner cannot reach. **None
+    // of the five takes a §8 chord**, so no key changed hands.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 74);
+    CHECK(fixture.actions.registeredCount() == 79);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -135,6 +142,18 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowNext));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowPrev));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowNew));
+
+    // S4 T9's five. `window.tileHorizontal`, `window.tileVertical` and `window.cascade` are NOT
+    // among them and that is what the count keeps honest: arranging WINDOWS is T11's, and three of
+    // the four rows in the same ribbon group being live is exactly the state that invites someone
+    // to complete it with a handler that arranges nothing.
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowSplit));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowSplitVertical));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowSpreadsheetSplit));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowRemoveSplit));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowSyncScroll));
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::WindowTileHorizontal));   // T11
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::WindowCascade));          // T11
 
     // T14's two: the Preferences dialog and the log pane. `log.openFolder` is deliberately NOT
     // among them -- the folder belongs to `app/LogFile` and `ui/` looks outward to exactly two
@@ -245,7 +264,8 @@ TEST_CASE("the real window, shown, has no action that bypasses the registry", "[
     for (const QString& complaint : complaints) UNSCOPED_INFO(complaint.toStdString());
     CHECK(complaints.isEmpty());
 
-    // And the ribbon really is on the window rather than merely constructed -- 192 controls, every
+    // And the ribbon really is on the window rather than merely constructed -- 196 controls (S4 T9
+    // added four to the View tab's window group), every
     // one of them a RawPageAction, which is what makes the check above a meaningful sample. Since
     // T11 the Quick Access Toolbar's buttons carry actions too, so the figure is the ribbon's
     // controls PLUS the toolbar's commands: naming both is what keeps this a census rather than a

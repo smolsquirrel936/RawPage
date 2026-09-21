@@ -130,6 +130,14 @@ add_library(rawpage_ui STATIC
     viewer/PageView.h
     viewer/PageView.cpp
 
+    # S4 T9 -- the split (D4-13). AFTER PageView because it constructs them: N page surfaces over
+    # ONE DocumentHandle, ONE Document, ONE CommandJournal and ONE revision. A split that opened a
+    # second handle would need a second copy of DocumentWindow's three-step close protocol and
+    # would double the document's memory to show the same pages; two views of one document in two
+    # WINDOWS is a different thing and is T11's.
+    viewer/SplitViewContainer.h
+    viewer/SplitViewContainer.cpp
+
     panes/LogPane.h
     panes/LogPane.cpp
 

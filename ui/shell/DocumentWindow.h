@@ -11,8 +11,22 @@
 //
 // It did not. This class now holds exactly what `Architecture-FileMap.md` §3.13 said it would grow:
 // the open document's handle, its revision, and the viewer -- and, from Stage 3 T10, the document's
-// `CommandJournal`, its `RecoveryJournal` and its `SaveCoordinator`. It still holds no split container
-// and no pane set; those are Stage 4's.
+// `CommandJournal`, its `RecoveryJournal` and its `SaveCoordinator`. **From Stage 4 T9 it holds the
+// split container too**, which is the last of the two things the paragraph above said it did not;
+// the pane set is the window's rather than the tab's and stayed with `ui/shell/SidebarDock` at T5.
+//
+// ---------------------------------------------------------------------------------------------
+// ONE DOCUMENT, N VIEWS (Stage 4 T9, D4-13).
+//
+// The page surface is a `ui/viewer/SplitViewContainer` rather than a bare `PageView`, and the
+// container owns between one and four of them over this tab's ONE handle, ONE `Document`, ONE
+// `CommandJournal` and ONE revision. What that costs this class is that three things which used to
+// name a single view now fan out over `split_->views()` -- the two settings groups and every
+// mutation's `modelChanged` -- and one thing narrows to the ACTIVE view: the rulers, which measure
+// the pane a person is in.
+//
+// `view()` therefore means *the active view*, which is what kept every caller of it -- the status
+// bar, the twenty-five §8 Viewer commands, `MainWindow::currentView()` -- working unchanged.
 //
 // ---------------------------------------------------------------------------------------------
 // THE JOURNAL (Stage 3 T10, D3-10, D3-11, D3-15).
@@ -84,6 +98,7 @@ namespace rawpage::ui {
 
 class PageView;
 class RulerWidget;
+class SplitViewContainer;
 
 class DocumentWindow : public QWidget {
     Q_OBJECT
@@ -167,7 +182,13 @@ public:
     bool isProtected() const noexcept { return protected_; }
     void setProtected(bool value) noexcept { protected_ = value; }
 
-    PageView* view() const noexcept { return view_; }
+    // THE ACTIVE VIEW (S4 T9), which is the only view there is until someone splits the window.
+    // Every §8 Viewer command reaches the pane a person is in through this and nothing else.
+    PageView* view() const noexcept;
+
+    // The split itself: its mode, its panes and whether they scroll together. `MainWindow`'s five
+    // `window.*` split commands are the only product caller.
+    SplitViewContainer* split() const noexcept { return split_; }
 
     // Reads the preferences a VIEW obeys and hands them to it. Public because it is what a case
     // drives after changing a setting, and because a settings change and a document open take the
@@ -199,6 +220,11 @@ signals:
     // argument -- see `GridGuideLayer::setContextGuide`.
     void guideMenuRequested(int guideIndex, QPoint global);
 
+    // The split's focused pane changed, or a split was made or removed (S4 T9). `MainWindow`
+    // re-points the status bar's `viewChanged` connection at it, because the chrome reports on the
+    // view a person is in and a connection to a retired pane would report on nothing.
+    void activeViewChanged(PageView* view);
+
     // A command, an undo or a redo changed the model; the revision has moved.
     void mutated();
     void dirtyChanged(bool dirty);
@@ -209,15 +235,41 @@ private:
     void build(const Recovery* recovery);
     void afterMutation();
 
+    // ---- The split (S4 T9) -------------------------------------------------------------------
+    // A pane the container has just built: it is handed the document, both settings groups, and
+    // the place its source pane is looking at. Splitting a window must show the same page twice,
+    // and `PageView::setDocument` deliberately starts at page 1 -- so a pane that was adopted and
+    // not positioned would send the person back to the top of the document.
+    void adoptView(PageView* view);
+
+    // The MODEL's pages for layout and the ENGINE's for each tile's rotation delta (D3-15), to one
+    // pane. One function because a document reaches a pane from two places -- `build()` and
+    // `adoptView()` -- and two spellings of D3-15 is two readings of it to keep in agreement.
+    void handDocumentTo(PageView* view);
+
+    // The rulers, the cursor readout and the guide menu follow ONE pane. Bound to the active view
+    // and rebound when it changes; `unbindActiveView` is convention 10, because every one of those
+    // connections is a lambda holding `this` on a child that outlives neither.
+    void bindActiveView(PageView* view);
+    void unbindActiveView();
+
+    // Copies the active pane's guides onto the others. A guide is a PAGE fact in PDF points
+    // (D4-7), so it belongs to the document and shows in every pane; what is per-view is the DRAG,
+    // which is why each `PageView` has a `GridGuideLayer` of its own in the first place.
+    void mirrorGuides();
+
     // ---- The rulers (S4 T8) ----------------------------------------------------------------
     // Recomputes both mappings from the page in front of the person. Called on every `viewChanged`
     // -- which a scroll emits as well as a zoom, because `scrollContentsBy` writes the controller
     // and the controller's `changed` reaches `refresh()`.
     void updateRulerMappings();
 
-    // The offset of the page surface's VIEWPORT within the `PageView` widget. A scroll area draws
-    // a frame, so the two differ by a pixel or two -- and a ruler out by two pixels is a ruler
-    // that reads the wrong number at exactly the edge a person measures to.
+    // The offset of the ACTIVE view's viewport within the split container -- which is what the two
+    // rulers are aligned to in the grid. A scroll area draws a frame, so the two differ by a pixel
+    // or two even with one pane, and a ruler out by two pixels reads the wrong number at exactly
+    // the edge a person measures to. **With a split it is also the pane's own position** (S4 T9):
+    // the bottom pane of a horizontal split starts partway down the vertical ruler, and that is
+    // the number the ruler must use.
     QPoint viewportOffset() const;
 
     // A right-click on a ruler or on a guide, turned into `guideMenuRequested`. The MENU is
@@ -231,7 +283,14 @@ private:
     core::DocumentHandle handle_;
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;
-    PageView* view_ = nullptr;
+
+    // S4 T9. The page surface: one view, or up to four over the same document. Never null after
+    // `build()`, and `view()` is its active pane.
+    SplitViewContainer* split_ = nullptr;
+
+    // The pane the rulers and the cursor readout are connected to. A raw pointer to a child, kept
+    // only so the connections can be undone -- which is the whole of convention 10.
+    PageView* boundView_ = nullptr;
 
     // S4 T8. Always constructed, shown only while `units/showRulers` is on: a ruler that is built
     // when the preference is turned on would have no mapping until the next view change, so the

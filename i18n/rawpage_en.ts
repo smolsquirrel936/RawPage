@@ -92,6 +92,22 @@
         <translation>Split</translation>
     </message>
     <message>
+        <source>action.window.splitVertical</source>
+        <translation>Split Vertical</translation>
+    </message>
+    <message>
+        <source>action.window.spreadsheetSplit</source>
+        <translation>Spreadsheet Split</translation>
+    </message>
+    <message>
+        <source>action.window.removeSplit</source>
+        <translation>Remove Split</translation>
+    </message>
+    <message>
+        <source>action.window.syncScroll</source>
+        <translation>Synchronize Scrolling</translation>
+    </message>
+    <message>
         <source>action.window.tileHorizontal</source>
         <translation>Tile Horizontal</translation>
     </message>
