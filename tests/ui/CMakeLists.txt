@@ -95,6 +95,15 @@ add_executable(rawpage_ui_tests
     # the battery is flat. It is asserted as a CALL SEQUENCE rather than a final state, because a
     # controller that asked twice and released once ends inactive and is still leaking a request.
     tst_presentation.cpp
+
+    # Stage 4 T11 -- the window arranger (guide cases A-64 ... A-66). Its ARITHMETIC is judged over
+    # synthetic work areas rather than over the offscreen platform's one screen: "the tiles fill the
+    # work area and do not overlap" is a claim about numbers, and a case written against whatever
+    # screen the machine reports would have to be loosened until it asserted nothing. The rest is
+    # what only a window can answer -- a merge that keeps five tabs in order, a second view of one
+    # document holding its own handle and no journal of its own, and A2's named work, which is
+    # asserted on the scheduler's lane counters because nothing on screen can tell the two apart.
+    tst_arranger.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

@@ -178,6 +178,27 @@ public:
     // Release into a brand-new window, positioned near where the drag ended. Returns it.
     MainWindow* detachDocument(int index, const QPoint& globalPos = QPoint());
 
+    // A window emptied by a MOVE has done its job and goes (issue I-35). Called after a document is
+    // adopted away by another window -- a tear-off drop, and since S4 T11 *Merge All Windows* --
+    // and only then: a window emptied by a CLOSE stays, because the user is still standing in it.
+    // **Only a window that owns itself can go**; the rule and its reason are at the definition, and
+    // `ui/shell/WindowArranger` calls this rather than repeating it.
+    void closeIfEmptied();
+
+    // ---------------------------------------------------------------------------------------
+    // A SECOND VIEW OF ONE DOCUMENT -- S4 T11, `window.new`, D4-13's exception.
+    // ---------------------------------------------------------------------------------------
+    // Opens the tab in front A SECOND TIME, through the backend, into a brand-new window whose tab
+    // is a COMPANION of this one: its own `DocumentHandle` -- which two windows need, because each
+    // runs the three-step close protocol -- and no journal, so there is one undo stack and one
+    // Save for the file. `DocumentWindow`'s companion constructor argues both halves.
+    //
+    // Refused, with the reason, for a document that has no file of its own (an untitled recovered
+    // one has nothing to re-open) or that the backend will not open a second time. **With no
+    // document in front it opens an EMPTY window**, which is what `window.new` did from Stage 1 T12
+    // to Stage 4 T10 and is still the right answer when there is nothing to make a view of.
+    core::Result<MainWindow*> openSecondView();
+
     DocumentTabBar* documentTabs() const { return tabs_; }
 
     // ---------------------------------------------------------------------------------------
@@ -193,6 +214,17 @@ public:
     static MainWindow* activeShell();
 
     static void stepWindow(int delta);
+
+    // S4 T11 -- A2's named work (`Tech-Stack-Plan.md` §3.3, *A2 at Stage 4*). Tells every window
+    // whether it is the one in front, which decides the lane its viewport queues in
+    // (`ui/viewer/TilePresenter::setBackground`). Driven from `activeShell()` rather than from
+    // `isActiveWindow()`, and the reason is the same one `raiseToForeground` records: under
+    // `offscreen` the activation event never arrives, so a rule read from the platform would make
+    // every window a background window and the headless suite could not judge the behaviour at all.
+    //
+    // WITH ONE WINDOW IT IS A NO-OP by construction: `activeShell()` is that window. So nothing in
+    // the product changes until there are two, which is exactly when the measurement said it must.
+    static void refreshWindowFocusState();
 
     // Called by the primary instance when a secondary hands off. Separate from `openFiles()`
     // because raising is a window operation and opening is not, and Stage 4's window set will need
@@ -279,11 +311,6 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-    // A window emptied by a MOVE has done its job and goes (issue I-35). Called after a document is
-    // adopted away by another window, and only then -- a window emptied by a CLOSE stays, because
-    // the user is still standing in it and may open the next file into it.
-    void closeIfEmptied();
-
     void buildHeader();
     void buildCentralSurface();
     void buildAutoHideStrips();
@@ -325,6 +352,18 @@ private:
     // Raises the banners a document's own condition earns -- repaired, protected. Called on every
     // tab change, because the condition belongs to the tab and not to the window.
     void showDocumentConditions(DocumentWindow* document);
+
+    // The five `window.*` arranging commands -- S4 T11, D4-17. A separate function from
+    // `registerActions()` for the reason `registerViewerActions` is: that one was already 250 lines,
+    // and the mechanism -- once per registry, nothing captured, the window resolved at dispatch
+    // (convention 14) -- is identical and argued there.
+    void registerArrangeActions();
+
+    // `window.list`'s popup -- S4 T11. Every item is NAVIGATION rather than a command and goes
+    // through `ActionFactory::addNonCommandMenuItem`, on the ribbon overflow's precedent: a window
+    // has no `ActionId` and there is nothing for `ActionRegistry` to route. The command is opening
+    // the list.
+    void showWindowList();
 
     // The §8 Viewer commands. Separate from `registerActions()` only because that function was
     // already 250 lines: the registration mechanism, the once-per-registry guard and the

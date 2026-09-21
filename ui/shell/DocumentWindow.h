@@ -85,6 +85,7 @@
 #include <memory>
 #include <optional>
 
+#include <QList>
 #include <QString>
 #include <QWidget>
 
@@ -124,7 +125,60 @@ public:
     };
     DocumentWindow(app::Services services, core::DocumentHandle handle, const Recovery& recovery,
                    QWidget* parent = nullptr);
+
+    // ---------------------------------------------------------------------------------------
+    // A SECOND VIEW OF ONE DOCUMENT, IN A SECOND WINDOW -- S4 T11, `window.new`, D4-13's exception.
+    // ---------------------------------------------------------------------------------------
+    // `handle` is the SAME FILE opened a second time, which is the one place a second
+    // `DocumentHandle` is correct: a split shares one (D4-13) because one `DocumentWindow` owns the
+    // three-step close protocol, and two windows are two `DocumentWindow`s, each of which would run
+    // that protocol on the handle the other is still rendering from.
+    //
+    // WHAT A COMPANION DOES NOT HAVE, and it is the whole of the design: **no journal, no recovery
+    // journal and no save coordinator.** Two journals over one file would be two undo stacks and
+    // two Saves racing for the same bytes -- the "changed on disk since it was opened" path D3-16
+    // exists to refuse, manufactured by the product itself. So a companion is not editable and is
+    // never dirty, which `isEditable()` and `isDirty()` already answer correctly from a null
+    // journal, and every mutation command is therefore refused in its window rather than handled.
+    //
+    // WHAT IT DOES SHARE is the only thing that makes it a view of the same document: it lays its
+    // pages out from the LEADER'S model page tree, at the leader's revision, while rasterizing
+    // through its OWN handle. That is D3-15's split -- the model decides geometry, the engine
+    // supplies pixels, and the difference rides on each tile as `pageRotationDelta` -- so a
+    // rotation in the leader appears here, unsaved, with no second copy of anything.
+    //
+    // WHEN THE LEADER CLOSES the companion DETACHES rather than following it, and that is correct
+    // rather than a fallback: the leader's disposition has just been settled (saved, or discarded),
+    // the model tree it was reading is gone, and the file on disk is what the companion's own
+    // handle has always been rasterizing. It re-reads the engine's tree and goes on showing the file.
+    DocumentWindow(app::Services services, QString path, core::DocumentHandle handle,
+                   DocumentWindow* leader, QWidget* parent = nullptr);
+
     ~DocumentWindow() override;
+
+    // The tab this one is a second view of, or null. Never points at another companion: a second
+    // view of a second view is still a second view of the document, so `window.new` in a companion
+    // window resolves to the leader (`ui/shell/WindowArranger`).
+    DocumentWindow* leader() const noexcept { return leader_; }
+    bool isCompanion() const noexcept { return leader_ != nullptr; }
+
+    // The second views of THIS document, in the order they were opened. Empty for a companion.
+    const QList<DocumentWindow*>& companions() const noexcept { return companions_; }
+
+    // Whether this document's views in OTHER WINDOWS scroll with this one -- `Features.md` §1.1's
+    // *synchronize scrolling between two views of the same document*. Kept on the LEADER, which is
+    // the one object both views can name, and toggled by `window.syncScroll` when there is a
+    // companion; the split's own switch is `SplitViewContainer::setSynchronizedScrolling` and the
+    // two are deliberately separate values (one is about panes, the other about windows).
+    //
+    // Defaults to TRUE: `window.new` is asked for in order to look at two parts of one document,
+    // and a pair that opened unlinked would make the feature something you have to find twice.
+    bool synchronizedWithOtherWindows() const noexcept;
+    void setSynchronizedWithOtherWindows(bool on);
+
+    // S4 T11 -- A2's named work, fanned out to every pane. `true` when this tab's WINDOW is not the
+    // one in front; `ui/viewer/TilePresenter::setBackground` is where the argument lives.
+    void setBackgroundWindow(bool background);
 
     // The absolute path this tab stands for. A Save As moves it. EMPTY for an untitled document.
     const QString& path() const { return path_; }
@@ -225,6 +279,11 @@ signals:
     // view a person is in and a connection to a retired pane would report on nothing.
     void activeViewChanged(PageView* view);
 
+    // A pane of this tab was scrolled by the person rather than by a mirror (S4 T11). Forwarded
+    // from `SplitViewContainer::scrolled`; `ui/shell/WindowArranger` is the only consumer, and it
+    // mirrors onto the second view of this document in another window.
+    void scrolled(PageView* leader);
+
     // A command, an undo or a redo changed the model; the revision has moved.
     void mutated();
     void dirtyChanged(bool dirty);
@@ -277,12 +336,33 @@ private:
     // factory belongs to the window rather than to a tab.
     void raiseGuideMenu(int guideIndex, QPoint global);
 
+    // S4 T11. Points at the tab this one is a second view of, and is null in the tab that owns the
+    // journal. `attachCompanion`/`detachCompanion` keep the two directions in step, and the leader's
+    // destructor detaches every companion BEFORE its own `Document` goes -- a companion lays out
+    // from that tree, and a pointer into a destroyed page tree is a paint away from a crash.
+    void attachCompanion(DocumentWindow* companion);
+
+    // Bookkeeping only -- the two directions of the link, undone. `detachFromLeader` is that plus
+    // the re-read onto this tab's own handle, and the destructor wants only the first half.
+    void unlinkFromLeader();
+    void detachFromLeader();
+
+    // The model page tree a pane lays out from: the leader's when this is a companion, this tab's
+    // own otherwise, and null when there is no document. One function, because "which tree" is a
+    // question `handDocumentTo` and `afterMutation` would otherwise each answer.
+    const core::PageTree* modelPages() const;
+
     app::Services services_;
     QString path_;
     QString sourcePath_;
     core::DocumentHandle handle_;
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;
+
+    // S4 T11 -- `window.new`. Exactly one of these is ever non-empty.
+    DocumentWindow*         leader_ = nullptr;
+    QList<DocumentWindow*>  companions_;
+    bool                    syncWithOtherWindows_ = true;
 
     // S4 T9. The page surface: one view, or up to four over the same document. Never null after
     // `build()`, and `view()` is its active pane.

@@ -50,6 +50,23 @@ RenderScheduler::~RenderScheduler()
     }
 }
 
+namespace {
+
+// One place both `enqueue` paths -- the cache hit and the real queue -- count the lane. A cache hit
+// is still a request made AT a priority, and leaving it out would make the counters disagree with
+// `enqueued` for exactly the workload (a second window over an already-rendered document) the
+// counters were added to measure.
+void noteLaneLocked(RenderScheduler::Stats& stats, RenderPriority priority)
+{
+    switch (priority) {
+    case RenderPriority::Visible: ++stats.enqueuedVisible; break;
+    case RenderPriority::Prefetch: ++stats.enqueuedPrefetch; break;
+    case RenderPriority::Speculative: ++stats.enqueuedSpeculative; break;
+    }
+}
+
+} // namespace
+
 RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriority priority)
 {
     // D2-12: a request with no real `Revision` cannot be a cache key, so rasterizing it would spend
@@ -68,6 +85,7 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
                 std::lock_guard<std::mutex> lock(mutex_);
                 ticket = nextTicketId_++;
                 ++stats_.enqueued;
+                noteLaneLocked(stats_, priority);
                 ++stats_.servedFromCache;
                 completed_.push_back(Completion{request, std::move(*hit), true, true});
                 wake = wake_;
@@ -90,6 +108,7 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
 
     std::unique_lock<std::mutex> lock(mutex_);
     ++stats_.enqueued;
+    noteLaneLocked(stats_, priority);
     const std::uint64_t ticket = nextTicketId_++;
 
     const auto existing = byRequest_.find(request);

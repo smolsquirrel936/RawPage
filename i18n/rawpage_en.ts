@@ -120,6 +120,14 @@
         <translation>Cascade</translation>
     </message>
     <message>
+        <source>action.window.merge</source>
+        <translation>Merge All Windows</translation>
+    </message>
+    <message>
+        <source>action.window.list</source>
+        <translation>Window List</translation>
+    </message>
+    <message>
         <source>action.view.toggleSidebar</source>
         <translation>Toggle Sidebar</translation>
     </message>
@@ -1595,6 +1603,10 @@
         <translation>%1 needs a document to be open.</translation>
     </message>
     <message>
+        <source>shell.tooltip.needsWindows</source>
+        <translation>%1 needs more than one window to be open.</translation>
+    </message>
+    <message>
         <source>shell.tooltip.needsGuide</source>
         <translation>%1 needs a guide under the pointer.</translation>
     </message>
@@ -2136,6 +2148,10 @@
     <message>
         <source>error.save.untitled</source>
         <translation>This document has no file of its own yet.</translation>
+    </message>
+    <message>
+        <source>error.window.untitled</source>
+        <translation>A second view needs a document with a file of its own; %1 has not been saved yet.</translation>
     </message>
     <message>
         <source>error.save.fileChanged</source>

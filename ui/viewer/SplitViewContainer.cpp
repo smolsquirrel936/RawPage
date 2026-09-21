@@ -115,7 +115,14 @@ void SplitViewContainer::setSynchronizedScrolling(bool on)
 
 void SplitViewContainer::propagateScroll(PageView* leader)
 {
-    if (mirroring_ || leader == nullptr || views_.size() < 2) return;
+    if (mirroring_ || leader == nullptr) return;
+
+    // S4 T11. ANNOUNCED BEFORE THE `views_.size() < 2` RETURN, because the cross-window mirror's
+    // commonest subject is a document that is not split at all -- and after the `mirroring_` guard,
+    // so a pane this container has just written does not go on to lead a view in another window.
+    emit scrolled(leader);
+
+    if (views_.size() < 2) return;
 
     const core::DevicePoint from = leader->controller().scroll();
     const double leaderScale = presentedScaleOf(*leader);

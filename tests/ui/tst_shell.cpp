@@ -124,7 +124,7 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 87);
+    CHECK(fixture.actions.registeredCount() == 92);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -150,17 +150,22 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowPrev));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowNew));
 
-    // S4 T9's five. `window.tileHorizontal`, `window.tileVertical` and `window.cascade` are NOT
-    // among them and that is what the count keeps honest: arranging WINDOWS is T11's, and three of
-    // the four rows in the same ribbon group being live is exactly the state that invites someone
-    // to complete it with a handler that arranges nothing.
+    // S4 T9's five -- the split, which is panes inside ONE window and is a different thing from
+    // arranging windows (D4-13).
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowSplit));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowSplitVertical));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowSpreadsheetSplit));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowRemoveSplit));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowSyncScroll));
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::WindowTileHorizontal));   // T11
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::WindowCascade));          // T11
+    // S4 T11's five. `window.tileHorizontal`, `window.tileVertical` and `window.cascade` were
+    // DECLARED from Stage 1 and registered by nothing until now -- this case asserted their absence
+    // for three stages, which is what kept somebody from completing the ribbon group with a handler
+    // that arranged nothing. `window.merge` and `window.list` are the two ids T11 mints.
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowTileHorizontal));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowTileVertical));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowCascade));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowMerge));
+    CHECK(fixture.actions.isRegistered(core::ActionId::WindowList));
 
     // S4 T10's eight. `view.readingMode` is NOT among them -- it is T12's, and it is in the same
     // ribbon group as `view.fullScreen`, which is exactly the neighbourly pressure the count keeps

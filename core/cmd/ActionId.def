@@ -84,6 +84,17 @@ RAWPAGE_ACTION(WindowSyncScroll,       "window.syncScroll",       Global, "actio
 RAWPAGE_ACTION(WindowTileHorizontal,   "window.tileHorizontal",   Global, "action.window.tileHorizontal")
 RAWPAGE_ACTION(WindowTileVertical,     "window.tileVertical",     Global, "action.window.tileVertical")
 RAWPAGE_ACTION(WindowCascade,          "window.cascade",          Global, "action.window.cascade")
+// THE LAST TWO *Document windows* ROWS OF `Features.md` §1.1 -- *merge all detached windows back into
+// one tabbed window* and *switch documents from a window list* -- declared at Stage 4 T11 for the
+// reason T7 declared `tool.loupe` and T10 declared `present.start`: the capability is listed, the
+// ribbon needs a control for it, and a menu item that is a lambda rather than a command is one the
+// headless batch runner (flow K) cannot reach.
+//
+// **Neither takes a §8 chord**, so `KeyBindingDefaults.def` is untouched. The window LIST's items
+// are not commands and have no ids of their own: a window is not a feature, and each row goes
+// through `ActionFactory::addNonCommandMenuItem` on the ribbon-overflow precedent.
+RAWPAGE_ACTION(WindowMerge,            "window.merge",            Global, "action.window.merge")
+RAWPAGE_ACTION(WindowList,             "window.list",             Global, "action.window.list")
 
 // --- Shell chrome (§1.1) ------------------------------------------------------------------------
 RAWPAGE_ACTION(ViewToggleSidebar,      "view.toggleSidebar",      Global, "action.view.toggleSidebar")

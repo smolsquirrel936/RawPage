@@ -51,6 +51,80 @@ DocumentWindow::DocumentWindow(app::Services services, core::DocumentHandle hand
     build(&recovery);
 }
 
+DocumentWindow::DocumentWindow(app::Services services, QString path, core::DocumentHandle handle,
+                               DocumentWindow* leader, QWidget* parent)
+    : QWidget(parent), services_(services), path_(std::move(path)), handle_(handle)
+{
+    sourcePath_ = path_;
+
+    // A SECOND VIEW OF A SECOND VIEW IS STILL A SECOND VIEW OF THE DOCUMENT. Resolving to the
+    // leader here rather than at the call site means there is one chain of length one instead of a
+    // tree nobody walks, and it is why `leader()` is documented never to point at a companion.
+    leader_ = (leader != nullptr && leader->leader_ != nullptr) ? leader->leader_ : leader;
+    if (leader_ != nullptr) leader_->attachCompanion(this);
+
+    build(nullptr);
+}
+
+void DocumentWindow::attachCompanion(DocumentWindow* companion)
+{
+    if (companion == nullptr || companions_.contains(companion)) return;
+    companions_.append(companion);
+
+    // THE LEADER'S MUTATIONS ARE THE COMPANION'S TOO. `mutated` is emitted after every command,
+    // undo and redo, and the revision is part of every tile key (D2-12) -- so a companion that was
+    // not told would go on showing the un-rotated page with no error and nothing to fail. This is
+    // `afterMutation`'s fan-out over `split_->views()` reaching one window further out.
+    connect(this, &DocumentWindow::mutated, companion, [this, companion] {
+        for (PageView* pane : companion->split_->views()) pane->modelChanged(revision());
+    });
+}
+
+void DocumentWindow::unlinkFromLeader()
+{
+    if (leader_ == nullptr) return;
+    disconnect(leader_, nullptr, this, nullptr);
+    leader_->companions_.removeAll(this);
+    leader_ = nullptr;
+}
+
+void DocumentWindow::detachFromLeader()
+{
+    if (leader_ == nullptr) return;
+    unlinkFromLeader();
+
+    // BACK ONTO ITS OWN HANDLE'S TREE, and this is the correct answer rather than a fallback: the
+    // leader's disposition has just been settled, and what this tab's own `DocumentHandle` has been
+    // rasterizing all along is the file. See the constructor's comment.
+    revision_ = core::Revision::initial();
+    for (PageView* pane : split_->views()) handDocumentTo(pane);
+}
+
+const core::PageTree* DocumentWindow::modelPages() const
+{
+    if (leader_ != nullptr) return leader_->modelPages();
+    return journal_ ? &journal_->document().pages() : services_.backend.pages(handle_);
+}
+
+bool DocumentWindow::synchronizedWithOtherWindows() const noexcept
+{
+    return leader_ != nullptr ? leader_->syncWithOtherWindows_ : syncWithOtherWindows_;
+}
+
+void DocumentWindow::setSynchronizedWithOtherWindows(bool on)
+{
+    if (leader_ != nullptr) {
+        leader_->setSynchronizedWithOtherWindows(on);
+        return;
+    }
+    syncWithOtherWindows_ = on;
+}
+
+void DocumentWindow::setBackgroundWindow(bool background)
+{
+    for (PageView* pane : split_->views()) pane->setBackgroundWindow(background);
+}
+
 void DocumentWindow::build(const Recovery* recovery)
 {
     setObjectName(QStringLiteral("documentWindow"));
@@ -108,6 +182,11 @@ void DocumentWindow::build(const Recovery* recovery)
         emit activeViewChanged(view);
     });
 
+    // S4 T11. Forwarded rather than consumed: the cross-window mirror is `ui/shell/WindowArranger`'s
+    // and a tab may not name another window.
+    connect(split_, &SplitViewContainer::scrolled, this,
+            [this](PageView* pane) { emit scrolled(pane); });
+
     bindActiveView(split_->primaryView());
 
     for (RulerWidget* ruler : {horizontalRuler_, verticalRuler_}) {
@@ -156,7 +235,10 @@ void DocumentWindow::build(const Recovery* recovery)
     // THE DOCUMENT AND ITS JOURNAL (Stage 3 T10). Hydrated from the backend -- a copy of its page tree, so
     // a rotation changes the model and never the engine's reading (D3-15). A handle the backend does not
     // know hydrates nothing, and the view draws nothing.
-    if (handle_.isValid()) {
+    // A COMPANION HYDRATES NOTHING (S4 T11). No journal, no recovery journal, no coordinator --
+    // the constructor's comment argues why two journals over one file is the defect rather than
+    // the feature. Its panes are handed the LEADER'S tree below, through `modelPages()`.
+    if (handle_.isValid() && leader_ == nullptr) {
         core::Document document;
         if (document.hydrate(services_.backend, handle_)) {
             journal_ = std::make_unique<core::CommandJournal>(std::move(document), services_.backend.mutationSink(handle_));
@@ -220,7 +302,15 @@ PageView* DocumentWindow::view() const noexcept
 
 void DocumentWindow::handDocumentTo(PageView* pane)
 {
-    // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15).
+    // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15). For a
+    // COMPANION (S4 T11) the model is the LEADER'S and the engine tree is this tab's own handle's,
+    // which is the same split one window further out: the leader's unsaved rotations decide the
+    // geometry, this handle's pages decide what the rasterizer is asked for, and the difference
+    // rides on the request.
+    if (leader_ != nullptr) {
+        pane->setDocument(handle_, leader_->revision(), modelPages(), services_.backend.pages(handle_));
+        return;
+    }
     if (journal_) {
         pane->setDocument(handle_, journal_->revision(), &journal_->document().pages(),
                           services_.backend.pages(handle_));
@@ -455,6 +545,20 @@ DocumentWindow::~DocumentWindow()
     // convention 10, in the form where the caller is a settings store rather than a signal.
     if (settingsSubscription_ != 0) services_.settings.unsubscribe(settingsSubscription_);
 
+    // EVERY SECOND VIEW OF THIS DOCUMENT IS CUT LOOSE FIRST (S4 T11). A companion lays out from
+    // THIS tab's page tree, which `journal_` owns and which is destroyed at the end of this body --
+    // so a companion still pointing at it would lay out over freed memory on its next paint. It is
+    // detached rather than closed: the window it lives in is the user's, and the file its own
+    // handle rasterizes is still there.
+    //
+    // `detachFromLeader` mutates `companions_`, so the list is copied rather than walked.
+    for (DocumentWindow* companion : QList<DocumentWindow*>(companions_)) companion->detachFromLeader();
+
+    // AND THIS TAB, IF IT IS ITSELF A COMPANION, is only UNLINKED: re-handing a document to panes
+    // that are about to be destroyed would start a round of tile requests for a widget nobody will
+    // ever paint, which is the difference between the two functions.
+    unlinkFromLeader();
+
     // AND THE CHILDREN'S SIGNALS, which is convention 10 in its original form (Stage 1's I-12): a
     // lambda bound to a CHILD's signal and holding `this` outlives the derived object, because
     // `~QWidget` deletes the children after this body has run. `QEvent::Leave` is the one that
@@ -503,6 +607,10 @@ DocumentWindow::~DocumentWindow()
 
 core::Revision DocumentWindow::revision() const noexcept
 {
+    // A COMPANION IS AT ITS LEADER'S REVISION (S4 T11), because it is laying the leader's model out:
+    // an answer of its own would key its tiles differently from the tree they were laid out from,
+    // which is D2-12's failure with nothing on screen to show for it.
+    if (leader_ != nullptr) return leader_->revision();
     return journal_ ? journal_->revision() : revision_;
 }
 

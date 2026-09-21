@@ -7,13 +7,14 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **52 of the 79 carry
-> a result** as of 2026-09-21 (re-derived from this file: 79 case headers, 27 still boxed) — T1's
+> partly run.** **80 automated** (A-01 … A-79, plus **A-66(a)**, which T11 added with A2's named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **56 of the 80 carry
+> a result** as of 2026-09-21 (re-derived from this file: 80 case headers, 24 still boxed) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
-> substitution it names — **I-07**), **T9's four split cases** and **T10's seven full-screen and
-> presentation cases**. **No manual case has been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
+> substitution it names — **I-07**), **T9's four split cases**, **T10's seven full-screen and
+> presentation cases** and **T11's four arranger cases**. **No manual case has been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
 > I-02, I-03, I-04 and I-06 closed.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -755,14 +756,21 @@ also reports from the other side, still one command on the stage's eighth task a
 
 ### 5.12 Window arrangement (T11)
 
-**A-64 · Tile and cascade over synthetic screen geometry** ☐
+**A-64 · Tile and cascade over synthetic screen geometry** ✅
+✅ **2026-09-21, T11.** `ui.` over `WindowArranger::tileGeometry` and `cascadeGeometry`, which are pure functions of a work area and a count — the offscreen platform reports one screen of a size no case may depend on, so a tiling case written against it would have to be loosened until it asserted nothing. Over counts 1, 2, 3, 4, 5 and 7 in both orientations the cells **cover the work area exactly**, pairwise never intersect, and none is below `kMinTileWidth`/`kMinTileHeight`. The ORIENTATION is asserted rather than assumed: `Horizontal` gives full-width strips one above another and `Vertical` gives columns side by side, which is the coin flip a swapped implementation would pass every other check on. Eight windows on a 1040-pixel work area is 130 pixels a strip, so the strips stop at four and the surplus is laid across them — the **grid fallback**, with the cover and the minimum both still holding. Cascade steps by the step it was GIVEN (never by the constant, so a theme with taller title bars cannot redden it), keeps every window wholly inside the work area, and restarts the diagonal rather than marching off the corner. **The control, from both ends:** with one window `window.tileHorizontal`, `window.tileVertical`, `window.cascade` and `window.merge` are all refused with `Unavailable`, AND calling `tile()`/`cascade()` directly moves the geometry not at all — only the second says the operation is a no-op, and only the first says the button is not merely broken (Stage 1's I-53). `window.list` is deliberately not among the four. **Two planted-bug controls run red for the right reason** (convention 7): dropping the remainder in the size share reddens the exact-cover assertion, and merging with `adoptDocument(document, 0)` instead of appending reddens A-65's order. **What this case does NOT cover** (convention 19): a real taskbar — `availableGeometry()` offscreen is the whole screen — and windows on two monitors. Both are **M-09**'s.
 **Expect** Tiling N windows fills the work area with no overlap and no window smaller than a stated minimum; cascade steps by the title-bar height and keeps every title bar on-screen. **The control:** arranging with one window changes nothing. **If it fails** S2.
 
-**A-65 · Merge windows re-docks every detached tab, in order** ☐
+**A-65 · Merge windows re-docks every detached tab, in order** ✅
+✅ **2026-09-21, T11.** `ui.` — five documents in one window, two torn off with `detachDocument` into windows of their own, then `WindowArranger::mergeWindows()`: one window, five tabs, in their original order, each tab the SAME `DocumentWindow` object with the same `DocumentHandle`, the same `CommandJournal` and the scroll position it had, which is what distinguishes a MOVE from a close and a re-open. **The order is only a meaningful claim because the target is fixed**: the first window in `shellWindows()` rather than the active one, since merging into whichever window a person stood in would make the answer depend on where they clicked. **What no merge can restore**, said at the case: a detached window records nothing about which tab its document used to be, so the result is window creation order with each window's tabs in tab order — tearing `e` out before `d` puts them back as `e`, `d`, and nothing in the product claims otherwise.
 **Expect** Three windows with five documents become one window with five tabs in their original order, each keeping its handle, journal and scroll position. **If it fails** S2.
 
-**A-66 · The window list and `window.new`** ☐
+**A-66 · The window list and `window.new`** ✅
+✅ **2026-09-21, T11 — five cases.** The LIST names every window in creation order by its own title, `activateWindow` moves `activeShell()` (which is what every Global command resolves through, so that is the claim rather than anything about a menu), and an out-of-range index is a no-op, because the list a menu was built from can be stale by the time it is clicked. **`window.new` is a second view**: same path, **different `DocumentHandle`** — two windows are two `DocumentWindow`s and each runs the three-step close protocol, so a shared handle would be closed out from under the other, which is the exact opposite of why a split shares one (D4-13) — and **no second journal**, so the companion is not editable and never dirty. A rotation run in the leader's window moves both to the same revision and the second view's laid-out page has its width and height SWAPPED (geometry before pixels, Stage 1's I-36): it lays out from the leader's model tree while rasterizing through its own handle, and a companion reading its own engine tree would show the page upright with nothing on screen to say so. Closing the leader **detaches** the companion rather than taking it down, and it goes on drawing the file through the handle it always had. The two scroll together by default and `window.syncScroll` unlinks them, mirrored in PDF points and both ways, behind an echo guard — without which two windows each following the other is a loop with no fixed point.
 **Expect** The list names every window and switching activates it; `window.new` opens a **second view of the same document** in a new window with its own handle (D4-13's exception), and both views stay correct after a rotation in one. **If it fails** S2.
+
+**A-66(a) · A window that is not in front asks for its viewport at `Prefetch`** ✅
+✅ **2026-09-21, T11 — a case this guide did not have, added with A2's named work.** [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified)'s *A2 at Stage 4* records the two-window column as leaving the 16.667 ms budget **under a named, reachable condition**, and names that condition as T11's: *a window that does not have focus enqueues its viewport at `Prefetch`, not `Visible`*. Nothing on screen can tell the two apart — the same tiles are asked for and they arrive — so `RenderScheduler::Stats` gained three per-lane counters and the case asserts on those. With two windows over one document, scrolling the BACKGROUND one moves `enqueuedPrefetch` and leaves `enqueuedVisible` exactly where it was; **the control convention 22 says the criterion will not ask for** is the same gesture in the same window once it is in front, which moves `enqueuedVisible`. Without it, *"the background window queues at Prefetch"* and *"this build queues everything at Prefetch"* would be the same passing case. **Planted-bug control run red:** ignoring the background flag in `TilePresenter` reddens the first half. **What it does not claim** (convention 19): that the change buys the milliseconds §3.3 predicts. That is `bench_pipeline --stage4`'s to measure, and **T14 re-reads it**.
+**Expect** A window that is not `MainWindow::activeShell()` enqueues its viewport tiles at `RenderPriority::Prefetch`; the window in front enqueues at `Visible`. **If it fails** S3 — A2's named work is unmet and the two-window figure stands as measured.
 
 ### 5.13 Fit Visible, Document Properties, reading mode (T12)
 
@@ -1131,7 +1139,7 @@ painting, since the paint path (`PageView::paintContent`, over the tiles) is alr
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ☐ A-01 … A-79 **run**, with actual output recorded against each case — not a summary claiming they
+1. ☐ A-01 … A-79 and A-66(a) **run**, with actual output recorded against each case — not a summary claiming they
    were (Stage 1's I-32). Linux-only halves (A-04) are recorded from the CI job's **log**, not its
    tick (rule 3).
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for

@@ -162,6 +162,16 @@ signals:
     // re-points the status bar, because both report on the view a person is in.
     void activeViewChanged(PageView* view);
 
+    // A pane was scrolled BY SOMETHING OTHER THAN THIS CONTAINER'S OWN MIRROR -- S4 T11. Emitted
+    // for a split of one pane as well as for a split of four, because its consumer is not the
+    // split: `ui/shell/WindowArranger` mirrors a scroll onto the second view of the same document
+    // in ANOTHER WINDOW (`window.new`, `Features.md` §1.1), and the commonest arrangement by far is
+    // two unsplit windows.
+    //
+    // **It fires after the echo guard, never before.** A follower written by either mirror must not
+    // lead a third view, or two windows each following the other is a loop with no fixed point.
+    void scrolled(PageView* leader);
+
 protected:
     // `QEvent::FocusIn` on any view, which is what makes a click in a pane activate it.
     bool eventFilter(QObject* watched, QEvent* event) override;

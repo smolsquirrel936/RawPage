@@ -200,6 +200,16 @@ public:
 
     struct Stats {
         long long enqueued = 0;
+
+        // WHICH LANE EACH ENQUEUE WENT INTO -- S4 T11, and their sum is `enqueued`. Added for the
+        // A2 named work this stage inherited (`Tech-Stack-Plan.md` §3.3, *A2 at Stage 4*): a window
+        // that does not have focus asks for its viewport at `Prefetch` rather than at `Visible`,
+        // and that change is invisible from outside -- the tiles still arrive, the picture is
+        // identical, and only the queue they waited in differs. A counter is the only thing that
+        // can say so, which is why the claim gets one rather than a comment.
+        long long enqueuedVisible = 0;
+        long long enqueuedPrefetch = 0;
+        long long enqueuedSpeculative = 0;
         long long coalesced = 0;          // an equal request joined a job already queued or running
         long long servedFromCache = 0;
         long long started = 0;

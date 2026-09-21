@@ -123,6 +123,11 @@ RAWPAGE_SHELL_STRING(TooltipNeedsDocument,      "shell.tooltip.needsDocument")
 // they are DISABLED there rather than absent, wherever they are reached from a surface that shows
 // every command (the tool finder, the QAT). The context menu offers them only over a guide.
 RAWPAGE_SHELL_STRING(TooltipNeedsGuide,         "shell.tooltip.needsGuide")
+// S4 T11. What tile, cascade and merge say with one window open: they are DISABLED rather than
+// absent, because arranging one window is not an operation and a control that appeared to work and
+// did nothing would be Stage 1's I-53 again. `window.list` is NOT among them -- a list of one is a
+// true statement about the application.
+RAWPAGE_SHELL_STRING(TooltipNeedsWindows,       "shell.tooltip.needsWindows")
 RAWPAGE_SHELL_STRING(TooltipAtFirstPage,        "shell.tooltip.atFirstPage")
 RAWPAGE_SHELL_STRING(TooltipAtLastPage,         "shell.tooltip.atLastPage")
 

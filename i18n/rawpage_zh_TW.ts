@@ -120,6 +120,14 @@
         <translation>重疊顯示</translation>
     </message>
     <message>
+        <source>action.window.merge</source>
+        <translation>合併所有視窗</translation>
+    </message>
+    <message>
+        <source>action.window.list</source>
+        <translation>視窗清單</translation>
+    </message>
+    <message>
         <source>action.view.toggleSidebar</source>
         <translation>切換側邊欄</translation>
     </message>
@@ -1595,6 +1603,10 @@
         <translation>%1 需要先開啟文件。</translation>
     </message>
     <message>
+        <source>shell.tooltip.needsWindows</source>
+        <translation>%1 需要開啟一個以上的視窗。</translation>
+    </message>
+    <message>
         <source>shell.tooltip.needsGuide</source>
         <translation>%1 需要指標下方有參考線。</translation>
     </message>
@@ -2136,6 +2148,10 @@
     <message>
         <source>error.save.untitled</source>
         <translation>這份文件還沒有自己的檔案。</translation>
+    </message>
+    <message>
+        <source>error.window.untitled</source>
+        <translation>開啟第二個檢視畫面需要文件有自己的檔案；%1 尚未儲存。</translation>
     </message>
     <message>
         <source>error.save.fileChanged</source>

@@ -235,6 +235,12 @@ public:
     void setInvertColors(bool invert);
     bool invertColors() const noexcept { return invertColors_; }
 
+    // S4 T11 -- A2's named work, one line deep. `true` when this view's WINDOW is not the one in
+    // front, which makes its viewport queue at `RenderPriority::Prefetch` rather than `Visible`.
+    // The decision belongs to `ui/shell/MainWindow`, which is the only thing that knows which
+    // window that is; `TilePresenter::setBackground` argues why the lane rather than the tile.
+    void setBackgroundWindow(bool background);
+
     // A point in the viewport's logical pixels, in CONTENT device space -- the space
     // `PageLayout` and `ViewportController::visibleRect` are in. Public because the shell maps a
     // ruler's drop into it, and because one place for *scroll offset plus device-pixel ratio* is

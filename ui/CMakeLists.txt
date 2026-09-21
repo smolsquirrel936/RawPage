@@ -74,6 +74,15 @@ add_library(rawpage_ui STATIC
     shell/ShortcutBinder.h
     shell/ShortcutBinder.cpp
 
+    # S4 T11 -- tile, cascade, merge, the window list and the mirror between two views of one
+    # document in two windows (D4-17). It adds no platform/ interface: placing our own top-level
+    # windows is QWidget::setGeometry over QScreen::availableGeometry(), which Qt does everywhere,
+    # and Tech-Stack-Plan.md 4.3's rule is that what Qt does cross-platform gets none. Its
+    # arithmetic is pure functions of a work area and a count, so guide case A-64 judges tiling and
+    # cascading over synthetic geometry with no screen at all.
+    shell/WindowArranger.h
+    shell/WindowArranger.cpp
+
     # panes/ and dialogs/ -- T14. The first two files in each directory, and the first widgets in
     # this layer that are not the shell frame itself.
     #

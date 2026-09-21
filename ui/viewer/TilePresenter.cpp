@@ -124,6 +124,16 @@ void TilePresenter::setPrefetchPages(int pages)
     prefetchPages_ = std::max(0, pages);
 }
 
+void TilePresenter::setBackground(bool background)
+{
+    // NOTHING HELD IS DROPPED AND NOTHING QUEUED IS RE-QUEUED. The lane is a property of the
+    // enqueue, not of the tile -- the request is byte-identical either way and so is its cache key
+    // (D2-12) -- so a window coming forward takes effect on its next `requestTiles()`, which its
+    // activation provokes anyway. Cancelling and re-asking at the higher lane would throw away
+    // work already inside the rasterizer to get it back a few milliseconds sooner.
+    background_ = background;
+}
+
 std::set<int> TilePresenter::heldPages() const
 {
     std::set<int> pages;
@@ -264,8 +274,10 @@ void TilePresenter::requestTiles(const core::render::PageLayout& layout,
             if (ticket.isValid()) tickets_[request] = ticket;
         };
 
-        const RenderPriority priority =
-            offscreen ? RenderPriority::Prefetch : RenderPriority::Visible;
+        // S4 T11 -- A2's named work. A window that is not in front asks at `Prefetch`, so the
+        // window the person IS looking at keeps the single worker (I-05's engine lock) to itself.
+        const RenderPriority priority = (offscreen || background_) ? RenderPriority::Prefetch
+                                                                   : RenderPriority::Visible;
         for (const TileRect& tile : tiles.visible) ask(tile, priority);
         for (const TileRect& tile : tiles.prefetch) ask(tile, RenderPriority::Prefetch);
     }

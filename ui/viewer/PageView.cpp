@@ -430,6 +430,29 @@ void PageView::setInvertColors(bool invert)
     viewport()->update();
 }
 
+void PageView::setBackgroundWindow(bool background)
+{
+    if (presenter_ == nullptr) return;
+
+    // THE FLAG AND NOTHING ELSE -- no `refresh()`, no re-request. Two reasons, and the second is
+    // the one that was measured rather than reasoned:
+    //
+    //   * **Nothing already queued should move.** `RenderScheduler::enqueue` raises a job's
+    //     priority when a higher request joins it and never lowers one, so re-asking at `Prefetch`
+    //     could not demote anything anyway -- it would only spend a pass building requests that
+    //     coalesce with what is there. The lane is a property of the NEXT request, which every
+    //     scroll, zoom and repaint makes.
+    //   * **This is called for EVERY window, from `MainWindow::refreshWindowFocusState`.** A
+    //     function that laid out and asked for tiles on behalf of a window the caller is not in
+    //     would reach that window's backend and scheduler from a call about focus -- work in an
+    //     object the caller has no business driving. Setting a flag cannot.
+    //
+    // The cost is stated rather than hidden: a tab adopted INTO a background window asks for its
+    // first viewport before the sweep reaches it, so that one round goes into the `Visible` lane.
+    // It is one viewport of one document, once, and the alternative is the paragraph above.
+    presenter_->setBackground(background);
+}
+
 void PageView::mousePressEvent(QMouseEvent* event)
 {
     // A GUIDE IS PICKED UP BEFORE THE TOOL SEES THE PRESS, and that order is the decision. Every

@@ -37,8 +37,10 @@
 #include "ui/shell/ThemeManager.h"
 #include "ui/shell/ToolFinder.h"
 #include "ui/shell/UiCustomization.h"
+#include "ui/shell/WindowArranger.h"
 
 #include <QCloseEvent>
+#include <QCursor>
 #include <QEvent>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -297,12 +299,18 @@ MainWindow::~MainWindow()
     shellWindowSet().removeAll(this);
     if (g_activeShell == this)
         g_activeShell = shellWindowSet().isEmpty() ? nullptr : shellWindowSet().last();
+
+    // The window that inherits `activeShell()` inherits the `Visible` lane with it (S4 T11).
+    refreshWindowFocusState();
 }
 
 void MainWindow::changeEvent(QEvent* event)
 {
     QMainWindow::changeEvent(event);
-    if (event->type() == QEvent::ActivationChange && isActiveWindow()) g_activeShell = this;
+    if (event->type() == QEvent::ActivationChange && isActiveWindow()) {
+        g_activeShell = this;
+        refreshWindowFocusState();   // S4 T11 -- the window in front keeps the `Visible` lane
+    }
 }
 
 void MainWindow::buildHeader()
@@ -621,6 +629,13 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     });
     connect(document, &DocumentWindow::guideMenuRequested, this,
             [this](int guideIndex, QPoint global) { showGuideMenu(guideIndex, global); });
+
+    // SYNCHRONIZED SCROLLING BETWEEN TWO WINDOWS (S4 T11). The tab says it was scrolled; the
+    // ARRANGER decides who follows, because a tab may not name another window. Connected here
+    // rather than inside `DocumentWindow` for the same reason the status bar's connection is: a tab
+    // is re-adopted by another window on a re-dock, and this is the object that outlives that.
+    connect(document, &DocumentWindow::scrolled, this,
+            [document](PageView* pane) { WindowArranger::mirrorScroll(*document, pane); });
     connect(document, &DocumentWindow::dirtyChanged, this, [this](bool) {
         updateDocumentTitles();
         updateViewChrome();
@@ -640,6 +655,11 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     tabs_->setCurrentIndex(at);
     documents_->setCurrentIndex(at);
     updateDocumentChrome();
+
+    // S4 T11. A tab adopted into a window that is not in front must start in that window's lane,
+    // or a document dragged into a background window would render at `Visible` until something
+    // else happened to change the focus.
+    refreshWindowFocusState();
 }
 
 DocumentWindow* MainWindow::releaseDocument(int index)
@@ -2385,15 +2405,12 @@ void MainWindow::registerActions()
     registerAction(ActionId::WindowNext, [](KeyContext) { stepWindow(1); }, manyWindows);
     registerAction(ActionId::WindowPrev, [](KeyContext) { stepWindow(-1); }, manyWindows);
 
-    // A new EMPTY window, which is what `window.new` means -- tearing a tab out is a gesture on the
-    // tab, not this command. `WA_DeleteOnClose` because nothing else owns it.
+    // A SECOND VIEW OF THE DOCUMENT IN FRONT -- S4 T11, `Features.md` §1.1, D4-13's exception. It
+    // opened a new EMPTY window from Stage 1 T12 until now, and that is still what it does when
+    // there is no document to make a view OF; `openSecondView` holds both branches and the reasons.
+    // Tearing a tab out remains a gesture on the tab rather than this command.
     registerAction(ActionId::WindowNew, [](KeyContext) {
-        MainWindow* from = activeShell();
-        if (!from) return;
-        auto* window = new MainWindow(from->services_);
-        window->setAttribute(Qt::WA_DeleteOnClose);
-        window->show();
-        window->raiseToForeground();
+        if (MainWindow* from = activeShell()) (void)from->openSecondView();
     });
 
     // --- The split (S4 T9, D4-13) ----------------------------------------------------------------
@@ -2463,21 +2480,190 @@ void MainWindow::registerActions()
     // AND SYNCHRONIZED SCROLLING IS REFUSED IN A SPREADSHEET SPLIT, not merely ignored there. The
     // frozen panes' scroll is DERIVED from the body's -- that is the mode, not an option on it --
     // so a switch offered in that state would be one that could not do anything.
+    //
+    // ONE SWITCH, TWO SUBJECTS -- S4 T11. `Features.md` lists *synchronize scrolling* twice, once
+    // under split views (§1.2) and once under document windows (§1.1), and to the person holding
+    // the mouse they are one idea: *the views of this document move together*. Where the views are
+    // -- two panes of one window, or two windows -- is not part of that idea, so it is not part of
+    // the command either. A split takes precedence when there is one, because that is the surface
+    // the switch is sitting next to; with no split and a second view in another window, the same
+    // switch unlinks the windows.
+    const auto companionOfActiveShell = []() -> DocumentWindow* {
+        MainWindow* window = activeShell();
+        DocumentWindow* document = window ? window->currentDocument() : nullptr;
+        if (document == nullptr) return nullptr;
+        const bool paired = document->leader() != nullptr || !document->companions().isEmpty();
+        return paired ? document : nullptr;
+    };
+
     registerSplit(ActionId::WindowSyncScroll,
-                  [splitOfActiveShell](KeyContext) {
-                      if (SplitViewContainer* split = splitOfActiveShell())
+                  [splitOfActiveShell, companionOfActiveShell](KeyContext) {
+                      SplitViewContainer* split = splitOfActiveShell();
+                      if (split != nullptr && split->mode() != SplitViewContainer::Mode::None
+                          && split->mode() != SplitViewContainer::Mode::Spreadsheet) {
                           split->setSynchronizedScrolling(!split->synchronizedScrolling());
+                          return;
+                      }
+                      if (DocumentWindow* paired = companionOfActiveShell()) {
+                          paired->setSynchronizedWithOtherWindows(
+                              !paired->synchronizedWithOtherWindows());
+                      }
                   },
-                  [splitOfActiveShell] {
+                  [splitOfActiveShell, companionOfActiveShell] {
                       SplitViewContainer* split = splitOfActiveShell();
-                      return split != nullptr
-                             && (split->mode() == SplitViewContainer::Mode::Horizontal
-                                 || split->mode() == SplitViewContainer::Mode::Vertical);
+                      const bool splitPair = split != nullptr
+                                             && (split->mode() == SplitViewContainer::Mode::Horizontal
+                                                 || split->mode() == SplitViewContainer::Mode::Vertical);
+                      return splitPair || companionOfActiveShell() != nullptr;
                   },
-                  [splitOfActiveShell] {
+                  [splitOfActiveShell, companionOfActiveShell] {
                       SplitViewContainer* split = splitOfActiveShell();
-                      return split != nullptr && split->synchronizedScrolling();
+                      if (split != nullptr && split->mode() != SplitViewContainer::Mode::None
+                          && split->mode() != SplitViewContainer::Mode::Spreadsheet) {
+                          return split->synchronizedScrolling();
+                      }
+                      DocumentWindow* paired = companionOfActiveShell();
+                      return paired != nullptr && paired->synchronizedWithOtherWindows();
                   });
+
+    // --- Tile, cascade, merge and the window list (S4 T11, D4-17) ------------------------------
+    registerArrangeActions();
+}
+
+void MainWindow::registerArrangeActions()
+{
+    // S4 T11, D4-17. Nothing is captured and every window is resolved at DISPATCH (convention 14),
+    // which matters here for a reason it does not elsewhere: `window.merge` DESTROYS windows, so a
+    // handler holding one would be holding a window it had just closed.
+    const auto registerArrange = [this](ActionId id, core::ActionRegistry::Handler handler,
+                                        core::ActionRegistry::Enable enable) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = std::move(handler);
+        registration.enable = std::move(enable);
+        registration.unavailableKey = "shell.tooltip.needsWindows";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    // TWO OR MORE WINDOWS IS THE PRECONDITION, and it is a refusal rather than a no-op (Stage 1's
+    // I-53): arranging one window is a command that cannot be told apart from a broken one, and
+    // guide case A-64's control -- *arranging with one window changes nothing* -- is asserted on
+    // the geometry rather than on the refusal precisely because both must hold.
+    const auto manyWindows = [] { return shellWindows().size() > 1; };
+
+    const auto tileAs = [](WindowArranger::Orientation orientation) {
+        return [orientation](KeyContext) { WindowArranger::tile(orientation); };
+    };
+
+    registerArrange(ActionId::WindowTileHorizontal, tileAs(WindowArranger::Orientation::Horizontal),
+                    manyWindows);
+    registerArrange(ActionId::WindowTileVertical, tileAs(WindowArranger::Orientation::Vertical),
+                    manyWindows);
+    registerArrange(ActionId::WindowCascade, [](KeyContext) { WindowArranger::cascade(); },
+                    manyWindows);
+    registerArrange(ActionId::WindowMerge, [](KeyContext) { (void)WindowArranger::mergeWindows(); },
+                    manyWindows);
+
+    // THE WINDOW LIST IS OFFERED WITH ONE WINDOW TOO, and that is not an oversight: a list of one
+    // is a true statement about the application, whereas *tile one window* is not an operation. It
+    // is refused only where there is nobody to show a popup menu to, which is the same predicate
+    // `file.open` uses and the same trap it was written for (I-23).
+    registerArrange(ActionId::WindowList,
+                    [](KeyContext) {
+                        if (MainWindow* window = activeShell()) window->showWindowList();
+                    },
+                    [] { return canPromptTheUser(); });
+}
+
+void MainWindow::showWindowList()
+{
+    // EVERY ITEM IS NAVIGATION RATHER THAN A COMMAND, so each goes through
+    // `ActionFactory::addNonCommandMenuItem` -- the ribbon overflow's precedent, and the one place
+    // in the product allowed to build a `QAction` that carries no `ActionId` (D1-7). A window is
+    // not a feature: it has no id, it is in no catalog, and there is nothing for `ActionRegistry`
+    // to route. What IS a command is opening this list, which is `window.list`.
+    auto* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+
+    const QStringList titles = WindowArranger::windowList();
+    for (int i = 0; i < titles.size(); ++i) {
+        QAction* item = ActionFactory::addNonCommandMenuItem(menu, titles.at(i));
+        item->setCheckable(true);
+        item->setChecked(shellWindows().value(i) == activeShell());
+        connect(item, &QAction::triggered, this, [i] { WindowArranger::activateWindow(i); });
+    }
+
+    menu->popup(QCursor::pos());
+}
+
+core::Result<MainWindow*> MainWindow::openSecondView()
+{
+    DocumentWindow* source = currentDocument();
+
+    // NO DOCUMENT, NO VIEW TO MAKE A SECOND OF. A new empty window is what this command did from
+    // Stage 1 T12 to Stage 4 T10 and is still the honest answer here.
+    if (source == nullptr || !source->handle().isValid()) {
+        auto* window = new MainWindow(services_);
+        window->setAttribute(Qt::WA_DeleteOnClose);
+        window->show();
+        window->raiseToForeground();
+        return window;
+    }
+
+    // A SECOND VIEW OF A SECOND VIEW IS A SECOND VIEW OF THE DOCUMENT -- resolved here as well as
+    // in the companion constructor, because the PATH has to come from the tab that owns the file.
+    DocumentWindow* leader = source->leader() != nullptr ? source->leader() : source;
+
+    // AN UNTITLED DOCUMENT HAS NOTHING TO RE-OPEN. Its bytes came from a crashed session's source
+    // and its changes live in one journal (D3-11); opening the source again would give a second
+    // view of the file the person chose NOT to write into, which is the opposite of what they asked
+    // for. Refused by key, so the ribbon button says why rather than doing something surprising.
+    if (leader->path().isEmpty()) {
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "window.new: refused -- the document has no file of its own";
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.window.untitled"),
+                           leader->title()};
+    }
+
+    // NO PASSWORD PROMPT AND NO `recentFiles` NOTE. The file is already open in this process, so it
+    // was already answered for and already noted; asking again for a second view of a document
+    // whose first view is on screen would read as the product forgetting.
+    const core::Result<core::DocumentHandle> opened =
+        services_.backend.open(leader->path(), [](int) { return std::optional<QString>(); });
+    if (!opened) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+            << "window.new: the backend refused a second handle for" << leader->path() << "--"
+            << opened.error().messageKey.data();
+        return opened.error();
+    }
+
+    auto* window = new MainWindow(services_);
+    window->setAttribute(Qt::WA_DeleteOnClose);
+
+    // BUILT HERE AND ADOPTED, rather than going through `openDocument`: that function opens a tab
+    // for a document, and this is a second VIEW of one -- the difference is the leader, and it is
+    // the whole of the companion contract (`DocumentWindow`'s third constructor).
+    auto* companion = new DocumentWindow(services_, leader->path(), opened.value(), leader);
+    companion->setProtected(leader->isProtected());
+    window->adoptDocument(companion);
+
+    window->show();
+    window->raiseToForeground();
+
+    RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+        << "window.new: a second view of" << leader->path() << "as handle"
+        << static_cast<int>(opened.value().id);
+    return window;
+}
+
+void MainWindow::refreshWindowFocusState()
+{
+    const MainWindow* front = activeShell();
+    for (MainWindow* window : shellWindowSet()) {
+        const bool background = window != front;
+        for (int i = 0; i < window->documentCount(); ++i)
+            if (DocumentWindow* document = window->documentAt(i))
+                document->setBackgroundWindow(background);
+    }
 }
 
 void MainWindow::registerMutationActions()
@@ -2791,6 +2977,11 @@ void MainWindow::raiseToForeground()
     // dispatched into the window nobody had raised. Bringing a window forward IS making it the
     // active shell -- deriving it from the platform's event was the indirection, not this.
     g_activeShell = this;
+
+    // AND THE LANES FOLLOW IT (S4 T11). Here rather than only in `changeEvent` for exactly the
+    // reason above: offscreen there is no activation event, so a suite that raised a window would
+    // leave every window queueing at `Prefetch` and could not judge A2's named work at all.
+    refreshWindowFocusState();
 }
 
 } // namespace rawpage::ui

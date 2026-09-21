@@ -103,6 +103,24 @@ public:
     void setPrefetchPages(int pages);
     int prefetchPages() const noexcept { return prefetchPages_; }
 
+    // ---- THE BACKGROUND LANE -- S4 T11, and it is A2's named work ---------------------------
+    // A window that is not the one the person is looking at asks for its viewport at
+    // `RenderPriority::Prefetch` instead of `RenderPriority::Visible`. Nothing else changes: the
+    // same tiles are asked for, they arrive, and the picture is identical -- what moves is which
+    // queue they wait in, so a second window can no longer take a worker away from the first.
+    //
+    // WHY IT IS HERE AND NOT IN THE SCHEDULER. The scheduler cannot know which window is in front,
+    // and a rule it inferred would be a policy decision in the layer that is meant to have none.
+    // What it CAN do is order the lanes, which it already does; this is the one caller that knows
+    // which lane it belongs in. `Tech-Stack-Plan.md` §3.3's *A2 at Stage 4* names this exact
+    // change as the condition under which the two-window column fits the frame budget.
+    //
+    // It is NOT `Speculative`. Speculative is *a page the user has not reached* -- the thumbnails
+    // pane -- and a background window's viewport is a page somebody IS looking at, merely not the
+    // one in front. Demoting it two lanes would put a visible page behind a nine-hundred-slot pane.
+    void setBackground(bool background);
+    bool isBackground() const noexcept { return background_; }
+
     void requestTiles(const core::render::PageLayout& layout,
                       const core::render::Resolution& resolution,
                       const core::DeviceRect& viewport,
@@ -171,6 +189,7 @@ private:
     core::render::TileGrid grid_;
     core::render::RenderFlags flags_ = core::render::RenderFlags::Annotations;
     int prefetchPages_ = 1;
+    bool background_ = false;
 
     core::DocumentHandle document_;
     core::Revision revision_;
