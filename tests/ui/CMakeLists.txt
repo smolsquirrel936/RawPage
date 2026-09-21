@@ -88,6 +88,13 @@ add_executable(rawpage_ui_tests
     # a second DocumentHandle would look right in every screenshot and be wrong in the two places
     # nothing on screen reports -- the close protocol, which exists once, and the memory.
     tst_split.cpp
+
+    # Stage 4 T10 -- Full Screen and presentation (guide cases A-57 ... A-63). The case this file
+    # exists for is A-58, and it is an S1: a presentation that exits without pairing its
+    # setPresentationModeActive(true) leaves a machine that will not lock or sleep, silently, until
+    # the battery is flat. It is asserted as a CALL SEQUENCE rather than a final state, because a
+    # controller that asked twice and released once ends inactive and is still leaking a request.
+    tst_presentation.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

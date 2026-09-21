@@ -23,6 +23,8 @@
 #include "ui/shell/MessageBar.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/FullScreenController.h"
+#include "ui/viewer/PresentationSurface.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -159,6 +161,11 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     g_activeShell = this;
 
     theme_ = std::make_unique<ThemeManager>(services_.settings, this);
+
+    // S4 T10 (D4-12). Built with the window and owned by it: one screen saver, one controller,
+    // and the levels are a property of THIS window rather than of the application -- a second
+    // window is a second thing that can go full screen.
+    fullScreen_ = std::make_unique<FullScreenController>(services_, this);
     theme_->apply();
 
     // THE KEYBOARD -- T13. Before `registerActions()` and before the ribbon, because the action
@@ -1605,6 +1612,145 @@ void MainWindow::registerViewerActions()
         clear.unavailableKey = "shell.tooltip.needsGuide";
         services_.actions.register_(ActionId::ViewClearGuides, std::move(clear));
     }
+
+    registerPresentationActions();
+}
+
+// =============================================================================================
+// The seven §8 Full Screen rows (S4 T10, D4-12)
+// =============================================================================================
+// Every one of these was DECLARED at Stage 1 with its chord in `KeyBindingDefaults.def` and
+// registered by nothing, so `Features.md` §8's whole Full Screen table resolved `NotFound` and
+// left its keys unconsumed. T10 is what fills it in; **no id and no chord is added**, which is
+// what keeps plan §10's *"§8 is not touched"* true for this task as it was for T7, T8 and T9.
+//
+// Nothing is captured and the controller is resolved at DISPATCH (convention 14) -- which matters
+// here for the ordinary reason and one extra: these commands are dispatched while a PRESENTATION
+// SURFACE has focus, and that surface belongs to a controller that any of them may destroy.
+void MainWindow::registerPresentationActions()
+{
+    const auto controller = []() -> FullScreenController* {
+        MainWindow* window = activeShell();
+        return window ? window->fullScreen() : nullptr;
+    };
+
+    // PRESENTING IS THE PRECONDITION FOR ALL SEVEN. Each is registered with an `enable` that says
+    // so rather than with a handler that checks and returns: a disabled command reports
+    // `Unavailable` and a batch run can tell that apart from one that ran and did nothing.
+    const auto presenting = [controller] {
+        const FullScreenController* active = controller();
+        return active != nullptr && active->isPresenting();
+    };
+
+    // ENTERING, which none of the seven below can do: every one of them resolves in the
+    // `FullScreen` context and is therefore unreachable until something has already entered it.
+    // Registered here with its own enablement rather than through `registerPresent`, because its
+    // precondition is the opposite one -- a document and NOT already presenting.
+    if (!services_.actions.isRegistered(ActionId::PresentStart)) {
+        core::ActionRegistry::Registration start;
+        start.handler = [controller](KeyContext) {
+            MainWindow* window = activeShell();
+            FullScreenController* active = controller();
+            if (window == nullptr || active == nullptr) return;
+            active->enterPresentation(window, window->currentDocument());
+        };
+        start.enable = [controller] {
+            MainWindow* window = activeShell();
+            const FullScreenController* active = controller();
+            return window != nullptr && active != nullptr && !active->isPresenting()
+                   && window->currentDocument() != nullptr
+                   && window->currentDocument()->pageCount() > 0;
+        };
+        start.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::PresentStart, std::move(start));
+    }
+
+    const auto registerPresent = [this](ActionId id, core::ActionRegistry::Handler handler,
+                                        core::ActionRegistry::Enable enable,
+                                        core::ActionRegistry::Checked checked) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = std::move(handler);
+        registration.enable = std::move(enable);
+        registration.checked = std::move(checked);
+        registration.unavailableKey = "shell.tooltip.needsPresentation";
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    // `Esc` and `F11`. **ENABLED AT EITHER LEVEL, not only while presenting** -- it is the way out
+    // of level 1 too, and a Leave Full Screen that was disabled in full screen would be the one
+    // command a person needs when they cannot see the chrome.
+    registerPresent(ActionId::PresentExit,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->exit();
+                    },
+                    [controller] {
+                        const FullScreenController* active = controller();
+                        return active != nullptr && active->isActive();
+                    },
+                    {});
+
+    registerPresent(ActionId::PresentBlankBlack,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->toggleBlack();
+                    },
+                    presenting,
+                    [controller] {
+                        const FullScreenController* active = controller();
+                        return active != nullptr
+                               && active->blank() == FullScreenController::Blank::Black;
+                    });
+
+    registerPresent(ActionId::PresentBlankWhite,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->toggleWhite();
+                    },
+                    presenting,
+                    [controller] {
+                        const FullScreenController* active = controller();
+                        return active != nullptr
+                               && active->blank() == FullScreenController::Blank::White;
+                    });
+
+    registerPresent(ActionId::PresentLaserPointer,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->toggleLaserPointer();
+                    },
+                    presenting,
+                    [controller] {
+                        const FullScreenController* active = controller();
+                        return active != nullptr && active->laserPointer();
+                    });
+
+    registerPresent(ActionId::PresentToggleCursor,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->toggleCursorVisible();
+                    },
+                    presenting,
+                    [controller] {
+                        const FullScreenController* active = controller();
+                        return active != nullptr && active->cursorVisible();
+                    });
+
+    registerPresent(ActionId::PresentAutoAdvance,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->toggleAutoAdvance();
+                    },
+                    presenting,
+                    [controller] {
+                        const FullScreenController* active = controller();
+                        return active != nullptr && active->autoAdvancing();
+                    });
+
+    // REFUSED WITH ONE MONITOR, rather than enabled and doing nothing. `Ctrl+Shift+M` on a
+    // single-display machine is the commonest case there is, and a command that appears to work is
+    // worse than one that says it cannot -- Stage 1's I-53, at its fourth subject this stage.
+    registerPresent(ActionId::PresentNextMonitor,
+                    [controller](KeyContext) {
+                        if (FullScreenController* active = controller()) active->moveToNextMonitor();
+                    },
+                    [presenting] { return presenting() && QGuiApplication::screens().size() > 1; },
+                    {});
 }
 
 void MainWindow::showGuideMenu(int guideIndex, QPoint global)
@@ -2495,10 +2641,14 @@ void MainWindow::toggleSidebar()
 
 void MainWindow::toggleFullScreen()
 {
-    // Full screen at Stage 1 is the WINDOW STATE ONLY. Presentation mode -- auto-advance, the laser
-    // pointer, blank-to-black, choosing a monitor -- is Stage 4's ui/viewer/FullScreenController,
-    // and it needs a page surface to present.
-    setWindowState(windowState() ^ Qt::WindowFullScreen);
+    // S4 T10: THIS IS NOW LEVEL 1 OF THE CONTROLLER (D4-12), and the change is not cosmetic. From
+    // Stage 1 to Stage 4 T9 this was the window state and nothing else, and the comment that used
+    // to be here said so. What it gains by going through the controller is the thing a window
+    // state cannot express: `IPowerSession::setPresentationModeActive`, which is called on level 1
+    // as well as level 2 because a person reading full-screen for ten minutes without touching the
+    // mouse is exactly whom a lock screen interrupts.
+    if (fullScreen_) fullScreen_->toggleFullScreen(this);
+    else             setWindowState(windowState() ^ Qt::WindowFullScreen);
 }
 
 void MainWindow::toggleRibbon()

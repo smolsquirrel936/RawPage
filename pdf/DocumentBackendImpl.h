@@ -36,6 +36,7 @@
 #define RAWPAGE_PDF_DOCUMENTBACKENDIMPL_H
 
 #include "core/backend.h"
+#include "core/doc/PageTransitions.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/RepairReport.h"
 
@@ -74,6 +75,10 @@ public:
     const core::Outline* outline(core::DocumentHandle document) const override;
     const core::Destinations* destinations(core::DocumentHandle document) const override;
     const core::Metadata* metadata(core::DocumentHandle document) const override;
+
+    // S4 T10 (D4-12). The ONE reader that is not PDFium's: the engine has no `/Trans` call, so
+    // this is hydrated from the first-party walk `open()` already runs -- `pdf/ops/TransitionReader`.
+    const core::PageTransitions* pageTransitions(core::DocumentHandle document) const override;
 
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
     core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;

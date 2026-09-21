@@ -85,6 +85,7 @@ struct DocumentId;           // core/doc/DocumentId.h      -- Stage 3 T4
 class Outline;               // core/doc/Outline.h         -- Stage 4 T4 (read half, D4-3)
 class Destinations;          // core/doc/Destinations.h    -- Stage 4 T4 (read half, D4-3)
 struct Metadata;             // core/doc/Metadata.h        -- Stage 4 T4 (Info only, D4-4)
+class PageTransitions;       // core/doc/PageTransitions.h -- Stage 4 T10 (D4-12)
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -402,6 +403,18 @@ public:
     virtual const Outline* outline(DocumentHandle document) const = 0;
     virtual const Destinations* destinations(DocumentHandle document) const = 0;
     virtual const Metadata* metadata(DocumentHandle document) const = 0;
+
+    // THE DOCUMENT'S PRESENTATION INSTRUCTIONS -- per-page `/Trans` and `/Dur`, and the catalog's
+    // `/PageMode` -- added at Stage 4 T10 (D4-12), and read once at open like the three above.
+    //
+    // **THIS ONE IS NOT READ THROUGH PDFIUM, AND IT IS THE FIRST THAT IS NOT.** D4-3's rule is
+    // *read through PDFium*, and the engine's public C API exposes `/Trans` nowhere at all -- so
+    // the implementation hydrates it from the FIRST-PARTY page walk that `open()` already runs on
+    // every document to check its reading against the engine's. The exception is *unless PDFium
+    // cannot*, and it does not license re-reading the outline first-party, which PDFium can.
+    //
+    // Empty is the ordinary answer: almost no document carries a transition.
+    virtual const PageTransitions* pageTransitions(DocumentHandle document) const = 0;
 
     // THE BACKEND'S HALF OF SAVE, added at Stage 3 T8 (`Stage3-Mutation-Plan.md` D3-4, §5.3). Flow F
     // once sketched one `save(Incremental)` doing the whole job; D3-4 splits it three ways, and these

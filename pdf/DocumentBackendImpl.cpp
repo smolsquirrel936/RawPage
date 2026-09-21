@@ -4,6 +4,7 @@
 #include "core/doc/DocumentId.h"
 #include "core/doc/Permissions.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/TransitionReader.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumRasterizer.h"
@@ -29,6 +30,10 @@ struct DocumentBackendImpl::Open {
     QByteArray bytes;
     core::DocumentId id;
     core::Permissions permissions;
+
+    // S4 T10 (D4-12). Read from the FIRST-PARTY walk below, because PDFium exposes `/Trans`
+    // nowhere -- see `pdf/ops/TransitionReader.h`. Empty for almost every document.
+    core::PageTransitions transitions;
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
@@ -115,6 +120,18 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
                 fact.mediaSize = core::PdfSize{box[2] - box[0], box[3] - box[1]};
             }
             facts.push_back(fact);
+        }
+
+        // S4 T10 (D4-12): `/Trans`, `/Dur` and `/PageMode`, off the walk that just ran. **This is
+        // the only read in the product that does not go through PDFium**, and it is here rather
+        // than in `pdf/render/` because the engine's C API exposes page transitions nowhere at
+        // all. It re-reads dictionaries this walk already fetched, so it costs no second parse --
+        // which is why it is worth doing for every document when almost none carries one.
+        ops::TransitionReader::read(sink.value()->table(), sink.value()->pages(), entry->transitions);
+        if (const int unsupported = entry->transitions.unsupportedCount(); unsupported > 0) {
+            RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
+                << "backend:" << unsupported
+                << "page transition(s) name a style this build does not draw; they will cut";
         }
     }
     entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
@@ -283,6 +300,13 @@ const core::Metadata* DocumentBackendImpl::metadata(core::DocumentHandle documen
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
     return entry ? &entry->document->metadata() : nullptr;
+}
+
+const core::PageTransitions* DocumentBackendImpl::pageTransitions(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry != nullptr ? &entry->transitions : nullptr;
 }
 
 } // namespace rawpage::pdf

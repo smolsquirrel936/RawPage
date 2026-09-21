@@ -240,7 +240,7 @@ TEST_CASE("adding a command starts with a right-click on the ribbon button", "[q
     // half of the ribbon to take it from, and BOTH halves matter: 22 of the 360 declared commands are
     // enabled and 338 are not, and the disabled ones are precisely what a person pins for later.
     // `mustBeVisible` only for the disabled half, and the asymmetry is measured rather than tidy.
-    // Offscreen this ribbon reports 196 controls, 8 enabled, 20 visible and NONE both: `file.open` is
+    // Offscreen this ribbon reports 197 controls, 8 enabled, 20 visible and NONE both: `file.open` is
     // deliberately disabled where there is nobody to answer a file dialog (I-23), and the commands
     // that are enabled sit on pages the stacked widget is not showing. The enabled half does not need
     // visibility -- the event goes straight at the button, which is what an enabled widget receives.

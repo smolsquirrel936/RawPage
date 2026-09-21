@@ -139,6 +139,15 @@ add_library(rawpage_core STATIC
     doc/Metadata.h
     doc/Metadata.cpp
 
+    # S4 T10 (D4-12) -- the document's own presentation instructions. The model is here like the
+    # three above; what is NOT like them is where it is hydrated from, because PDFium has no
+    # /Trans call at all and pdf/ops/TransitionReader reads it first-party. Transition.h is the
+    # enum, beside core/Units.h, because fullScreen/transition is a settings key and
+    # SettingsKeys.def may only name core/ types.
+    Transition.h
+    doc/PageTransitions.h
+    doc/PageTransitions.cpp
+
     # render/ -- the rendering POLICY layer. RenderRequest was T10's by the plan and was built at T9
     # because IPageRasterizer::raster() takes one and T9's exit criterion is a rasterized page;
     # core/backend.h has carried a forward declaration of it since T1.

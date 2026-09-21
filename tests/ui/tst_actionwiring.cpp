@@ -111,7 +111,7 @@ TEST_CASE("no button the window builds gains connections as its commands change"
     for (QToolButton* button : window.findChildren<QToolButton*>())
         if (auto* action = qobject_cast<RawPageAction*>(button->defaultAction()))
             before[action] = changedReceivers(action);
-    REQUIRE(before.size() > 100);   // the ribbon's 196 controls, less any the resource shares
+    REQUIRE(before.size() > 100);   // the ribbon's 197 controls, less any the resource shares
 
     for (const auto& [action, count] : before) {
         (void)count;

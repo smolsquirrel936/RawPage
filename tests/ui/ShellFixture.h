@@ -57,6 +57,8 @@
 #include "tests/ui/FakeBackend.h"
 #include "tests/unit/FakeDurableFiles.h"
 
+#include <vector>
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -128,6 +130,59 @@ public:
     }
 };
 
+// =============================================================================================
+// The two OS interfaces a presentation needs -- S4 T10, D4-12
+// =============================================================================================
+// `platform::Platform`'s members are null unless a build implements them (convention 6), and the
+// widget suite has always taken the honest empty bundle. T10 is the first task whose SUBJECT is
+// one of those members: `IPowerSession::setPresentationModeActive` is what guide case A-58
+// asserts, and a null member would make that case vacuous rather than green.
+//
+// **The power fake COUNTS rather than merely records.** A-58's claim is *true on entry and false
+// on every exit path*, which a final-state check alone cannot make: a controller that called
+// `true` twice and `false` once ends inactive and is still leaking a request. The calls are kept
+// in order so a case can assert the sequence.
+struct FakePowerSession final : platform::IPowerSession {
+    bool                 active = false;
+    std::vector<bool>    calls;
+    bool                 refuse = false;      // the OS saying no, which must not be fatal
+
+    bool isOnBattery() const override { return false; }
+    core::Status subscribe(EventHandler) override { return {}; }
+
+    core::Status setPresentationModeActive(bool on) override
+    {
+        calls.push_back(on);
+        if (refuse)
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.platform.refused"),
+                               QString()};
+        active = on;
+        return {};
+    }
+};
+
+// A topology a case can CHANGE, which is what A-60 needs: the monitor being presented on has to be
+// able to disappear, and no headless run can unplug one.
+struct FakeTopology final : platform::IDisplayTopology {
+    std::vector<platform::MonitorInfo> displays;
+    std::vector<ChangedHandler>        handlers;
+
+    core::Result<std::vector<platform::MonitorInfo>> monitors() const override { return displays; }
+
+    core::Status subscribe(ChangedHandler handler) override
+    {
+        handlers.push_back(std::move(handler));
+        return {};
+    }
+
+    // Drives every subscriber, as `WinDisplayTopology` does when Windows reports a change.
+    void notify()
+    {
+        for (const ChangedHandler& handler : handlers)
+            if (handler) handler();
+    }
+};
+
 struct ShellFixture {
     ShellFixture() = default;
 
@@ -152,7 +207,7 @@ struct ShellFixture {
     // document window saves and records through it, and with none every editable document would open
     // with a *recovery unavailable* banner and refuse every save. It is the headless suite's fake, which
     // writes real files and replaces NON-atomically; what that does not cover is in its own header.
-    platform::Platform    platform = platformWithDurableFiles();
+    platform::Platform    platform = platformForTests();
     FakeBackend           backend;    // S2 T9: Services carries the engine
 
     core::render::RenderCache renderCache;
@@ -198,10 +253,25 @@ struct ShellFixture {
         return *static_cast<tests::FakeDurableFiles*>(platform.durableFiles.get());
     }
 
-    static platform::Platform platformWithDurableFiles()
+    FakePowerSession& powerSession()
+    {
+        return *static_cast<FakePowerSession*>(platform.powerSession.get());
+    }
+
+    FakeTopology& topology()
+    {
+        return *static_cast<FakeTopology*>(platform.displayTopology.get());
+    }
+
+    // S4 T10: the bundle grew from one member to three, and the name went with it. `IPowerSession`
+    // and `IDisplayTopology` are here because `ui/viewer/FullScreenController` is the first thing
+    // in the product to call either, and a null member would make guide case A-58 vacuous.
+    static platform::Platform platformForTests()
     {
         platform::Platform bundle;
         bundle.durableFiles = std::make_unique<tests::FakeDurableFiles>();
+        bundle.powerSession = std::make_unique<FakePowerSession>();
+        bundle.displayTopology = std::make_unique<FakeTopology>();
         return bundle;
     }
 

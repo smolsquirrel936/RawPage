@@ -26,6 +26,13 @@ add_library(rawpage_ops STATIC
     # Stage 3 T8 (D3-4): compose, write, re-read from the path, verify, adopt -- shared by both backends.
     RevisionWriter.h
     RevisionWriter.cpp
+
+    # S4 T10 (D4-12). A READER in a directory named for operations, and the reason is that /Trans
+    # is document semantics rather than object model: PageOps sits on the same line. It exists at
+    # all because PDFium's C API exposes page transitions nowhere, which makes it the first read
+    # in the project that D4-3's "read through PDFium" cannot cover.
+    TransitionReader.h
+    TransitionReader.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

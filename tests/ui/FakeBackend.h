@@ -16,6 +16,7 @@
 
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
+#include "core/doc/PageTransitions.h"
 #include "core/doc/Outline.h"
 #include "core/backend.h"
 #include "core/doc/Page.h"
@@ -181,6 +182,15 @@ public:
     }
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
 
+    // S4 T10 (D4-12). PUBLIC and settable, unlike the three above, because the presentation
+    // cases drive a document that asks for a per-page transition and this fake is where that
+    // request comes from -- there is no engine here to read a real `/Trans` from.
+    const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
+    {
+        return &transitions_;
+    }
+    core::PageTransitions& transitions() noexcept { return transitions_; }
+
     // S4 T6: how many times a caller ASKED for each model. Guide case A-30 claims the readers are
     // hydrated once at open and that showing a pane re-reads nothing; the `pdf/render/` half of
     // that is met by construction (the `FPDF_DOCUMENT` never leaves that directory), and this
@@ -194,6 +204,7 @@ public:
     core::Outline outline_;
     core::Destinations destinations_;
     core::Metadata metadata_;
+    core::PageTransitions transitions_;
 
 
     // Stage 3 T10: the opened file's bytes plus a line naming the save, so a saved file differs from the one

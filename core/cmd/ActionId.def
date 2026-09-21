@@ -193,6 +193,12 @@ RAWPAGE_ACTION(ToolSnapshot,           "tool.snapshot",           Viewer, "actio
 RAWPAGE_ACTION(ToolLoupe,              "tool.loupe",              Viewer, "action.tool.loupe")
 
 // --- Full Screen and Presentation (§1.2, §8's Full Screen table) --------------------------------
+// STARTING a presentation, which the seven rows below could not do: every one of them is in the
+// `FullScreen` context and therefore unreachable until something has already entered it. Declared
+// at S4 T10 for the reason T7, T8 and T9 declared theirs -- `Features.md` §1.2 lists the
+// capability, and a menu item that is a lambda is one the headless batch runner cannot reach
+// (D1-7(a)). **Global, and chordless**: `F11` is level 1's and §8 is not touched.
+RAWPAGE_ACTION(PresentStart,           "present.start",           Global,     "action.present.start")
 RAWPAGE_ACTION(PresentExit,            "present.exit",            FullScreen, "action.present.exit")
 RAWPAGE_ACTION(PresentBlankBlack,      "present.blankBlack",      FullScreen, "action.present.blankBlack")
 RAWPAGE_ACTION(PresentBlankWhite,      "present.blankWhite",      FullScreen, "action.present.blankWhite")

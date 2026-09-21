@@ -54,6 +54,12 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
         // `Features.md` §9.1 put it: beside the other page-appearance pages rather than at the end.
         SettingsGroup::UnitsAndGuides,
 
+        // S4 T10. The `FullScreen` group, empty in `SettingsGroup` since Stage 1, filled by the
+        // five `fullScreen/*` rows (D4-5). **Eight of 26 groups ship.** Beside Units & Guides for
+        // the same reason: `SettingsGroup` and `Features.md` §9.1 both put it with the other
+        // page-appearance pages rather than at the end.
+        SettingsGroup::FullScreen,
+
         SettingsGroup::PerformanceAndCache,
 
         SettingsGroup::Logging,

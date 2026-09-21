@@ -369,6 +369,47 @@ RAWPAGE_SETTING(units, snapToGrid, bool,
 RAWPAGE_SETTING(units, snapToGuides, bool,
                 "units/snapToGuides", true, UnitsAndGuides, true)
 
+// --- Full Screen and presentation (S4 T10, D4-12) -----------------------------------------------
+// The FIVE rows D4-5 names for this group, which has existed in `SettingsGroup` since Stage 1 with
+// no keys in it. Adding them and one line in `PreferencesDialog::shippedPages()` is the whole of
+// the Preferences work -- `SettingsPage` builds one typed editor per declared key (convention 17).
+// EIGHT of 26 groups ship.
+
+// THE DEFAULT TRANSITION, AND IT IS `none`. A viewer that faded between pages because nobody said
+// otherwise would be animating every document, including the 900-page ones nobody is presenting --
+// and a transition is a thing a presenter chooses, not a thing a reader discovers. A page's own
+// `/Trans` OVERRIDES this (`core/doc/PageTransitions`, guide case A-61), which is the direction
+// that makes the document's request win over a preference it knows nothing about.
+RAWPAGE_SETTING(fullScreen, transition, TransitionStyle,
+                "fullScreen/transition", TransitionStyle::None, FullScreen, true)
+
+// SECONDS between automatic advances, and the row does NOT carry an on/off flag: auto-advance is
+// toggled by `present.autoAdvance` (`Ctrl+Shift+H`) during a presentation, which is a gesture
+// rather than a preference, and a second row saying whether it is on would be two truths that
+// agree until the first Friday. 5 s is a slide a person can read; the floor of 1 s is where the
+// next advance arrives before the transition finishes, and 600 s is ten minutes.
+RAWPAGE_SETTING_RANGED(fullScreen, autoAdvanceSec, int,
+                       "fullScreen/autoAdvanceSec", 5, FullScreen, true, 1, 600)
+
+// Whether auto-advance restarts at page 1 after the last page. OFF: a presentation that silently
+// went back to the beginning would be indistinguishable, to someone who looked away, from one that
+// never advanced at all.
+RAWPAGE_SETTING(fullScreen, loop, bool,
+                "fullScreen/loop", false, FullScreen, true)
+
+// WHICH MONITOR, by the display's own `friendlyName` -- "MAG 272URDF", not `\\.\DISPLAY1`. The
+// name rather than the index because an index changes when a monitor is unplugged and would then
+// name a different panel; and `friendlyName` rather than `MonitorInfo::id` because a `QScreen` is
+// named with exactly this string and `id` can never match one (Stage 2's **I-20**). EMPTY means
+// the monitor the window is already on, which is what a person expects from pressing `F11`.
+RAWPAGE_SETTING(fullScreen, monitor, QString,
+                "fullScreen/monitor", "", FullScreen, true)
+
+// Whether the pointer is visible while presenting. ON, because a presenter points at things -- and
+// `Ctrl+L` toggles it at runtime, which is why this is a default rather than the state.
+RAWPAGE_SETTING(fullScreen, showCursor, bool,
+                "fullScreen/showCursor", true, FullScreen, true)
+
 // =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================

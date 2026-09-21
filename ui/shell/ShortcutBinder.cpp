@@ -4,6 +4,7 @@
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
 
+#include <QApplication>
 #include <QAction>
 #include <QCoreApplication>
 #include <QKeyEvent>
@@ -246,12 +247,34 @@ KeyContext ShortcutBinder::contextFor(const QWidget* focus)
     return KeyContext::Global;
 }
 
+bool ShortcutBinder::belongsToScope(const QWidget* widget) const
+{
+    if (widget == nullptr || scope_ == nullptr) return false;
+
+    // UP THE CHAIN OF WINDOWS, not of widgets. A second main window has no parent and fails this,
+    // which is the property the original `window() == scope_` test existed for; a presentation
+    // surface parented to this window passes it, which is what S4 T10 needed (see the header).
+    for (const QWidget* window = widget->window(); window != nullptr;) {
+        if (window == scope_) return true;
+        const QWidget* parent = window->parentWidget();
+        window = parent != nullptr ? parent->window() : nullptr;
+    }
+    return false;
+}
+
+QWidget* ShortcutBinder::scopedFocusWidget() const
+{
+    // The application's focus widget when it is inside this scope -- which is how an owned window
+    // is seen at all -- and this window's own otherwise. With two main windows open, a ribbon
+    // click in one must still not be attributed to whatever has focus in the other, and the
+    // `belongsToScope` test is what keeps that true.
+    if (QWidget* focus = QApplication::focusWidget(); belongsToScope(focus)) return focus;
+    return scope_ != nullptr ? scope_->focusWidget() : nullptr;
+}
+
 KeyContext ShortcutBinder::activeContext() const
 {
-    // This window's focus widget, not the application's. With two windows open, a ribbon click in
-    // one must not be attributed to whatever has focus in the other -- and `QWidget::focusWidget()`
-    // answers per window, which is exactly the question being asked.
-    return contextFor(scope_ ? scope_->focusWidget() : nullptr);
+    return contextFor(scopedFocusWidget());
 }
 
 // --- 2. The QtGui boundary ---------------------------------------------------------------------
@@ -379,7 +402,7 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
     if (event->type() != QEvent::KeyPress) return QObject::eventFilter(watched, event);
 
     auto* widget = qobject_cast<QWidget*>(watched);
-    if (!widget || !scope_ || widget->window() != scope_)
+    if (!widget || !belongsToScope(widget))
         return QObject::eventFilter(watched, event);
 
     auto* keyEvent = static_cast<QKeyEvent*>(event);
@@ -394,7 +417,7 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
     // FIRST REFUSAL TO THE FOCUSED WIDGET, through Qt's own handshake -- see the class comment.
     // The probe is `ignore()`d before it is sent because QEvent starts out accepted, and a widget
     // that does nothing with it must read as "no".
-    if (QWidget* focus = scope_->focusWidget()) {
+    if (QWidget* focus = scopedFocusWidget()) {
         QKeyEvent probe(QEvent::ShortcutOverride, keyEvent->key(), keyEvent->modifiers(),
                         keyEvent->text(), keyEvent->isAutoRepeat(),
                         static_cast<ushort>(keyEvent->count()));

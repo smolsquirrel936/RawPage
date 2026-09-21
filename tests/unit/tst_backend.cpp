@@ -27,6 +27,7 @@
 
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
+#include "core/doc/PageTransitions.h"
 #include "core/doc/Outline.h"
 #include "core/backend.h"
 
@@ -86,9 +87,16 @@ public:
     }
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
 
+    // S4 T10 (D4-12): empty, which is the ordinary answer -- almost no document carries one.
+    const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
+    {
+        return &transitions_;
+    }
+
     core::Outline outline_;
     core::Destinations destinations_;
     core::Metadata metadata_;
+    core::PageTransitions transitions_;
 
 
     // Stage 3 T8: nothing here writes; a save through this backend fails by key.

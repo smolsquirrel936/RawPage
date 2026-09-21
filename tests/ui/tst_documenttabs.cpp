@@ -396,10 +396,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // two navigation panes and the five navigating Bookmarks rows) and by 2 at T7 (the loupe and
     // auto-scroll) and by 8 at T8 (the rulers, the grid, the snap, the guides, the inversion and
     // the three guide commands) and by 5 at T9 (the three split modes, the removal and the
-    // synchronized-scrolling switch), and the point of asserting it here is unchanged: this case
+    // synchronized-scrolling switch) and by 8 at T10 (the whole section 8 Full Screen table, plus
+    // `present.start` which enters it), and the point of asserting it here is unchanged: this case
     // is about registration happening once per REGISTRY rather than once per window, and a count
     // is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 79);
+    CHECK(fixture.actions.registeredCount() == 87);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

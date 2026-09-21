@@ -138,6 +138,16 @@ add_library(rawpage_ui STATIC
     viewer/SplitViewContainer.h
     viewer/SplitViewContainer.cpp
 
+    # S4 T10 -- Full Screen and presentation (D4-12). ONE controller with TWO levels, because
+    # there is one screen saver and two controllers would mean two answers to whether it may
+    # start. The controller is a state machine and PresentationSurface is the widget it draws
+    # into, split so a case can drive every level, exit path and power-state pairing with no
+    # window ever shown -- which is what guide case A-58 needs.
+    viewer/PresentationSurface.h
+    viewer/PresentationSurface.cpp
+    viewer/FullScreenController.h
+    viewer/FullScreenController.cpp
+
     panes/LogPane.h
     panes/LogPane.cpp
 

@@ -356,6 +356,14 @@
         <translation>快照</translation>
     </message>
     <message>
+        <source>action.present.start</source>
+        <translation>簡報模式</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsPresentation</source>
+        <translation>放映時才可使用</translation>
+    </message>
+    <message>
         <source>action.present.exit</source>
         <translation>結束放映</translation>
     </message>
@@ -2738,6 +2746,46 @@
     <message>
         <source>prefs.choice.unit.pc</source>
         <translation>派卡</translation>
+    </message>
+    <message>
+        <source>prefs.group.fullScreen</source>
+        <translation>全螢幕</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.transition</source>
+        <translation>預設換頁效果</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.autoAdvanceSec</source>
+        <translation>自動換頁間隔（秒）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.loop</source>
+        <translation>最後一頁後循環</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.monitor</source>
+        <translation>放映螢幕</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.showCursor</source>
+        <translation>放映時顯示滑鼠指標</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.none</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.fade</source>
+        <translation>淡入淡出</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.wipe</source>
+        <translation>擦除</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.dissolve</source>
+        <translation>溶解</translation>
     </message>
     <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>

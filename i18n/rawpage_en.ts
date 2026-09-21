@@ -356,6 +356,14 @@
         <translation>Snapshot</translation>
     </message>
     <message>
+        <source>action.present.start</source>
+        <translation>Presentation</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsPresentation</source>
+        <translation>Available while presenting</translation>
+    </message>
+    <message>
         <source>action.present.exit</source>
         <translation>Exit</translation>
     </message>
@@ -2738,6 +2746,46 @@
     <message>
         <source>prefs.choice.unit.pc</source>
         <translation>Picas</translation>
+    </message>
+    <message>
+        <source>prefs.group.fullScreen</source>
+        <translation>Full Screen</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.transition</source>
+        <translation>Default page transition</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.autoAdvanceSec</source>
+        <translation>Auto-advance after (seconds)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.loop</source>
+        <translation>Loop after the last page</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.monitor</source>
+        <translation>Present on monitor</translation>
+    </message>
+    <message>
+        <source>prefs.setting.fullScreen.showCursor</source>
+        <translation>Show the pointer while presenting</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.none</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.fade</source>
+        <translation>Fade</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.wipe</source>
+        <translation>Wipe</translation>
+    </message>
+    <message>
+        <source>prefs.choice.transition.dissolve</source>
+        <translation>Dissolve</translation>
     </message>
     <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>

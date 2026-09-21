@@ -570,6 +570,7 @@
           "collapsePriority": 3,
           "controls": [
             { "action": "view.fullScreen", "size": "large" },
+            { "action": "present.start", "size": "large" },
             { "action": "view.readingMode", "size": "small" },
             { "action": "view.toggleRibbon", "size": "small" },
             { "action": "view.invertColors", "size": "small" }

@@ -7,13 +7,13 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **45 of the 79 carry
-> a result** as of 2026-09-21 (re-derived from this file: 79 case headers, 34 still boxed) — T1's
+> partly run.** **79 automated** (A-01 … A-79) and **12 manual** (M-01 … M-12); **52 of the 79 carry
+> a result** as of 2026-09-21 (re-derived from this file: 79 case headers, 27 still boxed) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
-> substitution it names — **I-07**) and **T9's four split cases**. **No manual case has
-> been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
+> substitution it names — **I-07**), **T9's four split cases** and **T10's seven full-screen and
+> presentation cases**. **No manual case has been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
 > I-02, I-03, I-04 and I-06 closed.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
@@ -647,28 +647,110 @@ to any of the twenty-five §8 Viewer commands.
 
 ### 5.11 Full Screen and presentation (T10)
 
-**A-57 · Every §8 Full Screen chord dispatches in the `FullScreen` context** ☐
+**A-57 · Every §8 Full Screen chord dispatches in the `FullScreen` context** ✅
+**2026-09-21, T10 — and the context is declared on the PAGE SURFACE, not on the window.**
+`ui.` — with a presentation active, `activeContext()` is `FullScreen` and all seven rows are
+registered and enabled. **Two things had to be right for that, and each was wrong first.**
+`activeContext()` takes the INNERMOST declared context, and `PageView`'s constructor declares
+`Viewer` on every instance — so a declaration on the presentation WINDOW is shadowed by the view
+inside it and every chord resolves as a Viewer one, which is **I-06's shape in a new place**: the
+key is consumed by the wrong command rather than left alone. And `ShortcutBinder`'s scope test was
+`widget->window() == scope_`, which no separate top-level can pass — so before it was widened to
+*a window this one OWNS*, `activeContext()` answered `Global` with a presentation on screen. The
+case caught the second on its first run. **`Ctrl+Shift+M` is REFUSED with one monitor** rather than
+enabled and doing nothing, which is what the offscreen platform reports and also the commonest real
+machine. **The control** is a second case: with nothing presenting all seven are registered and
+DISABLED — not unregistered, because an unregistered id leaves its key unconsumed, which is right
+for a feature that does not exist and wrong for one that exists and does not apply (Stage 1's I-53).
 **Expect** With the controller active, `activeContext()` is `FullScreen`; `Esc`, `F11`, the paging chords, `B`, `W`, `P`, `Ctrl+L`, `Ctrl+Shift+H` and `Ctrl+Shift+M` each dispatch; the Viewer's chords do **not** resolve there unless §8 lists them. **If it fails** S2.
 
-**A-58 · `setPresentationModeActive` is called true on entry and FALSE on every exit** ☐
+**A-58 · `setPresentationModeActive` is called true on entry and FALSE on every exit** ✅
+**2026-09-21, T10 — asserted as a CALL SEQUENCE, because a final state cannot say it.**
+`ui.` over `ShellFixture`'s new `FakePowerSession`, which COUNTS calls in order rather than
+recording a flag: a controller that asked `true` twice and `false` once ends inactive and is still
+leaking a request, and a final-state check passes it. Five exit paths, each its own section, each
+asserting `{true, false}` exactly: the `present.exit` command, `F11` out of a presentation (which
+leaves entirely rather than dropping to level 1), **the window being closed by the OS** — the path
+no chord reaches — a topology change, and **the controller being destroyed while presenting**,
+which is the one that matters most: a machine left unable to sleep by a process that no longer
+exists. **The pairing is structural rather than disciplined**: `applyPowerState()` has ONE caller,
+`setLevel()`, which is the only writer of the level and which applies the power state BEFORE any
+work that could throw — so there is no path that changes the level without pairing, and an
+exception on the way out cannot skip it. **Level 1 calls it too** (D4-12), which a separate case
+asserts. A sixth case covers the OS REFUSING: both calls are still made, the refusal is logged and
+not acted on, and the presentation runs — a screen saver we could not disable is a worse
+presentation, not a broken one. **`ShellFixture` gained two platform fakes for this**, because a
+null `platform::Platform` member would have made the whole case vacuous rather than green.
 **Goal** D4-12, and the S1 a presentation most plausibly ships.
 **Steps** A `platform.`/`ui.` case over a fake `IPowerSession`: normal exit, `Esc`, `F11`, window close, a topology change, and an exception on the way out.
 **Expect** Exactly one `true` per entry and exactly one `false` per exit, **on every path**; the fake's final state is inactive. **If it fails** S1 — a machine that cannot lock.
 
-**A-59 · The monitor comes from `IDisplayTopology`, and the join is by `friendlyName`** ☐
+**A-59 · The monitor comes from `IDisplayTopology`, and the join is by `friendlyName`** ✅
+**2026-09-21, T10 — green on the fallback; the JOIN itself is manual.**
+`ui.` — `fullScreen/monitor` naming a display nobody has still presents, on the primary, with one
+log line rather than silently. The key stores a **`friendlyName`** and the join uses `QScreen::name()`,
+never `MonitorInfo::id`: `id` is the OS device name and a `QScreen` is named with the display's
+model, so those two can never match — Stage 2's **I-20**, where the comparison was made for a
+whole stage and never once succeeded, costing nothing visible because the fallback answered
+plausibly and wrongly.
+**What this case does NOT cover** (convention 19): the offscreen platform reports exactly one
+screen, so no assertion here is about a join SUCCEEDING against a real second monitor. That is
+**M-04**, which precondition P-2 exists for.
 **Expect** `fullScreen/monitor` selects a monitor by a stable key; the `QScreen` join uses `friendlyName` and never `id` (Stage 2's **I-20**); an unknown or absent monitor falls back to the primary with one log line. **If it fails** S2.
 
-**A-60 · A topology change moves the presentation rather than losing it** ☐
+**A-60 · A topology change moves the presentation rather than losing it** ✅
+**2026-09-21, T10.**
+`ui.` — `FakeTopology::notify()` drives the subscribed handler as `WinDisplayTopology` does when
+Windows reports a change; the presentation is still presenting afterwards, **at the same page**, and
+its surface still visible. Moving rather than exiting is the decision and it is not the obvious
+one — exiting is also defensible and loses the presenter's place mid-sentence, whereas a
+presentation on a monitor that no longer exists is unreachable: the person cannot even press `Esc`,
+because they cannot see what has focus. The same path is one of A-58's five sections, asserting
+that a handler which tore down without pairing would be that S1 arriving through the one door no
+chord opens.
 **Steps** Drive `IDisplayTopology::subscribe`'s handler with a fake arrangement in which the presenting monitor is gone.
 **Expect** The presentation reappears on the primary monitor, still presenting, at the same page. **If it fails** S1 — a presentation on a monitor that does not exist is unreachable.
 
-**A-61 · Transitions, auto-advance, loop and blank** ☐
+**A-61 · Transitions, auto-advance, loop and blank** ✅
+**2026-09-21, T10 — and the reader is the first in this project PDFium could not supply.**
+Two halves. **`render.`** reads `corpus/ordinary/transitions.pdf` through the backend: page 1's
+`/S /Wipe /D 1 /Di 0`, page 2's `/S /Dissolve /D 0.5`, page 3's **`/S /Split`** — which this
+build does not draw, so it reads `None` **with the file's own word kept beside it** and
+`unsupportedCount()` of 1, rather than being approximated with a wipe the author did not ask for —
+the `/Dur 3` and `/Dur 5` on pages 1 and 3, and `/PageMode /FullScreen` in the catalog. **Page 4
+carries neither key and is the control the override needs**: absent is not `None`, and a model that
+stored `None` for both would make the override unimplementable. A second `render.` case is the
+whole-reader control — an ordinary file reads EMPTY, which is the answer for almost every
+document. **`ui.`** asserts the resolution: a page's own `/Trans` beats `fullScreen/transition` and
+a page without one falls through to it; the same for `/Dur` against `fullScreen/autoAdvanceSec`;
+auto-advance steps, **loop off stops at the last page AND stops the timer** — a presentation still
+waking every few seconds at the end would be a laptop that never idles — and loop on restarts at
+page 1.
+**What this case does NOT cover** (convention 19): what a transition LOOKS like. The animation's
+appearance and smoothness are **M-10**'s, and the auto-advance interval is asserted as the resolved
+NUMBER — the timer firing is M-10's too, which is why `advanceForTesting` is named as a back door
+on the method itself.
 **Expect** Over `transitions.pdf`: a per-page `/Trans` overrides `fullScreen/transition`; auto-advance steps at `fullScreen/autoAdvanceSec` (measured, not assumed); `loop` restarts and off stops at the last page; `B` and `W` blank and restore the exact page. **If it fails** S2; S3 for a transition that is merely ugly.
 
-**A-62 · The cursor and the laser pointer obey their settings** ☐
+**A-62 · The cursor and the laser pointer obey their settings** ✅
+**2026-09-21, T10.**
+`ui.` — `fullScreen/showCursor` is read when the presentation STARTS (a case sets it false and
+checks the controller opens hidden), `Ctrl+L` toggles it at runtime, and `P` toggles the laser and
+changes no page. `B` and `W` blank and a second press restores **the exact page**, which the case
+asserts on the page index rather than on pixels: blanking is not navigation. Leaving a presentation
+clears the blank and the laser, because a presentation re-entered with the screen still black would
+look broken and that state belongs to the presentation rather than to the window.
+**What this case does NOT cover**: that the projector actually went black. The blank is asserted as
+the overlay's state and the page beneath it as unchanged — M-10 is where a person sees it.
 **Expect** `fullScreen/showCursor` hides and shows it; `Ctrl+L` toggles at runtime; `P` toggles the laser and leaves the page unchanged. **If it fails** S3.
 
-**A-63 · A presentation changes no document** ☐
+**A-63 · A presentation changes no document** ✅
+**2026-09-21, T10.**
+`ui.` — a full pass over a five-page document: page turns from both ends, `B`, `W`, the laser, the
+cursor toggle, an auto-advance step, and the exit. Afterwards the file's SHA-256 read back from
+disk is unchanged, the journal cannot undo, and the document is not dirty. `ui/`'s entire mutation
+vocabulary is *construct a `Command`* and this controller constructs none — which `mutation-lint`
+also reports from the other side, still one command on the stage's eighth task as on its first.
 **Expect** After a full presentation pass over `transitions.pdf` including blanks and the laser, the file's SHA-256 read back from disk is unchanged and the journal is empty. **If it fails** S1.
 
 ### 5.12 Window arrangement (T11)

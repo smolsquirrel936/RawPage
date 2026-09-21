@@ -28,6 +28,7 @@
 #define RAWPAGE_CORE_SETTINGS_SETTINGSSCHEMA_H
 
 #include "core/Log.h"
+#include "core/Transition.h"
 #include "core/Units.h"
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
@@ -364,6 +365,22 @@ template <> struct SettingsCodec<Unit> {
     static Unit fromDefault(Unit value) { return value; }
 };
 
+// The S4 T10 enum -- `fullScreen/transition`. The token is the PDF `/S` name lowercased, which is
+// the same four words the reader matches a page's own `/Trans` against (`core/Transition.h`): one
+// table rather than a settings spelling and a PDF spelling that agree until somebody edits one.
+template <> struct SettingsCodec<TransitionStyle> {
+    static QVariant toVariant(TransitionStyle value)
+    {
+        return QVariant(QString::fromUtf8(transitionStyleName(value).data(),
+                                          static_cast<qsizetype>(transitionStyleName(value).size())));
+    }
+    static std::optional<TransitionStyle> fromVariant(const QVariant& variant)
+    {
+        return transitionStyleFromName(settingsVariantText(variant).trimmed().toLower().toStdString());
+    }
+    static TransitionStyle fromDefault(TransitionStyle value) { return value; }
+};
+
 template <> struct SettingsCodec<LogLevel> {
     static QVariant toVariant(LogLevel value) { return QVariant(QString::fromUtf8(logLevelName(value))); }
     static std::optional<LogLevel> fromVariant(const QVariant& variant)
@@ -558,6 +575,20 @@ template <> struct SettingsEditorTraits<Unit> {
                                 Unit::Picas}) {
             const std::string token = unitSuffix(unit);
             out.push_back(SettingsChoice{token, "prefs.choice.unit." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<TransitionStyle> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const TransitionStyle style : {TransitionStyle::None, TransitionStyle::Fade,
+                                            TransitionStyle::Wipe, TransitionStyle::Dissolve}) {
+            const std::string token(transitionStyleName(style));
+            out.push_back(SettingsChoice{token, "prefs.choice.transition." + token});
         }
         return out;
     }

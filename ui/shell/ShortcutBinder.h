@@ -213,6 +213,24 @@ public:
     static bool shortcutsAreSound(const QWidget* root) { return shortcutComplaints(root).isEmpty(); }
 
 private:
+    // WHETHER A WIDGET IS IN THIS BINDER'S WINDOW -- **or in a window this one OWNS** (S4 T10).
+    //
+    // The scope test used to be `widget->window() == scope_`, which is right for the thing it was
+    // written against: a ribbon click in one main window must not be attributed to whatever has
+    // focus in another. It is wrong for a window that BELONGS to this one, and Stage 4 T10 built
+    // the first: `ui/viewer/PresentationSurface` is a top-level window parented to the main
+    // window, and every §8 Full Screen chord is pressed inside it. Under the old test not one of
+    // them reached this filter, so the whole table resolved as though nothing were focused.
+    //
+    // The walk is up the PARENT chain of windows, so a second main window -- which has no parent
+    // -- still fails it, and the property the original test protected is unchanged.
+    bool belongsToScope(const QWidget* widget) const;
+
+    // The focus widget this binder should answer for: the application's, when it is inside this
+    // scope, and otherwise this window's own. `QWidget::focusWidget()` answers per window and
+    // cannot see into an owned one, which is the other half of the same S4 T10 problem.
+    QWidget* scopedFocusWidget() const;
+
     core::ActionRegistry&        registry_;
     const core::KeyBindingStore& bindings_;
     QWidget*                     scope_ = nullptr;

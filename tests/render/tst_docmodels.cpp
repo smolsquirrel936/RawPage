@@ -17,6 +17,8 @@
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/Outline.h"
+#include "core/doc/PageTransitions.h"
+#include "pdf/DocumentBackendImpl.h"
 #include "pdf/render/PdfiumDocument.h"
 
 #include <QByteArray>
@@ -28,6 +30,7 @@
 using rawpage::core::Destination;
 using rawpage::core::NamedDestination;
 using rawpage::core::OutlineItem;
+using rawpage::pdf::DocumentBackendImpl;
 using rawpage::pdf::render::PdfiumDocument;
 
 namespace {
@@ -238,4 +241,102 @@ TEST_CASE("a malformed date survives the reader exactly as the file wrote it", "
     // This file has no cross-reference table, so PDFium reconstructs it silently -- which is
     // exactly the behaviour `PdfiumDocument` documents and is not what this case is about. It is
     // noted so the next reader does not take the open as evidence of anything else.
+}
+
+// =============================================================================================
+// A-61's READER half (S4 T10) -- `/Trans`, `/Dur` and `/PageMode` off a real file
+// =============================================================================================
+// **THE ONE READ IN THIS PRODUCT THAT PDFIUM CANNOT DO.** D4-3 settled that the outline, the
+// destinations and the Info dictionary are read THROUGH the engine; the engine's C API exposes
+// page transitions nowhere at all, so `pdf/ops/TransitionReader` reads them first-party off the
+// page walk `DocumentBackendImpl::open` already runs on every document. This case is what says
+// the exception actually works against a file rather than against a fake.
+//
+// It goes through the BACKEND rather than `PdfiumDocument`, unlike every case above, because the
+// walk it reads from is the backend's and not the engine's -- which is the whole point.
+TEST_CASE("the per-page transitions are read first-party, and PDFium never sees them",
+          "[docmodels][transitions]")
+{
+    DocumentBackendImpl backend;
+    auto opened = backend.open(corpusPath("ordinary/transitions.pdf"), nullptr);
+    REQUIRE(opened);
+
+    const rawpage::core::PageTransitions* transitions = backend.pageTransitions(opened.value());
+    REQUIRE(transitions != nullptr);
+    REQUIRE(transitions->pageCount() == 4);
+    CHECK_FALSE(transitions->isEmpty());
+
+    // `/PageMode /FullScreen` in the catalog: the document asks to open as a presentation. READ
+    // and reported; acting on it is deliberately not Stage 4's -- opening someone's file
+    // full-screen because it said so needs a preference to refuse it, and no declared key holds one.
+    CHECK(transitions->opensFullScreen());
+
+    // Page 1 -- `/Trans << /S /Wipe /D 1 /Di 0 >>`.
+    const rawpage::core::PageTransition* wipe = transitions->at(0);
+    REQUIRE(wipe != nullptr);
+    CHECK(wipe->style == rawpage::core::TransitionStyle::Wipe);
+    CHECK(wipe->supported);
+    CHECK(text(wipe->rawStyle) == "Wipe");
+    REQUIRE(wipe->durationSeconds.has_value());
+    CHECK(*wipe->durationSeconds == 1.0);
+    CHECK(text(wipe->direction) == "0");
+
+    // Page 2 -- `/Trans << /S /Dissolve /D 0.5 >>`, and no `/Dur`.
+    const rawpage::core::PageTransition* dissolve = transitions->at(1);
+    REQUIRE(dissolve != nullptr);
+    CHECK(dissolve->style == rawpage::core::TransitionStyle::Dissolve);
+    REQUIRE(dissolve->durationSeconds.has_value());
+    CHECK(*dissolve->durationSeconds == 0.5);
+    CHECK(transitions->timingAt(1) == nullptr);
+
+    // Page 3 -- `/Trans << /S /Split /D 1.5 /Dm /V /M /O >>`. **`/Split` IS NOT ONE OF THE FOUR
+    // THIS PRODUCT DRAWS**, and the model says so rather than approximating it: the style reads
+    // `None` -- a cut -- and the file's own word is kept beside it, so a page we cannot animate
+    // stays distinguishable from one that asked for a cut. Approximating it with a wipe would be
+    // presenting an animation the author did not ask for.
+    const rawpage::core::PageTransition* split = transitions->at(2);
+    REQUIRE(split != nullptr);
+    CHECK(split->style == rawpage::core::TransitionStyle::None);
+    CHECK_FALSE(split->supported);
+    CHECK(text(split->rawStyle) == "Split");
+    CHECK(text(split->dimension) == "V");
+    CHECK(text(split->motion) == "O");
+    CHECK(transitions->unsupportedCount() == 1);
+
+    // **PAGE 4 CARRIES NEITHER KEY, AND IT IS THE CONTROL** the override needs: absent is not
+    // `None`. A model that stored `None` for a page with no `/Trans` would make
+    // `FullScreenController::transitionFor` unable to tell "the author asked for a cut" from "the
+    // author said nothing", and the per-page override would silently stop working.
+    CHECK(transitions->at(3) == nullptr);
+    CHECK(transitions->timingAt(3) == nullptr);
+
+    // `/Dur 3` and `/Dur 5` on pages 1 and 3 -- a key on the PAGE, not inside `/Trans`: how long
+    // the page is SHOWN rather than how long the animation takes. The two are one letter apart in
+    // ISO 32000-1 and confusing them makes a one-second fade into a one-second slide.
+    REQUIRE(transitions->timingAt(0) != nullptr);
+    CHECK(transitions->timingAt(0)->seconds == 3.0);
+    REQUIRE(transitions->timingAt(2) != nullptr);
+    CHECK(transitions->timingAt(2)->seconds == 5.0);
+
+    CHECK(backend.close(opened.value()));
+}
+
+TEST_CASE("a document with no presentation instructions reads empty, which is the ordinary answer",
+          "[docmodels][transitions]")
+{
+    // THE CONTROL FOR THE WHOLE READER. Almost no PDF carries a `/Trans`, so "empty" has to be the
+    // answer for an ordinary file rather than a failure -- and `isEmpty()` is what lets the
+    // controller skip the model entirely for the overwhelming majority of documents.
+    DocumentBackendImpl backend;
+    auto opened = backend.open(corpusPath("ordinary/text-a4.pdf"), nullptr);
+    REQUIRE(opened);
+
+    const rawpage::core::PageTransitions* transitions = backend.pageTransitions(opened.value());
+    REQUIRE(transitions != nullptr);
+    CHECK(transitions->isEmpty());
+    CHECK_FALSE(transitions->opensFullScreen());
+    CHECK(transitions->unsupportedCount() == 0);
+    CHECK(transitions->at(0) == nullptr);
+
+    CHECK(backend.close(opened.value()));
 }

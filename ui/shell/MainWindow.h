@@ -64,6 +64,7 @@ namespace rawpage::ui {
 class ActionFactory;
 class DocumentTabBar;
 class DocumentWindow;
+class FullScreenController;
 class BookmarksPane;
 class DestinationsPane;
 class LogPane;
@@ -222,6 +223,10 @@ public:
     // front by `updateDocumentPanes()`; see the construction comment for why it is not one per
     // document. Null only before `buildCentralSurface()` has run.
     ThumbnailsPane*     thumbnailsPane() const { return thumbnails_; }
+
+    // S4 T10 (D4-12). ONE per window, built with it, and the only thing that knows whether this
+    // window is at level 1, level 2 or neither. Never null.
+    FullScreenController* fullScreen() const noexcept { return fullScreen_.get(); }
     BookmarksPane*      bookmarksPane() const { return bookmarks_; }
     DestinationsPane*   destinationsPane() const { return destinations_; }
 
@@ -326,6 +331,12 @@ private:
     // resolve-at-dispatch rule are all identical and all argued there.
     void registerViewerActions();
 
+    // S4 T10 (D4-12). The seven §8 Full Screen rows, every one of them DECLARED at Stage 1 with a
+    // chord and registered by nothing until now -- so that whole table resolved `NotFound` and
+    // left its keys unconsumed. A separate function from `registerViewerActions` because they
+    // resolve in a different `KeyContext` and act on a different object.
+    void registerPresentationActions();
+
     // `edit.undo`, `edit.redo`, `page.rotate`, `file.save` and `file.saveAs` -- Stage 3 T10.
     void registerMutationActions();
 
@@ -344,6 +355,10 @@ private:
     void promptForFiles();
 
     void toggleSidebar();
+
+    // S4 T10: `view.fullScreen` now reaches `FullScreenController` level 1. It was *"the WINDOW
+    // STATE ONLY"* from Stage 1 to Stage 4 T9 and said so at its definition; what it reaches is
+    // now the controller, and the `ActionId` is unchanged (D4-12).
     void toggleFullScreen();
     void toggleRibbon();
 
@@ -394,6 +409,11 @@ private:
     // cost nobody asked for. Parented to this window, so it dies with it.
     PreferencesDialog* preferences_ = nullptr;
     std::unique_ptr<ThemeManager> theme_;
+
+    // S4 T10 (D4-12). Declared AFTER the widgets it points at so it is destroyed BEFORE them: its
+    // destructor is the last exit path and it tears down a presentation surface that holds a
+    // `PageView` over this window's document.
+    std::unique_ptr<FullScreenController> fullScreen_;
 
     // The edge strip an auto-hidden pane collapses into. It belongs to the WINDOW rather than to
     // the dock: a dock widget that placed a sibling in its parent's layout would be a class that
