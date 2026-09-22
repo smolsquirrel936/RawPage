@@ -23,6 +23,7 @@
 #include "../unit/SaveSession.h"
 #include "tests/fuzz/RoundtripFuzzBody.h"
 #include "pdf/cos/XrefRepair.h"
+#include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/RevisionWriter.h"
 
@@ -615,4 +616,61 @@ TEST_CASE("roundtrip I-12 an object numbered 0 is never recovered", "[save][roun
     const auto verdictNine = fuzzBodyOverBytes(nine);
     INFO("control failure: " << verdictNine.failure);
     CHECK(verdictNine.written);
+}
+
+// ==========================================================================================
+// Stage 3 guide issue I-17 -- what `fuzz_cos_roundtrip`'s soak found on 2026-09-22 (run
+// 35705173922), reproduced through the product's own two saves rather than through the bytes
+// libFuzzer happened to mutate its way to
+// ==========================================================================================
+
+TEST_CASE("roundtrip I-17 a second save of a hybrid file keeps what the first save wrote", "[save][roundtrip][fuzz]")
+{
+    // I-14 has an update's trailer name the hybrid file's `/XRefStm`, for Acrobat. Naming it there
+    // also MOVES it: a reader takes a section's table, then the `/XRefStm` that section names, then
+    // `/Prev` (ISO 32000-1 7.5.8.4), so from the SECOND update the stream is read in front of the
+    // first update's table and takes back every number both define. Page 1 is one: packed in the
+    // object stream to begin with, rewritten in place by the first save.
+    const QByteArray base = tests::readAllBytes(tests::corpusFile("ordinary/hybrid-xrefstm.pdf"));
+    REQUIRE_FALSE(base.isEmpty());
+
+    // Save 1 -- the fuzz body's own rotation of page 1, and it passed before this issue as it does now.
+    const auto first = fuzzBodyOverBytes(base, true);
+    INFO("first failure: " << first.failure);
+    REQUIRE(first.written);
+    REQUIRE(first.pages == 2);
+
+    // Save 2, changing a DIFFERENT object: page 2, so page 1 is in no delta and survives on the
+    // strength of the new section alone. `roundtripFuzzOnce` only ever rotates page 1, so this half
+    // is written out here -- which is also why its replay over the corpus never found this.
+    auto opened = pdf::cos::openWithRepair(viewOf(first.output));
+    REQUIRE(opened);
+    auto sink = pdf::ops::MutationSinkImpl::open(viewOf(first.output));
+    REQUIRE(sink);
+    REQUIRE(sink.value()->pageCount() == 2);
+    const int firstPageRotation = sink.value()->pages().pages.front().effectiveRotate();
+    CHECK(firstPageRotation == 90);
+    REQUIRE(sink.value()->setPageRotation(1, 180));
+
+    auto composed = pdf::ops::RevisionWriter::compose(*sink.value(),
+                                                      opened.value().report.requiresSaveAs());
+    REQUIRE(composed);
+    const QByteArray twice = composed.value().bytes;
+
+    // I-17's REGRESSION: page 1 reads 0 without the writer's re-listed row -- the first save, reverted,
+    // with every one of its bytes still in the file.
+    auto reopened = reopen(twice);
+    REQUIRE(reopened);
+    REQUIRE(reopened.value().walk.pages.size() == 2);
+    CHECK(reopened.value().walk.pages.front().effectiveRotate() == 90);
+    CHECK(reopened.value().walk.pages.back().effectiveRotate() == 180);
+
+    // AND THE PRODUCT'S OWN GUARD AGREED, in the direction that matters here: before the fix it
+    // REFUSED this save (`rotation:1`), so the defect reached a user as a second save that fails, not
+    // as a document that silently loses a page's rotation. Both are findings; the guard is why it was
+    // the first one.
+    const core::Status guarded = pdf::ops::RevisionWriter::verify(viewOf(first.output), viewOf(twice),
+                                                                  *sink.value());
+    INFO("guard: " << (guarded ? std::string() : guarded.error().context.toStdString()));
+    CHECK(guarded);
 }

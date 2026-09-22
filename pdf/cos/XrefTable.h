@@ -64,6 +64,13 @@ struct XrefEntry {
     // Carried because T8's `RepairReport` and Stage 3's incremental writer both need to know
     // whether an object came from the newest generation or an older one.
     int revision = 0;
+
+    // A hybrid file's `/XRefStm` ALSO defines this number, and this entry -- read from the classic
+    // table in front of that stream -- is the one that won. Carried because an update that hoists
+    // `/XRefStm` into its own trailer moves the stream ahead of the section this entry came from,
+    // which would silently hand the number back to the stream (Stage 3 guide I-17). The writer
+    // re-lists exactly these.
+    bool alsoInXrefStm = false;
 };
 
 enum class XrefNote : std::uint8_t {
@@ -183,6 +190,10 @@ private:
     std::vector<XrefNoteRecord> notes_;
     CosObject trailer_;
     long long declaredSize_ = 0;
+
+    // Set only while the section being read is one a trailer's `/XRefStm` named, so `mergeEntry`
+    // can mark what that stream would have defined had the classic table not got there first.
+    bool readingXrefStm_ = false;
 
     std::map<long long, std::vector<IndirectObject>> objectStreams_;
     std::vector<long long> objectStreamsInProgress_;

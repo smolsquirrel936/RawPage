@@ -86,7 +86,11 @@ void XrefTable::mergeEntry(long long number, const XrefEntry& entry)
     // BEFORE it adds, because the addition is where the overflow was.
     if (number < 0 || number > kMaxObjectNumber)
         return;
-    entries_.emplace(number, entry);
+    const auto [position, inserted] = entries_.emplace(number, entry);
+    // The number was already there and the section being read is a hybrid `/XRefStm`: the entry that
+    // won is one an update hoisting that stream would silently give back to it (I-17, XrefTable.h).
+    if (!inserted && readingXrefStm_)
+        position->second.alsoInXrefStm = true;
 }
 
 const XrefEntry* XrefTable::find(long long number) const
@@ -393,8 +397,10 @@ core::Result<XrefTable> XrefTable::load(std::string_view source)
             if (hybrid >= 0 && static_cast<unsigned long long>(hybrid) < source.size()
                 && visited.count(static_cast<std::size_t>(hybrid)) == 0) {
                 bool hybridIsStream = false;
+                table.readingXrefStm_ = true;
                 SectionResult extra =
                     table.readSection(static_cast<std::size_t>(hybrid), revision, hybridIsStream);
+                table.readingXrefStm_ = false;
                 visited.insert(static_cast<std::size_t>(hybrid));
                 if (extra.ok) {
                     XrefSection hybridRecord;

@@ -421,6 +421,89 @@ TEST_CASE("cos writer appends a classic section after a hybrid file and keeps it
     }
 }
 
+TEST_CASE("cos writer's second update after a hybrid file keeps what the first update wrote", "[cos][writer]")
+{
+    // Stage 3 guide issue I-17, found by `fuzz_cos_roundtrip`'s soak (run 35705173922) and confirmed
+    // here over the product's own two saves of the corpus file. I-14 has the update's trailer name the
+    // hybrid file's `/XRefStm`, because Acrobat reads the key from the newest trailer only. Naming it
+    // there also MOVES the stream: a reader takes a section's own table, then the `/XRefStm` that
+    // section names, then `/Prev` (ISO 32000-1 7.5.8.4), so from the second update the stream is read
+    // in front of the first update's table -- and every number both define goes back to the stream.
+    // Page 1 is exactly such a number after the first save: packed in the object stream originally,
+    // rewritten in place by the first update.
+    Loaded before = load(readFile(corpus("ordinary/hybrid-xrefstm.pdf")));
+    const long long page = firstPage(before.table);
+    REQUIRE(before.table.find(page)->type == XrefEntryType::InObjectStream);
+
+    ObjectDelta first(before.table);
+    first.replace(page, rotated(before.table, page, 90));
+    auto firstUpdate = IncrementalWriter::append(*before.bytes, before.table, first);
+    REQUIRE(firstUpdate);
+    Loaded once = load(*before.bytes + firstUpdate.value().bytes);
+    REQUIRE(rotationOf(once.table, page) == 90);
+
+    // The reader's half of the fix: page 1's winning entry is the first update's, and the stream it
+    // now sits in front of defines the number too.
+    const XrefEntry* pageOnce = once.table.find(page);
+    REQUIRE(pageOnce != nullptr);
+    CHECK(pageOnce->type == XrefEntryType::InFile);
+    CHECK(pageOnce->revision == 0);
+    CHECK(pageOnce->alsoInXrefStm);
+
+    // A SECOND update, changing a DIFFERENT object -- page 2. Page 1 is in no delta and must survive
+    // on the strength of the section alone.
+    auto pagesNode = once.table.fetch(once.table.fetch(once.table.trailer().get("Root").reference().number)
+                                          .value().object.get("Pages").reference().number);
+    REQUIRE(pagesNode);
+    const long long secondPage = pagesNode.value().object.get("Kids").items().at(1).reference().number;
+    REQUIRE(secondPage != page);
+
+    ObjectDelta second(once.table);
+    second.replace(secondPage, rotated(once.table, secondPage, 180));
+    auto secondUpdate = IncrementalWriter::append(*once.bytes, once.table, second);
+    REQUIRE(secondUpdate);
+    Loaded twice = load(*once.bytes + secondUpdate.value().bytes);
+    CHECK(startsWith(*twice.bytes, *once.bytes));
+
+    // I-17's REGRESSION: without page 1's re-listed row this reads 0 -- the first save, reverted, with
+    // every byte of it still in the file and no error anywhere.
+    CHECK(rotationOf(twice.table, page) == 90);
+    CHECK(rotationOf(twice.table, secondPage) == 180);
+
+    // The row that does it comes from the newest section, and it names the first update's offset --
+    // not a copy of the object.
+    const XrefEntry* pageTwice = twice.table.find(page);
+    REQUIRE(pageTwice != nullptr);
+    CHECK(pageTwice->revision == 0);
+    CHECK(pageTwice->type == XrefEntryType::InFile);
+    CHECK(pageTwice->field2 == pageOnce->field2);
+    CHECK(secondUpdate.value().objectsWritten == std::vector<long long>{secondPage});
+    // An in-use row ends with " n" CR LF (ISO 32000-1 7.5.4); the bytes, not the escapes.
+    const char rowEnd[] = {32, 110, 13, 10, 0};
+    const std::string_view appended(secondUpdate.value().bytes);
+    std::size_t inUseRows = 0;
+    for (std::size_t at = appended.find(rowEnd); at != std::string_view::npos;
+         at = appended.find(rowEnd, at + 1))
+        ++inUseRows;
+
+    // I-14 still holds, and so does its control: the newest trailer names the stream, and the objects
+    // only that stream lists still resolve.
+    CHECK(twice.table.sections()[0].trailer.get("XRefStm").integerValue(-1)
+          == before.table.sections().front().trailer.get("XRefStm").integerValue(-2));
+    CHECK(twice.table.sections()[1].fromXrefStm);
+    for (const auto& item : pagesNode.value().object.get("Kids").items()) {
+        const long long kid = item.reference().number;
+        INFO("kid " << kid);
+        CHECK(twice.table.fetch(kid));
+    }
+
+    // AND THE ROWS ARE NOT COPIED WHOLESALE: the second section lists page 2, which it wrote, and
+    // page 1, which the stream would otherwise take back. Nothing else. Counted in the bytes, not by
+    // revision -- a hybrid file's stream is read in the SAME revision as the table that names it, so
+    // `entriesFromNewestRevision` counts the stream's rows too.
+    CHECK(inUseRows == 2);
+}
+
 // ==========================================================================================
 // A-21 -- a fourth generation
 // ==========================================================================================

@@ -43,7 +43,11 @@
 //     fixture (guide case A-24). **After a hybrid file, `/XRefStm` too**, the newest trailer's value
 //     unchanged: Acrobat reads the key from the newest trailer only, and reports a file whose packed
 //     objects it cannot reach as damaged -- a defect our reader and PDFium cannot see, because both
-//     follow `/Prev` to the older trailer (Stage 3 guide I-14, found by M-02's walk).
+//     follow `/Prev` to the older trailer (Stage 3 guide I-14, found by M-02's walk). **And with it,
+//     a row for every number the section at `/Prev` defined that the stream defines too**: naming the
+//     stream in our trailer puts it in FRONT of that section, so without those rows the second save
+//     of a hybrid file hands each of them back to the stream -- which is the first save, reverted
+//     (Stage 3 guide I-17, found by `fuzz_cos_roundtrip`'s soak).
 //   * **Never** `/Info` or XMP changes, and never an `/Encrypt`: an encrypted document is refused,
 //     because every string and stream written into it would have to be encrypted (D3-7; Stage 10).
 //

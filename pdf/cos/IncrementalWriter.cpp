@@ -384,6 +384,25 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
         update.objectsWritten.push_back(change->number);
     }
 
+    // HOISTING `/XRefStm` MOVES THE STREAM AHEAD OF THE SECTION WE ARE CHAINING TO. A reader walks
+    // a section's own table, then the `/XRefStm` that section names, then `/Prev` (ISO 32000-1
+    // 7.5.8.4), so naming the stream in OUR trailer puts it in front of the section at `/Prev` --
+    // and every number that section defined and the stream also defines goes back to the stream's
+    // older definition. That is the SECOND save of a hybrid file reverting the first (Stage 3 guide
+    // I-17). The reader marked those entries; re-list them here, where our own section is in front
+    // of both. Free stays free, for the same reason and in the same direction.
+    if (hybridStream != nullptr) {
+        for (const auto& [number, entry] : table.entries()) {
+            // Only revision 0 moves: everything older was already behind the stream. A type-2 entry
+            // that won at revision 0 came from the stream itself, and no classic row can say it.
+            // A number this update writes already has its own row, which is in front of both.
+            if (!entry.alsoInXrefStm || entry.revision != 0
+                || entry.type == XrefEntryType::InObjectStream || rows.count(number) != 0)
+                continue;
+            rows[number] = Row{entry.type, entry.field2, entry.field3};
+        }
+    }
+
     // --- Which rows the section lists. ---------------------------------------------------------
     long long size = std::max({table.declaredSize(), table.largestObjectNumber() + 1,
                                allocator.nextNumber()});
