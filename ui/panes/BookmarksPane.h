@@ -34,19 +34,23 @@
 // file.
 //
 // ===========================================================================================
-// WHAT NAVIGATING A DESTINATION DOES AT STAGE 4, AND WHAT IT DOES NOT (convention 19).
+// WHAT NAVIGATING A DESTINATION DOES, AND WHAT IT STILL DOES NOT (convention 19).
 // ===========================================================================================
-// It goes to the destination's **page**. It does not yet honour the destination's *view*: `/XYZ`'s
-// point and zoom, `/FitH`'s top, `/FitR`'s rectangle. `core::Destination` carries all of them --
-// T4 read them and `tst_outline` asserts them -- and nothing here throws them away; they are simply
-// not applied, so a `/XYZ` destination halfway down a page lands at that page's top.
+// It hands a `core::Destination` up, and `ui/viewer/PageView::goToDestination` applies the fit --
+// the page, and then `/XYZ`'s point and zoom, `/FitH`'s top, `/FitV`'s left, `/Fit`'s whole page and
+// `/FitB`'s content box, with a null in any of them meaning *keep what you have*.
 //
-// That is recorded as **I-05** in `Stage4-ViewingSurface-Testing-Guide.md` §8 rather than fixed
-// here, and the reason is where the machinery lives: turning a destination's PDF-space point into a
-// scroll offset needs the page's slot rectangle and the resolution that produced it, which is the
-// same arithmetic **T12** builds for Fit Visible (D4-14). Guessing it here would put a second
-// coordinate conversion in the product, and a wrong one scrolls the reader silently to the wrong
-// place.
+// **T6 SHIPPED THIS PANE GOING TO THE PAGE ALONE, AND SAID SO HERE.** That was **I-05**
+// (`Stage4-ViewingSurface-Testing-Guide.md` §8), open for two days and **closed at T12**: turning a
+// destination's PDF-space point into a scroll offset needs the page's slot rectangle and the
+// resolution that produced it, which is the arithmetic T12 built for Fit Visible (D4-14), and
+// guessing it here would have put a second coordinate conversion in the product -- a wrong one
+// scrolls the reader silently to the wrong place. The conversion is `PageLayout::toContent`, and
+// there is still exactly one of it.
+//
+// **What is still not applied: `/FitR`'s rectangle.** `core::Destination` has no fields for the
+// other two of its four numbers, so a `/FitR` destination lands on its page at the current zoom.
+// The vocabulary grows in Stage 7, which owns the editing half of both destination tables.
 
 #ifndef RAWPAGE_UI_PANES_BOOKMARKSPANE_H
 #define RAWPAGE_UI_PANES_BOOKMARKSPANE_H

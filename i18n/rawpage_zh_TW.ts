@@ -1843,6 +1843,98 @@
         <translation>密碼</translation>
     </message>
     <message>
+        <source>shell.properties.title</source>
+        <translation>文件內容</translation>
+    </message>
+    <message>
+        <source>shell.properties.absent</source>
+        <translation>—</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.title</source>
+        <translation>標題</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.author</source>
+        <translation>作者</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.subject</source>
+        <translation>主旨</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.keywords</source>
+        <translation>關鍵字</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.creator</source>
+        <translation>原始應用程式</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.producer</source>
+        <translation>PDF 產生器</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.created</source>
+        <translation>建立時間</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.modified</source>
+        <translation>修改時間</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.version</source>
+        <translation>PDF 版本</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.pages</source>
+        <translation>頁數</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.pageSize</source>
+        <translation>頁面尺寸</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.security</source>
+        <translation>安全性</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.repaired</source>
+        <translation>開啟時已修復</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.path</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.size</source>
+        <translation>檔案大小</translation>
+    </message>
+    <message>
+        <source>shell.properties.pageSizeValue</source>
+        <translation>%1 × %2 點（%3 × %4 公釐），第 %5 頁</translation>
+    </message>
+    <message>
+        <source>shell.properties.securityNone</source>
+        <translation>未設密碼</translation>
+    </message>
+    <message>
+        <source>shell.properties.securityPassword</source>
+        <translation>已設密碼保護</translation>
+    </message>
+    <message>
+        <source>shell.properties.repairedYes</source>
+        <translation>是 — 交互參照表已重建</translation>
+    </message>
+    <message>
+        <source>shell.properties.repairedNo</source>
+        <translation>否</translation>
+    </message>
+    <message>
+        <source>shell.status.pageTotalLabelled</source>
+        <translation>／共 %1 頁（第 %2 頁）</translation>
+    </message>
+    <message>
         <source>shell.status.pageTotal</source>
         <translation>／共 %1 頁</translation>
     </message>
@@ -1944,6 +2036,14 @@
     <message>
         <source>error.open.noPages</source>
         <translation>無法開啟 %1：檔案中沒有任何可讀取的頁面。</translation>
+    </message>
+    <message>
+        <source>error.backend.unknownDocument</source>
+        <translation>該文件已不再開啟。</translation>
+    </message>
+    <message>
+        <source>error.render.pageHasNoContent</source>
+        <translation>第 %1 頁沒有可量測的內容。</translation>
     </message>
     <message>
         <source>error.backend.notImplemented</source>

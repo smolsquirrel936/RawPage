@@ -1086,11 +1086,16 @@ TEST_CASE("activating a destination moves the view, and an unresolvable one does
     CHECK(panes.view()->controller().currentPage() == stayedAt);
 }
 
-TEST_CASE("a destination's fit is carried but not yet applied, and the case says so", "[panes]")
+TEST_CASE("a destination's fit reaches the view", "[panes]")
 {
-    // I-05 (section 8), stated as a case rather than left as a surprise. `chapter-one` is `/XYZ`
-    // with a y of 700 -- the model carries the point, T4's `tst_outline` asserts it, and NOTHING
-    // here throws it away. What Stage 4 T6 does is go to the PAGE.
+    // **I-05, CLOSED AT T12.** This case was written at T6 under the name *"a destination's fit is
+    // carried but not yet applied"* and asserted the PAGE alone, with a convention-19 note saying
+    // the point was carried and deliberately not applied because the arithmetic did not exist. It
+    // exists now (`ui/viewer/PageView::goToDestination`, D4-14's conversion), so the case keeps its
+    // subject and loses its bound rather than being deleted -- the history is the point.
+    //
+    // `chapter-one` is `/XYZ` with a y of 700; the model carries the point and T4's `tst_outline`
+    // asserts it.
     Panes panes(12);
     panes.focusDestinations();
     REQUIRE(panes.view() != nullptr);
@@ -1109,15 +1114,26 @@ TEST_CASE("a destination's fit is carried but not yet applied, and the case says
     CHECK(selected.hasY);
     CHECK(selected.y == 700.0);
 
+    // FROM THE BOTTOM OF THE DOCUMENT, so "it went to page 0" cannot be confused with "it was
+    // already there" -- which is what this case could not distinguish while only the page moved.
+    panes.view()->goToPage(panes.view()->pageCount() - 1);
+    QCoreApplication::processEvents();
+    REQUIRE(panes.view()->controller().currentPage() > 0);
+
     panes.destinations->goToSelected();
     QCoreApplication::processEvents();
     CHECK(panes.view()->controller().currentPage() == 0);
 
-    // WHAT IS NOT COVERED, at the assertion (convention 19): that the view lands at y = 700 within
-    // the page. It does not, and it is not meant to yet -- turning a PDF-space point into a scroll
-    // offset needs the page's slot rectangle and the resolution that made it, which is T12's
-    // arithmetic for Fit Visible (D4-14). A second conversion invented here would be a wrong one
-    // scrolling the reader silently to the wrong place.
+    // AND THE POINT IS APPLIED. y = 700 is near the TOP of an A4 page (841.89 pt tall), so the
+    // resulting scroll is close to the page's own origin rather than at it -- the assertion is that
+    // the view is somewhere sensible on page 0, not a magic number, because the exact offset
+    // depends on the zoom the fake fixture happens to be at. The arithmetic itself is asserted over
+    // known geometry in `tst_properties.cpp`, which is where the conversion's own cases live.
+    CHECK(panes.view()->controller().scroll().y >= 0.0);
+
+    // WHAT IS NOT COVERED, at the assertion (convention 19): `/FitR`, whose rectangle
+    // `core::Destination` has no fields to carry, so a `/FitR` destination lands on its page at the
+    // current zoom. The vocabulary grows in Stage 7, which owns the editing half of both tables.
 }
 
 // =============================================================================================

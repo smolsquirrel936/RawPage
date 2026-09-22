@@ -302,6 +302,23 @@ PageView* DocumentWindow::view() const noexcept
 
 void DocumentWindow::handDocumentTo(PageView* pane)
 {
+    // S4 T12 (D4-14). The content box is the one thing on `IDocumentBackend` that is computed per
+    // page on demand, so it reaches the view as a function rather than as a pointer to something
+    // already read. `handle_` is captured by VALUE and the backend by reference, which is safe for
+    // the same reason every other use of `services_` here is: the services outlive every window,
+    // and the handle is this tab's own and is closed by this tab's destructor.
+    //
+    // `NotFound` -- a page with no objects -- becomes `std::nullopt`, and `core/render/FitPolicy`
+    // falls back to the CropBox. The error is not logged: an empty page is an ordinary document,
+    // not a defect, and a log line per fit would be a log nobody reads.
+    core::IDocumentBackend& backend = services_.backend;
+    const core::DocumentHandle handle = handle_;
+    pane->setContentBoxSource([&backend, handle](int pageIndex) -> std::optional<core::PdfRect> {
+        const core::Result<core::PdfRect> box = backend.contentBox(handle, pageIndex);
+        if (!box) return std::nullopt;
+        return box.value();
+    });
+
     // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15). For a
     // COMPANION (S4 T11) the model is the LEADER'S and the engine tree is this tab's own handle's,
     // which is the same split one window further out: the leader's unsaved rotations decide the

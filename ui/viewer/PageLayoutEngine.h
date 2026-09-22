@@ -39,10 +39,14 @@
 
 #include "core/Geometry.h"
 #include "core/render/DpiPolicy.h"
+#include "core/render/FitPolicy.h"
 #include "core/render/PagePresentation.h"
 #include "ui/viewer/ViewportController.h"
 
 #include <QString>
+
+#include <functional>
+#include <optional>
 
 namespace rawpage::core {
 class PageTree;
@@ -109,6 +113,25 @@ public:
     const core::render::PageLayout& layout() const noexcept { return layout_; }
     const core::render::Resolution& resolution() const noexcept { return resolution_; }
 
+    // WHERE A PAGE'S CONTENT BOX COMES FROM -- S4 T12, D4-14. `ui/` may never name `pdf/`, so the
+    // engine is reached through a function the shell installs over `core::IDocumentBackend`
+    // (`ui/shell/DocumentWindow::handDocumentTo`). `std::nullopt` means *this page has no objects,
+    // or nobody can answer*, and `core/render/FitPolicy` falls back to the CropBox for it -- which
+    // is exactly what Fit Visible did for the whole of Stages 2 and 3.
+    //
+    // Unset by default, so a view with no shell behind it (every widget case that does not care)
+    // gets the fallback and not a crash.
+    using ContentBoxSource = std::function<std::optional<core::PdfRect>(int pageIndex)>;
+    void setContentBoxSource(ContentBoxSource source) { contentBox_ = std::move(source); }
+    bool hasContentBoxSource() const noexcept { return static_cast<bool>(contentBox_); }
+    std::optional<core::PdfRect> contentBox(int page) const;
+
+    // WHICH RECTANGLE `fit` MEASURES for `page`, in PDF space and BEFORE any rotation.
+    // `std::nullopt` when there is no such page. It is public because Fit Visible has to be
+    // SCROLLED to as well as zoomed to -- a content box in the middle of a sheet is not on screen
+    // until somebody moves the viewport onto it, and `ui/viewer/PageView` is what moves it.
+    std::optional<core::PdfRect> fitRect(FitMode fit, int page) const;
+
     // The zoom that satisfies `fit` for `page` in a viewport of `viewportSize` DEVICE pixels.
     // `FitMode::None` returns `current` unchanged, so a caller may pass it unconditionally.
     //
@@ -141,6 +164,7 @@ private:
     core::render::Resolution resolution_;
     core::PageRotation viewRotation_ = core::PageRotation::None;
     core::render::DpiPolicy::Limits limits_{};
+    ContentBoxSource contentBox_;
 };
 
 } // namespace rawpage::ui

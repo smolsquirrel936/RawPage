@@ -44,6 +44,7 @@
 #include "app/Services.h"
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
+#include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 
@@ -267,6 +268,26 @@ public:
     // `ui/dialogs/PreferencesDialog.h` for why modeless is the load-bearing choice.
     PreferencesDialog*  preferences() const { return preferences_; }
     PreferencesDialog*  showPreferences();
+
+    // READING MODE -- S4 T12, `Ctrl+L`, `Features.md` §1.2. The chrome goes and the WINDOW stays: a
+    // title bar, a border and a taskbar button, unlike `F11`, which is the window state and is
+    // `FullScreenController`'s level 1 (D4-12). The two are independent and compose -- a person may
+    // read full-screen with no ribbon, and leaving one does not leave the other.
+    //
+    // **IT RESTORES WHAT IT HID, NOT A DEFAULT.** Which panes were open, how wide the sidebar was
+    // and which edge it was docked to are recorded on the way in; a second press that put the
+    // sidebar back at its default width on the left would be a reading mode that rearranges the
+    // window, which is what guide case A-70 asserts against.
+    void setReadingMode(bool on);
+    void toggleReadingMode() { setReadingMode(!readingMode_); }
+    bool isReadingMode() const noexcept { return readingMode_; }
+
+    // Document Properties (`Ctrl+D`, D4-4). Public so a case can compose the facts without going
+    // through a modal dialog, which under the offscreen platform is shown to nobody and never
+    // returns (convention 16, Stage 1's I-23).
+    DocumentPropertiesDialog::Properties documentProperties() const;
+    void showDocumentProperties();
+
     StatusBar*          statusBar() const { return status_; }
     MessageBar*         messageBar() const { return messageBar_; }
 
@@ -399,6 +420,7 @@ private:
     // STATE ONLY"* from Stage 1 to Stage 4 T9 and said so at its definition; what it reaches is
     // now the controller, and the `ActionId` is unchanged (D4-12).
     void toggleFullScreen();
+
     void toggleRibbon();
 
     app::Services services_;
@@ -457,6 +479,21 @@ private:
     // The edge strip an auto-hidden pane collapses into. It belongs to the WINDOW rather than to
     // the dock: a dock widget that placed a sibling in its parent's layout would be a class that
     // cannot be constructed without that parent, and therefore one that cannot be tested alone.
+    // S4 T12. What reading mode hid, so leaving it puts back the same window rather than a default
+    // one. `active` is what distinguishes *nothing was recorded* from *everything was hidden*.
+    struct ChromeState {
+        bool active = false;
+        bool header = true;
+        bool sidebar = false;
+        bool sidebarFloating = false;
+        Qt::DockWidgetArea sidebarArea = Qt::LeftDockWidgetArea;
+        int  sidebarWidth = 0;
+        bool logPane = false;
+        bool statusBar = true;
+    };
+    bool readingMode_ = false;
+    ChromeState beforeReading_;
+
     QToolButton* leftStrip_ = nullptr;
     QToolButton* rightStrip_ = nullptr;
 };

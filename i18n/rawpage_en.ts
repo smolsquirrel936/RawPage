@@ -1843,6 +1843,98 @@
         <translation>Password</translation>
     </message>
     <message>
+        <source>shell.properties.title</source>
+        <translation>Document Properties</translation>
+    </message>
+    <message>
+        <source>shell.properties.absent</source>
+        <translation>—</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.title</source>
+        <translation>Title</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.author</source>
+        <translation>Author</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.subject</source>
+        <translation>Subject</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.keywords</source>
+        <translation>Keywords</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.creator</source>
+        <translation>Application</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.producer</source>
+        <translation>PDF producer</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.created</source>
+        <translation>Created</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.modified</source>
+        <translation>Modified</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.version</source>
+        <translation>PDF version</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.pages</source>
+        <translation>Pages</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.pageSize</source>
+        <translation>Page size</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.security</source>
+        <translation>Security</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.repaired</source>
+        <translation>Repaired on open</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.path</source>
+        <translation>Location</translation>
+    </message>
+    <message>
+        <source>shell.properties.field.size</source>
+        <translation>File size</translation>
+    </message>
+    <message>
+        <source>shell.properties.pageSizeValue</source>
+        <translation>%1 × %2 pt (%3 × %4 mm), page %5</translation>
+    </message>
+    <message>
+        <source>shell.properties.securityNone</source>
+        <translation>No password</translation>
+    </message>
+    <message>
+        <source>shell.properties.securityPassword</source>
+        <translation>Password protected</translation>
+    </message>
+    <message>
+        <source>shell.properties.repairedYes</source>
+        <translation>Yes — the cross-reference table was reconstructed</translation>
+    </message>
+    <message>
+        <source>shell.properties.repairedNo</source>
+        <translation>No</translation>
+    </message>
+    <message>
+        <source>shell.status.pageTotalLabelled</source>
+        <translation>of %1 (page %2)</translation>
+    </message>
+    <message>
         <source>shell.status.pageTotal</source>
         <translation>of %1</translation>
     </message>
@@ -1944,6 +2036,14 @@
     <message>
         <source>error.open.noPages</source>
         <translation>%1 could not be opened: no page in it could be read.</translation>
+    </message>
+    <message>
+        <source>error.backend.unknownDocument</source>
+        <translation>That document is no longer open.</translation>
+    </message>
+    <message>
+        <source>error.render.pageHasNoContent</source>
+        <translation>Page %1 has no content to measure.</translation>
     </message>
     <message>
         <source>error.backend.notImplemented</source>

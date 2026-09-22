@@ -80,6 +80,11 @@ public:
     // this is hydrated from the first-party walk `open()` already runs -- `pdf/ops/TransitionReader`.
     const core::PageTransitions* pageTransitions(core::DocumentHandle document) const override;
 
+    // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
+    // per page -- the one reader on this interface that is not hydrated at open, and the header of
+    // `core/backend.h` says why.
+    core::Result<core::PdfRect> contentBox(core::DocumentHandle document, int pageIndex) override;
+
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
     core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;
     core::Status adoptRevision(core::DocumentHandle document, const QString& path) override;

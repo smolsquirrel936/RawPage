@@ -124,7 +124,7 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 92);
+    CHECK(fixture.actions.registeredCount() == 94);
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));
@@ -167,15 +167,17 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowMerge));
     CHECK(fixture.actions.isRegistered(core::ActionId::WindowList));
 
-    // S4 T10's eight. `view.readingMode` is NOT among them -- it is T12's, and it is in the same
-    // ribbon group as `view.fullScreen`, which is exactly the neighbourly pressure the count keeps
-    // honest.
+    // S4 T10's eight, and **T12's two beneath them**. `view.readingMode` was the absence this block
+    // asserted from T10 until T12 built it -- it is in the same ribbon group as `view.fullScreen`,
+    // which is exactly the neighbourly pressure the count keeps honest -- and the absence has now
+    // become a presence in the same change as the registration, which is what that comment was for.
     CHECK(fixture.actions.isRegistered(core::ActionId::PresentStart));
     CHECK(fixture.actions.isRegistered(core::ActionId::PresentExit));
     CHECK(fixture.actions.isRegistered(core::ActionId::PresentBlankBlack));
     CHECK(fixture.actions.isRegistered(core::ActionId::PresentLaserPointer));
     CHECK(fixture.actions.isRegistered(core::ActionId::PresentNextMonitor));
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ViewReadingMode));        // T12
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewReadingMode));             // T12
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileDocumentProperties));      // T12
 
     // T14's two: the Preferences dialog and the log pane. `log.openFolder` is deliberately NOT
     // among them -- the folder belongs to `app/LogFile` and `ui/` looks outward to exactly two

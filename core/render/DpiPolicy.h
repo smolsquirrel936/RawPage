@@ -61,10 +61,15 @@ namespace rawpage::core::render {
 // instead of chosen, and `ui/viewer/PageLayoutEngine::zoomForFit()` is a policy question rather
 // than a widget one.
 //
-// The four are Features.md 1.2's. As BUILT, `Page` fits the MediaBox -- the sheet -- and `Visible`
-// fits the CropBox, so on a document whose CropBox equals its MediaBox they agree. **That is not
-// Features.md 1.2's `Visible`**, which fits the content bounding box and ignores white margins;
-// Stage 2 guide issue I-28 records the gap, and until it closes Ctrl+3 is Ctrl+0 on most files.
+// The four are Features.md 1.2's, and **which RECTANGLE each of them measures is
+// `core/render/FitPolicy`'s** (S4 T12, D4-14): `Page` the MediaBox -- the sheet -- `Width` and
+// `Height` the CropBox, and `Visible` the page's CONTENT bounding box, falling back to the CropBox
+// where a page has no objects.
+//
+// **`Visible` fitted the CropBox from Stage 2 T13 until Stage 4 T12**, which made Ctrl+3 a second
+// name for Ctrl+0 on every document whose CropBox is its sheet -- Stage 2 guide issue I-28, closed
+// 2026-09-23. This comment claimed the CropBox reading was Features.md 1.2's until that day; it was
+// not, and the entry that corrects it is I-28's own.
 //
 // `None` reads as "no fitting", which as a DEFAULT ZOOM means 100 % -- and that is why the settings
 // row defaults to it: a settings task must not silently change what the product does.

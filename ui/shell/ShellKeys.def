@@ -278,4 +278,35 @@ RAWPAGE_SHELL_STRING(MessageBarRecoveredStopped,        "shell.messageBar.recove
 RAWPAGE_SHELL_STRING(MessageBarRecoveredIncomplete,     "shell.messageBar.recoveredIncomplete")
 RAWPAGE_SHELL_STRING(MessageBarRecoveryFailed,          "shell.messageBar.recoveryFailed")
 
+// Stage 4 T12 -- Document Properties (`Ctrl+D`, D4-4), reading mode (`Ctrl+L`) and the page box's
+// logical labels. All `shell.`, as every other key in this table is: a family is added when a key's
+// NAMESPACE is new, not when a feature is (Stage 3 guide I-16).
+RAWPAGE_SHELL_STRING(PropertiesTitle,            "shell.properties.title")
+RAWPAGE_SHELL_STRING(PropertiesAbsent,           "shell.properties.absent")
+RAWPAGE_SHELL_STRING(PropertiesFieldTitle,       "shell.properties.field.title")
+RAWPAGE_SHELL_STRING(PropertiesFieldAuthor,      "shell.properties.field.author")
+RAWPAGE_SHELL_STRING(PropertiesFieldSubject,     "shell.properties.field.subject")
+RAWPAGE_SHELL_STRING(PropertiesFieldKeywords,    "shell.properties.field.keywords")
+RAWPAGE_SHELL_STRING(PropertiesFieldCreator,     "shell.properties.field.creator")
+RAWPAGE_SHELL_STRING(PropertiesFieldProducer,    "shell.properties.field.producer")
+RAWPAGE_SHELL_STRING(PropertiesFieldCreated,     "shell.properties.field.created")
+RAWPAGE_SHELL_STRING(PropertiesFieldModified,    "shell.properties.field.modified")
+RAWPAGE_SHELL_STRING(PropertiesFieldVersion,     "shell.properties.field.version")
+RAWPAGE_SHELL_STRING(PropertiesFieldPages,       "shell.properties.field.pages")
+RAWPAGE_SHELL_STRING(PropertiesFieldPageSize,    "shell.properties.field.pageSize")
+RAWPAGE_SHELL_STRING(PropertiesFieldSecurity,    "shell.properties.field.security")
+RAWPAGE_SHELL_STRING(PropertiesFieldRepaired,    "shell.properties.field.repaired")
+RAWPAGE_SHELL_STRING(PropertiesFieldPath,        "shell.properties.field.path")
+RAWPAGE_SHELL_STRING(PropertiesFieldSize,        "shell.properties.field.size")
+RAWPAGE_SHELL_STRING(PropertiesPageSizeValue,    "shell.properties.pageSizeValue")
+RAWPAGE_SHELL_STRING(PropertiesSecurityNone,     "shell.properties.securityNone")
+RAWPAGE_SHELL_STRING(PropertiesSecurityPassword, "shell.properties.securityPassword")
+RAWPAGE_SHELL_STRING(PropertiesRepairedYes,      "shell.properties.repairedYes")
+RAWPAGE_SHELL_STRING(PropertiesRepairedNo,       "shell.properties.repairedNo")
+
+// The page box, once a document carries `/PageLabels`. `pageTotalLabelled` is what makes the
+// physical index visible beside the label: a document with roman front matter has two page 1s, and
+// a status bar showing only "1" cannot say which of them the reader is on.
+RAWPAGE_SHELL_STRING(StatusPageTotalLabelled,    "shell.status.pageTotalLabelled")
+
 #undef RAWPAGE_SHELL_STRING

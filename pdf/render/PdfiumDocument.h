@@ -41,6 +41,7 @@
 #ifndef RAWPAGE_PDF_RENDER_PDFIUMDOCUMENT_H
 #define RAWPAGE_PDF_RENDER_PDFIUMDOCUMENT_H
 
+#include "core/Geometry.h"
 #include "core/Result.h"
 #include "core/backend.h"
 #include "core/doc/Destinations.h"
@@ -52,7 +53,10 @@
 #include <QByteArray>
 #include <QString>
 
+#include <map>
 #include <memory>
+#include <mutex>
+#include <optional>
 
 namespace rawpage::pdf::render {
 
@@ -104,6 +108,26 @@ public:
     const core::Destinations& destinations() const noexcept { return destinations_; }
     const core::Metadata& metadata() const noexcept { return metadata_; }
 
+    // THE PAGE'S CONTENT BOUNDING BOX -- S4 T12, decision **D4-14**, closing Stage 2's **I-28**.
+    // The union of the page's object bounds, intersected with the CropBox, in PDF points.
+    //
+    // **ON DEMAND AND CACHED, unlike the three readers above.** Those are one fact per document and
+    // are read at open; this is one per PAGE, and a 900-page document asked for every page's box at
+    // open would walk every object in the file to answer a question about the one page being
+    // fitted. So the page asked about is loaded, unioned, closed and the answer kept -- asking
+    // twice calls the engine once (guide case A-67).
+    //
+    // `ErrorCode::NotFound` for a page with **no objects**: an empty page is a value, not a
+    // failure, and `core/render/FitPolicy` falls back to the CropBox for it. `InvalidArgument` for
+    // an index outside the tree.
+    //
+    // **`mutable` CACHE, `const` METHOD, AND A LOCK OF ITS OWN.** The method is logically a read;
+    // the cache behind it is written. The engine lock serializes the PDFium half, but two threads
+    // asking about two different pages would race on the map itself, which the engine lock says
+    // nothing about -- and the whole reason this class is careful is that PDFium's own sharing is
+    // process-global (I-05).
+    core::Result<core::PdfRect> contentBox(int pageIndex) const;
+
     // The bytes, for `pdf/cos/`. A view, not a copy: they live as long as this object, because
     // PDFium holds a pointer into them.
     QByteArray bytes() const { return bytes_; }
@@ -137,6 +161,12 @@ private:
     core::Outline outline_;
     core::Destinations destinations_;
     core::Metadata metadata_;
+
+    // S4 T12. `std::nullopt` in the map means *asked, and the page has no objects* -- which is why
+    // the map holds an optional rather than only the rectangles it found: a second ask for an empty
+    // page must not walk the page again.
+    mutable std::mutex contentBoxMutex_;
+    mutable std::map<int, std::optional<core::PdfRect>> contentBoxes_;
 };
 
 } // namespace rawpage::pdf::render

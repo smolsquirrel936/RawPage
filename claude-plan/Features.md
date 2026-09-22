@@ -224,7 +224,11 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - First page / previous page / next page / last page controls (per S3).
 - Page-number box: type a page number and commit to jump (per S3).
 - Arrow-key paging through a multipage document (per S3).
-- Jump by *logical page label* (e.g. "iv", "A-12") as well as by physical index.
+- Jump by *logical page label* (e.g. "iv", "A-12") as well as by physical index. **Where a document
+  carries labels the page box shows the LABEL and the label wins an ambiguous entry** — typing "1" on
+  a document whose front matter is roman goes to the page printed 1, not to the first sheet — because
+  the box displays the label and typing what was just read must land where it was read. A document
+  with no labels takes a physical number exactly as before. *(Decided at Stage 4 T12, which built it.)*
 - Go to Page dialog for an explicit jump.
 - Previous view / next view: retrace the history of view changes, not just pages.
 - Previous document / next document in the tab set.

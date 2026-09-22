@@ -166,7 +166,8 @@ row it must flip **in the same change**. Rows marked ⚠️ have no FileMap row 
 | `ui/viewer/SplitViewContainer.{h,cpp}` | §3.14 ○ (S4) → ✅ | T9 |
 | `ui/viewer/FullScreenController.{h,cpp}` | §3.14 ○ (S4) → ✅ | T10 |
 | `ui/shell/WindowArranger.{h,cpp}` | §3.13 ○ (S4) → ✅ (D4-17) | T11 |
-| `ui/dialogs/DocumentPropertiesDialog.{h,cpp}` | §3.15's dialog-family row: named there as *S2–S3*, **corrected to S4** with the file (D4-4) | T12 |
+| `ui/dialogs/DocumentPropertiesDialog.{h,cpp}` | §3.15's dialog-family row: named there as *S2–S3*, **corrected to S4** with the file (D4-4); **built at T12, which gave it a row of its own** beside `RotatePagesDialog`'s and `RecoveryDialog`'s, the family row keeping a ⤴ breadcrumb | T12 |
+| `core/render/FitPolicy.{h,cpp}` — which rectangle a fit measures, and the zoom that satisfies it (D4-14) | ⚠️ **no row when this plan was written; added with the file at T12** (§3.4's `core/render/` family). §4 named the backend accessor and the dialog and not the policy, because the plan expected the arithmetic to stay in `ui/viewer/PageLayoutEngine` — it could not: only `rawpage_render_tests` can open a corpus file and it links no widgets, so I-28's own observable was unassertable until the fit moved | T12 |
 | `ui/shell/MainWindow`, `DocumentWindow`, `StatusBar` — pane hosting, the split, reading mode, the coordinate readout, logical page labels | §3.13's rows | T5 … T12 |
 | `app/Application.{h,cpp}` — session capture on quit and restore on launch | §3.1's row: *"still owed: session save/restore on quit (`SessionState` is Stage 4)"* is paid | T13 |
 | `tests/ui/tst_panes.cpp`, `tst_tools.cpp`, **`tst_rulers.cpp`** (T8; this row said `tst_snap.cpp`, which §5.6 correctly puts in `rawpage_tests` — corrected with the file), `tst_split.cpp`, `tst_presentation.cpp`, `tst_arranger.cpp` | §3.17's `tests/ui/` row | T5 … T11 |
@@ -386,13 +387,19 @@ is a fact this plan establishes:
   today they trace a single `PageView` and one viewport.
 - **`Tech-Stack-Plan.md` §3.3**'s A2 entry gains Stage 4's workload figure at T2, and
   `WinAcceleratedSurface`'s row stops saying *"if A2 says it is needed"* and says what it said.
-- **`Stage2-Rendering-Testing-Guide.md` §8's I-28** is closed at T12 **in that guide**, with the
-  measurement, because an issue is closed where it was raised.
+- ✅ **`Stage2-Rendering-Testing-Guide.md` §8's I-28** is closed at T12 **in that guide**, with the
+  measurement, because an issue is closed where it was raised. **Paid 2026-09-23**, along with that
+  guide's own *do not re-report this* row in its manual §7, whose expectation is now inverted rather
+  than deleted.
 - **`CLAUDE.md`'s *What works today* and *deliberately absent* paragraphs** are re-derived at T14 —
   the unregistered-action count, the thirteen unconsumed Viewer chords, and the sentence that says
   `Select` selects nothing until Stage 5, which stays true.
 - **`Features.md` §8 is not touched by this stage.** Recorded here so that D4-15's three deferrals
-  are not mistaken for binding changes: the chords are right, and only their stage moved.
+  are not mistaken for binding changes: the chords are right, and only their stage moved. **Still
+  true as of T12** — but `Features.md` **§1.4** did gain a line there, and it is the routing table's
+  answer rather than a scope change: *Go to Page* had to decide what a typed `1` means on a document
+  whose front matter is roman, §1.4 owns capabilities, and a decision recorded only in a header
+  comment would be invisible to the next person who reads the catalog.
 
 ---
 

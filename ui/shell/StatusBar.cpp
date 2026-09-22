@@ -44,15 +44,30 @@ StatusBar::StatusBar(QWidget* parent)
     // TYPING A PAGE NUMBER NAVIGATES, which is the only thing in the status bar that is an input
     // rather than a readout -- and it was an input with no consumer from T9 until now.
     connect(pageBox_, &QLineEdit::returnPressed, this, [this] {
+        const QString typed = pageBox_->text().trimmed();
+
+        // THE LABEL IS TRIED FIRST -- S4 T12; the header argues why, and names what it costs.
+        // `iv` and `A-12` reach the box as text and have no numeric reading at all, so a box that
+        // only parsed integers refused them before this task and refused them silently.
+        if (labelResolver_ && !typed.isEmpty()) {
+            const int labelled = labelResolver_(typed);
+            if (labelled >= 0 && labelled < pageCount_) {
+                emit pageRequested(labelled + 1);
+                return;
+            }
+        }
+
         bool ok = false;
-        const int typed = pageBox_->text().trimmed().toInt(&ok);
-        if (!ok || pageCount_ <= 0 || typed < 1 || typed > pageCount_) {
+        const int number = typed.toInt(&ok);
+        if (!ok || pageCount_ <= 0 || number < 1 || number > pageCount_) {
             // A typo is not a navigation. Putting the current page back is the feedback: an empty
-            // box, or one left holding "4000", would leave the user unsure whether it worked.
+            // box, or one left holding "4000", would leave the user unsure whether it worked. An
+            // unknown LABEL lands here too and is refused the same way, which is the one answer
+            // that cannot scroll the reader somewhere they did not ask for.
             resetPageBox();
             return;
         }
-        emit pageRequested(typed);
+        emit pageRequested(number);
     });
 
     zoomLabel_ = new QLabel(catalog::translate(catalog::key::StatusZoom), this);
@@ -73,23 +88,44 @@ void StatusBar::setMessage(const QString& text)
     message_->setText(text.isEmpty() ? catalog::translate(catalog::key::StatusReady) : text);
 }
 
-void StatusBar::resetPageBox()
+void StatusBar::setPageLabelResolver(std::function<int(const QString&)> resolver)
 {
-    pageBox_->setText(pageCount_ > 0 ? QString::number(currentPage_ + 1) : QString());
+    labelResolver_ = std::move(resolver);
 }
 
-void StatusBar::setPageState(int currentPage, int pageCount)
+void StatusBar::resetPageBox()
+{
+    if (pageCount_ <= 0) {
+        pageBox_->setText(QString());
+        return;
+    }
+    // THE LABEL IS WHAT THE BOX SHOWS when the document has one. That is the whole point of
+    // reading `/PageLabels`: a reader on the page printed "1" must see "1", not "4".
+    pageBox_->setText(currentLabel_.isEmpty() ? QString::number(currentPage_ + 1) : currentLabel_);
+}
+
+void StatusBar::setPageState(int currentPage, int pageCount, const QString& label)
 {
     pageCount_ = std::max(0, pageCount);
     currentPage_ = pageCount_ > 0 ? std::clamp(currentPage, 0, pageCount_ - 1) : 0;
+    currentLabel_ = pageCount_ > 0 ? label : QString();
 
     // THE EM DASH COMES BACK for a document with no pages. It is not a leftover from Stage 1: "of
     // 0" is a claim about a measurement that was not made, and the dash is the honest answer --
     // which is why it stayed a catalog entry rather than becoming a literal (i18n-lint, T9).
-    pageTotal_->setText(pageCount_ > 0
-                            ? catalog::translate(catalog::key::StatusPageTotal)
-                                  .arg(pageCount_)
-                            : catalog::translate(catalog::key::StatusPageCountUnknown));
+    // WITH A LABEL, THE PHYSICAL INDEX IS SHOWN BESIDE THE TOTAL. Without one the row is exactly
+    // what it was: "of 8". The label form is not used when the label IS the physical number --
+    // "of 8 (page 8)" on a decimal-labelled document would be noise that says nothing.
+    if (pageCount_ <= 0) {
+        pageTotal_->setText(catalog::translate(catalog::key::StatusPageCountUnknown));
+    } else if (!currentLabel_.isEmpty()
+               && currentLabel_ != QString::number(currentPage_ + 1)) {
+        pageTotal_->setText(catalog::translate(catalog::key::StatusPageTotalLabelled)
+                                .arg(pageCount_)
+                                .arg(currentPage_ + 1));
+    } else {
+        pageTotal_->setText(catalog::translate(catalog::key::StatusPageTotal).arg(pageCount_));
+    }
 
     // ONE-BASED ON SCREEN, zero-based everywhere else. The conversion is here and nowhere else.
     resetPageBox();
@@ -121,6 +157,7 @@ void StatusBar::setDocumentPresent(bool present)
     if (!present) {
         pageCount_ = 0;
         currentPage_ = 0;
+        currentLabel_.clear();
         pageTotal_->setText(catalog::translate(catalog::key::StatusPageCountUnknown));
         zoomValue_->clear();
     }

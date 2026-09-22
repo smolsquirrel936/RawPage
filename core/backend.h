@@ -54,6 +54,7 @@
 #ifndef RAWPAGE_CORE_BACKEND_H
 #define RAWPAGE_CORE_BACKEND_H
 
+#include "core/Geometry.h"
 #include "core/Result.h"
 
 #include <QByteArray>
@@ -415,6 +416,26 @@ public:
     //
     // Empty is the ordinary answer: almost no document carries a transition.
     virtual const PageTransitions* pageTransitions(DocumentHandle document) const = 0;
+
+    // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
+    // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it
+    // (`Features.md` §1.2); `core/render/FitPolicy` is what decides the fit, and this is where the
+    // rectangle it decides from comes from.
+    //
+    // **ON DEMAND AND CACHED, unlike everything above it on this interface.** The other readers are
+    // hydrated once at open because a document has one outline and one Info dictionary; a content
+    // box is PER PAGE, and computing every page's at open would walk every object of a 900-page
+    // document to answer a question about the one page being fitted. So it is computed for the page
+    // asked about and kept -- asking twice calls the engine once (guide case A-67).
+    //
+    // **THREE ANSWERS, AND THE CALLER MUST NOT COLLAPSE THEM**:
+    //   * a rectangle -- the page has objects, and this is their union intersected with the CropBox;
+    //   * `ErrorCode::NotFound` -- the page HAS NO OBJECTS. An empty page is not a failure and
+    //     `core/render/FitPolicy` falls back to the CropBox for it, which is what `Ctrl+3` did for
+    //     the whole of Stages 2 and 3;
+    //   * `ErrorCode::InvalidArgument` for a handle this backend did not open or a page index out
+    //     of range, and `ErrorCode::Unsupported` from a build that does not implement it.
+    virtual Result<PdfRect> contentBox(DocumentHandle document, int pageIndex) = 0;
 
     // THE BACKEND'S HALF OF SAVE, added at Stage 3 T8 (`Stage3-Mutation-Plan.md` D3-4, §5.3). Flow F
     // once sketched one `save(Incremental)` doing the whole job; D3-4 splits it three ways, and these

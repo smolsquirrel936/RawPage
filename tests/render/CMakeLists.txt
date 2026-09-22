@@ -33,6 +33,12 @@ add_executable(rawpage_render_tests
     tst_docmodels.cpp             # Stage 4 T4 -- guide cases A-25 to A-28 and A-30: what the
                                   #   facade actually reads out of a file for core/doc/Outline,
                                   #   Destinations and Metadata
+    tst_contentbox.cpp            # Stage 4 T12 -- guide cases A-11, A-67 and A-68: the union of a
+                                  #   page's object bounds through the facade, and the three zooms
+                                  #   that close Stage 2's I-28. It is HERE because the observable
+                                  #   is a number read off a real file and this is the only target
+                                  #   that can open one -- which is why D4-14 moved the fit
+                                  #   arithmetic into core/render/, where no widget is needed.
     tst_pageopsengine.cpp         # Stage 3 T3 -- guide case A-29: pdf/ops/PageOps against the engine,
                                   #   page by page, over every corpus file both readers open
     tst_backendedit.cpp           # Stage 3 T4 -- guide cases A-36's corpus half, A-37, A-34's engine half

@@ -104,6 +104,13 @@ add_executable(rawpage_ui_tests
     # document holding its own handle and no journal of its own, and A2's named work, which is
     # asserted on the scheduler's lane counters because nothing on screen can tell the two apart.
     tst_arranger.cpp
+
+    # S4 T12 -- guide cases A-29, A-68's widget half, A-69 and A-70, and the closure of I-05. The
+    # ENGINE half of the content box is tests/render/tst_contentbox.cpp, over a real file; what is
+    # here is a viewer asking for one, fitting to it and SCROLLING to it, the page box reading a
+    # logical label, the read-only properties dialog, and a reading mode that restores the window it
+    # hid rather than a default one.
+    tst_properties.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

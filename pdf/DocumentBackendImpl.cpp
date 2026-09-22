@@ -309,4 +309,26 @@ const core::PageTransitions* DocumentBackendImpl::pageTransitions(core::Document
     return entry != nullptr ? &entry->transitions : nullptr;
 }
 
+core::Result<core::PdfRect> DocumentBackendImpl::contentBox(core::DocumentHandle document,
+                                                            int pageIndex)
+{
+    // THE MAP'S LOCK IS RELEASED BEFORE THE ENGINE IS ASKED. `mutex_` guards `open_` against the
+    // render thread calling `rasterizer()` while the UI thread opens or closes (the reasoning is on
+    // the member itself); holding it across a page load would serialize the UI thread behind
+    // whatever PDFium is doing. The document object outlives the lock because only `close()`
+    // destroys one, and `close()`'s own protocol requires the caller to have drained this
+    // document's work first.
+    render::PdfiumDocument* found = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        Open* entry = find(document);
+        if (entry == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument,
+                               QLatin1String("error.backend.unknownDocument")};
+        }
+        found = entry->document.get();
+    }
+    return found->contentBox(pageIndex);
+}
+
 } // namespace rawpage::pdf

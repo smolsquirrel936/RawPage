@@ -38,13 +38,13 @@
 // nowhere: the first looks like a document with fewer destinations than it has.
 //
 // ===========================================================================================
-// WHAT NAVIGATING DOES, AND WHAT IT DOES NOT (convention 19).
+// WHAT NAVIGATING DOES, AND WHAT IT STILL DOES NOT (convention 19).
 // ===========================================================================================
-// The same bound `ui/panes/BookmarksPane` carries, for the same reason and with the same owner: it
-// goes to the destination's **page**, and does not yet apply `/XYZ`'s point and zoom, `/FitH`'s top
-// or `/FitR`'s rectangle. `core::Destination` carries all of them and nothing here discards them.
-// See **I-05** in `Stage4-ViewingSurface-Testing-Guide.md` §8; the arithmetic that would apply them
-// is **T12**'s.
+// The same bound `ui/panes/BookmarksPane` carries, and it has moved the same way: since **T12** the
+// destination's *view* is applied as well as its page -- `/XYZ`'s point and zoom, `/FitH`'s top,
+// `/FitV`'s left, `/Fit` and `/FitB` -- through the one conversion in
+// `ui/viewer/PageView::goToDestination`. **I-05** is closed. **`/FitR`'s rectangle is still not
+// read**, because `core::Destination` has no fields for it; Stage 7 owns that vocabulary.
 
 #ifndef RAWPAGE_UI_PANES_DESTINATIONSPANE_H
 #define RAWPAGE_UI_PANES_DESTINATIONSPANE_H

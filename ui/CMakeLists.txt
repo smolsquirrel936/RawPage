@@ -197,6 +197,13 @@ add_library(rawpage_ui STATIC
     dialogs/UnsavedChangesDialog.h
     dialogs/UnsavedChangesDialog.cpp
 
+    # S4 T12 (D4-4). The one dialog in the product that collects NOTHING and constructs no command:
+    # it shows what the Info dictionary, the document identity and the page tree already say, and
+    # every field in it is a label rather than a disabled edit box. Editing is Stage 8's, with the
+    # /ModDate policy and the XMP writer that have to stay consistent with it.
+    dialogs/DocumentPropertiesDialog.h
+    dialogs/DocumentPropertiesDialog.cpp
+
     # Stage 3 T11. The recovery prompt's question -- recover, discard or decide later, per document -- and
     # nothing else: app/RecoveryPrompt discovers, and MainWindow::recoverDocument replays.
     dialogs/RecoveryDialog.h

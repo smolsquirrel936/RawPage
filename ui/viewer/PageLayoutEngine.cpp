@@ -21,20 +21,13 @@ using core::render::Zoom;
 // The size, in PDF points, that a fit must make fit. Post-rotation, because a landscape page in a
 // portrait document is wider than it is tall and fitting its unrotated box would leave it hanging
 // off the right edge.
-core::PdfSize fitTarget(const core::Page& page, FitMode fit)
-{
-    const bool swapped = page.rotation() == core::PageRotation::Clockwise90
-                         || page.rotation() == core::PageRotation::Clockwise270;
-
-    // `Page` fits the SHEET and `Visible` fits the CropBox. They agree on a document whose
-    // CropBox equals its MediaBox, which is most of them, and they differ on a trimmed page.
-    // THIS IS NOT WHAT Features.md 1.2 SPECIFIES: Fit Visible there is "fit the content bounding
-    // box, ignoring white margins", which nothing here computes -- Stage 2 guide issue I-28, open.
-    const core::PdfSize box =
-        (fit == FitMode::Page) ? page.mediaBox().size : page.cropBox().size;
-
-    return swapped ? core::PdfSize{box.height, box.width} : box;
-}
+// I-28 IS CLOSED AND THE ARITHMETIC IS NO LONGER HERE. `core/render/FitPolicy` decides which
+// rectangle a fit measures -- `Page` the sheet, `Visible` the CONTENT box with the CropBox as its
+// fallback, the rest the CropBox -- and this file's job is now to supply the three rectangles and
+// to apply the rotations, which are a view's business rather than a policy's.
+//
+// Why the move: the observable I-28 names is a number read off a real file, and only
+// `rawpage_render_tests` can open one. It links no widgets. See `core/render/FitPolicy.h`.
 
 } // namespace
 
@@ -169,6 +162,29 @@ bool PageLayoutEngine::update(Zoom zoom, ScreenMetrics metrics, core::render::La
     return changed;
 }
 
+std::optional<core::PdfRect> PageLayoutEngine::contentBox(int page) const
+{
+    if (!contentBox_) return std::nullopt;
+    return contentBox_(page);
+}
+
+std::optional<core::PdfRect> PageLayoutEngine::fitRect(FitMode fit, int page) const
+{
+    if (tree_ == nullptr) return std::nullopt;
+    const core::Page* target = tree_->at(page);
+    if (target == nullptr) return std::nullopt;
+
+    // **THE CONTENT BOX IS ASKED FOR ONLY WHEN A FIT WANTS IT.** `contentBox_` reaches the engine
+    // through the backend, which loads the page and walks its objects; asking on every fit would
+    // do that work for Fit Width, which does not use the answer.
+    core::render::PageBoxes boxes;
+    boxes.media = target->mediaBox();
+    boxes.crop = target->cropBox();
+    if (fit == FitMode::Visible) boxes.content = contentBox(page);
+
+    return core::render::fitRect(boxes, fit);
+}
+
 Zoom PageLayoutEngine::zoomForFit(FitMode fit, core::DeviceSize viewportSize, int page,
                                   ScreenMetrics metrics, Zoom current) const
 {
@@ -177,49 +193,19 @@ Zoom PageLayoutEngine::zoomForFit(FitMode fit, core::DeviceSize viewportSize, in
     const core::Page* target = tree_->at(page);
     if (target == nullptr) return current;
 
-    core::PdfSize box = fitTarget(*target, fit);
-    if (core::swapsAxes(viewRotation_)) box = core::PdfSize{box.height, box.width};
-    if (box.width <= 0.0 || box.height <= 0.0) return current;
-    if (viewportSize.width <= 0.0 || viewportSize.height <= 0.0) return current;
+    const std::optional<core::PdfRect> rect = fitRect(fit, page);
+    if (!rect.has_value()) return current;
 
-    // The margins the presentation will add. A fit that ignored them produces a page one gutter
-    // too wide, and the horizontal scrollbar that appears then makes the viewport narrower still --
-    // which is a fit that oscillates by one scrollbar width every resize.
-    const core::render::PresentationOptions& options = presentation_.options();
-    const double chromeX = 2.0 * options.margin;
-    const double chromeY = 2.0 * options.margin;
+    // TWO ROTATIONS, AND BOTH ARE THE VIEW'S BUSINESS rather than the policy's. The PAGE's own
+    // `/Rotate` decides whether a portrait box is presented landscape, and the SESSION's view
+    // rotation turns it again on top of that -- `core/render/FitPolicy` is handed neither, because
+    // a rectangle in PDF space does not know how anybody intends to show it.
+    core::PdfSize box = rect->size;
+    const bool swapped = core::swapsAxes(target->rotation()) != core::swapsAxes(viewRotation_);
+    if (swapped) box = core::PdfSize{box.height, box.width};
 
-    const double availableWidth = std::max(1.0, viewportSize.width - chromeX);
-    const double availableHeight = std::max(1.0, viewportSize.height - chromeY);
-
-    // At zoom 1.0 the page occupies `box * (physicalDpi / 72)` device pixels. The zoom that makes
-    // it occupy `available` is therefore the ratio of the two -- and it is computed against the
-    // PHYSICAL DPI rather than against a nominal 96, which is the whole reason `DpiPolicy` takes
-    // three inputs.
-    const double baseScale = metrics.physical.dpi / 72.0;
-    const double widthZoom = availableWidth / (box.width * baseScale);
-    const double heightZoom = availableHeight / (box.height * baseScale);
-
-    double factor = widthZoom;
-    switch (fit) {
-    case FitMode::Width:
-        factor = widthZoom;
-        break;
-    case FitMode::Height:
-        factor = heightZoom;
-        break;
-    case FitMode::Page:
-    case FitMode::Visible:
-        // The SMALLER of the two, so the whole page is inside the viewport. Taking the larger fits
-        // one axis and crops the other, which is what "fit page" is defined not to do.
-        factor = std::min(widthZoom, heightZoom);
-        break;
-    case FitMode::None:
-        return current;
-    }
-
-    if (!std::isfinite(factor) || factor <= 0.0) return current;
-    return Zoom{factor}.clamped();
+    return core::render::zoomToFit(fit, box, viewportSize, presentation_.options().margin,
+                                   metrics.physical, current);
 }
 
 int PageLayoutEngine::spreadStep(int from, int direction, core::render::LayoutMode mode) const

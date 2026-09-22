@@ -185,6 +185,27 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
         if (PageView* view = currentView()) view->goToPage(oneBased - 1);
     });
 
+    // S4 T12 -- *Go to Page* accepts a LOGICAL page label ("iv", "A-12"), which no integer parse
+    // could ever reach. The resolver is a lambda rather than a pointer into a page tree because the
+    // tree belongs to whichever tab is in front and is replaced on every tab switch; resolving at
+    // the moment somebody presses Enter is the same discipline every command handler here follows
+    // (convention 14).
+    //
+    // EXACT MATCH, case-sensitively: a PDF page label is a byte string and "A-12" and "a-12" are
+    // two different labels. The first page carrying the label wins, which matters only for a
+    // document that labels two pages the same -- itself malformed, and refusing it outright would
+    // strand the reader on a file every other viewer navigates.
+    status_->setPageLabelResolver([this](const QString& typed) {
+        const PageView* view = currentView();
+        const core::PageTree* tree = view ? view->pages() : nullptr;
+        if (tree == nullptr) return -1;
+        const std::vector<core::Page>& pages = tree->pages();
+        for (std::size_t i = 0; i < pages.size(); ++i) {
+            if (pages[i].label() == typed) return static_cast<int>(i);
+        }
+        return -1;
+    });
+
     sidebar_ = new SidebarDock(services_.actions, this);
     addDockWidget(Qt::LeftDockWidgetArea, sidebar_);
     resizeDocks({sidebar_}, {sidebar_->rememberedWidth()}, Qt::Horizontal);
@@ -222,9 +243,13 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     // ONE NAVIGATION, whichever pane asked. Both panes hand up a `core::Destination` and this is
     // the single place that turns one into a movement, so a bookmark and a named destination
     // cannot land in different places for the same target.
+    //
+    // **T12 APPLIES THE FIT** (I-05, closed). Until then this went to the destination's PAGE and
+    // left `/XYZ`'s point and zoom unread on the floor, because the conversion from a PDF-space
+    // point to a scroll offset did not exist yet -- it arrived with Fit Visible's, and both now
+    // run through `PageView`.
     const auto goToDestination = [this](const core::Destination& destination) {
-        if (!destination.isResolved()) return;
-        if (PageView* view = currentView()) view->goToPage(destination.pageIndex);
+        if (PageView* view = currentView()) view->goToDestination(destination);
     };
     connect(bookmarks_, &BookmarksPane::activated, this, goToDestination);
     connect(destinations_, &DestinationsPane::activated, this, goToDestination);
@@ -1874,7 +1899,15 @@ void MainWindow::updateViewChrome()
 {
     if (status_) {
         if (const PageView* view = currentView()) {
-            status_->setPageState(view->controller().currentPage(), view->pageCount());
+            // S4 T12: the LOGICAL label beside the physical index. `Page::label()` is empty for a
+            // document with no `/PageLabels`, which is most of them, and the status bar then reads
+            // exactly as it did before this task.
+            const int page = view->controller().currentPage();
+            QString label;
+            if (const core::PageTree* tree = view->pages()) {
+                if (const core::Page* current = tree->at(page)) label = current->label();
+            }
+            status_->setPageState(page, view->pageCount(), label);
             status_->setZoom(view->controller().zoom().factor);
         }
     }
@@ -2055,6 +2088,24 @@ void MainWindow::registerActions()
     // BEHAVIOUR is registered now, which is what makes it reachable from the ribbon, from a test
     // and from the Stage 14 batch runner without a second implementation.
     registerAction(ActionId::ViewToggleRibbon, onActiveShell(&MainWindow::toggleRibbon));
+
+    // S4 T12 -- READING MODE (`Ctrl+L`, `Features.md` §1.2). A window-chrome command and not a view
+    // one, which is why it is registered here beside Full Screen rather than with the `registerView`
+    // family: there is nothing about it that needs a document, and a person who has just closed
+    // their last tab must still be able to get their ribbon back.
+    registerAction(ActionId::ViewReadingMode, onActiveShell(&MainWindow::toggleReadingMode));
+
+    // DOCUMENT PROPERTIES (`Ctrl+D`, D4-4). **DISABLED WHERE THERE IS NO USER** -- convention 16
+    // and Stage 1's I-23: a modal `exec()` under the offscreen platform is shown to nobody and
+    // never returns, which stopped a whole `ctest` run dead with no failure and no output. The
+    // facts it shows are composed by `documentProperties()`, which a case drives directly.
+    registerAction(ActionId::FileDocumentProperties, [](KeyContext) {
+        if (MainWindow* window = activeShell()) window->showDocumentProperties();
+    }, [] {
+        MainWindow* window = activeShell();
+        return window != nullptr && window->currentDocument() != nullptr
+               && DocumentPropertiesDialog::canAsk();
+    });
 
     // R-5, AND THE COMMAND THAT MAKES `Alt` MEAN ANYTHING (issue I-42). The ribbon has drawn key
     // tips since T10 and nothing ever asked it to: `Alt` is bound to this id in
@@ -2840,6 +2891,115 @@ void MainWindow::toggleFullScreen()
 void MainWindow::toggleRibbon()
 {
     if (ribbon_) ribbon_->setBodyCollapsed(!ribbon_->isBodyCollapsed());
+}
+
+void MainWindow::setReadingMode(bool on)
+{
+    if (on == readingMode_) return;
+
+    if (on) {
+        // RECORDED BEFORE ANYTHING IS HIDDEN, because `isVisible()` on a widget that has just been
+        // hidden is the answer to the wrong question. The sidebar's WIDTH is read from the widget
+        // rather than from `rememberedWidth()`: a person who has just dragged the splitter has a
+        // width the dock has not written down yet, and restoring the remembered one would move a
+        // divider they set thirty seconds ago.
+        beforeReading_ = ChromeState{};
+        beforeReading_.active = true;
+        beforeReading_.header = header_ != nullptr && header_->isVisible();
+        beforeReading_.sidebar = sidebar_ != nullptr && sidebar_->isVisible();
+        beforeReading_.sidebarFloating = sidebar_ != nullptr && sidebar_->isFloating();
+        beforeReading_.sidebarArea =
+            sidebar_ != nullptr ? dockWidgetArea(sidebar_) : Qt::LeftDockWidgetArea;
+        beforeReading_.sidebarWidth = sidebar_ != nullptr ? sidebar_->width() : 0;
+        beforeReading_.logPane = logPane_ != nullptr && logPane_->isVisible();
+        beforeReading_.statusBar = status_ != nullptr && status_->isVisible();
+
+        if (header_) header_->hide();
+        if (sidebar_) sidebar_->hide();
+        if (logPane_) logPane_->hide();
+
+        // THE STATUS BAR STAYS. It is one line saying which page of how many, at what zoom, and it
+        // is the one piece of chrome a reader is reading. `Features.md` §1.2 calls this mode
+        // *"maximum page area"*, not *"no information at all"* -- and a person who has hidden the
+        // ribbon has no other way to find out where they are in the document.
+        readingMode_ = true;
+    } else {
+        readingMode_ = false;
+
+        // NOTHING RECORDED MEANS NOTHING TO RESTORE, which is the state a window is in if reading
+        // mode was never entered -- a `setReadingMode(false)` from a restored session, say. Putting
+        // a default window together here would be this function inventing a layout.
+        if (beforeReading_.active) {
+            if (header_) header_->setVisible(beforeReading_.header);
+            if (logPane_) logPane_->setVisible(beforeReading_.logPane);
+            if (sidebar_ && beforeReading_.sidebar) {
+                if (!beforeReading_.sidebarFloating)
+                    addDockWidget(beforeReading_.sidebarArea, sidebar_);
+                sidebar_->show();
+                if (beforeReading_.sidebarWidth > 0) {
+                    resizeDocks({sidebar_}, {beforeReading_.sidebarWidth}, Qt::Horizontal);
+                }
+            }
+        }
+        beforeReading_ = ChromeState{};
+    }
+
+    // The strips stand in for a collapsed pane, and in reading mode there is no pane to summon:
+    // showing a 24-pixel bar at the edge of a window whose whole point is the page would be the
+    // chrome coming back one widget at a time.
+    updateAutoHideStrips();
+    if (actionFactory_) actionFactory_->refresh();
+}
+
+DocumentPropertiesDialog::Properties MainWindow::documentProperties() const
+{
+    DocumentPropertiesDialog::Properties properties;
+
+    const DocumentWindow* document = currentDocument();
+    if (document == nullptr) return properties;
+
+    const core::DocumentHandle handle = document->handle();
+    properties.encrypted = document->isProtected();
+
+    if (const core::Metadata* info = services_.backend.metadata(handle)) properties.info = *info;
+
+    // THE IDENTITY TAKEN AT OPEN, not a fresh `QFileInfo` (D3-16). A second read here would
+    // describe a file that may have changed since and would disagree with the document on screen --
+    // and after a save `adoptRevision` has already replaced this with the identity of the bytes now
+    // on disk, so it stays right rather than going stale.
+    if (const core::DocumentId* id = services_.backend.documentId(handle)) {
+        properties.path = id->path;
+        properties.fileSize = id->size;
+    }
+    if (properties.path.isEmpty()) properties.path = document->path();
+
+    if (const core::RepairReport* repair = services_.backend.repairReport(handle))
+        properties.repaired = !repair->isEmpty();
+
+    // THE MODEL'S TREE, through the view, so an UNSAVED rotation is reflected in the page size this
+    // dialog reports. Asking the backend would give the engine's tree, which is the bytes that were
+    // loaded -- correct for the file and wrong for the document on screen (D3-15).
+    if (const PageView* view = document->view()) {
+        properties.pageCount = view->pageCount();
+        properties.currentPage = view->controller().currentPage();
+        if (const core::PageTree* tree = view->pages()) {
+            if (const core::Page* page = tree->at(properties.currentPage)) {
+                properties.currentPageLabel = page->label();
+                properties.currentPageSize = page->displaySize();
+            }
+        }
+    }
+
+    return properties;
+}
+
+void MainWindow::showDocumentProperties()
+{
+    if (currentDocument() == nullptr) return;
+    if (!DocumentPropertiesDialog::canAsk()) return;
+
+    DocumentPropertiesDialog dialog(documentProperties(), this);
+    dialog.exec();
 }
 
 void MainWindow::promptForFiles()

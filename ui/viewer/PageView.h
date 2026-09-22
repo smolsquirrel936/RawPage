@@ -40,6 +40,7 @@
 #define RAWPAGE_UI_VIEWER_PAGEVIEW_H
 
 #include "core/backend.h"
+#include "core/doc/Destinations.h"
 #include "core/doc/Revision.h"
 #include "core/render/PagePresentation.h"
 #include "core/render/RenderRequest.h"
@@ -135,6 +136,12 @@ public:
     void modelChanged(core::Revision revision);
 
     core::DocumentHandle document() const noexcept { return document_; }
+
+    // The MODEL's page tree -- the one layout reads, whose rotations include the unsaved ones. Null
+    // where no document is set. Exposed at S4 T12 for the page LABELS: the status bar and the
+    // *Go to Page* box both need them, and the alternative was the shell asking the backend for a
+    // tree the view is already holding and which may be the journal's rather than the engine's.
+    const core::PageTree* pages() const noexcept { return pages_; }
     core::Revision revision() const noexcept { return revision_; }
     int pageCount() const;
 
@@ -175,6 +182,21 @@ public:
     void goToPage(int pageIndex);
 
     void setFitMode(FitMode fit);
+
+    // WHERE THIS VIEW'S CONTENT BOXES COME FROM -- S4 T12, D4-14. Installed by
+    // `ui/shell/DocumentWindow` over `core::IDocumentBackend::contentBox()`; unset in a widget case
+    // that does not care, which gets Fit Visible's CropBox fallback rather than a crash.
+    void setContentBoxSource(PageLayoutEngine::ContentBoxSource source);
+
+    // GO TO A DESTINATION, FIT AND ALL -- S4 T12, closing **I-05**. T6's panes could reach the
+    // destination's PAGE and deliberately did not guess its view; this is the arithmetic they were
+    // waiting for, and it is here rather than in either pane because a bookmark and a named
+    // destination pointing at the same place must land in the same place.
+    //
+    // An unresolved destination moves nothing at all: a pane shows it as broken (`core/doc/
+    // Destinations.h`) and a viewer that scrolled to page 0 instead would be the product deciding
+    // the document meant something it did not say.
+    void goToDestination(const core::Destination& destination);
 
     // ---- The §8 Viewer operations (T14) -------------------------------------------------------
     // Each is the BEHAVIOUR behind one registered command, and each is a public method rather than
@@ -317,6 +339,22 @@ private:
     int pageStep(int from, int direction) const;
 
     core::DeviceSize viewportSizeInDevicePixels() const;
+
+    // S4 T12. Puts the rectangle Fit Visible measured under the viewport's top-left corner, and
+    // puts a destination's PDF-space point there. Both go through `PageLayout::toContent`, which
+    // is the one place that knows PDF's y grows upwards and that a CropBox's origin need not be
+    // (0,0) -- a second conversion written here would be a second reader to keep in agreement, and
+    // a wrong one scrolls the reader silently to the wrong place.
+    // WHICH PAGE FIT VISIBLE IS ANCHORED TO, or -1 when the mode is not Visible. See the long note
+    // in `PageView.cpp`'s `refresh()`: Fit Visible's zoom is per page by definition (D4-14), and a
+    // fit re-satisfied against the drifting current page feeds back into the layout that decides
+    // which page is current. Anchoring breaks the loop -- and it is also what a reader expects, a
+    // zoom that stays put while they scroll.
+    int visibleFitPage_ = -1;
+
+    void scrollToFitRect(int pageIndex);
+    void scrollToPagePoint(int pageIndex, double pdfCoordinate, bool horizontal);
+    void scrollToPageXY(int pageIndex, std::optional<double> pdfX, std::optional<double> pdfY);
 
     // Scroll by one step, and IF THE SCROLL WAS ALREADY AT THE LIMIT, turn the page instead --
     // landing at the near edge of the new page so the gesture reads as continuing rather than as

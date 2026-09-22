@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QFileInfo>
 
+#include <algorithm>
 #include <mutex>
 #include <vector>
 
@@ -326,6 +327,113 @@ void* PdfiumDocument::formHandle() const noexcept
 int PdfiumDocument::pageCount() const noexcept
 {
     return pages_.count();
+}
+
+core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
+{
+    const core::Page* page = pages_.at(pageIndex);
+    if (page == nullptr) {
+        return core::Error{core::ErrorCode::InvalidArgument,
+                           QLatin1String("error.render.noSuchPage"),
+                           QString::number(pageIndex)};
+    }
+
+    // THE CACHE IS CONSULTED AND WRITTEN UNDER ITS OWN LOCK, and the engine is called with that
+    // lock RELEASED. Holding both across `FPDF_LoadPage` would put the map's mutex inside the
+    // process-wide engine lock, and every other caller of the map would then wait behind whatever
+    // PDFium is doing on the render thread. The cost is that two threads asking about the same
+    // uncached page may both compute it; the answer is identical, so the loser merely writes what
+    // the winner wrote.
+    {
+        const std::lock_guard<std::mutex> guard(contentBoxMutex_);
+        const auto found = contentBoxes_.find(pageIndex);
+        if (found != contentBoxes_.end()) {
+            if (!found->second.has_value()) {
+                return core::Error{core::ErrorCode::NotFound,
+                                   QLatin1String("error.render.pageHasNoContent"),
+                                   QString::number(pageIndex)};
+            }
+            return *found->second;
+        }
+    }
+
+    std::optional<core::PdfRect> computed;
+    {
+        const std::lock_guard<std::mutex> guard(engineLock());
+        FPDF_DOCUMENT document = engine_->document;
+        if (document == nullptr) {
+            return core::Error{core::ErrorCode::Unavailable,
+                               QLatin1String("error.render.documentClosed")};
+        }
+
+        FPDF_PAGE loaded = FPDF_LoadPage(document, pageIndex);
+        if (loaded == nullptr) {
+            // A page that will not load is the same state the page tree already records as a
+            // zero-sized entry. It is not a content box of zero -- it is an absence, and the fit
+            // falls back exactly as it does for an empty page.
+            return core::Error{core::ErrorCode::NotFound,
+                               QLatin1String("error.render.pageHasNoContent"),
+                               QString::number(pageIndex)};
+        }
+
+        // THE UNION OF THE OBJECTS' BOUNDS. `FPDFPageObj_GetBounds` is the axis-aligned bound of
+        // one object AFTER its own matrix, which is what a fit wants: the tighter quadpoint form
+        // (`FPDFPageObj_GetRotatedBounds`) answers only for text and images, so a page with a
+        // rotated path would silently lose it.
+        //
+        // An object whose bounds the engine declines to report is SKIPPED rather than treated as a
+        // zero rectangle at the origin -- a single such object would otherwise drag the content box
+        // down to the page's bottom-left corner and make Fit Visible fit the whole sheet plus the
+        // margin nobody asked about.
+        const int objects = FPDFPage_CountObjects(loaded);
+        for (int i = 0; i < objects; ++i) {
+            FPDF_PAGEOBJECT object = FPDFPage_GetObject(loaded, i);
+            if (object == nullptr) continue;
+
+            float left = 0.0F;
+            float bottom = 0.0F;
+            float right = 0.0F;
+            float top = 0.0F;
+            if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
+
+            const core::PdfRect bounds = rectFrom(left, bottom, right, top);
+            if (!computed.has_value()) {
+                computed = bounds;
+                continue;
+            }
+            const double x0 = std::min(computed->left(), bounds.left());
+            const double y0 = std::min(computed->bottom(), bounds.bottom());
+            const double x1 = std::max(computed->right(), bounds.right());
+            const double y1 = std::max(computed->top(), bounds.top());
+            computed = core::PdfRect{core::PdfPoint{x0, y0}, core::PdfSize{x1 - x0, y1 - y0}};
+        }
+
+        FPDF_ClosePage(loaded);
+    }
+
+    // **INTERSECTED WITH THE CROPBOX, for `core::Page`'s own rule.** Ink outside the crop is not
+    // drawn, and a content box that included it would make Fit Visible zoom out to show something
+    // the reader cannot see -- which is worse than the CropBox fit it replaces.
+    // `corpus/ordinary/cropbox-margins.pdf` has its ink well inside, so this clause is exercised by
+    // files that bleed rather than by the case that proves the feature.
+    if (computed.has_value()) {
+        const core::PdfRect clipped = core::intersect(*computed, page->cropBox());
+        computed = (clipped.size.width > 0.0 && clipped.size.height > 0.0)
+                       ? std::optional<core::PdfRect>{clipped}
+                       : std::nullopt;
+    }
+
+    {
+        const std::lock_guard<std::mutex> guard(contentBoxMutex_);
+        contentBoxes_[pageIndex] = computed;
+    }
+
+    if (!computed.has_value()) {
+        return core::Error{core::ErrorCode::NotFound,
+                           QLatin1String("error.render.pageHasNoContent"),
+                           QString::number(pageIndex)};
+    }
+    return *computed;
 }
 
 core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::open(

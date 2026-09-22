@@ -89,6 +89,10 @@ public:
     // real PDF reaches it; `corpus/malformed/objstm-corrupt.pdf` did, for as long as nothing refused.
     int pagesPerDocument = 3;
 
+    // S4 T12. Page index -> logical label, applied at `open()`. A document with roman front matter
+    // has two page 1s, and this is how a widget case gets one without an engine.
+    std::map<int, QString> pageLabels;
+
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
     {
         // The shape the shipped backend reports after Stage 2, so a widget written against this
@@ -112,6 +116,11 @@ public:
         for (int i = 0; i < pagesPerDocument; ++i) {
             built.emplace_back(i, core::PdfRect{core::PdfPoint{0.0, 0.0},
                                                 core::PdfSize{595.276, 841.89}});
+            // S4 T12: `/PageLabels`, for the cases about the page box and the status bar. Empty is
+            // the ordinary state and is what every case that does not set one gets -- the same
+            // shape a document with no `/PageLabels` has, which is most of them.
+            const auto labelled = pageLabels.find(i);
+            if (labelled != pageLabels.end()) built.back().setLabel(labelled->second);
         }
         trees[handle.id] = std::make_unique<core::PageTree>(std::move(built));
         if (editable) {
@@ -190,6 +199,41 @@ public:
         return &transitions_;
     }
     core::PageTransitions& transitions() noexcept { return transitions_; }
+
+    // S4 T12 (D4-14). PUBLIC and settable for the same reason as the transitions above: there is no
+    // engine here to union any objects, and the fit cases need a document whose content box is a
+    // KNOWN rectangle strictly inside its CropBox so that Fit Visible and Fit Page can be told
+    // apart by their zooms (guide case A-68's widget half).
+    //
+    // A page with no entry answers `NotFound`, which is the empty-page answer the real backend
+    // gives and the one `core/render/FitPolicy` falls back to the CropBox for -- so the fallback is
+    // reachable from here as well, which is what makes its control a case rather than a claim.
+    core::Result<core::PdfRect> contentBox(core::DocumentHandle handle, int pageIndex) override
+    {
+        ++contentBoxReads;
+        if (trees.find(handle.id) == trees.end()) {
+            return core::Error{core::ErrorCode::InvalidArgument,
+                               QLatin1String("error.backend.badHandle")};
+        }
+        const auto found = contentBoxes_.find(pageIndex);
+        if (found == contentBoxes_.end()) {
+            return core::Error{core::ErrorCode::NotFound,
+                               QLatin1String("error.backend.noPageContent")};
+        }
+        return found->second;
+    }
+
+    void setContentBox(int pageIndex, core::PdfRect box) { contentBoxes_[pageIndex] = box; }
+    void clearContentBoxes() { contentBoxes_.clear(); }
+
+    // How many times a caller asked. Guide case A-67's *asking twice calls the engine once* is the
+    // BACKEND's claim and is asserted against the real one; this counter is what lets a widget case
+    // say how often the widget asked, which is a different question and worth its own number.
+    mutable int contentBoxReads = 0;
+
+    // Keyed by PAGE INDEX and not by handle: every case that sets one drives a single document, and
+    // a second key would be two things to get right in a fixture whose whole job is to be obvious.
+    std::map<int, core::PdfRect> contentBoxes_;
 
     // S4 T6: how many times a caller ASKED for each model. Guide case A-30 claims the readers are
     // hydrated once at open and that showing a pane re-reads nothing; the `pdf/render/` half of

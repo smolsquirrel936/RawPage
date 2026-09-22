@@ -166,6 +166,13 @@ add_library(rawpage_core STATIC
     render/PagePresentation.h
     render/PagePresentation.cpp
 
+    # S4 T12 -- WHICH RECTANGLE A FIT MEASURES (D4-14), and the zoom that satisfies it. It is here
+    # rather than in ui/viewer/PageLayoutEngine, where it lived, because the observable I-28 names
+    # is a number read off a real file and only rawpage_render_tests can open one -- and that target
+    # links no widgets. The file's own header argues it.
+    render/FitPolicy.h
+    render/FitPolicy.cpp
+
     # T11 -- the cache and the scheduler. RenderCache is pure and single-threaded by construction
     # (only the pumping thread touches it); RenderScheduler owns the worker threads, and its header
     # is where issue I-05 is closed -- ONE render thread with a queue, chosen on T3's measurement.

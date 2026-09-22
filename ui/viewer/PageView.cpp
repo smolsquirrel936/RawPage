@@ -233,6 +233,180 @@ void PageView::setPresentationOptions(core::render::PresentationOptions options)
 void PageView::setFitMode(FitMode fit)
 {
     controller_->setFitMode(fit);
+
+    // THE ANCHOR, set where the mode is chosen -- see `refresh()`.
+    visibleFitPage_ = (fit == FitMode::Visible) ? controller_->currentPage() : -1;
+
+    // **FIT VISIBLE IS A ZOOM AND A SCROLL** (D4-14). Every other fit leaves the page's own corner
+    // under the viewport's, and that is where the thing being fitted is. The content box is not:
+    // on `corpus/ordinary/cropbox-margins.pdf` it sits 72 pt inside the CropBox, which is itself
+    // 72 pt inside the sheet, so a Fit Visible that only zoomed would size the ink correctly and
+    // then show the reader the margin above and to the left of it.
+    //
+    // Done HERE and not in `refresh()`, which runs on every scroll, resize and tile arrival: a fit
+    // that re-centred itself on each of those would drag the viewport back the moment anybody
+    // scrolled, and the mode has to survive a resize without owning the scroll position.
+    if (fit == FitMode::Visible) {
+        refresh();
+        scrollToFitRect(controller_->currentPage());
+    }
+}
+
+void PageView::setContentBoxSource(PageLayoutEngine::ContentBoxSource source)
+{
+    engine_.setContentBoxSource(std::move(source));
+}
+
+void PageView::scrollToFitRect(int pageIndex)
+{
+    const std::optional<core::PdfRect> rect = engine_.fitRect(FitMode::Visible, pageIndex);
+    if (!rect.has_value()) return;
+
+    // THE BOX'S TOP-LEFT IN PDF SPACE IS (left, top), because PDF's y grows UPWARDS and a device
+    // rectangle's origin is its TOP-left. `PageLayout::toContent` is what knows that, along with
+    // the page's rotation and a CropBox whose origin is not (0,0) -- which is why this is one call
+    // and not four multiplications, and why `cropbox-margins.pdf` (origin 72,72) is the file that
+    // would have caught the four multiplications.
+    const auto corner = engine_.layout().toContent(pageIndex, core::PdfPoint{rect->left(), rect->top()});
+    if (!corner.has_value()) return;
+
+    const double margin = engine_.options().margin;
+    controller_->setScroll(core::DevicePoint{corner->x - margin, corner->y - margin});
+    refresh();
+}
+
+void PageView::goToDestination(const core::Destination& destination)
+{
+    // **I-05, CLOSED.** T6's panes carried the fit and did not apply it, and said so at their own
+    // headers: the arithmetic needed the page's slot rectangle and the resolution that produced it,
+    // which is what this task built for Fit Visible.
+    if (!destination.isResolved()) return;
+    if (pageCount() <= 0) return;
+
+    const int target = std::clamp(destination.pageIndex, 0, pageCount() - 1);
+
+    // **THE ZOOM BEFORE THE PAGE, AND THIS ORDER IS LOAD-BEARING.** The obvious arrangement is the
+    // other way round -- go to the page, then apply the fit -- and it is wrong twice over, and both
+    // wrongs were measured rather than reasoned about.
+    //
+    //   1. `goToPage` computes its scroll offset from the layout AS IT IS, and a fit applied
+    //      afterwards re-lays the document out at a different zoom -- so that offset now points at a
+    //      different page, and `refresh()`'s dominant-page snap reports THAT page as current. The
+    //      first version of this method did exactly that and a bookmark to page 2 landed on page 4.
+    //   2. A fit is re-satisfied for whichever page is CURRENT, so once the snap has moved the
+    //      current page the zoom is recomputed for a page the reader did not ask for. That is how a
+    //      `/FitB` destination came out at the whole page's zoom with the content box never read.
+    //
+    // So: name the page, apply the fit, let one `refresh()` settle the zoom and the layout together,
+    // and only then navigate -- by which time `goToPage`'s arithmetic is over a layout that already
+    // matches the zoom it will keep.
+    controller_->setCurrentPage(target);
+
+    switch (destination.fit) {
+    case core::Destination::Fit::Fit:
+        // `/Fit` is the whole page and `/FitB` is its content bounding box -- which is precisely the
+        // pair `FitMode::Page` and `FitMode::Visible` now are, so each is one line rather than a
+        // second implementation of D4-14.
+        controller_->setFitMode(FitMode::Page);
+        visibleFitPage_ = -1;
+        break;
+    case core::Destination::Fit::FitB:
+        controller_->setFitMode(FitMode::Visible);
+        visibleFitPage_ = target;
+        break;
+    case core::Destination::Fit::FitH:
+    case core::Destination::Fit::FitBH:
+        controller_->setFitMode(FitMode::Width);
+        break;
+    case core::Destination::Fit::FitV:
+    case core::Destination::Fit::FitBV:
+        controller_->setFitMode(FitMode::Height);
+        break;
+    case core::Destination::Fit::XYZ:
+        // **A NULL IS "KEEP WHAT YOU HAVE", NOT ZERO** (`core/doc/Destinations.h`). `/XYZ null null
+        // null` is the commonest destination a producer writes and means *go to this page and change
+        // nothing else*; reading the three absent values as 0 would scroll every such link to the
+        // page's bottom-left corner at 8 % zoom.
+        //
+        // A zoom of 0 is ALSO "keep what you have" -- ISO 32000-1 §12.3.2.2 says so in as many
+        // words, and a file that writes `/XYZ 72 720 0` is asking for a position and not for a zoom
+        // of nothing.
+        if (destination.hasZoom && destination.zoom > 0.0) setZoom(core::render::Zoom{destination.zoom});
+        break;
+
+    case core::Destination::Fit::FitR:
+        // `/FitR` fits a rectangle, and the rectangle is carried in four numbers where `/XYZ` uses
+        // two. `core::Destination` has no fields to hold the other two, so the rectangle is not read
+        // and this lands on the page at the current zoom -- the same honest partial `Unknown` gets.
+        // Stage 7 owns the editing half of both tables and is where the vocabulary would grow;
+        // recorded here rather than guessed at.
+    case core::Destination::Fit::Unknown:
+        break;
+    }
+
+    // ONE REFRESH TO SETTLE THE ZOOM, over the page named above. Its own dominant-page snap may move
+    // the current page as it goes -- the scroll still points into the old layout -- and that does not
+    // matter: `goToPage` below names the page again, in a layout that is now at the right zoom.
+    refresh();
+
+    // THE PAGE, through the one path every other navigation takes -- so a destination and a
+    // `Ctrl+G` land in the same place and one history entry is recorded for the jump.
+    goToPage(target);
+
+    // AND THEN WHERE ON THE PAGE. Each of these is the destination's own refinement of the page
+    // top `goToPage` just scrolled to, and each is skipped where the file said *keep what you have*.
+    switch (destination.fit) {
+    case core::Destination::Fit::FitB:
+        scrollToFitRect(target);
+        break;
+    case core::Destination::Fit::FitH:
+    case core::Destination::Fit::FitBH:
+        // The `top` rides in `y` and is optional: `/FitH null` means *keep the current vertical
+        // position*, which is what `hasY` false says and what leaving the scroll alone does.
+        if (destination.hasY) scrollToPagePoint(target, destination.y, false);
+        break;
+    case core::Destination::Fit::FitV:
+    case core::Destination::Fit::FitBV:
+        if (destination.hasX) scrollToPagePoint(target, destination.x, true);
+        break;
+    case core::Destination::Fit::XYZ:
+        if (destination.hasX || destination.hasY) {
+            scrollToPageXY(target,
+                           destination.hasX ? std::optional<double>{destination.x} : std::nullopt,
+                           destination.hasY ? std::optional<double>{destination.y} : std::nullopt);
+        }
+        break;
+    case core::Destination::Fit::Fit:
+    case core::Destination::Fit::FitR:
+    case core::Destination::Fit::Unknown:
+        break;
+    }
+}
+
+void PageView::scrollToPagePoint(int pageIndex, double pdfCoordinate, bool horizontal)
+{
+    scrollToPageXY(pageIndex, horizontal ? std::optional<double>{pdfCoordinate} : std::nullopt,
+                   horizontal ? std::nullopt : std::optional<double>{pdfCoordinate});
+}
+
+void PageView::scrollToPageXY(int pageIndex, std::optional<double> pdfX, std::optional<double> pdfY)
+{
+    const core::Page* page = pages_ ? pages_->at(pageIndex) : nullptr;
+    if (page == nullptr) return;
+
+    // The axis that was not given keeps the page's own edge, so the conversion has a whole point to
+    // work with while only the given axis moves the viewport.
+    const core::PdfRect crop = page->cropBox();
+    const core::PdfPoint target{pdfX.value_or(crop.left()), pdfY.value_or(crop.top())};
+
+    const auto content = engine_.layout().toContent(pageIndex, target);
+    if (!content.has_value()) return;
+
+    const double margin = engine_.options().margin;
+    const core::DevicePoint now = controller_->scroll();
+    controller_->setScroll(core::DevicePoint{pdfX.has_value() ? content->x - margin : now.x,
+                                            pdfY.has_value() ? content->y - margin : now.y});
+    refresh();
 }
 
 void PageView::zoomIn()
@@ -248,6 +422,7 @@ void PageView::zoomOut()
 void PageView::setZoom(core::render::Zoom zoom)
 {
     controller_->setFitMode(FitMode::None);
+    visibleFitPage_ = -1;
     controller_->setZoom(zoom);
 }
 
@@ -521,6 +696,26 @@ void PageView::goToPage(int pageIndex)
     controller_->setCurrentPage(target);
     pageIndex = target;
 
+    // **THE ZOOM IS SETTLED BEFORE THE PAGE IS MEASURED, and only where a fit is active.** A fit is
+    // re-satisfied on every `refresh()` against whichever page is CURRENT, so a fit whose zoom
+    // depends on the page changes the layout underneath a scroll offset taken from the old one --
+    // and the dominant-page snap at the end of that refresh then reports a page nobody navigated to.
+    //
+    // It was invisible until T12. Fit Page and Fit Width give every page of a uniform document the
+    // same zoom, so the stale offset was never stale by anything; **Fit Visible's zoom is per page
+    // by definition** (D4-14), and the first version of this task's destination path walked a
+    // bookmark to page 2 onto page 4 through exactly this feedback -- fit, re-layout, snap, re-fit.
+    //
+    // Guarded on the fit mode rather than run always: with no fit the zoom cannot move, the layout
+    // cannot change, and a second `refresh()` per arrow key would be a tile pass nobody needs.
+    if (controller_->fitMode() != FitMode::None) {
+        // The anchor moves WITH the navigation: going to a page in Fit Visible means fitting THAT
+        // page's content, which is the whole gesture.
+        if (controller_->fitMode() == FitMode::Visible) visibleFitPage_ = target;
+        refresh();
+        controller_->setCurrentPage(target);   // the snap inside that refresh may have moved it
+    }
+
     if (const core::render::PageSlot* slot = engine_.layout().slotForPage(pageIndex)) {
         // The page's top, minus the margin, so the page does not sit flush against the top edge.
         controller_->setScroll(core::DevicePoint{controller_->scroll().x,
@@ -552,9 +747,30 @@ void PageView::refresh()
     // width" means, and a viewer that stored the zoom would stop fitting the moment the window
     // moved -- which is the whole point of a fit being a mode rather than a value.
     if (controller_->fitMode() != FitMode::None) {
+        // **WHICH PAGE THE FIT MEASURES, and why Fit Visible does not use the current one.**
+        //
+        // A fit is re-satisfied here on every refresh -- that is what makes it a mode rather than a
+        // remembered number, and what makes it survive a window resize. It measures the CURRENT
+        // page, which is right for Fit Page and Fit Width: on a uniform document every page gives
+        // the same zoom, and on a mixed one following the page a reader is on is the point.
+        //
+        // **Fit Visible is different in kind** (D4-14): its rectangle is the page's own ink, so its
+        // zoom genuinely differs page by page even in a uniform document. That closes a loop --
+        // zoom decides the layout, the layout decides which page is dominant, the dominant page
+        // decides the zoom -- and the loop was measured, not imagined: a `/FitB` destination to
+        // page 1 settled on page 4's fallback zoom, and a bookmark to page 2 landed on page 4.
+        //
+        // So Fit Visible is ANCHORED to the page it was set for, and the anchor moves only when a
+        // navigation moves it. The zoom is then stable, the layout is stable, and the snap has
+        // nothing to feed back into -- and a reader scrolling through a document in Fit Visible
+        // keeps the zoom they chose instead of having it jump at every page boundary.
+        const int fitPage = (controller_->fitMode() == FitMode::Visible && visibleFitPage_ >= 0)
+                                ? visibleFitPage_
+                                : controller_->currentPage();
+
         const core::render::Zoom fitted =
-            engine_.zoomForFit(controller_->fitMode(), controller_->viewportSize(),
-                               controller_->currentPage(), metrics, controller_->zoom());
+            engine_.zoomForFit(controller_->fitMode(), controller_->viewportSize(), fitPage,
+                               metrics, controller_->zoom());
 
         // Written through the private path so the mode is not cleared: `setZoom` keeps the mode,
         // `zoomIn`/`zoomOut`/`zoomAbout` clear it, because those are the user choosing a number.

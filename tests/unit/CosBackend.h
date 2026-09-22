@@ -135,6 +135,15 @@ public:
         return &transitions_;
     }
 
+    // S4 T12 (D4-14): this fake has no engine and therefore no objects to bound. An explicit
+    // not-implemented, never an empty rectangle -- `core/backend.h`'s rule, and the difference
+    // between *this build does not do that* and *the page is blank*, which `FitPolicy` treats
+    // differently only because the two are distinguishable here.
+    core::Result<core::PdfRect> contentBox(core::DocumentHandle, int) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "contentBox");
+    }
+
     core::Outline outline_;
     core::Destinations destinations_;
     core::Metadata metadata_;

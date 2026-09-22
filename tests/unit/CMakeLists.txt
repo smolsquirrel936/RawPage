@@ -51,6 +51,12 @@ add_executable(rawpage_tests
     # tests/ui/tst_rulers.cpp's half.
     tst_snap.cpp
 
+    # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
+    # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,
+    # and the assertion is on the NUMBER rather than on the mode -- the whole of I-28's lesson. The
+    # engine half, where a real page's objects are unioned, is tests/render/tst_contentbox.cpp.
+    tst_fitpolicy.cpp
+
     # S4 T4 -- the read-only models VOCABULARY: counting a tree, finding a name, parsing a PDF
     # date. The claims about real documents are tests/render/tst_docmodels.cpp's, because they are
     # claims about a READER and this target may never link the engine.

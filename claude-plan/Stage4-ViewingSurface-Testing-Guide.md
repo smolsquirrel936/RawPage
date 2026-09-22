@@ -8,14 +8,17 @@
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
 > partly run.** **80 automated** (A-01 … A-79, plus **A-66(a)**, which T11 added with A2's named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **56 of the 80 carry
-> a result** as of 2026-09-21 (re-derived from this file: 80 case headers, 24 still boxed) — T1's
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **62 of the 80 carry
+> a result** as of 2026-09-23 (re-derived from this file: 80 case headers, 18 still boxed) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
 > substitution it names — **I-07**), **T9's four split cases**, **T10's seven full-screen and
-> presentation cases** and **T11's four arranger cases**. **No manual case has been walked.** §8 holds seven issues: **I-01 and I-05 open, both S3, and I-07 open, S4**;
-> I-02, I-03, I-04 and I-06 closed.
+> presentation cases**, **T11's four arranger cases** and **T12's six** — A-67 … A-70 plus **A-11
+> and A-29, both of which had been recorded amber or grey because the observable they were written
+> against did not exist until T12 built it**. **No manual case has been walked.** §8 holds eight
+> issues: **I-01 open (S3) and I-07 open (S4)**; I-02, I-03, I-04, I-05, I-06 and I-08 closed —
+> **I-05 at T12, which is the task this guide named as its owner**.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -288,7 +291,8 @@ green its cases did not record.
 **Steps** `python corpus/make-corpus.py --verify`, `--check-provenance`, `--self-test`.
 **Expect** All three exit 0; **70 files**, 70 `PROVENANCE.md` rows; every existing file byte-unchanged (`git status`). Each new file's row says what fault or feature it carries. **If it fails** S2.
 
-**A-11 · `cropbox-margins.pdf` separates the three rectangles** ☐
+**A-11 · `cropbox-margins.pdf` separates the three rectangles**
+✅ **Closed 2026-09-23 at T12**, when the observable it was written against finally existed. `tests/render/tst_contentbox.cpp` reads all three rectangles through `PdfiumDocument::pages()` and `PdfiumDocument::contentBox(0)` and asserts each **strictly inside the last by at least 36 pt**, which the fixture's 72 pt clears twice over. The amber note below is kept rather than replaced, because *why a case could not run* is the part that goes stale silently.
 🟡 **2026-09-19, T1 — the fixture is built and measured; the CASE is owed to T12 and this box stays unticked.** From the bytes: `/MediaBox [ 0 0 595.276 841.89 ]`, `/CropBox [ 72 72 523.276 769.89 ]`, ink confined to `144 160 451.276 681.89` — **72 pt between each rectangle and the next on every side, twice the 36 pt this case requires**. That the engine honours the crop is measured rather than assumed: `golden-update --survey` reports the page as **602×931 px at 96 dpi**, which is the CropBox, not the 794×1123 sheet. **Why it is not run:** these Steps name a `render.` case reading a **content box**, and `core/backend.h` has no box accessor of any kind until **T12** builds one (D4-14) — so the observable this case is written against does not exist yet, and a tick here would be the intent-for-effect substitution §1 forbids. *(The ink claim was checked against the RENDERED baseline, not the generator: the first capture showed body text spilling across the whole sheet — see the status block's T1 deviation (b).)*
 **Goal** The fixture Stage 2's **I-28** said did not exist.
 **Steps** A `render.` case reads the page's media box, crop box and content box.
@@ -379,7 +383,8 @@ green its cases did not record.
 **Steps** `tst_metadata` over a file with `/Info`, one without, and one whose `/Info` holds a malformed date.
 **Expect** Every Info field read as text; a missing `/Info` is empty rather than an error; a malformed date is shown as it was stored rather than invented. **The case states that no XMP is read** (D4-4). **If it fails** S3; S2 for a field invented.
 
-**A-29 · Page labels, and the page box that reads them** ☐
+**A-29 · Page labels, and the page box that reads them**
+✅ **2026-09-23, T12**, in `tests/ui/tst_properties.cpp` over a fake document shaped like `outline-labels.pdf` — roman front matter then arabic body from index 3, so **the fourth page is called "1"**. The status bar's box shows the **label**, and the total carries the physical index beside it (`of 8 (page 4)`) — and does not when the label IS the physical number, where *"of 8 (page 8)"* would be noise. *Go to Page* resolves `iii` to index 2 and `A-2` to index 7, neither of which an integer parse could ever reach. **`1` goes to index 3**: the label wins over the physical number, which is a decision with a cost stated at `StatusBar`'s declaration — the box DISPLAYS the label, so typing what was just read must land where it was read, and the physical page whose number collides with a label is then reachable only by its label. **What the case asserts that this guide's wording did not anticipate:** `iv` and `A-12` **are not in `outline-labels.pdf`** — its front matter stops at `iii` and it carries no prefixed label — so what is proved is the half that matters, that a label-shaped input is ACCEPTED as a label query and REFUSED without scrolling rather than parsed as a number or silently ignored. The control is a document with no labels at all, where typing `5` still goes to physical page 5, which is every document before this task and most after it.
 ⚪ **Not T4's, and not owed by it — recorded here so its ☐ is not read as a gap.** Page labels are already read into `core/doc/PageTree` (Stage 2), and everything this case asserts is a SURFACE: the status bar showing the label beside the physical index, and *Go to Page* accepting `iv` and `A-12`. The plan's §6 gives both to **T12**, which is where this case will be run.
 **Goal** §1.4's *jump by logical page label*, on the file `PROVENANCE.md` says exists for it.
 **Expect** Over `outline-labels.pdf`, index 3 is labelled **"1"**; the status bar shows the label and the physical index; *Go to Page* accepts `iv` and `A-12` as well as a number, and an unknown label is refused without moving the view. **If it fails** S2.
@@ -774,18 +779,26 @@ also reports from the other side, still one command on the stage's eighth task a
 
 ### 5.13 Fit Visible, Document Properties, reading mode (T12)
 
-**A-67 · The content box is the union of the page's objects, and it is cached** ☐
+**A-67 · The content box is the union of the page's objects, and it is cached**
+✅ **2026-09-23, T12**, across `tests/render/tst_contentbox.cpp` and `tests/unit/tst_fitpolicy.cpp`. **Inside and TIGHT:** over `cropbox-margins.pdf` the box is strictly inside the CropBox by more than 36 pt on every side *and* occupies under 60 % of the sheet's area — both assertions, because a "content box" that had quietly come back as the CropBox would pass the first and fail the second. **The empty page:** page 2 of that same file is a well-formed page with a zero-length content stream (T1 built it for this clause), and it answers `ErrorCode::NotFound` — which is a value and not a failure — with the fit then falling back to the **CropBox and asserted NOT the MediaBox**, two rectangles that differ visibly on that file and on no other. `text-a4.pdf` is not used: its ink does not reach its edges either, so it would have proved nothing the first file does not. **Cached:** asking twice returns the identical rectangle, and an empty page asked twice answers `NotFound` twice rather than walking a page that has nothing to walk. **The back door is named** (convention 19): there is no counter on `FPDF_LoadPage` a test may read, because the handle never leaves `pdf/render/` — so *the engine was not called again* rests on the code, which consults the map before taking the engine lock, and **what this case therefore does NOT cover is a cache that is written and never read**; a per-page timing assertion would be a flake. An index outside the tree is `InvalidArgument` and is not cached; a handle the backend did not open is `InvalidArgument` too — a caller error, never an empty page. The unit half covers a content box the engine reported with **no area**, which is the same absence in another spelling.
 **Steps** `tst_contentbox` over `cropbox-margins.pdf`, `text-a4.pdf` and an empty page.
 **Expect** The content box is inside the CropBox and tight around the ink; a page with no objects falls back to the CropBox; asking twice calls the engine once. **If it fails** S2.
 
-**A-68 · `Ctrl+3` produces the CONTENT's zoom — Stage 2's I-28, closed** ☐
+**A-68 · `Ctrl+3` produces the CONTENT's zoom — Stage 2's I-28, closed**
+✅ **2026-09-23, T12 — and the first version of this case PASSED with the defect planted back in, which is the part worth reading.** Over `cropbox-margins.pdf` the three fits give three different zooms and **Fit Visible's is the content's**, asserted against a zoom computed independently from the engine's own content box. *(`tests/render/tst_contentbox.cpp`, with the arithmetic in `tests/unit/tst_fitpolicy.cpp` and the widget half — `Ctrl+3` fitting **and scrolling to** the content box — in `tests/ui/tst_properties.cpp`.)*
+
+**The control, run first and run red only after the case was fixed.** With `fitRect` reverted to returning the CropBox for `FitMode::Visible` — I-28 exactly as it was — the case's original assertions (`visible != page`, `visible > page`) both **held**, because on this file the CropBox is smaller than the sheet, so a Fit Visible still fitting the crop is both different from Fit Page and larger than it. *Three different numbers is a necessary condition and not a sufficient one.* The assertion is now `visible == zoomToFit(content)` with `zoomToFit(crop)` asserted **different** beside it, so the equality cannot be satisfied by the defect it exists to catch; the planted bug then reddens it. **This is convention 7 catching the case rather than the product** — a control that does not fail for the right reason is worse than none — and it is I-28's own lesson arriving a second time, one layer up: the old case asserted `fitMode()` and was green for a month, and this one asserted three inequalities and would have been green too.
+
+**The other control, as the case asks:** a page whose content fills its sheet makes Fit Visible and Fit Page agree. It is **built in the case rather than added to the corpus** — a second generated file would have to regenerate byte-identically forever to prove one equality — and the unit half proves the same over synthetic geometry.
 **Goal** Rule 1, on the case that taught it.
 **Expect** Over `cropbox-margins.pdf`, Fit Page, Fit Visible and Actual Size give **three different zoom factors**, and Fit Visible's is the one that makes the content box fill the viewport. **The assertion is on the zoom, never on `fitMode()`** — the old case asserted the mode and was green for a month. **The control:** on a page whose content fills its CropBox, Fit Visible and Fit Page agree, which is correct and is why the corpus file had to be built. **If it fails** S2, and I-28 stays open in Stage 2's guide.
 
-**A-69 · Document Properties shows what it read, and edits nothing** ☐
+**A-69 · Document Properties shows what it read, and edits nothing**
+✅ **2026-09-23, T12** (`tests/ui/tst_properties.cpp`). Every Info field, the version, the page count, the current page's size **named by its LABEL** where the document has one, the security line, the repaired line, and the path and size — the last two from the identity taken at OPEN (D3-16) rather than a fresh `QFileInfo`, which would describe a file that may have changed since. A date `Metadata::parseDate` refuses is shown **verbatim** and one it accepts is formatted, asserted as two visibly different treatments rather than one lenient one. **Nothing is editable, and that is asserted mechanically**: the dialog contains **no `QLineEdit` at all**, and every value label is selectable and carries no `Qt::TextEditable` — a read-only edit box looks like a field somebody forgot to enable. An absent Info field reads as an em dash rather than as blank, because most generated files have no `/Info` and a blank row looks like a field that failed to load. `mutation-lint` reporting **one command** on this task's day is the *constructs no command* half (D4-1), which is a stronger claim than any assertion in the case. **What this case does NOT do:** it never `exec()`s the dialog — offscreen a modal is shown to nobody and never returns (Stage 1's I-23) — so the widget is constructed and read, and `Ctrl+D`'s reachability is asserted on the REGISTRATION instead, including that it is disabled where there is nobody to ask (convention 16). The *file hash unchanged* clause is met by D4-1's gate rather than by re-hashing: this stage constructs no command, so there is no path from this dialog to a byte.
 **Expect** `Ctrl+D` opens the dialog; every Info field, the version, the page count, the current page's size, the file size and path, and whether the document was repaired or is encrypted; **no field is editable and the dialog constructs no command**; the file's hash is unchanged after opening and closing it. **If it fails** S1 for a change; S3 for a wrong figure.
 
-**A-70 · Reading mode hides the chrome and restores it exactly** ☐
+**A-70 · Reading mode hides the chrome and restores it exactly**
+✅ **2026-09-23, T12** (`tests/ui/tst_properties.cpp`, four cases). `Ctrl+L` hides the header — ribbon and Quick Access Toolbar together — and the docks, and **keeps the window chrome**: the window state is asserted NOT full screen, because reading mode is the chrome and `F11` is the window state (D4-12) and the two compose. **It restores the same window and not a default one:** the sidebar comes back at the width it had (read from the WIDGET, not from `rememberedWidth()` — a person who has just dragged the splitter has a width the dock has not written down yet) and on the edge it was docked to. **The control is the one that separates *restore what was there* from *restore everything*:** a sidebar that was CLOSED before entering reading mode comes back closed, which is the only case in which the two differ. The command toggles and is **enabled with no document open**, deliberately — a person who has just closed their last tab must still be able to get their ribbon back. **One deliberate departure from this case's wording:** the status bar STAYS. `Features.md` §1.2 calls the mode *maximum page area*, not *no information at all*, and somebody who has hidden the ribbon has no other way to find out which page they are on.
 **Expect** `Ctrl+L` hides the ribbon and panes and keeps the window chrome; a second press restores **the same** panes, widths and dock sides. **If it fails** S3.
 
 ### 5.14 Settings, pages, and everything before
@@ -1034,9 +1047,10 @@ uses.
 | **I-02** | **S4** | **Seven new Catch2 case names carried a COMMA, so none could be selected by name** | ✅ **Closed 2026-09-19 at T4**, by renaming them |
 | **I-03** | **S3** | **A Qt 6.5+ API in `core/` broke both Linux jobs: the portable subset builds against Ubuntu's Qt 6.4** | ✅ **Closed 2026-09-19**, and written up as **convention 24** |
 | **I-04** | **S2** | **A pane swallowed `Alt+↑`/`Alt+↓` and moved the selection — a Stage 7 chord doing something plausible and wrong** | ✅ **Closed 2026-09-20 at T5** (Thumbnails) **and again 2026-09-21 at T6** (Bookmarks): one mechanism, two panes, two layers of Qt |
-| **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ⚪ **Open — the arithmetic is T12's (D4-14), and this task did not guess it** |
+| **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ✅ **Closed 2026-09-23 at T12**, by the arithmetic D4-14 promised — and it found a second defect on the way in |
 | **I-06** | **S2** | **Registering `edit.cancel` — §8's `Common` row — swallowed `Esc` application-wide, including the tool finder's mouse-grabbing popup** | ✅ **Closed 2026-09-21 at T7**: the id is left unregistered and `Esc` is handled where the drag is |
 | **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
+| **I-08** | **S3** | **`rawpage_fuzz_seeds` had been compiling at the compiler's DEFAULT language standard, not C++20, since Stage 3 T13** | ✅ **Closed 2026-09-23 at T12**, by the `rawpage_common_flags` call the target never had |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1083,7 +1097,11 @@ For `/Fit`, for `/XYZ` with no coordinates, and for any destination at the top o
 
 **Why no case caught it.** None could: nothing before T6 navigated by destination, and the cases T6 added were written from the plan's *"both panes navigate"*, which this satisfies. It was found by reading `Destination`'s own fields while wiring the pane and noticing that five of its eight were going nowhere.
 
-**What is absent, and who owns it.** There is no conversion from a destination's PDF-space point to a scroll offset, and **this task did not invent one**. It needs the page's slot rectangle in content space and the resolution that produced it — the arithmetic **T12** builds for Fit Visible over the content box (D4-14) — so the repair belongs there, beside the other place in this stage that turns a page-space rectangle into a zoom and a scroll. A second conversion written here would be a second reader to keep in agreement, and a wrong one scrolls the reader silently to the wrong place. The bound is stated at both panes' headers and asserted as a case, so it is visible from the code as well as from this log.
+**CLOSED 2026-09-23 at T12, and the repair went where this entry said it would.** `PageView::goToDestination` applies the fit: `/Fit` and `/FitB` become `FitMode::Page` and `FitMode::Visible` — one line each, because D4-14 had just made Fit Visible *the content bounding box*, which is what `/FitB` means — `/FitH` and `/FitV` become the width and height fits plus a one-axis scroll, and `/XYZ` applies its point and, where it carries one, its zoom. **A null stays *keep what you have*** in every case, including a zoom of 0, which ISO 32000-1 §12.3.2.2 defines that way and which a reader treating as a zoom would take to 8 %. The conversion is `PageLayout::toContent`, which already knew that PDF's y grows upwards and that a CropBox's origin need not be (0,0) — so no second reader was written, which is what this entry asked for.
+
+**AND APPLYING IT EXPOSED A SECOND DEFECT THAT HAD NOTHING TO DO WITH DESTINATIONS.** The first version went to the page and then applied the fit, which is the obvious order and is wrong twice: `goToPage` computes its scroll from the layout as it is, and a fit applied afterwards re-lays the document out at a different zoom, so that offset points at a different page and `refresh()`'s dominant-page snap reports THAT page as current — a bookmark to page 2 landed on page **4**. Then, because a fit is re-satisfied for whichever page is current, the zoom was recomputed for a page nobody had asked for: a `/FitB` destination to page 1 came out at page 4's fallback zoom with the content box never read. **Fit Visible is now ANCHORED to the page it was set for** (`PageView::refresh`'s note argues it), and the loop is gone. The defect was latent for Fit Page and Fit Width the whole time and invisible, because on a uniform document every page gives those the same number — Fit Visible is the first fit in the product whose zoom differs page by page by definition.
+
+**What was absent, and who owned it.** There is no conversion from a destination's PDF-space point to a scroll offset, and **this task did not invent one**. It needs the page's slot rectangle in content space and the resolution that produced it — the arithmetic **T12** builds for Fit Visible over the content box (D4-14) — so the repair belongs there, beside the other place in this stage that turns a page-space rectangle into a zoom and a scroll. A second conversion written here would be a second reader to keep in agreement, and a wrong one scrolls the reader silently to the wrong place. The bound is stated at both panes' headers and asserted as a case, so it is visible from the code as well as from this log.
 
 **I-06 · A `Common`-scoped registration took a key that four unbuilt contexts and one widget needed.** *(Raised and closed 2026-09-21 at T7, by an EXISTING case in another suite rather than by anything T7 wrote.)*
 
@@ -1134,6 +1152,34 @@ the day somebody registers it without giving it a key.
 earlier stage that finds it needs one, which would then be a `SettingsKeys.def` row and two lines of
 painting, since the paint path (`PageView::paintContent`, over the tiles) is already there.
 
+**I-08 · A test helper had been compiling at a different language standard from the rest of the tree.**
+*(Raised and closed 2026-09-23 at T12, by a compile failure in a target this task never touched.)*
+
+**Mechanism.** `cmake/RawPageWarnings.cmake`'s `rawpage_common_flags(target)` is what sets
+`CXX_STANDARD 20`, and `tests/fuzz/seeds/CMakeLists.txt` — added at Stage 3 T13 for
+`rawpage_fuzz_seeds`, the helper that writes the round-trip fuzzer's seeds — never called it. So that
+one target had been compiled at **GCC 13's default standard, `gnu++17`**, on every preset since the
+day it arrived, while every other target in the tree was `-std=c++20`.
+
+**It built anyway, for two days short of a week, because nothing it included needed the difference.**
+`rawpage_core`'s headers propagate as include directories and carry no standard with them, and the
+particular headers this file pulled in used no C++20 feature that C++17 rejects outright.
+
+**How it surfaced.** T12 added `#include "core/Geometry.h"` to `core/backend.h`, because a `PdfRect`
+now crosses that boundary. `core/Geometry.h`'s value types declare `constexpr bool operator==(...)
+const = default`, which is C++20 — so the next build of `RoundtripSeeds.cpp` produced eleven errors
+in `core/Geometry.h` and `core/Units.h` saying *"only available with '-std=c++20'"*, in a file that
+had not changed. **A compile error in someone else's file is the honest form of this defect**; the
+dishonest form is the one that had been running, where a target silently compiles a different
+language from the product it is testing.
+
+**Why no case caught it.** None could, and none should be written to: this is not a property of the
+product but of one `CMakeLists.txt`, and the thing that would catch it is the thing that fixed it —
+every target calling the one function that sets the standard. It is recorded here rather than only in
+the commit because the *class* of defect outlives the instance: **a target that does not call
+`rawpage_common_flags` is not compiling this project's language, and it will build until the day it
+does not.** Fixed with the call; the file's own comment now says why it is there.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
@@ -1153,8 +1199,10 @@ restated as a checklist.
 7. ☐ **The A2-at-Stage-4 verdict is recorded**, bench and product, in `Tech-Stack-Plan.md` §3.3,
    graded on §3's scale **fixed before the measurement**, and `WinAcceleratedSurface`'s FileMap row
    says what was measured rather than what would decide it.
-8. ☐ **Stage 2's I-28 is closed in Stage 2's guide**, with the measurement, and `Ctrl+3` is asserted
-   on a zoom (A-68, M-11).
+8. 🟡 **2026-09-23, T12 — the AUTOMATED half is met and M-11 is still owed.** Stage 2's I-28 is
+   closed in Stage 2's guide, with the measurement, and `Ctrl+3` is asserted **on a zoom** and not on
+   `fitMode()` (A-68 ✅ — its own control had to be fixed before it would fail on the defect). **M-11
+   is not walked**, so this item is amber rather than green: nobody has yet looked at a fitted page.
 9. ☐ No open S1 or S2 in §8.
 10. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
     `Implementation-Plan.md`'s Stage 4 status block updated to reality, deviations included.
