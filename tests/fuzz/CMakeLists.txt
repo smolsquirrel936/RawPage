@@ -25,8 +25,20 @@ function(rawpage_add_fuzz_target name source)
     target_include_directories(${name} PRIVATE "${CMAKE_SOURCE_DIR}")
     target_link_libraries(${name} PRIVATE ${ARGN} rawpage_cos rawpage_core)
     target_link_options(${name} PRIVATE -fsanitize=fuzzer)
-    # No rawpage_strict(): these are drivers, not product code, and the strict list turns the
-    # sanitizer's own warnings into errors on some clang versions. The LIBRARY under test is strict.
+
+    # `rawpage_common_flags` AND NOT `rawpage_strict`, and the difference is the whole of issue I-08.
+    # These are drivers rather than product code, and the strict list turns the sanitizer's own
+    # warnings into errors on some clang versions -- so `-Werror` stays off, which is what the
+    # comment here has always said. What it did NOT say, and what nobody noticed, is that
+    # `rawpage_common_flags` is also where `CXX_STANDARD 20` is set: skipping it to avoid `-Werror`
+    # skipped the LANGUAGE, and these drivers had been compiled at clang's default standard since
+    # Stage 2 T5. It built for as long as nothing they included needed C++20, and stopped the day
+    # `core/backend.h` gained `core/Geometry.h`, whose `operator==() = default` does.
+    #
+    # `rawpage_assert_language_standard()` in the root CMakeLists now refuses to configure a target
+    # that omits it, so the class is closed rather than this one instance
+    # (`Stage4-ViewingSurface-Testing-Guide.md` §8, **I-08**). The LIBRARY under test is still strict.
+    rawpage_common_flags(${name})
 endfunction()
 
 rawpage_add_fuzz_target(fuzz_cos_lexer fuzz_cos_lexer.cpp)

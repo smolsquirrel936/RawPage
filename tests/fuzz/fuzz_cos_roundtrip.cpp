@@ -11,8 +11,8 @@
 // page tree exercises only the reader, which the other two targets already cover:
 //
 //     ./bin/rawpage_fuzz_seeds seeds/roundtrip corpus/ordinary corpus/signed corpus/malformed
-//     ./bin/fuzz_cos_roundtrip work/ seeds/roundtrip corpus/malformed corpus/ordinary corpus/signed \
-//         -max_total_time=600
+//     ./bin/fuzz_cos_roundtrip work/ seeds/roundtrip corpus/malformed corpus/ordinary
+//         corpus/signed -max_total_time=600
 //
 // `seeds/roundtrip` is the writer's own outputs (D3-17's "seeds gain the writer's own outputs"): files
 // that already carry an update section, a `/Prev` chain or a complete section written by this code,

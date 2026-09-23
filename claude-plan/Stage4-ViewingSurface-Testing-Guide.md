@@ -1050,7 +1050,7 @@ uses.
 | **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ✅ **Closed 2026-09-23 at T12**, by the arithmetic D4-14 promised — and it found a second defect on the way in |
 | **I-06** | **S2** | **Registering `edit.cancel` — §8's `Common` row — swallowed `Esc` application-wide, including the tool finder's mouse-grabbing popup** | ✅ **Closed 2026-09-21 at T7**: the id is left unregistered and `Esc` is handled where the drag is |
 | **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
-| **I-08** | **S3** | **`rawpage_fuzz_seeds` had been compiling at the compiler's DEFAULT language standard, not C++20, since Stage 3 T13** | ✅ **Closed 2026-09-23 at T12**, by the `rawpage_common_flags` call the target never had |
+| **I-08** | **S3** | **FOUR targets had been compiling at the compiler's DEFAULT language standard, not C++20 — `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5** | ✅ **Closed 2026-09-23 at T12**, in two rounds: the flags call each target lacked, and then `rawpage_assert_language_standard()`, which refuses to configure a target that omits it |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1155,30 +1155,66 @@ painting, since the paint path (`PageView::paintContent`, over the tiles) is alr
 **I-08 · A test helper had been compiling at a different language standard from the rest of the tree.**
 *(Raised and closed 2026-09-23 at T12, by a compile failure in a target this task never touched.)*
 
-**Mechanism.** `cmake/RawPageWarnings.cmake`'s `rawpage_common_flags(target)` is what sets
-`CXX_STANDARD 20`, and `tests/fuzz/seeds/CMakeLists.txt` — added at Stage 3 T13 for
-`rawpage_fuzz_seeds`, the helper that writes the round-trip fuzzer's seeds — never called it. So that
-one target had been compiled at **GCC 13's default standard, `gnu++17`**, on every preset since the
-day it arrived, while every other target in the tree was `-std=c++20`.
+**Mechanism.** `cmake/RawPageWarnings.cmake`'s `rawpage_common_flags(target)` is the one place
+`CXX_STANDARD 20` is set. **Four targets did not call it**, and they did not call it for two different
+reasons — which is what makes this a class rather than a slip:
 
-**It built anyway, for two days short of a week, because nothing it included needed the difference.**
+- **`rawpage_fuzz_seeds`** (Stage 3 T13), the helper that writes the round-trip fuzzer's seeds, simply
+  never called it.
+- **The three `tests/fuzz` drivers** (`fuzz_cos_lexer` and `fuzz_cos_parser` from Stage 2 T5 and T6,
+  `fuzz_cos_roundtrip` from Stage 3 T13) skipped `rawpage_strict()` **deliberately and correctly** —
+  its `-Werror` turns a sanitizer's own warnings into build failures on some clang versions, and the
+  function's comment said exactly that. What the comment did not say is that `rawpage_strict()` is
+  `rawpage_common_flags()` plus `-Werror`: **skipping it to avoid `-Werror` skipped the LANGUAGE**, and
+  the two arrive through one function.
+
+So all four had been compiled at the compiler's default standard — `gnu++17` for GCC 13, clang's own
+on the portable presets — while every other target in the tree was `-std=c++20`.
+
+**They built anyway, for weeks, because nothing they included needed the difference.**
 `rawpage_core`'s headers propagate as include directories and carry no standard with them, and the
-particular headers this file pulled in used no C++20 feature that C++17 rejects outright.
+particular headers these files pulled in used no C++20 feature that C++17 rejects outright.
 
-**How it surfaced.** T12 added `#include "core/Geometry.h"` to `core/backend.h`, because a `PdfRect`
-now crosses that boundary. `core/Geometry.h`'s value types declare `constexpr bool operator==(...)
-const = default`, which is C++20 — so the next build of `RoundtripSeeds.cpp` produced eleven errors
-in `core/Geometry.h` and `core/Units.h` saying *"only available with '-std=c++20'"*, in a file that
-had not changed. **A compile error in someone else's file is the honest form of this defect**; the
-dishonest form is the one that had been running, where a target silently compiles a different
-language from the product it is testing.
+**How it surfaced, in two places a day apart.** T12 added `#include "core/Geometry.h"` to
+`core/backend.h`, because a `PdfRect` now crosses that boundary, and `core/Geometry.h`'s value types
+declare `constexpr bool operator==(...) const = default`. The **Windows** build then failed on
+`RoundtripSeeds.cpp` with eleven errors in `core/Geometry.h` and `core/Units.h` saying *"only
+available with '-std=c++20'"*, in a file that had not changed — fixed with the call, and that is what
+this entry recorded first. **The three drivers are invisible on Windows**: MinGW GCC has no libFuzzer,
+so `tests/fuzz` is configured by `portable-fuzz` alone, and they surfaced only in **CI run
+35799559455's `Portable libFuzzer (Linux, clang)` job**, with clang reporting *"defaulted comparison
+operators are a C++20 extension"* and three hard errors in `core/Units.h`. Every other job in that run
+was green.
 
-**Why no case caught it.** None could, and none should be written to: this is not a property of the
-product but of one `CMakeLists.txt`, and the thing that would catch it is the thing that fixed it —
-every target calling the one function that sets the standard. It is recorded here rather than only in
-the commit because the *class* of defect outlives the instance: **a target that does not call
+**A compile error in someone else's file is the honest form of this defect**; the dishonest form is
+the one that had been running, where a target silently compiles a different language from the product
+it is testing.
+
+**Why the first fix was not enough, and what closed the class.** Fixing the target that failed was
+fixing the instance: three more were in the same state, in a file whose comment gave a good reason for
+being there, and a fourth would arrive eventually. So **`cmake/RawPageLanguageStandard.cmake` walks the
+real build graph at configure time** — every directory, every compiled target — and **fails configure**
+naming the target and the call to add. It reads the graph rather than the CMakeLists text, for the
+reason `layer-lint` reads the includes the compiler reads: a check on the build files' source would
+have to model `add_subdirectory`, functions and conditionals to answer a question CMake answers
+exactly. **Its negative control was run**: with the call removed from `rawpage_fuzz_seeds`, configure
+fails with *"rawpage_fuzz_seeds (CXX_STANDARD unset -- the compiler's default)"*.
+
+**What the assertion does not cover, stated so a reader subtracts it** (convention 19): only
+`CXX_STANDARD`. A target could still be missing the warning flags, the charset flags or `-g`, all of
+which are also `rawpage_common_flags`' and none of which it checks. The standard is singled out
+because it silently changes the meaning of valid code — a missing `-Wshadow` loses a warning, a
+missing `-std=c++20` loses a language. **And it only walks the graph the current preset configures**:
+the three fuzz drivers exist only under `RAWPAGE_BUILD_FUZZERS`, so a Windows configure walks 32
+targets and never sees them. They were verified on this machine by configuring the Windows preset with
+that flag ON — **35 targets walked, all C++20** — and by compiling all four translation units, which
+is the exact step CI failed on.
+
+**Why no test case.** None could, and none should be written: this is a property of the build files
+rather than of the product, and the thing that catches it is the assertion itself, which runs on every
+configure of every preset. **The class, which outlives every instance: a target that does not call
 `rawpage_common_flags` is not compiling this project's language, and it will build until the day it
-does not.** Fixed with the call; the file's own comment now says why it is there.
+does not.**
 
 ## 9. Sign-off criteria
 

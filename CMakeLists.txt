@@ -94,6 +94,7 @@ endif()
 include(RawPageWarnings)
 include(RawPageQt)
 include(RawPageChecks)
+include(RawPageLanguageStandard)
 
 # --- The PDFium pin (Stage 2 T2, decision D2-3) ------------------------------
 # The second pinned dependency, asserted rather than assumed for the same reason as the first: a
@@ -226,6 +227,17 @@ endif()
 # partial module list and let tools/license-audit pass by accident.
 rawpage_write_qt_module_list()
 rawpage_add_checks_target()
+
+# --- The language every compiled target is in --------------------------------
+# Also written last, and for the same reason the two calls above are: this walks the real build graph,
+# so a call made before the last `add_subdirectory` would see a partial one and pass by accident.
+#
+# It exists because two targets had been compiled at the compiler's DEFAULT standard rather than
+# C++20 -- `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5
+# -- and nothing said so until a header they include started using a C++20 feature. Issue **I-08**
+# (`Stage4-ViewingSurface-Testing-Guide.md` §8); the file itself argues why an assertion rather than
+# a corrected comment.
+rawpage_assert_language_standard(20)
 
 # --- Summary -----------------------------------------------------------------
 message(STATUS "")

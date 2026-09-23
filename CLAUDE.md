@@ -615,9 +615,13 @@ guides' §8 logs. They survive their stage, so they live here rather than in a s
   nothing and prints *"ninja: no work to do"*. Use `--clean-first` when the claim is about warnings
   (S3 guide A-01, which measured 232 objects per preset then; **289 release and 278 debug on 2026-09-21**, so re-derive rather than quote).
 - **A target that does not call `rawpage_common_flags` is not compiling this project's language, and
-  it will build until the day it does not.** `rawpage_fuzz_seeds` had been compiled at GCC's default
-  `gnu++17` since Stage 3 T13 and nobody could tell, because nothing it included needed C++20 — until
-  `core/backend.h` gained a header whose `operator==() = default` did (S4 guide **I-08**).
+  it will build until the day it does not.** Four targets had been compiled at the compiler's default
+  standard — `rawpage_fuzz_seeds` since Stage 3 T13, the three `tests/fuzz` drivers since Stage 2 T5,
+  those three because they skip `rawpage_strict()` to avoid `-Werror` and lost the standard with it.
+  **`rawpage_assert_language_standard(20)` now refuses to configure such a target**, so this is a gate
+  rather than a thing to remember (S4 guide **I-08**). Two bounds: it checks the standard alone, and it
+  walks only the graph the current preset configures — the three fuzz drivers exist only under
+  `RAWPAGE_BUILD_FUZZERS`, so a Windows configure walks 32 targets and that flag makes it 35.
 
 Verification specifics live in `Tech-Stack-Plan.md` §9; the five-layer test strategy (unit, golden
 image, corpus round-trip, fuzz, manual guides) plus `tests/bench/` is in `Implementation-Plan.md` §2.
