@@ -10,6 +10,7 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QSaveFile>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <utility>
@@ -109,6 +110,7 @@ QJsonObject documentToJson(const SessionDocument& document)
     object[QLatin1String("page")] = document.pageIndex;
     object[QLatin1String("scrollX")] = document.scrollX;
     object[QLatin1String("scrollY")] = document.scrollY;
+    if (!document.splitState.isEmpty()) object[QLatin1String("split")] = document.splitState;
 
     QJsonArray guides;
     for (const Guide& guide : document.guides) guides.append(guideToJson(guide));
@@ -140,6 +142,7 @@ SessionDocument documentFromJson(const QJsonObject& object)
     document.pageIndex = object.value(QLatin1String("page")).toInt();
     document.scrollX = object.value(QLatin1String("scrollX")).toDouble();
     document.scrollY = object.value(QLatin1String("scrollY")).toDouble();
+    document.splitState = object.value(QLatin1String("split")).toString();
     for (const QJsonValue& guide : object.value(QLatin1String("guides")).toArray())
         document.guides.push_back(guideFromJson(guide.toObject()));
     return document;
@@ -178,6 +181,20 @@ long long intersectionArea(const QRect& a, const QRect& b)
 }
 
 } // namespace
+
+QString SessionState::defaultFilePath()
+{
+    // Beside `settings.ini`, and for the reasons `Settings::defaultFilePath()` states at length:
+    // `AppDataLocation` is already `%APPDATA%\<org>\<app>` because `app/` leaves the organization
+    // unset, and `GenericConfigLocation` is `%LOCALAPPDATA%` on Windows -- a session that did not
+    // roam would be missing on the user's second machine.
+    //
+    // JSON rather than the INI `Settings` uses, because this is a tree -- windows holding tabs
+    // holding guides -- and an INI flattens a tree into keys with indices in their names, which is
+    // a format nobody can hand-edit and every reader parses slightly differently.
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return base + QStringLiteral("/session.json");
+}
 
 SessionState::SessionState(QString filePath) : filePath_(std::move(filePath)) {}
 

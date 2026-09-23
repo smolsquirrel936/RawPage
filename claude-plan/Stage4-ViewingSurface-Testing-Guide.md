@@ -8,17 +8,20 @@
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
 > partly run.** **80 automated** (A-01 … A-79, plus **A-66(a)**, which T11 added with A2's named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **62 of the 80 carry
-> a result** as of 2026-09-23 (re-derived from this file: 80 case headers, 18 still boxed) — T1's
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **67 of the 80 carry
+> a result** as of 2026-09-23 (re-derived from this file: 80 case headers, 13 still boxed) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
 > substitution it names — **I-07**), **T9's four split cases**, **T10's seven full-screen and
-> presentation cases**, **T11's four arranger cases** and **T12's six** — A-67 … A-70 plus **A-11
+> presentation cases**, **T11's four arranger cases**, **T12's six** — A-67 … A-70 plus **A-11
 > and A-29, both of which had been recorded amber or grey because the observable they were written
-> against did not exist until T12 built it**. **No manual case has been walked.** §8 holds eight
-> issues: **I-01 open (S3) and I-07 open (S4)**; I-02, I-03, I-04, I-05, I-06 and I-08 closed —
-> **I-05 at T12, which is the task this guide named as its owner**.
+> against did not exist until T12 built it** — and **T13's five session-restore cases, A-75 … A-79**.
+> **The thirteen still boxed are T14's**: the stage-wide sweeps (A-01 … A-09) and the four censuses
+> and re-measurements (A-71 … A-74). **No manual case has been walked.** §8 holds **nine** issues:
+> **only I-07 is open (S4)**; I-02, I-03, I-04, I-05, I-06, I-08 and **I-01 and I-09 at T13** are
+> closed — **I-01 where this file said its owner would settle it, and I-09 found by `x64-debug`
+> after `x64-release` had reported green**.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -803,8 +806,12 @@ also reports from the other side, still one command on the stage's eighth task a
 
 ### 5.14 Settings, pages, and everything before
 
-**A-71 · The fifteen keys round-trip, and the two pages ship** ☐
-**Expect** Each of the fifteen writes and reads back through `settings.ini` with its declared default and, where ranged, its clamp; **Preferences shows eight of 26 groups**, Units & Guides and Full Screen generated with no widget code (convention 17); `--lang zh-TW --dump-ui-strings` resolves both page names and every row label. **The control:** `pageDisplay/continuousScroll` and `units/snapToObjects` **do not exist** (D4-5), and a case that reads them fails to compile. **If it fails** S2.
+**A-71 · The nineteen keys round-trip, and the two pages ship** ☐
+**The number is a CORRECTION, re-derived 2026-09-23 at T13** from `core/settings/SettingsKeys.def` rather than
+carried forward: Stage 4 declares **nineteen** keys — one `pageDisplay/`, eleven `units/`, five `fullScreen/`
+and the two `general/` T13 added — and *fifteen* was this case's figure from before T8 raised it, while
+*eighteen* is D4-5's headline disagreeing with D4-5's own enumeration. Both are fixed in place.
+**Expect** Each of the nineteen writes and reads back through `settings.ini` with its declared default and, where ranged, its clamp; **Preferences shows eight of 26 groups**, Units & Guides and Full Screen generated with no widget code (convention 17); `--lang zh-TW --dump-ui-strings` resolves both page names and every row label. **The control:** `pageDisplay/continuousScroll` and `units/snapToObjects` **do not exist** (D4-5), and a case that reads them fails to compile. **If it fails** S2.
 
 **A-72 · The Stage 4 workload, re-measured through the shipped panes** ☐
 **Goal** D4-16's second reading — the bench is a request pattern, the product is the product (D2-1's lesson, where the probe said 31× and the product said 1.18×).
@@ -820,23 +827,75 @@ also reports from the other side, still one command on the stage's eighth task a
 
 ### 5.15 Session restore through the product's own composition (T13)
 
-**A-75 · Quit and relaunch brings back the documents, the order and the layout** ☐
+**A-75 · Quit and relaunch brings back the documents, the order and the layout** ✅
+**2026-09-23, T13** (`tests/composition/tst_restore.cpp`). Three documents, the second split vertically, the
+third in Two-Up Continuous at 150 % on page 3, the Thumbnails pane open and the second tab in front — captured
+by `SessionShell::captureNow()`, which is what `aboutToQuit` calls, and read back by a SECOND
+`CompositionRoot` and a SECOND `MainWindow` over the same scratch directory, the first pair destroyed before
+the second is built. **The tab order is asserted as the whole list in one comparison**, not one document at a
+time: a restore that brought back the right three in the wrong order satisfies every per-document check there
+is. **What this case cannot see** (convention 19): `app/main.cpp` is not run — it makes the three calls in
+D4-9's order itself, which proves the order works and not that main.cpp has it, and M-05 is where that is
+seen.
 **Goal** D4-9 end to end, through `CompositionRoot` — `tst_restore` in `rawpage_composition_tests`, the only target that links the engine, the widgets and the OS bundle together.
 **Steps** Open three documents, split one, open a pane on another, arrange the windows, quit cleanly, relaunch.
 **Expect** The same three documents, in the same tab order, with the same active tab, the same split and the same pane, and each at the scroll position and layout mode it had. **If it fails** S2; S1 if a document is lost.
 
-**A-76 · A document closed with *Don't Save* comes back CLEAN** ☐
+**A-76 · A document closed with *Don't Save* comes back CLEAN** ✅
+**2026-09-23, T13.** Rotate, close the WINDOW, answer *Don't Save* through the dialog's twin, quit, relaunch:
+the document is back, `isDirty()` is false, page 0's rotation is 0, the journal's history is empty and **the
+file's SHA-256 is the one taken before the rotation**. The recovery directory is gone with the discard
+(D3-14), so nothing offers the edit back by the other route either.
+**THE READING THIS CASE TAKES, because the wording admits two.** *Close with Don't Save → quit* is read as the
+close that IS the quit — the window closing, the protocol asking, the person declining — and not as a tab
+closed with `Ctrl+W` an hour earlier. The second reading would mean a closed tab comes back, which contradicts
+A-75's *three documents were open and three came back*.
+**And it is the case that shaped the design.** The close protocol REMOVES a tab before `aboutToQuit` is
+emitted, so a session captured only at quit forgets the document entirely. **Its planted-bug control is
+exactly that**: with `SessionShell::snapshot()` ignoring the close-time stash, this case reddens with
+`restored.documents == 0` — the document is not resurrected wrongly, it is *lost*, which is the failure the
+stash exists to prevent and the reason the stash is not an optimisation.
 **Goal** D4-9's control — the clause that separates restore from recovery.
 **Expect** After rotate → close with *Don't Save* → quit → relaunch: the document reopens, is **not dirty**, has no rotation, and its recovery directory is gone (Stage 3 D3-14 removed it on the Discard). **If it fails** **S1** — a resurrected edit is the product telling the user their decision did not count.
 
-**A-77 · Restore runs after recovery, and never opens the same document twice** ☐
+**A-77 · Restore runs after recovery, and never opens the same document twice** ✅
+**2026-09-23, T13.** The kill probe plants a journal, `RecoveryPrompt` recovers into the first window, and
+restore then finds that path open and skips it — one tab in one window holds the file, and the recovered tab
+is still the recovered one (dirty, with its replay report) rather than a clean tab at the bytes on disk.
+**THE SESSION HAS TWO WINDOWS, AND THAT IS THE DESIGN OF THE CASE RATHER THAN THOROUGHNESS.** In ONE window
+the skip is guarded twice: `MainWindow::openFiles` already refuses a path that window holds and focuses the
+existing tab instead (Stage 2 T13), so a restore that had forgotten to skip would still not make two tabs —
+and the case would have gone green for the wrong reason. **That guard is per window.** A session whose second
+window names the document recovery opened in the FIRST is the one arrangement where nothing below
+`SessionShell` is watching, and the first draft of this case was the single-window shape until its control
+said so. **The control, with the skip removed:** `2 tab(s) in 2 window(s) hold the recovered file` — two
+`DocumentHandle`s and two `CommandJournal`s over one file, which is the S1 in the line below, reproduced. The
+case's mechanism assertions are `CHECK` and not `REQUIRE` deliberately, so a planted bug shows the harm and
+not only the mechanism.
 **Steps** Plant a crashed session's journal for a document that is also in the saved session (the kill probe writes one — Stage 3 A-74); relaunch.
 **Expect** `RecoveryPrompt` offers it first; whatever it opens, restore **skips that path**; exactly one window holds that document. **The control:** with no crashed journal, restore opens it as usual. **If it fails** S1 for two copies of one document, which is two journals over one file.
 
-**A-78 · The three memory switches** ☐
+**A-78 · The three memory switches** ✅
+**2026-09-23, T13**, three cases, each asserted on what came back. `restoreSession` off restores nothing **and
+writes nothing** — the session file is byte-identical across a launch that opened a document and quit, because
+a product that went on recording what was read after the person asked it to stop would be answering a
+different question from the one on the checkbox. `rememberWindowLayout` off leaves the window at the rectangle
+it was built with; `rememberPaneLayout` off leaves the sidebar CLOSED, which is a layout rather than an
+absence — a window is built with the sidebar open, so "do nothing" would have made the switch look inert.
+**Each has the ON case run first**, so the OFF assertion is a difference and not a coincidence (convention 7).
+**One thing the geometry case had to learn**, and it is convention 7 catching the case rather than the
+product: a `MainWindow` carries a ribbon and will not go below its minimum width, so the first draft's 820-wide
+rectangle was 1222 wide on *both* sides of the relaunch and the case passed while proving nothing. It now
+asserts against the rectangle the window actually took, component by component, since Catch cannot print a
+`QRect` and `{?} == {?}` names none of the four numbers.
 **Expect** `general/restoreSession` off restores nothing and captures nothing new; `general/rememberWindowLayout` off restores documents at default geometry; `general/rememberPaneLayout` off restores documents with no panes. Each is asserted **on what came back**, not on the setting. **If it fails** S2.
 
-**A-79 · A test composition writes its own session file, never the user's** ☐
+**A-79 · A test composition writes its own session file, never the user's** ✅
+**2026-09-23, T13.** `%APPDATA%\RawPage\session.json` is read — existence, mtime and SHA-256 — before a full
+capture-and-restore round trip and again after it, and the scratch directory's `session.json` is the one that
+moved. The case names `SessionState::defaultFilePath()` rather than spelling the path, so it follows the
+product if the location ever changes. **Every launch in this file points its settings file, its session file
+AND its recovery root at the scratch directory**, which is the trap in all three of its known subjects.
 **Goal** The trap Stage 3 T11 recorded for the recovery root, with a second subject.
 **Expect** `tst_restore` points the session root at a scratch directory; after the suite, `%APPDATA%\RawPage\session.json` is untouched (mtime and hash read before and after). **If it fails** S1 — a suite that reopened the tester's documents, or replaced their session.
 
@@ -1049,13 +1108,14 @@ uses.
 
 | # | Sev | Title | State |
 |---|---|---|---|
-| **I-01** | **S3** | **Guides are keyed by `DocumentId`, and a save changes the `DocumentId`** | ⚪ **Open — owned by D4-7, revisited at T13** |
+| **I-01** | **S3** | **Guides are keyed by `DocumentId`, and a save changes the `DocumentId`** | ✅ **Closed 2026-09-23 at T13**, where this row said it would be — by a capture-time rule, and D4-7's *reasoning* corrected rather than its key |
 | **I-02** | **S4** | **Seven new Catch2 case names carried a COMMA, so none could be selected by name** | ✅ **Closed 2026-09-19 at T4**, by renaming them |
 | **I-03** | **S3** | **A Qt 6.5+ API in `core/` broke both Linux jobs: the portable subset builds against Ubuntu's Qt 6.4** | ✅ **Closed 2026-09-19**, and written up as **convention 24** |
 | **I-04** | **S2** | **A pane swallowed `Alt+↑`/`Alt+↓` and moved the selection — a Stage 7 chord doing something plausible and wrong** | ✅ **Closed 2026-09-20 at T5** (Thumbnails) **and again 2026-09-21 at T6** (Bookmarks): one mechanism, two panes, two layers of Qt |
 | **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ✅ **Closed 2026-09-23 at T12**, by the arithmetic D4-14 promised — and it found a second defect on the way in |
 | **I-06** | **S2** | **Registering `edit.cancel` — §8's `Common` row — swallowed `Esc` application-wide, including the tool finder's mouse-grabbing popup** | ✅ **Closed 2026-09-21 at T7**: the id is left unregistered and `Esc` is handled where the drag is |
 | **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
+| **I-09** | **S2** | **`Qt::UniqueConnection` asked for with a LAMBDA slot: fatal in `x64-debug`, and silently NO CONNECTION AT ALL in `x64-release`** | ✅ **Closed 2026-09-23 at T13**, by guarding uniqueness with the container the connection is about |
 | **I-08** | **S3** | **FOUR targets had been compiling at the compiler's DEFAULT language standard, not C++20 — `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5** | ✅ **Closed 2026-09-23 at T12**, in two rounds: the flags call each target lacked, and then `rawpage_assert_language_standard()`, which refuses to configure a target that omits it |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
@@ -1070,6 +1130,12 @@ The second is the one that matters in use: rotate a page, press `Ctrl+S`, and th
 **Why the suite did not catch it.** Every A-18 assertion is a round trip through one object with one document identity; nothing in §5.5 saves a document, because T3 has no document to save. The case that would catch it belongs where capture and restore meet the shell.
 
 **What is absent, and who owns it.** There is no re-keying of a session entry when a document is saved, and this task did not invent one: the repair is a decision for **D4-7**, taken where the mechanism is wired — **T13**. `SessionState` stores what the decision says today. Recorded here rather than in a commit message because the log outlives the fix.
+
+**CLOSED 2026-09-23 AT T13, AND THE REPAIR IS A CAPTURE-TIME RULE RATHER THAN A NEW KEY.** The finding assumed the identity in a session entry is the one taken when the document was OPENED. It is not, once there is a shell to capture from: `app::SessionShell` reads it at **capture**, at quit, from `IDocumentBackend::documentId()` — and `core::Document::refreshFileState` already re-reads that after every successful save (D3-16, Stage 3 T8, for its own reasons). So by the time anything reaches `session.json` the identity names the bytes that are on disk, and **a save during the session cannot orphan a guide**. What is left is the case the key was actually chosen for: a file changed by something else between the quit and the next launch, whose guides are dropped with a log line while the document still opens — a guide placed against page 4 of a document that has since been re-paginated is not a guide, it is a line in the wrong place.
+
+**What was wrong was half of D4-7's justification, and THAT is corrected rather than the code.** *"A renamed file keeps its guides"* does not follow from `DocumentId` and never did, because the normalized path is one of its four facts; D4-7's `Why` column now says so. The other half — *"a different file at the same path does not inherit them"* — is true, is the reason a path alone would not do, and is exactly what the key delivers.
+
+**Why nothing reddens on this, and what that costs** (convention 19). No case asserts that a save re-keys anything, because nothing in the product ever keyed on the open-time identity: the defect was in the reasoning, not in a code path, and a case written against it would be asserting that a function is not called. What **is** covered, in `tst_restore`, is guides surviving a quit and a relaunch. What is **not** covered is the drop path — no case changes a file between the capture and the restore, so the branch that discards the guides and keeps the document has never run in the suite. That is a real gap, it is named here rather than left to be discovered, and it is cheap for whichever task next touches `SessionShell` to close.
 
 **I-02 · A comma in a Catch2 case name makes the case unselectable.** *(Raised and closed 2026-09-19 at T4.)*
 
@@ -1221,6 +1287,30 @@ rather than of the product, and the thing that catches it is the assertion itsel
 configure of every preset. **The class, which outlives every instance: a target that does not call
 `rawpage_common_flags` is not compiling this project's language, and it will build until the day it
 does not.**
+
+**I-09 · `Qt::UniqueConnection` with a lambda slot is a debug-only fatal and a release-only silence.**
+*(Raised and closed 2026-09-23 at T13, by the `x64-debug` run after `x64-release` had reported green.)*
+
+**Mechanism.** `app::SessionShell` connects each window's `QObject::destroyed` to a lambda that sweeps that
+window's stash entry, and asked for `Qt::UniqueConnection` so a window closed twice would not connect twice.
+**Qt implements uniqueness only for a pointer-to-member slot**: with a functor it is
+`Q_ASSERT_X(false, "QObject::connect", "Unique connection requires the slot to be a pointer to a member
+function of a QObject subclass")`. In `x64-release` that assert compiles away, the connection is **never made
+at all**, and the sweep never runs — so a later `MainWindow` allocated at a dead one's address could inherit a
+stale session entry. In `x64-debug` the same line is a `qFatal`, and the process fail-fasts with
+`0xC0000602`.
+
+**Why the release suite did not catch it.** It cannot. The release symptom is a connection that does not
+exist, and its consequence needs an address to be reused by a window that is hidden at quit — a race nothing
+in the suite arranges. The debug build turns the same line into an immediate crash in the two cases that close
+a window, which is the whole argument for running both presets rather than the fast one: **`x64-release` said
+1106/1106 and `x64-debug` fail-fasted twice on the same binary's source.**
+
+**The fix** guards uniqueness with the container the connection is about — the entry is stashed only after
+`closing_.contains(window)` has decided whether to connect — so there is nothing left for
+`Qt::UniqueConnection` to do. **The class, for every later stage: a connection to a LAMBDA cannot be
+`Qt::UniqueConnection`, and the thing that knows whether it has already been made is the state the lambda
+mutates.**
 
 ## 9. Sign-off criteria
 

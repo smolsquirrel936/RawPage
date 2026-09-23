@@ -244,6 +244,18 @@ public:
     // `window.*` split commands are the only product caller.
     SplitViewContainer* split() const noexcept { return split_; }
 
+    // ---- THE SPLIT AS ONE OPAQUE STRING (S4 T13, D4-9) ---------------------------------------
+    // What `core::SessionDocument::splitState` holds. Encoded here for the reason
+    // `MainWindow::paneLayoutState()` is encoded there: `SplitViewContainer::Mode` is a widget's
+    // enum, and `core/` carrying its four spellings would be a `ui/` vocabulary in the domain layer
+    // to hold a value that layer never reads.
+    //
+    // **The NAME, never the enumerator's number** -- the rule `SessionState`'s layout mode already
+    // follows: an integer written into a file breaks the day somebody inserts a value into the
+    // middle of the enum, and an unknown name is ignored rather than guessed at.
+    QString splitState() const;
+    void    applySplitState(const QString& state);
+
     // Reads the preferences a VIEW obeys and hands them to it. Public because it is what a case
     // drives after changing a setting, and because a settings change and a document open take the
     // same path rather than two that could differ (S2 T15).

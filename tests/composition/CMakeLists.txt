@@ -31,6 +31,13 @@ add_executable(rawpage_composition_tests
     # offered and replayed by the product's composition.
     tst_recoveryproduct.cpp
 
+    # Stage 4 T13 -- guide cases A-75 ... A-79: quit, relaunch, and get the session back, through the same
+    # composition. It needs `app/Application.cpp` compiled in for `app::SessionShell`; the `Application`
+    # class beside it is a QApplication subclass this binary never instantiates, and compiling it costs one
+    # translation unit rather than a second file to keep the session half in.
+    tst_restore.cpp
+
+    ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp
     ${CMAKE_SOURCE_DIR}/app/LogFile.cpp

@@ -3028,6 +3028,14 @@
         <translation>Reopen the previous session at startup</translation>
     </message>
     <message>
+        <source>prefs.setting.general.rememberPaneLayout</source>
+        <translation>Reopen the side panes that were showing</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.rememberWindowLayout</source>
+        <translation>Reopen windows at their previous size and position</translation>
+    </message>
+    <message>
         <source>prefs.setting.general.singleInstance</source>
         <translation>Open files in the running instance</translation>
     </message>

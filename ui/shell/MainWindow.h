@@ -263,6 +263,20 @@ public:
     BookmarksPane*      bookmarksPane() const { return bookmarks_; }
     DestinationsPane*   destinationsPane() const { return destinations_; }
 
+    // ---- THE SIDEBAR AS ONE OPAQUE STRING (S4 T13, D4-9) -------------------------------------
+    // What `core::SessionWindow::paneLayout` holds, encoded and decoded HERE because it is a Qt
+    // fact about widgets -- which dock edge, how wide, which pane in front -- and `core/` is not
+    // taught a dock vocabulary to carry a value it never reads (`core/settings/SessionState.h`
+    // says the same thing from the other side).
+    //
+    // **An EMPTY string is a layout, not an absence**: it means *no panes*, and applying it closes
+    // the sidebar. That is what `general/rememberPaneLayout` off restores, and the reason it is
+    // stated rather than left to the constructor's default -- a window is built with the sidebar
+    // open, so "do nothing" and "remember nothing" would be two visibly different results from one
+    // switch being off.
+    QString paneLayoutState() const;
+    void    applyPaneLayoutState(const QString& state);
+
     // The Preferences dialog, built on first use and kept. Null until `file.preferences` has been
     // dispatched once. Modeless, so this is not a blocking call's return value -- see
     // `ui/dialogs/PreferencesDialog.h` for why modeless is the load-bearing choice.

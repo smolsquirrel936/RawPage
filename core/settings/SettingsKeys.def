@@ -70,6 +70,18 @@ RAWPAGE_SETTING(general, restoreSession, bool,
 RAWPAGE_SETTING(general, singleInstance, bool,
                 "general/singleInstance", true, General, true)
 
+// S4 T13, D4-9. THREE SWITCHES AND NOT ONE, because restoring a session and restoring a LAYOUT are
+// different appetites: a person who wants their documents back on a laptop they dock and undock
+// does not necessarily want yesterday's window rectangle chased across two monitors, and a person
+// who lives in the thumbnails pane does not want it re-opened on a machine where they do not.
+// `restoreSession` above is the master -- off, nothing is restored and nothing is captured -- and
+// these two subtract from what it brings back.
+RAWPAGE_SETTING(general, rememberPaneLayout, bool,
+                "general/rememberPaneLayout", true, General, true)
+
+RAWPAGE_SETTING(general, rememberWindowLayout, bool,
+                "general/rememberWindowLayout", true, General, true)
+
 // --- Language --------------------------------------------------------------------------------
 // Empty means "follow the system locale". A sentinel string such as "system" would be a value the
 // locale space could one day legitimately contain; empty cannot be a locale name.

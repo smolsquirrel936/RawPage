@@ -57,6 +57,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <optional>
+#include <string_view>
 
 namespace rawpage::ui {
 namespace {
@@ -2949,6 +2951,99 @@ void MainWindow::setReadingMode(bool on)
     // chrome coming back one widget at a time.
     updateAutoHideStrips();
     if (actionFactory_) actionFactory_->refresh();
+}
+
+// ---------------------------------------------------------------------------------------------
+// The sidebar, as one string (S4 T13)
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+// `key=value` pairs joined by `;`. A hand-readable form rather than `QMainWindow::saveState()`'s
+// opaque blob, deliberately: this string lands in a JSON file a person may open, and a base64 blob
+// there is a field nobody can diagnose. It also survives a Qt upgrade, which `saveState()`'s
+// version-stamped format does not promise to.
+QString field(const QString& state, QLatin1String key)
+{
+    for (const QString& part : state.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
+        const qsizetype split = part.indexOf(QLatin1Char('='));
+        if (split > 0 && QStringView(part).left(split) == key)
+            return part.mid(split + 1);
+    }
+    return {};
+}
+
+} // namespace
+
+QString MainWindow::paneLayoutState() const
+{
+    if (sidebar_ == nullptr || !sidebar_->isVisible()) return {};
+
+    QStringList fields;
+
+    // The WIDGET's width, not `rememberedWidth()` -- A-70's lesson about reading mode, which is the
+    // same widget and the same question: a person who has just dragged the splitter has a width the
+    // dock has not written down yet, and capturing the remembered one would restore a divider they
+    // moved thirty seconds ago.
+    const int width = sidebar_->width() > 0 ? sidebar_->width() : sidebar_->rememberedWidth();
+    if (width > 0) fields << QStringLiteral("width=%1").arg(width);
+
+    // A FLOATING dock has no area, and `dockWidgetArea()` says `NoDockWidgetArea` for one. Omitting
+    // the field rather than writing that value is what lets the reader fall back to the left edge
+    // instead of asking Qt to dock a widget nowhere.
+    if (!sidebar_->isFloating())
+        fields << QStringLiteral("area=%1").arg(static_cast<int>(dockWidgetArea(sidebar_)));
+    if (sidebar_->isAutoHidden()) fields << QStringLiteral("auto=1");
+
+    if (const std::optional<ActionId> pane = sidebar_->currentPane()) {
+        const std::string_view id = core::actionStringId(*pane);
+        fields << QStringLiteral("pane=%1").arg(
+            QString::fromUtf8(id.data(), static_cast<qsizetype>(id.size())));
+    }
+
+    // A sidebar that is open with no pane selected and no width worth naming still has to encode as
+    // something non-empty, because empty means CLOSED. `open=1` is that something.
+    fields << QStringLiteral("open=1");
+    return fields.join(QLatin1Char(';'));
+}
+
+void MainWindow::applyPaneLayoutState(const QString& state)
+{
+    if (sidebar_ == nullptr) return;
+
+    if (state.isEmpty()) {
+        sidebar_->hide();
+        updateAutoHideStrips();
+        return;
+    }
+
+    const int area = field(state, QLatin1String("area")).toInt();
+    if (area != 0) addDockWidget(static_cast<Qt::DockWidgetArea>(area), sidebar_);
+
+    // THE PANE BEFORE THE SHOW, so the dock is never painted once holding whatever was in front and
+    // again holding what the session asked for. A saved id that no longer resolves -- a pane whose
+    // stage was reverted, an id retired between builds -- leaves whichever pane the window opened
+    // with rather than emptying the dock, and `showPane` answering false is that case.
+    const QString pane = field(state, QLatin1String("pane"));
+    if (!pane.isEmpty()) {
+        const QByteArray utf8 = pane.toUtf8();
+        if (const std::optional<ActionId> id = core::actionFromStringId(
+                std::string_view(utf8.constData(), static_cast<std::size_t>(utf8.size())))) {
+            if (!sidebar_->showPane(*id)) {
+                RAWPAGE_LOG_INFO(LogSubsystem::Ui)
+                    << "session: the remembered pane is not in this build's registry:" << pane;
+            }
+        }
+    }
+
+    sidebar_->setAutoHidden(field(state, QLatin1String("auto")) == QLatin1String("1"));
+    sidebar_->show();
+
+    if (const int width = field(state, QLatin1String("width")).toInt(); width > 0) {
+        sidebar_->setRememberedWidth(width);
+        resizeDocks({sidebar_}, {width}, Qt::Horizontal);
+    }
+    updateAutoHideStrips();
 }
 
 DocumentPropertiesDialog::Properties MainWindow::documentProperties() const

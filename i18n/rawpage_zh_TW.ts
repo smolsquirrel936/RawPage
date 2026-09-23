@@ -3028,6 +3028,14 @@
         <translation>啟動時重新開啟上次的工作階段</translation>
     </message>
     <message>
+        <source>prefs.setting.general.rememberPaneLayout</source>
+        <translation>重新開啟先前顯示的側邊窗格</translation>
+    </message>
+    <message>
+        <source>prefs.setting.general.rememberWindowLayout</source>
+        <translation>以先前的大小與位置重新開啟視窗</translation>
+    </message>
+    <message>
         <source>prefs.setting.general.singleInstance</source>
         <translation>在已執行的程式中開啟檔案</translation>
     </message>

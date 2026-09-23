@@ -21,6 +21,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
+#include <optional>
+
 namespace rawpage::ui {
 namespace {
 
@@ -298,6 +300,76 @@ void DocumentWindow::build(const Recovery* recovery)
 PageView* DocumentWindow::view() const noexcept
 {
     return split_ ? split_->activeView() : nullptr;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The split, as one string (S4 T13)
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+constexpr QLatin1String kSplitNone("none");
+constexpr QLatin1String kSplitHorizontal("horizontal");
+constexpr QLatin1String kSplitVertical("vertical");
+constexpr QLatin1String kSplitSpreadsheet("spreadsheet");
+
+QLatin1String splitModeName(SplitViewContainer::Mode mode)
+{
+    switch (mode) {
+    case SplitViewContainer::Mode::Horizontal:  return kSplitHorizontal;
+    case SplitViewContainer::Mode::Vertical:    return kSplitVertical;
+    case SplitViewContainer::Mode::Spreadsheet: return kSplitSpreadsheet;
+    case SplitViewContainer::Mode::None:        break;
+    }
+    return kSplitNone;
+}
+
+// No default in the switch above and none here: adding a fifth split mode must be a compiler
+// warning in this file rather than a session that silently restores it as `None`.
+std::optional<SplitViewContainer::Mode> splitModeFromName(QStringView name)
+{
+    if (name == kSplitHorizontal)  return SplitViewContainer::Mode::Horizontal;
+    if (name == kSplitVertical)    return SplitViewContainer::Mode::Vertical;
+    if (name == kSplitSpreadsheet) return SplitViewContainer::Mode::Spreadsheet;
+    if (name == kSplitNone)        return SplitViewContainer::Mode::None;
+    return std::nullopt;
+}
+
+} // namespace
+
+QString DocumentWindow::splitState() const
+{
+    // An unsplit tab that scrolls its one pane in the ordinary way has nothing to say, and saying
+    // nothing keeps the field out of the session file entirely for the common case.
+    if (split_ == nullptr) return {};
+    if (split_->mode() == SplitViewContainer::Mode::None && split_->synchronizedScrolling())
+        return {};
+
+    return QStringLiteral("mode=%1;sync=%2")
+        .arg(splitModeName(split_->mode()))
+        .arg(split_->synchronizedScrolling() ? 1 : 0);
+}
+
+void DocumentWindow::applySplitState(const QString& state)
+{
+    if (split_ == nullptr || state.isEmpty()) return;
+
+    for (const QStringView part : QStringView(state).split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
+        const qsizetype at = part.indexOf(QLatin1Char('='));
+        if (at <= 0) continue;
+        const QStringView key = part.left(at);
+        const QStringView value = part.mid(at + 1);
+
+        if (key == QLatin1String("mode")) {
+            // An unknown mode leaves the tab unsplit rather than failing the restore: the same call
+            // `SessionState` makes about an unknown layout-mode name, and for the same reason --
+            // a small wrong value beats a large absent one.
+            if (const std::optional<SplitViewContainer::Mode> mode = splitModeFromName(value))
+                split_->setMode(*mode);
+        } else if (key == QLatin1String("sync")) {
+            split_->setSynchronizedScrolling(value == QLatin1String("1"));
+        }
+    }
 }
 
 void DocumentWindow::handDocumentTo(PageView* pane)

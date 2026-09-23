@@ -104,6 +104,23 @@ CompositionRoot::CompositionRoot(Options options)
     RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "settings:" << settings_->filePath() + QLatin1String(versionNote);
 
     recentFiles_ = std::make_unique<core::RecentFiles>(*settings_);
+
+    // THE SESSION FILE, read here and written by `app/Application` at quit (S4 T13, D4-9). Loading
+    // it in the constructor rather than at the restore call site is what lets `--list-actions` and
+    // the other composing diagnostics answer without a window, and it is also what makes the ONE
+    // log line about an unreadable session appear where every other startup line does.
+    //
+    // A LOAD NEVER FAILS -- `core/settings/SessionState.h` says why at length, and the short form
+    // is that a truncated write, a newer schema or a directory in the way each yields an empty
+    // session and a product that starts.
+    sessionState_ = std::make_unique<core::SessionState>(
+        options_.sessionPath.isEmpty() ? core::SessionState::defaultFilePath()
+                                       : options_.sessionPath);
+    // The report is deliberately DROPPED here: `load()` has already written the one line that names
+    // what was wrong with the file, and a second line restating it from this side would be the same
+    // fact logged twice -- which is how a log stops being read.
+    static_cast<void>(sessionState_->load());
+
     actions_     = std::make_unique<core::ActionRegistry>();
 
     // Defaults come from KeyBindingDefaults.def, which is Features.md §8 in machine-readable form;

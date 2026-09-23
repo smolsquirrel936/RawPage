@@ -500,5 +500,18 @@ int main(int argc, char** argv)
 
     window.openFiles(intent.files);
 
+    // THE PREVIOUS SESSION, THIRD AND LAST (Stage 4 T13, D4-9). The order above this line is the
+    // decision and it is drawn in `Stage4-ViewingSurface-Plan.md` 5.5: unsaved work first, because
+    // it has an owner and a deadline; then what the person asked for on the command line; then what
+    // they were reading last time, which skips every path the two above already opened.
+    //
+    // The shell is installed BEFORE it restores, not after, so that a session is still captured on
+    // the way out of a launch whose restore brought nothing back -- the first launch after the
+    // setting is turned on, say.
+    app::SessionShell session(root.sessionState(), root.settings(),
+                              root.platform().displayTopology.get());
+    session.install(application);
+    session.restore(window, root.services());
+
     return application.exec();
 }

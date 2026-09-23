@@ -33,6 +33,7 @@
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
 #include "core/settings/RecentFiles.h"
+#include "core/settings/SessionState.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
 
@@ -70,6 +71,13 @@ public:
         // product points it at a temporary directory, so running the suite neither writes into nor offers
         // the recoveries of whoever runs it. `documents/recoveryDir` (Stage 3 T12) is the user's way to set it.
         QString recoveryRoot;
+
+        // WHERE THE SESSION FILE GOES (S4 T13, D4-9). EMPTY MEANS `core::SessionState::
+        // defaultFilePath()` -- `%APPDATA%\RawPage\session.json`. The same call the two options
+        // above make, and for a reason with a second subject: a suite that used the real location
+        // would, on its next run, reopen and then REPLACE the documents of whoever ran it. Guide
+        // case **A-79** is written against exactly that.
+        QString sessionPath;
     };
 
     explicit CompositionRoot(Options options);
@@ -87,6 +95,11 @@ public:
     core::ActionRegistry&  actions() { return *actions_; }
     core::KeyBindingStore& keyBindings() { return *keyBindings_; }
     core::LogBuffer&       logBuffer() { return *logBuffer_; }
+
+    // THE SESSION (S4 T13). Loaded in this constructor and written by `app/Application` at quit, so
+    // that "what was open last time" is available to `main.cpp` before the first window exists and
+    // is read from a file this object owns rather than from a path re-resolved at each call site.
+    core::SessionState&    sessionState() { return *sessionState_; }
 
     // Null when `Options::logDirectory` was empty, or when the directory could not be written.
     // Both are legitimate states rather than failures -- see `app/LogFile.h`.
@@ -136,6 +149,7 @@ private:
 
     std::unique_ptr<core::Settings>        settings_;
     std::unique_ptr<core::RecentFiles>     recentFiles_;
+    std::unique_ptr<core::SessionState>    sessionState_;
     std::unique_ptr<core::ActionRegistry>  actions_;
     std::unique_ptr<core::KeyBindingStore> keyBindings_;
 

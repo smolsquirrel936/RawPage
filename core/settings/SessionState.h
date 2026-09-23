@@ -64,12 +64,22 @@
 // ---------------------------------------------------------------------------------------------
 // **Guides are keyed by `DocumentId`, as D4-7 requires, and a `DocumentId` changes when the
 // document is saved** -- it is derived from the path, the size, the modification time AND the
-// content hash (`core/doc/DocumentId.h`), so the first save after a guide is placed leaves that
-// guide keyed to an identity no longer on disk. D4-7's stated reasoning -- *"a renamed file keeps
-// its guides"* -- does not follow from that type either, for the same reason: the path is part of
-// the identity. Raised as **I-01** (`Stage4-ViewingSurface-Testing-Guide.md` §8) and owned by D4-7,
-// revisited at T13 where capture and restore meet the shell. This file stores what the decision
-// says and does not invent a repair for it.
+// content hash (`core/doc/DocumentId.h`). Raised as **I-01**
+// (`Stage4-ViewingSurface-Testing-Guide.md` §8) and owned by D4-7.
+//
+// **SETTLED AT T13, WHERE CAPTURE AND RESTORE MEET THE SHELL, AND THE REPAIR IS A CAPTURE-TIME
+// RULE RATHER THAN A NEW KEY.** The identity written here is read at CAPTURE -- at quit, from
+// `IDocumentBackend::documentId()`, which `core::Document::refreshFileState` already re-reads after
+// every successful save (D3-16, Stage 3 T8). So a save during the session cannot orphan a guide:
+// by the time anything is written to this file the identity is the one the bytes on disk have. The
+// key then does the one job it was chosen for -- **a different file at the same path does not
+// inherit the guides** -- and `app/Application`'s restore drops the guides, keeping the document,
+// when the identity no longer matches.
+//
+// What did NOT survive the examination is the other half of D4-7's stated reasoning: *"a renamed
+// file keeps its guides"* does not follow from this type and never did, because the path is part
+// of the identity. **D4-7's `Why` column is corrected rather than the code** -- the behaviour is
+// the one the decision wanted, and only its justification was over-stated.
 
 #ifndef RAWPAGE_CORE_SETTINGS_SESSIONSTATE_H
 #define RAWPAGE_CORE_SETTINGS_SESSIONSTATE_H
@@ -124,6 +134,16 @@ struct SessionDocument {
     double             scrollX = 0.0;
     double             scrollY = 0.0;
     std::vector<Guide> guides;
+
+    // How this tab was SPLIT, as `ui/` encodes it (S4 T13). **Opaque to `core/`**, for exactly the
+    // reason `SessionWindow::paneLayout` below is: `SplitViewContainer::Mode` is a widget's enum
+    // and teaching this layer its four spellings would put a `ui/` vocabulary in the domain layer
+    // to hold a value this layer never reads. It round-trips and is never interpreted here.
+    //
+    // It is on the DOCUMENT rather than on the window because that is where a split lives: D4-13
+    // makes a split N views of one document inside one `DocumentWindow`, so two tabs of one window
+    // can be split differently and only one of them is the window's.
+    QString            splitState;
 };
 
 // One top-level window. `documents` IS the tab order.
@@ -173,6 +193,12 @@ public:
     // The schema. A file whose format is HIGHER than this was written by a newer build: it is
     // ignored rather than guessed at, because a newer build's fields are not knowable from here.
     static constexpr int kFormat = 1;
+
+    // `%APPDATA%\RawPage\session.json` -- beside `settings.ini`, and resolved the same way
+    // `Settings::defaultFilePath()` resolves that one, including why it is `AppDataLocation` and
+    // not `GenericConfigLocation`. **Nothing in `tests/` may call it** (guide case A-79): a suite
+    // that used the real location would write, and then reopen, the session of whoever ran it.
+    static QString defaultFilePath();
 
     explicit SessionState(QString filePath);
 
