@@ -162,7 +162,8 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Dynamic (loupe) zoom: drag to zoom continuously.
 - Loupe tool: a magnifier window over a small area.
 - Pan & Zoom window: a thumbnail with a draggable viewport rectangle.
-- Fit Page.
+- Fit Page (fit the page **as a reader is shown it** — the CropBox — inside the window; not the
+  sheet outside it, which is [`Stage4-ViewingSurface-Testing-Guide.md` §8](./Stage4-ViewingSurface-Testing-Guide.md)'s **I-10**).
 - Fit Width.
 - Fit Height.
 - Fit Visible (fit the content bounding box, ignoring white margins).

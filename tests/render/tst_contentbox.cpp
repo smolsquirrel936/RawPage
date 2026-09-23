@@ -268,3 +268,44 @@ TEST_CASE("the three fits over a real page give three different zooms", "[conten
         kMargin, dpi, Zoom{1.0});
     CHECK(filledVisible.factor == filledPage.factor);
 }
+
+// =============================================================================================
+// I-10 -- Fit Page over a REAL page fits the crop box and not the sheet.
+// =============================================================================================
+
+TEST_CASE("Fit Page over a real page fits the drawn page and not the sheet", "[contentbox]")
+{
+    // **THE PRODUCT HALF OF I-10**, on the file a person found it with. `cropbox-margins.pdf` is
+    // the only corpus file whose CropBox is inset from its MediaBox, so it is the only one on which
+    // this case can fail -- which is the whole reason T1 built it, and is why the same defect sat
+    // under a green suite from Stage 2 until M-11 was walked on 2026-09-24.
+    const auto document = openCorpus("ordinary/cropbox-margins.pdf");
+    const PageBoxes boxes = boxesOf(*document, 0);
+    REQUIRE(boxes.crop.size.height != boxes.media.size.height);   // the fixture, asserted
+
+    const rawpage::core::DeviceSize viewport{1200.0, 900.0};
+    const PhysicalDpi dpi{96.0};
+    constexpr double kMargin = 12.0;
+
+    const Zoom page = rawpage::core::render::zoomToFit(
+        FitMode::Page, rawpage::core::render::fitRect(boxes, FitMode::Page).size, viewport, kMargin,
+        dpi, Zoom{1.0});
+    const Zoom fromCrop = rawpage::core::render::zoomToFit(FitMode::Page, boxes.crop.size, viewport,
+                                                           kMargin, dpi, Zoom{1.0});
+    const Zoom fromSheet = rawpage::core::render::zoomToFit(FitMode::Page, boxes.media.size,
+                                                            viewport, kMargin, dpi, Zoom{1.0});
+
+    REQUIRE(fromCrop.factor != fromSheet.factor);   // the discrimination itself
+    CHECK(page.factor == fromCrop.factor);
+    CHECK(page.factor != fromSheet.factor);
+
+    // **AND THE DRAWN PAGE FILLS THE VIEWPORT IT WAS FITTED TO**, which is what "fit page" means
+    // and what the defect broke: at the sheet's zoom the crop box -- the rectangle
+    // `core::Page::displaySize()` returns and `PagePresentation` lays out -- covered only 83 % of
+    // the height it was given, and a person saw the next page's top edge below it.
+    const double available = 900.0 - 2.0 * kMargin;
+    const double drawnAtPageZoom = boxes.crop.size.height * (96.0 / 72.0) * page.factor;
+    const double drawnAtSheetZoom = boxes.crop.size.height * (96.0 / 72.0) * fromSheet.factor;
+    CHECK(drawnAtPageZoom > available * 0.999);
+    CHECK(drawnAtSheetZoom < available * 0.9);
+}

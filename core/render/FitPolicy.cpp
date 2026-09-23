@@ -8,8 +8,6 @@ namespace rawpage::core::render {
 PdfRect fitRect(const PageBoxes& boxes, FitMode fit) noexcept
 {
     switch (fit) {
-    case FitMode::Page:
-        return boxes.media;
     case FitMode::Visible:
         // THE FALLBACK IS THE OLD BEHAVIOUR, not an error path (see the header). A page with no
         // objects, and an engine that declined, both land here -- and land on what `Ctrl+3` did
@@ -19,6 +17,11 @@ PdfRect fitRect(const PageBoxes& boxes, FitMode fit) noexcept
             return *boxes.content;
         }
         return boxes.crop;
+    // **`Page` IS THE CROP BOX AND NOT THE SHEET -- I-10**, fixed 2026-09-24 after M-11's walk
+    // measured `Ctrl+0` leaving 17 % of the window empty on `cropbox-margins.pdf`. Fit Page fits
+    // the page a reader is shown, which is the rectangle everything below here lays out and draws.
+    // `boxes.media` is now measured by no fit at all; the header says why it stays in the struct.
+    case FitMode::Page:
     case FitMode::Width:
     case FitMode::Height:
     case FitMode::None:

@@ -33,6 +33,27 @@
 // 2 and 3 -- so the degradation is exactly the old behaviour and never a blank viewport or a
 // division by zero. `contentBox` is therefore a `std::optional`, and its absence is a value:
 // `fitRect()` takes it and needs no second opinion about whether the engine was asked.
+//
+// ---------------------------------------------------------------------------------------------
+// THE SECOND DEFECT THIS FILE EXISTED TO CAUSE -- I-10, FIXED 2026-09-24
+// ---------------------------------------------------------------------------------------------
+// From Stage 2 until that date `Page` answered the MEDIA box -- the sheet -- while everything that
+// LAYS OUT and DRAWS a page takes the CropBox (`core::Page::displaySize()` is `cropBox().size`,
+// and `PagePresentation` gives every slot `page->cropBox()`). So on a page whose CropBox is inset,
+// `Ctrl+0` computed a zoom for a rectangle the product never draws: measured on the P-1 rig over
+// `corpus/ordinary/cropbox-margins.pdf`, 89 % where the CropBox fit is 107-108 %, leaving 17 % of
+// the viewport empty with the next page's top edge showing below.
+//
+// It was invisible for two stages because every other corpus file has CropBox == MediaBox, and the
+// suite ASSERTED it -- `tst_fitpolicy.cpp` checked `fitRect(boxes, Page) == boxes.media` and the
+// case beside it asked only that the three fits DIFFER, which a wrong-but-different Page fit
+// satisfies. **That is I-28's lesson arriving a second time, one box over**, and it was found by a
+// person walking M-11 rather than by anything in `tests/`.
+//
+// **A fit measures what a reader is shown.** `Features.md` §1.2 now says so of Fit Page in as many
+// words, and `boxes.media` is measured by nothing here -- it stays in `PageBoxes` because the
+// struct is the page's three rectangles and because a print path (Stage 8) is the caller that
+// legitimately wants the sheet, not because any fit may quietly go back to it.
 
 #ifndef RAWPAGE_CORE_RENDER_FITPOLICY_H
 #define RAWPAGE_CORE_RENDER_FITPOLICY_H
@@ -61,11 +82,14 @@ struct PageBoxes {
 
 // WHICH RECTANGLE `fit` MEASURES.
 //
-//   Page     -- the MEDIA box: the sheet, including any bleed and crop marks.
 //   Visible  -- the CONTENT box, falling back to the CropBox when there is none (see the header).
+//   Page,
 //   Width,
 //   Height,
 //   None     -- the CROP box, which is what a reader draws.
+//
+// **NOTHING MEASURES THE MEDIA BOX** -- see I-10 in the header. A fit is a promise about what ends
+// up on screen, and the sheet outside the CropBox never does.
 //
 // The rectangle rather than its size, because Fit Visible has to be SCROLLED to as well as zoomed
 // to: a content box in the middle of a sheet that has been zoomed to fit is not on screen until

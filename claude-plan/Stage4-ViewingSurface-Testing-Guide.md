@@ -7,9 +7,10 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **80 automated** (A-01 … A-79, plus **A-66(a)**, which T11 added with A2's named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 80 carry
-> a result** as of 2026-09-24 (re-derived from this file: 80 case headers, none still boxed) — T1's
+> partly run.** **81 automated** (A-01 … A-80, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 81 carry
+> a result** as of 2026-09-24 (re-derived from this file: 81 case headers, none still boxed — the
+> 81st is **A-80**, added that day with I-10's fix) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
@@ -236,6 +237,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(Plan D4-1)* The viewing surface changes no document | A-06, A-07, A-31, A-35, A-48, A-63, A-69 |
 | *(Plan D4-10)* The pane does not starve the viewport | A-14 … A-17, A-32, A-72, **M-06** |
 | *(Plan D4-14)* Fit Visible fits the content — Stage 2's **I-28** | A-11, A-67, A-68, **M-11** |
+| *(I-10)* Fit Page fits the page a reader is SHOWN, not the sheet | **A-80**, and **M-11**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -866,6 +868,29 @@ also reports from the other side, still one command on the stage's eighth task a
 **Goal** Rule 1, on the case that taught it.
 **Expect** Over `cropbox-margins.pdf`, Fit Page, Fit Visible and Actual Size give **three different zoom factors**, and Fit Visible's is the one that makes the content box fill the viewport. **The assertion is on the zoom, never on `fitMode()`** — the old case asserted the mode and was green for a month. **The control:** on a page whose content fills its CropBox, Fit Visible and Fit Page agree, which is correct and is why the corpus file had to be built. **If it fails** S2, and I-28 stays open in Stage 2's guide.
 
+**A-80 · Fit Page produces the DRAWN page's zoom — I-10, closed** ✅
+✅ **2026-09-24**, across `tests/unit/tst_fitpolicy.cpp` (synthetic geometry) and
+`tests/render/tst_contentbox.cpp` (the real file). **This case exists because I-10 says it had to**:
+A-68 applied I-28's lesson — *a fit is a zoom* — to Fit **Visible** only, and nothing checked Fit
+**Page**'s number against the rectangle the product lays out, so a Fit Page measuring the sheet had a
+green suite over it from Stage 2 until a person walked M-11. The assertion is the same shape A-68
+uses: the zoom is compared against one computed independently from the CropBox, with
+`zoomToFit(media)` asserted **different** beside it — two rectangles that fitted to the same number
+could not tell the defect from the fix. Over `cropbox-margins.pdf` the product-level half also
+asserts the consequence a person actually saw: **the drawn page fills the viewport it was fitted to**
+(> 99.9 % of the available height), where at the sheet's zoom it covered **under 90 %**.
+**THE PLANTED CONTROL WAS RUN, AND WHAT STAYED GREEN IS THE POINT.** With `FitMode::Page` returning
+`boxes.media` again, three cases go red — this one in both suites (0.691 against the crop box's
+0.834 on synthetic geometry; 0.780 against 0.941 over the real file) and `fitRect measures the crop
+box and the content box and never the sheet`. **Both *"three different zooms"* cases stayed green**,
+the unit one and the one over the real file: they assert that the fits DIFFER, and a
+wrong-but-different Page fit satisfies that. That is I-10's *"why no case caught it"* demonstrated
+rather than argued, and it is the reason this case is an equality against a named rectangle.
+**Steps** `ctest -R "Fit Page|fitRect"`.
+**Expect** `fitRect(boxes, Page) == boxes.crop` and `!= boxes.media`; Fit Page's zoom equals the zoom
+computed from the CropBox and differs from the sheet's; over `cropbox-margins.pdf` the drawn page
+fills the viewport. **If it fails** S2 — I-10 is back, and `Ctrl+0` is not fitting the page.
+
 **A-69 · Document Properties shows what it read, and edits nothing**
 ✅ **2026-09-23, T12** (`tests/ui/tst_properties.cpp`). Every Info field, the version, the page count, the current page's size **named by its LABEL** where the document has one, the security line, the repaired line, and the path and size — the last two from the identity taken at OPEN (D3-16) rather than a fresh `QFileInfo`, which would describe a file that may have changed since. A date `Metadata::parseDate` refuses is shown **verbatim** and one it accepts is formatted, asserted as two visibly different treatments rather than one lenient one. **Nothing is editable, and that is asserted mechanically**: the dialog contains **no `QLineEdit` at all**, and every value label is selectable and carries no `Qt::TextEditable` — a read-only edit box looks like a field somebody forgot to enable. An absent Info field reads as an em dash rather than as blank, because most generated files have no `/Info` and a blank row looks like a field that failed to load. `mutation-lint` reporting **one command** on this task's day is the *constructs no command* half (D4-1), which is a stronger claim than any assertion in the case. **What this case does NOT do:** it never `exec()`s the dialog — offscreen a modal is shown to nobody and never returns (Stage 1's I-23) — so the widget is constructed and read, and `Ctrl+D`'s reachability is asserted on the REGISTRATION instead, including that it is disabled where there is nobody to ask (convention 16). The *file hash unchanged* clause is met by D4-1's gate rather than by re-hashing: this stage constructs no command, so there is no path from this dialog to a byte.
 **Expect** `Ctrl+D` opens the dialog; every Info field, the version, the page count, the current page's size, the file size and path, and whether the document was repaired or is encrypted; **no field is editable and the dialog constructs no command**; the file's hash is unchanged after opening and closing it. **If it fails** S1 for a change; S3 for a wrong figure.
@@ -941,10 +966,13 @@ an oversight.
 **Expect** `rawpage.exe --list-actions` reports the new registered/unregistered split; `tst_viewercommands`' derived census and `tst_context`'s agree with it. **The thirteen Viewer rows that were unregistered at Stage 3's sign-off** — `view.readingMode`, `view.togglePropertiesBar`, `view.reflow`, `view.toggleRulers`, `view.toggleGrid`, `view.toggleSnapToGrid`, `nav.nextComment`, `nav.prevComment`, `nav.nextDifference`, `nav.prevDifference`, `tool.snapshot`, `compare.documents`, `bookmark.new` (read from `--list-actions`, 2026-09-18) — **lose the four this stage registers, and every one that remains belongs to Stage 5, 6 or 7 by name**. Both census numbers are read from the run rather than predicted here. **If it fails** S3, corrected in the same change.
 
 **A-74 · Every prior stage's case is still present, by name, and green** ✅
-**2026-09-23, T14.** **1106/1106 on `x64-release` and 1106/1106 on `x64-debug`**, both from the
-CLEAN builds A-01 made, one explicitly skipped (the battery case, on a desktop that has none); the
-`gates` preset **124/124** with no Qt. Stage 3 signed off at 923; the 183 added are this stage's,
-and no case was renamed or removed — the count only ever rose.
+**2026-09-23, T14** — **and re-run 2026-09-24 with I-10's fix at 1108/1108 on both presets**, the
+two added being A-80's halves. T14's reading: **1106/1106 on `x64-release` and 1106/1106 on
+`x64-debug`**, both from the CLEAN builds A-01 made, one explicitly skipped (the battery case, on a
+desktop that has none); the `gates` preset **124/124** with no Qt. Stage 3 signed off at 923; the
+183 added were this stage's, and **no PRIOR stage's case was renamed or removed** — which is this
+case's claim, and it survives I-10's fix renaming one STAGE 4 case
+(`fitRect measures three different rectangles`, whose old name asserted the defect).
 **The golden clause, stated precisely because it is the one that could be read too kindly:** the
 only changes under `golden/` since Stage 3's sign-off are **nine NEW baselines** for T1's three new
 corpus files, plus their `manifest.json`, `captured.json`, `README.md` and `UPDATES.md` rows. **Every
@@ -1269,7 +1297,7 @@ uses.
 | **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
 | **I-09** | **S2** | **`Qt::UniqueConnection` asked for with a LAMBDA slot: fatal in `x64-debug`, and silently NO CONNECTION AT ALL in `x64-release`** | ✅ **Closed 2026-09-23 at T13**, by guarding uniqueness with the container the connection is about |
 | **I-08** | **S3** | **FOUR targets had been compiling at the compiler's DEFAULT language standard, not C++20 — `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5** | ✅ **Closed 2026-09-23 at T12**, in two rounds: the flags call each target lacked, and then `rawpage_assert_language_standard()`, which refuses to configure a target that omits it |
-| **I-10** | **S2** | **Fit Page measures the SHEET while the product draws the CROP: `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset** | ⚪ **Open — raised 2026-09-24 by M-11's walk; the CropBox is correct, decided by the user the same day; predates T12, and the suite asserts the defect** |
+| **I-10** | **S2** | **Fit Page measures the SHEET while the product draws the CROP: `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset** | ✅ **Closed 2026-09-24, the day M-11 raised it** — `FitMode::Page` measures the CropBox, the assertion that pinned the sheet is inverted, and **A-80** asserts the zoom against the drawn page |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1509,15 +1537,39 @@ reader shows"*.
 touches one `switch` arm in `core/render/FitPolicy.cpp` and the assertion that currently pins the
 MediaBox — and it is not finished by those two: **a case has to assert Fit Page's ZOOM against the
 drawn page**, the shape A-68 already has for Fit Visible, or the next reader inherits a suite that
-would ratify the defect a second time. **Open at S2** (§1: *"a fit is the wrong zoom"*), so **§9 item
-9 is not met and Stage 4 cannot be signed off until it is closed.**
+would ratify the defect a second time. **CLOSED 2026-09-24, the same day, and the repair is three things rather than one.** (1)
+`fitRect()` answers `boxes.crop` for `FitMode::Page`, which puts Page in the same arm as Width,
+Height and None — **`boxes.media` is now measured by no fit at all**, and it stays in `PageBoxes`
+because the struct is the page's three rectangles and because a print path (Stage 8) is the caller
+that legitimately wants the sheet. (2) `tests/unit/tst_fitpolicy.cpp`'s assertion is inverted and
+joined by an explicit `fitRect(boxes, Page) != boxes.media`, stated separately so that a sixth mode
+given the sheet one day fails something. (3) **A-80** asserts Fit Page's ZOOM against the drawn page,
+in both the unit and the render suites, because without it the next reader inherits a suite that
+would ratify the defect a second time.
+
+**The planted control was run and it is the interesting part.** With `FitMode::Page` returning
+`boxes.media` again: A-80 reddens in both suites and the `fitRect` case reddens — **and both
+*"three different zooms"* cases stay green.** The defect is invisible to every assertion that asks
+only for difference, which is what let it live under a complete suite for two stages, and is why the
+new case is an equality against a rectangle computed independently.
+
+**What moved besides the code:** `Features.md` §1.2 now defines Fit Page as *the page as shown* — the
+ambiguity there is what let two readings coexist — `Architecture-FileMap.md`'s `FitPolicy` row no
+longer says *"the sheet for Fit Page"*, and one multiplier in the *three different zooms* case moved
+from 1.5 to 1.3 because the ratio it bounds is now 697.89 / 521.89 = 1.337 rather than
+841.89 / 521.89 = 1.613. That number is written down in the case rather than tuned until it passed.
+
+**What it does NOT cover** (convention 19): that the product lays out the CropBox. A-80's unit half
+links no widgets and its render half reads the boxes through the backend, so *the slot is built from
+the crop box* is asserted where that code lives — `core::Page::displaySize()`'s own cases. If that
+changed to the sheet, A-80 would still pass and the product would be wrong in the other direction.
 
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-24 — all 80 carry a result; the last to get one was A-04.** Every case
+1. ✅ **2026-09-24 — all 81 carry a result.** The 81st is **A-80**, added that day with I-10's fix; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -1529,9 +1581,19 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-23, T14.** **1106/1106 on `x64-release` and on `x64-debug`**, one named skip, both
-   from CLEAN builds with **0 warnings** (A-01); `gates` **124/124**. Every prior stage's case is
-   present by name and none was renamed (A-74).
+4. ✅ **2026-09-24, re-run with I-10's fix.** **1108/1108 on `x64-release` and on `x64-debug`** —
+   the two new cases are A-80's halves — `checks` clean on four gates (`layer-lint` 423 files /
+   3,354 includes; `mutation-lint` still **one command**). **The first run of this item had two caveats and both are cleared.** The
+   product was still OPEN on the walker's desktop from M-11, which holds the binary and the
+   single-instance bus: `rawpage.exe` would not relink, and `ui.diagnostics_ignore_the_bus` SKIPPED
+   in `x64-debug` — a second named skip that is not normally there. **Both were re-run with the
+   window closed**: the binary relinked and that case **passed on both presets**, leaving the battery
+   case as the one named skip it should be. Recorded rather than quietly re-run, because a skip
+   nobody explains is how a case stops being evidence. The clean-build warning census is T14's and was not re-taken
+   (convention: an incremental build inherits it). One case renamed —
+   `fitRect measures three different rectangles` →
+   `fitRect measures the crop box and the content box and never the sheet`, a Stage 4 case whose old
+   name asserted the defect; A-74 is about PRIOR stages' names and is unaffected.
 5. ✅ *(2026-09-24: `portable-asan` in CI run 35879213301 — the T14 push, commit `a01192b` —
    **609/609**, with all 39 cases of `tst_sessionstate`, `tst_fingerprint`, `tst_snap`, `tst_outline`
    and `tst_metadata` present by name and **0 `runtime error:`, 0 `ERROR: AddressSanitizer`, 0
@@ -1558,13 +1620,13 @@ restated as a checklist.
    the window with the ink, 89 / 100 / 251 / **106 %** over `text-a4.pdf`, and the empty page's
    CropBox fallback at **108 %**. Somebody has now looked at a fitted page — and looking is what
    raised **I-10**, which is item 9's problem rather than this one's.
-9. ❌ **NOT MET as of 2026-09-24 — one open S2.** §8 holds ten issues and **two are open**:
-   **I-10 (S2)**, raised by M-11's walk — Fit Page measures the MediaBox while the product draws the
-   CropBox, so `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset — and
-   **I-07 (S4)**, a page colour that can be inverted but not substituted because no declared settings
-   key holds a colour pair, which is a scope finding owned by Stage 8 with nothing broken and nothing
-   inert. **I-10 blocks sign-off**; this item was green until a person looked, which is what the
-   manual half is for.
+9. ✅ **2026-09-24 — met again, the same day it was broken.** §8 holds ten issues and **only I-07
+   is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
+   key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
+   **I-10 (S2) was raised by M-11's walk and closed the same day** — `FitMode::Page` measures the
+   CropBox, the assertion that pinned the sheet is inverted, and **A-80** asserts the zoom against
+   the drawn page. This item spent one commit red, which is the honest record of a green suite having
+   ratified a defect a person could see.
 10. ✅ **2026-09-23, T14.** Every §4 row flipped with its file; the plan's §10 debt paid, including
     the two items that had outlived their tasks — **flow C** gained the split and the
     background-window lane (owed at T9 and T11), and **`CLAUDE.md`'s two paragraphs** were
@@ -1572,10 +1634,10 @@ restated as a checklist.
     every deviation named.
 
 **WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; ONE OF THE
-TWELVE MANUAL CASES IS WALKED, AND IT RAISED AN S2.** Items 2 and 9 are what is outstanding — eleven
-unwalked cases, and **I-10**, which is a code fix rather than a walk. That the first manual case
-walked in this stage produced an S2 over a green automated half is the argument for the other
-eleven, not against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+TWELVE MANUAL CASES IS WALKED, IT RAISED AN S2, AND THAT S2 IS FIXED.** **Item 2 is the whole of what
+is outstanding** — eleven unwalked cases. That the first manual case walked in this stage found a
+defect the complete automated half had ratified, and that the fix needed a new case rather than only
+a new line of code, is the argument for the other eleven rather than against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.

@@ -51,17 +51,70 @@ constexpr double kMargin = 12.0;
 // A-68 -- the three fits are three DIFFERENT rectangles, and therefore three different zooms.
 // =============================================================================================
 
-TEST_CASE("fitRect measures three different rectangles", "[fitpolicy]")
+TEST_CASE("fitRect measures the crop box and the content box and never the sheet", "[fitpolicy]")
 {
     const PageBoxes boxes = threeRectangles();
 
-    CHECK(core::render::fitRect(boxes, FitMode::Page) == boxes.media);
     CHECK(core::render::fitRect(boxes, FitMode::Visible) == *boxes.content);
 
-    // Width, Height and None all measure what a reader actually sees drawn.
+    // **EVERY OTHER FIT MEASURES WHAT A READER ACTUALLY SEES DRAWN**, Page included -- which is
+    // I-10 (`Stage4-ViewingSurface-Testing-Guide.md` §8), fixed 2026-09-24. Until then this case
+    // read `fitRect(boxes, FitMode::Page) == boxes.media` and was green over a Fit Page that
+    // fitted a rectangle the product never draws: the assertion WAS the defect, which is why the
+    // line below it is here too.
+    CHECK(core::render::fitRect(boxes, FitMode::Page) == boxes.crop);
     CHECK(core::render::fitRect(boxes, FitMode::Width) == boxes.crop);
     CHECK(core::render::fitRect(boxes, FitMode::Height) == boxes.crop);
     CHECK(core::render::fitRect(boxes, FitMode::None) == boxes.crop);
+
+    // The sheet is measured by NOTHING, stated as its own assertion rather than inferred from the
+    // five above: a sixth mode added one day and quietly given `boxes.media` would pass all of
+    // them and fail this.
+    CHECK(core::render::fitRect(boxes, FitMode::Page) != boxes.media);
+    CHECK(core::render::fitRect(boxes, FitMode::Visible) != boxes.media);
+}
+
+// =============================================================================================
+// I-10 -- Fit Page produces the DRAWN page's zoom, never the sheet's.
+// =============================================================================================
+
+TEST_CASE("Fit Page produces the drawn page's zoom and not the sheet's", "[fitpolicy]")
+{
+    // **THE CASE I-10 SAYS HAD TO EXIST.** A-68 applied I-28's lesson -- *a fit is a zoom* -- to
+    // Fit Visible alone, and nothing checked Fit PAGE's number against what is laid out, so the
+    // defect had a green suite over it for two stages. This is that check, in the shape A-68 uses.
+    const PageBoxes boxes = threeRectangles();
+    const core::DeviceSize viewport{1000.0, 800.0};
+    const PhysicalDpi dpi{96.0};
+
+    const Zoom page = core::render::zoomToFit(
+        FitMode::Page, core::render::fitRect(boxes, FitMode::Page).size, viewport, kMargin, dpi,
+        Zoom{1.0});
+
+    // Both expectations are computed from the rectangles independently of `fitRect`, so this is a
+    // check rather than a restatement -- and the REQUIRE between them is the discrimination: two
+    // rectangles that fitted to the same number could not tell the defect from the fix, which is
+    // exactly how A-68's first version passed with I-28 planted back in (convention 7).
+    const Zoom fromCrop = core::render::zoomToFit(FitMode::Page, boxes.crop.size, viewport, kMargin,
+                                                  dpi, Zoom{1.0});
+    const Zoom fromSheet = core::render::zoomToFit(FitMode::Page, boxes.media.size, viewport,
+                                                   kMargin, dpi, Zoom{1.0});
+    REQUIRE(fromCrop.factor != fromSheet.factor);
+
+    CHECK(page.factor == fromCrop.factor);
+    CHECK(page.factor != fromSheet.factor);
+
+    // AND IT IS THE LARGER NUMBER, which is the thing a person saw on the rig: the sheet is bigger
+    // than the page drawn inside it, so fitting the sheet zooms out further and leaves the page
+    // short of the window -- 17 % of the viewport empty on `cropbox-margins.pdf`, with the next
+    // page's top edge showing below it (M-11, 2026-09-24).
+    CHECK(page.factor > fromSheet.factor);
+
+    // **WHAT THIS DOES NOT COVER** (convention 19): that the product LAYS OUT the crop box. This
+    // file links no widgets and no engine, so the rectangle the slot is built from is asserted
+    // where that code lives -- `tests/render/tst_contentbox.cpp` over the real file, and
+    // `core::Page::displaySize()`'s own cases. If one of those changed to the sheet, this case
+    // would still pass and the product would be wrong in the other direction.
 }
 
 TEST_CASE("the three fits give three different zooms", "[fitpolicy]")
@@ -88,9 +141,13 @@ TEST_CASE("the three fits give three different zooms", "[fitpolicy]")
     // at all -- here the content box is tall, and Fit Width is the biggest number on the page.
     CHECK(visible.factor > page.factor);
 
-    // And not by a rounding error: the content box is 307 pt wide against a 595 pt sheet, so the
-    // two whole-box zooms are more than half as much again apart.
-    CHECK(visible.factor > page.factor * 1.5);
+    // And not by a rounding error. **The multiplier moved from 1.5 to 1.3 when I-10 was fixed**,
+    // and the arithmetic is worth writing down rather than tuning until it passes: both fits are
+    // height-limited on this geometry, so the ratio is exactly the ratio of the box heights. Fit
+    // Page against the sheet was 841.89 / 521.89 = 1.613; against the crop box it is
+    // 697.89 / 521.89 = 1.337. A correct product now sits above 1.3 and the old defect sat above
+    // 1.5, so this line is also what fails if `Page` ever goes back to the sheet.
+    CHECK(visible.factor > page.factor * 1.3);
 
     // All three differ. A product that had quietly kept fitting the CropBox would show
     // `visible == width` here, which is exactly what I-28 was.
