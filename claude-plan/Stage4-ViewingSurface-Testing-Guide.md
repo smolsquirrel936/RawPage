@@ -22,8 +22,10 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **No manual case has been walked**, which is the stage's largest remaining gap. §8 holds **nine** issues:
-> **only I-07 is open (S4)**; I-02, I-03, I-04, I-05, I-06, I-08 and **I-01 and I-09 at T13** are
+> **One manual case is walked — M-11, by the user on 2026-09-24, passed** — and the other eleven
+> are the stage's largest remaining gap. §8 holds **ten** issues: **two are open, I-07 (S4) and
+> I-10 (S2, raised by that walk — Fit Page measures the sheet while the product draws the crop)**;
+> I-02, I-03, I-04, I-05, I-06, I-08 and **I-01 and I-09 at T13** are
 > closed — **I-01 where this file said its owner would settle it, and I-09 found by `x64-debug`
 > after `x64-release` had reported green**.
 >
@@ -1178,7 +1180,30 @@ Three things about the state you will be walking, so a planned absence is not re
   widths come back with the setting on and do not with it off.
 - **If it fails** S3; S2 if a pane comes back attached to the wrong document.
 
-**M-11 · Fit Visible, beside Fit Page** ☐
+**M-11 · Fit Visible, beside Fit Page** ✅ signed off by the user, 2026-09-24 — **the first manual
+case walked in this stage, and it raised I-10 (S2)**
+- **Walk result** On `cropbox-margins.pdf`: `Ctrl+0` **89 %**, `Ctrl+1` **100 %**, `Ctrl+2` **331 %**,
+  `Ctrl+3` **143 %** — three different zooms, and Fit Visible fills the window with the ink panel
+  rather than the white margins, which is the thing this case exists to look at. On `text-a4.pdf`:
+  **89 / 100 / 251 / 106 %** — `Ctrl+3` and `Ctrl+0` close, as the case predicts for a page whose ink
+  nearly fills it. **Page 2, the empty one:** `Ctrl+1` 100 %, `Ctrl+3` **108 %** — the CropBox
+  fallback (D4-14), and NOT the MediaBox's 89 %, which is the distinction only this file can show.
+  **Both files' timestamps unmoved** before and after, so nothing this stage does reaches the
+  document.
+- **The eight readings are mutually consistent and pin the rig**, which is how a by-eye case became
+  arithmetic somebody can re-check: they solve to a viewport of **1991 × 998 device pixels at ~96
+  DPI**, and every one of them is that viewport divided by a named rectangle — 89 % = 998 ÷
+  (841.89 × 1.3333), 143 % = 998 ÷ (521.89 × 1.3333), 331 % = 1991 ÷ (451.276 × 1.3333), and so on.
+  A percentage that matched no rectangle would have been the finding.
+- **Walked with two steps this case does not ask for**, both kept here because they are what made the
+  result arithmetic rather than an impression: **`Ctrl+2`** on each file, whose two different answers
+  (331 % and 251 %, the two CropBox widths) is what proves the two documents were measured
+  separately — the first attempt reported one file's four numbers for both, and only Fit Width made
+  that visible — and **page 2's fallback**. Whoever re-walks this should walk those too.
+- **AND THE WALK FOUND WHAT THE GREEN AUTOMATED HALF HAD RATIFIED:** `Ctrl+0` fits the **MediaBox**
+  while the product draws the **CropBox**, so on this file Fit Page leaves **17 % of the window
+  empty** and page 2's top edge shows below the page. That is **I-10** (§8), S2, open. **M-11 itself
+  passes**: it asserts three different zooms and an ink-filled window, and both are there.
 - **Goal** Stage 2's **I-28** judged the way it was found — by looking.
 - **Pre** `corpus\ordinary\cropbox-margins.pdf`.
 - **Steps** Press `Ctrl+0`, then `Ctrl+3`, then `Ctrl+1`, on that file and then on `text-a4.pdf`.
@@ -1244,6 +1269,7 @@ uses.
 | **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
 | **I-09** | **S2** | **`Qt::UniqueConnection` asked for with a LAMBDA slot: fatal in `x64-debug`, and silently NO CONNECTION AT ALL in `x64-release`** | ✅ **Closed 2026-09-23 at T13**, by guarding uniqueness with the container the connection is about |
 | **I-08** | **S3** | **FOUR targets had been compiling at the compiler's DEFAULT language standard, not C++20 — `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5** | ✅ **Closed 2026-09-23 at T12**, in two rounds: the flags call each target lacked, and then `rawpage_assert_language_standard()`, which refuses to configure a target that omits it |
+| **I-10** | **S2** | **Fit Page measures the SHEET while the product draws the CROP: `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset** | ⚪ **Open — raised 2026-09-24 by M-11's walk; the CropBox is correct, decided by the user the same day; predates T12, and the suite asserts the defect** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1439,6 +1465,53 @@ a window, which is the whole argument for running both presets rather than the f
 `Qt::UniqueConnection`, and the thing that knows whether it has already been made is the state the lambda
 mutates.**
 
+**I-10 · Fit Page measures the SHEET while the product draws the CROP.** *(Raised 2026-09-24 by the
+user's M-11 walk — the first manual case walked in this stage, and it found in one session what a
+complete and green automated half had ratified.)*
+
+**Mechanism.** `core/render/FitPolicy.cpp`'s `fitRect()` answers `boxes.media` for `FitMode::Page`
+and `boxes.crop` for `Width`, `Height` and `None`. What the product LAYS OUT and DRAWS is the
+CropBox: `core::Page::displaySize()` is `cropBox().size`, and `PagePresentation` gives every slot
+`page->cropBox()`. On any document whose CropBox is inset from its MediaBox the two disagree, so
+`Ctrl+0` computes a zoom that fits a rectangle the product never draws.
+
+**Measured on the rig, not inferred.** Over `corpus/ordinary/cropbox-margins.pdf` in a
+**1991 × 998** device-pixel viewport at ~96 DPI: `Ctrl+0` = **89 %** = 998 ÷ (841.89 × 1.3333), the
+MediaBox. The page is then drawn 828 px tall in a 998 px viewport — **17 % of it empty**, with page
+2's top edge visible below. A CropBox fit is **107–108 %**, and **the product produced that number
+itself in the same window two keystrokes away**: page 2 is empty, so `Ctrl+3` falls back to the
+CropBox (D4-14) and reads **108 %**. The number `Ctrl+0` should have given is one this build already
+computes correctly.
+
+**Why no case caught it — the suite ASSERTS it.** `tests/unit/tst_fitpolicy.cpp:58` is
+`CHECK(fitRect(boxes, FitMode::Page) == boxes.media)`, and the case beside it asserts only that the
+three fits give three DIFFERENT zooms, which a wrong-but-different Page fit satisfies. A-68 was
+written from I-28's lesson — *a fit is a zoom* — and applies it to Fit **Visible**, whose zoom is
+checked against an independently computed content box; **nothing checks Fit PAGE's zoom against what
+is drawn**. The rule is even written one line below the defect, in that file's own comment: *"Width,
+Height and None all measure what a reader actually sees drawn."* Page is the one that does not, and
+no case asks why.
+
+**It predates T12 and it predates this stage.** The comment T12 deleted from
+`ui/viewer/PageLayoutEngine.cpp` read *"`Page` fits the SHEET and `Visible` fits the CropBox. They
+agree on a document whose CropBox equals its MediaBox, which is most of them"* — so the behaviour is
+Stage 2's, carried across into `FitPolicy` unchanged. It is invisible on every corpus file except the
+one T1 built for this stage: **the same shape as I-28, one box over.** It is logged here because the
+walk that found it is this stage's; whoever repairs it should read I-28 first.
+
+**The decision, taken by the user on 2026-09-24: the CROPBOX is correct and the product is wrong.**
+Fit Page must fit what a reader is shown — which is what `Features.md` §1.2's *"Fit Page"* means in
+the reader whose chords §8 copies, what this fixture prints on its own page (*"Fit Page fills the
+window with the CropBox"*), and what `corpus/PROVENANCE.md` means by calling the CropBox *"what a
+reader shows"*.
+
+**What is absent, and who owns it.** Nothing is fixed in the change that raises this. The repair
+touches one `switch` arm in `core/render/FitPolicy.cpp` and the assertion that currently pins the
+MediaBox — and it is not finished by those two: **a case has to assert Fit Page's ZOOM against the
+drawn page**, the shape A-68 already has for Fit Visible, or the next reader inherits a suite that
+would ratify the defect a second time. **Open at S2** (§1: *"a fit is the wrong zoom"*), so **§9 item
+9 is not met and Stage 4 cannot be signed off until it is closed.**
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
@@ -1450,8 +1523,9 @@ restated as a checklist.
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Nothing in §6 has
-   been walked**, which is the stage's largest remaining gap and the honest summary of its state.
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **One of the twelve is
+   walked: M-11, 2026-09-24, passed — and it raised I-10 (S2), which is what a manual half is for.**
+   The other eleven are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -1477,22 +1551,31 @@ restated as a checklist.
    column falling from 18.91–19.33 ms to **4.01–4.75 ms** once T11's named work was measured rather
    than merely asserted. `WinAcceleratedSurface`'s FileMap row says what was measured. Graded on §3's
    scale, which was fixed before either measurement.
-8. 🟡 **2026-09-23, T12 — the AUTOMATED half is met and M-11 is still owed.** Stage 2's I-28 is
+8. ✅ **2026-09-24 — the automated half at T12, and M-11 walked.** Stage 2's I-28 is
    closed in Stage 2's guide, with the measurement, and `Ctrl+3` is asserted **on a zoom** and not on
    `fitMode()` (A-68 ✅ — its own control had to be fixed before it would fail on the defect). **M-11
-   is not walked**, so this item is amber rather than green: nobody has yet looked at a fitted page.
-9. ✅ **2026-09-23, T14. No open S1 or S2.** §8 holds nine issues and **only I-07 is open**, at
-   **S4** — a page colour can be inverted but not substituted, because no declared settings key holds
-   a colour pair. It is a scope finding owned by Stage 8, nothing is broken and nothing is inert.
+   passed on the rig**: 89 / 100 / 331 / **143 %** over `cropbox-margins.pdf` with Fit Visible filling
+   the window with the ink, 89 / 100 / 251 / **106 %** over `text-a4.pdf`, and the empty page's
+   CropBox fallback at **108 %**. Somebody has now looked at a fitted page — and looking is what
+   raised **I-10**, which is item 9's problem rather than this one's.
+9. ❌ **NOT MET as of 2026-09-24 — one open S2.** §8 holds ten issues and **two are open**:
+   **I-10 (S2)**, raised by M-11's walk — Fit Page measures the MediaBox while the product draws the
+   CropBox, so `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset — and
+   **I-07 (S4)**, a page colour that can be inverted but not substituted because no declared settings
+   key holds a colour pair, which is a scope finding owned by Stage 8 with nothing broken and nothing
+   inert. **I-10 blocks sign-off**; this item was green until a person looked, which is what the
+   manual half is for.
 10. ✅ **2026-09-23, T14.** Every §4 row flipped with its file; the plan's §10 debt paid, including
     the two items that had outlived their tasks — **flow C** gained the split and the
     background-window lane (owed at T9 and T11), and **`CLAUDE.md`'s two paragraphs** were
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included, and NOT ONE
-OF THE TWELVE MANUAL CASES HAS BEEN WALKED.** Item 2 is the whole of what is outstanding — item 8's
-M-11 is one of its twelve. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; ONE OF THE
+TWELVE MANUAL CASES IS WALKED, AND IT RAISED AN S2.** Items 2 and 9 are what is outstanding — eleven
+unwalked cases, and **I-10**, which is a code fix rather than a walk. That the first manual case
+walked in this stage produced an S2 over a green automated half is the argument for the other
+eleven, not against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.
