@@ -93,7 +93,7 @@ mistaken for evidence, and each has a concrete way to settle it. **Stage 0 owes 
 | # | Unverified assumption | How to settle it |
 |---|---|---|
 | A1 | Right PDF's Write mode is a first-party reflow engine rather than an embedded third-party word processor. | Inspect an installed copy's binaries and dependency list; check for a known word-processing engine's DLLs. |
-| ~~A2~~ | **PDFium's `FPDF_RenderPageBitmap` throughput is sufficient for smooth 60 Hz scrolling of a text-heavy A4 page at 200% on a 150 %-scaled 4K monitor with an 8-worker pool.** | ✅ **SETTLED — `go`, on BOTH measurements D2-1 required.** Probe 2026-09-01 (T3): p95 **0.532 ms** of engine service time per tile, 25–31× headroom — and it found the pool is not eight threads. **Product 2026-09-06 (T18)**: through the shipped scheduler and cache, a 1920×1080 viewport at A2's own 288 dpi has a p95 **queued latency of 14.18 ms against 16.667 ms — 1.18× headroom**, at a per-tile cost of **0.356 ms**. **Corrected 2026-09-14:** that latency went through a benchmark pump that delivered only on a ~15.6 ms timer tick, so it was an upper bound (I-41 (`Stage2-Rendering-Testing-Guide.md` §8)). Behind the benchmark's new latency control it is p95 **13.03–13.20 ms, about 1.27×**, at 0.343–0.347 ms a tile. The verdict is unchanged. Both figures are below; **they measure different quantities and the gap between 31× and 1.18× is the whole reason D2-1 asked for two.** **Re-asked at Stage 4 T2 (2026-09-19) for the workload that stage creates — `go, with named custom work`:** with a split view and a thumbnails pane streaming at `Speculative` on the same worker and cache, the viewport's p95 is **10.59–10.74 ms, about 1.55×**, and the named work is T11's, not the pane's — **built 2026-09-21 at T11**, with the two-window figure still standing as measured until **T14** re-reads it. The section below holds it, and **`platform::IAcceleratedSurface` is answered there: not built.** |
+| ~~A2~~ | **PDFium's `FPDF_RenderPageBitmap` throughput is sufficient for smooth 60 Hz scrolling of a text-heavy A4 page at 200% on a 150 %-scaled 4K monitor with an 8-worker pool.** | ✅ **SETTLED — `go`, on BOTH measurements D2-1 required.** Probe 2026-09-01 (T3): p95 **0.532 ms** of engine service time per tile, 25–31× headroom — and it found the pool is not eight threads. **Product 2026-09-06 (T18)**: through the shipped scheduler and cache, a 1920×1080 viewport at A2's own 288 dpi has a p95 **queued latency of 14.18 ms against 16.667 ms — 1.18× headroom**, at a per-tile cost of **0.356 ms**. **Corrected 2026-09-14:** that latency went through a benchmark pump that delivered only on a ~15.6 ms timer tick, so it was an upper bound (I-41 (`Stage2-Rendering-Testing-Guide.md` §8)). Behind the benchmark's new latency control it is p95 **13.03–13.20 ms, about 1.27×**, at 0.343–0.347 ms a tile. The verdict is unchanged. Both figures are below; **they measure different quantities and the gap between 31× and 1.18× is the whole reason D2-1 asked for two.** **Re-asked at Stage 4 T2 (2026-09-19) for the workload that stage creates — `go, with named custom work`:** with a split view and a thumbnails pane streaming at `Speculative` on the same worker and cache, the viewport's p95 is **10.59–10.74 ms, about 1.55×**, and the named work is T11's, not the pane's. **Built 2026-09-21 at T11 and MEASURED 2026-09-23 at T14, through the shipped panes: `go`, plainly.** Over the real `ThumbnailsPane`, `SplitViewContainer` and `TilePresenter` the viewport's p95 is **7.03–8.56 ms, about 1.95–2.37×**, and the two-window column that cost T2 its plain verdict — 18.91–19.33 ms then — is **4.01–4.75 ms** now that a background window queues at `Prefetch`. The section below holds both, and it keeps them apart: **the bench figure and the product figure are D2-1's pair one level up, and the product's is lower for a structural reason rather than a comfortable one.** **`platform::IAcceleratedSurface` is answered there: not built.** |
 | ~~A3~~ | **Qt Widgets can deliver a ribbon, tear-off document tabs, and dockable auto-hiding panes without a commercial ribbon library.** | ✅ **Settled 2026-08-23 — `go, with named custom work`. See below.** Every remaining criterion is met: R-1…R-7 and R-9. R-8 was **withdrawn**, not failed, when accessibility was removed from the product. The fallback (a first-party ribbon widget) is not in play. |
 | A4 | Incremental save can preserve the original bytes closely enough that a signature applied before an unrelated later edit still validates. | **Measured twice** (`Stage3-Mutation-Plan.md` D3-1): a probe over `pdf/cos/IncrementalWriter` alone at Stage 3 T2, and the product's own Save at T13, each over the four generated files in `corpus/signed/` judged by OpenSSL for integrity and Acrobat for policy (D3-2). **The edit Acrobat grades is a comment** — a change these signatures' policy permits — because Acrobat rejects a page rotation after them from any writer (Stage 3 guide I-06, decided by the user 2026-09-14); the rotation is kept as a control, and OpenSSL judges integrity after both. Graded on the scale fixed before measurement in `Stage3-Mutation-Testing-Guide.md` §3, and bounded to **RawPage's generated signatures**. **PROBE, 2026-09-14 — `go`.** Over all eight outputs (a comment and a rotation into each of the four files), read back from disk: every byte of each original is unchanged at the start of the written file, so every signed range is; each edit re-reads through `pdf/cos/`; and `openssl cms -verify` rejected **16 of 16** flipped-byte copies and then verified **8 of 8** signatures (`unit.a4_probe.openssl`; OpenSSL 3.5.6 here, 3.0.13 and 3.5.4 in CI run 34834009577 for the rotation set). Those are the guide §3 criteria (1) and (2). **What Acrobat has already said (the first walk, I-06):** the ROTATION is *"INVALID … altered or corrupted"* from our writer and from an unrelated one alike, and our writer's update adding a COMMENT to `approval.pdf` leaves *"the revision … covered by this signature … not altered; however, there have been subsequent changes"*. **Criteria (3) and (4), from the user's M-03 probe re-walk the same day:** `comment\approval.pdf`, `comment\approval-xrefstream.pdf` and `comment\approval-then-update.pdf`, each after **Validate Signature**: *"The revision of the document that was covered by this signature has not been altered; however, there have been subsequent changes to the document"* (validity UNKNOWN, identity unknown — the self-signed test certificate, as expected). `comment\certified-nochanges.pdf`: *"Document certification is INVALID. The document has been altered or corrupted since the Certification was applied … no changes are allowed"*. All four in `rotate\`: *"Signature is INVALID … altered or corrupted"* (the certified one as *"Document certification is INVALID"*). So every approval signature's signed revision is unaltered after a permitted edit written by `IncrementalWriter`, over a classic table, an xref stream with the page lifted out of an object stream, and a file that already had an unsigned revision — and both controls were flagged, so that was a judgement. **The append model stands, over RawPage's generated signatures** (one signer, RSA-2048, PKCS#1 v1.5, SHA-256, self-signed, no timestamp or PAdES profile): it says nothing about signatures from other producers. **And the probe's edit was hand-built**: which object an edit changes is `pdf/ops/`' decision from T3, and the claim about RawPage's own Save is T13's. **PRODUCT (T13), 2026-09-17 — PARTIAL, in these words: criteria (1) and (2) are MET through the product; the rotation half of criterion (4) is MET by the user's M-03 product walk (2026-09-17); criterion (3) through the product is Stage 6's.** `render.a4_product.openssl` (guide A-57): each of the four `corpus/signed/` files opened by the shipped backend, page 1 rotated by `RotatePageCommand` through `CommandJournal` and `MutationSinkImpl`, and saved by `SaveCoordinator` through `RevisionWriter` and the real `WinDurableFiles` into `build\x64-release\a4-product\`; the opened bytes asserted to be the prefix of the file read back from disk; then OpenSSL 3.5.6 over the four files on disk: *"all 8 flipped copies rejected"*, *"signature check ok: 8 of 8 controls rejected, 4 of 4 signatures verify"*. **Measured after Stage 3 guide issue I-12's writer change** — `IncrementalWriter::protectOriginal`, which runs before every append — so it is a figure about the writer that ships, not the one T8 measured. **The product's Acrobat grading, M-03's product walk (the user's, 2026-09-17):** copies of the four `corpus/signed/` files, each opened in `rawpage.exe`, page 1 rotated 90° with `Ctrl+R`, saved with `Ctrl+S`; Acrobat reported every one *"Signature is INVALID"*, as it did the probe's `rotate\` set. **Read afterwards from the saved files:** each original an unchanged prefix; OpenSSL 3.5.6 *"8 of 8 controls rejected, 4 of 4 signatures verify"*; and **each appended update byte-identical to the probe's `a4-probe\rotate\` update for the same file** (337, 420, 337 and 337 bytes) — so what `IncrementalWriter` wrote by hand at T2 is what RawPage's Save writes. A rotation is what Acrobat rejects after these signatures from any writer (I-06), so this is a control, not a verdict on the append model; a permitted edit through the product is Stage 6's first annotation command. The bound is the probe's: RawPage's generated signatures only. |
 | ~~A5~~ | vcpkg has serviceable ports for every dependency in §6 at the versions we want, **on the `x64-mingw-dynamic` triplet**. | ✅ **Resolution settled 2026-08-18 — see below.** Build fidelity remains partly open. |
@@ -327,8 +327,9 @@ one rig and one generated 900-page document**, so the bound above is unchanged b
 two product fixes (**I-23**, **I-24**), and neither touches this verdict: both were gestures around
 the scroll rather than anything about tiles or latency.
 
-**A2 AT STAGE 4, measured 2026-09-19, Stage 4 task T2 — STAGE 4's WORKLOAD, and the decision on
-`platform::IAcceleratedSurface`. Verdict: `go, with named custom work`.**
+**A2 AT STAGE 4 — STAGE 4's WORKLOAD, and the decision on `platform::IAcceleratedSurface`.
+Measured twice, as D4-16 requires: at T2 (2026-09-19) through a synthetic request pattern before any
+pane existed, and at T14 (2026-09-23) through the shipped panes. FINAL VERDICT: `go`.**
 
 D2-1's product figure was measured with **one** viewport. Stage 4 puts three consumers on one
 scheduler, one worker and one 256 MiB cache — a viewer, a split view's second pane, and a thumbnails
@@ -380,8 +381,9 @@ tiles are asked for, they arrive, and the picture is identical — so `RenderSch
 (`Stage4-ViewingSurface-Testing-Guide.md` §5.12) asserts on those with the control convention 22
 asks for: the same gesture in the same window, once it is in front, moves the `Visible` counter.
 **What T11 did NOT do is re-measure the two-window column** — a case can say which queue a tile
-waited in and cannot say what that buys. **T14 re-reads the figure**, and until it does, the
-`two windows` row above stands as measured.
+waited in and cannot say what that buys. **T14 re-read it on 2026-09-23 and it is 4.01–4.75 ms**, in
+the section below; the `two windows` row in the table above stands as T2 measured it, which is what
+the change was measured against.
 
 **`platform::IAcceleratedSurface` IS NOT BUILT, and the reason is structural rather than a
 comfortable number.** Its `Architecture-FileMap.md` row has deferred to *"Stage 4, if A2 says it is
@@ -393,11 +395,69 @@ threads buy nothing, because **I-05**'s lock serializes them (`Stage2-Rendering-
 §8). A GPU path would move the one part of this pipeline that is not the bottleneck. The row is
 therefore answered with this measurement rather than deferred again.
 
-**What this does NOT claim.** It is one rig, one generated corpus (D2-11), and a synthetic request
-pattern issued before any pane exists — which is the whole point of measuring at T2, and also its
-bound. **T14 re-reads the same quantity through the shipped panes** and is where the figure becomes
-the product's; **M-06** is where a person says whether a 900-page thumbnails pane *feels* smooth,
-which no percentile can.
+**What the T2 figure does NOT claim.** It is one rig, one generated corpus (D2-11), and a synthetic
+request pattern issued before any pane exists — which is the whole point of measuring at T2, and also
+its bound. **T14 re-read the same quantity through the shipped panes**, below, and that is where the
+figure becomes the product's; **M-06** is where a person says whether a 900-page thumbnails pane
+*feels* smooth, which no percentile can.
+
+---
+
+**A2 AT STAGE 4, THE PRODUCT'S OWN FIGURE — measured 2026-09-23, Stage 4 task T14, through the
+shipped panes. `tests/bench/bench_surface`, four runs. VERDICT: `go`.**
+
+D4-16 asks for the question twice and says why: *a bench figure quoted as the product's is the exact
+error D2-1 exists to prevent*. `tests/bench/bench_surface` composes `app::CompositionRoot` and
+`ui::MainWindow` as `app/main.cpp` does, opens `ordinary/pages-900.pdf`, and lets
+`ui/panes/ThumbnailsPane`, `ui/viewer/SplitViewContainer` and `ui/viewer/TilePresenter` issue every
+request — **nothing in the harness decides which tile is asked for, at what priority, or when.**
+`RenderScheduler` grew a `setLatencyProbe` hook for it (S4 T14), because T2 could stamp its own
+enqueues and T14's whole subject is that it cannot.
+
+At A2's own configuration — **288 dpi over a 1920×1080 device-pixel viewport** — p95 of the
+**`Visible`** lane, which is the window a person is actually looking at:
+
+| Column | product, T14 | bench, T2 | against the 16.667 ms budget |
+|---|---|---|---|
+| `viewer` | **3.99–5.72 ms** | 9.78–9.82 | 2.9–4.2× |
+| `+ split` | **5.27–5.95 ms** | 9.91–9.99 | 2.8–3.2× |
+| **`+ pane`** — D4-16's workload | **7.03–8.56 ms** | 10.59–10.74 | **1.95–2.37×** |
+| `two windows`, the second in the background | **4.01–4.75 ms** | 18.91–19.33 | 3.5–4.2× |
+
+**THE LAST ROW IS THE VERDICT.** T2's plain `go` was withheld for that column alone, and the named
+work it named — *a window that does not have focus enqueues its viewport at `Prefetch`* — was built
+at T11 and could not be graded there, because a case can say which queue a tile waited in and cannot
+say what that buys. It buys the budget: 18.91–19.33 ms became 4.01–4.75 ms, and the lane counters say
+why — of 11,532 viewport enqueues in that column, **10,108 went to `Prefetch`** and 1,424 to
+`Visible`. Without the T11 change every one of them would have been `Visible`. **A2 at Stage 4 is
+therefore `go`, with nothing named and nothing owed.**
+
+**WHY THE PRODUCT'S NUMBERS ARE LOWER THAN THE BENCH'S, WHICH IS NOT GOOD NEWS BY ITSELF.** T2
+enqueued a whole viewport at `Visible` each round and drained it, so every tile waited behind every
+other tile of the same viewport. **The product does not ask that way.** `TilePresenter` asks for the
+tiles actually under the viewport at `Visible` and a much larger margin at `Prefetch` — in the
+`viewer` column, 224 visible against 841 prefetch — and strict priority serves the visible ones ahead
+of that backlog. So the bench measured *a viewport's worth of work, all of it urgent*, and the product
+measures *the urgent part of a larger mix*. Both are the same quantity, honestly; they are different
+workloads, and **neither number may be quoted as the other** — which is D2-1's lesson arriving one
+level up, exactly as D4-16 predicted it would.
+
+**The columns are not a monotone ladder, and the reason is worth knowing.** `two windows` is lower
+than `+ pane` although it is a superset of it. With one worker a job already running cannot be
+preempted (`FPDF_RenderPageBitmap` has no cancellation), so the graded lane's p95 is dominated by
+*what happened to be rasterizing when a visible tile arrived* rather than by total load. A ladder
+would have been the comfortable result; this is the measured one.
+
+**ONE FINDING, RECORDED RATHER THAN SMOOTHED.** The `two windows` column shows **1,369
+cross-document evictions** at the shipped 256 MiB cap, where every other column shows **0**.
+`window.new` gives the second view its own `DocumentHandle` by necessity (D4-17), so **one file
+becomes two documents to the cache**, and 900 pages at 288 dpi in two sets do not fit. It costs
+nothing today — the graded figure is 4 ms — and it is exactly the evidence **O7**'s row says Stage 5
+will want when it adds the next cache consumer. It is not reopened here.
+
+**What the T14 figure does NOT claim.** It is offscreen, on one rig, over one generated corpus
+(D2-11), and nothing in it draws to a 60 Hz display: it measures the pipeline's latency, not whether
+a person perceives a stutter. **M-06 is still owed** and is the only thing that can answer that.
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release

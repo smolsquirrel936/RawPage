@@ -173,6 +173,7 @@ row it must flip **in the same change**. Rows marked ⚠️ have no FileMap row 
 | `tests/ui/tst_panes.cpp`, `tst_tools.cpp`, **`tst_rulers.cpp`** (T8; this row said `tst_snap.cpp`, which §5.6 correctly puts in `rawpage_tests` — corrected with the file), `tst_split.cpp`, `tst_presentation.cpp`, `tst_arranger.cpp` | §3.17's `tests/ui/` row | T5 … T11 |
 | `tests/unit/tst_sessionstate.cpp`, `tst_outline.cpp`, `tst_metadata.cpp`, **`tst_snap.cpp`** | §3.17's `tests/unit/` row | T3, T4, T8 |
 | `tests/composition/tst_restore.cpp` | §3.17's `tests/composition/` row | T13 |
+| `tests/bench/bench_surface.cpp`, and `core/render/RenderScheduler`'s `setLatencyProbe` | §3.17's `tests/bench/` row and §3.4's scheduler row | **T14, and neither was foreseen here.** §8 said T14 would *re-read* T2's figure and assumed `bench_pipeline` could do it; it cannot — its Stage 4 mode issues the request pattern ITSELF, which is the one thing T14's subject forbids. Measuring the shipped widgets needs a composition bench of its own and a way to time an enqueue nothing in the harness makes |
 | `ui/shell/MainWindow` — `paneLayoutState()`; `ui/shell/DocumentWindow` — `splitState()`; `core/settings/SessionState` — `defaultFilePath()` and `SessionDocument::splitState` | §3.13's and §3.10's rows | **T13, and none of the three was foreseen here.** The session stores a window's panes and a tab's split as opaque strings (`core/` is not taught a dock or a split-mode vocabulary), so each needs an encoder where its vocabulary lives; and `SessionState` had no `defaultFilePath()` because T3 had no product caller to resolve one for |
 
 **Settings keys** — **nineteen** (D4-5, corrected at T13 from the eighteen its headline said while its list said nineteen, which had itself corrected fifteen at T8; the membership is listed here
@@ -314,7 +315,7 @@ reason.
 | **T11** | `WindowArranger` | T9 | D4-17: tile, cascade, merge windows, the window list, sync scroll between windows; `window.new` as a second view of one document | `tst_arranger` green over synthetic screen geometry: tiles fill the work area and do not overlap; cascade steps by the title-bar height; merge re-docks every detached tab in order; **the control** — arranging with one window changes nothing |
 | **T12** | Fit Visible, Document Properties, reading mode, page labels | T4, T8 | D4-14's content box and **I-28's closure**; `DocumentPropertiesDialog` (D4-4); `Ctrl+L` reading mode; logical page labels in the page box and *Go to Page* | `tst_contentbox` green: over `cropbox-margins.pdf` the three fits give **three different zooms**, and Fit Visible's is the content's; `Ctrl+3` asserted **on the zoom**, not the mode (I-28's lesson); a page with no objects falls back; the page box accepts `iv` and `A-12` on `outline-labels.pdf` |
 | **T13 ✅ 2026-09-23** | Session restore in the shell | T3, T5, T10, T11 | D4-9's ordering against `RecoveryPrompt`; pane layout memory; `general/rememberPaneLayout`, `general/rememberWindowLayout` | `tst_restore` green **through `CompositionRoot`**: quit with three documents and a split, relaunch, get them back; a *Don't Save* document comes back **clean**; a document recovery already opened is **not opened twice**; `restoreSession` off restores nothing |
-| **T14** | The re-measurement, the census, CI, lockstep | all | D4-16's second reading through the real panes; `--list-actions` re-census; §9; §10 | The T2 figure re-read with the shipped panes and **recorded as the product's**; `--list-actions` and the two census cases agree; `Implementation-Plan.md`'s Stage 4 status block reflects reality, deviations included |
+| **T14 ✅ 2026-09-23** | The re-measurement, the census, CI, lockstep | all | D4-16's second reading through the real panes; `--list-actions` re-census; §9; §10 | The T2 figure re-read with the shipped panes and **recorded as the product's**; `--list-actions` and the two census cases agree; `Implementation-Plan.md`'s Stage 4 status block reflects reality, deviations included |
 
 ---
 
@@ -338,7 +339,7 @@ down reads later as broader coverage than it is.
 
 | Verdict | Produced by | Recorded in |
 |---|---|---|
-| **A2 at Stage 4** — does the shipped software presentation path hold the frame budget once a thumbnails pane, a split view and a presentation share one scheduler, one worker and one 256 MiB cache? And therefore: **is `platform::IAcceleratedSurface` needed?** | **T2** (the bench, before the panes) and **T14** (re-read through the shipped panes) — D4-16 | [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), beside A2's probe and product figures, **labelled as Stage 4's workload**; and `Architecture-FileMap.md`'s `WinAcceleratedSurface` row, which stops deferring |
+| **A2 at Stage 4** — does the shipped software presentation path hold the frame budget once a thumbnails pane, a split view and a presentation share one scheduler, one worker and one 256 MiB cache? And therefore: **is `platform::IAcceleratedSurface` needed?** ✅ **ANSWERED: `go`, and NOT needed.** T2 said `go, with named custom work` (bench, 10.59–10.74 ms); **T14 measured the named work and the verdict became plain** (product, **7.03–8.56 ms**; the two-window column 18.91–19.33 → **4.01–4.75 ms**) | **T2** (the bench, before the panes) and **T14** (re-read through the shipped panes) — D4-16 | [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), beside A2's probe and product figures, **labelled as Stage 4's workload**; and `Architecture-FileMap.md`'s `WinAcceleratedSurface` row, which stops deferring |
 
 **Stage 4 owns no open decision in `Implementation-Plan.md` §8.** **O7** (the render cache's topology)
 is *resolved* and its own row names **Stage 5** as the revisit; T2's measurement is evidence that row
@@ -384,17 +385,26 @@ is a fact this plan establishes:
 **Owed with the code**:
 
 - Every ⚠️ row in §4, with its file.
-- **Flow B and flow C** (`Architecture-FileMap.md` §5) gain the pane and split paths at T5 and T9 —
-  today they trace a single `PageView` and one viewport.
-- **`Tech-Stack-Plan.md` §3.3**'s A2 entry gains Stage 4's workload figure at T2, and
-  `WinAcceleratedSurface`'s row stops saying *"if A2 says it is needed"* and says what it said.
+- ✅ **Flow C** (`Architecture-FileMap.md` §5) gained the pane at T5 and — **paid late, at T14** —
+  the split and the background window's `Prefetch` lane, which T9 and T11 were the owners of and
+  neither drew. Flow B needed nothing: opening a document is unchanged by a pane. **That two of the
+  three arrived a task late is the argument for this list existing**, not against it: nothing else
+  would have noticed.
+- ✅ **`Tech-Stack-Plan.md` §3.3**'s A2 entry gained Stage 4's workload figure at T2 and **the
+  product's own at T14**, kept in two clearly separated blocks because they are D2-1's pair one
+  level up; `WinAcceleratedSurface`'s row stopped saying *"if A2 says it is needed"* at T2 and was
+  **confirmed at T14**.
 - ✅ **`Stage2-Rendering-Testing-Guide.md` §8's I-28** is closed at T12 **in that guide**, with the
   measurement, because an issue is closed where it was raised. **Paid 2026-09-23**, along with that
   guide's own *do not re-report this* row in its manual §7, whose expectation is now inverted rather
   than deleted.
-- **`CLAUDE.md`'s *What works today* and *deliberately absent* paragraphs** are re-derived at T14 —
-  the unregistered-action count, the thirteen unconsumed Viewer chords, and the sentence that says
-  `Select` selects nothing until Stage 5, which stays true.
+- ✅ **`CLAUDE.md`'s *What works today* and *deliberately absent* paragraphs** were re-derived at
+  T14, from the product rather than from the previous sentence: **373 declared / 94 registered / 279
+  unregistered** (`--list-actions`), **nine** unconsumed Viewer chords and not thirteen — the four
+  this stage registered are named — **694 catalog keys** resolving in both locales with none falling
+  back to itself, **6 of 18** platform interfaces and **3 of 7** backend ones, **14** layer-lint
+  escapes, **19** Stage 4 settings keys over **8 of 26** Preferences pages, and **302 / 291** objects
+  from the clean builds. The sentence that says `Select` selects nothing until Stage 5 stays true.
 - **`Features.md` §8 is not touched by this stage.** Recorded here so that D4-15's three deferrals
   are not mistaken for binding changes: the chords are right, and only their stage moved. **Still
   true as of T12** — but `Features.md` **§1.4** did gain a line there, and it is the routing table's

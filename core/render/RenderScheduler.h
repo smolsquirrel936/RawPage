@@ -57,6 +57,7 @@
 #include "core/render/RenderRequest.h"
 
 #include <condition_variable>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -107,6 +108,25 @@ public:
     using WakeHandler = std::function<void()>;
 
     using SubscriptionToken = std::uint64_t;
+
+    // A MEASUREMENT HOOK, AND NOTHING IN THE PRODUCT INSTALLS ONE -- S4 T14 (D4-16). Called from
+    // `deliverReady()`, once per delivered tile, with the lane it waited in and the milliseconds
+    // from `enqueue()` to that delivery: the QUEUED LATENCY, which is the quantity A2's product
+    // figure names (`Tech-Stack-Plan.md` §3.3) and the one T2's bench measured by timing its own
+    // enqueues.
+    //
+    // It exists because T14 cannot do that. T2 issued the request pattern itself and could stamp
+    // it; T14's subject is *the shipped widgets issuing it*, and `ui/viewer/TilePresenter` calls
+    // `enqueue()` where no bench can reach. Without a hook here the figure the verdict rests on
+    // could only ever be measured from a harness that is not the product -- which is the exact
+    // gap between the probe and the product that D2-1 exists to stop us confusing.
+    //
+    // This is the same call T11 made for its lane counters and for the same stated reason: a claim
+    // that cannot be observed from outside gets an observation rather than a comment. Null by
+    // default, checked once per delivered tile, and it costs one `steady_clock::now()` per enqueue
+    // whether or not anybody is listening -- which is under the noise of the rasterization it is
+    // timing and is not worth a branch to avoid.
+    using LatencyProbe = std::function<void(RenderPriority lane, double queuedMs)>;
 
     struct Config {
         // ONE. See the header for the measurement behind it. `performance/renderWorkers` (T15)
@@ -172,6 +192,7 @@ public:
     SubscriptionToken subscribeReady(ReadyHandler handler);
     void unsubscribeReady(SubscriptionToken token);
     void setWakeHandler(WakeHandler handler);
+    void setLatencyProbe(LatencyProbe probe);
 
     // THE PUMP. Call it on the UI thread. Returns how many results it delivered.
     int deliverReady();
@@ -229,6 +250,10 @@ private:
         RenderRequest request;
         RenderPriority priority = RenderPriority::Visible;
         std::uint64_t sequence = 0;
+
+        // When `enqueue()` took it. The clock is monotonic because the quantity is a duration and
+        // a wall clock can step backwards over one.
+        std::chrono::steady_clock::time_point enqueuedAt{};
         std::vector<std::uint64_t> tickets;
         bool started = false;
         bool cancelled = false;
@@ -243,6 +268,13 @@ private:
         // where a tile came from -- but it must not be written BACK into the cache, or the
         // insertion and eviction counts O7 is measured on would grow with every lookup.
         bool fromCache = false;
+
+        // Carried from the job so `deliverReady()` can report the queued latency without looking
+        // the job up -- by then it has been erased. A CACHE HIT carries its own enqueue instant and
+        // the lane it was asked for in, so the probe sees hits and renders alike: a hit is a
+        // delivered tile, and excluding it would report the pipeline as slower than it is.
+        RenderPriority priority = RenderPriority::Visible;
+        std::chrono::steady_clock::time_point enqueuedAt{};
     };
 
     void workerLoop(int index);
@@ -278,6 +310,7 @@ private:
 
     std::vector<std::pair<SubscriptionToken, ReadyHandler>> subscribers_;
     WakeHandler wake_;
+    LatencyProbe latencyProbe_;
 
     std::vector<std::thread> workers_;
     int activeWorkerLimit_ = 1;

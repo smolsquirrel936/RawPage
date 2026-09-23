@@ -211,6 +211,37 @@ target_compile_definitions(rawpage_bench_openclose_ui PRIVATE
 add_dependencies(rawpage_bench_openclose_ui rawpage_translations rawpage_resources)
 rawpage_common_flags(rawpage_bench_openclose_ui)
 
+# rawpage_bench_surface -- A2 at Stage 4, RE-READ THROUGH THE SHIPPED PANES (S4 T14, D4-16, guide
+# A-72). It composes the product as bench_openclose_ui does -- CompositionRoot and MainWindow, the
+# app/ sources compiled in because app/ is an executable -- and measures the VIEWPORT's p95 queued
+# latency while the real ThumbnailsPane, SplitViewContainer and TilePresenter issue the requests.
+#
+# A SEPARATE TARGET FROM bench_pipeline, DELIBERATELY. bench_pipeline --stage4 is T2's figure: a
+# synthetic request pattern issued before any pane existed, and it is quoted as such. A flag that
+# could print either number under one name would make available again the exact confusion D2-1's
+# two measurements exist to prevent.
+add_executable(rawpage_bench_surface
+    bench_surface.cpp
+    ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
+    ${CMAKE_SOURCE_DIR}/app/LogFile.cpp
+    ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp
+)
+target_include_directories(rawpage_bench_surface PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_bench_surface PRIVATE
+    rawpage_core
+    rawpage_cos
+    rawpage_pdfium
+    rawpage_platform
+    rawpage_ui
+    shell32
+)
+set_target_properties(rawpage_bench_surface PROPERTIES AUTOMOC ON)
+target_compile_definitions(rawpage_bench_surface PRIVATE
+    RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
+    RAWPAGE_VERSION="${PROJECT_VERSION}")
+add_dependencies(rawpage_bench_surface rawpage_translations rawpage_resources)
+rawpage_common_flags(rawpage_bench_surface)
+
 # THE PRODUCT'S MANIFEST, EMBEDDED IN THE BENCHES THAT STAND IN FOR THE PRODUCT (Stage 2 issue I-35).
 # app/rawpage.manifest opts rawpage.exe into the segment heap, which changes both how much memory a
 # long session keeps and how fast a tile renders -- so a figure taken without it describes a different
@@ -218,6 +249,7 @@ rawpage_common_flags(rawpage_bench_openclose_ui)
 target_sources(rawpage_bench_pipeline PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
 target_sources(rawpage_bench_openclose PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
 target_sources(rawpage_bench_openclose_ui PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
+target_sources(rawpage_bench_surface PRIVATE ${CMAKE_SOURCE_DIR}/app/rawpage.rc)
 # The manifest is a dependency windres does not declare; a source-file property is directory-scoped,
 # so app/'s own setting does not reach these targets. Without it an edited manifest ships stale here.
 set_source_files_properties(${CMAKE_SOURCE_DIR}/app/rawpage.rc PROPERTIES

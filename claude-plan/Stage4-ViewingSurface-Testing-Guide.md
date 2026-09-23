@@ -8,8 +8,8 @@
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
 > partly run.** **80 automated** (A-01 … A-79, plus **A-66(a)**, which T11 added with A2's named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **67 of the 80 carry
-> a result** as of 2026-09-23 (re-derived from this file: 80 case headers, 13 still boxed) — T1's
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **79 of the 80 carry
+> a result** as of 2026-09-23 (re-derived from this file: 80 case headers, 1 still boxed) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
@@ -17,8 +17,10 @@
 > presentation cases**, **T11's four arranger cases**, **T12's six** — A-67 … A-70 plus **A-11
 > and A-29, both of which had been recorded amber or grey because the observable they were written
 > against did not exist until T12 built it** — and **T13's five session-restore cases, A-75 … A-79**.
-> **The thirteen still boxed are T14's**: the stage-wide sweeps (A-01 … A-09) and the four censuses
-> and re-measurements (A-71 … A-74). **No manual case has been walked.** §8 holds **nine** issues:
+> and **T14's thirteen — the stage-wide sweeps A-01 … A-09 and the four censuses and re-measurements
+> A-71 … A-74. The ONE still boxed is A-04**, a `portable-asan` job this machine cannot run: MinGW
+> GCC has no ASan runtime, so its result is read from Linux CI's log rather than produced here.
+> **No manual case has been walked**, which is the stage's largest remaining gap. §8 holds **nine** issues:
 > **only I-07 is open (S4)**; I-02, I-03, I-04, I-05, I-06, I-08 and **I-01 and I-09 at T13** are
 > closed — **I-01 where this file said its owner would settle it, and I-09 found by `x64-debug`
 > after `x64-release` had reported green**.
@@ -245,45 +247,92 @@ green its cases did not record.
 
 ### 5.1 Build, boundary, environment
 
-**A-01 · Configure and build, both presets, from clean** ☐
+**A-01 · Configure and build, both presets, from clean** ✅
+**2026-09-23, T14.** `--clean-first` on both presets: **0 `warning:` and 0 `error:` lines in either
+log**, `ui/` included, over **302 objects release and 291 debug** (re-counted from the built trees;
+they were 232 each at Stage 3's sign-off, and the growth is this stage's). Clean rather than
+incremental, because a built tree compiles nothing and prints *"ninja: no work to do"* — its warning
+census would be inherited rather than measured, which is Stage 3 A-01's lesson and is why this case
+takes twenty minutes instead of two.
 **Goal** Stage 4's sources compile under the pin with `-Werror` in `core/`, `pdf/` and `ui/`.
 **Steps** `cmake --preset x64-debug`, `--preset x64-release`; `cmake --build --preset <p> --clean-first` for each.
 **Expect** Exit 0 on all four; **0 `warning:` and 0 `error:` lines in either log**, `ui/` included. **`--clean-first` is required** — an incremental build compiles nothing and its warning census is inherited rather than measured (Stage 3 A-01). **If it fails** S1.
 
-**A-02 · The `ui/` warning grace list is still empty** ☐
+**A-02 · The `ui/` warning grace list is still empty** ✅
+**2026-09-23, T14.** `RAWPAGE_UI_WARNING_GRACE` in `cmake/RawPageWarnings.cmake` is empty, and its
+comment still says *"(empty — `ui/` has no code yet)"* — which is now false about the code and true
+about the list. Stage 4 is the largest `ui/` stage since Stage 1 and added no entry.
 **Steps** Read `RAWPAGE_UI_WARNING_GRACE` in `cmake/RawPageWarnings.cmake`.
 **Expect** Empty. Stage 4 is the largest `ui/` stage since Stage 1 and adds no legacy. **If it fails** S3 — and the entry's reason is recorded in the status block.
 
-**A-03 · The headless suite is still headless** ☐
+**A-03 · The headless suite is still headless** ✅
+**2026-09-23, T14.** `gates.headless_assert.*` **7/7**, including the two negative controls — a
+`ui/` edge and an `ops/` edge carrying PDFium are both still caught. `SessionState` and `core/Snap`
+went into `core/` this stage and the assertion that `rawpage_tests` links no display and no engine
+still fails configure if they had brought one.
 **Goal** `SessionState` and the snap resolver are `core/`, and `core/` still links no display.
 **Steps** `ctest -R "gates.headless_assert"`.
 **Expect** Every case as before; `rawpage_tests` links no Qt GUI module and no engine. **If it fails** S1 — the portable half is where this stage's sanitizer coverage lives.
 
-**A-04 · `portable-asan` builds and runs the Stage 4 `core/` suites** ☐
+**A-04 · `portable-asan` builds and runs the Stage 4 `core/` suites** ☐ **— a Linux CI job, not
+runnable here.** Recorded as pending on CI rather than as a gap: MinGW GCC has no ASan runtime
+(`CLAUDE.md` → locked decisions), so this case's result comes from the `portable-asan` job's log and
+**must be read from the log rather than from the tick** (rule 3). It is the one automated case in
+this stage that this machine cannot answer.
 **Goal** O10's coverage, applied to what this stage puts in `core/`.
 **Steps** The `portable-asan` CI job. **Read the log, not the tick** (rule 3).
 **Expect** The log names `tst_sessionstate`, `tst_fingerprint`, `tst_snap`, `tst_outline` and `tst_metadata` as run; **0 `runtime error:`, 0 `ERROR: AddressSanitizer`, 0 `LeakSanitizer` lines**. **What it does not cover, and the case says so:** every pane, the split, the presentation and the arranger, which are `ui/`. **If it fails** S1 for a sanitizer finding; S2 if the suites are absent from the log.
 
-**A-05 · The product still starts, and the startup census is unchanged where it should be** ☐
+**A-05 · The product still starts, and the startup census is unchanged where it should be** ✅
+**2026-09-23, T14.** `--dump-ui-strings` exits 0 offscreen in both locales, **694 keys each, and
+none resolves to itself** in either — the failure mode that would show a button reading
+`action.file.open`. The censuses are where they should be: the platform bundle still **6 of 18**
+(Stage 4 adds no OS interface — D4-17 settled that the window arranger needs none) and the backend
+still **3 of 7** (the outline, destination and metadata readers are `IDocumentBackend` MEMBERS, not
+new interfaces — D4-3), with the ribbon at **9 tabs and 200 controls**.
+**Read it through `cmd` redirection, not PowerShell's pipeline**: `rawpage.exe` is a GUI-subsystem
+binary, and `$out = & .\rawpage.exe` captures nothing. The first attempt at this case reported
+*"694 keys, 0 self-resolving"* as *"0 keys, 0 self-resolving"* and would have passed a check for
+zero. `CLAUDE.md` → *Commands* carries the trap; this is it met a second time.
 **Steps** `$env:QT_QPA_PLATFORM="offscreen"; rawpage.exe --dump-ui-strings`; `--list-actions`.
 **Expect** Exit 0; every `panes.*` and `shell.*` key resolved in `en` and `zh-TW` with **no key resolving to itself**; the platform census still **6 of 18** (Stage 4 adds no interface, D4-17) and the backend census still **3 of 7** (the three readers are `IDocumentBackend` members, not interfaces). **If it fails** S2.
 
 ### 5.2 The gates — and the one number that must not move
 
-**A-06 · `checks` clean, and `mutation-lint` still says ONE command** ☐
+**A-06 · `checks` clean, and `mutation-lint` still says ONE command** ✅
+**2026-09-23, T14.** Four gates, exit 0, and *"mutation-lint: clean -- 1 command(s):
+RotatePageCommand; 1 table row(s); 132 test file(s) scanned"* — **the same one command the stage's
+first day reported (T1, 2026-09-19)**, which is what makes this a measurement rather than a hope.
+**D4-1 held for fourteen tasks**: three document panes, four tools, rulers, grid, guides, snap, a
+split, a presentation, a window arranger, a fit, a properties dialog and session restore, and not
+one of them constructed a `Command`.
 **Goal** **D4-1's mechanical proof that the viewing surface mutates nothing.**
 **Steps** `cmake --build --preset x64-release --target checks`.
 **Expect** Exit 0; four gates; *"mutation-lint: clean -- 1 command(s): RotatePageCommand"*. **If it fails** S1 if the count is above one and a Stage 4 file is the cause — a view gesture became a document change; S2 otherwise.
 
-**A-07 · `core/cmd/Commands.def` is byte-unchanged across the stage** ☐
+**A-07 · `core/cmd/Commands.def` is byte-unchanged across the stage** ✅
+**2026-09-23, T14.** `git diff d877992..HEAD -- core/cmd/Commands.def core/cmd/commands/` is
+**empty** — `d877992` is Stage 3's sign-off commit, so the range is the whole of Stage 4. This is
+the stronger form of A-06: A-06 says the gate counted one, and this says the table and the command
+directory were never touched at all.
 **Steps** `git diff <Stage 3 sign-off commit>..HEAD -- core/cmd/Commands.def core/cmd/commands/`.
 **Expect** Empty. **The control:** a planted row makes A-06 report two commands, which is what proves A-06 reads what it claims. **If it fails** S1.
 
-**A-08 · The layer and waiver census** ☐
+**A-08 · The layer and waiver census** ✅
+**2026-09-23, T14.** `layer-lint --explain`: clean, **423 files, 3,354 includes, 14 escapes** — the
+same fourteen filesystem-write waivers Stage 3 T9 counted, and no fifteenth. Stage 4 writes one new
+file (`session.json`) and needs no waiver for it, because `core/settings/` already carries the
+privilege. Four rules remain non-escapable (`fpdf`, `fpdf-handle`, `argv-path-read`,
+`bare-qaction`).
 **Steps** `layer-lint.exe --root . --explain`.
 **Expect** Clean; **fourteen** active escapes, unchanged — Stage 4 writes no file of its own except through `core/settings/`, which is already allowed. A fifteenth is named and justified in the status block or removed. **If it fails** S2 for an unnamed waiver; S3 for a count that disagrees with `CLAUDE.md`, which is then corrected.
 
-**A-09 · `i18n-lint` knows the new family, and no key is missing** ☐
+**A-09 · `i18n-lint` knows the new family, and no key is missing** ✅
+**2026-09-23, T14.** `i18n-lint --explain` lists the families as
+`action.* shell.* ribbon.* prefs.* error.* command.* panes.*` — **`panes.*` is there**, added for a
+NAMESPACE rather than for a feature, which is Stage 3's **I-16** applied rather than repeated: the
+full-screen and units strings shipped inside `shell.*` and `prefs.*` and got no family of their own.
+The gate is clean over **263 files and 2 catalogs with 0 waivers**.
 **Steps** `i18n-lint.exe --root . --explain`; a fixture referencing `panes.noSuchKey`.
 **Expect** `keyFamilies` lists `panes`; the fixture fails `unknown-key` naming **that** key; every key Stage 4 references exists in `en` and `zh-TW`. **Do not add a family for a feature — add one for a namespace** (Stage 3's I-16, where a `recovery` family was required by a case and never existed because the strings shipped as `shell.recovery.*`). **If it fails** S2.
 
@@ -806,22 +855,81 @@ also reports from the other side, still one command on the stage's eighth task a
 
 ### 5.14 Settings, pages, and everything before
 
-**A-71 · The nineteen keys round-trip, and the two pages ship** ☐
+**A-71 · The nineteen keys round-trip, and the two pages ship** ✅
+**2026-09-23, T14.** All **nineteen are declared in `core/settings/SettingsKeys.def`** and all
+nineteen resolve a `prefs.setting.*` label in **both** `en` and `zh-TW` — counted from the key list
+and the string dump rather than read off a page. **Eight of 26 groups ship**, re-derived rather than
+quoted: the groups carrying at least one non-`Internal` key are General, Language, Logging,
+Documents, PageDisplay, PerformanceAndCache and this stage's two, **Units & Guides** and **Full
+Screen**, against 26 user-facing values in `SettingsGroup` (27 cases, less `Internal`, which rule 4
+says gets no Preferences row). Both new pages are generated from the table with no widget code
+(convention 17), and the settings suites are green.
+**The control holds, and it is a compile-time one:** `pageDisplay/continuousScroll` and
+`units/snapToObjects` are **not declared** — measured against the table, not assumed — so a case
+that read either would not compile, which is what D4-5 chose over a key that reads back as set and
+does nothing.
 **The number is a CORRECTION, re-derived 2026-09-23 at T13** from `core/settings/SettingsKeys.def` rather than
 carried forward: Stage 4 declares **nineteen** keys — one `pageDisplay/`, eleven `units/`, five `fullScreen/`
 and the two `general/` T13 added — and *fifteen* was this case's figure from before T8 raised it, while
 *eighteen* is D4-5's headline disagreeing with D4-5's own enumeration. Both are fixed in place.
 **Expect** Each of the nineteen writes and reads back through `settings.ini` with its declared default and, where ranged, its clamp; **Preferences shows eight of 26 groups**, Units & Guides and Full Screen generated with no widget code (convention 17); `--lang zh-TW --dump-ui-strings` resolves both page names and every row label. **The control:** `pageDisplay/continuousScroll` and `units/snapToObjects` **do not exist** (D4-5), and a case that reads them fails to compile. **If it fails** S2.
 
-**A-72 · The Stage 4 workload, re-measured through the shipped panes** ☐
+**A-72 · The Stage 4 workload, re-measured through the shipped panes** ✅
+**2026-09-23, T14** (`tests/bench/bench_surface`, four runs). **A2 at Stage 4 is now a plain `go`**,
+and the verdict moved because of it: T2 had withheld the plain verdict for the two-window column
+alone, and that column is **4.01–4.75 ms** where it was 18.91–19.33 ms, because T11's named work —
+a window that is not in front enqueues at `Prefetch` — is built and is now measured rather than
+merely asserted. D4-16's own workload, the split plus the thumbnails pane, is **7.03–8.56 ms against
+the 16.667 ms budget**. The table, the reasoning and the bounds are in `Tech-Stack-Plan.md` §3.3,
+which owns the figure; this case owns only whether it was taken properly.
+
+**IT WAS NOT, TWICE, AND BOTH CORRECTIONS ARE THE CASE EARNING ITS KEEP.** The first run of the new
+bench reported the viewport at **0.361 ms against T2's 9.78** — which is not a 27× product, it is a
+viewport of five tiles being compared with one of several dozen, because the harness ran at the
+`offscreen` default of 96 dpi and zoom 1.0 instead of A2's 288 dpi over 1920×1080. Recording that
+beside T2's figure as *the product's* would have been **D2-1's exact error committed inside the case
+written to prevent it**. The second run set `QT_SCALE_FACTOR=1.5` and zoom 200 % and reached
+**199.9 dpi, still not 288** — `DpiPolicy` reads the monitor's PHYSICAL dpi, which offscreen reports
+as about 100 because there is no `IDisplayTopology` to join against (**I-20**, met from the other
+side). The bench now SOLVES for the zoom that puts `resolution().dpi` at 288, grows the window until
+the viewport is 1920×1080 device pixels, and **prints what it actually reached beside what it asked
+for** — so a third version of this mistake is visible in the output rather than in the conclusion.
+**A third correction, found the same way:** a `MainWindow` is built with the sidebar open and
+`SidebarDock::addPane` shows the first pane registered, so the `viewer` and `+ split` columns had a
+live thumbnails pane in them and `+ pane` added nothing — three measurements of one workload. The
+columns without a pane now hide the sidebar, and the pane's column scrolls the pane each round,
+because a pane that streams once at open and then sits still is not the pane D4-10 is about.
+
+**What the figure does not claim** is in §3.3 with it, and the short form is: offscreen, one rig, one
+generated corpus, and nothing here draws to a 60 Hz display — **M-06 is still owed** and is the only
+thing that can say whether a 900-page pane *feels* smooth.
 **Goal** D4-16's second reading — the bench is a request pattern, the product is the product (D2-1's lesson, where the probe said 31× and the product said 1.18×).
-**Steps** `rawpage_bench_openclose_ui.exe`-style composition, or the product under `--stage4-bench`, with a real thumbnails pane and a real split over `pages-900.pdf`.
 **Expect** A viewport p95 beside T2's figure, and **the verdict either confirmed or corrected in `Tech-Stack-Plan.md` §3.3 in the product's words**. **If it fails** S2 — a bench figure quoted as the product's is the exact error D2-1 exists to prevent.
 
-**A-73 · The two census cases, and `--list-actions`** ☐
+**A-73 · The two census cases, and `--list-actions`** ✅
+**2026-09-23, T14.** `--list-actions` reports **373 declared / 94 registered / 279 unregistered**,
+and the two derived censuses agree with it: `tst_viewercommands` asserts **30 Viewer rows registered
+and 9 not**, `tst_context` walks the whole binding table, and both are green. **The thirteen Viewer
+rows that were unregistered at Stage 3's sign-off lost exactly four** — `view.readingMode` (T12),
+`view.toggleRulers`, `view.toggleGrid` and `view.toggleSnapToGrid` (T8) — read from the run, one id
+at a time. **Every one of the nine that remain belongs to a later stage by name:** `view.reflow`,
+`tool.snapshot`, `compare.documents`, `nav.nextDifference` and `nav.prevDifference` are **Stage 5's**
+(the last four with D4-15's correction behind two of them); `view.togglePropertiesBar`,
+`nav.nextComment` and `nav.prevComment` are **Stage 6's**; `bookmark.new` is **Stage 7's**. None is
+an oversight.
 **Expect** `rawpage.exe --list-actions` reports the new registered/unregistered split; `tst_viewercommands`' derived census and `tst_context`'s agree with it. **The thirteen Viewer rows that were unregistered at Stage 3's sign-off** — `view.readingMode`, `view.togglePropertiesBar`, `view.reflow`, `view.toggleRulers`, `view.toggleGrid`, `view.toggleSnapToGrid`, `nav.nextComment`, `nav.prevComment`, `nav.nextDifference`, `nav.prevDifference`, `tool.snapshot`, `compare.documents`, `bookmark.new` (read from `--list-actions`, 2026-09-18) — **lose the four this stage registers, and every one that remains belongs to Stage 5, 6 or 7 by name**. Both census numbers are read from the run rather than predicted here. **If it fails** S3, corrected in the same change.
 
-**A-74 · Every prior stage's case is still present, by name, and green** ☐
+**A-74 · Every prior stage's case is still present, by name, and green** ✅
+**2026-09-23, T14.** **1106/1106 on `x64-release` and 1106/1106 on `x64-debug`**, both from the
+CLEAN builds A-01 made, one explicitly skipped (the battery case, on a desktop that has none); the
+`gates` preset **124/124** with no Qt. Stage 3 signed off at 923; the 183 added are this stage's,
+and no case was renamed or removed — the count only ever rose.
+**The golden clause, stated precisely because it is the one that could be read too kindly:** the
+only changes under `golden/` since Stage 3's sign-off are **nine NEW baselines** for T1's three new
+corpus files, plus their `manifest.json`, `captured.json`, `README.md` and `UPDATES.md` rows. **Every
+pre-existing baseline is byte-unchanged** — `git diff` shows the nine as additions (`Bin 0 -> …`) and
+not one modification. That is what A-74 asks for: Stage 4 changes no rasterization, so a MOVED
+baseline would be a finding and a new file for a new corpus file is not one.
 **Steps** `ctest --preset x64-release -N` against the Stage 3 sign-off list; then the full run on both presets and the `gates` preset.
 **Expect** Every Stage 0–3 test name present or its rename named; all green, one known skip; the **golden suite green with its baselines byte-unchanged** — Stage 4 changes no rasterization, so a moved baseline is a finding (D2-3). **If it fails** S1 for a regression; S2 for a silently renamed case.
 
@@ -1317,24 +1425,48 @@ mutates.**
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ☐ A-01 … A-79 and A-66(a) **run**, with actual output recorded against each case — not a summary claiming they
-   were (Stage 1's I-32). Linux-only halves (A-04) are recorded from the CI job's **log**, not its
-   tick (rule 3).
+1. 🟡 **2026-09-23, T14 — 79 of the 80 carry a result; the one that does not is A-04.** Every case
+   in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
+   **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it stays boxed here
+   and is read from that job's **log**, never its tick (rule 3). Green when CI has been read.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed.
-3. ☐ `checks` clean — four gates, and **`mutation-lint` reporting one command** (A-06, A-07).
-4. ☐ `ctest` green across all six Windows targets and the `gates` preset, every prior stage's case
-   present by name (A-74).
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Nothing in §6 has
+   been walked**, which is the stage's largest remaining gap and the honest summary of its state.
+3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
+   (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
+   (A-07), which is the stronger claim.
+4. ✅ **2026-09-23, T14.** **1106/1106 on `x64-release` and on `x64-debug`**, one named skip, both
+   from CLEAN builds with **0 warnings** (A-01); `gates` **124/124**. Every prior stage's case is
+   present by name and none was renamed (A-74).
 5. ☐ `portable-asan` clean including `SessionState`, the snap resolver and the three readers;
-   `portable-fuzz` and the soak unchanged and clean on three targets.
-6. ☐ **Golden suite green with its baselines byte-unchanged** — this stage rasterizes nothing new.
-7. ☐ **The A2-at-Stage-4 verdict is recorded**, bench and product, in `Tech-Stack-Plan.md` §3.3,
-   graded on §3's scale **fixed before the measurement**, and `WinAcceleratedSurface`'s FileMap row
-   says what was measured rather than what would decide it.
+   `portable-fuzz` and the soak unchanged and clean on three targets. **Linux CI's to answer** —
+   A-04, and it is the only automated item on this list this machine cannot settle.
+6. ✅ **2026-09-23, T14.** The only changes under `golden/` since Stage 3's sign-off are the **nine
+   NEW baselines** for T1's three new corpus files and their manifest rows; **every pre-existing
+   baseline is byte-unchanged**, read from `git diff` as additions rather than modifications. Stage 4
+   rasterizes nothing new, so a MOVED baseline would have been a finding.
+7. ✅ **2026-09-23, T14 — and the verdict MOVED.** Both figures are in `Tech-Stack-Plan.md` §3.3 and
+   are kept apart: T2's bench (10.59–10.74 ms, `go, with named custom work`) and T14's product
+   (**7.03–8.56 ms** under D4-16's workload, **`go`**), the plain verdict unlocked by the two-window
+   column falling from 18.91–19.33 ms to **4.01–4.75 ms** once T11's named work was measured rather
+   than merely asserted. `WinAcceleratedSurface`'s FileMap row says what was measured. Graded on §3's
+   scale, which was fixed before either measurement.
 8. 🟡 **2026-09-23, T12 — the AUTOMATED half is met and M-11 is still owed.** Stage 2's I-28 is
    closed in Stage 2's guide, with the measurement, and `Ctrl+3` is asserted **on a zoom** and not on
    `fitMode()` (A-68 ✅ — its own control had to be fixed before it would fail on the defect). **M-11
    is not walked**, so this item is amber rather than green: nobody has yet looked at a fitted page.
-9. ☐ No open S1 or S2 in §8.
-10. ☐ `Architecture-FileMap.md` rows flipped and the plan's §10 debt paid;
-    `Implementation-Plan.md`'s Stage 4 status block updated to reality, deviations included.
+9. ✅ **2026-09-23, T14. No open S1 or S2.** §8 holds nine issues and **only I-07 is open**, at
+   **S4** — a page colour can be inverted but not substituted, because no declared settings key holds
+   a colour pair. It is a scope finding owned by Stage 8, nothing is broken and nothing is inert.
+10. ✅ **2026-09-23, T14.** Every §4 row flipped with its file; the plan's §10 debt paid, including
+    the two items that had outlived their tasks — **flow C** gained the split and the
+    background-window lane (owed at T9 and T11), and **`CLAUDE.md`'s two paragraphs** were
+    re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
+    every deviation named.
+
+**WHERE THAT LEAVES THE STAGE: the automated half is complete but for a Linux job, and NOT ONE OF
+THE TWELVE MANUAL CASES HAS BEEN WALKED.** Items 2 and 5 are the whole of what is outstanding, plus
+item 8's M-11. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
+is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
+900-page pane judged for smoothness, a guide dragged off a ruler by hand.
