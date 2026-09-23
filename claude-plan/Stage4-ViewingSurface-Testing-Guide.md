@@ -860,6 +860,12 @@ Three things about the state you will be walking, so a planned absence is not re
 - **The Selection tool selects nothing**, and a thumbnail cannot be dragged to a new position.
 - **Save As, Save and undo still behave exactly as Stage 3 left them** — this stage adds nothing to
   them and breaks nothing in them, and if it has, that is an S1 belonging to this guide.
+- **Two things CHANGED at T12 and are not defects.** `Ctrl+3` no longer matches `Ctrl+0`: it fits the
+  page's ink, so on `cropbox-margins.pdf` it is visibly tighter and scrolls to the content — that is
+  Stage 2's **I-28** closed, and a `Ctrl+3` that still matches `Ctrl+0` on that file is now the
+  finding. And a bookmark or named destination now lands at the destination's **point**, not its
+  page's top. **`/FitR` is the exception** and frames nothing: `core::Destination` has no fields for
+  its rectangle, which is Stage 7's.
 
 ---
 

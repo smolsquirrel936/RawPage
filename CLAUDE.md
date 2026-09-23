@@ -558,7 +558,9 @@ wrong — **1 at T5, 2 from T6, 3 from Stage 3 T13**, asserted by `cmake/RawPage
 `gates.fuzz_count.*` cases prove it fires — because "ten minutes with no crashes" is passed trivially by a
 target that builds nothing.
 
-**Six test targets and six benchmarks**, and the split is load-bearing rather than
+**Six test targets and seven benchmark targets** (re-derived from the `CMakeLists.txt` files
+2026-09-23; the seventh is `rawpage_bench_openclose_ui_classicheap`, the manifest CONTROL for
+`_openclose_ui` rather than a seventh measurement), and the split is load-bearing rather than
 organizational — a suite is a separate target when linking something would destroy a property
 another suite proves. `rawpage_tests` (`unit.`) links no display and no engine, which
 `rawpage_assert_headless()` **fails configure** to enforce; `rawpage_platform_tests`
@@ -613,7 +615,9 @@ guides' §8 logs. They survive their stage, so they live here rather than in a s
   `tests/roundtrip/tst_roundtrip.cpp`, which runs on Windows and under `portable-asan` (S3 T13).
 - **A warning census from an incremental build is inherited, not measured** — a built tree compiles
   nothing and prints *"ninja: no work to do"*. Use `--clean-first` when the claim is about warnings
-  (S3 guide A-01, which measured 232 objects per preset then; **289 release and 278 debug on 2026-09-21**, so re-derive rather than quote).
+  (S3 guide A-01, which measured 232 objects per preset then; **294 release and 283 debug on
+  2026-09-23**, counted from the built trees after Stage 4 T12's five new translation units — 289 and
+  278 at T11, so re-derive rather than quote).
 - **A target that does not call `rawpage_common_flags` is not compiling this project's language, and
   it will build until the day it does not.** Four targets had been compiled at the compiler's default
   standard — `rawpage_fuzz_seeds` since Stage 3 T13, the three `tests/fuzz` drivers since Stage 2 T5,
