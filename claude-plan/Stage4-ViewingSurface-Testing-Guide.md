@@ -8,8 +8,8 @@
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
 > partly run.** **80 automated** (A-01 … A-79, plus **A-66(a)**, which T11 added with A2's named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **79 of the 80 carry
-> a result** as of 2026-09-23 (re-derived from this file: 80 case headers, 1 still boxed) — T1's
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 80 carry
+> a result** as of 2026-09-24 (re-derived from this file: 80 case headers, none still boxed) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
@@ -18,8 +18,10 @@
 > and A-29, both of which had been recorded amber or grey because the observable they were written
 > against did not exist until T12 built it** — and **T13's five session-restore cases, A-75 … A-79**.
 > and **T14's thirteen — the stage-wide sweeps A-01 … A-09 and the four censuses and re-measurements
-> A-71 … A-74. The ONE still boxed is A-04**, a `portable-asan` job this machine cannot run: MinGW
-> GCC has no ASan runtime, so its result is read from Linux CI's log rather than produced here.
+> A-71 … A-74. The LAST to be filled in was A-04**, a `portable-asan` job this machine cannot run:
+> MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
+> than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
+> sanitizer line.
 > **No manual case has been walked**, which is the stage's largest remaining gap. §8 holds **nine** issues:
 > **only I-07 is open (S4)**; I-02, I-03, I-04, I-05, I-06, I-08 and **I-01 and I-09 at T13** are
 > closed — **I-01 where this file said its owner would settle it, and I-09 found by `x64-debug`
@@ -274,14 +276,31 @@ still fails configure if they had brought one.
 **Steps** `ctest -R "gates.headless_assert"`.
 **Expect** Every case as before; `rawpage_tests` links no Qt GUI module and no engine. **If it fails** S1 — the portable half is where this stage's sanitizer coverage lives.
 
-**A-04 · `portable-asan` builds and runs the Stage 4 `core/` suites** ☐ **— a Linux CI job, not
-runnable here.** Recorded as pending on CI rather than as a gap: MinGW GCC has no ASan runtime
-(`CLAUDE.md` → locked decisions), so this case's result comes from the `portable-asan` job's log and
-**must be read from the log rather than from the tick** (rule 3). It is the one automated case in
-this stage that this machine cannot answer.
+**A-04 · `portable-asan` builds and runs the Stage 4 `core/` suites** ✅
+**2026-09-24, read from the LOG of CI run 35879213301's `portable-asan` job** (commit `a01192b`, the
+T14 push of 2026-09-23; rule 3 — not the tick): *“100% tests passed, 0 tests failed out of 609”*, and
+**all 39 cases of the five Stage 4 `core/` translation units present by name among its `Test #n:`
+lines** — `tst_sessionstate` (12), `tst_fingerprint` (11), `tst_snap` (4), `tst_outline` (7) and
+`tst_metadata` (5), each name taken from the source and matched against the log rather than
+eyeballed. **0 `runtime error:`, 0 `ERROR: AddressSanitizer` and 0 `LeakSanitizer` lines** anywhere
+in the job.
+**The suite FILE names appear in that log as BUILD lines and not as run lines, and that is not a
+shortfall** — the Expect below was written as though `tst_*` would appear in the run list, and it
+cannot: Catch2 registers each case with CTest under its own NAME, so the log shows
+*“[81/127] Building CXX object … tst_sessionstate.cpp.o”* and then the cases themselves. Matching all
+39 names is the stronger reading of the same claim, and is what was done. **The Expect is corrected
+in place** rather than left to be re-satisfied loosely by the next reader.
+**Beside it, for §9 item 5's other half, read from the same run and from the nightly soak:** the
+`portable-fuzz` job ran **three** targets — `fuzz_cos_lexer`, `fuzz_cos_parser`, `fuzz_cos_roundtrip`
+— 61 s each, *“Done … runs”*, no crash; and `fuzz-soak.yml` run **35837723167** ran the same three
+for 601–602 s each, no crash. The soak's head is `3f9cb01`, two commits before this one, and
+`git diff --name-only 3f9cb01..a01192b` names **no file under `pdf/` or `tests/fuzz`**, so its claim
+still holds over the tree this stage ends on — stated because a soak that predates the last two
+commits would otherwise be evidence about a different tree.
 **Goal** O10's coverage, applied to what this stage puts in `core/`.
-**Steps** The `portable-asan` CI job. **Read the log, not the tick** (rule 3).
-**Expect** The log names `tst_sessionstate`, `tst_fingerprint`, `tst_snap`, `tst_outline` and `tst_metadata` as run; **0 `runtime error:`, 0 `ERROR: AddressSanitizer`, 0 `LeakSanitizer` lines**. **What it does not cover, and the case says so:** every pane, the split, the presentation and the arranger, which are `ui/`. **If it fails** S1 for a sanitizer finding; S2 if the suites are absent from the log.
+**Steps** The `portable-asan` CI job. **Read the log, not the tick** (rule 3):
+`gh run view <run> --log --job <the ASan job's id>`.
+**Expect** The log names `tst_sessionstate`, `tst_fingerprint`, `tst_snap`, `tst_outline` and `tst_metadata` as run — **as their CASE names, which is the only form CTest gives them**; **0 `runtime error:`, 0 `ERROR: AddressSanitizer`, 0 `LeakSanitizer` lines**. **What it does not cover, and the case says so:** every pane, the split, the presentation and the arranger, which are `ui/`. **If it fails** S1 for a sanitizer finding; S2 if the suites are absent from the log.
 
 **A-05 · The product still starts, and the startup census is unchanged where it should be** ✅
 **2026-09-23, T14.** `--dump-ui-strings` exits 0 offscreen in both locales, **694 keys each, and
@@ -1425,10 +1444,11 @@ mutates.**
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. 🟡 **2026-09-23, T14 — 79 of the 80 carry a result; the one that does not is A-04.** Every case
+1. ✅ **2026-09-24 — all 80 carry a result; the last to get one was A-04.** Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
-   **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it stays boxed here
-   and is read from that job's **log**, never its tick (rule 3). Green when CI has been read.
+   **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
+   job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
+   39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
    want of hardware (M-12's touch half) is recorded as such, never as passed. **Nothing in §6 has
    been walked**, which is the stage's largest remaining gap and the honest summary of its state.
@@ -1438,9 +1458,15 @@ restated as a checklist.
 4. ✅ **2026-09-23, T14.** **1106/1106 on `x64-release` and on `x64-debug`**, one named skip, both
    from CLEAN builds with **0 warnings** (A-01); `gates` **124/124**. Every prior stage's case is
    present by name and none was renamed (A-74).
-5. ☐ `portable-asan` clean including `SessionState`, the snap resolver and the three readers;
-   `portable-fuzz` and the soak unchanged and clean on three targets. **Linux CI's to answer** —
-   A-04, and it is the only automated item on this list this machine cannot settle.
+5. ✅ *(2026-09-24: `portable-asan` in CI run 35879213301 — the T14 push, commit `a01192b` —
+   **609/609**, with all 39 cases of `tst_sessionstate`, `tst_fingerprint`, `tst_snap`, `tst_outline`
+   and `tst_metadata` present by name and **0 `runtime error:`, 0 `ERROR: AddressSanitizer`, 0
+   `LeakSanitizer` lines**; `portable-fuzz` in the same run, **three** targets at 61 s each with no
+   crash; the nightly soak, `fuzz-soak.yml` run 35837723167, the same three at 601–602 s with no
+   crash, on `3f9cb01` with no `pdf/` or `tests/fuzz` change between it and `a01192b` — A-04)*
+   `portable-asan` clean including `SessionState`, the snap resolver and the three readers;
+   `portable-fuzz` and the soak unchanged and clean on three targets. **Linux CI's to answer**, and it
+   was the only automated item on this list this machine could not settle.
 6. ✅ **2026-09-23, T14.** The only changes under `golden/` since Stage 3's sign-off are the **nine
    NEW baselines** for T1's three new corpus files and their manifest rows; **every pre-existing
    baseline is byte-unchanged**, read from `git diff` as additions rather than modifications. Stage 4
@@ -1464,9 +1490,9 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is complete but for a Linux job, and NOT ONE OF
-THE TWELVE MANUAL CASES HAS BEEN WALKED.** Items 2 and 5 are the whole of what is outstanding, plus
-item 8's M-11. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included, and NOT ONE
+OF THE TWELVE MANUAL CASES HAS BEEN WALKED.** Item 2 is the whole of what is outstanding — item 8's
+M-11 is one of its twelve. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.
