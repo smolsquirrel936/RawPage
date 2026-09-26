@@ -30,7 +30,9 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Seven manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Eight manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **M-07**, on 2026-09-26, passed with no finding — after **I-16** and **I-17** had been found and
+> fixed while preparing it, so the build walked was the first on which it could pass.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
 > choice governs (§6 says why) — and raised **I-14 (S2)**: `Ctrl+Shift+M` kept the presentation's
 > physical size across a change of scale; fixed the same day. **M-06**, on 2026-09-26, passed with no
@@ -43,7 +45,7 @@
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other five
+> same day**. The other four — M-08, M-09, M-10 and M-12 —
 > are the stage's largest remaining gap. §8 holds **seventeen** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-17 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -1503,7 +1505,15 @@ behaviour as expected, and no finding.
 - **If it fails** S2, **and it is evidence for §3's verdict** — record what you saw, not only that it
   was bad.
 
-**M-07 · Rulers, grid, guides and snapping by hand, at 50 % and 400 %** ☐
+**M-07 · Rulers, grid, guides and snapping by hand, at 50 % and 400 %** ✅ **signed off by the user,
+2026-09-26** — every step walked and passed; no finding reported.
+- **Walk result** The user walked every step on the build of commit `9c53635` — the first build on
+  which the snap step could pass at all (I-16) and the first with a readout to compare (I-17) — and
+  reported all of it passing, with no finding. The two changes made on the user's requests while
+  preparing the walk, the two-pixel red marker and the dotted preview of a guide being dragged
+  (A-88, A-89), were judged fine on the rig before the commit. **Nothing more specific was reported
+  and none is recorded here** — the per-step figures in the steps below are what a re-walk compares
+  against, not what this walk measured.
 - **Read before walking — written 2026-09-26, before the first walk.** Reading the code to explain
   this case found **I-16 (S2)**: no gesture called the snap resolver, so `Ctrl+;` moved no guide at
   all. It is fixed and **A-87** asserts it, so the snap step is now walkable; it had never been seen
@@ -2154,14 +2164,16 @@ restated as a checklist.
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Three of the twelve are
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Eight of the twelve are
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
    fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding — M-04 in one
    direction only, the 150 % primary removed; M-05, 2026-09-26, failed at step 5 and raised I-15
-   (S2), fixed the same day, and passed step 5's re-walk.**
-   The other five are the stage's largest remaining gap and the honest summary of its state.
+   (S2), fixed the same day, and passed step 5's re-walk; M-07, 2026-09-26, passed with no finding,
+   after I-16 (S2) and I-17 (S3) were found and fixed while preparing it.**
+   The other four — M-08, M-09, M-10 and M-12 — are the stage's largest remaining gap and the honest
+   summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -2245,13 +2257,14 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; SEVEN OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04 AND
-M-05 ON ITS STEP-5 RE-WALK — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of
-what is outstanding** — five unwalked cases. That each of the first three manual cases walked in this stage found a defect the
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; EIGHT OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
+M-05 ON ITS STEP-5 RE-WALK AND M-07 — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the
+whole of what is outstanding** — four unwalked cases, M-08, M-09, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
-of code, is the argument for the other five rather than against them; that M-06, the stage's verdict
-case, M-03 and M-04 found nothing is the verdict, the presentation and the topology path holding up
+of code, is the argument for the other four rather than against them — and M-07's two defects were found
+by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's
+verdict case, M-03, M-04 and M-07 found nothing is the verdict, the presentation and the topology path holding up
 to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
