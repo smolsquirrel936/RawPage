@@ -7,12 +7,12 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **86 automated** (A-01 … A-85, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 86 carry
-> a result** as of 2026-09-26 (re-derived from this file: 86 case headers, none still boxed — the
-> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 86th are **A-81**, **A-82**,
-> **A-83** and **A-85**, added 2026-09-26 with the fixes for I-11 to I-14, and **A-84**, the case
-> D4-18 was recorded with that day; **A-85 SKIPS under `ctest`** — it needs two monitors at
+> partly run.** **87 automated** (A-01 … A-86, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 87 carry
+> a result** as of 2026-09-26 (re-derived from this file: 87 case headers, none still boxed — the
+> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
+> **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**,
+> the case D4-18 was recorded with that day; **A-85 SKIPS under `ctest`** — it needs two monitors at
 > different scale factors, which the offscreen platform cannot have — and its result is a run on
 > the `windows` platform, recorded against it) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
@@ -27,21 +27,24 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Six manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Seven manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
 > choice governs (§6 says why) — and raised **I-14 (S2)**: `Ctrl+Shift+M` kept the presentation's
 > physical size across a change of scale; fixed the same day. **M-06**, on 2026-09-26, passed with no
 > finding — the human half of A2 at Stage 4, and it agrees with the figure. **M-03**, on 2026-09-26,
 > passed with no finding — including the display held awake while presenting and released after.
 > **M-04**, on 2026-09-26, passed with no finding, in the direction that removes the 150 % primary.
+> **M-05**, on 2026-09-26, **failed at step 5** — turning session restore off did not stick — which
+> raised **I-15 (S2)**: no `general/` preference had ever been read back from the file after a real
+> restart. Fixed the same day, and **step 5's re-walk on the fixed build passed**.
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other six
-> are the stage's largest remaining gap. §8 holds **fourteen** issues and **only I-07 (S4) is open**;
+> same day**. The other five
+> are the stage's largest remaining gap. §8 holds **fifteen** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-14 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
-> by `x64-debug` after `x64-release` had reported green, and I-10 to I-14 each found by a person
+> I-15 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case.
 >
@@ -258,6 +261,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-13)* Both rulers print their numbers | **A-83**, and **M-07** |
 | *(Plan D4-18)* One pair of rulers, following the focused pane of a split | **A-84**, **M-08** |
 | *(I-14)* A presentation moved to a monitor of another scale fills that monitor | **A-85**, and **M-02**, which found it |
+| *(I-15)* A `general/` preference survives a real restart | **A-86**, and **M-05**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1185,6 +1189,26 @@ AND its recovery root at the scratch directory**, which is the trap in all three
 **Goal** The trap Stage 3 T11 recorded for the recovery root, with a second subject.
 **Expect** `tst_restore` points the session root at a scratch directory; after the suite, `%APPDATA%\RawPage\session.json` is untouched (mtime and hash read before and after). **If it fails** S1 — a suite that reopened the tester's documents, or replaced their session.
 
+**A-86 · A `general/` preference survives a real restart — I-15, closed** ✅
+✅ **2026-09-26** (`tests/unit/tst_settings.cpp`, two cases tagged `[S4-I-15]`, plus the Stage 1
+`[general]` case strengthened). **The reload is from a COPY of the file under a name QSettings has
+never opened**, because QSettings caches a file per process and a reload of the same path in the same
+process reads back what this process wrote — which is exactly how the defect lived under a green
+suite. The cases: a file shaped like the user's before the untick (the product's own `[%General]`
+beside other groups) must read `touchMode=true` from that section, take `restoreSession=false`, read
+it back from the copy, and hold **ONE** General section afterwards; and the user's file **as the defect
+left it** — two `[%General]` sections — must be read whole. **Planted control:** with the
+`General/`↔`general/` mapping removed, all three cases redden — including the Stage 1 case, which
+reads the theme back as the default instead of `dark` once it reloads from a copy. That is the
+proof the cache hid it: the same case, unchanged but for where it reads from, is red on the old code.
+**What it does NOT cover** (convention 19): a real second launch of the product — the unit cases
+parse the bytes a launch would parse, through the same `Settings` constructor, and M-05 step 5's
+re-walk is the launch.
+**Steps** `ctest -R "General section|hand-written \[general\]"`.
+**Expect** A `general/` key written by the product is read back by a fresh parse; the file keeps one
+General section; a file with two is read whole. **If it fails** S2 — I-15 is back, and no general
+preference survives a restart.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -1342,16 +1366,36 @@ no finding.
   restored window is reachable — at least its title bar on a real screen.
 - **If it fails** **S1** for anything unreachable; S2 for a window that survives but at a silly size.
 
-**M-05 · Session restore, across a change of shape** ☐
+**M-05 · Session restore, across a change of shape** ✅ **signed off by the user, 2026-09-26, on the
+RE-WALK of step 5** — the first walk that day passed steps 1–4 and FAILED step 5, raising **I-15 (S2)**;
+fixed the same day, and step 5 re-walked on the fixed build passed.
+- **Re-walk of step 5, 2026-09-26** On the rebuilt binary, with the file the defect had written
+  (`restoreSession=false` in a second `[%General]` section): the launch restored nothing and the box
+  read **unticked**; ticked again and quit with `Ctrl+Q`, `settings.ini` held **one** `[%General]`
+  section — the damaged file converged without repair, as I-15's fix says it should.
+- **Walk result** Copies of `text-a4.pdf`, `mixed-page-sizes.pdf` and `pages-900.pdf` in
+  `tests\manual\M-05\`, on the P-1 rig. Steps 1–2: documents, tab order, windows on both monitors,
+  the split, the Thumbnails pane and each document's place came back. Step 3: a page rotated, `Ctrl+Q`
+  answered *Don't Save*, and the document came back clean. Step 4: with the MAG removed every window
+  was reachable, and with it back the two-monitor layout returned. **Step 5:** *Reopen the previous
+  session at startup* unticked, `Ctrl+Q`, relaunch — **every tab came back, and the box was ticked
+  again**. `settings.ini` held `restoreSession=false`, in a SECOND `[%General]` section at its end —
+  **I-15**: QSettings reads `[%General]` back as the group `General` and the schema says `general`, so
+  no `general/` key had ever been read back after a restart.
+- **Step 3 is re-worded** (it said *"close its tab with Don't Save. Quit."*): the tab stays open and the
+  quit IS the close — closing the tab first drops the document from the session, and the step would
+  then pass vacuously. A-76 had already taken that reading.
 - **Goal** D4-9, and the fingerprint on a real topology.
 - **Pre** P-1, P-2. Three copies of corpus files in `tests\manual\M-05\`.
 - **Steps**
   1. Open all three; split one; open the Thumbnails pane on another; arrange the windows; quit with
      `Ctrl+Q`.
   2. Relaunch. Read what came back.
-  3. Rotate a page in one document and close its tab with **Don't Save**. Quit. Relaunch.
+  3. Rotate a page in one document and, with its tab still open, quit with `Ctrl+Q` and answer
+     **Don't Save**. Relaunch.
   4. Remove a monitor, relaunch, restore it, relaunch again.
-  5. Turn `general/restoreSession` off, quit, relaunch.
+  5. Turn `general/restoreSession` off (*Reopen the previous session at startup*, Preferences →
+     General), quit, relaunch. Turn it back on afterwards.
 - **Expect** Steps 1–2: the same documents, tab order, window positions, split and pane. Step 3: the
   document comes back **clean** — no unsaved marker, no rotation. Step 4: windows land on monitors
   that exist in both arrangements, and the two-monitor layout comes back when the monitor does.
@@ -1522,6 +1566,7 @@ uses.
 | **I-12** | **S3** | **A split had no visible divider: the stock `QSplitter` handle is painted in `QPalette::Window`, which is the desk's own colour** | ✅ **Closed 2026-09-26, the day M-01 raised it** — a handle that paints itself from the theme tokens, and **A-82** measures it against the desk in both themes |
 | **I-13** | **S3** | **The vertical ruler printed NO numbers: each label was rotated about x = 0, which carried it off the widget's left edge** | ✅ **Closed 2026-09-26, the day the user asked** — the label is anchored at the tick side of its strip, and **A-83** counts painted ink in both rulers |
 | **I-14** | **S2** | **`Ctrl+Shift+M` moved the presentation to a monitor of another scale and kept its PHYSICAL size — a quarter of the 4K panel, or overflowing the 2K one** | ✅ **Closed 2026-09-26, the day M-02 raised it** — a move hides, places and shows, as the first placement always did; **A-85** measures physical rectangles on the real monitors |
+| **I-15** | **S2** | **No `general/` preference was ever read back after a real restart — theme, UI font scale, touch mode and all three session switches: QSettings reads `[%General]` back as `General/`** | ✅ **Closed 2026-09-26, the day M-05 raised it** — `Settings` maps `general/` ↔ `General/` at its one boundary with QSettings; **A-86** reloads from a copy, past QSettings' per-process cache |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1905,12 +1950,47 @@ not name that it could not have a second one at all. **A-85** is therefore a cas
 `ctest` with its reason, and whose evidence is a run on the `windows` platform on a two-monitor desk —
 the first of its kind in this file, and recorded as such rather than as a pass it cannot have.
 
+**I-15 · No `general/` preference survived a restart.** *(Raised 2026-09-26 by the user's M-05 walk,
+step 5. The defect is Stage 1's — `core/settings/Settings`, T5 — and is logged here because the walk
+that found it is this stage's, as I-10 was.)*
+
+**Mechanism.** QSettings writes a group named `general` as the section `[%General]` — the escape for its
+own reserved `[General]` — and **reads `[%General]` back as the group `General`, capital G**, measured
+with a probe over the user's own `settings.ini`. The schema declares `general/...`, so on every launch
+`General/theme`, `General/uiFontScale`, `General/touchMode`, `General/restoreSession`, … matched no
+declared key and were preserved as UNKNOWN: **the product has never read a `general/` preference back
+after a restart.** It went unnoticed because the defaults are what most people want — the user's theme
+is *follow system*, the default. And writing one key produced a **second** `[%General]` section, because
+QSettings' in-memory copy then held both `General/...` (read) and `general/...` (written), and it emits
+every group it holds.
+
+**Why no case caught it.** Stage 1 T5 measured the `[General]` quirk and wrote a fold for a HAND-WRITTEN
+`[general]` section, whose keys QSettings reports with no group at all — and its case reloaded the file
+with `Settings reloaded(path)` **in the same process**, which QSettings answers from its per-process
+cache of what that process wrote. So the case read `general/theme` back from memory and passed, while
+the next launch read `General/theme` from the bytes and forgot it. **Planted control:** with the fix
+removed and that case reloading from a copy instead, it reads the theme as the default instead of
+`dark` — red on the old code with nothing changed but where it reads from.
+
+**The fix, 2026-09-26.** `Settings` maps a path at its one boundary with QSettings — `general/...` is
+stored as `General/...`, the spelling QSettings round-trips, and read back as `general/...` — so nothing
+above the boundary sees the file's spelling. A file the defect damaged needs no repair: QSettings merges
+the two `[%General]` sections into one group on read, and the next write emits it once. **A-86** holds
+two new cases and the strengthened Stage 1 case, all reloading from a copy.
+
+**What else it affected** — every `general/` key, all seven read from `SettingsKeys.def`: `theme`,
+`uiFontScale`, `touchMode`, `singleInstance`, and the three session switches `restoreSession`,
+`rememberWindowLayout` and `rememberPaneLayout`. The user's file carries `touchMode=true`, never read
+until now — and **nothing changes**, because `general/touchMode` is declared and INERT until Stage 14
+(`Implementation-Plan.md`; Stage 1's I-38): no code reads it. *(This line first said the fixed build
+would apply it — a claim made without reading the code, corrected the same day.)*
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-26 — all 86 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 86th are **A-81**, **A-82**, **A-83** and **A-85**, added 2026-09-26 with the fixes for I-11 to I-14, and **A-84**, D4-18's — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-26 — all 87 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -1921,12 +2001,15 @@ restated as a checklist.
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
    fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding — M-04 in one
-   direction only, the 150 % primary removed.**
-   The other six are the stage's largest remaining gap and the honest summary of its state.
+   direction only, the 150 % primary removed; M-05, 2026-09-26, failed at step 5 and raised I-15
+   (S2), fixed the same day, and passed step 5's re-walk.**
+   The other five are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-26, re-run after I-14's fix: 1117/1117 on `x64-release` and on `x64-debug`**, with
+4. ✅ **2026-09-26, re-run after I-15's fix: 1119/1119 on `x64-release` and on `x64-debug`**, the two
+   new cases A-86's, with the same two named skips and `checks` clean. *Before that,* **after I-14's
+   fix: 1117/1117 on `x64-release` and on `x64-debug`**, with
    **two** named skips — the battery case, and **A-85**, which needs two monitors at different scales
    and was run on the `windows` platform instead, passing on both presets — and `checks` clean
    (`layer-lint` 423 files / 3,368 includes). *Before that,* **after I-13's fix and D4-18's case:
@@ -1980,8 +2063,9 @@ restated as a checklist.
 9. ✅ **2026-09-26 — met again, the same day it was broken, for the second time.** M-01's walk
    raised **I-11 (S2)** and **I-12 (S3)** and both closed that day, with **A-81** and **A-82**; the
    user's question after it raised **I-13 (S3)**, the vertical ruler with no numbers, closed the same
-   day with **A-83**; and M-02's walk raised **I-14 (S2)**, a moved presentation keeping its physical
-   size, closed the same day with **A-85**.
+   day with **A-83**; M-02's walk raised **I-14 (S2)**, a moved presentation keeping its physical
+   size, closed the same day with **A-85**; and M-05's raised **I-15 (S2)**, no general preference
+   surviving a restart, closed the same day with **A-86**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -1995,12 +2079,12 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; SIX OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03 AND M-04 —
-AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — six
-unwalked cases. That each of the first three manual cases walked in this stage found a defect the
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; SEVEN OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04 AND
+M-05 ON ITS STEP-5 RE-WALK — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of
+what is outstanding** — five unwalked cases. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
-of code, is the argument for the other six rather than against them; that M-06, the stage's verdict
+of code, is the argument for the other five rather than against them; that M-06, the stage's verdict
 case, M-03 and M-04 found nothing is the verdict, the presentation and the topology path holding up
 to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject

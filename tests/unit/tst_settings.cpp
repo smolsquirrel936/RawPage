@@ -773,7 +773,14 @@ TEST_CASE("a hand-written [general] section is honoured, and normalized on the n
 
     // The hand edit SURVIVES the normalization. Removing the old spelling without writing the new
     // one would read to a user as "it forgets my theme".
-    Settings reloaded(path);
+    //
+    // **From a COPY, since Stage 4 guide I-15.** This line was `Settings reloaded(path)`, which
+    // QSettings answers from its per-process cache of the file this process had just written -- so
+    // the case passed while the next LAUNCH read `[%General]` back as `General/theme`, matched no
+    // declared key, and forgot the theme. A path QSettings has never opened is parsed from the bytes.
+    const QString copy = dir.path() + QStringLiteral("/as-the-next-launch-reads-it.ini");
+    REQUIRE(QFile::copy(path, copy));
+    Settings reloaded(copy);
     CHECK(reloaded.get(keys::general::theme) == Theme::Dark);
     CHECK(reloaded.get(keys::general::uiFontScale) == 1.5);
     CHECK(reloaded.unknownKeys().isEmpty());
@@ -903,4 +910,58 @@ TEST_CASE("the migration chain runs in order and only over the versions it spans
     CHECK(SettingsSchema::migrate(partial, 3, chain, 4) == 4);
     REQUIRE(applied.size() == 1);
     CHECK(applied.at(0) == "3->4");
+}
+
+TEST_CASE("a general key set on a file that already has a General section reads back", "[settings][S4-I-15]")
+{
+    // Stage 4 guide I-15, found by the user's M-05 walk (2026-09-26): unticking *Reopen the
+    // previous session at startup* wrote `restoreSession=false` -- and the next launch read it as
+    // true. The file had grown a SECOND `[%General]` section at its end, holding only that key.
+    // This is the file's shape before the untick: the product's own `[%General]`, as QSettings
+    // wrote it, beside the other groups.
+    QTemporaryDir dir;
+    const QString path = writeIni(dir, QStringLiteral(
+        "[%General]\nuiFontScale=1\ntouchMode=true\ntheme=followSystem\n\n"
+        "[logging]\nlevel=debug\n\n[meta]\nschemaVersion=1\n"));
+
+    {
+        Settings settings(path);
+        REQUIRE(settings.get(keys::general::touchMode));             // the section IS read
+        REQUIRE(settings.get(keys::general::restoreSession));        // the default, before the untick
+        settings.set(keys::general::restoreSession, false);          // what the checkbox does
+    }
+
+    const QByteArray written = readBytes(path);
+    INFO("the file after the untick:\n" << written.toStdString());
+
+    // RELOADED FROM A COPY UNDER ANOTHER NAME. QSettings caches a file per process, so `Settings
+    // reloaded(path)` would read back the cache this process just wrote -- which is how the
+    // `[general]` case above has passed since Stage 1 T5 while no `general/` key survived a real
+    // restart. A path QSettings has never opened is parsed from the bytes, as the next launch is.
+    const QString copy = dir.path() + QStringLiteral("/as-the-next-launch-reads-it.ini");
+    REQUIRE(QFile::copy(path, copy));
+    Settings reloaded(copy);
+    CHECK_FALSE(reloaded.get(keys::general::restoreSession));        // THE DEFECT: it read true
+    CHECK(reloaded.get(keys::general::touchMode));                   // and nothing else was lost
+    CHECK(reloaded.unknownKeys().isEmpty());
+
+    // ONE section, not two: the file must converge on one spelling, as the [general] fold's case
+    // above asks of a hand edit.
+    CHECK(written.count("[%General]") + written.count("[General]") + written.count("[general]") == 1);
+}
+
+TEST_CASE("a file that already carries two General sections is read whole", "[settings][S4-I-15]")
+{
+    // The user's settings.ini AS THE DEFECT LEFT IT -- two `[%General]` sections, the second holding
+    // only the untick. Every file the defect wrote has this shape, so the fix must read it rather
+    // than only stop producing it.
+    QTemporaryDir dir;
+    const QString path = writeIni(dir, QStringLiteral(
+        "[%General]\nuiFontScale=1\ntouchMode=true\ntheme=followSystem\n\n"
+        "[logging]\nlevel=debug\n\n[meta]\nschemaVersion=1\n\n"
+        "[%General]\nrestoreSession=false\n"));
+
+    Settings settings(path);
+    CHECK_FALSE(settings.get(keys::general::restoreSession));
+    CHECK(settings.get(keys::general::touchMode));
 }

@@ -19,6 +19,31 @@ QString toQString(std::string_view text)
 
 const QString kSchemaVersionPath = QStringLiteral("meta/schemaVersion");
 
+// **THE `general/` GROUP IS STORED AS `General/` -- Stage 4 guide I-15.** QSettings writes a group
+// named `general` as the section `[%General]` (the escape for its own reserved `[General]`), and reads
+// `[%General]` back as the group `General` -- CAPITAL G, measured 2026-09-26 against the user's own
+// settings.ini. The schema declares `general/...`, so every key in that section arrived as
+// `General/theme`, `General/restoreSession`, matched nothing declared, and was preserved as UNKNOWN:
+// **no `general/` preference was ever read back from the file** after a real restart. The suite never
+// saw it because QSettings caches a file per process, so a reload in the same process re-read the
+// cache rather than the file. And writing one key produced a SECOND `[%General]` section, because the
+// cache then held both `General/...` (read) and `general/...` (written) and QSettings emits each group.
+//
+// So the file speaks QSettings' spelling and nothing above this boundary ever sees it: a path is
+// mapped on every read from and write to `backing_`, and nowhere else.
+const QString kSchemaGeneral = QStringLiteral("general/");
+const QString kFileGeneral = QStringLiteral("General/");
+
+QString toFileKey(const QString& path)
+{
+    return path.startsWith(kSchemaGeneral) ? kFileGeneral + path.mid(kSchemaGeneral.size()) : path;
+}
+
+QString fromFileKey(const QString& key)
+{
+    return key.startsWith(kFileGeneral) ? kSchemaGeneral + key.mid(kFileGeneral.size()) : key;
+}
+
 } // namespace
 
 QString Settings::defaultFilePath()
@@ -51,7 +76,11 @@ Settings::~Settings() = default;
 
 void Settings::loadFromFile(std::span<const ActionAlias> aliases)
 {
-    const QStringList fileKeys = backing_->allKeys();
+    // In the SCHEMA's spelling (I-15): `General/theme` in the file is `general/theme` from here on.
+    // A file the defect damaged -- two `[%General]` sections -- needs nothing further: QSettings
+    // merges them into one `General` group on read, and the next write emits that group once.
+    QStringList fileKeys;
+    for (const QString& key : backing_->allKeys()) fileKeys.push_back(fromFileKey(key));
 
     // --- D1-16: what version wrote this file ---------------------------------------------------
     // Absent-and-empty is a FRESH file, which is the current version by construction. Absent with
@@ -83,7 +112,7 @@ void Settings::loadFromFile(std::span<const ActionAlias> aliases)
     for (const QString& key : fileKeys) {
         if (key == kSchemaVersionPath) continue;
 
-        const QVariant value = backing_->value(key);
+        const QVariant value = backing_->value(toFileKey(key));
 
         if (SettingsSchema::isDeclaredPath(key, aliases)) {
             declared.insert(key, value);
@@ -449,14 +478,14 @@ Result<void> Settings::sync()
         return Error{ErrorCode::IoFailure, QLatin1String("error.settings.directory"), parent.path()};
     }
 
-    for (const QString& path : removed_) backing_->remove(path);
+    for (const QString& path : removed_) backing_->remove(toFileKey(path));
     removed_.clear();
 
     for (const QString& path : dirty_) {
         if (path == kSchemaVersionPath) continue;
         const auto it = values_.find(path);
         if (it == values_.end()) continue;
-        backing_->setValue(path, it->second);
+        backing_->setValue(toFileKey(path), it->second);
     }
     dirty_.clear();
 
