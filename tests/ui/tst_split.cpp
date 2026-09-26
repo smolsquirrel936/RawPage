@@ -15,10 +15,11 @@
 //   * **It cannot see a handle drag.** The splitter handles are real `QSplitter` handles and the
 //     sizes a person drags them to are the widget's, dying with the window (`Stage4-...-Plan.md`
 //     §5.2). What is asserted here is that the two rows of a spreadsheet split are given the SAME
-//     sizes; that dragging one moves the other is manual case **M-09**.
+//     sizes; that dragging one moves the other is manual case **M-08**. (This line said M-09, which is
+//     window arrangement and asks nothing about a split -- corrected 2026-09-26.)
 //   * **It cannot judge a repaint.** Every scroll assertion below is on the two controllers'
 //     offsets, not on pixels. Whether the two panes LOOK locked together while a wheel is turning
-//     is M-09's too.
+//     is M-08's too.
 //   * **No real engine.** `uitest::FakeBackend` decides the page count and `FakeRasterizer` the
 //     pixels, and tiles are pumped by hand -- `ShellFixture.h` names that back door and what it
 //     therefore does not cover.
@@ -47,6 +48,7 @@
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/ViewportController.h"
@@ -510,6 +512,50 @@ TEST_CASE("the active pane follows focus, and every view command lands on it", "
     CHECK(left->controller().zoom() == before);
 }
 
+TEST_CASE("the rulers measure the focused pane of a split", "[split][D4-18]")
+{
+    // D4-18 (`Stage4-ViewingSurface-Plan.md` s3): ONE pair of rulers per document window, measuring
+    // the focused pane. Recorded as a decision on 2026-09-26, after T9 had built it with no case --
+    // this is that case. The zero is where the focused pane's page corner is, in the ruler's own
+    // coordinates, so the claim is a number: it moves by exactly the distance between the panes.
+    // What it does NOT cover (convention 19): whether a person can tell which pane the ruler is
+    // reading, over the pane it is not -- M-08.
+    Split split;
+    split.fixture.settings.set(core::keys::units::showRulers, true);
+    split.dispatch(ActionId::WindowSplitVertical);
+
+    ui::RulerWidget* ruler = split.document->horizontalRuler();
+    REQUIRE(ruler != nullptr);
+    REQUIRE(ruler->isVisible());
+
+    ui::PageView* left = split.container()->views().at(0);
+    ui::PageView* right = split.container()->views().at(1);
+    const auto paneStart = [&](ui::PageView* pane) {
+        return pane->viewport()->mapTo(split.container(), QPoint(0, 0)).x();
+    };
+    REQUIRE(paneStart(right) - paneStart(left) > 100);   // two panes side by side, not stacked
+
+    left->setFocus(Qt::MouseFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(split.container()->activeView() == left);
+    REQUIRE(ruler->mapping().valid);
+    const double leftZero = ruler->mapping().zeroPixel;
+    CHECK(leftZero < paneStart(right));
+
+    right->setFocus(Qt::MouseFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(split.container()->activeView() == right);
+    const double rightZero = ruler->mapping().zeroPixel;
+
+    // Same document, same zoom, same scroll: the two page corners are one pane-offset apart.
+    CHECK_THAT(rightZero - leftZero, WithinAbs(paneStart(right) - paneStart(left), 1.0));
+
+    // And back -- a ruler that moved once and stuck would pass the half above.
+    left->setFocus(Qt::MouseFocusReason);
+    QCoreApplication::processEvents();
+    CHECK_THAT(ruler->mapping().zeroPixel, WithinAbs(leftZero, 1.0));
+}
+
 // =============================================================================================
 // I-12 -- the divider is VISIBLE, in both themes.
 //
@@ -521,7 +567,7 @@ TEST_CASE("the active pane follows focus, and every view command lands on it", "
 //
 // What this does NOT cover (convention 19): what a person sees on a 150 % panel, where one logical
 // pixel is not one device pixel, nor whether the colours read as a boundary at a glance -- M-01 and
-// M-09 on the P-1 rig. The pointer arriving is an `Enter` event sent by hand, not a mouse. And the
+// M-08 on the P-1 rig. The pointer arriving is an `Enter` event sent by hand, not a mouse. And the
 // STYLE: offscreen runs Fusion, whose stock handle draws a faint grip (deltaE 19 at its centre,
 // measured with the planted control) where the product's `windows11` style drew nothing M-01 could
 // see -- so the control fails here on the band (deltaE 0) and on the line floor, not on "nothing".

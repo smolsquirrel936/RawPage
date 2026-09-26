@@ -7,11 +7,12 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **83 automated** (A-01 … A-82, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 83 carry
-> a result** as of 2026-09-26 (re-derived from this file: 83 case headers, none still boxed — the
-> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd and 83rd are **A-81** and
-> **A-82**, added 2026-09-26 with the fixes for I-11 and I-12) — T1's
+> partly run.** **85 automated** (A-01 … A-84, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 85 carry
+> a result** as of 2026-09-26 (re-derived from this file: 85 case headers, none still boxed — the
+> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 85th are **A-81**, **A-82**
+> and **A-83**, added 2026-09-26 with the fixes for I-11, I-12 and I-13, and **A-84**, the case
+> D4-18 was recorded with that day) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
@@ -29,11 +30,12 @@
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
 > same day**. The other ten
-> are the stage's largest remaining gap. §8 holds **twelve** issues and **only I-07 (S4) is open**;
-> I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 and
-> I-12 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
-> by `x64-debug` after `x64-release` had reported green, and I-10, I-11 and I-12 each found by a
-> person walking a case over a green automated half**.
+> are the stage's largest remaining gap. §8 holds **thirteen** issues and **only I-07 (S4) is open**;
+> I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11,
+> I-12 and I-13 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> by `x64-debug` after `x64-release` had reported green, and I-10 to I-13 each found by a person
+> looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
+> the user asking about it after M-01 rather than inside a case.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -245,6 +247,8 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-10)* Fit Page fits the page a reader is SHOWN, not the sheet | **A-80**, and **M-11**, which found it |
 | *(I-11)* A fit measures the page it was CHOSEN on, and a zoom command keeps the reader's place | **A-81**, and **M-01**, which found it |
 | *(I-12)* A split's divider is visible against the desk, in both themes | **A-82**, and **M-01**, which found it |
+| *(I-13)* Both rulers print their numbers | **A-83**, and **M-07** |
+| *(Plan D4-18)* One pair of rulers, following the focused pane of a split | **A-84**, **M-08** |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -619,6 +623,24 @@ in `viewportEvent` because `QEvent::Leave` goes to the viewport and not to the s
 whether the ticks are distinguishable on a real panel are manual case **M-07**'s.
 **Expect** `units/rulerUnit` changes the readout and the ruler's ticks; the readout at a known page point matches `core/Units.h`'s conversion; at 400 % the readout is the same page coordinate as at 50 %. **If it fails** S3.
 
+**A-83 · Both rulers print their numbers — I-13, closed** ✅
+✅ **2026-09-26** (`tests/ui/tst_rulers.cpp`, `[I-13]`). A-49 asserts what the rulers READ and hands
+*"whether the numbers read"* to M-07; nothing looked at whether they were DRAWN, and the vertical
+ruler drew none. This case paints a horizontal and a vertical ruler with one mapping and a black-on-white
+palette and counts dark pixels in the **outer third** of each — the strip no tick reaches, so a tick
+cannot pass for a number. **The horizontal ruler is the control**: it always had its numbers, so a
+threshold it fails is a wrong threshold. **Measured:** horizontal 211, vertical **171**; with the old
+origin planted back, vertical **0**. **A trap found on the way, and the reason the case loads a font
+file:** the offscreen platform has no font database and draws each glyph as a box — and draws a
+ROTATED box as nothing — so the first version of this case read vertical 0 *after* the fix as well as
+before it. Run on the `windows` platform it read 123 fixed and 0 planted; loading
+`C:/Windows/Fonts/arial.ttf` into the case (`QFontDatabase::addApplicationFont`) lets the offscreen run
+see the same difference, and the planted control was re-run there and read 0.
+**What it does NOT cover** (convention 19): that the numbers are the right ones (A-49), and whether they
+read at `general/uiFontScale` 0.75 or on a 150 % panel (M-07).
+**Steps** `ctest -R "print their numbers"`.
+**Expect** Ink in the label strip of both rulers. **If it fails** S3 — I-13 is back.
+
 **A-50 · The grid obeys spacing, subdivisions, colour and origin offset** ✅ **2026-09-21,
 T8.** `ui.` — the viewport is rendered to a pixmap and hashed; turning the grid on changes the hash,
 and so does each of `units/gridSpacing`, `units/gridSubdivisions`, `units/gridColour`,
@@ -710,7 +732,9 @@ the left. A third case asserts `window.syncScroll` is **refused** in a spreadshe
 derivation is the mode, not an option on it (Stage 1's **I-53**).
 **What this case does NOT cover** (convention 19): the splitter handles are real, and the sizes a
 person drags them to are the widget's and die with the window; that dragging one row's handle moves
-the other's is **M-09**'s, and so is whether the panes LOOK locked together while a wheel turns.
+the other's is **M-08**'s, and so is whether the panes LOOK locked together while a wheel turns.
+*(This line said M-09, which is window arrangement and asks neither — corrected 2026-09-26, when
+M-08 gained both checks.)*
 **Expect** Sync on: both views scroll together; off: independently. The frozen row and column stay put while the body scrolls, and the frozen regions scroll **only** in their own axis. **If it fails** S2.
 
 **A-56 · Removing a split leaves one view and no leaked tickets** ✅
@@ -749,10 +773,27 @@ measures **ΔE 0** against the desk in both themes, which is M-01's invisible bo
 draws a faint grip (ΔE 19 at its centre, read off the control) where the product's `windows11` style
 drew nothing M-01 could see — so the control fails here on the band and on the line floor, not on
 "nothing"; the pointer is an `Enter` event sent by hand; and whether the divider reads as a boundary
-at a glance on a 150 % panel is **M-01**'s and **M-09**'s.
+at a glance on a 150 % panel is **M-01**'s and **M-08**'s.
 **Steps** `ctest -R "divider"`.
 **Expect** Band ΔE ≥ 10 and line ΔE ≥ 30 against the desk in both themes, on every splitter of every
 split mode; the pointer lights the handle. **If it fails** S3 — I-12 is back.
+
+**A-84 · The rulers measure the FOCUSED pane of a split — D4-18** ✅
+✅ **2026-09-26** (`tests/ui/tst_split.cpp`, `[D4-18]`). **Written with the decision, not with the
+code**: T9 built one pair of rulers that rebinds on `activeViewChanged` and no case asserted it; the
+user asked during M-01 whether it was intended, chose to keep it, and it was recorded as **D4-18**
+(`Stage4-ViewingSurface-Plan.md` §3) with this case. Vertical split, rulers on; the horizontal ruler's
+zero — the focused pane's page corner, in the ruler's own coordinates — is read with the left pane
+focused, then the right, then the left again. **The claim is a number**: same document, zoom and
+scroll, so the two zeros are exactly one pane-offset apart (448 px here, within 1), and focusing back
+returns the first. **Planted control:** with `DocumentWindow`'s `activeViewChanged` handler emptied,
+the container still reports the right pane active and the ruler's zero moves **0 px** against 448 —
+the case fails on the ruler, not on the focus.
+**What it does NOT cover** (convention 19): whether a person can tell which pane the ruler is
+reading when the pointer is over the other one — **M-08**, step 3.
+**Steps** `ctest -R "measure the focused pane"`.
+**Expect** The ruler's zero moves with focus by the distance between the panes, and back. **If it
+fails** S3 — D4-18 is not what the product does.
 
 ### 5.11 Full Screen and presentation (T10)
 
@@ -1254,13 +1295,24 @@ fixed the same day, and the re-walk on the fixed build passed every step.
   timestamp has not changed.
 - **If it fails** S2 for the snap distance; **S1 if the document's timestamp moved.**
 
-**M-08 · The spreadsheet split** ☐
-- **Goal** The freeze, which is the split nobody gets right by accident.
-- **Steps** On a wide document, take a spreadsheet split; scroll the body right and down; resize the
-  window; change the zoom; remove the split.
+**M-08 · The splits** ☐ *(was "The spreadsheet split"; widened 2026-09-26 with the three checks T9
+and D4-18 had pointed at this case — two of them at M-09 by mistake — and which no case asked for)*
+- **Goal** The freeze, which is the split nobody gets right by accident — and what a person sees of a
+  two-pane split that no offscreen run can: the scroll lock, the handle, and the rulers.
+- **Steps**
+  1. On a wide document, take a spreadsheet split; scroll the body right and down; resize the
+     window; change the zoom. **Drag the vertical handle in the TOP row**; then remove the split.
+  2. Take a vertical split with rulers on (`Ctrl+U`). Turn a wheel over one pane with synchronized
+     scrolling on, then off.
+  3. Click in the left pane and read the rulers; click in the right pane and read them again. Hold
+     the pointer over the pane you did NOT click and look at what the ruler says there.
 - **Expect** The frozen row and column stay put and stay aligned with the body at every zoom and size;
-  removing the split leaves one view showing the same place.
-- **If it fails** S2.
+  dragging the top row's handle moves the bottom row's with it; removing the split leaves one view
+  showing the same place. With sync on the two panes LOOK locked while the wheel turns, and with it
+  off only one moves. **The rulers measure the pane you clicked** (D4-18): the shaded page extent and
+  the zero move to it; over the other pane the ruler continues the clicked page's scale, and you should
+  be able to tell which pane it is reading. If you cannot, that is the finding.
+- **If it fails** S2; S3 for the rulers.
 
 **M-09 · Arranging windows** ☐
 - **Steps** Open four documents; detach two into their own windows; tile horizontally, then
@@ -1372,6 +1424,7 @@ uses.
 | **I-10** | **S2** | **Fit Page measures the SHEET while the product draws the CROP: `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset** | ✅ **Closed 2026-09-24, the day M-11 raised it** — `FitMode::Page` measures the CropBox, the assertion that pinned the sheet is inverted, and **A-80** asserts the zoom against the drawn page |
 | **I-11** | **S2** | **On a document of mixed page sizes, `Ctrl+2` from 400 % drew the landscape page at TWICE the window's width: the fit re-measured whichever page the zoom change had scrolled onto** | ✅ **Closed 2026-09-26, the day M-01 raised it** — every fit is anchored to the page it was chosen on, a zoom command keeps the reader's place, and **A-81** asserts both over mixed sizes |
 | **I-12** | **S3** | **A split had no visible divider: the stock `QSplitter` handle is painted in `QPalette::Window`, which is the desk's own colour** | ✅ **Closed 2026-09-26, the day M-01 raised it** — a handle that paints itself from the theme tokens, and **A-82** measures it against the desk in both themes |
+| **I-13** | **S3** | **The vertical ruler printed NO numbers: each label was rotated about x = 0, which carried it off the widget's left edge** | ✅ **Closed 2026-09-26, the day the user asked** — the label is anchored at the tick side of its strip, and **A-83** counts painted ink in both rulers |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1698,7 +1751,8 @@ both sides **by construction** — not faint, absent.
 
 **Why no case caught it.** A-53 … A-56 assert what a split IS — one handle, one journal, the scroll
 lock, the tickets — and none asked what it LOOKS like; the suite's header named *"it cannot judge a
-repaint"* as a blind spot and left it to M-09, which had not been walked.
+repaint"* as a blind spot and left it to M-09 — the wrong case: M-09 is window arrangement, and the
+split's manual case is **M-08**, which had not been walked either.
 
 **The fix, 2026-09-26, in `ui/viewer/SplitViewContainer.cpp`.** Every splitter is a `DividerSplitter`
 whose `createHandle()` returns a `DividerHandle` that **paints itself** from the palette
@@ -1710,12 +1764,32 @@ the light desk — over the floor, and still pale — which is why the line is t
 three are existing roles, so both themes were already defined (convention 20). **A-82** measures the
 painted pixels in both themes, and its planted control — the stock handle — reads **ΔE 0**.
 
+**I-13 · The vertical ruler printed no numbers.** *(Raised 2026-09-26 by the user, who asked after
+M-01 why the vertical ruler had none — outside any case: M-07, the rulers' manual case, has not been
+walked.)*
+
+**Mechanism.** `RulerWidget::paintEvent` lays a vertical label's box out at `translate(0, pixel + 2)`
+and turns it with `rotate(90)`. A quarter turn in Qt's y-down space maps local (x, y) to (−y, x), so the
+box's HEIGHT runs towards negative x — the whole box lay left of the widget's edge and was clipped. The
+horizontal ruler is not rotated, which is why its numbers were always there. The fix anchors the box at
+`across − tick`, the tick side of the label strip, so it runs back across [0, across − tick]: the strip
+the horizontal ruler's numbers occupy. Built at T8, so present since 2026-09-21.
+
+**Why no case caught it.** A-49 asserts the rulers' READINGS — a number `readingAt()` returns — and
+hands *"whether the numbers read"* to M-07; nothing asserted the numbers were painted, and a reading
+is correct whether or not anything is drawn. And a second reason, found while writing **A-83**: the
+offscreen platform draws a rotated glyph as nothing at all, so even a pixel case over the vertical ruler
+would have been blind to the fix as well as the defect until it loaded a real font.
+
+**Controls.** The planted old origin reads vertical ink **0** on both the `windows` platform and, with
+the font loaded, offscreen; the fix reads 123 and 171.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-26 — all 83 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd and 83rd are **A-81** and **A-82**, added 2026-09-26 with the fixes for I-11 and I-12; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-26 — all 85 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 85th are **A-81**, **A-82** and **A-83**, added 2026-09-26 with the fixes for I-11, I-12 and I-13, and **A-84**, D4-18's; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -1729,8 +1803,10 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-26, re-run with the fixes for I-11 and I-12: 1114/1114 on `x64-release` and on
-   `x64-debug`** — the six new cases are A-81's four and A-82's two — with `checks` clean on four
+4. ✅ **2026-09-26, re-run after I-13's fix and D4-18's case: 1116/1116 on `x64-release` and on
+   `x64-debug`**, the battery case the one named skip, `checks` clean (`layer-lint` 423 files / 3,364
+   includes) — the two new cases are A-83 and A-84. *Earlier that day,* **with the fixes for I-11 and
+   I-12: 1114/1114 on both presets** — the six new cases are A-81's four and A-82's two — with `checks` clean on four
    gates (`layer-lint` 423 files / 3,362 includes; `mutation-lint` still **one command**) and no
    `warning:` line from either incremental build (which compiled only the changed files, so the
    clean-build census stays T14's). **The first run had the 2026-09-24 caveat again** — the walker's
@@ -1777,7 +1853,9 @@ restated as a checklist.
    CropBox fallback at **108 %**. Somebody has now looked at a fitted page — and looking is what
    raised **I-10**, which is item 9's problem rather than this one's.
 9. ✅ **2026-09-26 — met again, the same day it was broken, for the second time.** M-01's walk
-   raised **I-11 (S2)** and **I-12 (S3)** and both closed that day, with **A-81** and **A-82**.
+   raised **I-11 (S2)** and **I-12 (S3)** and both closed that day, with **A-81** and **A-82**; the
+   user's question after it raised **I-13 (S3)**, the vertical ruler with no numbers, closed the same
+   day with **A-83**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.

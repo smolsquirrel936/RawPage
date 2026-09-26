@@ -41,6 +41,7 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QFontDatabase>
 #include <QFileInfo>
 #include <QImage>
 #include <QKeyEvent>
@@ -634,4 +635,83 @@ TEST_CASE("inverting the page colours paints differently and rasterizes nothing"
         // open issue; this assertion is what makes the claim checkable rather than remembered.
         CHECK_FALSE(viewer.fixture.actions.isRegistered(ActionId::ViewPageBackground));
     }
+}
+
+// =============================================================================================
+// I-13 -- the vertical ruler printed its numbers OUTSIDE ITSELF.
+//
+// Found by the user on 2026-09-26, asking why the vertical ruler had no numbers. The label was laid
+// out at x = 0 and rotated 90 degrees, and a quarter turn in Qt's y-down space carries the text's
+// height towards NEGATIVE x -- off the widget's left edge, where it is clipped. The horizontal ruler
+// is not rotated, which is why its numbers were there and why a case looking at one ruler saw them.
+//
+// Judged on PAINTED PIXELS in the label strip -- the band of each ruler no tick reaches (a labelled
+// tick is 60 % of the thickness, from the inner edge) -- so a tick mark cannot pass for a number.
+// What it does NOT cover (convention 19): that the numbers are the right ones, which is the readings
+// case above, nor legibility at 150 %, which is M-07's.
+// =============================================================================================
+
+TEST_CASE("both rulers print their numbers inside themselves", "[rulers][I-13]")
+{
+    // A black-on-white palette, so "ink" is one threshold and not a question about the theme.
+    QPalette palette;
+    palette.setColor(QPalette::Window, Qt::white);
+    palette.setColor(QPalette::Base, Qt::white);
+    palette.setColor(QPalette::WindowText, Qt::black);
+    palette.setColor(QPalette::Mid, QColor(0xc0, 0xc0, 0xc0));
+
+    ui::RulerWidget::Mapping mapping;
+    mapping.valid = true;
+    mapping.pixelsPerPoint = 1.0;
+    mapping.zeroPixel = 10.0;
+    mapping.extentPoints = 600.0;
+
+    constexpr int kLength = 400;
+    // The strip nearest the OUTER edge that no tick reaches: ticks are drawn from the inner edge and
+    // the longest is 60 % of the thickness, so the outer third is text or nothing.
+    constexpr int kStrip = ui::RulerWidget::kThickness / 3;
+
+    // A REAL FONT, loaded from a file. The offscreen platform has no font database, so it draws
+    // every glyph as a box -- and draws a ROTATED box as nothing at all, which made the first run
+    // of this case fail after the fix exactly as it had before it (vertical ink 0 both times). The
+    // `windows` platform read 123 after the fix and 0 with the old origin planted back; a font file
+    // is what lets `ctest`'s offscreen run see the same difference.
+    const int loaded =
+        QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/arial.ttf"));
+    REQUIRE(loaded >= 0);
+    const QStringList families = QFontDatabase::applicationFontFamilies(loaded);
+    REQUIRE_FALSE(families.isEmpty());
+    const QFont real(families.front(), 9);
+
+    const auto inkInStrip = [&](Qt::Orientation orientation) {
+        ui::RulerWidget ruler(orientation);
+        ruler.setPalette(palette);
+        ruler.setFont(real);
+        ruler.setMapping(mapping);
+        if (orientation == Qt::Horizontal)
+            ruler.resize(kLength, ui::RulerWidget::kThickness);
+        else
+            ruler.resize(ui::RulerWidget::kThickness, kLength);
+        REQUIRE(ruler.tickStep() > 0.0);   // there is something to label at all
+
+        const QImage image = ruler.grab().toImage();
+        int ink = 0;
+        for (int along = 0; along < kLength; ++along) {
+            for (int across = 0; across < kStrip; ++across) {
+                const QColor pixel = orientation == Qt::Horizontal ? image.pixelColor(along, across)
+                                                                   : image.pixelColor(across, along);
+                if (pixel.lightness() < 128) ++ink;
+            }
+        }
+        return ink;
+    };
+
+    const int horizontal = inkInStrip(Qt::Horizontal);
+    const int vertical = inkInStrip(Qt::Vertical);
+    INFO("horizontal ink " << horizontal << ", vertical ink " << vertical);
+
+    // THE CONTROL IS THE HORIZONTAL RULER: it always had its numbers, so a threshold it fails is a
+    // threshold that is wrong rather than a ruler that is.
+    CHECK(horizontal > 20);
+    CHECK(vertical > 20);
 }

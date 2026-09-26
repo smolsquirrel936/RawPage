@@ -185,8 +185,14 @@ void RulerWidget::paintEvent(QPaintEvent* event)
             } else {
                 // Rotated, so a vertical ruler reads along its own axis rather than stacking
                 // digits one above another.
+                //
+                // **THE ORIGIN IS THE TICK SIDE OF THE LABEL STRIP, not x = 0 -- I-13.** A quarter
+                // turn in Qt's y-down space maps local (x, y) to (-y, x), so the box's height runs
+                // towards NEGATIVE x: anchored at 0 it lay wholly off the widget's left edge and
+                // every number was clipped away. Anchored at `across - tick` it runs back across
+                // [0, across - tick] -- the strip the horizontal ruler's numbers occupy.
                 painter.save();
-                painter.translate(0.0, pixel + 2.0);
+                painter.translate(across - tick, pixel + 2.0);
                 painter.rotate(90.0);
                 painter.drawText(QRectF(0.0, 0.0, pixelsPerStep * kLabelEvery, across - tick),
                                  Qt::AlignLeft | Qt::AlignVCenter, text);
