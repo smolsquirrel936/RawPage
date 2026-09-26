@@ -232,10 +232,15 @@ void PageView::setPresentationOptions(core::render::PresentationOptions options)
 
 void PageView::setFitMode(FitMode fit)
 {
-    controller_->setFitMode(fit);
+    // **THE READER'S PLACE, TAKEN BEFORE THE ZOOM MOVES -- I-11.** A fit changes the zoom, and the
+    // scroll offset is device pixels that do not scale with it: dropping from 400 % to a fit left
+    // the viewport three times further down the document, on a page nobody was reading.
+    const Place place = capturePlace();
 
-    // THE ANCHOR, set where the mode is chosen -- see `refresh()`.
-    visibleFitPage_ = (fit == FitMode::Visible) ? controller_->currentPage() : -1;
+    // THE ANCHOR, set where the mode is chosen and BEFORE the controller hears of it, because the
+    // controller's change signal runs `refresh()`, which re-satisfies the fit -- see there.
+    fitAnchorPage_ = (fit == FitMode::None) ? -1 : controller_->currentPage();
+    controller_->setFitMode(fit);
 
     // **FIT VISIBLE IS A ZOOM AND A SCROLL** (D4-14). Every other fit leaves the page's own corner
     // under the viewport's, and that is where the thing being fitted is. The content box is not:
@@ -248,8 +253,46 @@ void PageView::setFitMode(FitMode fit)
     // scrolled, and the mode has to survive a resize without owning the scroll position.
     if (fit == FitMode::Visible) {
         refresh();
-        scrollToFitRect(controller_->currentPage());
+        scrollToFitRect(fitAnchorPage_);
+        return;
     }
+
+    // Every other fit puts the reader back on the page they fitted. Fit Page and Fit Height show
+    // that page WHOLE, which is what they were asked for; Fit Width keeps how far down it they were.
+    refresh();
+    restorePlace(place, fit == FitMode::Page || fit == FitMode::Height);
+}
+
+PageView::Place PageView::capturePlace() const
+{
+    const int page = controller_->currentPage();
+    const core::render::PageSlot* slot = engine_.layout().slotForPage(page);
+    if (slot == nullptr || slot->rect.size.width <= 0.0 || slot->rect.size.height <= 0.0) return {};
+
+    // THE VIEWPORT'S CENTRE, as a fraction of the current page. A fraction and not an offset,
+    // because it is the one description of "here" that survives the page changing size.
+    const core::DeviceRect visible = controller_->visibleRect();
+    const double centreX = visible.left() + visible.size.width / 2.0;
+    const double centreY = visible.top() + visible.size.height / 2.0;
+    return Place{page,
+                 std::clamp((centreX - slot->rect.left()) / slot->rect.size.width, 0.0, 1.0),
+                 std::clamp((centreY - slot->rect.top()) / slot->rect.size.height, 0.0, 1.0)};
+}
+
+void PageView::restorePlace(const Place& place, bool wholePage)
+{
+    if (place.page < 0) return;
+    const core::render::PageSlot* slot = engine_.layout().slotForPage(place.page);
+    if (slot == nullptr) return;   // a paged mode showing another spread: nothing to restore into
+
+    const core::DeviceSize viewport = controller_->viewportSize();
+    const double fx = wholePage ? 0.5 : place.fx;
+    const double x = slot->rect.left() + fx * slot->rect.size.width - viewport.width / 2.0;
+    const double y = wholePage
+                         ? slot->rect.top() - engine_.options().margin
+                         : slot->rect.top() + place.fy * slot->rect.size.height - viewport.height / 2.0;
+    controller_->setScroll(core::DevicePoint{x, y});
+    refresh();
 }
 
 void PageView::setContentBoxSource(PageLayoutEngine::ContentBoxSource source)
@@ -302,17 +345,19 @@ void PageView::goToDestination(const core::Destination& destination)
     // matches the zoom it will keep.
     controller_->setCurrentPage(target);
 
+    // Every fit a destination names is anchored to the destination's page (I-11). An `/XYZ` with a
+    // zoom clears it through `setZoom`; one without keeps the fit in force, now on this page.
+    fitAnchorPage_ = target;
+
     switch (destination.fit) {
     case core::Destination::Fit::Fit:
         // `/Fit` is the whole page and `/FitB` is its content bounding box -- which is precisely the
         // pair `FitMode::Page` and `FitMode::Visible` now are, so each is one line rather than a
         // second implementation of D4-14.
         controller_->setFitMode(FitMode::Page);
-        visibleFitPage_ = -1;
         break;
     case core::Destination::Fit::FitB:
         controller_->setFitMode(FitMode::Visible);
-        visibleFitPage_ = target;
         break;
     case core::Destination::Fit::FitH:
     case core::Destination::Fit::FitBH:
@@ -409,21 +454,32 @@ void PageView::scrollToPageXY(int pageIndex, std::optional<double> pdfX, std::op
     refresh();
 }
 
+// A ZOOM FROM A COMMAND KEEPS THE READER'S PLACE (I-11). The wheel's zoom has always done so, about
+// the cursor (`ViewportController::zoomAbout`); the chords, the zoom box and Actual Size changed the
+// zoom under an unchanged device offset and so moved the reader by the ratio of the two zooms.
 void PageView::zoomIn()
 {
+    const Place place = capturePlace();
+    fitAnchorPage_ = -1;
     controller_->zoomIn();
+    restorePlace(place, false);
 }
 
 void PageView::zoomOut()
 {
+    const Place place = capturePlace();
+    fitAnchorPage_ = -1;
     controller_->zoomOut();
+    restorePlace(place, false);
 }
 
 void PageView::setZoom(core::render::Zoom zoom)
 {
+    const Place place = capturePlace();
     controller_->setFitMode(FitMode::None);
-    visibleFitPage_ = -1;
+    fitAnchorPage_ = -1;
     controller_->setZoom(zoom);
+    restorePlace(place, false);
 }
 
 void PageView::firstPage()
@@ -709,9 +765,9 @@ void PageView::goToPage(int pageIndex)
     // Guarded on the fit mode rather than run always: with no fit the zoom cannot move, the layout
     // cannot change, and a second `refresh()` per arrow key would be a tile pass nobody needs.
     if (controller_->fitMode() != FitMode::None) {
-        // The anchor moves WITH the navigation: going to a page in Fit Visible means fitting THAT
-        // page's content, which is the whole gesture.
-        if (controller_->fitMode() == FitMode::Visible) visibleFitPage_ = target;
+        // The anchor moves WITH the navigation: going to a page in a fit means fitting THAT page,
+        // which is the whole gesture -- in every fit since I-11, not only in Fit Visible.
+        fitAnchorPage_ = target;
         refresh();
         controller_->setCurrentPage(target);   // the snap inside that refresh may have moved it
     }
@@ -746,27 +802,34 @@ void PageView::refresh()
     // THE FIT IS RE-SATISFIED HERE, not remembered as a number. A window resize changes what "fit
     // width" means, and a viewer that stored the zoom would stop fitting the moment the window
     // moved -- which is the whole point of a fit being a mode rather than a value.
-    if (controller_->fitMode() != FitMode::None) {
-        // **WHICH PAGE THE FIT MEASURES, and why Fit Visible does not use the current one.**
+    if (controller_->fitMode() == FitMode::None) {
+        // A zoom the controller chose by itself -- a step, the wheel, a marquee -- ends the fit, and
+        // with it the anchor, so a later fit set by any path anchors afresh.
+        fitAnchorPage_ = -1;
+    } else {
+        // **WHICH PAGE THE FIT MEASURES: THE ONE IT WAS CHOSEN ON, NOT THE CURRENT ONE.**
         //
         // A fit is re-satisfied here on every refresh -- that is what makes it a mode rather than a
-        // remembered number, and what makes it survive a window resize. It measures the CURRENT
-        // page, which is right for Fit Page and Fit Width: on a uniform document every page gives
-        // the same zoom, and on a mixed one following the page a reader is on is the point.
+        // remembered number, and what makes it survive a window resize. Measuring the CURRENT page
+        // closes a loop -- zoom decides the layout, the layout decides which page is dominant, the
+        // dominant page decides the zoom -- and the loop was measured twice, not imagined:
         //
-        // **Fit Visible is different in kind** (D4-14): its rectangle is the page's own ink, so its
-        // zoom genuinely differs page by page even in a uniform document. That closes a loop --
-        // zoom decides the layout, the layout decides which page is dominant, the dominant page
-        // decides the zoom -- and the loop was measured, not imagined: a `/FitB` destination to
-        // page 1 settled on page 4's fallback zoom, and a bookmark to page 2 landed on page 4.
+        //   * T12, Fit Visible (D4-14), whose zoom differs page by page even in a uniform document:
+        //     a `/FitB` destination to page 1 settled on page 4's fallback zoom, and a bookmark to
+        //     page 2 landed on page 4. Fit Visible was anchored then, and only Fit Visible.
+        //   * **I-11**, Fit Width and Fit Page, which T12 had called safe because a uniform document
+        //     gives every page the same zoom. `mixed-page-sizes.pdf` is not uniform: `Ctrl+2` from
+        //     400 % on its landscape page settled on the A5 page's width -- half as wide, so twice
+        //     the zoom -- and drew the landscape page at twice the window's width. M-01, 2026-09-26.
         //
-        // So Fit Visible is ANCHORED to the page it was set for, and the anchor moves only when a
+        // So EVERY fit is anchored to the page it was set for, and the anchor moves only when a
         // navigation moves it. The zoom is then stable, the layout is stable, and the snap has
-        // nothing to feed back into -- and a reader scrolling through a document in Fit Visible
-        // keeps the zoom they chose instead of having it jump at every page boundary.
-        const int fitPage = (controller_->fitMode() == FitMode::Visible && visibleFitPage_ >= 0)
-                                ? visibleFitPage_
-                                : controller_->currentPage();
+        // nothing to feed back into -- and a reader scrolling through a mixed document keeps the zoom
+        // they chose instead of having it jump at every page boundary. A fit set on the controller
+        // directly (a path that never saw `setFitMode`) anchors to the page current when it arrives.
+        if (fitAnchorPage_ < 0 || fitAnchorPage_ >= pageCount())
+            fitAnchorPage_ = controller_->currentPage();
+        const int fitPage = fitAnchorPage_;
 
         const core::render::Zoom fitted =
             engine_.zoomForFit(controller_->fitMode(), controller_->viewportSize(), fitPage,

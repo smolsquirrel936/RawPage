@@ -35,6 +35,7 @@
 #include "core/doc/Document.h"
 #include "core/doc/PageTree.h"
 #include "core/render/RenderScheduler.h"
+#include "tests/ui/ColorDistance.h"
 #include "tests/ui/ShellFixture.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/shell/ActionFactory.h"
@@ -42,6 +43,7 @@
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/shell/ThemeManager.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/PageView.h"
@@ -49,12 +51,16 @@
 #include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/ViewportController.h"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QEvent>
 #include <QFile>
 #include <QFileInfo>
+#include <QEnterEvent>
 #include <QLayout>
+#include <QSplitter>
+#include <QSplitterHandle>
 
 #include <memory>
 
@@ -502,4 +508,104 @@ TEST_CASE("the active pane follows focus, and every view command lands on it", "
 
     CHECK(right->controller().zoom() != before);
     CHECK(left->controller().zoom() == before);
+}
+
+// =============================================================================================
+// I-12 -- the divider is VISIBLE, in both themes.
+//
+// M-01's walk, 2026-09-26: a vertical split showed no boundary between its panes. A stock handle is
+// painted in `QPalette::Window`, which is also the desk every `PageView` paints around its pages, so
+// the two were one colour by construction. Measured here on PAINTED PIXELS, the handle's against the
+// desk's, because "the handle has a different palette role" is a claim about intent and the native
+// style is free to ignore a role (convention 21).
+//
+// What this does NOT cover (convention 19): what a person sees on a 150 % panel, where one logical
+// pixel is not one device pixel, nor whether the colours read as a boundary at a glance -- M-01 and
+// M-09 on the P-1 rig. The pointer arriving is an `Enter` event sent by hand, not a mouse. And the
+// STYLE: offscreen runs Fusion, whose stock handle draws a faint grip (deltaE 19 at its centre,
+// measured with the planted control) where the product's `windows11` style drew nothing M-01 could
+// see -- so the control fails here on the band (deltaE 0) and on the line floor, not on "nothing".
+// =============================================================================================
+
+TEST_CASE("the split divider is distinct from the desk in both themes, and lights under the pointer",
+          "[split][I-12]")
+{
+    Split split;
+    split.dispatch(ActionId::WindowSplitVertical);
+
+    auto* splitter = split.container()->findChild<QSplitter*>();
+    REQUIRE(splitter != nullptr);
+    REQUIRE(splitter->count() == 2);
+    QSplitterHandle* handle = splitter->handle(1);
+    REQUIRE(handle != nullptr);
+
+    // THE GEOMETRY FIRST: a zero-width handle grabs as nothing, and nothing is a colour no desk has.
+    REQUIRE(handle->width() >= 4);
+    REQUIRE(handle->height() > 100);
+
+    const QPalette before = QApplication::palette();
+    ui::ThemeManager theme(split.fixture.settings);
+
+    for (const core::Theme requested : {core::Theme::Light, core::Theme::Dark}) {
+        split.fixture.settings.set(core::keys::general::theme, requested);
+        theme.apply();
+        QCoreApplication::processEvents();
+
+        const auto centreOf = [](QWidget* widget) {
+            return widget->grab().toImage().pixelColor(widget->width() / 2, widget->height() / 2);
+        };
+
+        // The desk, as the view PAINTED it: a margin pixel, outside every page.
+        const QColor desk = split.primary()->viewport()->grab().toImage().pixelColor(2, 2);
+        // The band at the handle's edge, and the line down its middle -- BOTH, because the band
+        // alone was pale and a line with no band is a hairline to aim a drag at.
+        const QColor band = handle->grab().toImage().pixelColor(0, handle->height() / 2);
+        const QColor line = centreOf(handle);
+
+        UNSCOPED_INFO((requested == core::Theme::Dark ? "dark" : "light")
+                      << " desk " << desk.name().toStdString() << " band "
+                      << band.name().toStdString() << " deltaE " << uitest::deltaE76(desk, band)
+                      << " line " << line.name().toStdString() << " deltaE "
+                      << uitest::deltaE76(desk, line));
+        CHECK(uitest::deltaE76(desk, band) >= uitest::kDistinctSurfaceDeltaE);
+        CHECK(uitest::deltaE76(desk, line) >= 3.0 * uitest::kDistinctSurfaceDeltaE);
+
+        // UNDER THE POINTER it changes again -- distinct from the band as well as from the desk, so
+        // "which divider have I got hold of" has an answer before the drag starts.
+        QEnterEvent enter(QPointF(1.0, 1.0), QPointF(1.0, 1.0), QPointF(1.0, 1.0));
+        QCoreApplication::sendEvent(handle, &enter);
+        const QColor held = centreOf(handle);
+        UNSCOPED_INFO("held " << held.name().toStdString());
+        CHECK(uitest::deltaE76(held, band) >= uitest::kDistinctSurfaceDeltaE);
+        CHECK(uitest::deltaE76(held, desk) >= uitest::kDistinctSurfaceDeltaE);
+
+        QEvent leave(QEvent::Leave);
+        QCoreApplication::sendEvent(handle, &leave);
+        CHECK(uitest::deltaE76(centreOf(handle), line) < 1.0);   // and it lets go
+    }
+
+    QApplication::setPalette(before);
+}
+
+TEST_CASE("every divider of a spreadsheet split is the painted one", "[split][I-12]")
+{
+    // Three splitters, and a handle the person drags in each. One of them left stock would be the
+    // same invisible boundary in the one mode whose whole point is a visible freeze line.
+    Split split;
+    split.dispatch(ActionId::WindowSpreadsheetSplit);
+
+    const QList<QSplitter*> splitters = split.container()->findChildren<QSplitter*>();
+    REQUIRE(splitters.size() == 3);
+
+    const QColor desk = split.primary()->viewport()->grab().toImage().pixelColor(2, 2);
+    for (QSplitter* splitter : splitters) {
+        REQUIRE(splitter->count() == 2);
+        QSplitterHandle* handle = splitter->handle(1);
+        REQUIRE(handle->width() >= 4);
+        REQUIRE(handle->height() >= 4);
+        const QImage painted = handle->grab().toImage();
+        CHECK(uitest::deltaE76(desk, painted.pixelColor(0, 0)) >= uitest::kDistinctSurfaceDeltaE);
+        CHECK(uitest::deltaE76(desk, painted.pixelColor(handle->width() / 2, handle->height() / 2))
+              >= 3.0 * uitest::kDistinctSurfaceDeltaE);
+    }
 }

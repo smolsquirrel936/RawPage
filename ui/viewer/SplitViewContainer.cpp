@@ -6,7 +6,9 @@
 #include "ui/viewer/ViewportController.h"
 
 #include <QEvent>
+#include <QPainter>
 #include <QSplitter>
+#include <QSplitterHandle>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -29,6 +31,86 @@ double presentedScaleOf(const PageView& view)
 {
     return view.layoutEngine().layout().presentedScale();
 }
+
+// **THE DIVIDER IS PAINTED HERE, NOT BY THE STYLE -- I-12.** A stock `QSplitter` handle is a few
+// pixels of `QPalette::Window`, and so is the desk every `PageView` paints around its pages
+// (`PageView::paintEvent`): the two are the same colour by construction, and M-01's walk found the
+// split had no visible boundary at all. The native style paints from the COLOUR SCHEME rather than
+// the palette (convention 21), so asking it for a different role would be a request it may ignore;
+// a handle that paints itself answers to the palette `ThemeManager` writes and to nothing else.
+//
+// The band is `QPalette::Mid` -- the `Border` token -- with a one-pixel line down its middle in the
+// `SubduedText` token, and both are measured against the desk in BOTH themes (convention 20;
+// `tst_split.cpp`). Under the pointer and while dragged the whole handle is `QPalette::Link` -- the
+// `Accent` token -- so a person can see what they have hold of before they move it.
+constexpr int kHandleWidth = 6;   // logical pixels; a stock handle on Windows 11 is about 3
+
+class DividerHandle final : public QSplitterHandle {
+public:
+    using QSplitterHandle::QSplitterHandle;
+
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+        if (hovered_ || pressed_) {
+            painter.fillRect(rect(), palette().color(QPalette::Link));
+            return;
+        }
+        painter.fillRect(rect(), palette().color(QPalette::Mid));
+
+        // THE LINE DOWN THE MIDDLE, in `QPalette::PlaceholderText` -- the `SubduedText` token. The
+        // band alone measured deltaE 12.4 against the light desk, over the floor of 10 and still
+        // pale on a 4K panel; the line is what reads as a boundary at a glance.
+        const QColor line = palette().color(QPalette::PlaceholderText);
+        if (orientation() == Qt::Horizontal)   // panes side by side: a vertical line
+            painter.fillRect(width() / 2, 0, 1, height(), line);
+        else
+            painter.fillRect(0, height() / 2, width(), 1, line);
+    }
+    void enterEvent(QEnterEvent* event) override
+    {
+        hovered_ = true;
+        update();
+        QSplitterHandle::enterEvent(event);
+    }
+    void leaveEvent(QEvent* event) override
+    {
+        hovered_ = false;
+        update();
+        QSplitterHandle::leaveEvent(event);
+    }
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        pressed_ = true;
+        update();
+        QSplitterHandle::mousePressEvent(event);
+    }
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        pressed_ = false;
+        update();
+        QSplitterHandle::mouseReleaseEvent(event);
+    }
+
+private:
+    bool hovered_ = false;
+    bool pressed_ = false;
+};
+
+// Every splitter of a split -- the two-pane one and all three of a spreadsheet split's -- is one of
+// these, so there is one divider and not three that could drift apart.
+class DividerSplitter final : public QSplitter {
+public:
+    DividerSplitter(Qt::Orientation orientation, QWidget* parent) : QSplitter(orientation, parent)
+    {
+        setHandleWidth(kHandleWidth);
+        setChildrenCollapsible(false);
+    }
+
+protected:
+    QSplitterHandle* createHandle() override { return new DividerHandle(orientation(), this); }
+};
 
 } // namespace
 
@@ -187,8 +269,7 @@ void SplitViewContainer::setMode(Mode mode)
 void SplitViewContainer::buildTwoPane(Mode mode)
 {
     // INVERTED ON PURPOSE -- see the header. A HORIZONTAL divider stacks the panes VERTICALLY.
-    outer_ = new QSplitter(mode == Mode::Horizontal ? Qt::Vertical : Qt::Horizontal, this);
-    outer_->setChildrenCollapsible(false);
+    outer_ = new DividerSplitter(mode == Mode::Horizontal ? Qt::Vertical : Qt::Horizontal, this);
 
     PageView* second = makeView();
 
@@ -223,10 +304,9 @@ void SplitViewContainer::buildSpreadsheet()
     frozenRow_ = makeView();
     frozenColumn_ = makeView();
 
-    innerTop_ = new QSplitter(Qt::Horizontal, this);
-    innerBottom_ = new QSplitter(Qt::Horizontal, this);
-    outer_ = new QSplitter(Qt::Vertical, this);
-    for (QSplitter* splitter : {innerTop_, innerBottom_, outer_}) splitter->setChildrenCollapsible(false);
+    innerTop_ = new DividerSplitter(Qt::Horizontal, this);
+    innerBottom_ = new DividerSplitter(Qt::Horizontal, this);
+    outer_ = new DividerSplitter(Qt::Vertical, this);
 
     layout()->removeWidget(primaryView());      // as `buildTwoPane` does, and for the same reason
 

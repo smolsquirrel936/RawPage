@@ -7,10 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **81 automated** (A-01 … A-80, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 81 carry
-> a result** as of 2026-09-24 (re-derived from this file: 81 case headers, none still boxed — the
-> 81st is **A-80**, added that day with I-10's fix) — T1's
+> partly run.** **83 automated** (A-01 … A-82, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 83 carry
+> a result** as of 2026-09-26 (re-derived from this file: 83 case headers, none still boxed — the
+> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd and 83rd are **A-81** and
+> **A-82**, added 2026-09-26 with the fixes for I-11 and I-12) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
@@ -23,12 +24,16 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **One manual case is walked — M-11, by the user on 2026-09-24, passed** — and the other eleven
-> are the stage's largest remaining gap. §8 holds **ten** issues: **two are open, I-07 (S4) and
-> I-10 (S2, raised by that walk — Fit Page measures the sheet while the product draws the crop)**;
-> I-02, I-03, I-04, I-05, I-06, I-08 and **I-01 and I-09 at T13** are
-> closed — **I-01 where this file said its owner would settle it, and I-09 found by `x64-debug`
-> after `x64-release` had reported green**.
+> **Two manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
+> Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
+> visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
+> same day**. The other ten
+> are the stage's largest remaining gap. §8 holds **twelve** issues and **only I-07 (S4) is open**;
+> I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 and
+> I-12 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> by `x64-debug` after `x64-release` had reported green, and I-10, I-11 and I-12 each found by a
+> person walking a case over a green automated half**.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -238,6 +243,8 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(Plan D4-10)* The pane does not starve the viewport | A-14 … A-17, A-32, A-72, **M-06** |
 | *(Plan D4-14)* Fit Visible fits the content — Stage 2's **I-28** | A-11, A-67, A-68, **M-11** |
 | *(I-10)* Fit Page fits the page a reader is SHOWN, not the sheet | **A-80**, and **M-11**, which found it |
+| *(I-11)* A fit measures the page it was CHOSEN on, and a zoom command keeps the reader's place | **A-81**, and **M-01**, which found it |
+| *(I-12)* A split's divider is visible against the desk, in both themes | **A-82**, and **M-01**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -726,6 +733,27 @@ pane follows FOCUS and that `view.zoomIn` — registered at Stage 2 T14 and unto
 to any of the twenty-five §8 Viewer commands.
 **Expect** One view remains, the scheduler reports no outstanding tickets for the removed view, and no tile of the removed view is left in the cache keyed to a dead viewport. **If it fails** S2.
 
+**A-82 · The split's divider is VISIBLE against the desk, in both themes — I-12, closed** ✅
+✅ **2026-09-26** (`tests/ui/tst_split.cpp`, two cases tagged `[I-12]`). Measured on **painted pixels**
+— the handle's `grab()` against a margin pixel of the primary view's own `grab()` — through a real
+`ui::ThemeManager` applied in each theme, with the application palette restored afterwards, and with
+`uitest::deltaE76` and its floor rather than `!=` (Stage 2's **I-29**). **Measured:** light, desk
+`#f3f3f3`, band `#d0d0d0` **ΔE 12.4**, centre line `#5e5e5e` **ΔE 55.9**; dark, desk `#1f1f1f`, band
+`#3d3d3d` **ΔE 14.0**, line `#9a9a9a` **ΔE 51.8**. The band must clear the distinct-surface floor (10)
+and the line three times it. Under the pointer the handle is the accent (`#1a5fb4` / `#4c9be8`),
+distinct from both band and desk, and it returns to the line when the pointer leaves. The second
+case asserts **all three** splitters of a spreadsheet split paint the same divider.
+**THE PLANTED CONTROL** — `createHandle` returning Qt's stock handle — reddens both cases: the band
+measures **ΔE 0** against the desk in both themes, which is M-01's invisible boundary as a number.
+**What it does NOT cover** (convention 19): the offscreen platform runs **Fusion**, whose stock handle
+draws a faint grip (ΔE 19 at its centre, read off the control) where the product's `windows11` style
+drew nothing M-01 could see — so the control fails here on the band and on the line floor, not on
+"nothing"; the pointer is an `Enter` event sent by hand; and whether the divider reads as a boundary
+at a glance on a 150 % panel is **M-01**'s and **M-09**'s.
+**Steps** `ctest -R "divider"`.
+**Expect** Band ΔE ≥ 10 and line ΔE ≥ 30 against the desk in both themes, on every splitter of every
+split mode; the pointer lights the handle. **If it fails** S3 — I-12 is back.
+
 ### 5.11 Full Screen and presentation (T10)
 
 **A-57 · Every §8 Full Screen chord dispatches in the `FullScreen` context** ✅
@@ -890,6 +918,34 @@ rather than argued, and it is the reason this case is an equality against a name
 **Expect** `fitRect(boxes, Page) == boxes.crop` and `!= boxes.media`; Fit Page's zoom equals the zoom
 computed from the CropBox and differs from the sheet's; over `cropbox-margins.pdf` the drawn page
 fills the viewport. **If it fails** S2 — I-10 is back, and `Ctrl+0` is not fitting the page.
+
+**A-81 · A fit on a MIXED-size document fits the page it was chosen on — I-11, closed** ✅
+✅ **2026-09-26** (`tests/ui/tst_properties.cpp`, four cases tagged `[I-11]`, over
+`uitest::FakeBackend::pageBoxes` set to `mixed-page-sizes.pdf`'s four pages in its order). **This case
+exists because M-01 found I-11** over a suite that had no document of mixed sizes in any widget case:
+`FakeBackend` built every page A4 until this change, so *"a uniform document gives every page the same
+zoom"* — the sentence T12 wrote to excuse Fit Width and Fit Page from the anchor — was true of every
+document the widget suite could open. **The four cases:** from 400 % in the lower part of the
+landscape page, **Fit Width** leaves the reader on that page and makes its slot the viewport's width
+less the margins (± 3 px), and **Fit Page** leaves them on it and fits it inside the viewport, touching
+on one axis; a fit set on the landscape page **keeps its zoom at every refresh** while the A5 page is
+scrolled into view, and a NAVIGATION to the A5 page moves the anchor and fits the A5 page's width;
+and on a uniform twelve-page document **the zoom box, Actual Size and `Ctrl+-`** leave the reader on
+page 6. **TWO PLANTED CONTROLS, one per cause, each run red:** with the fit measuring the current page
+again, Fit Width reddens at **1753.9 px against 877** — exactly M-01's 2× — and the scroll case at
+**1.500 against 0.747** and on the page; with the place not restored, Fit Page lands on **page 4**
+(`3 == 1`), Fit Width on page 4 as well, and the zoom case on **page 2** (`1 == 5`). **And the first
+draft of the third case passed with the defect planted**: the unanchored fit does not settle on the
+wrong zoom, it OSCILLATES between the two pages' zooms, and a check after an odd number of refreshes
+read the right one by coincidence — so the zoom is now asserted after EVERY refresh (convention 7
+catching the case rather than the product, as A-68's did).
+**What it does NOT cover** (convention 19): the chord — the cases call `PageView::setFitMode`, which
+is the whole of `registerFit`'s handler, and `tst_viewercommands.cpp` owns the chord reaching it; and
+a device pixel ratio other than 1.0, which is M-01's rig.
+**Steps** `ctest -R "percent fits the page|keeps its zoom while|keeps the reader on"`.
+**Expect** The reader stays on the page they fitted or zoomed; Fit Width fits that page's width; a fit
+keeps its zoom while the reader scrolls and moves only with a navigation. **If it fails** S2 — I-11
+is back, and `Ctrl+2` can draw a page at twice the window's width.
 
 **A-69 · Document Properties shows what it read, and edits nothing**
 ✅ **2026-09-23, T12** (`tests/ui/tst_properties.cpp`). Every Info field, the version, the page count, the current page's size **named by its LABEL** where the document has one, the security line, the repaired line, and the path and size — the last two from the identity taken at OPEN (D3-16) rather than a fresh `QFileInfo`, which would describe a file that may have changed since. A date `Metadata::parseDate` refuses is shown **verbatim** and one it accepts is formatted, asserted as two visibly different treatments rather than one lenient one. **Nothing is editable, and that is asserted mechanically**: the dialog contains **no `QLineEdit` at all**, and every value label is selectable and carries no `Qt::TextEditable` — a read-only edit box looks like a field somebody forgot to enable. An absent Info field reads as an em dash rather than as blank, because most generated files have no `/Info` and a blank row looks like a field that failed to load. `mutation-lint` reporting **one command** on this task's day is the *constructs no command* half (D4-1), which is a stronger claim than any assertion in the case. **What this case does NOT do:** it never `exec()`s the dialog — offscreen a modal is shown to nobody and never returns (Stage 1's I-23) — so the widget is constructed and read, and `Ctrl+D`'s reachability is asserted on the REGISTRATION instead, including that it is disabled where there is nobody to ask (convention 16). The *file hash unchanged* clause is met by D4-1's gate rather than by re-hashing: this stage constructs no command, so there is no path from this dialog to a byte.
@@ -1085,7 +1141,23 @@ Three things about the state you will be walking, so a planned absence is not re
 
 ---
 
-**M-01 · Two monitors, two scale factors, one document** ☐
+**M-01 · Two monitors, two scale factors, one document** ✅ **signed off by the user, 2026-09-26, on
+its RE-WALK** — the first walk that day FAILED and raised **I-11 (S2)** and **I-12 (S3)**; both were
+fixed the same day, and the re-walk on the fixed build passed every step.
+- **Re-walk result, 2026-09-26** On the rebuilt binary — relinked with the product window closed,
+  both presets 1114/1114 — **all five steps passed**, including the two the first walk failed:
+  step 5's Fit Width and Fit Page leave the reader on the landscape page and fit it, and step 3's
+  divider is visible. No new finding.
+- **First walk result, 2026-09-26** Walked on the P-1 rig to the end, all five steps. **Step 5:** `Ctrl+2` from 400 %
+  on the landscape page came out at **250 %** with the page far wider than the window — **I-11**: the
+  fit re-measured the A5 page (419.5 pt wide, half the landscape page's 841.9 pt, hence twice the
+  zoom) once dropping from 400 % had scrolled the viewport onto it. **Step 3:** the vertical split
+  showed **no visible boundary** between its panes — **I-12**: the stock handle is painted in the
+  desk's own colour. No other finding was reported.
+- **What the re-walk looked at specifically:** step 5 — `Ctrl+2` and `Ctrl+0` leave you on the
+  landscape page, and it fits the window's width (roughly half the 250 % you saw) and then its whole
+  page; and step 3 — a grey band with a darker line down its middle between the two panes, turning
+  the accent blue under the pointer, **on both monitors and in both themes**.
 - **Goal** The whole Stage 4 surface on the rig A2 was specified on, where every layout bug lives.
 - **Pre** P-1. A copy of `corpus\ordinary\mixed-page-sizes.pdf` in `tests\manual\M-01\`.
 - **Steps**
@@ -1298,6 +1370,8 @@ uses.
 | **I-09** | **S2** | **`Qt::UniqueConnection` asked for with a LAMBDA slot: fatal in `x64-debug`, and silently NO CONNECTION AT ALL in `x64-release`** | ✅ **Closed 2026-09-23 at T13**, by guarding uniqueness with the container the connection is about |
 | **I-08** | **S3** | **FOUR targets had been compiling at the compiler's DEFAULT language standard, not C++20 — `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5** | ✅ **Closed 2026-09-23 at T12**, in two rounds: the flags call each target lacked, and then `rawpage_assert_language_standard()`, which refuses to configure a target that omits it |
 | **I-10** | **S2** | **Fit Page measures the SHEET while the product draws the CROP: `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset** | ✅ **Closed 2026-09-24, the day M-11 raised it** — `FitMode::Page` measures the CropBox, the assertion that pinned the sheet is inverted, and **A-80** asserts the zoom against the drawn page |
+| **I-11** | **S2** | **On a document of mixed page sizes, `Ctrl+2` from 400 % drew the landscape page at TWICE the window's width: the fit re-measured whichever page the zoom change had scrolled onto** | ✅ **Closed 2026-09-26, the day M-01 raised it** — every fit is anchored to the page it was chosen on, a zoom command keeps the reader's place, and **A-81** asserts both over mixed sizes |
+| **I-12** | **S3** | **A split had no visible divider: the stock `QSplitter` handle is painted in `QPalette::Window`, which is the desk's own colour** | ✅ **Closed 2026-09-26, the day M-01 raised it** — a handle that paints itself from the theme tokens, and **A-82** measures it against the desk in both themes |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1564,24 +1638,106 @@ links no widgets and its render half reads the boxes through the backend, so *th
 the crop box* is asserted where that code lives — `core::Page::displaySize()`'s own cases. If that
 changed to the sheet, A-80 would still pass and the product would be wrong in the other direction.
 
+**I-11 · A fit re-measured whichever page the zoom change had scrolled onto.** *(Raised 2026-09-26
+by the user's M-01 walk, step 5: `Ctrl+2` from 400 % on `mixed-page-sizes.pdf`'s landscape page read
+**250 %**, the page far wider than the window.)*
+
+**Mechanism — two causes, each harmless alone.** (1) **A zoom change kept the device scroll offset.**
+`ViewportController::setZoom` changes the zoom and leaves `scroll_` alone, and every command path —
+the fit chords, the zoom box, Actual Size, `Ctrl+=`/`Ctrl+-` — went through it; only the wheel
+(`zoomAbout`) kept a point under the cursor. Dropping from 400 % to about 125 % therefore left the
+viewport about three times further down the document. (2) **A fit was re-satisfied on every
+`refresh()` against the CURRENT page**, and every refresh ends by making the page that dominates the
+viewport current. So: Fit Width measured the landscape page, the stale offset put the viewport on
+the **A5** page, the snap made it current, and the next refresh — a tile arriving is enough — fitted
+the A5 page's width. 841.89 / 419.53 = **2.007**, and 2 × the landscape fit is the 250 % the walk
+read. **T12 had seen this exact loop** — for Fit Visible, where it walked a bookmark to page 2 onto
+page 4 — and anchored Fit Visible alone, writing that Fit Page and Fit Width were safe because *"on a
+uniform document every page gives the same zoom"*. `mixed-page-sizes.pdf` is in the corpus because
+documents are not uniform.
+
+**Reproduced before the fix, on the fake backend:** the landscape page's slot measured **1753.9 px
+against 877 available** — M-01's 2× — and Fit Page landed on page 4.
+
+**Why no case caught it.** `uitest::FakeBackend` built **every page A4**, so no widget case could open
+a document of mixed sizes, and the sentence that excused the two fits was true of everything the
+suite could see. `tst_viewercommands.cpp` asserts that `Ctrl+2` sets `FitMode::Width` — the MODE,
+which I-28 already taught this project is not the zoom — and nothing asserted where the reader was
+after a zoom command at all.
+
+**The fix, 2026-09-26, in `ui/viewer/PageView`.** (1) `visibleFitPage_` became **`fitAnchorPage_`**
+and holds for **every** fit: set where the mode is chosen, moved by a navigation (`goToPage`, a
+destination), cleared by a zoom, and taken lazily in `refresh()` from the current page for a fit set
+on the controller by a path that never called `setFitMode`. (2) `setFitMode`, `setZoom`, `zoomIn` and
+`zoomOut` take the reader's **place** — the viewport centre as a fraction of the current page — before
+the zoom moves and put it back after; Fit Page and Fit Height instead show the fitted page whole, its
+top at the viewport's. **A-81** holds four cases and **two planted controls, one per cause**, both run
+red; its third case's first draft passed with the defect planted, because the unanchored fit
+**oscillates** rather than settling, and it now asserts the zoom at every refresh.
+
+**A consequence to know rather than discover.** Fit Width on a mixed document now keeps the zoom it
+was given while the reader scrolls past pages of other widths — the landscape page's zoom, over an A5
+page, is a page half the window's width. That is the anchor's whole point (the alternative is the
+loop), it is what Fit Visible has done since T12, and a navigation re-fits. If a reader wants each
+page fitted as they scroll, that is a different mode and a `Features.md` question, not this fix.
+
+**What it does NOT cover** (convention 19): `ViewportController::setZoom` itself still keeps the raw
+offset — the place is kept one layer up, in `PageView`, which is where every command reaches it; a
+caller that sets a zoom on the controller directly (`MarqueeZoomTool` does, and positions the scroll
+itself) is not covered by it.
+
+**I-12 · A split had no visible divider.** *(Raised 2026-09-26 by the user's M-01 walk, step 3: "I
+didn't see the boundary". Offered by the user as a feature; logged as a defect, because M-01's own
+*Expect* — "the split's divider lands where you dropped it" — cannot be checked on a divider nobody
+can see.)*
+
+**Mechanism.** `SplitViewContainer` built plain `QSplitter`s and nothing styled their handles. The
+native style paints a handle in `QPalette::Window`; `PageView::paintEvent` paints the desk around the
+pages in `QPalette::Window` too, and a `PageView` has no frame. The boundary was the same colour on
+both sides **by construction** — not faint, absent.
+
+**Why no case caught it.** A-53 … A-56 assert what a split IS — one handle, one journal, the scroll
+lock, the tickets — and none asked what it LOOKS like; the suite's header named *"it cannot judge a
+repaint"* as a blind spot and left it to M-09, which had not been walked.
+
+**The fix, 2026-09-26, in `ui/viewer/SplitViewContainer.cpp`.** Every splitter is a `DividerSplitter`
+whose `createHandle()` returns a `DividerHandle` that **paints itself** from the palette
+`ThemeManager` writes, rather than asking the style for a role the style may ignore (convention 21):
+a 6-logical-pixel band in `QPalette::Mid` (the `Border` token) with a one-pixel line down its middle
+in `QPalette::PlaceholderText` (`SubduedText`), and the whole handle in `QPalette::Link` (`Accent`)
+under the pointer and while dragged. **The band alone was tried first** and measured ΔE 12.4 against
+the light desk — over the floor, and still pale — which is why the line is there. No new token: the
+three are existing roles, so both themes were already defined (convention 20). **A-82** measures the
+painted pixels in both themes, and its planted control — the stock handle — reads **ΔE 0**.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-24 — all 81 carry a result.** The 81st is **A-80**, added that day with I-10's fix; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-26 — all 83 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd and 83rd are **A-81** and **A-82**, added 2026-09-26 with the fixes for I-11 and I-12; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **One of the twelve is
-   walked: M-11, 2026-09-24, passed — and it raised I-10 (S2), which is what a manual half is for.**
-   The other eleven are the stage's largest remaining gap and the honest summary of its state.
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Two of the twelve are
+   walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
+   failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
+   re-walk on the fixed build, the same day.**
+   The other ten are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-24, re-run with I-10's fix.** **1108/1108 on `x64-release` and on `x64-debug`** —
+4. ✅ **2026-09-26, re-run with the fixes for I-11 and I-12: 1114/1114 on `x64-release` and on
+   `x64-debug`** — the six new cases are A-81's four and A-82's two — with `checks` clean on four
+   gates (`layer-lint` 423 files / 3,362 includes; `mutation-lint` still **one command**) and no
+   `warning:` line from either incremental build (which compiled only the changed files, so the
+   clean-build census stays T14's). **The first run had the 2026-09-24 caveat again** — the walker's
+   `rawpage.exe` was still open, so the release `rawpage.exe` did not relink and
+   `ui.diagnostics_ignore_the_bus` SKIPPED in `x64-debug` — and **it was cleared the same day**: with
+   the window closed the binary relinked and both presets ran **1114/1114** again, the battery case
+   the one named skip. *Before that —* **2026-09-24, re-run with I-10's fix.** **1108/1108 on `x64-release` and on `x64-debug`** —
    the two new cases are A-80's halves — `checks` clean on four gates (`layer-lint` 423 files /
    3,354 includes; `mutation-lint` still **one command**). **The first run of this item had two caveats and both are cleared.** The
    product was still OPEN on the walker's desktop from M-11, which holds the binary and the
@@ -1620,7 +1776,9 @@ restated as a checklist.
    the window with the ink, 89 / 100 / 251 / **106 %** over `text-a4.pdf`, and the empty page's
    CropBox fallback at **108 %**. Somebody has now looked at a fitted page — and looking is what
    raised **I-10**, which is item 9's problem rather than this one's.
-9. ✅ **2026-09-24 — met again, the same day it was broken.** §8 holds ten issues and **only I-07
+9. ✅ **2026-09-26 — met again, the same day it was broken, for the second time.** M-01's walk
+   raised **I-11 (S2)** and **I-12 (S3)** and both closed that day, with **A-81** and **A-82**.
+   *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
    **I-10 (S2) was raised by M-11's walk and closed the same day** — `FitMode::Page` measures the
@@ -1633,11 +1791,12 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; ONE OF THE
-TWELVE MANUAL CASES IS WALKED, IT RAISED AN S2, AND THAT S2 IS FIXED.** **Item 2 is the whole of what
-is outstanding** — eleven unwalked cases. That the first manual case walked in this stage found a
-defect the complete automated half had ratified, and that the fix needed a new case rather than only
-a new line of code, is the argument for the other eleven rather than against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; TWO OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, AND M-01 ON ITS RE-WALK — AND EVERY ISSUE
+EITHER RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — ten unwalked cases. That
+each of the first two manual cases walked in this stage found defects the complete automated half
+had ratified, and that each fix needed a new case rather than only a new line of code, is the
+argument for the other ten rather than against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.

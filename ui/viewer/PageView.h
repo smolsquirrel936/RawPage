@@ -345,12 +345,26 @@ private:
     // is the one place that knows PDF's y grows upwards and that a CropBox's origin need not be
     // (0,0) -- a second conversion written here would be a second reader to keep in agreement, and
     // a wrong one scrolls the reader silently to the wrong place.
-    // WHICH PAGE FIT VISIBLE IS ANCHORED TO, or -1 when the mode is not Visible. See the long note
-    // in `PageView.cpp`'s `refresh()`: Fit Visible's zoom is per page by definition (D4-14), and a
-    // fit re-satisfied against the drifting current page feeds back into the layout that decides
-    // which page is current. Anchoring breaks the loop -- and it is also what a reader expects, a
-    // zoom that stays put while they scroll.
-    int visibleFitPage_ = -1;
+    // WHICH PAGE THE FIT IS ANCHORED TO, or -1 when no fit is in force. See the long note in
+    // `PageView.cpp`'s `refresh()`: a fit re-satisfied against the drifting current page feeds back
+    // into the layout that decides which page is current. T12 anchored Fit Visible alone, whose zoom
+    // is per page by definition (D4-14); **I-11** anchored the rest, whose zoom is per page on any
+    // document of mixed sizes. It is also what a reader expects, a zoom that stays put while they
+    // scroll.
+    int fitAnchorPage_ = -1;
+
+    // WHERE THE READER IS, as the viewport centre's fraction of the current page -- I-11. Taken
+    // before a command changes the zoom and put back after, because the scroll offset is device
+    // pixels and does not scale with the zoom. `page` -1 is "nowhere", and restores nothing.
+    struct Place {
+        int page = -1;
+        double fx = 0.5;
+        double fy = 0.0;
+    };
+    Place capturePlace() const;
+    // `wholePage` puts the page's top at the viewport's (less the margin) and centres it across --
+    // what Fit Page and Fit Height are asked for -- instead of putting the fraction back.
+    void restorePlace(const Place& place, bool wholePage);
 
     void scrollToFitRect(int pageIndex);
     void scrollToPagePoint(int pageIndex, double pdfCoordinate, bool horizontal);

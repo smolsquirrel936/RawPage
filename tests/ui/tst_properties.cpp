@@ -616,3 +616,178 @@ TEST_CASE("the reading mode command toggles it", "[properties]")
     QCoreApplication::processEvents();
     CHECK_FALSE(window->isReadingMode());
 }
+
+// =============================================================================================
+// I-11 -- a fit on a document of MIXED page sizes measures the page it was CHOSEN on.
+//
+// M-01's walk, 2026-09-26: 400 % on `mixed-page-sizes.pdf`'s landscape page, then `Ctrl+2`, and
+// the page came out twice the window's width at 250 %. Two causes, each harmless alone. A zoom
+// change kept the raw device scroll offset, so dropping from 400 % left the viewport three times
+// further down the document; and a fit was re-satisfied on every refresh against whichever page
+// was DOMINANT -- here the A5 page, half the landscape page's width, hence exactly twice the zoom.
+//
+// What these cases do NOT cover (convention 19): the chord. They call `PageView::setFitMode`, which
+// is the whole of what `ViewFitWidth`'s handler does (`MainWindow.cpp`, `registerFit`); that the
+// chord reaches it is `tst_viewercommands.cpp`'s. And a device pixel ratio of 1.0 only -- M-01.
+// =============================================================================================
+
+namespace {
+
+// `corpus/ordinary/mixed-page-sizes.pdf`'s four pages, in its order -- the file M-01 found this on.
+void mixedPageSizes(uitest::FakeBackend& backend)
+{
+    backend.pageBoxes[1] = core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{841.89, 595.276}};
+    backend.pageBoxes[2] = core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{419.528, 595.276}};
+    backend.pageBoxes[3] =
+        core::PdfRect{core::PdfPoint{100.0, 100.0}, core::PdfSize{595.276, 841.89}};
+}
+
+const core::render::PageSlot& slotOf(const ui::PageView* view, int page)
+{
+    const core::render::PageSlot* slot = view->layoutEngine().layout().slotForPage(page);
+    REQUIRE(slot != nullptr);
+    return *slot;
+}
+
+// The width a Fit Width page must take: the viewport, less the margin on each side.
+double fittedWidth(const ui::PageView* view)
+{
+    return view->controller().viewportSize().width - 2.0 * view->layoutEngine().options().margin;
+}
+
+// M-01 step 5's state: 400 % on the landscape page, the viewport in its LOWER part, where a zoom-out
+// that kept the offset lands furthest from it.
+void zoomIntoTheLandscapePage(ui::PageView* view)
+{
+    view->goToPage(1);
+    view->setZoom(core::render::Zoom{4.0});
+    QCoreApplication::processEvents();
+    const core::render::PageSlot& slot = slotOf(view, 1);
+    view->controller().setScroll(
+        core::DevicePoint{0.0, slot.rect.top() + 0.6 * slot.rect.size.height});
+    QCoreApplication::processEvents();
+    REQUIRE(view->controller().currentPage() == 1);
+}
+
+// What a tile arrival or a scrollbar appearing does between two frames: another refresh, which is
+// where the fit used to be re-satisfied against a page nobody chose.
+void settle(ui::PageView* view)
+{
+    for (int i = 0; i < 3; ++i) {
+        view->refresh();
+        QCoreApplication::processEvents();
+    }
+}
+
+} // namespace
+
+TEST_CASE("Fit Width from 400 percent fits the page the reader was on", "[properties][I-11]")
+{
+    Shell shell(4);
+    mixedPageSizes(shell.fixture.backend);
+    shell.open();
+    ui::PageView* view = shell.view();
+
+    zoomIntoTheLandscapePage(view);
+    view->setFitMode(FitMode::Width);
+    settle(view);
+
+    // THE PAGE FIRST: the reader was on the landscape page and is still on it.
+    CHECK(view->controller().currentPage() == 1);
+    CHECK(view->controller().fitMode() == FitMode::Width);
+
+    // AND IT FITS THE WIDTH. The defect was this page at twice the viewport's width -- the zoom
+    // A5's width asks for -- so a band of a few pixels cannot mistake one for the other.
+    CHECK(slotOf(view, 1).rect.size.width > fittedWidth(view) - 3.0);
+    CHECK(slotOf(view, 1).rect.size.width < fittedWidth(view) + 3.0);
+
+    // And the viewport shows it: its slot intersects what is visible.
+    const core::DeviceRect visible = view->controller().visibleRect();
+    CHECK(slotOf(view, 1).rect.bottom() > visible.top());
+    CHECK(slotOf(view, 1).rect.top() < visible.bottom());
+}
+
+TEST_CASE("Fit Page from 400 percent fits the page the reader was on", "[properties][I-11]")
+{
+    Shell shell(4);
+    mixedPageSizes(shell.fixture.backend);
+    shell.open();
+    ui::PageView* view = shell.view();
+
+    zoomIntoTheLandscapePage(view);
+    view->setFitMode(FitMode::Page);
+    settle(view);
+
+    CHECK(view->controller().currentPage() == 1);
+
+    // Inside the viewport on both axes, and touching it on one -- which is what a fit is.
+    const core::render::PageSlot& slot = slotOf(view, 1);
+    const double margin = view->layoutEngine().options().margin;
+    const core::DeviceSize viewport = view->controller().viewportSize();
+    CHECK(slot.rect.size.width < viewport.width - 2.0 * margin + 3.0);
+    CHECK(slot.rect.size.height < viewport.height - 2.0 * margin + 3.0);
+    const bool touches = slot.rect.size.width > viewport.width - 2.0 * margin - 3.0
+                         || slot.rect.size.height > viewport.height - 2.0 * margin - 3.0;
+    CHECK(touches);
+}
+
+TEST_CASE("a fit keeps its zoom while the reader scrolls onto a page of another size",
+          "[properties][I-11]")
+{
+    // THE ANCHOR'S OTHER HALF. A fit chosen on the landscape page keeps that page's zoom while
+    // the A5 page scrolls into view -- the zoom following the dominant page is the loop itself --
+    // and a NAVIGATION to the A5 page moves the anchor, because going to a page in a fit means
+    // fitting that page.
+    Shell shell(4);
+    mixedPageSizes(shell.fixture.backend);
+    shell.open();
+    ui::PageView* view = shell.view();
+
+    view->goToPage(1);
+    view->setFitMode(FitMode::Width);
+    settle(view);
+    const double landscapeZoom = view->controller().zoom().factor;
+
+    // AT EVERY REFRESH, not after a batch of them. The unanchored fit does not settle on the wrong
+    // zoom, it OSCILLATES -- the A5 page's zoom moves the viewport onto the landscape page, whose
+    // zoom moves it back -- so a check after an odd number of refreshes read the right number by
+    // coincidence. The first draft of this case did exactly that and passed with the defect planted.
+    view->controller().setScroll(core::DevicePoint{0.0, slotOf(view, 2).rect.top()});
+    QCoreApplication::processEvents();
+    for (int i = 0; i < 4; ++i) {
+        view->refresh();
+        QCoreApplication::processEvents();
+        CHECK(view->controller().zoom().factor == landscapeZoom);
+    }
+    REQUIRE(view->controller().currentPage() == 2);
+
+    view->goToPage(2);
+    settle(view);
+    CHECK(view->controller().currentPage() == 2);
+    CHECK(slotOf(view, 2).rect.size.width > fittedWidth(view) - 3.0);
+    CHECK(slotOf(view, 2).rect.size.width < fittedWidth(view) + 3.0);
+}
+
+TEST_CASE("a zoom from a command keeps the reader on their page", "[properties][I-11]")
+{
+    // I-11's FIRST cause, alone and on a UNIFORM document, where the anchor has nothing to do. The
+    // zoom box, Actual Size and the zoom chords changed the zoom under an unchanged device offset,
+    // so 100 % -> 400 % on page 6 put the viewport on page 2 -- the ratio of the two zooms.
+    Shell shell(12);
+    shell.open();
+    ui::PageView* view = shell.view();
+
+    view->setZoom(core::render::Zoom{1.0});
+    view->goToPage(5);
+    QCoreApplication::processEvents();
+    REQUIRE(view->controller().currentPage() == 5);
+
+    view->setZoom(core::render::Zoom{4.0});   // the zoom box's path, and Actual Size's
+    QCoreApplication::processEvents();
+    CHECK(view->controller().currentPage() == 5);
+
+    view->zoomOut();                          // `Ctrl+-`'s path
+    QCoreApplication::processEvents();
+    CHECK(view->controller().currentPage() == 5);
+    CHECK(view->controller().zoom().factor < 4.0);
+}

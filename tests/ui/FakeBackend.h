@@ -93,6 +93,11 @@ public:
     // has two page 1s, and this is how a widget case gets one without an engine.
     std::map<int, QString> pageLabels;
 
+    // S4 I-11. Page index -> MediaBox, applied at `open()`; a page with no entry is A4 portrait. A
+    // document of MIXED sizes is what `corpus/ordinary/mixed-page-sizes.pdf` is, and what a fit that
+    // measures the wrong page gets wrong -- a uniform document gives every page the same zoom.
+    std::map<int, core::PdfRect> pageBoxes;
+
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
     {
         // The shape the shipped backend reports after Stage 2, so a widget written against this
@@ -114,8 +119,11 @@ public:
         std::vector<core::Page> built;
         built.reserve(static_cast<std::size_t>(pagesPerDocument));
         for (int i = 0; i < pagesPerDocument; ++i) {
-            built.emplace_back(i, core::PdfRect{core::PdfPoint{0.0, 0.0},
-                                                core::PdfSize{595.276, 841.89}});
+            const auto sized = pageBoxes.find(i);
+            built.emplace_back(i, sized != pageBoxes.end()
+                                      ? sized->second
+                                      : core::PdfRect{core::PdfPoint{0.0, 0.0},
+                                                      core::PdfSize{595.276, 841.89}});
             // S4 T12: `/PageLabels`, for the cases about the page box and the status bar. Empty is
             // the ordinary state and is what every case that does not set one gets -- the same
             // shape a document with no `/PageLabels` has, which is most of them.
