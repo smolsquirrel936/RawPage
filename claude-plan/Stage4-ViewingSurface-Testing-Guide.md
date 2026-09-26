@@ -7,15 +7,15 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **93 automated** (A-01 … A-92, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 93 carry
-> a result** as of 2026-09-27 (re-derived from this file: 93 case headers, none still boxed — the
+> partly run.** **94 automated** (A-01 … A-93, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 94 carry
+> a result** as of 2026-09-27 (re-derived from this file: 94 case headers, none still boxed — the
 > 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
 > **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**,
 > the case D4-18 was recorded with that day; the 88th and 89th are **A-87** and **A-88**, added
 > the same day with I-16's fix and I-17's, both found while preparing M-07's walk, and the 90th is
 > **A-89**, the dotted preview of a guide being dragged — a request of the user's that day, not a
-> defect; the 91st and 92nd are **A-90** and **A-91**, added 2026-09-27 with I-18's and I-19's fixes — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's; **A-85 SKIPS under `ctest`** — it needs two monitors at
+> defect; the 91st and 92nd are **A-90** and **A-91**, added 2026-09-27 with I-18's and I-19's fixes — A-91 rewritten the same day with I-20's — the 93rd is **A-92**, I-21's, and the 94th **A-93**, I-22's guard; **A-85 SKIPS under `ctest`** — it needs two monitors at
 > different scale factors, which the offscreen platform cannot have — and its result is a run on
 > the `windows` platform, recorded against it) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
@@ -52,9 +52,9 @@
 > the page's top did nothing, and a hand drag over a frozen pane ran away, both from I-19's first fix
 > — **and I-21 (S3)**, `Ctrl` with the keypad's `+` zooming nothing; both fixed that day, and **the second re-walk of
 > step 1 PASSED, the same day — M-08 is signed off**. The other three — M-09, M-10 and M-12 —
-> are the stage's largest remaining gap. §8 holds **twenty-one** issues and **only I-07 (S4) is open**;
+> are the stage's largest remaining gap. §8 holds **twenty-two** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26**, and **I-18 to I-21 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-22 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -284,6 +284,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-19)* A frozen pane of a spreadsheet split moves only through the body | **A-91**, and **M-08**, which found it |
 | *(I-20)* A frozen pane's wheel and hand move the body one-to-one, in every direction, from a freeze at the document's corner | **A-91** (rewritten), and **M-08**'s re-walk, which found it |
 | *(I-21)* `Ctrl` with the keypad's `+` and `-` zooms like the main row's | **A-92**, and **M-08**'s re-walk, where it was found |
+| *(I-22)* No tracked text file holds a control byte — a path's backslashes read as escapes | **A-93** |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1373,6 +1374,30 @@ case takes as given; a real keypad is the walk's.
 **Expect** `Ctrl` with the keypad's `+` zooms in and with its `-` zooms out, exactly as the main row's
 chords do. **If it fails** S3 — I-21 is back.
 
+**A-93 · No control byte in a tracked text file — I-22, closed** ✅
+✅ **2026-09-27** (`tests/gates/check-text-bytes.py`, `gates.text_bytes.tracked_tree` and
+`gates.text_bytes.self_test`, in the `gates` preset and every other). Every file `git ls-files` lists,
+minus the five binary types the repository tracks (`.png`, `.pdf`, `.dll`, `.a`, `.exe`), is read as
+bytes: nothing below 0x20 but TAB and LF, a CR only as half of a CRLF — about forty tracked files are
+CRLF and some mix both, which is not the defect — and no DEL. **Run over the damaged tree first, as its
+own negative control: exit 1, exactly the six bytes of I-22 and nothing else**, each with its line and
+column (`CLAUDE.md:501:2 BACKSPACE`, `:501:16 BACKSPACE`, `:501:19 LONE CARRIAGE RETURN`, `:627:97
+BELL`, `:633:7 LONE CARRIAGE RETURN`, `Stage0-Toolchain-Testing-Guide.md:509:19 VERTICAL TAB`); after
+the repair, **686 tracked text files clean**. **`--self-test`** drives nine detections — the four bytes
+I-22 found, form feed, NUL, escape, DEL and a CR at the very end of a file — and five inputs that must
+pass — TAB, LF, CRLF, mixed endings, UTF-8 — in memory, because a damaged fixture in the tree would fail
+the tree case; and it checks the reported positions on I-22's own line. **The enumeration is part of
+the claim**: pointed at a directory that tracks nothing, or at one outside any repository, the tree
+case exits 1 and says so — it refuses to report clean unless `CLAUDE.md` was among the files it read.
+Absent Python it FAILS, through `RequirePython.cmake`, as the corpus cases do.
+**What it does NOT cover** (convention 19): a mangled escape that produced a PRINTABLE byte — `\x64`
+became `d`, and I-22 was caught only because the same path also held a `\b`; and a file git does not
+yet track.
+**Steps** `ctest --preset gates -R text_bytes`, or by hand `python tests/gates/check-text-bytes.py --root .`.
+**Expect** `text bytes clean -- N tracked text files` and `9 of 9 detections fired, 5 of 5 clean inputs
+passed, positions exact`. **If it fails** S3 — a document or source file holds a control byte; the
+report names the file, line and column.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -2386,12 +2411,44 @@ keypad `+` with `Ctrl` held — tried only when the reported chord binds nothing
 `Ctrl`, so the bare keypad `+` stays §8's `+`. No §8 row changes: it is the same key on another part
 of the keyboard, not a new chord. **A-92**, run red before the fix for the right reason.
 
+**I-22 · Four Windows paths in two documents held control bytes where their backslashes had been.**
+*(Found 2026-09-27 — not by a walk: by a byte-level read, after an edit script split two of
+`CLAUDE.md`'s lines at a lone carriage return while recording M-08. S3 — documentation, and one of the
+four a command in `CLAUDE.md`'s Commands section.)*
+
+**What was in the files.** `CLAUDE.md:501` held `.`BACKSPACE`uildd-release`BACKSPACE`in`CR
+`awpage_bench_surface.exe` where `.\build\x64-release\bin\rawpage_bench_surface.exe` belonged
+(`a01192b`, Stage 4 T14, 2026-09-23); `CLAUDE.md:627` held `` `build\<preset>`` BELL ``4-probe\` ``
+for `` `build\<preset>\a4-probe\` `` (`d877992`, Stage 3's sign-off, 2026-09-18); `CLAUDE.md:633` held
+`` `bin`` CR ``awpage.exe` `` for `` `bin\rawpage.exe` `` (`aa1879b`, I-10's fix, 2026-09-24); and
+`Stage0-Toolchain-Testing-Guide.md:509` held `%USERPROFILE%` VERTICAL TAB `cpkg` for
+`%USERPROFILE%\vcpkg` (`a8eccd3`, 2026-08-19). `CLAUDE.md` is loaded into every session, and the
+session that found this had read the benchmark command as `.uildd-releaseinawpage_bench_surface.exe`.
+
+**Mechanism — measured, not guessed.** Each was a document edited through a script, and a
+here-document sent through the agent's Bash tool **collapses a doubled backslash to one**: `a\\b` sent
+in a quoted here-document arrives as `a\b` (measured 2026-09-27 with `od -c`). So a Python or shell
+literal that escaped a Windows path correctly reached the interpreter with single backslashes, and
+`\b`, `\r`, `\a`, `\v` and `\x64` were read as BACKSPACE, CARRIAGE RETURN, BELL, VERTICAL TAB and `d`.
+The repair's first attempt went through the same path and **rebuilt the damaged bytes exactly** — the
+replacement strings were re-escaped on the way in — which is how the mechanism was confirmed. The
+repair that worked was written with the Write tool and builds every backslash from `chr(92)`.
+
+**Why nothing caught it.** A terminal draws all four invisibly — a backspace and a carriage return
+overwrite, a bell makes no mark — so every reader, and every rendered diff, saw a plausible path. No
+check read the files as bytes. `layer-lint` and `i18n-lint` read source for their own rules and have
+no opinion on a control byte.
+
+**The fix, 2026-09-27.** The four paths restored byte for byte, and **A-93**: a `gates` check that
+refuses a control byte in any tracked text file, run red over the damaged tree before the repair. And
+`CLAUDE.md` gains rule 10 under *How to write it*, naming the here-document trap.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 93 carry a result.** The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 94 carry a result.** The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2413,7 +2470,13 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after I-20's and I-21's fixes: 1129/1129 on `x64-release` and on
+4. ✅ **2026-09-27, re-run after I-22's guard: 1131/1131 on `x64-release` and on `x64-debug`**, the
+   two new cases `gates.text_bytes.*` (A-93), and the `gates` preset **126/126**, with the same two
+   named skips and `checks` clean on four gates. *(A first debug run made WHILE the release suite
+   was running reported two failures — the segment-heap manifest case and `recovery.kill_saves` —
+   under the previous test numbering; both passed alone and the whole suite passed run alone.
+   Recorded rather than explained: the cause was not established.)* *Before that,* **2026-09-27,
+   re-run after I-20's and I-21's fixes: 1129/1129 on `x64-release` and on
    `x64-debug`**, the one new case A-92's — A-91 rewritten, not added — with the same two named skips
    and `checks` clean on four gates (`layer-lint` 423 files / 3,384 includes); no `warning:` line from
    either incremental build. *Before that,* **after I-18's and I-19's fixes: 1128/1128 on `x64-release` and on
@@ -2489,7 +2552,8 @@ restated as a checklist.
    a zoom reaching one pane of a spreadsheet split, and a frozen pane scrolling on its own — both
    closed the same day with **A-90** and **A-91**; and its re-walk that day raised **I-20 (S2)**, a
    defect in I-19's fix, closed with A-91 rewritten, and **I-21 (S3)**, the keypad's `+`, closed with
-   **A-92**.
+   **A-92**. And **I-22 (S3)**, four document paths holding control bytes, found the same day by a
+   byte-level read and closed with **A-93**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.

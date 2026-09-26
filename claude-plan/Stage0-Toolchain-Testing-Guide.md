@@ -506,7 +506,7 @@ toolchain, or human judgement.
   - **I-14** (S4) came out of the same run and is fixed.
   - Steps were corrected before this walk (**I-03**): clearing `$env:VCPKG_ROOT` alone tests nothing,
     because `bootstrap.ps1` and `env.ps1` both fall back to the registry and then to
-    `%USERPROFILE%cpkg`. The clone must actually be absent.
+    `%USERPROFILE%\vcpkg`. The clone must actually be absent.
   - Signed off by the user, 2026-08-19.
 
 **M-05 · Fixture realism review** ✅ **2026-08-19**

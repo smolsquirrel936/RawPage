@@ -1,5 +1,7 @@
-# Stands in for the three gates.corpus.* cases when no Python 3.9+ interpreter was found at
-# configure time, so that they FAIL rather than quietly not existing.
+# Stands in for the gates.corpus.* cases -- and, since S4 guide I-22, the two gates.text_bytes.*
+# cases -- when no Python 3.9+ interpreter was found at configure time, so that they FAIL rather
+# than quietly not existing. The message below speaks of the corpus; the same argument holds for the
+# text-bytes check, which is run by hand as `python tests/gates/check-text-bytes.py --root .`.
 #
 # WHY A RED TEST IS THE RIGHT ANSWER HERE. Stage 1's I-30 was a CI job that had never run,
 # because two systems had to agree on a variable name and nothing checked that they did; the

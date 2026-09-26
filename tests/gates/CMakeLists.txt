@@ -911,6 +911,36 @@ else()
 endif()
 
 # --------------------------------------------------------------------------------------
+# No control byte in a tracked text file (S4 guide I-22, A-93).
+#
+# Four Windows paths in CLAUDE.md and the Stage 0 guide had their backslashes read as escapes on
+# the way into the file -- BACKSPACE, CARRIAGE RETURN, BELL, VERTICAL TAB -- and a terminal draws
+# all four invisibly, so the Commands section carried a broken path for four days. The checker's
+# header owns the rule and its blind spot (an escape that produced a PRINTABLE byte). Here because
+# it checks DATA, needs nothing but Python and git, and CI runs this preset first.
+#
+# THE CONTROL is --self-test, which drives each detection with the damage that must trigger it and
+# the allowed bytes (TAB, LF, CRLF, mixed endings, UTF-8) with inputs that must pass -- in memory,
+# because a damaged fixture in the tree would fail the tree case. The tree case itself refuses to
+# report clean unless CLAUDE.md was among the files it read, so an empty listing cannot pass.
+# Absent Python it FAILS, for the reason the corpus block above gives.
+# --------------------------------------------------------------------------------------
+if(Python3_Interpreter_FOUND)
+    set(CHECK_TEXT_BYTES "${CMAKE_CURRENT_SOURCE_DIR}/check-text-bytes.py")
+    rawpage_add_gate_test(NAME gates.text_bytes.tracked_tree
+        COMMAND ${Python3_EXECUTABLE} ${CHECK_TEXT_BYTES} --root ${CMAKE_SOURCE_DIR}
+        EXPECT_EXIT 0 EXPECT_MATCH "text bytes clean -- [0-9]+ tracked text files")
+    rawpage_add_gate_test(NAME gates.text_bytes.self_test
+        COMMAND ${Python3_EXECUTABLE} ${CHECK_TEXT_BYTES} --self-test
+        EXPECT_EXIT 0 EXPECT_MATCH "9 of 9 detections fired, 5 of 5 clean inputs passed, positions exact")
+else()
+    foreach(case tracked_tree self_test)
+        add_test(NAME gates.text_bytes.${case}
+            COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RequirePython.cmake")
+    endforeach()
+endif()
+
+# --------------------------------------------------------------------------------------
 # A4's automated signature validator (Stage 3 precondition P-2, guide case A-06).
 #
 # Decision D3-2 makes the OpenSSL command-line tool the integrity half of A4's verdict, and a
