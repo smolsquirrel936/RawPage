@@ -27,14 +27,15 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Three manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Four manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
 > choice governs (§6 says why) — and raised **I-14 (S2)**: `Ctrl+Shift+M` kept the presentation's
-> physical size across a change of scale; fixed the same day.
+> physical size across a change of scale; fixed the same day. **M-06**, on 2026-09-26, passed with no
+> finding — the human half of A2 at Stage 4, and it agrees with the figure.
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other nine
+> same day**. The other eight
 > are the stage's largest remaining gap. §8 holds **fourteen** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-14 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -1072,8 +1073,8 @@ columns without a pane now hide the sidebar, and the pane's column scrolls the p
 because a pane that streams once at open and then sits still is not the pane D4-10 is about.
 
 **What the figure does not claim** is in §3.3 with it, and the short form is: offscreen, one rig, one
-generated corpus, and nothing here draws to a 60 Hz display — **M-06 is still owed** and is the only
-thing that can say whether a 900-page pane *feels* smooth.
+generated corpus, and nothing here draws to a 60 Hz display — **M-06** is the only thing that can say
+whether a 900-page pane *feels* smooth, and on 2026-09-26 it said so (§6).
 **Goal** D4-16's second reading — the bench is a request pattern, the product is the product (D2-1's lesson, where the probe said 31× and the product said 1.18×).
 **Expect** A viewport p95 beside T2's figure, and **the verdict either confirmed or corrected in `Tech-Stack-Plan.md` §3.3 in the product's words**. **If it fails** S2 — a bench figure quoted as the product's is the exact error D2-1 exists to prevent.
 
@@ -1318,7 +1319,15 @@ passed, and the walk raised **I-14 (S2)**, fixed the same day.
   Step 5: nothing is restored.
 - **If it fails** **S1** for a resurrected edit or a lost document; S2 for a lost layout.
 
-**M-06 · A 900-page thumbnails pane, judged by a person** ☐
+**M-06 · A 900-page thumbnails pane, judged by a person** ✅ **signed off by the user, 2026-09-26** — every
+behaviour as expected, and no finding.
+- **Walk result** `pages-900.pdf` copied to `tests\manual\M-06\`, on the P-1 rig. The pane scrolled fast
+  both ways; the page view scrolled and paged with `Ctrl+Page Down` while the pane was still filling
+  and **stayed responsive**; thumbnails filled in progressively and work scrolled past did not catch up
+  afterwards; dragging the pane to its end and clicking page 900 landed promptly; nothing froze; memory
+  rose while the pane filled and did not keep climbing under repeated scrolling. **This is the human
+  half of A2 at Stage 4** and it agrees with the product figure (A-72, 7.03–8.56 ms against 16.667) —
+  recorded beside it in `Tech-Stack-Plan.md` §3.3 as a person's judgement, not a measurement.
 - **Goal** The human half of §3's verdict — A-14's p95 and this can disagree.
 - **Pre** `corpus\ordinary\pages-900.pdf`.
 - **Steps** Open it; open the Thumbnails pane; scroll the pane fast from top to bottom and back;
@@ -1871,8 +1880,8 @@ restated as a checklist.
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
-   fixed the same day.**
-   The other nine are the stage's largest remaining gap and the honest summary of its state.
+   fixed the same day; M-06, 2026-09-26, passed with no finding.**
+   The other eight are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -1945,12 +1954,13 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; THREE OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, AND M-02 — AND EVERY ISSUE
-ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — nine unwalked cases.
-That each of the first three manual cases walked in this stage found a defect the complete automated
-half had ratified, and that each fix needed a new case rather than only a new line of code, is the
-argument for the other nine rather than against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; FOUR OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02 AND M-06 — AND EVERY
+ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — eight unwalked
+cases. That each of the first three manual cases walked in this stage found a defect the complete
+automated half had ratified, and that each fix needed a new case rather than only a new line of code,
+is the argument for the other eight rather than against them; that the fourth, the stage's verdict
+case, found nothing is the verdict holding up to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.

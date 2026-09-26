@@ -457,7 +457,13 @@ will want when it adds the next cache consumer. It is not reopened here.
 
 **What the T14 figure does NOT claim.** It is offscreen, on one rig, over one generated corpus
 (D2-11), and nothing in it draws to a 60 Hz display: it measures the pipeline's latency, not whether
-a person perceives a stutter. **M-06 is still owed** and is the only thing that can answer that.
+a person perceives a stutter. **M-06 answered that on 2026-09-26, and it agrees with the figure**:
+the user walked a 900-page thumbnails pane on the P-1 rig — scrolling the pane fast both ways, scrolling
+the page view and paging with `Ctrl+Page Down` while the pane was still filling, then jumping to page
+900 from the pane's end — and reported every behaviour as expected: the page view stayed responsive
+while the pane worked, thumbnails filled progressively, nothing froze and memory did not climb. That
+is a person's judgement on one rig, recorded as such (`Stage4-ViewingSurface-Testing-Guide.md` M-06),
+not a measurement; it is the half of the verdict no percentile could give.
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
