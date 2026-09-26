@@ -160,6 +160,19 @@ public:
     int dropGuide(const core::render::PageLayout& layout, core::DevicePoint content,
                   Qt::Orientation rulerOrientation);
 
+    // THE DOTTED PREVIEW of a guide being pulled off a ruler, on the user's request of 2026-09-26
+    // (`Stage4-ViewingSurface-Testing-Guide.md` A-89): shown while the button is still down over a
+    // page, at exactly the coordinate `dropGuide` would store -- snapped included -- and gone on the
+    // release or when the pointer leaves the page. It is NOT a guide: it is not in `guides()`, is
+    // never captured into the session and cannot be grabbed. Returns whether there is one.
+    bool previewGuide(const core::render::PageLayout& layout, core::DevicePoint content,
+                      Qt::Orientation rulerOrientation);
+    void clearPreview();
+    const std::optional<core::Guide>& preview() const noexcept { return preview_; }
+
+    // A placed guide's colour, public so a case can find its pixels without a second copy of it.
+    static QColor guideColour();
+
     // ---- Snapping (D4-6) -------------------------------------------------------------------------
     // The flags the two `units/snap*` rows currently ask for. `ObjectEdges` is never set here: the
     // key that would set it is Stage 6's (D4-5), and a flag set over an empty span would be a
@@ -168,6 +181,11 @@ public:
 
     // `scale` is device pixels per PDF point -- `PageLayout::presentedScale()`. **This is what
     // makes the tolerance the same at 50 % and 400 %** (D4-6).
+    //
+    // **`dragTo` and `dropGuide` resolve through this with `activeFlags()`, and until I-16 nothing
+    // did** (`Stage4-ViewingSurface-Testing-Guide.md` §8): the method existed, `tst_snap` proved
+    // the sums under it, and no gesture called it -- so `Ctrl+;` toggled a setting and a checked
+    // state and moved no guide. Guide case A-87 drags through the widgets and asserts the landing.
     core::SnapResult snap(int pageIndex, core::PdfPoint point, core::SnapFlags flags,
                           std::span<const core::SnapEdge> objectEdges, double scale) const;
 
@@ -195,9 +213,22 @@ private:
 
     QColor gridColour() const;
 
-    GuideSettings           settings_;
+    // The guide a release at `content` off a ruler of `rulerOrientation` would make, snapped; nothing
+    // off the page. One function for `dropGuide` and `previewGuide`, so the two cannot disagree.
+    std::optional<core::Guide> guideFromRuler(const core::render::PageLayout& layout,
+                                              core::DevicePoint content,
+                                              Qt::Orientation rulerOrientation) const;
+
+    // `snap()` with one guide left out of the candidates -- the one being dragged, which is always
+    // within the threshold of the pointer and would otherwise pin itself in place. -1 leaves none out.
+    core::SnapResult resolve(int pageIndex, core::PdfPoint point, core::SnapFlags flags,
+                             std::span<const core::SnapEdge> objectEdges, double scale,
+                             int excludedGuide) const;
+
+    GuideSettings          settings_;
     std::vector<core::Guide> guides_;
     std::optional<Drag>     drag_;
+    std::optional<core::Guide> preview_;
     int                     contextGuide_ = -1;
 };
 

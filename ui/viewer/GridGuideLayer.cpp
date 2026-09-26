@@ -20,7 +20,6 @@ using core::render::PageSlot;
 // row gives: these are painted over the PAGE, whose raster is the document's own -- a colour that
 // followed the application palette would be chosen against a backdrop it never meets (convention
 // 20's rule, read for a surface that is not part of the chrome).
-QColor guideColour() { return QColor(0x00, 0x8C, 0xC8); }
 QColor lockedGuideColour() { return QColor(0x8A, 0x8A, 0x8A); }
 
 // Content space to WIDGET space, the one conversion in this file -- the same lambda shape
@@ -54,6 +53,11 @@ bool constrainsX(const Guide& guide) noexcept
 } // namespace
 
 GridGuideLayer::GridGuideLayer(QObject* parent) : QObject(parent) {}
+
+QColor GridGuideLayer::guideColour()
+{
+    return QColor(0x00, 0x8C, 0xC8);
+}
 
 void GridGuideLayer::setSettings(const GuideSettings& settings)
 {
@@ -212,7 +216,13 @@ bool GridGuideLayer::dragTo(const PageLayout& layout, DevicePoint content)
     // two pages.
     if (!document || document->pageIndex != guide.pageIndex) return false;
 
-    return moveGuide(drag_->index, constrainsX(guide) ? document->point.x : document->point.y);
+    // SNAPPED ON EVERY MOVE, not on release, so the line a person watches is the line they get
+    // (I-16). The dragged guide is left out of the candidates: it sits under the pointer by
+    // construction, and a guide that snapped to its own last position could never leave it.
+    const bool alongX = constrainsX(guide);
+    const core::SnapResult snapped = resolve(guide.pageIndex, document->point, activeFlags(), {},
+                                             layout.presentedScale(), drag_->index);
+    return moveGuide(drag_->index, alongX ? snapped.point.x : snapped.point.y);
 }
 
 bool GridGuideLayer::endDrag()
@@ -238,11 +248,41 @@ bool GridGuideLayer::cancelDrag()
 int GridGuideLayer::dropGuide(const PageLayout& layout, DevicePoint content,
                               Qt::Orientation rulerOrientation)
 {
+    // The release ends the preview whether or not it makes a guide.
+    clearPreview();
+
+    const std::optional<Guide> guide = guideFromRuler(layout, content, rulerOrientation);
+    return guide ? addGuide(*guide) : -1;
+}
+
+bool GridGuideLayer::previewGuide(const PageLayout& layout, DevicePoint content,
+                                  Qt::Orientation rulerOrientation)
+{
+    // THE SAME GUIDE THE RELEASE WOULD MAKE, snapped and all -- so the dotted line is a promise
+    // about where the solid one lands, not a second opinion. Off the page there is none, because a
+    // release there makes none.
+    const std::optional<Guide> next = guideFromRuler(layout, content, rulerOrientation);
+    if (next == preview_) return next.has_value();
+    preview_ = next;
+    emit changed();
+    return preview_.has_value();
+}
+
+void GridGuideLayer::clearPreview()
+{
+    if (!preview_) return;
+    preview_.reset();
+    emit changed();
+}
+
+std::optional<Guide> GridGuideLayer::guideFromRuler(const PageLayout& layout, DevicePoint content,
+                                                    Qt::Orientation rulerOrientation) const
+{
     const auto document = layout.toDocument(content);
-    if (!document) return -1;
+    if (!document) return std::nullopt;
 
     const PageSlot* slot = layout.slotForPage(document->pageIndex);
-    if (slot == nullptr) return -1;
+    if (slot == nullptr) return std::nullopt;
 
     // WHICH PAGE AXIS A SCREEN AXIS IS depends on the combined rotation, which the slot already
     // carries (`PagePresentation.cpp` combines `/Rotate` with the view rotation before storing
@@ -251,12 +291,17 @@ int GridGuideLayer::dropGuide(const PageLayout& layout, DevicePoint content,
     const bool swapped = core::swapsAxes(slot->rotation);
     const bool vertical = (rulerOrientation == Qt::Horizontal) != swapped;
 
+    // THE DROP SNAPS TOO (I-16) -- a guide pulled off a ruler onto a grid line is the commonest way
+    // one is placed, and a snap that only a second drag could reach would be one nobody finds.
+    const core::SnapResult snapped = resolve(document->pageIndex, document->point, activeFlags(), {},
+                                             layout.presentedScale(), -1);
+
     Guide guide;
     guide.orientation = vertical ? Guide::Orientation::Vertical : Guide::Orientation::Horizontal;
-    guide.position = vertical ? document->point.x : document->point.y;
+    guide.position = vertical ? snapped.point.x : snapped.point.y;
     guide.pageIndex = document->pageIndex;
     guide.locked = false;
-    return addGuide(guide);
+    return guide;
 }
 
 core::SnapFlags GridGuideLayer::activeFlags() const noexcept
@@ -274,12 +319,21 @@ core::SnapResult GridGuideLayer::snap(int pageIndex, PdfPoint point, core::SnapF
                                       std::span<const core::SnapEdge> objectEdges,
                                       double scale) const
 {
+    return resolve(pageIndex, point, flags, objectEdges, scale, -1);
+}
+
+core::SnapResult GridGuideLayer::resolve(int pageIndex, PdfPoint point, core::SnapFlags flags,
+                                         std::span<const core::SnapEdge> objectEdges, double scale,
+                                         int excludedGuide) const
+{
     // The guides of THIS page, as edges. A guide on page 3 must not attract a drag on page 4, and
     // the resolver takes coordinates with no page attached -- so the filter is here.
     std::vector<core::SnapEdge> edges;
     edges.reserve(guides_.size());
-    for (const Guide& guide : guides_) {
+    for (std::size_t i = 0; i < guides_.size(); ++i) {
+        const Guide& guide = guides_[i];
         if (guide.pageIndex != pageIndex) continue;
+        if (static_cast<int>(i) == excludedGuide) continue;
         edges.push_back(core::SnapEdge{
             constrainsX(guide) ? core::SnapAxis::X : core::SnapAxis::Y, guide.position});
     }
@@ -388,6 +442,20 @@ void GridGuideLayer::paint(QPainter& painter, const PageLayout& layout,
         painter.setPen(pen);
         painter.drawLine(QLineF(toWidget(segment->first, visible, dpr),
                                 toWidget(segment->second, visible, dpr)));
+    }
+
+    // THE GUIDE BEING PULLED OFF A RULER, DOTTED -- distinct from a placed guide (solid) and a
+    // locked one (grey dashes) at a glance. Drawn even with `units/showGuides` off: it is the
+    // feedback for a gesture in progress, and a drag with no feedback reads as a drag that failed.
+    if (preview_) {
+        if (const auto segment = segmentFor(layout, *preview_)) {
+            QPen pen(guideColour(), 1.5);
+            pen.setStyle(Qt::DotLine);
+            pen.setCapStyle(Qt::FlatCap);
+            painter.setPen(pen);
+            painter.drawLine(QLineF(toWidget(segment->first, visible, dpr),
+                                    toWidget(segment->second, visible, dpr)));
+        }
     }
 
     painter.restore();

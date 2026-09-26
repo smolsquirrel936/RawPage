@@ -1,6 +1,7 @@
 #include "ui/viewer/RulerWidget.h"
 
 #include <QContextMenuEvent>
+#include <QFontMetricsF>
 #include <QLineF>
 #include <QMouseEvent>
 #include <QPainter>
@@ -44,7 +45,27 @@ double stepInUnit(double pixelsPerUnit)
     return 0.0;
 }
 
+// How many decimals the cursor readout carries, per unit: the fewest that make the last digit no
+// coarser than about a quarter of a millimetre -- 0.1 pt, 0.01 pc, 0.1 mm, 0.01 cm, 0.01 in. That is
+// about what a pointer can land on at 100 %, and a finer last digit only flickers as the hand rests.
+int readoutDecimals(core::Unit unit)
+{
+    switch (unit) {
+    case core::Unit::Points:      return 1;
+    case core::Unit::Picas:       return 2;
+    case core::Unit::Millimetres: return 1;
+    case core::Unit::Centimetres: return 2;
+    case core::Unit::Inches:      return 2;
+    }
+    return 2;
+}
+
 } // namespace
+
+QColor RulerWidget::markerColour()
+{
+    return QColor(0xD9, 0x30, 0x25);
+}
 
 RulerWidget::RulerWidget(Qt::Orientation orientation, QWidget* parent)
     : QWidget(parent), orientation_(orientation)
@@ -96,6 +117,15 @@ double RulerWidget::readingAt(double pixel) const
 {
     if (!mapping_.valid || !(mapping_.pixelsPerPoint > 0.0)) return 0.0;
     return (pixel - mapping_.zeroPixel) / mapping_.pixelsPerPoint;
+}
+
+QString RulerWidget::cursorReadout() const
+{
+    if (cursorPixel_ < 0.0 || !mapping_.valid || !(mapping_.pixelsPerPoint > 0.0)) return {};
+
+    // The NUMBER only, like the tick labels: the unit is named once, in the corner box.
+    const double value = core::Length::fromPoints(readingAt(cursorPixel_)).in(unit_);
+    return QString::number(value, 'f', readoutDecimals(unit_));
 }
 
 double RulerWidget::tickStep() const
@@ -201,10 +231,48 @@ void RulerWidget::paintEvent(QPaintEvent* event)
         }
     }
 
+    // THE CURSOR MARKER AND ITS READOUT, drawn last so nothing covers them.
     if (cursorPixel_ >= 0.0) {
-        painter.setPen(colours.color(QPalette::Highlight));
+        // TWO logical pixels -- three device pixels on a 150 % panel -- on the user's request of
+        // 2026-09-26: one was a hairline that vanished against the ticks it crossed.
+        const QColor marker = markerColour();
+        painter.setPen(QPen(marker, kMarkerWidth, Qt::SolidLine, Qt::FlatCap));
         if (horizontal) painter.drawLine(QLineF(cursorPixel_, 0.0, cursorPixel_, across));
         else            painter.drawLine(QLineF(0.0, cursorPixel_, across, cursorPixel_));
+
+        const QString text = cursorReadout();
+        if (!text.isEmpty()) {
+            QFont bold = font();
+            bold.setPointSizeF(std::max(6.0, bold.pointSizeF() - 2.0));
+            bold.setBold(true);
+            painter.setFont(bold);
+            const QFontMetricsF metrics(bold);
+
+            // In the OUTER strip, where the tick numbers are and no tick reaches -- so the box
+            // covers numbers the reading replaces anyway, never the ticks it is read against.
+            const double boxLength = metrics.horizontalAdvance(text) + 6.0;
+            const double boxAcross = std::min(across - 2.0, metrics.height() + 1.0);
+
+            // After the marker, or before it where it would run off the end of the ruler.
+            const double gap = kMarkerWidth + 2.0;
+            double start = cursorPixel_ + gap;
+            if (start + boxLength > length) start = cursorPixel_ - gap - boxLength;
+
+            painter.save();
+            if (!horizontal) {
+                // The same quarter turn as the tick labels, so both read along the ruler: local
+                // (x, y) lands at (1 + boxAcross - y, start + x), inside [1, 1 + boxAcross] across.
+                painter.translate(1.0 + boxAcross, start);
+                painter.rotate(90.0);
+            } else {
+                painter.translate(start, 1.0);
+            }
+            const QRectF box(0.0, 0.0, boxLength, boxAcross);
+            painter.fillRect(box, marker);
+            painter.setPen(Qt::white);
+            painter.drawText(box, Qt::AlignCenter, text);
+            painter.restore();
+        }
     }
 }
 

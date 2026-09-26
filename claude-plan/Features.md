@@ -216,11 +216,15 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Show/hide a layout grid.
 - Configure grid spacing, subdivisions, colour, and origin offset.
 - Snap dragged objects to the grid.
-- Drag a guide out of a ruler onto the page.
+- Drag a guide out of a ruler onto the page — shown **dotted** where it will land, snapped, until
+  the button is released. *(Added on the user's request 2026-09-26; `Stage4-ViewingSurface-Testing-Guide.md` A-89.)*
 - Move, lock, and delete individual guides; clear all guides.
 - Snap dragged objects to guides.
 - Snap dragged objects to the edges and centres of other objects.
-- Read out the cursor's page coordinates live in the status bar.
+- Read out the cursor's page coordinates live **on the rulers**: a red, two-pixel marker on each ruler at the
+  pointer, with the reading beside it in the ruler's unit. *(Decided by the user 2026-09-26 — this
+  line said "in the status bar", which was never built; `Stage4-ViewingSurface-Testing-Guide.md` §8
+  I-17.)*
 
 ### 1.4 Navigation
 

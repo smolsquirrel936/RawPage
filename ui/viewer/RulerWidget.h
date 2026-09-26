@@ -21,7 +21,8 @@
 // COLOUR SCHEME*): a ruler sits beside the ribbon and the status bar, so every colour here comes
 // from `QPalette` and it follows the live theme with them. The grid and the guides do the
 // opposite, and the reason is in `core/settings/SettingsKeys.def` at `units/gridColour`: those are
-// painted over the PAGE, which is the document's own white in either theme.
+// painted over the PAGE, which is the document's own white in either theme. **The one exception is
+// the cursor marker and its readout**, a fixed red -- see `markerColour()` for why.
 //
 // ===========================================================================================
 // DRAGGING A GUIDE OUT OF IT IS THE RULER'S ONLY GESTURE.
@@ -36,6 +37,8 @@
 
 #include "core/Units.h"
 
+#include <QColor>
+#include <QString>
 #include <QWidget>
 
 namespace rawpage::ui {
@@ -58,6 +61,10 @@ public:
     // toolbar.
     static constexpr int kThickness = 22;
 
+    // The cursor marker's width in logical pixels (2026-09-26, the user's request: one was too thin
+    // to find against the ticks). Guide case A-88 measures it.
+    static constexpr double kMarkerWidth = 2.0;
+
     explicit RulerWidget(Qt::Orientation orientation, QWidget* parent = nullptr);
 
     Qt::Orientation orientation() const noexcept { return orientation_; }
@@ -74,9 +81,23 @@ public:
     void setCursorPixel(double pixel);
     double cursorPixel() const noexcept { return cursorPixel_; }
 
+    // THE CURSOR READOUT -- the reading at the marker, in the ruler's unit, as the number painted
+    // beside it; empty when there is no marker. `Features.md` §1.3's *"read out the cursor's page
+    // coordinates live"*, and it is HERE rather than in the status bar on the user's decision of
+    // 2026-09-26 (`Stage4-ViewingSurface-Testing-Guide.md` I-17): the number sits where the eye
+    // already is when it reads the ticks.
+    QString cursorReadout() const;
+
+    // THE MARKER IS RED, and a FIXED red rather than a palette role -- the one colour in this widget
+    // that does not follow the theme, on the user's request of 2026-09-26. The old marker was
+    // `QPalette::Highlight`, the accent blue, which is also the colour of a selected control and did
+    // not read as *here is your pointer*. Convention 20 still binds it: the readout is white on this
+    // red, so it carries its own background, and guide case A-88 measures the line against the ruler
+    // in BOTH themes.
+    static QColor markerColour();
+
     // The reading at a widget coordinate, in POINTS. Public because it is the one piece of
-    // arithmetic here worth asserting directly, and because the shell needs it for the status-bar
-    // readout rather than repeating it.
+    // arithmetic here worth asserting directly.
     double readingAt(double pixel) const;
 
     // The distance between minor ticks, in the display unit, for the current mapping -- exposed

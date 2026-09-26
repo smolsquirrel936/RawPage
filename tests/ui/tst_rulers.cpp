@@ -29,15 +29,18 @@
 #include "core/cmd/ActionRegistry.h"
 #include "core/render/RenderScheduler.h"
 #include "core/settings/Settings.h"
+#include "tests/ui/ColorDistance.h"
 #include "tests/ui/ShellFixture.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/shell/ThemeManager.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/ViewportController.h"
 
+#include <QApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -49,6 +52,8 @@
 #include <QMouseEvent>
 #include <QPixmap>
 
+#include <algorithm>
+#include <cmath>
 #include <memory>
 
 using namespace rawpage;
@@ -714,4 +719,552 @@ TEST_CASE("both rulers print their numbers inside themselves", "[rulers][I-13]")
     // threshold that is wrong rather than a ruler that is.
     CHECK(horizontal > 20);
     CHECK(vertical > 20);
+}
+
+// =============================================================================================
+// A-87 -- a guide SNAPS when a person drags it, at 50 % and at 400 % (I-16).
+//
+// I-16 (`Stage4-ViewingSurface-Testing-Guide.md` §8): `GridGuideLayer::snap` existed and no gesture
+// called it, so `Ctrl+;` moved no guide in the product while A-45 and A-46 were green over the sums
+// and A-47 was green over drags that never asked where a guide LANDED against a line. Every drag
+// here goes through the widgets -- off a ruler, or picked up on the page -- and the assertion is
+// the stored page coordinate.
+//
+// **The control is the half the criterion does not ask for** (convention 22): 13 device pixels
+// from the line does NOT snap, at both zooms. And a guide nudged 5 pixels with guide-snapping ON
+// and no other guide on the page must MOVE -- the dragged guide is always within the threshold of
+// its own last position, and a resolver that counted it would pin every guide where it was.
+//
+// What it does NOT cover (convention 19): whether 8 device pixels FEELS the same at both zooms on
+// a real panel -- M-07's. The grid is set to one subdivision so a line is 48 device pixels from the
+// next at 50 % here; at the default four, every point is within reach of SOME line (A-46's trap)
+// and "13 pixels does not snap" could not be said.
+// =============================================================================================
+
+namespace {
+
+struct SnapTarget {
+    int    page = 0;
+    double line = 0.0;    // the page-space grid coordinate being aimed at
+    double across = 0.0;  // the other coordinate, which only has to be on the page and on screen
+    double scale = 1.0;   // device pixels per point, as presented
+};
+
+// A grid line on the current page, chosen from what is ON SCREEN -- so the case does not depend
+// on where the margin or the zoom put the sheet. `alongX` asks for a line of constant x.
+SnapTarget visibleGridLine(const Viewer& viewer, bool alongX, double spacing)
+{
+    SnapTarget target;
+    target.page = viewer.controller().currentPage();
+    target.scale = viewer.layout().presentedScale();
+
+    const core::render::PageSlot* slot = viewer.layout().slotForPage(target.page);
+    REQUIRE(slot != nullptr);
+    const core::DeviceRect visible = viewer.controller().visibleRect();
+
+    // The middle of the part of the sheet that is on screen.
+    const double left = std::max(slot->rect.left(), visible.left());
+    const double right = std::min(slot->rect.right(), visible.right());
+    const double top = std::max(slot->rect.top(), visible.top());
+    const double bottom = std::min(slot->rect.bottom(), visible.bottom());
+    REQUIRE(right - left > 100.0);
+    REQUIRE(bottom - top > 100.0);
+
+    const auto middle = viewer.layout().toDocument({(left + right) / 2.0, (top + bottom) / 2.0});
+    REQUIRE(middle.has_value());
+    REQUIRE(middle->pageIndex == target.page);
+
+    const double value = alongX ? middle->point.x : middle->point.y;
+    target.line = std::round(value / spacing) * spacing;
+    target.across = alongX ? middle->point.y : middle->point.x;
+    return target;
+}
+
+core::PdfPoint offsetFrom(const SnapTarget& target, bool alongX, double devicePixels)
+{
+    const double coordinate = target.line + devicePixels / target.scale;
+    return alongX ? core::PdfPoint{coordinate, target.across}
+                  : core::PdfPoint{target.across, coordinate};
+}
+
+void setZoom(Viewer& viewer, double zoom)
+{
+    viewer.view->setZoom(core::render::Zoom{zoom});
+    viewer.view->refresh();
+    QCoreApplication::processEvents();
+    viewer.fixture.pumpTiles();
+}
+
+void pageMouse(const Viewer& viewer, QEvent::Type type, QPoint pos, Qt::MouseButton button,
+               Qt::MouseButtons buttons)
+{
+    QMouseEvent event(type, QPointF(pos), QPointF(pos), button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent(viewer.view->viewport(), &event);
+    QCoreApplication::processEvents();
+}
+
+} // namespace
+
+TEST_CASE("a guide dragged near a grid line snaps to it at 50 and 400 percent", "[rulers][I-16]")
+{
+    Viewer viewer;
+    viewer.fixture.settings.set(core::keys::units::gridSpacing, 72.0);
+    viewer.fixture.settings.set(core::keys::units::gridSubdivisions, 1);
+    viewer.fixture.settings.set(core::keys::units::showGrid, true);
+    viewer.fixture.settings.set(core::keys::units::snapToGrid, true);
+    // Guides OFF for the grid's half, so a guide dropped earlier cannot be what a later one snaps to.
+    viewer.fixture.settings.set(core::keys::units::snapToGuides, false);
+    QCoreApplication::processEvents();
+    REQUIRE(viewer.guides().activeFlags() == core::SnapFlags::Grid);
+
+    for (const double zoom : {0.5, 4.0}) {
+        DYNAMIC_SECTION("zoom " << zoom)
+        {
+            setZoom(viewer, zoom);
+
+            // Both rulers: the top one makes a line of constant x, the left one constant y.
+            for (const bool alongX : {true, false}) {
+                // Cleared per axis, so the guides of the other axis cannot be what a press grabs.
+                viewer.guides().setGuides({});
+
+                ui::RulerWidget* ruler = alongX ? viewer.horizontal() : viewer.vertical();
+                const SnapTarget target = visibleGridLine(viewer, alongX, 72.0);
+                INFO("zoom " << zoom << (alongX ? ", x" : ", y") << ", line " << target.line
+                              << " pt, " << target.scale << " device px per pt");
+
+                // DROPPED 5 device pixels off the line: it lands ON the line, exactly.
+                viewer.dragGuideFrom(ruler, viewer.viewportPointFor(target.page,
+                                                                    offsetFrom(target, alongX, 5.0)));
+                REQUIRE(viewer.guides().guideCount(-1) == 1);
+                CHECK_THAT(viewer.guides().guides().back().position, WithinAbs(target.line, 1e-6));
+
+                // THE CONTROL: 13 device pixels off does NOT snap. It lands at the pointer, which is
+                // more than the 8-pixel threshold from the line.
+                viewer.dragGuideFrom(ruler, viewer.viewportPointFor(target.page,
+                                                                    offsetFrom(target, alongX, 13.0)));
+                REQUIRE(viewer.guides().guideCount(-1) == 2);
+                const double offLine = viewer.guides().guides().back().position;
+                CHECK(std::abs(offLine - target.line) * target.scale > 8.0);
+
+                // AND THE GUIDE JUST PLACED, picked up on the page and MOVED to 5 pixels off the
+                // line -- the snap on `dragTo`, which is the other half of the gesture.
+                const int moving = 1;
+                const QPoint grab = viewer.viewportPointFor(
+                    target.page, alongX ? core::PdfPoint{offLine, target.across}
+                                        : core::PdfPoint{target.across, offLine});
+                pageMouse(viewer, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+                REQUIRE(viewer.guides().draggedGuide() == moving);
+                const QPoint onto = viewer.viewportPointFor(target.page,
+                                                            offsetFrom(target, alongX, -5.0));
+                pageMouse(viewer, QEvent::MouseMove, onto, Qt::NoButton, Qt::LeftButton);
+                pageMouse(viewer, QEvent::MouseButtonRelease, onto, Qt::LeftButton, Qt::NoButton);
+                CHECK_THAT(viewer.guides().guides()[static_cast<std::size_t>(moving)].position,
+                           WithinAbs(target.line, 1e-6));
+            }
+        }
+    }
+
+    SECTION("with snap to grid off the same drop lands where it was dropped")
+    {
+        viewer.fixture.settings.set(core::keys::units::snapToGrid, false);
+        QCoreApplication::processEvents();
+        REQUIRE(viewer.guides().activeFlags() == core::SnapFlags::None);
+
+        const SnapTarget target = visibleGridLine(viewer, true, 72.0);
+        viewer.dragGuideFrom(viewer.horizontal(),
+                             viewer.viewportPointFor(target.page, offsetFrom(target, true, 5.0)));
+        REQUIRE(viewer.guides().guideCount(-1) == 1);
+        CHECK(std::abs(viewer.guides().guides().back().position - target.line) > 1e-3);
+    }
+}
+
+TEST_CASE("a guide snaps to another guide but never to itself", "[rulers][I-16]")
+{
+    Viewer viewer;
+    viewer.fixture.pumpTiles();
+    // Guides only, which is how the product ships (`units/snapToGuides` on, `units/snapToGrid` off).
+    REQUIRE(viewer.guides().activeFlags() == core::SnapFlags::Guides);
+
+    const SnapTarget target = visibleGridLine(viewer, true, 72.0);
+    const double pointsPerDevicePixel = 1.0 / target.scale;
+    const double pixelSlack = viewer.view->devicePixelRatioF() * pointsPerDevicePixel * 1.5;
+
+    // The anchor, then a second guide dropped 5 device pixels from it: the second takes the first's
+    // coordinate.
+    viewer.dragGuideFrom(viewer.horizontal(),
+                         viewer.viewportPointFor(target.page, offsetFrom(target, true, 0.0)));
+    REQUIRE(viewer.guides().guideCount(-1) == 1);
+    const double anchor = viewer.guides().guides().front().position;
+
+    viewer.dragGuideFrom(viewer.horizontal(),
+                         viewer.viewportPointFor(target.page, offsetFrom(target, true, 5.0)));
+    REQUIRE(viewer.guides().guideCount(-1) == 2);
+    CHECK_THAT(viewer.guides().guides().back().position, WithinAbs(anchor, 1e-9));
+
+    SECTION("a lone guide nudged 5 pixels moves -- its own position is not a candidate")
+    {
+        viewer.guides().setGuides({});
+        viewer.dragGuideFrom(viewer.horizontal(),
+                             viewer.viewportPointFor(target.page, offsetFrom(target, true, 0.0)));
+        REQUIRE(viewer.guides().guideCount(-1) == 1);
+        const double start = viewer.guides().guides().front().position;
+
+        const QPoint grab = viewer.viewportPointFor(target.page, {start, target.across});
+        pageMouse(viewer, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+        REQUIRE(viewer.guides().dragging());
+        const core::PdfPoint to{start + 5.0 * pointsPerDevicePixel, target.across};
+        const QPoint nudge = viewer.viewportPointFor(target.page, to);
+        REQUIRE(nudge != grab);
+        pageMouse(viewer, QEvent::MouseMove, nudge, Qt::NoButton, Qt::LeftButton);
+        pageMouse(viewer, QEvent::MouseButtonRelease, nudge, Qt::LeftButton, Qt::NoButton);
+
+        const double moved = viewer.guides().guides().front().position;
+        CHECK(moved > start);
+        CHECK_THAT(moved, WithinAbs(to.x, pixelSlack));
+    }
+}
+
+// =============================================================================================
+// A-88 -- a red cursor marker on each ruler, with the reading beside it (I-17).
+//
+// The user's request of 2026-09-26, while preparing M-07: the marker was the accent blue and there
+// was no number anywhere -- `Features.md` §1.3 promised a live readout in the status bar, and none
+// was built. The readout is now on the rulers, beside the marker.
+//
+// What it does NOT cover (convention 19): whether the number is LEGIBLE on a 150 % panel or at
+// `general/uiFontScale` 0.75 -- M-07's; the text is asserted as a string and the box as painted
+// pixels, never the glyphs inside it.
+// =============================================================================================
+
+TEST_CASE("the cursor readout is the reading at the marker in the ruler's unit", "[rulers][I-17]")
+{
+    ui::RulerWidget ruler(Qt::Horizontal);
+    ui::RulerWidget::Mapping mapping;
+    mapping.valid = true;
+    mapping.pixelsPerPoint = 1.0;
+    mapping.zeroPixel = 10.0;
+    mapping.extentPoints = 600.0;
+    ruler.setMapping(mapping);
+
+    // No marker, no number -- the control for every line below.
+    CHECK(ruler.cursorReadout().isEmpty());
+
+    // 144 points from the page's drawn edge, in all five units.
+    ruler.setCursorPixel(10.0 + 144.0);
+    const std::pair<core::Unit, const char*> expected[] = {
+        {core::Unit::Points, "144.0"},      {core::Unit::Inches, "2.00"},
+        {core::Unit::Millimetres, "50.8"},  {core::Unit::Centimetres, "5.08"},
+        {core::Unit::Picas, "12.00"},
+    };
+    for (const auto& [unit, text] : expected) {
+        ruler.setUnit(unit);
+        CHECK(ruler.cursorReadout() == QString::fromLatin1(text));
+    }
+
+    // At an eightfold zoom the same page point reads the same.
+    ruler.setUnit(core::Unit::Inches);
+    mapping.pixelsPerPoint = 4.0;
+    ruler.setMapping(mapping);
+    ruler.setCursorPixel(10.0 + 144.0 * 4.0);
+    CHECK(ruler.cursorReadout() == QStringLiteral("2.00"));
+
+    // Off the page's near edge the reading is negative rather than clamped: the ruler says how far
+    // outside the sheet the pointer is, which is what a person measuring a margin wants. (The zero
+    // moves right first: a negative WIDGET pixel is the no-marker sentinel, not a reading.)
+    mapping.zeroPixel = 200.0;
+    ruler.setMapping(mapping);
+    ruler.setCursorPixel(200.0 - 36.0 * 4.0);
+    CHECK(ruler.cursorReadout() == QStringLiteral("-0.50"));
+
+    ruler.setCursorPixel(-1.0);
+    CHECK(ruler.cursorReadout().isEmpty());
+}
+
+TEST_CASE("the readout follows the pointer over the page and leaves with it", "[rulers][I-17]")
+{
+    Viewer viewer;
+    viewer.fixture.pumpTiles();
+
+    const int page = viewer.controller().currentPage();
+    const auto slot = viewer.layout().slotForPage(page);
+    REQUIRE(slot != nullptr);
+
+    // Two inches in from the page's drawn left edge and one inch down from its drawn top: PDF y
+    // counts UP, so "down from the top" is `top() - 72`.
+    const QPoint at = viewer.viewportPointFor(page, {slot->cropBox.left() + 144.0,
+                                                     slot->cropBox.top() - 72.0});
+    QMouseEvent move(QEvent::MouseMove, QPointF(at), QPointF(at), Qt::NoButton, Qt::NoButton,
+                     Qt::NoModifier);
+    QCoreApplication::sendEvent(viewer.view->viewport(), &move);
+    QCoreApplication::processEvents();
+
+    // Within one pixel's worth of inches: the pointer lands on an integer pixel.
+    const double inchesPerPixel = viewer.view->devicePixelRatioF() / viewer.layout().presentedScale() / 72.0;
+    const QString across = viewer.horizontal()->cursorReadout();
+    const QString down = viewer.vertical()->cursorReadout();
+    INFO("horizontal " << across.toStdString() << ", vertical " << down.toStdString());
+    REQUIRE_FALSE(across.isEmpty());
+    REQUIRE_FALSE(down.isEmpty());
+    CHECK_THAT(across.toDouble(), WithinAbs(2.0, inchesPerPixel * 1.5 + 0.005));
+    CHECK_THAT(down.toDouble(), WithinAbs(1.0, inchesPerPixel * 1.5 + 0.005));
+
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(viewer.view->viewport(), &leave);
+    QCoreApplication::processEvents();
+    CHECK(viewer.horizontal()->cursorReadout().isEmpty());
+    CHECK(viewer.vertical()->cursorReadout().isEmpty());
+}
+
+TEST_CASE("the cursor marker is red with its reading beside it, in both themes", "[rulers][I-17]")
+{
+    Fixture fixture;   // for the settings the theme reads, and nothing else
+
+    // A real font, for the reason the I-13 case above gives: offscreen draws glyphs as boxes, and
+    // the readout's box is sized from the text's metrics.
+    const int loaded =
+        QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/arial.ttf"));
+    REQUIRE(loaded >= 0);
+    const QStringList families = QFontDatabase::applicationFontFamilies(loaded);
+    REQUIRE_FALSE(families.isEmpty());
+    const QFont real(families.front(), 9);
+
+    ui::RulerWidget::Mapping mapping;
+    mapping.valid = true;
+    mapping.pixelsPerPoint = 1.0;
+    mapping.zeroPixel = 10.0;
+    mapping.extentPoints = 600.0;
+
+    constexpr int kLength = 400;
+    const int across = ui::RulerWidget::kThickness;
+    const QColor red = ui::RulerWidget::markerColour();
+
+    // The ruler painted with the marker at `cursor`, or with none at -1. `pixelAt(along, across)`
+    // reads either orientation with one pair of coordinates.
+    struct Painted {
+        QImage          image;
+        Qt::Orientation orientation;
+        QColor pixelAt(int along, int acrossAt) const
+        {
+            return orientation == Qt::Horizontal ? image.pixelColor(along, acrossAt)
+                                                 : image.pixelColor(acrossAt, along);
+        }
+        // Pixels of the marker's red in [from, to) along the ruler, across the OUTER strip where
+        // the readout's box goes.
+        int redIn(int from, int to, const QColor& red, int strip) const
+        {
+            int count = 0;
+            for (int along = std::max(0, from); along < to; ++along)
+                for (int a = 1; a < strip; ++a)
+                    if (uitest::deltaE76(pixelAt(along, a), red) < 3.0) ++count;
+            return count;
+        }
+    };
+    const auto paint = [&](Qt::Orientation orientation, double cursor) {
+        ui::RulerWidget ruler(orientation);
+        ruler.setFont(real);
+        ruler.setMapping(mapping);
+        ruler.setUnit(core::Unit::Points);
+        if (orientation == Qt::Horizontal) ruler.resize(kLength, across);
+        else                               ruler.resize(across, kLength);
+        ruler.setCursorPixel(cursor);
+        return Painted{ruler.grab().toImage(), orientation};
+    };
+
+    const QPalette before = QApplication::palette();
+    ui::ThemeManager theme(fixture.settings);
+
+    for (const core::Theme requested : {core::Theme::Light, core::Theme::Dark}) {
+        fixture.settings.set(core::keys::general::theme, requested);
+        theme.apply();
+        QCoreApplication::processEvents();
+
+        for (const Qt::Orientation orientation : {Qt::Horizontal, Qt::Vertical}) {
+            const char* name = orientation == Qt::Horizontal ? "horizontal" : "vertical";
+            const Painted without = paint(orientation, -1.0);
+            const Painted with = paint(orientation, 200.0);
+
+            // THE LINE, read on the INNER edge where the box never goes, against the SAME pixel
+            // painted without a marker -- so it is measured against whatever the ruler has there,
+            // tick or background, in this theme.
+            // Which column an aliased line at x = 200.0 fills is the rasterizer's business, so the
+            // reddest of the three around it is the line.
+            int column = 199;
+            for (int c = 200; c <= 201; ++c)
+                if (uitest::deltaE76(with.pixelAt(c, across - 2), red)
+                    < uitest::deltaE76(with.pixelAt(column, across - 2), red))
+                    column = c;
+            const QColor line = with.pixelAt(column, across - 2);
+            const QColor under = without.pixelAt(column, across - 2);
+            UNSCOPED_INFO((requested == core::Theme::Dark ? "dark " : "light ")
+                          << name << ": line " << line.name().toStdString() << " over "
+                          << under.name().toStdString() << " deltaE "
+                          << uitest::deltaE76(line, under));
+            CHECK(uitest::deltaE76(line, red) < 3.0);
+            CHECK(uitest::deltaE76(line, under) >= 3.0 * uitest::kDistinctSurfaceDeltaE);
+
+            // AND IT IS TWO PIXELS WIDE, not a hairline -- the user's request of 2026-09-26. Counted
+            // on the inner edge, where the readout's box never reaches.
+            int redColumns = 0;
+            for (int c = 195; c <= 205; ++c)
+                if (uitest::deltaE76(with.pixelAt(c, across - 2), red) < 3.0) ++redColumns;
+            UNSCOPED_INFO("marker width " << redColumns << " px");
+            // A NUMBER, not `kMarkerWidth`: a case that read the constant would pass whatever it was
+            // set to, which is how its first version passed the 1-pixel plant.
+            CHECK(redColumns >= 2);
+            CHECK(redColumns <= 3);
+
+            // THE READOUT'S BOX, after the marker. And none of that red anywhere without a marker:
+            // the control, so a ruler that painted red for some other reason could not pass.
+            const int strip = across / 2 + 2;
+            CHECK(with.redIn(204, kLength, red, strip) > 60);
+            CHECK(without.redIn(0, kLength, red, strip) == 0);
+
+            // Near the far end it goes BEFORE the marker instead, rather than off the ruler.
+            const Painted atEnd = paint(orientation, kLength - 4.0);
+            CHECK(atEnd.redIn(0, kLength - 8, red, strip) > 60);
+        }
+    }
+
+    QApplication::setPalette(before);
+}
+
+// =============================================================================================
+// A-89 -- a guide being pulled off a ruler is shown DOTTED on the page until the release.
+//
+// The user's request of 2026-09-26: while the button is still down over a page, a dotted line
+// where the guide will land. The preview is the guide `dropGuide` would make -- snapped included --
+// so the cases assert it against the drop, not against a second copy of the arithmetic.
+//
+// What it does NOT cover (convention 19): whether the dots READ as "not placed yet" beside a
+// placed guide and a locked one, on a real panel -- M-07's.
+// =============================================================================================
+
+namespace {
+
+// One stage of a ruler drag, sent to the RULER, which holds the grab -- the same route
+// `Viewer::dragGuideFrom` takes, split so a case can look between the stages.
+void rulerMouse(ui::RulerWidget* ruler, QEvent::Type type, QPointF global, Qt::MouseButton button,
+                Qt::MouseButtons buttons)
+{
+    QMouseEvent event(type, ruler->mapFromGlobal(global), global, global, button, buttons,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(ruler, &event);
+    QCoreApplication::processEvents();
+}
+
+// The most guide-coloured viewport column within two pixels of `x`, over the rows `[top, bottom)`,
+// and how many of those rows it has. A dotted line has gaps; a solid one has none.
+int guidePixelsInColumn(const Viewer& viewer, int x, int top, int bottom)
+{
+    QPixmap grab(viewer.view->viewport()->size());
+    viewer.view->viewport()->render(&grab);
+    const QImage image = grab.toImage();
+    const QColor colour = ui::GridGuideLayer::guideColour();
+
+    int best = 0;
+    for (int column = std::max(0, x - 2); column <= std::min(image.width() - 1, x + 2); ++column) {
+        int count = 0;
+        for (int row = std::max(0, top); row < std::min(image.height(), bottom); ++row)
+            if (uitest::deltaE76(image.pixelColor(column, row), colour) < 3.0) ++count;
+        best = std::max(best, count);
+    }
+    return best;
+}
+
+} // namespace
+
+TEST_CASE("a guide pulled off a ruler is dotted until the release", "[rulers][guide-preview]")
+{
+    Viewer viewer;
+    viewer.fixture.pumpTiles();
+
+    const int page = viewer.controller().currentPage();
+    const auto slot = viewer.layout().slotForPage(page);
+    REQUIRE(slot != nullptr);
+    const core::PdfPoint target{slot->cropBox.left() + 100.0, slot->cropBox.top() - 150.0};
+    const QPoint at = viewer.viewportPointFor(page, target);
+    const QPointF overPage = viewer.view->viewport()->mapToGlobal(QPointF(at));
+    const QPointF onRuler = viewer.horizontal()->mapToGlobal(QPointF(40.0, 4.0));
+
+    // The rows of the page that are on screen, in viewport pixels -- where the line is looked for.
+    const core::DeviceRect visible = viewer.controller().visibleRect();
+    const double dpr = viewer.view->devicePixelRatioF();
+    const int top = static_cast<int>((std::max(slot->rect.top(), visible.top()) - visible.top()) / dpr) + 1;
+    const int bottom =
+        static_cast<int>((std::min(slot->rect.bottom(), visible.bottom()) - visible.top()) / dpr) - 1;
+    REQUIRE(bottom - top > 100);
+
+    ui::RulerWidget* ruler = viewer.horizontal();
+    REQUIRE(guidePixelsInColumn(viewer, at.x(), top, bottom) == 0);   // nothing there yet
+
+    // PRESSED on the ruler: nothing on the page yet.
+    rulerMouse(ruler, QEvent::MouseButtonPress, ruler->mapToGlobal(QPointF(4.0, 4.0)),
+               Qt::LeftButton, Qt::LeftButton);
+    CHECK_FALSE(viewer.guides().preview().has_value());
+
+    // DRAGGED over the page, button still down: a preview, and NOT a guide.
+    rulerMouse(ruler, QEvent::MouseMove, overPage, Qt::NoButton, Qt::LeftButton);
+    REQUIRE(viewer.guides().preview().has_value());
+    CHECK(viewer.guides().guideCount(-1) == 0);
+    const core::Guide preview = *viewer.guides().preview();
+    CHECK(preview.orientation == core::Guide::Orientation::Vertical);
+    CHECK(preview.pageIndex == page);
+
+    // DOTTED, measured on painted pixels: guide-coloured along the column, with gaps.
+    const int span = bottom - top;
+    const int dotted = guidePixelsInColumn(viewer, at.x(), top, bottom);
+    INFO("span " << span << ", dotted " << dotted);
+    CHECK(dotted > span / 5);
+    CHECK(dotted < span * 3 / 4);
+
+    SECTION("released over the page, it becomes the solid guide it previewed")
+    {
+        rulerMouse(ruler, QEvent::MouseButtonRelease, overPage, Qt::LeftButton, Qt::NoButton);
+        CHECK_FALSE(viewer.guides().preview().has_value());
+        REQUIRE(viewer.guides().guideCount(-1) == 1);
+        CHECK(viewer.guides().guides().front() == preview);
+
+        const int solid = guidePixelsInColumn(viewer, at.x(), top, bottom);
+        INFO("solid " << solid);
+        CHECK(solid > span * 9 / 10);   // THE CONTROL: the same measurement, no gaps
+    }
+
+    SECTION("dragged back onto the ruler, the preview goes, and a release there makes nothing")
+    {
+        rulerMouse(ruler, QEvent::MouseMove, onRuler, Qt::NoButton, Qt::LeftButton);
+        CHECK_FALSE(viewer.guides().preview().has_value());
+        CHECK(guidePixelsInColumn(viewer, at.x(), top, bottom) == 0);
+
+        rulerMouse(ruler, QEvent::MouseButtonRelease, onRuler, Qt::LeftButton, Qt::NoButton);
+        CHECK(viewer.guides().guideCount(-1) == 0);
+        CHECK_FALSE(viewer.guides().preview().has_value());
+    }
+}
+
+TEST_CASE("the dotted preview sits where the snapped guide will land", "[rulers][guide-preview]")
+{
+    Viewer viewer;
+    viewer.fixture.settings.set(core::keys::units::gridSpacing, 72.0);
+    viewer.fixture.settings.set(core::keys::units::gridSubdivisions, 1);
+    viewer.fixture.settings.set(core::keys::units::showGrid, true);
+    viewer.fixture.settings.set(core::keys::units::snapToGrid, true);
+    QCoreApplication::processEvents();
+    viewer.fixture.pumpTiles();
+
+    const SnapTarget target = visibleGridLine(viewer, true, 72.0);
+    const QPoint closeBy = viewer.viewportPointFor(target.page, offsetFrom(target, true, 5.0));
+    const QPointF overPage = viewer.view->viewport()->mapToGlobal(QPointF(closeBy));
+
+    ui::RulerWidget* ruler = viewer.horizontal();
+    rulerMouse(ruler, QEvent::MouseButtonPress, ruler->mapToGlobal(QPointF(4.0, 4.0)),
+               Qt::LeftButton, Qt::LeftButton);
+    rulerMouse(ruler, QEvent::MouseMove, overPage, Qt::NoButton, Qt::LeftButton);
+
+    // 5 device pixels off the line, and the preview is ON it -- the promise the release keeps.
+    REQUIRE(viewer.guides().preview().has_value());
+    CHECK_THAT(viewer.guides().preview()->position, WithinAbs(target.line, 1e-6));
+
+    rulerMouse(ruler, QEvent::MouseButtonRelease, overPage, Qt::LeftButton, Qt::NoButton);
+    REQUIRE(viewer.guides().guideCount(-1) == 1);
+    CHECK_THAT(viewer.guides().guides().front().position, WithinAbs(target.line, 1e-6));
 }

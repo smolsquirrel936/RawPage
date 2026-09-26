@@ -7,12 +7,15 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **87 automated** (A-01 … A-86, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 87 carry
-> a result** as of 2026-09-26 (re-derived from this file: 87 case headers, none still boxed — the
+> partly run.** **90 automated** (A-01 … A-89, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 90 carry
+> a result** as of 2026-09-26 (re-derived from this file: 90 case headers, none still boxed — the
 > 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
 > **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**,
-> the case D4-18 was recorded with that day; **A-85 SKIPS under `ctest`** — it needs two monitors at
+> the case D4-18 was recorded with that day; the 88th and 89th are **A-87** and **A-88**, added
+> the same day with I-16's fix and I-17's, both found while preparing M-07's walk, and the 90th is
+> **A-89**, the dotted preview of a guide being dragged — a request of the user's that day, not a
+> defect; **A-85 SKIPS under `ctest`** — it needs two monitors at
 > different scale factors, which the offscreen platform cannot have — and its result is a run on
 > the `windows` platform, recorded against it) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
@@ -41,12 +44,16 @@
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
 > same day**. The other five
-> are the stage's largest remaining gap. §8 holds **fifteen** issues and **only I-07 (S4) is open**;
+> are the stage's largest remaining gap. §8 holds **seventeen** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-15 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
-> the user asking about it after M-01 rather than inside a case.
+> the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
+> because no gesture called the resolver — was found by reading the code to write up how to walk
+> M-07, before anyone walked it; and **I-17** — the cursor readout `Features.md` §1.3 promised was
+> never built — by the user preparing the same walk, and closed on their decision: a red marker with
+> the reading beside it, on the rulers.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -249,7 +256,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | Exit criterion ([`Implementation-Plan.md` § Stage 4](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface)) | Closed by |
 |---|---|
 | All four layout modes plus split views work | A-53 … A-56 for the splits; the four layout modes are Stage 2's suites, re-run by name in A-74; **M-01**, **M-08** |
-| Rulers, grid, guides and snapping behave identically at 50 % and 400 % | A-45 … A-52, **M-07** |
+| Rulers, grid, guides and snapping behave identically at 50 % and 400 % | A-45 … A-52, **A-87**, **M-07** |
 | Full Screen and presentation work on a chosen monitor | A-57 … A-63, **A-85** (on the `windows` platform), **M-02**, **M-03** |
 | Window arrangement and session restore survive a monitor topology change | A-18 … A-24 (the fingerprint and the clamp), A-64 … A-66 (arrangement), A-75 … A-79 (restore), A-60 (a presentation's monitor disappearing), **M-04**, **M-05**, **M-09** |
 | *(Plan D4-1)* The viewing surface changes no document | A-06, A-07, A-31, A-35, A-48, A-63, A-69 |
@@ -262,6 +269,9 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(Plan D4-18)* One pair of rulers, following the focused pane of a split | **A-84**, **M-08** |
 | *(I-14)* A presentation moved to a monitor of another scale fills that monitor | **A-85**, and **M-02**, which found it |
 | *(I-15)* A `general/` preference survives a real restart | **A-86**, and **M-05**, which found it |
+| *(I-16)* A guide SNAPS when a person drags it — off a ruler or on the page | **A-87**, and **M-07** |
+| *(I-17)* The cursor's page coordinates are read out live, beside a red marker on each ruler | **A-88**, and **M-07** |
+| *(User request, 2026-09-26)* A guide being dragged off a ruler previews dotted, where it will land | **A-89**, and **M-07** |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1209,6 +1219,76 @@ re-walk is the launch.
 General section; a file with two is read whole. **If it fails** S2 — I-15 is back, and no general
 preference survives a restart.
 
+**A-87 · A guide SNAPS when a person drags it, at 50 % and at 400 % — I-16, closed** ✅
+✅ **2026-09-26** (`tests/ui/tst_rulers.cpp`, two cases tagged `[I-16]`). A-45 and A-46 prove the
+resolver's sums with no display, and A-47 drags guides through the widgets — and nothing joined the
+two: no case asked where a dragged guide LANDED against a grid line, and no gesture called the
+resolver. This case drags through the widgets and asserts the stored page coordinate. With the grid
+at **72 pt and one subdivision** (so lines are 48 device pixels apart at 50 % — A-46's trap is why)
+and `units/snapToGrid` on, **at 50 % and at 400 %, off the top ruler and off the left one**: a guide
+DROPPED 5 device pixels from a line lands on it exactly; one dropped 13 device pixels away does not —
+**the control, and the half the criterion does not ask for** (convention 22); and a guide already on
+the page, picked up and MOVED to 5 pixels from the line, lands on it — the snap on `dragTo`, the other
+half of the gesture. With `units/snapToGrid` off the same drop lands where it was dropped. The second
+case is guide-to-guide, as the product ships (`units/snapToGuides` on, `units/snapToGrid` off): a
+guide dropped 5 pixels from another takes its coordinate, and **a lone guide nudged 5 pixels MOVES** —
+the dragged guide is always within the threshold of its own last position, so a resolver that
+counted it would pin every guide in place. **Two planted controls, both run red:** the committed
+`GridGuideLayer.cpp` put back fails **9 assertions** — the drop and the move at both zooms on both
+axes, and guide-to-guide; the fix with the dragged guide NOT excluded fails the nudge alone,
+`288.0 > 288.0` — the guide never left.
+**What it does NOT cover** (convention 19): whether 8 device pixels FEELS the same distance at both
+zooms on a real panel — M-07's; and object edges, which no product surface supplies until Stage 6
+(A-45).
+**Steps** `ctest -R "snaps to it at 50|snaps to another guide"`.
+**Expect** A drop or a move within 8 device pixels of a grid line or another guide lands on it, at
+50 % and at 400 %; 13 pixels does not; a lone guide can be moved 5 pixels. **If it fails** S2 — I-16
+is back, and `Ctrl+;` moves no guide.
+
+**A-88 · A red, two-pixel cursor marker on each ruler, with the reading beside it — I-17, closed** ✅
+✅ **2026-09-26** (`tests/ui/tst_rulers.cpp`, three cases tagged `[I-17]`). **The string:** a ruler
+mapped at one pixel per point with its zero at 10, marker at 154, reads `144.0` pt, `2.00` in, `50.8`
+mm, `5.08` cm and `12.00` pc; the same page point at four pixels per point reads `2.00` in; 36 pt
+before the page's edge reads `-0.50` — negative, not clamped; no marker reads nothing. **The wiring:**
+a real mouse move over the page, two inches right of and one inch below the page's drawn corner,
+makes the product's two rulers read `2.00` and `1.00` within a pixel's worth; the pointer leaving
+empties both. **The paint, in BOTH themes** (convention 20) and both orientations: the marker's
+pixel on the inner edge is `#d93025`, deltaE **86.8** (light) and **82.4** (dark) from the same pixel
+painted without a marker, against a floor of 30; the readout's red box lies after the marker, and
+BEFORE it near the ruler's far end; and a ruler with no marker has none of that red at all — the
+control. **And the marker is 2 to 3 pixels wide**, counted on the inner edge (measured **2**) — the
+user's second request of the day, the first one being a hairline that vanished against the ticks.
+**Planted controls:** the old marker (`QPalette::Highlight`, no box) fails **16 assertions** —
+colour, contrast, box and flip, in both themes and both orientations; a one-pixel marker fails the
+width, `1 >= 2`, four times. **The width is asserted as a NUMBER, not as `kMarkerWidth`**: its first
+version compared against the constant, and passed the one-pixel plant, because the plant changed the
+constant too.
+**What it does NOT cover** (convention 19): whether the number is LEGIBLE on a 150 % panel or at
+`general/uiFontScale` 0.75 — M-07's. The glyphs are not read; the text is asserted as a string and
+the box as painted pixels.
+**Steps** `ctest -R "cursor readout|readout follows|cursor marker is red"`.
+**Expect** The number beside each marker is the reading at the marker, in the ruler's unit; the
+marker is the fixed red in both themes, two pixels wide. **If it fails** S3 — I-17 is back.
+
+**A-89 · A guide being pulled off a ruler is shown DOTTED until the release** ✅
+✅ **2026-09-26** (`tests/ui/tst_rulers.cpp`, two cases tagged `[guide-preview]`). The user's request
+the same day: while the button is still down over the page, a dotted line where the guide will land.
+Each ruler drag is sent in its stages to the ruler, which holds the grab. **Pressed** on the ruler:
+nothing on the page. **Dragged** over the page: a preview, and **not** a guide — `guideCount` stays 0.
+Painted, the preview's column is guide-coloured on **192 of 577** rows — dotted. **Released** over the
+page, the guide it becomes is `==` the preview, and the same measurement reads **577 of 577** — solid,
+the control. **Dragged back onto the ruler**, the preview is gone and the column has none of the
+guide's colour; released there, no guide. **With Snap to Grid on**, a drag 5 device pixels off a grid
+line previews ON the line, and the release lands there — the preview is `dropGuide`'s own guide
+(`GridGuideLayer::guideFromRuler`, one function for both), not a second opinion.
+**Planted controls:** the preview drawn solid fails `577 < 432`; the preview never wired from the
+ruler drag fails both cases at `preview().has_value()`.
+**What it does NOT cover** (convention 19): whether the dots read as *"not placed yet"* beside a
+placed guide (solid blue) and a locked one (grey dashes) on a real panel — M-07's.
+**Steps** `ctest -R "dotted until the release|dotted preview sits"`.
+**Expect** A dotted line on the page under a ruler drag, where the release will put the guide, snapped
+included; solid once released; nothing once the pointer leaves the page. **If it fails** S3.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -1424,13 +1504,37 @@ behaviour as expected, and no finding.
   was bad.
 
 **M-07 · Rulers, grid, guides and snapping by hand, at 50 % and 400 %** ☐
+- **Read before walking — written 2026-09-26, before the first walk.** Reading the code to explain
+  this case found **I-16 (S2)**: no gesture called the snap resolver, so `Ctrl+;` moved no guide at
+  all. It is fixed and **A-87** asserts it, so the snap step is now walkable; it had never been seen
+  by a person. **And the readout this case's Expect names did not exist** — `Features.md` §1.3 put
+  it in the status bar and nothing was built (**I-17**); on the user's decision the same day it is
+  the NUMBER in a red box beside a red marker on each ruler (**A-88**) — and, also on the user's
+  requests that day, the marker is two pixels wide and a guide being dragged off a ruler shows
+  **dotted** on the page until the release (**A-89**). Three things about the steps below, so a planned behaviour is not reported as a defect
+  and a defect is not hidden by the settings:
+  - **Set grid subdivisions to 1 (Units & Guides) before judging the snap distance.** At the default
+    four, the finest lines are 18 pt apart, which at 50 % on the 150 % panel is 9 device pixels — every
+    point is within the 8-pixel threshold of SOME line, so the guide always snaps and the distance
+    cannot be judged (A-46's trap, by hand). The finest line is what snaps (`core/Snap.h`).
+  - **A guide snaps to another guide before the grid** — `units/snapToGuides` is on by default and
+    guides outrank grid lines (D4-6) — so keep the guide you are dragging away from the others. Snap
+    to Grid only acts while the grid is **shown**.
+  - **Clear All Guides spares a LOCKED guide** — by design (`Features.md` §1.3 lists lock and clear
+    side by side). Drag a new guide or two out after the clear, so the relaunch has something to bring
+    back besides the locked one. And the relaunch restores them only with *Reopen the previous session
+    at startup* on (Preferences → General) — M-05's step 5 turned it off.
 - **Goal** The exit criterion's *"identically at 50 % and 400 %"*, which is about how it feels.
-- **Pre** `corpus\ordinary\text-a4.pdf` copied to `tests\manual\M-07\`.
-- **Steps** Show the rulers (`Ctrl+U`) and the grid (`Ctrl+'`). Change the unit through all five.
+- **Pre** `corpus\ordinary\text-a4.pdf` copied to `tests\manual\M-07\`, on the **150 %** monitor —
+  A-49 and A-83 hand the rulers' legibility on a 150 % panel to this case.
+- **Steps** Show the rulers (`Ctrl+U`) and the grid (`Ctrl+'`). Change the unit through all five,
+  and at each put the pointer on the page's right and bottom edges — `text-a4.pdf` is
+  595.3 × 841.9 pt, 8.27 × 11.69 in, 210 × 297 mm, 21.0 × 29.7 cm, 49.6 × 70.2 pc.
   Drag two guides out of each ruler. Turn on Snap to Grid (`Ctrl+;`) and drag a guide near a grid
   line, at 50 % and then at 400 %. Lock one guide and try to move it. Clear all guides. Quit and
   relaunch.
-- **Expect** The readout matches the ruler; the snap **grabs from the same visual distance at both
+- **Expect** The red readout beside each marker matches the ticks under the marker, reads 0 at the
+  page's top-left corner and the page's size at its far edges, and is legible; the snap **grabs from the same visual distance at both
   zooms**; a locked guide does not move; guides come back after the relaunch and the file's
   timestamp has not changed.
 - **If it fails** S2 for the snap distance; **S1 if the document's timestamp moved.**
@@ -1567,6 +1671,8 @@ uses.
 | **I-13** | **S3** | **The vertical ruler printed NO numbers: each label was rotated about x = 0, which carried it off the widget's left edge** | ✅ **Closed 2026-09-26, the day the user asked** — the label is anchored at the tick side of its strip, and **A-83** counts painted ink in both rulers |
 | **I-14** | **S2** | **`Ctrl+Shift+M` moved the presentation to a monitor of another scale and kept its PHYSICAL size — a quarter of the 4K panel, or overflowing the 2K one** | ✅ **Closed 2026-09-26, the day M-02 raised it** — a move hides, places and shows, as the first placement always did; **A-85** measures physical rectangles on the real monitors |
 | **I-15** | **S2** | **No `general/` preference was ever read back after a real restart — theme, UI font scale, touch mode and all three session switches: QSettings reads `[%General]` back as `General/`** | ✅ **Closed 2026-09-26, the day M-05 raised it** — `Settings` maps `general/` ↔ `General/` at its one boundary with QSettings; **A-86** reloads from a copy, past QSettings' per-process cache |
+| **I-16** | **S2** | **`Ctrl+;` snapped no guide: `GridGuideLayer::snap` had no caller, so a guide dragged off a ruler or moved on the page stored the raw pointer coordinate** | ✅ **Closed 2026-09-26, the day it was found** — reading the code before M-07's walk; `dragTo` and `dropGuide` resolve through the snap with the dragged guide excluded, and **A-87** asserts where a dragged guide lands |
+| **I-17** | **S3** | **No cursor readout anywhere: `Features.md` §1.3 promised the cursor's page coordinates live in the status bar, the stage plan listed "the coordinate readout", and neither was built — the rulers' accent-blue markers were the only indication** | ✅ **Closed 2026-09-26, the day the user raised it** — on their decision, a **red** marker on each ruler with the **reading beside it** in the ruler's unit; `Features.md` §1.3 corrected to say so; **A-88** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1985,12 +2091,64 @@ until now — and **nothing changes**, because `general/touchMode` is declared a
 (`Implementation-Plan.md`; Stage 1's I-38): no code reads it. *(This line first said the fixed build
 would apply it — a claim made without reading the code, corrected the same day.)*
 
+**I-16 · `Ctrl+;` snapped no guide.** *(Raised 2026-09-26 — not by a walk: by reading the code to tell
+the user how to walk M-07, before anyone had. The defect is T8's.)*
+
+**Mechanism.** T8 built the resolver in `core/Snap` and a `GridGuideLayer::snap()` in front of it that
+gathers the page's guides and the grid and calls down — and **nothing called `GridGuideLayer::snap()`**.
+The two gestures that place a guide store the raw pointer coordinate: `dragTo` (a guide picked up on the
+page, `PageView::mouseMoveEvent`) passed `document->point` straight to `moveGuide`, and `dropGuide` (a
+guide pulled off a ruler, through `DocumentWindow`) straight into the new guide. So `Ctrl+;` flipped
+`units/snapToGrid`, the ribbon's checked state followed it, and no guide in the product ever snapped —
+to the grid or, although `units/snapToGuides` ships ON, to another guide.
+
+**Why no case caught it.** The work was split along a seam and no case crossed it. **A-45 and A-46**
+prove the precedence and the device-pixel threshold over synthetic geometry, headless, by calling
+`core::snap` directly — correct, and silent about whether anything reaches it. **A-47** drags guides
+through the real widgets, and asserts they land at the pointer — which is exactly what a guide that
+never snaps does. **A-51** proves `Ctrl+;` toggles the setting. Each half was green, and the claim the
+exit criterion makes — *snapping behaves identically at 50 % and 400 %* — was asserted of a function
+the product never ran. `tst_rulers.cpp`'s header even named the gap as M-07's (*"whether the 8-device-
+pixel tolerance FEELS the same"*), which is a question about a feel that did not exist yet.
+
+**The fix, 2026-09-26.** `dragTo` and `dropGuide` resolve the point through the same path `snap()`
+takes, with `activeFlags()` and the layout's presented scale, and keep the coordinate the guide
+constrains. **A dragged guide is left out of the candidates** — it sits under the pointer by
+construction, and counting it would pin every guide at its own last position the moment guide-snapping
+worked (the second planted control proves that happens). The drag snaps on every move, not on release,
+so the line a person watches is the line they get. The drop's feedback marker on the ruler still shows
+the raw pointer; the guide lands snapped. **A-87** is two cases and two planted controls, both run red.
+
+**I-17 · No cursor readout anywhere.** *(Raised 2026-09-26 by the user, preparing M-07: *"there's no
+readout"* — and asking that the rulers' markers be red with the coordinate beside them.)*
+
+**Mechanism.** `Features.md` §1.3 lists *"Read out the cursor's page coordinates live in the status
+bar"*, and `Stage4-ViewingSurface-Plan.md` §4 assigned *"the coordinate readout"* to the shell's
+files for T5 … T12. T8 built the rulers with a cursor marker in `QPalette::Highlight` — the accent
+blue — and `RulerWidget::readingAt()`, whose comment said the shell needed it *"for the status-bar
+readout"*; nothing ever called it for one, and the status bar has only the page box and the zoom.
+`Architecture-FileMap.md`'s `DocumentWindow` row credited T12 with *"the coordinate readout"* all the
+same, which is the claim that made the absence look settled.
+
+**Why no case caught it.** A-49 is titled *"The rulers read out the cursor's page coordinates"* and
+asserts `readingAt()` — the arithmetic a readout would print — and that the marker moves; M-07's
+Expect says *"the readout matches the ruler"*. Both treat the readout as existing; neither names
+where a person reads it. A case asserting a function's answer is not a case asserting anyone sees it.
+
+**The fix, 2026-09-26 — on the user's decision, which also moves the capability.** The readout is on
+the RULERS, not the status bar: each ruler's marker is a fixed **red** (`#D93025`), and the reading at
+it is painted beside it in white on the same red, in the ruler's unit, after the marker or before it
+near the ruler's end. The red is the one colour the ruler does not take from the palette; it carries
+its own background for the number and is measured against both themes. `Features.md` §1.3 is
+corrected in the same change, and `RulerWidget::cursorReadout()` is the string. **A-88** is three
+cases and one planted control run red.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-26 — all 87 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-26 — all 90 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2007,8 +2165,13 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-26, re-run after I-15's fix: 1119/1119 on `x64-release` and on `x64-debug`**, the two
-   new cases A-86's, with the same two named skips and `checks` clean. *Before that,* **after I-14's
+4. ✅ **2026-09-26, re-run after the dotted preview and the two-pixel marker: 1126/1126 on
+   `x64-release` and on `x64-debug`**, the two new cases A-89's, with the same two named skips and
+   `checks` clean (`layer-lint` 423 files / 3,376 includes; no `warning:` line from either incremental
+   build). *Before that,* **after I-17's fix: 1124/1124 on both presets**, the three new cases A-88's.
+   *Before that,* **after I-16's
+   fix: 1121/1121 on both presets**, the two new cases A-87's. *Before that,* **after I-15's fix: 1119/1119 on both presets**, the two new
+   cases A-86's. *Before that,* **after I-14's
    fix: 1117/1117 on `x64-release` and on `x64-debug`**, with
    **two** named skips — the battery case, and **A-85**, which needs two monitors at different scales
    and was run on the `windows` platform instead, passing on both presets — and `checks` clean
@@ -2064,8 +2227,11 @@ restated as a checklist.
    raised **I-11 (S2)** and **I-12 (S3)** and both closed that day, with **A-81** and **A-82**; the
    user's question after it raised **I-13 (S3)**, the vertical ruler with no numbers, closed the same
    day with **A-83**; M-02's walk raised **I-14 (S2)**, a moved presentation keeping its physical
-   size, closed the same day with **A-85**; and M-05's raised **I-15 (S2)**, no general preference
-   surviving a restart, closed the same day with **A-86**.
+   size, closed the same day with **A-85**; M-05's raised **I-15 (S2)**, no general preference
+   surviving a restart, closed the same day with **A-86**; and reading the code before M-07's walk
+   raised **I-16 (S2)**, a snap no gesture called, closed the same day with **A-87**; and the user,
+   preparing that walk, raised **I-17 (S3)**, no cursor readout anywhere, closed the same day with
+   **A-88**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.

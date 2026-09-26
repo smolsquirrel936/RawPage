@@ -201,12 +201,21 @@ void DocumentWindow::build(const Recovery* recovery)
         // during the drag -- without it a guide appears from nowhere on release.
         connect(ruler, &RulerWidget::guideDragged, this,
                 [this](Qt::Orientation orientation, QPoint global) {
-                    const QPoint local = view()->viewport()->mapFromGlobal(global);
+                    PageView* target = view();
+                    const QPoint local = target->viewport()->mapFromGlobal(global);
                     const QPoint offset = viewportOffset();
                     if (orientation == Qt::Horizontal)
                         horizontalRuler_->setCursorPixel(local.x() + offset.x());
                     else
                         verticalRuler_->setCursorPixel(local.y() + offset.y());
+
+                    // AND A DOTTED GUIDE ON THE PAGE, where the release would put the real one --
+                    // only over the surface, by the same rule the drop below applies.
+                    if (target->viewport()->rect().contains(local))
+                        target->guides().previewGuide(target->layoutEngine().layout(),
+                                                      target->toContentPoint(local), orientation);
+                    else
+                        target->guides().clearPreview();
                 });
 
         connect(ruler, &RulerWidget::guideDropped, this,
@@ -224,6 +233,8 @@ void DocumentWindow::build(const Recovery* recovery)
                     if (target->viewport()->rect().contains(local))
                         target->guides().dropGuide(target->layoutEngine().layout(),
                                                    target->toContentPoint(local), orientation);
+                    else
+                        target->guides().clearPreview();
                 });
     }
 
