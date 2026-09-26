@@ -27,16 +27,17 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Five manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Six manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
 > choice governs (§6 says why) — and raised **I-14 (S2)**: `Ctrl+Shift+M` kept the presentation's
 > physical size across a change of scale; fixed the same day. **M-06**, on 2026-09-26, passed with no
 > finding — the human half of A2 at Stage 4, and it agrees with the figure. **M-03**, on 2026-09-26,
 > passed with no finding — including the display held awake while presenting and released after.
+> **M-04**, on 2026-09-26, passed with no finding, in the direction that removes the 150 % primary.
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other seven
+> same day**. The other six
 > are the stage's largest remaining gap. §8 holds **fourteen** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-14 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -884,8 +885,9 @@ monitor 2560x1440` — M-02's report exactly. **After:** 2560×1440 on the 2K, 3
 and back, every move. **The red run before the fix is the control**: the case was written against
 the unfixed code and failed on the move for the reason the walk gave.
 **What it does NOT cover** (convention 19): the topology path (A-60), which now moves the surface
-by the same function but needs a monitor removed to be driven for real — **M-04**; and every
-`ctest` run, where it skips.
+by the same function but needs a monitor removed to be driven for real — **M-04**, which walked it on
+2026-09-26 and saw the moved presentation fill the remaining 2560×1440 screen; and every `ctest` run,
+where it skips.
 **Steps** `QT_QPA_PLATFORM=windows` then `rawpage_ui_tests.exe "[I-14]"`, on a desktop with two
 monitors at different scale factors.
 **Expect** The surface's physical rectangle equals its monitor's after the first placement and after
@@ -1304,16 +1306,37 @@ no finding.
   during the presentation, and DO start after you exit** — that second half is the control.
 - **If it fails** S3 for a transition; **S1 if the machine cannot sleep or lock after you exit.**
 
-**M-04 · Take a monitor away** ☐
+**M-04 · Take a monitor away** ✅ **signed off by the user, 2026-09-26** — every step passed, no finding,
+**in ONE direction**: the monitor removed was the 150 % MAIN display.
+- **Walk result** On the P-1 rig with `Win`+`P` → *PC screen only*, which on this desk switches off the
+  **MAG 272URDF** (4K, 150 %, primary) and keeps the **LS27B61x** (2560×1440, 100 %) — so the primary
+  itself went away and everything crossed 150 % → 100 %, the direction I-14's surface overflowed in.
+  Step 1: the window on the MAG reappeared on the LS27B61x, reachable, at a usable size, pages sharp.
+  Step 2: a presentation on the MAG (`fullScreen/monitor` = `MAG 272URDF`), removed mid-slide on page
+  3, moved to the LS27B61x — the new primary — still presenting, on page 3, filling the screen: **the
+  first real-hardware run of `onTopologyChanged` through I-14's `moveSurfaceTo`**, which A-85 could not
+  drive. Step 3: a window left on the MAG at a clean quit was restored reachable onto the one-monitor
+  arrangement. **Not walked:** the other direction, *Second screen only*, removing the 100 % monitor
+  and keeping the primary — offered as optional and not run.
+- **THE STEPS WERE CORRECTED AFTER THIS WALK.** They said *"the secondary monitor"*, assuming *PC
+  screen only* keeps the primary; on this desk it keeps the LS27B61x, because Windows' "PC screen" is
+  the display it enumerates first, not the main one. The walk therefore used the MAG, and the steps
+  now name the monitor by what the removal method does rather than by its role.
 - **Goal** D4-8 and D4-12's topology clause, and **P-2**'s reason for existing.
 - **Pre** P-2 — **`Win`+`P` → *PC screen only*** (chosen 2026-09-19). Windows keeps the display's
   identity under this method, so step 3 restores onto a fingerprint the product has not seen while
   step 1 returns to one it has. Say so if you use another method instead, because they differ in what
-  Windows remembers.
+  Windows remembers. **Find out first which monitor your method switches off** — *PC screen only*
+  keeps whichever display Windows counts first, which need not be the primary; on the P-1 rig it
+  switches off the primary. Call that monitor **the one that goes away**.
 - **Steps**
-  1. Put a window on the secondary monitor. Remove that monitor. Restore it.
-  2. Start a presentation on the secondary monitor. Remove it mid-slide.
-  3. With both monitors back, quit cleanly; remove one; relaunch.
+  1. Put a window on the monitor that goes away. Remove it. Restore it.
+  2. Start a presentation on the monitor that goes away (`fullScreen/monitor` set to its name). Remove
+     it mid-slide.
+  3. With both monitors back, leave a window on the monitor that goes away; quit cleanly; remove it;
+     relaunch.
+  4. *(Optional, the other direction)* Repeat 1 and 2 with *Second screen only*, which removes the
+     other monitor.
 - **Expect** Step 1: the window reappears on a monitor you can see, at a usable size. Step 2: the
   presentation moves to the primary monitor, still presenting, at the same page. Step 3: every
   restored window is reachable — at least its title bar on a real screen.
@@ -1869,7 +1892,8 @@ corner of the 4K. The FIRST placement never had it, because it happens before th
 and that is the fix: a move now hides the surface, places it and shows it full screen again
 (`moveSurfaceTo`), which is the first placement's path. `onTopologyChanged`, which moves the surface
 to the primary when its monitor disappears, went through the same two calls and now goes through the
-same function — the same defect, on the path M-04 walks.
+same function — the same defect, on the path M-04 walks; **M-04 walked it on 2026-09-26**, removing
+the 150 % primary mid-slide, and the presentation filled the remaining 100 % screen.
 
 **Measured, not inferred.** On the P-1 rig through `GetWindowRect`: before the fix, after a move
 from the 4K, `surface 3840x2160 | monitor 2560x1440`; after it, every move fills its monitor.
@@ -1896,8 +1920,9 @@ restated as a checklist.
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
-   fixed the same day; M-06 and M-03, 2026-09-26, passed with no finding.**
-   The other seven are the stage's largest remaining gap and the honest summary of its state.
+   fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding — M-04 in one
+   direction only, the 150 % primary removed.**
+   The other six are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -1970,13 +1995,14 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; FIVE OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06 AND M-03 — AND
-EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — seven
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; SIX OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03 AND M-04 —
+AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — six
 unwalked cases. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
-of code, is the argument for the other seven rather than against them; that M-06, the stage's verdict
-case, and M-03 found nothing is the verdict and the presentation holding up to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+of code, is the argument for the other six rather than against them; that M-06, the stage's verdict
+case, M-03 and M-04 found nothing is the verdict, the presentation and the topology path holding up
+to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.
