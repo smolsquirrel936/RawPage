@@ -328,6 +328,20 @@ std::vector<Chord> ShortcutBinder::chordCandidatesFor(Qt::Key key, Qt::KeyboardM
     if (!reported) return candidates;
     candidates.push_back(*reported);
 
+    // THE KEYPAD'S `+` UNDER `Ctrl` IS ALSO THE MAIN ROW'S `=` -- S4 guide I-21, M-08's re-walk.
+    // §8 spells zoom in `Ctrl+=`, which is `Ctrl`+`+` on the main row of a US keyboard, and a person
+    // reaching for the keypad means the same thing; but the keypad's `+` arrives as `Key_Plus`
+    // WITHOUT Shift -- measured through `QWindowsKeyMapper` on 2026-09-27, with `KeypadModifier` --
+    // so the reported chord is `Ctrl++`, which nothing binds. The keypad's `-` needed nothing: it
+    // arrives as `Key_Minus`, the same key as the main row's. A FALLBACK, tried only when the reported
+    // chord binds nothing, and only with `Ctrl` held: a bare keypad `+` is §8's own `+` (the
+    // Thumbnails pane's zoom) and must not be offered as `=` anywhere.
+    if (key == Qt::Key_Plus && (keyModifiers & Qt::KeypadModifier) && reported->hasCtrl()
+        && !reported->hasShift()) {
+        candidates.push_back(Chord{reported->modifiers(), std::string("=")});
+        return candidates;
+    }
+
     // ONLY WITH SHIFT HELD. A `Key_Plus` without Shift is the numeric keypad's `+`, which is the
     // key §8's bare `+` means and has no unshifted form to offer.
     if (!reported->hasShift()) return candidates;

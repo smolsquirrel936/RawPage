@@ -324,10 +324,11 @@ private:
     void bindActiveView(PageView* view);
     void unbindActiveView();
 
-    // Copies the active pane's guides onto the others. A guide is a PAGE fact in PDF points
-    // (D4-7), so it belongs to the document and shows in every pane; what is per-view is the DRAG,
-    // which is why each `PageView` has a `GridGuideLayer` of its own in the first place.
-    void mirrorGuides();
+    // Copies one pane's guides onto the others -- the active pane's, or since I-19 a frozen pane's
+    // of a spreadsheet split, which is never active. A guide is a PAGE fact in PDF points (D4-7), so
+    // it belongs to the document and shows in every pane; what is per-view is the DRAG, which is why
+    // each `PageView` has a `GridGuideLayer` of its own in the first place.
+    void mirrorGuides(PageView* source);
 
     // ---- The rulers (S4 T8) ----------------------------------------------------------------
     // Recomputes both mappings from the page in front of the person. Called on every `viewChanged`
@@ -383,6 +384,10 @@ private:
     // The pane the rulers and the cursor readout are connected to. A raw pointer to a child, kept
     // only so the connections can be undone -- which is the whole of convention 10.
     PageView* boundView_ = nullptr;
+
+    // True while `mirrorGuides` is writing the followers. Since I-19 more than one pane's guides
+    // are listened to, so a follower's own `changed` would otherwise mirror straight back.
+    bool mirroringGuides_ = false;
 
     // S4 T8. Always constructed, shown only while `units/showRulers` is on: a ruler that is built
     // when the preference is turned on would have no mapping until the next view change, so the

@@ -61,10 +61,14 @@
 #include <QFileInfo>
 #include <QEnterEvent>
 #include <QLayout>
+#include <QMouseEvent>
+#include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
+#include <QWheelEvent>
 
 #include <memory>
+#include <optional>
 
 using namespace rawpage;
 using core::ActionId;
@@ -423,6 +427,257 @@ TEST_CASE("synchronized scrolling is refused in a spreadsheet split", "[split]")
 
     split.dispatch(ActionId::WindowSplit);
     CHECK(split.fixture.actions.isEnabled(ActionId::WindowSyncScroll));
+}
+
+// =============================================================================================
+// I-18 and I-19 -- the freeze under a ZOOM, and under a hand on a FROZEN pane.
+//
+// M-08's walk, 2026-09-27. A-55 above takes the freeze at one zoom and scrolls only the body, and
+// both defects lived outside that: `Ctrl+=` zoomed the body alone and the frozen panes slid to its
+// new edge at their old zoom (I-18), and a wheel over any frozen pane scrolled that pane alone
+// (I-19). Each case below drives the gesture the walk used and then asserts the freeze -- which is
+// convention 22's other half for A-55: the derivation firing when the body moves was proved, and
+// nothing proved that nothing ELSE moves the frozen panes.
+//
+// What these do NOT cover (convention 19): the wheel is an event sent to the viewport by hand, not a
+// mouse; the `Ctrl`+wheel is the same; a hand-tool drag is driven as the controller scroll it
+// becomes; and whether the four panes LOOK aligned while it happens is M-08, steps 1.3 and 1.4.
+// =============================================================================================
+
+namespace {
+
+void wheelOver(ui::PageView* pane, QPoint angle, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+{
+    // To the VIEWPORT, which is where Qt delivers a wheel and whence `QAbstractScrollArea` forwards
+    // it -- `tst_pageview`'s `sendWheel`, and for the reason it states.
+    const QPointF at(40, 40);
+    QWheelEvent event(at, pane->viewport()->mapToGlobal(at), QPoint(0, 0), angle, Qt::NoButton,
+                      modifiers, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(pane->viewport(), &event);
+    QCoreApplication::processEvents();
+}
+
+// The four panes of a spreadsheet split, in `SplitViewContainer::views()` order.
+struct Freeze {
+    ui::PageView* body = nullptr;
+    ui::PageView* corner = nullptr;
+    ui::PageView* row = nullptr;
+    ui::PageView* column = nullptr;
+
+    explicit Freeze(Split& split)
+    {
+        REQUIRE(split.container()->mode() == Mode::Spreadsheet);
+        REQUIRE(split.container()->views().size() == 4);
+        body = split.container()->views().at(0);
+        corner = split.container()->views().at(1);
+        row = split.container()->views().at(2);
+        column = split.container()->views().at(3);
+    }
+
+    // The place in the document under the corner's top-left -- what "the freeze" IS, at any zoom.
+    std::optional<core::render::PageLayout::DocumentPoint> cornerPlace() const
+    {
+        return corner->layoutEngine().layout().toDocument(corner->controller().scroll());
+    }
+
+    // A-55's four assignments, and the zoom and view rotation all four share since I-18.
+    void checkHeld(const core::DevicePoint& origin) const
+    {
+        const ui::ViewportController& lead = body->controller();
+        for (ui::PageView* pane : {corner, row, column}) {
+            CHECK(pane->controller().zoom() == lead.zoom());
+            CHECK(pane->controller().viewRotation() == lead.viewRotation());
+            CHECK(pane->controller().fitMode() == ui::FitMode::None);
+        }
+        CHECK_THAT(row->controller().scroll().x, WithinAbs(lead.scroll().x, 0.5));
+        CHECK_THAT(row->controller().scroll().y, WithinAbs(origin.y, 0.5));
+        CHECK_THAT(column->controller().scroll().x, WithinAbs(origin.x, 0.5));
+        CHECK_THAT(column->controller().scroll().y, WithinAbs(lead.scroll().y, 0.5));
+        CHECK_THAT(corner->controller().scroll().x, WithinAbs(origin.x, 0.5));
+        CHECK_THAT(corner->controller().scroll().y, WithinAbs(origin.y, 0.5));
+    }
+};
+
+} // namespace
+
+TEST_CASE("a zoom in a spreadsheet split zooms all four panes and the freeze keeps its place",
+          "[split][I-18]")
+{
+    Split split;
+
+    // AT 200 %, where the page is wider than the pane and starts at the content's left margin, so an
+    // offset of (100, 500) is ON page 1. At 100 % the page is centred and x = 100 is in the gutter
+    // beside it -- measured: the first run of this case read a nullopt there.
+    split.primary()->setZoom(core::render::Zoom{2.0});
+    split.primary()->controller().setScroll(core::DevicePoint{100.0, 500.0});
+    QCoreApplication::processEvents();
+    split.dispatch(ActionId::WindowSpreadsheetSplit);
+    Freeze freeze(split);
+
+    // THE FREEZE IS A PLACE IN THE DOCUMENT. Read before any zoom, and required to be ON a page, or
+    // the comparisons below would compare two nullopts and hold for nothing.
+    const auto frozenAt = freeze.cornerPlace();
+    REQUIRE(frozenAt.has_value());
+    freeze.checkHeld(freeze.corner->controller().scroll());
+
+    const auto checkSamePlace = [&] {
+        const auto now = freeze.cornerPlace();
+        REQUIRE(now.has_value());
+        CHECK(now->pageIndex == frozenAt->pageIndex);
+        CHECK_THAT(now->point.x, WithinAbs(frozenAt->point.x, 0.5));
+        CHECK_THAT(now->point.y, WithinAbs(frozenAt->point.y, 0.5));
+        freeze.checkHeld(freeze.corner->controller().scroll());
+    };
+
+    // `Ctrl+=` -- THE WALK'S GESTURE. The body has focus, the command lands on it, and all four
+    // panes must end at its zoom with the corner still over the same point of the page.
+    const core::render::Zoom before = freeze.body->controller().zoom();
+    REQUIRE(split.fixture.actions.dispatch(ActionId::ViewZoomIn, core::KeyContext::Viewer));
+    QCoreApplication::processEvents();
+    REQUIRE(freeze.body->controller().zoom() != before);
+    checkSamePlace();
+
+    // `Ctrl`+WHEEL OVER A FROZEN PANE, which reaches the pane under the pointer and not the
+    // focused one: the zoom is the BODY's, not the row's alone.
+    const core::render::Zoom beforeWheel = freeze.body->controller().zoom();
+    wheelOver(freeze.row, QPoint(0, 120), Qt::ControlModifier);
+    CHECK(freeze.body->controller().zoom() != beforeWheel);
+    checkSamePlace();
+
+    // A FIT, set on the body: the frozen panes take the body's NUMBER and no fit of their own, or a
+    // column a quarter of the window wide would fit itself at a quarter of the zoom.
+    REQUIRE(split.fixture.actions.dispatch(ActionId::ViewFitWidth, core::KeyContext::Viewer));
+    QCoreApplication::processEvents();
+    CHECK(freeze.body->controller().fitMode() == ui::FitMode::Width);
+    checkSamePlace();
+
+    // AND THE VIEW ROTATION. The place under the corner moves on screen when the page turns, so
+    // only the shared geometry and the derivation are asserted -- not the point.
+    REQUIRE(split.fixture.actions.dispatch(ActionId::ViewRotateViewCw, core::KeyContext::Viewer));
+    QCoreApplication::processEvents();
+    CHECK(freeze.body->controller().viewRotation() != core::PageRotation::None);
+    freeze.checkHeld(freeze.corner->controller().scroll());
+}
+
+TEST_CASE("a frozen pane is moved only through the body and the freeze holds", "[split][I-19][I-20]")
+{
+    Split split;
+
+    // AT 400 %, so the body can move in BOTH axes -- a sideways wheel over a document narrower than
+    // its pane would move nothing and pass for the wrong reason. AND FROZEN AT THE TOP-LEFT CORNER,
+    // (0, 0): the freeze M-08's re-walk took, and the one I-19's first fix could not serve -- a
+    // frozen pane at offset 0 cannot move up or left, so a fix that measured the pane's own movement
+    // saw nothing to hand on (I-20).
+    split.primary()->setZoom(core::render::Zoom{4.0});
+    split.primary()->controller().setScroll(core::DevicePoint{0.0, 0.0});
+    QCoreApplication::processEvents();
+
+    split.dispatch(ActionId::WindowSpreadsheetSplit);
+    Freeze freeze(split);
+    const core::DevicePoint origin = freeze.corner->controller().scroll();
+    REQUIRE(origin.x == 0.0);
+    REQUIRE(origin.y == 0.0);
+    ui::ViewportController& lead = freeze.body->controller();
+
+    // NO FOCUS, NO SCROLLBARS -- and the room the body's scrollbars take is kept empty beside it,
+    // so a frozen row is exactly as wide as the body and clamps where the body clamps.
+    for (ui::PageView* pane : {freeze.corner, freeze.row, freeze.column}) {
+        CHECK(pane->focusPolicy() == Qt::NoFocus);
+        CHECK(pane->isFrozen());
+        CHECK_FALSE(pane->verticalScrollBar()->isVisibleTo(pane));
+        CHECK_FALSE(pane->horizontalScrollBar()->isVisibleTo(pane));
+    }
+    CHECK(freeze.row->viewport()->width() == freeze.body->viewport()->width());
+    CHECK(freeze.column->viewport()->height() == freeze.body->viewport()->height());
+
+    // DOWN, over each frozen pane: the BODY moves down, and the pane that took the wheel stays.
+    for (ui::PageView* pane : {freeze.row, freeze.corner, freeze.column}) {
+        const double y = lead.scroll().y;
+        wheelOver(pane, QPoint(0, -120));
+        CHECK(lead.scroll().y > y);
+        freeze.checkHeld(origin);
+    }
+
+    // AND UP -- the half I-20 is. The body is well down the page now and the frozen panes are at 0,
+    // where they themselves cannot scroll up; the body must.
+    lead.setScroll(core::DevicePoint{600.0, 1500.0});
+    QCoreApplication::processEvents();
+    REQUIRE(lead.scroll().y > 1000.0);
+    for (ui::PageView* pane : {freeze.row, freeze.corner, freeze.column}) {
+        const double y = lead.scroll().y;
+        wheelOver(pane, QPoint(0, 120));
+        CHECK(lead.scroll().y < y);
+        freeze.checkHeld(origin);
+    }
+
+    // SIDEWAYS, both ways, over the row and over the column -- the column is frozen at x = 0 and
+    // cannot scroll left itself.
+    for (ui::PageView* pane : {freeze.row, freeze.column}) {
+        const double right = lead.scroll().x;
+        wheelOver(pane, QPoint(-120, 0));
+        CHECK(lead.scroll().x > right);
+        const double left = lead.scroll().x;
+        wheelOver(pane, QPoint(120, 0));
+        CHECK(lead.scroll().x < left);
+        freeze.checkHeld(origin);
+    }
+
+    // `Ctrl`+WHEEL over the frozen corner zooms the BODY, and the four panes stay at one zoom.
+    const core::render::Zoom zoomBefore = lead.zoom();
+    wheelOver(freeze.corner, QPoint(0, -120), Qt::ControlModifier);
+    CHECK(lead.zoom() != zoomBefore);
+    freeze.checkHeld(origin);
+
+    // THE HAND, AS A REAL DRAG: a press, FIVE moves, a release, on the frozen column's viewport --
+    // the temporary hand, `Shift` held, which is the only drag a frozen pane offers (tool commands
+    // reach the body). A drag of 50 px down must move the body 50 px up, times the pixel ratio, and
+    // no more. I-19's first fix moved it 10 + 20 + 30 + 40 + 50 = 150: the hand sets an ABSOLUTE
+    // scroll from its press, and a pane put back after every move re-sent the whole drag each time.
+    // The previous version of this case drove the hand as a relative `scrollBy` and could not see it.
+    const auto mouse = [&](QEvent::Type type, QPoint pos) {
+        QMouseEvent event(type, QPointF(pos), QPointF(freeze.column->viewport()->mapToGlobal(pos)),
+                          Qt::LeftButton,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton,
+                          Qt::ShiftModifier);
+        QCoreApplication::sendEvent(freeze.column->viewport(), &event);
+        QCoreApplication::processEvents();
+    };
+    lead.setScroll(core::DevicePoint{lead.scroll().x, 1500.0});
+    QCoreApplication::processEvents();
+    const double handFrom = lead.scroll().y;
+    const QPoint press(20, 20);
+    mouse(QEvent::MouseButtonPress, press);
+    for (int step = 1; step <= 5; ++step) mouse(QEvent::MouseMove, press + QPoint(0, 10 * step));
+    mouse(QEvent::MouseButtonRelease, press + QPoint(0, 50));
+    const double ratio = freeze.body->devicePixelRatioF();
+    CHECK_THAT(lead.scroll().y, WithinAbs(handFrom - 50.0 * ratio, 1.0));
+    freeze.checkHeld(origin);
+
+    // WHATEVER ELSE MOVES A FROZEN PANE IS UNDONE, and the body does not follow it: a frozen pane
+    // never leads, and nothing guesses what an unknown movement meant.
+    const core::DevicePoint bodyBefore = lead.scroll();
+    freeze.row->controller().setScroll(core::DevicePoint{bodyBefore.x, 800.0});
+    QCoreApplication::processEvents();
+    CHECK(lead.scroll() == bodyBefore);
+    freeze.checkHeld(origin);
+
+    // AT THE BODY'S END THE HEADER DOES NOT SCROLL ON PAST IT.
+    lead.setScroll(core::DevicePoint{lead.scroll().x, 1.0e9});
+    QCoreApplication::processEvents();
+    const double end = lead.scroll().y;
+    wheelOver(freeze.row, QPoint(0, -120));
+    CHECK_THAT(lead.scroll().y, WithinAbs(end, 0.5));
+    freeze.checkHeld(origin);
+
+    // AND A GUIDE EDITED INSIDE A FROZEN PANE REACHES THE OTHERS. A frozen pane is never the active
+    // one, so the mirror that follows the active pane (D4-7) would not have heard it.
+    core::Guide guide;
+    guide.orientation = core::Guide::Orientation::Vertical;
+    guide.position = 144.0;
+    freeze.row->guides().addGuide(guide);
+    QCoreApplication::processEvents();
+    CHECK(freeze.body->guides().guides() == freeze.row->guides().guides());
+    CHECK(freeze.column->guides().guides() == freeze.row->guides().guides());
 }
 
 // =============================================================================================

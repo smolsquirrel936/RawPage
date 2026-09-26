@@ -177,6 +177,10 @@ void DocumentWindow::build(const Recovery* recovery)
     connect(split_, &SplitViewContainer::viewAdded, this, [this](PageView* view) { adoptView(view); });
     connect(split_, &SplitViewContainer::viewRetired, this, [this](PageView* view) {
         if (view == boundView_) unbindActiveView();
+
+        // And a frozen pane's own two connections (I-19), which no binding owns.
+        disconnect(&view->guides(), nullptr, this, nullptr);
+        disconnect(view, nullptr, this, nullptr);
     });
     connect(split_, &SplitViewContainer::activeViewChanged, this, [this](PageView* view) {
         bindActiveView(view);
@@ -449,6 +453,16 @@ void DocumentWindow::adoptView(PageView* pane)
     // would need, not a per-view guide list.
     pane->guides().setGuides(source->guides().guides());
     pane->refresh();
+
+    // A FROZEN PANE IS NEVER THE BOUND ONE (I-19): it takes no focus, so the active view stays the
+    // body. But a guide is still under the pointer in it, and moving, locking or deleting that guide
+    // there would otherwise change this pane alone -- so its guide edits and its guide menu are
+    // listened to directly. `mirrorGuides`' guard is what stops the copies echoing between panes.
+    if (split_->isFrozen(pane)) {
+        connect(&pane->guides(), &GridGuideLayer::changed, this, [this, pane] { mirrorGuides(pane); });
+        connect(pane, &PageView::guideContextMenuRequested, this,
+                [this](int guideIndex, QPoint global) { raiseGuideMenu(guideIndex, global); });
+    }
 }
 
 void DocumentWindow::bindActiveView(PageView* pane)
@@ -478,15 +492,16 @@ void DocumentWindow::bindActiveView(PageView* pane)
     // on the ACTIVE pane, because focus is what makes a pane active and all five need the pointer
     // or the focus to be in it. So mirroring from the bound pane covers every one of them, and the
     // followers are not connected, which is what makes the copy unable to echo back.
-    connect(&pane->guides(), &GridGuideLayer::changed, this, [this] { mirrorGuides(); });
+    connect(&pane->guides(), &GridGuideLayer::changed, this, [this, pane] { mirrorGuides(pane); });
 }
 
-void DocumentWindow::mirrorGuides()
+void DocumentWindow::mirrorGuides(PageView* source)
 {
-    PageView* source = view();
-    if (source == nullptr) return;
+    if (source == nullptr || mirroringGuides_) return;
+    mirroringGuides_ = true;
     for (PageView* pane : split_->views())
         if (pane != source) pane->guides().setGuides(source->guides().guides());
+    mirroringGuides_ = false;
 }
 
 void DocumentWindow::unbindActiveView()
@@ -666,7 +681,15 @@ DocumentWindow::~DocumentWindow()
     // as it goes away, `PageView` turns it into `cursorMoved`, and the slot would then ask a
     // half-destroyed window for its rulers.
     unbindActiveView();
-    if (split_) disconnect(split_, nullptr, this, nullptr);
+    if (split_) {
+        // A frozen pane's guide and menu connections (I-19) are bound to no active view, so the
+        // unbind above does not reach them.
+        for (PageView* pane : split_->views()) {
+            disconnect(&pane->guides(), nullptr, this, nullptr);
+            disconnect(pane, nullptr, this, nullptr);
+        }
+        disconnect(split_, nullptr, this, nullptr);
+    }
     if (horizontalRuler_) disconnect(horizontalRuler_, nullptr, this, nullptr);
     if (verticalRuler_) disconnect(verticalRuler_, nullptr, this, nullptr);
 

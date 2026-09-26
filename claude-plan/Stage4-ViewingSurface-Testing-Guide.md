@@ -7,15 +7,15 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **90 automated** (A-01 … A-89, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 90 carry
-> a result** as of 2026-09-26 (re-derived from this file: 90 case headers, none still boxed — the
+> partly run.** **93 automated** (A-01 … A-92, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 93 carry
+> a result** as of 2026-09-27 (re-derived from this file: 93 case headers, none still boxed — the
 > 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
 > **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**,
 > the case D4-18 was recorded with that day; the 88th and 89th are **A-87** and **A-88**, added
 > the same day with I-16's fix and I-17's, both found while preparing M-07's walk, and the 90th is
 > **A-89**, the dotted preview of a guide being dragged — a request of the user's that day, not a
-> defect; **A-85 SKIPS under `ctest`** — it needs two monitors at
+> defect; the 91st and 92nd are **A-90** and **A-91**, added 2026-09-27 with I-18's and I-19's fixes — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's; **A-85 SKIPS under `ctest`** — it needs two monitors at
 > different scale factors, which the offscreen platform cannot have — and its result is a run on
 > the `windows` platform, recorded against it) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
@@ -30,7 +30,7 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Eight manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Nine manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-07**, on 2026-09-26, passed with no finding — after **I-16** and **I-17** had been found and
 > fixed while preparing it, so the build walked was the first on which it could pass.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
@@ -45,10 +45,16 @@
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other four — M-08, M-09, M-10 and M-12 —
-> are the stage's largest remaining gap. §8 holds **seventeen** issues and **only I-07 (S4) is open**;
+> same day**. **M-08**, by the user on 2026-09-27, **failed its first walk at step 1** — it raised
+> **I-18 (S2)**, a zoom reaching only the body of a spreadsheet split, and **I-19 (S2)**, a frozen pane
+> that scrolled on its own — both fixed the same day, with every other step passing; **step 1's re-walk
+> the same day confirmed both fixed and raised I-20 (S2)** — a wheel up over a header row frozen at
+> the page's top did nothing, and a hand drag over a frozen pane ran away, both from I-19's first fix
+> — **and I-21 (S3)**, `Ctrl` with the keypad's `+` zooming nothing; both fixed that day, and **the second re-walk of
+> step 1 PASSED, the same day — M-08 is signed off**. The other three — M-09, M-10 and M-12 —
+> are the stage's largest remaining gap. §8 holds **twenty-one** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-21 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -257,7 +263,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 
 | Exit criterion ([`Implementation-Plan.md` § Stage 4](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface)) | Closed by |
 |---|---|
-| All four layout modes plus split views work | A-53 … A-56 for the splits; the four layout modes are Stage 2's suites, re-run by name in A-74; **M-01**, **M-08** |
+| All four layout modes plus split views work | A-53 … A-56, **A-90** and **A-91** for the splits; the four layout modes are Stage 2's suites, re-run by name in A-74; **M-01**, **M-08** |
 | Rulers, grid, guides and snapping behave identically at 50 % and 400 % | A-45 … A-52, **A-87**, **M-07** |
 | Full Screen and presentation work on a chosen monitor | A-57 … A-63, **A-85** (on the `windows` platform), **M-02**, **M-03** |
 | Window arrangement and session restore survive a monitor topology change | A-18 … A-24 (the fingerprint and the clamp), A-64 … A-66 (arrangement), A-75 … A-79 (restore), A-60 (a presentation's monitor disappearing), **M-04**, **M-05**, **M-09** |
@@ -274,6 +280,10 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-16)* A guide SNAPS when a person drags it — off a ruler or on the page | **A-87**, and **M-07** |
 | *(I-17)* The cursor's page coordinates are read out live, beside a red marker on each ruler | **A-88**, and **M-07** |
 | *(User request, 2026-09-26)* A guide being dragged off a ruler previews dotted, where it will land | **A-89**, and **M-07** |
+| *(I-18)* A zoom, a fit or a view rotation in a spreadsheet split reaches all four panes, and the freeze keeps its place in the document | **A-90**, and **M-08**, which found it |
+| *(I-19)* A frozen pane of a spreadsheet split moves only through the body | **A-91**, and **M-08**, which found it |
+| *(I-20)* A frozen pane's wheel and hand move the body one-to-one, in every direction, from a freeze at the document's corner | **A-91** (rewritten), and **M-08**'s re-walk, which found it |
+| *(I-21)* `Ctrl` with the keypad's `+` and `-` zooms like the main row's | **A-92**, and **M-08**'s re-walk, where it was found |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -759,7 +769,11 @@ derivation is the mode, not an option on it (Stage 1's **I-53**).
 person drags them to are the widget's and die with the window; that dragging one row's handle moves
 the other's is **M-08**'s, and so is whether the panes LOOK locked together while a wheel turns.
 *(This line said M-09, which is window arrangement and asks neither — corrected 2026-09-26, when
-M-08 gained both checks.)*
+M-08 gained both checks.)* **And two things it never tried, both found by M-08's first walk on
+2026-09-27:** it takes the freeze at ONE zoom and never changes it, and it only ever scrolls the
+BODY. A zoom reached the body alone (**I-18**), and a wheel over a frozen pane moved that pane alone
+(**I-19**) — the derivation was proved to fire when the body moves, and nothing proved nothing else
+moves the frozen panes (convention 22). Those halves are **A-90** and **A-91**.
 **Expect** Sync on: both views scroll together; off: independently. The frozen row and column stay put while the body scrolls, and the frozen regions scroll **only** in their own axis. **If it fails** S2.
 
 **A-56 · Removing a split leaves one view and no leaked tickets** ✅
@@ -819,6 +833,58 @@ reading when the pointer is over the other one — **M-08**, step 3.
 **Steps** `ctest -R "measure the focused pane"`.
 **Expect** The ruler's zero moves with focus by the distance between the panes, and back. **If it
 fails** S3 — D4-18 is not what the product does.
+
+**A-90 · A zoom in a spreadsheet split zooms all four panes, and the freeze keeps its place — I-18, closed** ✅
+✅ **2026-09-27** (`tests/ui/tst_split.cpp`, `[I-18]`). The freeze is taken at 200 % with the body at
+(100, 500) — ON page 1, and required to be: the corner's top-left is read as a **page and a PDF point**
+before anything moves, and the first run of this case read a nullopt at 100 %, where x = 100 is in the
+gutter beside a centred page. Then four changes of geometry, each through the path a person takes:
+**`Ctrl+=`** dispatched to the focused body — the walk's gesture; **`Ctrl`+wheel over the frozen ROW**,
+which reaches the pane under the pointer rather than the focused one; **Fit Width** on the body; and
+**Rotate View**. After each: all four panes share the body's zoom and view rotation, the three frozen
+panes carry **no fit of their own**, A-55's four assignments hold, and — after the first three — the
+corner's top-left is over **the same page and the same PDF point within 0.5 pt**. After the rotation
+only the geometry and the derivation are asserted, because the point under the corner moves on screen
+when the page turns. **Planted control:** `followBody` with its geometry copy removed fails **15
+assertions** — the zoom and rotation on every frozen pane, the derived offsets, and the place.
+**What it does NOT cover** (convention 19): the `Ctrl`+wheel is an event sent to the viewport by hand;
+and whether the four panes LOOK aligned at the new zoom is M-08's step 1.
+**Steps** `ctest -R "zooms all four panes"`.
+**Expect** One zoom across the four panes after every geometry change, from the body or from a frozen
+pane; the corner over the same place in the document. **If it fails** S2 — I-18 is back.
+
+**A-91 · A frozen pane is moved only through the body, and the freeze holds — I-19 and I-20, closed** ✅
+✅ **2026-09-27, REWRITTEN the same day** (`tests/ui/tst_split.cpp`, `[I-19][I-20]`). **Its first version
+passed over I-20** — it froze mid-page, where a frozen pane has room to move both ways, and it drove
+the hand as a relative `scrollBy`, which is not what the hand does. So it is now written against the
+freeze M-08's re-walk took: **at 400 % and at the top-left corner, (0, 0)**, where a frozen pane cannot
+itself scroll up or left. **The panes:** each frozen pane has **no focus policy, no visible scrollbar
+and `isFrozen()`**, and the room the body's scrollbars take is kept empty beside them — the frozen
+row's viewport is **exactly the body's width** and the frozen column's **exactly its height**. **The
+wheel**, over each frozen pane in turn: **down** moves the BODY down; with the body moved to (600,
+1500), **up** moves it up — the half I-20 is; **sideways both ways** over the row and over the column,
+which is frozen at x = 0; and **`Ctrl`+wheel over the corner** zooms the body. **The hand, as a real
+drag** — press, **five** moves of 10 px, release, with `Shift` held for the temporary hand, on the
+frozen column's viewport: the body moves **50 px up times the pixel ratio, within 1** — the first fix
+moved it 10 + 20 + 30 + 40 + 50 = 150. **Anything else** that moves a frozen pane — its controller set
+directly — is undone, and the body does not follow it. **At the body's end** a wheel over the row
+moves nothing. After every one, A-55's four assignments hold at (0, 0). **And a guide added inside
+the frozen row reaches the body and the column** — a frozen pane is never the active one, so the
+mirror that follows the active pane (D4-7) would not have heard it.
+**Planted controls, all run red:** the frozen pane's wheel not re-sent to the body fails **11**
+assertions — every wheel, down, up, both sideways and the zoom — and nothing else; the frozen pane's
+tools given its OWN controller fails the hand, **1500 against 1450**, and nothing else; and, in the
+first version, the frozen pane's guide connection removed failed the two guide assertions and nothing
+else. **The old design itself was not re-planted** — it is gone from the tree, not switched off — so
+what shows this case would catch it is that its two new observations, a wheel up from 0 and the
+hand's distance, are the two the walk and the reading of `HandTool` found.
+**What it does NOT cover** (convention 19): the wheel and the mouse are events sent to the viewport by
+hand, not a real device; and whether a wheel over the header row FEELS like scrolling the sheet is
+M-08's step 1.
+**Steps** `ctest -R "moved only through the body"`.
+**Expect** A frozen pane's wheel and hand move the BODY, one-to-one, in every direction, from a freeze
+at the document's corner; nothing else moves a frozen pane; the frozen row and column are the body's
+size to the pixel. **If it fails** S2 — I-19 or I-20 is back.
 
 ### 5.11 Full Screen and presentation (T10)
 
@@ -1291,6 +1357,22 @@ placed guide (solid blue) and a locked one (grey dashes) on a real panel — M-0
 **Expect** A dotted line on the page under a ruler drag, where the release will put the guide, snapped
 included; solid once released; nothing once the pointer leaves the page. **If it fails** S3.
 
+**A-92 · The keypad's `+` and `-` zoom under `Ctrl` like the main row's — I-21, closed** ✅
+✅ **2026-09-27** (`tests/ui/tst_viewercommands.cpp`, `[I-21]`). The events are the ones **Qt's
+Windows key mapper was measured to deliver** that day: a throwaway probe (scratchpad, not in the tree)
+put `WM_KEYDOWN` for `VK_SUBTRACT` and `VK_ADD`, with `Ctrl` held in the thread's key state, through
+`QWindowsKeyMapper` — **`Key_Minus` and `Key_Plus` (0x2d, 0x2b) with `Ctrl` and `KeypadModifier`**,
+text `-` and `+`; the main row's `Ctrl+-` came out as `Key_Minus` with `Ctrl` alone. Each is sent
+through the application filter to the focused viewer: keypad `-` zooms OUT, keypad `+` zooms IN, and
+— the control — the main row's `Ctrl+-` still zooms out. **Run red before the fix, for the right
+reason:** the keypad `+` left the zoom at **0.75 against 0.75**, while the keypad `-` already passed —
+which is what the user reported, once corrected.
+**What it does NOT cover** (convention 19): the mapper itself, which the probe measured once and this
+case takes as given; a real keypad is the walk's.
+**Steps** `ctest -R "keypad's minus and plus"`.
+**Expect** `Ctrl` with the keypad's `+` zooms in and with its `-` zooms out, exactly as the main row's
+chords do. **If it fails** S3 — I-21 is back.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -1549,20 +1631,61 @@ behaviour as expected, and no finding.
   timestamp has not changed.
 - **If it fails** S2 for the snap distance; **S1 if the document's timestamp moved.**
 
-**M-08 · The splits** ☐ *(was "The spreadsheet split"; widened 2026-09-26 with the three checks T9
-and D4-18 had pointed at this case — two of them at M-09 by mistake — and which no case asked for)*
+**M-08 · The splits** ✅ **signed off by the user, 2026-09-27, on its SECOND re-walk of step 1** — the
+first walk and the first re-walk that day FAILED and raised four issues, I-18 to I-21, all fixed the
+same day; every other step passed on the first walk *(was "The spreadsheet
+split"; widened 2026-09-26 with the three checks T9 and D4-18 had pointed at this case — two of them at
+M-09 by mistake — and which no case asked for)*
+- **Second re-walk of step 1, 2026-09-27** On the build that fixed I-20 and I-21, every item under
+  *What the second re-walk must look at* below: reported by the user as *"all are fixed"*, with
+  nothing more specific, and recorded as that rather than as figures nobody gave. No new finding.
+- **Re-walk of step 1, 2026-09-27** On the build that fixed I-18 and I-19: **both confirmed fixed**
+  by the user. It raised two more. **A wheel UP over the top row did nothing** — only down scrolled —
+  **I-20 (S2)**: I-19's fix measured a frozen pane's own movement, and a row frozen at the top of the
+  document has nowhere to move up to. Reading `HandTool` to explain it found the same fix's second
+  defect: **a hand drag over a frozen pane ran away**, re-sending the whole drag on every mouse move.
+  And **`Ctrl` with the keypad's `+` did not zoom in**, anywhere in the product and with or without a
+  split — **I-21 (S3)**; first reported as the keypad's `-`, and corrected by the user, whose answers
+  also ruled out the IME (English) and NumLock (on). The keypad's `-` works.
+- **First walk result, 2026-09-27** Walked by the user to the end, every step, on a copy of
+  `text-a4.pdf` in `tests\manual\M-08\` frozen at about 300 %. **Step 1, the zoom:** `Ctrl+=` zoomed
+  the body and **not the frozen panes** — the top row slid left and the left column slid up, each at
+  the old zoom — **I-18 (S2)**. **Step 1, a wheel over a frozen pane** (asked for during the walk; now
+  written into the step below): **all three frozen panes scrolled on their own**, and scrolling the
+  top row did not move the body — **I-19 (S2)**. **Passed:** the body scrolled right and down with
+  the row following in x only and the column in y only; a window resize; the TOP row's handle and the
+  bottom row's moving together, both ways; *Remove Split* leaving one view where the body was; step 2
+  — the panes locked with sync on and only one moving with it off; and step 3 — the rulers' shaded
+  extent and zero moving to the pane clicked, and, over the pane not clicked, the red marker gone and
+  the ticks continuing the clicked page's scale, **which the user judged enough to tell which pane
+  the rulers read**.
+- **What the second re-walk must look at:** step 1 only, on the build that fixed I-20 and I-21, with
+  the split taken at the **top of the page** as before — a wheel **up, down, left and right** over the
+  corner, the top row and the left column each scroll the whole sheet and the frozen pane stays put;
+  a **`Shift`-drag** (the temporary hand) over a frozen pane moves the sheet by exactly the distance
+  dragged; `Ctrl` with the keypad's `+` and `-` zoom in and out; and, again, `Ctrl+=`, `Ctrl`+wheel over
+  the top row and `Ctrl+2` each leave all four panes at ONE zoom, aligned, with no scrollbars on the
+  frozen panes.
 - **Goal** The freeze, which is the split nobody gets right by accident — and what a person sees of a
   two-pane split that no offscreen run can: the scroll lock, the handle, and the rulers.
+- **Pre** A copy of `corpus\ordinary\text-a4.pdf` in `tests\manual\M-08\`, zoomed to about **300 %**
+  at a FIXED zoom — not a fit — before splitting, so the page is wider and taller than the body.
 - **Steps**
-  1. On a wide document, take a spreadsheet split; scroll the body right and down; resize the
-     window; change the zoom. **Drag the vertical handle in the TOP row**; then remove the split.
+  1. Take a spreadsheet split (**View** → **Window** → *Spreadsheet Split*); scroll the body right
+     and down; resize the window; change the zoom with `Ctrl+=`, with `Ctrl` and the keypad's `+`
+     and `-`, with `Ctrl`+wheel over the TOP row, and with `Ctrl+2`. **Turn a wheel over each frozen
+     pane** — the corner, the top row, the left column — **up, down, left and right**, and
+     **`Shift`-drag** one of them. **Drag the vertical handle in the TOP row**; then remove the split.
   2. Take a vertical split with rulers on (`Ctrl+U`). Turn a wheel over one pane with synchronized
      scrolling on, then off.
   3. Click in the left pane and read the rulers; click in the right pane and read them again. Hold
      the pointer over the pane you did NOT click and look at what the ruler says there.
-- **Expect** The frozen row and column stay put and stay aligned with the body at every zoom and size;
-  dragging the top row's handle moves the bottom row's with it; removing the split leaves one view
-  showing the same place. With sync on the two panes LOOK locked while the wheel turns, and with it
+- **Expect** The frozen row and column stay put and stay aligned with the body at every zoom and size,
+  **all four panes at one zoom whichever pane the zoom was made over**; a wheel in any direction or a
+  hand drag over a frozen pane scrolls the body by that much, and the frozen pane does not leave its
+  place; the frozen panes have no
+  scrollbars; dragging the top row's handle moves the bottom row's with it; removing the split leaves
+  one view showing the same place. With sync on the two panes LOOK locked while the wheel turns, and with it
   off only one moves. **The rulers measure the pane you clicked** (D4-18): the shaded page extent and
   the zero move to it; over the other pane the ruler continues the clicked page's scale, and you should
   be able to tell which pane it is reading. If you cannot, that is the finding.
@@ -2153,31 +2276,150 @@ its own background for the number and is measured against both themes. `Features
 corrected in the same change, and `RulerWidget::cursorReadout()` is the string. **A-88** is three
 cases and one planted control run red.
 
+**I-18 · A zoom reached one pane of a spreadsheet split.** *(Raised 2026-09-27 by the user's M-08
+walk, step 1: *"I press the Ctrl + = and the body zoom in, and the top row shift left and left column
+shift up. Both shifted without zooming."* S2.)*
+
+**Mechanism.** T9 built the spreadsheet split as a constrained SCROLL (D4-13) and derived the three
+frozen panes' offsets from the body's — and derived nothing else. Every view command acts on the
+focused pane (`MainWindow::registerView`), and after a split the focused pane is the body, so
+`Ctrl+=` zoomed the body alone. The scroll mirror then did its job at the wrong zoom: zooming about the
+centre moved the body's top-left corner further into the document, and the mirror carried that
+corner through PDF-point space into the row and the column **at their own, unchanged scale** — which
+is the slide left and up the walk saw. **A second defect sat under it:** the freeze origin was held in
+device pixels (`freezeOrigin_`), which change meaning with the zoom, so even a zoom that reached all
+four panes would have frozen a different part of the page.
+
+**Why no case caught it.** **A-55** takes the freeze at one zoom and only scrolls; it never changes
+the zoom, the fit or the view rotation. Its assertions are the four assignments of the header's
+table, and all four held — at a zoom the body no longer had.
+
+**The fix, 2026-09-27 — on the user's decision: all four panes zoom together.** `SplitViewContainer`
+now has ONE leader in a spreadsheet split, the body, and **`followBody`** runs on every change of it:
+the body's zoom, layout mode and view rotation are copied onto the three frozen panes, **a fit as the
+body's NUMBER and never as a fit** — a column a quarter of the window wide would otherwise fit itself
+at a quarter of the zoom — and their scroll is derived afterwards. The freeze is held as a **place in
+the document** (`FreezeAnchor`: a page, a PDF point on it, and the part of the offset in a margin or a
+gap, which `PresentationOptions` keeps in device pixels at every zoom). A zoom made over a frozen pane
+— `Ctrl`+wheel reaches the pane under the pointer — is handed to the body (**I-19**'s mechanism). The
+scope is the user's choice too: zoom, fit, layout mode and view rotation, because all four broke the
+freeze the same way. **A-90**, one case and one planted control run red.
+
+**I-19 · A frozen pane of a spreadsheet split could be scrolled on its own.** *(Raised 2026-09-27 by
+the user's M-08 walk, at a wheel over a frozen pane asked for during step 1: *"all 3 frozen panels are
+allow to scroll. I think this is a defect?"* — and, dragging the top row's handle, *"the bottom row
+does not scroll together when top row is being scrolling"*, the same defect seen from the body. S2.)*
+
+**Mechanism.** `SplitViewContainer.h` said the three frozen panes *"have no scroll of their own"*, and
+a comment in the `.cpp` that *"a frozen pane cannot be scrolled by the person"* — and nothing made
+either true. Each frozen pane is an ordinary `PageView`, with its own scrollbars, wheel, arrow keys,
+hand tool and focus, and only the BODY was allowed to lead the mirror. So any of those moved the frozen
+pane it landed on, alone, until the body next moved and re-derived one of its axes — the corner never.
+
+**Why no case caught it.** **A-55** only ever scrolls the body. It proved that the derivation FIRES
+when the body moves and never that nothing ELSE moves a frozen pane — convention 22's other half, and
+the claim the header made in words.
+
+**The fix, 2026-09-27 — on the user's decision: a scroll over a frozen pane scrolls the body.** Three
+parts. **A frozen pane takes no focus** (`PageView::setFrozen`), so a click in it leaves the body
+active and every command — navigation, zoom, fit, rotation — lands on the body; which also makes the
+rulers measure the body in a spreadsheet split, and the horizontal ruler therefore reads the frozen
+row and the vertical one the frozen column, which share those axes. **Whatever still moved a frozen
+pane** — the wheel, which reaches the pane under the pointer, and the hand — **was handed to the body
+as the same DISTANCE**, measured against where the container last placed that pane. **That part was
+WRONG and is replaced — see I-20, found by the re-walk the same day:** a pane frozen at the
+document's top cannot move up, so there was no distance to hand on, and the hand's absolute scroll
+turned the measurement into a runaway. A frozen pane's gestures are now the body's before they move
+anything. **The frozen panes show no scrollbars**,
+and the room the body's scrollbars take is kept empty beside them (`setScrollBarReserve`), because a
+frozen row one scrollbar wider than the body clamps one scrollbar short of it at the far right. And
+since a frozen pane is never the active one, **a guide edited inside it is mirrored from it directly**
+(`DocumentWindow::adoptView`), or the mirror that follows the active pane (D4-7) would never hear it.
+**A-91**, one case and two planted controls, both run red.
+
+**I-20 · A wheel up over a frozen header row did nothing, and a hand drag over a frozen pane ran
+away.** *(Raised 2026-09-27 by the user's re-walk of M-08's step 1, on the build that fixed I-19: *"I
+can scroll down on the top row only. Nothing happend when I scroll up."* The runaway was found the same
+hour by reading `HandTool` to explain it. S2. **A defect in I-19's fix**, not in T9.)*
+
+**Mechanism.** I-19's fix let a frozen pane MOVE, then measured how far it had moved against where the
+container last placed it, handed that distance to the body, and put the pane back. Two things break
+that. **A frozen pane is clamped like any other**: the re-walk froze at the top of the page, where the
+row sits at offset 0, so a wheel up clamped to 0, nothing moved, and there was no distance to hand on
+— the same for the left column scrolling left and the corner in both. **And the hand sets an
+ABSOLUTE scroll** — `HandTool::move` writes the offset at the press minus the distance dragged since
+(`HandTool.cpp`) — so a pane put back after every move re-sent the whole drag each time: five moves of
+10 px moved the body 10 + 20 + 30 + 40 + 50 = 150 px.
+
+**Why no case caught it.** **A-91's first version** froze mid-page, where a frozen pane has room to move
+both ways, and drove the hand as a relative `scrollBy` — and said so under *What it does NOT cover*,
+which is the exact back door convention 19 exists to make a reader subtract. The declared limitation
+was the defect.
+
+**The fix, 2026-09-27.** Nothing measures a frozen pane's movement any more. **Its gestures are the
+body's before they move anything** (`PageView::setFrozen(body)`): the wheel is re-sent to the body's
+viewport, at the pointer's position pulled inside it — over the frozen row that x is exactly the
+body's, and a `Ctrl`+wheel zoom anchors on the body's edge rather than on content it is not showing —
+and the tools are given a host (`PageView::ToolTarget`) that is the frozen pane for everything a tool
+measures or paints and the BODY's controller for what it scrolls or zooms, so the hand moves the body
+one-to-one. Whatever else moves a frozen pane is **undone** (`SplitViewContainer::restoreFrozen`) and
+never guessed at. **A-91 is rewritten**: frozen at (0, 0), wheels up, down and both ways sideways, and a
+real five-move hand drag; two planted controls run red.
+
+**I-21 · `Ctrl` with the keypad's `+` did not zoom in.** *(Raised 2026-09-27 by the user during M-08's
+re-walk, first as the keypad's `-` and corrected: *"Ctrl+- can zoom out, and Ctrl++ cannot zoom in.
+Both keys are come from number pad."* Everywhere in the product, split or not. English input, NumLock
+on. S3 — the main row's `Ctrl+=` works.)*
+
+**Mechanism.** §8 spells zoom in `Ctrl+=`. The main row's `=` key with `Ctrl` arrives as `Key_Equal`
+and binds. The keypad's `+` arrives as **`Key_Plus` without Shift** — measured through
+`QWindowsKeyMapper` with a probe, and with `KeypadModifier` — so `ShortcutBinder` formed `Ctrl++`,
+which no row binds, and the key did nothing. Stage 2's **I-33** had taught the binder that a SHIFTED
+`+` is the `=` key; an unshifted one it left alone, and its own comment said why: a bare keypad `+`
+is §8's `+`. The keypad's `-` needed nothing — it arrives as `Key_Minus`, the main row's key.
+
+**Why no case caught it.** Every zoom-chord case parses the chord §8 spells, or sends the event the
+main row sends; none sent a keypad key.
+
+**The fix, 2026-09-27.** `ShortcutBinder::chordCandidatesFor` offers `Ctrl+=` as a FALLBACK for a
+keypad `+` with `Ctrl` held — tried only when the reported chord binds nothing, and never without
+`Ctrl`, so the bare keypad `+` stays §8's `+`. No §8 row changes: it is the same key on another part
+of the keyboard, not a new chord. **A-92**, run red before the fix for the right reason.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-26 — all 90 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 93 carry a result.** The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Eight of the twelve are
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Nine of the twelve are
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
    fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding — M-04 in one
    direction only, the 150 % primary removed; M-05, 2026-09-26, failed at step 5 and raised I-15
    (S2), fixed the same day, and passed step 5's re-walk; M-07, 2026-09-26, passed with no finding,
-   after I-16 (S2) and I-17 (S3) were found and fixed while preparing it.**
-   The other four — M-08, M-09, M-10 and M-12 — are the stage's largest remaining gap and the honest
+   after I-16 (S2) and I-17 (S3) were found and fixed while preparing it.** **M-08, 2026-09-27, FAILED
+   its first walk at step 1** — I-18 (S2) and I-19 (S2), both fixed the same day — with every other step
+   passing; **step 1's re-walk the same day confirmed both and raised I-20 (S2) and I-21 (S3)**, both
+   fixed that day; **and the second re-walk of step 1 PASSED the same day, signing M-08 off.**
+   The other three — M-09, M-10 and M-12 — are the stage's largest remaining gap and the honest
    summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-26, re-run after the dotted preview and the two-pixel marker: 1126/1126 on
+4. ✅ **2026-09-27, re-run after I-20's and I-21's fixes: 1129/1129 on `x64-release` and on
+   `x64-debug`**, the one new case A-92's — A-91 rewritten, not added — with the same two named skips
+   and `checks` clean on four gates (`layer-lint` 423 files / 3,384 includes); no `warning:` line from
+   either incremental build. *Before that,* **after I-18's and I-19's fixes: 1128/1128 on `x64-release` and on
+   `x64-debug`**, the two new cases A-90 and A-91, with the same two named skips and `checks` clean on
+   four gates (`layer-lint` 423 files / 3,382 includes); no `warning:` line from either incremental
+   build. *Before that,* **2026-09-26, re-run after the dotted preview and the two-pixel marker: 1126/1126 on
    `x64-release` and on `x64-debug`**, the two new cases A-89's, with the same two named skips and
    `checks` clean (`layer-lint` 423 files / 3,376 includes; no `warning:` line from either incremental
    build). *Before that,* **after I-17's fix: 1124/1124 on both presets**, the three new cases A-88's.
@@ -2243,7 +2485,11 @@ restated as a checklist.
    surviving a restart, closed the same day with **A-86**; and reading the code before M-07's walk
    raised **I-16 (S2)**, a snap no gesture called, closed the same day with **A-87**; and the user,
    preparing that walk, raised **I-17 (S3)**, no cursor readout anywhere, closed the same day with
-   **A-88**.
+   **A-88**. **And again on 2026-09-27:** M-08's first walk raised **I-18 (S2)** and **I-19 (S2)** —
+   a zoom reaching one pane of a spreadsheet split, and a frozen pane scrolling on its own — both
+   closed the same day with **A-90** and **A-91**; and its re-walk that day raised **I-20 (S2)**, a
+   defect in I-19's fix, closed with A-91 rewritten, and **I-21 (S3)**, the keypad's `+`, closed with
+   **A-92**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -2257,10 +2503,11 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; EIGHT OF THE
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; NINE OF THE
 TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
-M-05 ON ITS STEP-5 RE-WALK AND M-07 — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the
-whole of what is outstanding** — four unwalked cases, M-08, M-09, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
+M-05 ON ITS STEP-5 RE-WALK, M-07 AND M-08 ON ITS SECOND RE-WALK OF STEP 1 — AND EVERY ISSUE ANY OF
+THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — three unwalked cases,
+M-09, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, is the argument for the other four rather than against them — and M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's

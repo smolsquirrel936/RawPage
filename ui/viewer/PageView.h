@@ -263,6 +263,26 @@ public:
     // window that is; `TilePresenter::setBackground` argues why the lane rather than the tile.
     void setBackgroundWindow(bool background);
 
+    // S4 I-19 and I-20 -- a FROZEN pane of a spreadsheet split (`SplitViewContainer`), frozen onto
+    // `body`; null makes it an ordinary pane again. It takes no focus, so a click in it leaves the
+    // body active and every command on the body; it shows no scrollbars, because its scroll is
+    // DERIVED from the body's and a scrollbar would offer a position the pane does not own; and
+    // **its gestures are the BODY's before they move anything** -- the wheel is re-sent to the
+    // body, and the tools drive the body's controller (`ToolTarget`).
+    //
+    // That last clause is I-20. I-19's first fix let the frozen pane move and then handed the
+    // distance on -- and a pane frozen at the top of the document cannot move up, so a wheel up
+    // over the header row did nothing; and the hand sets an ABSOLUTE scroll from its press, so a
+    // pane snapped back after every move re-sent the whole drag each time and the body ran away.
+    void setFrozen(PageView* body);
+    bool isFrozen() const noexcept { return scrollTarget_ != nullptr; }
+
+    // The room the BODY's scrollbars take, kept EMPTY on this pane's right and bottom so that its
+    // viewport is the body's size to the pixel. A frozen row aligns with the body at the left edge
+    // by construction; two viewports one scrollbar apart in width clamp one scrollbar apart at the
+    // right edge, which is a misalignment the person sees only when scrolled all the way across.
+    void setScrollBarReserve(int right, int bottom);
+
     // A point in the viewport's logical pixels, in CONTENT device space -- the space
     // `PageLayout` and `ViewportController::visibleRect` are in. Public because the shell maps a
     // ruler's drop into it, and because one place for *scroll offset plus device-pixel ratio* is
@@ -409,6 +429,32 @@ private:
     ViewSettings settings_;
     bool settingsApplied_ = false;
 
+
+    // S4 I-20: the body a frozen pane's gestures belong to, or null. A raw pointer to a sibling:
+    // the body is the split's primary view, which outlives every mode change and so every frozen
+    // pane (`SplitViewContainer::primaryView`).
+    PageView* scrollTarget_ = nullptr;
+
+    // S4 I-20: the host the tools are given. THIS VIEW for everything a tool draws or measures --
+    // the drag arrives in this pane's coordinates, and its overlay is painted here -- and the
+    // BODY's controller, when frozen, for what a tool scrolls or zooms. A separate object rather
+    // than a second meaning of `controller()`, which the container and the shell read and write
+    // as THIS pane's own. Declared before `tools_`, which holds a reference to it.
+    class ToolTarget final : public ToolHost {
+    public:
+        explicit ToolTarget(PageView& view) : view_(view) {}
+        ViewportController& controller() override;
+        const ViewportController& controller() const override;
+        QSize viewportSize() const override { return view_.viewportSize(); }
+        double devicePixelRatio() const override { return view_.devicePixelRatio(); }
+        void requestRepaint() override { view_.requestRepaint(); }
+        void recordView() override;
+        const QPixmap* lastFrame() const override { return view_.lastFrame(); }
+
+    private:
+        PageView& view_;
+    };
+    ToolTarget toolTarget_{*this};
 
     // S4 T7: the tool state machine, and the frame the LOUPE magnifies. The frame is captured
     // only while the armed tool asks for one (`Tool::needsFrame()`), so an unarmed loupe costs

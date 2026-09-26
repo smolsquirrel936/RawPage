@@ -498,3 +498,39 @@ TEST_CASE("the hand tool pans the page the way the hand moves", "[viewercommands
     QCoreApplication::sendEvent(viewer.view->viewport(), &move2);
     CHECK(viewer.view->controller().scroll().y == parked);
 }
+
+TEST_CASE("the keypad's minus and plus zoom like the main row's with Ctrl held", "[viewercommands][I-21]")
+{
+    // S4 guide I-21, M-08's re-walk, 2026-09-27: `Ctrl` + the NUMERIC KEYPAD's `+` did nothing. The events below
+    // are the ones Qt's Windows key mapper was MEASURED to deliver that day -- a probe put
+    // WM_KEYDOWN for VK_SUBTRACT and VK_ADD, with Ctrl held in the thread's key state, through
+    // `QWindowsKeyMapper`: `Key_Minus` / `Key_Plus` with `Ctrl` AND `Qt::KeypadModifier`, text "-"
+    // and "+". The main row's `Ctrl+-` arrives as `Key_Minus` with `Ctrl` alone.
+    //
+    // WHAT THIS DOES NOT COVER (convention 19): the mapper itself. That a real keypad still
+    // delivers these is the walk's, by hand.
+    Viewer viewer(3);
+    QWidget* focus = viewer.window->focusWidget();
+    REQUIRE(focus != nullptr);
+
+    const auto send = [focus](Qt::Key key, Qt::KeyboardModifiers modifiers, const QString& text) {
+        QKeyEvent press(QEvent::KeyPress, key, modifiers, text);
+        press.ignore();
+        QCoreApplication::sendEvent(focus, &press);
+        return press.isAccepted();
+    };
+    const Qt::KeyboardModifiers ctrlKeypad = Qt::ControlModifier | Qt::KeypadModifier;
+
+    const double start = viewer.view->controller().zoom().factor;
+    CHECK(send(Qt::Key_Minus, ctrlKeypad, QStringLiteral("-")));
+    const double afterMinus = viewer.view->controller().zoom().factor;
+    CHECK(afterMinus < start);
+
+    CHECK(send(Qt::Key_Plus, ctrlKeypad, QStringLiteral("+")));
+    CHECK(viewer.view->controller().zoom().factor > afterMinus);
+
+    // THE CONTROL: the main row's `Ctrl+-`, as the mapper delivers it, zooms out too.
+    const double beforeMain = viewer.view->controller().zoom().factor;
+    CHECK(send(Qt::Key_Minus, Qt::ControlModifier, QStringLiteral("-")));
+    CHECK(viewer.view->controller().zoom().factor < beforeMain);
+}

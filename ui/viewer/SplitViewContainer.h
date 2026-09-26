@@ -49,7 +49,7 @@
 // THE SPREADSHEET SPLIT IS A CONSTRAINED SCROLL, NOT A SECOND DOCUMENT.
 // ===========================================================================================
 // Four panes, and three of them have no scroll of their own: their offsets are DERIVED from the
-// body's (D4-13). With `freezeOrigin_` the scroll the freeze was taken at --
+// body's (D4-13). With `origin` the place the freeze was taken at --
 //
 //     corner  (top-left)      (origin.x, origin.y)    frozen in both axes
 //     row     (top-right)     (body.x,   origin.y)    follows the body in x only
@@ -59,6 +59,26 @@
 // -- which is guide case A-55's *"the frozen regions scroll only in their own axis"* written as
 // four assignments. Synchronized scrolling is not an option in this mode: the derivation IS the
 // mode, and a switch that could turn it off would be a spreadsheet split that is not one.
+//
+// **THE BODY LEADS EVERYTHING, NOT ONLY THE SCROLL -- I-18 and I-19, M-08's walk, 2026-09-27.**
+// T9 derived the three panes' SCROLL and nothing else, and said in this header that a frozen pane
+// "cannot be scrolled by the person" while nothing stopped it. The walk found both halves:
+//
+//   * **I-18.** `Ctrl+=` zoomed the body alone, because every view command acts on the focused
+//     pane, and the frozen panes slid to the body's new edge at their OLD zoom. So the body's zoom,
+//     fit, layout mode and view rotation are now copied onto the frozen panes on every change of
+//     the body (`followBody`) -- with the fit resolved to the body's NUMBER, because three panes
+//     each fitting their own size would be three zooms. And the freeze is held as a place in the
+//     DOCUMENT (`FreezeAnchor`), not in device pixels, which change meaning with the zoom.
+//   * **I-19.** A frozen pane takes no focus (`PageView::setFrozen`), so commands reach the body;
+//     and **its gestures are the body's before they move anything** -- `PageView` re-sends its
+//     wheel to the body and gives its tools the body's controller -- so a wheel over the frozen
+//     header row scrolls the sheet, and `Ctrl`+wheel there zooms it.
+//   * **I-20, the second fix of I-19.** The first let a frozen pane move and handed the distance
+//     to the body. A pane frozen at the document's top cannot move up, so a wheel up over the
+//     header row did nothing; and the hand sets an ABSOLUTE scroll from its press, so a pane put
+//     back after every move re-sent the whole drag each time. Now nothing measures a frozen pane's
+//     movement: whatever moves one is undone (`restoreFrozen`).
 //
 // ===========================================================================================
 // THE ACTIVE VIEW IS THE FOCUSED ONE, AND EVERY VIEW COMMAND ACTS ON IT.
@@ -147,6 +167,10 @@ public:
     bool synchronizedScrolling() const noexcept { return synchronized_; }
     void setSynchronizedScrolling(bool on);
 
+    // One of a spreadsheet split's three frozen panes (I-19). Never focused, so never the active
+    // view -- which is why `DocumentWindow` asks, to mirror a guide edited inside one.
+    bool isFrozen(const PageView* view) const noexcept;
+
 signals:
     // A view was constructed and is not yet showing anything. `DocumentWindow` answers by giving it
     // the document, the two settings groups and the position its source pane is at -- the whole of
@@ -191,7 +215,16 @@ private:
     // how one of them gets forgotten.
     void propagateScroll(PageView* leader);
 
-    void observe(PageView* view);               // focus, and the controller's `changed`
+    // `Spreadsheet` only (I-18, I-19, I-20). `followBody` copies the body's zoom, fit, layout mode
+    // and rotation onto the three frozen panes and derives their scroll; `restoreFrozen` undoes
+    // whatever moved a frozen pane, which is never a person's gesture (see there).
+    void followBody();
+    void restoreFrozen();
+    void updateScrollBarReserves();
+    void takeFreeze();
+    core::DevicePoint freezeOriginIn(const PageView& pane) const;
+
+    void observe(PageView* view);               // focus, the controller's `changed`, `viewChanged`
 
     core::render::RenderScheduler&    scheduler_;
     const platform::IDisplayTopology* topology_ = nullptr;
@@ -212,7 +245,19 @@ private:
     PageView* corner_ = nullptr;
     PageView* frozenRow_ = nullptr;
     PageView* frozenColumn_ = nullptr;
-    core::DevicePoint freezeOrigin_;
+
+    // WHERE THE FREEZE WAS TAKEN, AS A PLACE IN THE DOCUMENT (I-18). A PDF point on the page
+    // nearest the body's scroll at the moment of the split, plus the part of the offset that lies in
+    // a margin or a gap -- which `PresentationOptions` keeps in device pixels at every zoom, so it
+    // is carried as pixels. `fallback` is the raw offset, for a pane whose layout does not hold the
+    // page (a paged mode on another page).
+    struct FreezeAnchor {
+        int               page = -1;
+        core::PdfPoint    point;
+        core::DevicePoint residual;
+        core::DevicePoint fallback;
+    };
+    FreezeAnchor freeze_;
 
     bool synchronized_ = true;
 

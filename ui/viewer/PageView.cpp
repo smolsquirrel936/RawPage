@@ -15,6 +15,7 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QScrollBar>
+#include <QCoreApplication>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -74,8 +75,9 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
             [this] { viewport()->update(); });
 
     // THE TOOLS (S4 T7). Built after the controller, because it is the controller a tool reaches
-    // through `ToolHost`, and this widget IS that host.
-    tools_ = std::make_unique<ToolController>(*this, this);
+    // through `ToolHost`. The host is `toolTarget_`, which is this widget in everything but the
+    // controller a FROZEN pane's tools scroll -- the body's (I-20, `setFrozen`).
+    tools_ = std::make_unique<ToolController>(toolTarget_, this);
 
     connect(tools_.get(), &ToolController::cursorChanged, this,
             [this](Qt::CursorShape shape) { viewport()->setCursor(shape); });
@@ -661,6 +663,48 @@ void PageView::setInvertColors(bool invert)
     viewport()->update();
 }
 
+ViewportController& PageView::ToolTarget::controller()
+{
+    return view_.scrollTarget_ != nullptr ? view_.scrollTarget_->controller() : view_.controller();
+}
+
+const ViewportController& PageView::ToolTarget::controller() const
+{
+    return view_.scrollTarget_ != nullptr ? view_.scrollTarget_->controller() : view_.controller();
+}
+
+void PageView::ToolTarget::recordView()
+{
+    // The history belongs to the view that moved, and a frozen pane's tools move the body.
+    if (view_.scrollTarget_ != nullptr) view_.scrollTarget_->recordView();
+    else view_.recordView();
+}
+
+void PageView::setFrozen(PageView* body)
+{
+    scrollTarget_ = (body == this) ? nullptr : body;
+    const bool frozen = scrollTarget_ != nullptr;
+    setFocusPolicy(frozen ? Qt::NoFocus : Qt::StrongFocus);
+
+    // No scrollbars. A frozen pane's wheel never reaches them: `wheelEvent` re-sends it to the body.
+    const Qt::ScrollBarPolicy policy = frozen ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded;
+    setHorizontalScrollBarPolicy(policy);
+    setVerticalScrollBarPolicy(policy);
+    if (!frozen) setScrollBarReserve(0, 0);
+}
+
+void PageView::setScrollBarReserve(int right, int bottom)
+{
+    const QMargins wanted(0, 0, std::max(0, right), std::max(0, bottom));
+    if (viewportMargins() == wanted) return;
+    setViewportMargins(wanted);
+
+    // Refreshed HERE rather than left to the viewport's resize event, which a widget that is not
+    // yet shown receives only later -- and the layout, the scrollbar ranges and the clamp all read
+    // the viewport's size.
+    refresh();
+}
+
 void PageView::setBackgroundWindow(bool background)
 {
     if (presenter_ == nullptr) return;
@@ -918,6 +962,26 @@ void PageView::resizeEvent(QResizeEvent* event)
 
 void PageView::wheelEvent(QWheelEvent* event)
 {
+    // A FROZEN PANE'S WHEEL IS THE BODY'S (I-20), scroll and zoom alike, and it is handed over
+    // BEFORE this pane moves -- a pane frozen at the top of the document has nowhere to scroll up
+    // to, and measuring its movement afterwards was I-19's first fix and the reason a wheel up over
+    // the header row did nothing. The position is the pointer's, in the body's viewport, pulled
+    // inside it: over the frozen row the x is exactly the body's (they share it), and a zoom about a
+    // point above the body anchors on the body's top edge rather than on content it is not showing.
+    if (scrollTarget_ != nullptr) {
+        QWidget* target = scrollTarget_->viewport();
+        const QPointF global = event->globalPosition();
+        const QPointF local = target->mapFromGlobal(global);
+        const QPointF inside(std::clamp(local.x(), 0.0, std::max(0.0, target->width() - 1.0)),
+                             std::clamp(local.y(), 0.0, std::max(0.0, target->height() - 1.0)));
+        QWheelEvent forwarded(inside, target->mapToGlobal(inside), event->pixelDelta(),
+                              event->angleDelta(), event->buttons(), event->modifiers(),
+                              event->phase(), event->inverted(), event->source());
+        QCoreApplication::sendEvent(target, &forwarded);
+        event->accept();
+        return;
+    }
+
     // `pageDisplay/wheelZooms` SWAPS the two rather than making the wheel do both: with it on, a
     // bare wheel zooms and `Ctrl`+wheel scrolls. A modifier that does nothing is a modifier people
     // stop reaching for.

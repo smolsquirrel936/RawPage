@@ -12,6 +12,9 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <limits>
 
 namespace rawpage::ui {
 namespace {
@@ -142,6 +145,7 @@ SplitViewContainer::~SplitViewContainer()
     for (PageView* view : views_) {
         view->removeEventFilter(this);
         disconnect(&view->controller(), nullptr, this, nullptr);
+        disconnect(view, nullptr, this, nullptr);
     }
 }
 
@@ -163,6 +167,18 @@ void SplitViewContainer::observe(PageView* view)
     // for every state change including a plain scroll, which is the whole quantity being mirrored.
     connect(&view->controller(), &ViewportController::changed, this,
             [this, view] { propagateScroll(view); });
+
+    // AND THE BODY'S SCROLLBARS, AFTER THEY HAVE SETTLED (I-19). `viewChanged` is emitted at the END
+    // of `refresh()`, once the ranges are set and Qt has shown or hidden the bars; the controller's
+    // `changed` above can arrive from the middle of the same refresh, before they have.
+    connect(view, &PageView::viewChanged, this, [this, view](int, int, double) {
+        if (mode_ == Mode::Spreadsheet && view == primaryView()) updateScrollBarReserves();
+    });
+}
+
+bool SplitViewContainer::isFrozen(const PageView* view) const noexcept
+{
+    return view != nullptr && (view == corner_ || view == frozenRow_ || view == frozenColumn_);
 }
 
 bool SplitViewContainer::eventFilter(QObject* watched, QEvent* event)
@@ -199,6 +215,19 @@ void SplitViewContainer::propagateScroll(PageView* leader)
 {
     if (mirroring_ || leader == nullptr) return;
 
+    // A SPREADSHEET SPLIT HAS ONE LEADER, AND IT IS THE BODY (I-18, I-19). A frozen pane that moved
+    // is handed to the body -- it leads neither this split nor the cross-window mirror below, whose
+    // subject is the place a person is reading and not a header row.
+    if (mode_ == Mode::Spreadsheet) {
+        if (leader == primaryView()) {
+            emit scrolled(leader);
+            followBody();
+        } else {
+            restoreFrozen();
+        }
+        return;
+    }
+
     // S4 T11. ANNOUNCED BEFORE THE `views_.size() < 2` RETURN, because the cross-window mirror's
     // commonest subject is a document that is not split at all -- and after the `mirroring_` guard,
     // so a pane this container has just written does not go on to lead a view in another window.
@@ -230,19 +259,120 @@ void SplitViewContainer::propagateScroll(PageView* leader)
         follower->controller().setScroll(to);
     };
 
-    if (mode_ == Mode::Spreadsheet) {
-        // ONLY THE BODY LEADS. A frozen pane cannot be scrolled by the person -- its scrollbars
-        // are its own and it has no gesture of its own worth following -- and letting one lead
-        // would make the freeze depend on which pane was touched last.
-        if (leader == primaryView()) {
-            mirror(frozenRow_, /*x=*/true, /*y=*/false);
-            mirror(frozenColumn_, /*x=*/false, /*y=*/true);
-        }
-    } else if (synchronized_) {
+    if (synchronized_) {
         for (PageView* follower : views_) mirror(follower, /*x=*/true, /*y=*/true);
     }
 
     mirroring_ = false;
+}
+
+void SplitViewContainer::followBody()
+{
+    if (corner_ == nullptr || frozenRow_ == nullptr || frozenColumn_ == nullptr) return;
+
+    PageView* body = primaryView();
+    const ViewportController& lead = body->controller();
+
+    const bool wasMirroring = mirroring_;
+    mirroring_ = true;
+
+    // THE GEOMETRY FIRST, AND THE BODY'S NUMBER RATHER THAN ITS INTENT (I-18). A fit copied as a
+    // fit would be satisfied against each pane's OWN size -- a frozen column a quarter of the window
+    // wide fits a quarter of the zoom -- so the frozen panes take no fit and the zoom the body's fit
+    // produced. Each setter refreshes its pane synchronously (`PageView` listens to its controller
+    // first), so the layouts below are at the new geometry by the time the scroll is derived.
+    const std::array<PageView*, 3> frozen{corner_, frozenRow_, frozenColumn_};
+    for (PageView* pane : frozen) {
+        ViewportController& follower = pane->controller();
+        follower.setViewRotation(lead.viewRotation());
+        follower.setLayoutMode(lead.layoutMode());
+        follower.setFitMode(FitMode::None);
+        follower.setZoom(lead.zoom());
+    }
+
+    // THE SCROLL, DERIVED -- the header's table, with the origin resolved through each pane's own
+    // layout. Every pane is at the body's zoom now, so an offset copied from the body is exact and
+    // needs none of the point-space ratio the two-pane mirror carries.
+    const core::DevicePoint bodyScroll = lead.scroll();
+    corner_->controller().setScroll(freezeOriginIn(*corner_));
+    frozenRow_->controller().setScroll(core::DevicePoint{bodyScroll.x, freezeOriginIn(*frozenRow_).y});
+    frozenColumn_->controller().setScroll(core::DevicePoint{freezeOriginIn(*frozenColumn_).x, bodyScroll.y});
+
+    mirroring_ = wasMirroring;
+}
+
+void SplitViewContainer::restoreFrozen()
+{
+    // A FROZEN PANE NEVER LEADS, AND WHATEVER MOVED IT IS UNDONE (I-20). A person's gestures never
+    // get here: the wheel over a frozen pane is re-sent to the body and its tools drive the body's
+    // controller (`PageView::setFrozen`), so the body moves and `followBody` follows. What does get
+    // here is the pane's own clamp after a resize, or any path nobody has thought of -- and for all
+    // of them the answer is the derivation, not a guess at what the movement meant.
+    //
+    // I-19's first fix guessed: it handed the pane's movement to the body as a distance. A pane
+    // frozen at the top of the document cannot move up, so a wheel up over the header row did
+    // nothing; and the hand sets an ABSOLUTE scroll from its press, so a pane put back after every
+    // move re-sent the whole drag each time and the body ran away.
+    followBody();
+}
+
+void SplitViewContainer::updateScrollBarReserves()
+{
+    if (frozenRow_ == nullptr || frozenColumn_ == nullptr) return;
+
+    // MEASURED AS THE ROOM THE BODY'S VIEWPORT DOES NOT HAVE, not as the scrollbars' widths: a style
+    // with overlay scrollbars takes no room, and the viewport's geometry is the one number that is
+    // right for both kinds.
+    PageView* body = primaryView();
+    const QRect inside = body->contentsRect();
+    const QRect viewport = body->viewport()->geometry();
+    frozenRow_->setScrollBarReserve(inside.right() - viewport.right(), 0);
+    frozenColumn_->setScrollBarReserve(0, inside.bottom() - viewport.bottom());
+}
+
+void SplitViewContainer::takeFreeze()
+{
+    PageView* body = primaryView();
+    const core::DevicePoint origin = body->controller().scroll();
+    const core::render::PageLayout& layout = body->layoutEngine().layout();
+
+    freeze_ = FreezeAnchor{};
+    freeze_.fallback = origin;
+
+    // THE NEAREST PAGE, and the point on it nearest the origin. The origin is usually ON a page;
+    // at the top of the document it is in the margin above page 1, and between two pages it is in
+    // the gap -- both of which stay the same number of device pixels at every zoom, so that part is
+    // carried as `residual` and only the on-page part scales.
+    double best = std::numeric_limits<double>::infinity();
+    core::DevicePoint onPage;
+    bool found = false;
+    for (const core::render::PageSlot& slot : layout.pageSlots()) {
+        const core::DevicePoint nearest{std::clamp(origin.x, slot.rect.left(), slot.rect.right()),
+                                        std::clamp(origin.y, slot.rect.top(), slot.rect.bottom())};
+        const double distance = std::hypot(origin.x - nearest.x, origin.y - nearest.y);
+        if (distance < best) {
+            best = distance;
+            onPage = nearest;
+            found = true;
+        }
+    }
+    if (!found) return;
+
+    const auto point = layout.toDocument(onPage);
+    if (!point.has_value()) return;
+
+    freeze_.page = point->pageIndex;
+    freeze_.point = point->point;
+    freeze_.residual = core::DevicePoint{origin.x - onPage.x, origin.y - onPage.y};
+}
+
+core::DevicePoint SplitViewContainer::freezeOriginIn(const PageView& pane) const
+{
+    if (freeze_.page < 0) return freeze_.fallback;
+
+    const auto at = pane.layoutEngine().layout().toContent(freeze_.page, freeze_.point);
+    if (!at.has_value()) return freeze_.fallback;
+    return core::DevicePoint{at->x + freeze_.residual.x, at->y + freeze_.residual.y};
 }
 
 void SplitViewContainer::setMode(Mode mode)
@@ -297,12 +427,19 @@ void SplitViewContainer::buildSpreadsheet()
 {
     // THE FREEZE IS TAKEN WHERE THE PERSON IS. Freezing at the document's origin instead would
     // show the top of page 1 in the frozen row no matter how far down the body was, which is not
-    // what a frozen header row means to anyone who has used one.
-    freezeOrigin_ = primaryView()->controller().scroll();
+    // what a frozen header row means to anyone who has used one. Taken as a place in the document
+    // (I-18), so a zoom afterwards keeps the same header rather than the same pixel offset.
+    takeFreeze();
+
+    // NOTHING THE THREE PANES DO WHILE THEY ARE BUILT AND ADOPTED LEADS ANYTHING. Adoption hands
+    // each one the body's fit, which a quarter-width pane satisfies at its own zoom; `followBody`
+    // below replaces all of it, and a frozen pane read as leading in between would move the body.
+    mirroring_ = true;
 
     corner_ = makeView();
     frozenRow_ = makeView();
     frozenColumn_ = makeView();
+    for (PageView* pane : {corner_, frozenRow_, frozenColumn_}) pane->setFrozen(primaryView());
 
     innerTop_ = new DividerSplitter(Qt::Horizontal, this);
     innerBottom_ = new DividerSplitter(Qt::Horizontal, this);
@@ -344,14 +481,14 @@ void SplitViewContainer::buildSpreadsheet()
 
     for (PageView* view : {corner_, frozenRow_, frozenColumn_}) emit viewAdded(view);
 
-    // THE THREE FROZEN PANES ARE PLACED ONCE, HERE, and then only ever follow. `propagateScroll`
-    // moves the two that track an axis; the corner is written directly because nothing ever moves
-    // it again and a mirror with both axes frozen has nothing to say.
-    mirroring_ = true;
-    corner_->controller().setScroll(freezeOrigin_);
-    frozenRow_->controller().setScroll(core::DevicePoint{primaryView()->controller().scroll().x, freezeOrigin_.y});
-    frozenColumn_->controller().setScroll(core::DevicePoint{freezeOrigin_.x, primaryView()->controller().scroll().y});
     mirroring_ = false;
+
+    // AND THEN THEY FOLLOW THE BODY, which is all they ever do: its geometry, then the room its
+    // scrollbars take, then their scroll derived from its. `followBody` runs again on every change
+    // of the body, and after anything moves a frozen pane (`restoreFrozen`).
+    followBody();
+    updateScrollBarReserves();
+    followBody();
 }
 
 void SplitViewContainer::retire(PageView* view)
@@ -362,6 +499,7 @@ void SplitViewContainer::retire(PageView* view)
 
     view->removeEventFilter(this);
     disconnect(&view->controller(), nullptr, this, nullptr);
+    disconnect(view, nullptr, this, nullptr);
 
     views_.erase(std::remove(views_.begin(), views_.end(), view), views_.end());
 
