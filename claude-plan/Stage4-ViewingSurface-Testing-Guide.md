@@ -27,15 +27,16 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Four manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Five manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
 > choice governs (§6 says why) — and raised **I-14 (S2)**: `Ctrl+Shift+M` kept the presentation's
 > physical size across a change of scale; fixed the same day. **M-06**, on 2026-09-26, passed with no
-> finding — the human half of A2 at Stage 4, and it agrees with the figure.
+> finding — the human half of A2 at Stage 4, and it agrees with the figure. **M-03**, on 2026-09-26,
+> passed with no finding — including the display held awake while presenting and released after.
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other eight
+> same day**. The other seven
 > are the stage's largest remaining gap. §8 holds **fourteen** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-14 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -1272,7 +1273,22 @@ passed, and the walk raised **I-14 (S2)**, fixed the same day.
   monitor. `F11` is full screen on the window's own monitor, and a second `F11` restores it exactly.
 - **If it fails** S2; S1 if the window does not come back.
 
-**M-03 · A presentation, start to finish** ☐
+**M-03 · A presentation, start to finish** ✅ **signed off by the user, 2026-09-26** — every step passed,
+no finding.
+- **Walk result** `transitions.pdf` copied to `tests\manual\M-03\`, with `fullScreen/transition` = Fade,
+  `fullScreen/autoAdvanceSec` = 2 and `fullScreen/loop` on, so page 4 — which carries neither key — is
+  the page the preferences must govern. Each page used its own transition (1 Wipe, 2 Dissolve, 3 a cut,
+  because `/Split` is not one of the four the product draws and is read as `None` with its name kept),
+  page 4 used the preference's Fade; auto-advance held each page's time (3 s and 5 s from the file's
+  `/Dur` on pages 1 and 3, the preference's 2 s on 2 and 4) and looped; `B`/`W` blanked instantly and
+  returned to the same page; the laser showed and `Ctrl+L` hid and restored the cursor. **The power
+  half, with its control:** this machine has no screen saver program chosen and never sleeps on mains,
+  so the observable was the display turning off, set to 1 minute for the walk (`powercfg /change
+  monitor-timeout-ac`, restored to 30 afterwards) — it did **not** turn off during the presentation and
+  **did** after leaving it, so the request is released on exit (A-58's claim, seen on real hardware).
+- **Read before re-walking:** step 5 says *"screen-saver timeout"*, and on a machine with no screen
+  saver chosen and sleep set to never, only the display-off timeout can be observed — check it with
+  `powercfg /query SCHEME_CURRENT SUB_VIDEO VIDEOIDLE` and shorten it for the walk.
 - **Goal** Transitions, auto-advance, blanking, the pointer, and the machine's sleep behaviour.
 - **Pre** `corpus\ordinary\transitions.pdf` copied to `tests\manual\M-03\`. Note your screen-saver /
   sleep timeout before you start.
@@ -1880,8 +1896,8 @@ restated as a checklist.
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
-   fixed the same day; M-06, 2026-09-26, passed with no finding.**
-   The other eight are the stage's largest remaining gap and the honest summary of its state.
+   fixed the same day; M-06 and M-03, 2026-09-26, passed with no finding.**
+   The other seven are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -1954,13 +1970,13 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; FOUR OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02 AND M-06 — AND EVERY
-ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — eight unwalked
-cases. That each of the first three manual cases walked in this stage found a defect the complete
-automated half had ratified, and that each fix needed a new case rather than only a new line of code,
-is the argument for the other eight rather than against them; that the fourth, the stage's verdict
-case, found nothing is the verdict holding up to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; FIVE OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06 AND M-03 — AND
+EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — seven
+unwalked cases. That each of the first three manual cases walked in this stage found a defect the
+complete automated half had ratified, and that each fix needed a new case rather than only a new line
+of code, is the argument for the other seven rather than against them; that M-06, the stage's verdict
+case, and M-03 found nothing is the verdict and the presentation holding up to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.
