@@ -7,12 +7,14 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **85 automated** (A-01 … A-84, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 85 carry
-> a result** as of 2026-09-26 (re-derived from this file: 85 case headers, none still boxed — the
-> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 85th are **A-81**, **A-82**
-> and **A-83**, added 2026-09-26 with the fixes for I-11, I-12 and I-13, and **A-84**, the case
-> D4-18 was recorded with that day) — T1's
+> partly run.** **86 automated** (A-01 … A-85, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 86 carry
+> a result** as of 2026-09-26 (re-derived from this file: 86 case headers, none still boxed — the
+> 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 86th are **A-81**, **A-82**,
+> **A-83** and **A-85**, added 2026-09-26 with the fixes for I-11 to I-14, and **A-84**, the case
+> D4-18 was recorded with that day; **A-85 SKIPS under `ctest`** — it needs two monitors at
+> different scale factors, which the offscreen platform cannot have — and its result is a run on
+> the `windows` platform, recorded against it) — T1's
 > corpus cases, T2's four A2 cases, T3's seven session cases, T4's four reader cases, T5's seven
 > pane cases, T6's two plus the two re-reads T5 owed, **T7's five tool cases**, **T8's eight ruler,
 > grid, guide and snap cases** (one of them, A-52, ✅ for its inversion half and 🟡 for the
@@ -25,15 +27,18 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Two manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Three manual cases are walked.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
+> choice governs (§6 says why) — and raised **I-14 (S2)**: `Ctrl+Shift+M` kept the presentation's
+> physical size across a change of scale; fixed the same day.
 > **M-01**, by the user on 2026-09-26, **failed on its first walk** — it raised **I-11 (S2)**, Fit
 > Width drawing the landscape page at twice the window's width, and **I-12 (S3)**, a split with no
 > visible divider — both were fixed the same day, and **the re-walk on the fixed build PASSED, the
-> same day**. The other ten
-> are the stage's largest remaining gap. §8 holds **thirteen** issues and **only I-07 (S4) is open**;
-> I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11,
-> I-12 and I-13 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
-> by `x64-debug` after `x64-release` had reported green, and I-10 to I-13 each found by a person
+> same day**. The other nine
+> are the stage's largest remaining gap. §8 holds **fourteen** issues and **only I-07 (S4) is open**;
+> I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
+> I-14 on 2026-09-26** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> by `x64-debug` after `x64-release` had reported green, and I-10 to I-14 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case.
 >
@@ -239,7 +244,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 |---|---|
 | All four layout modes plus split views work | A-53 … A-56 for the splits; the four layout modes are Stage 2's suites, re-run by name in A-74; **M-01**, **M-08** |
 | Rulers, grid, guides and snapping behave identically at 50 % and 400 % | A-45 … A-52, **M-07** |
-| Full Screen and presentation work on a chosen monitor | A-57 … A-63, **M-02**, **M-03** |
+| Full Screen and presentation work on a chosen monitor | A-57 … A-63, **A-85** (on the `windows` platform), **M-02**, **M-03** |
 | Window arrangement and session restore survive a monitor topology change | A-18 … A-24 (the fingerprint and the clamp), A-64 … A-66 (arrangement), A-75 … A-79 (restore), A-60 (a presentation's monitor disappearing), **M-04**, **M-05**, **M-09** |
 | *(Plan D4-1)* The viewing surface changes no document | A-06, A-07, A-31, A-35, A-48, A-63, A-69 |
 | *(Plan D4-10)* The pane does not starve the viewport | A-14 … A-17, A-32, A-72, **M-06** |
@@ -249,6 +254,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-12)* A split's divider is visible against the desk, in both themes | **A-82**, and **M-01**, which found it |
 | *(I-13)* Both rulers print their numbers | **A-83**, and **M-07** |
 | *(Plan D4-18)* One pair of rulers, following the focused pane of a split | **A-84**, **M-08** |
+| *(I-14)* A presentation moved to a monitor of another scale fills that monitor | **A-85**, and **M-02**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -861,6 +867,28 @@ chord opens.
 **Steps** Drive `IDisplayTopology::subscribe`'s handler with a fake arrangement in which the presenting monitor is gone.
 **Expect** The presentation reappears on the primary monitor, still presenting, at the same page. **If it fails** S1 — a presentation on a monitor that does not exist is unreachable.
 
+**A-85 · A presentation moved to a monitor of another scale FILLS that monitor — I-14, closed** ✅
+✅ **2026-09-26, on the `windows` platform — and it SKIPS under `ctest`, by design**
+(`tests/ui/tst_presentation.cpp`, `[I-14]`). **The only case in this file whose evidence is not a
+`ctest` run**: it needs two monitors at DIFFERENT scale factors, and the offscreen platform has one
+screen, so under `ctest` it calls `SKIP` with the reason — a second named skip beside the battery case.
+Its result is `QT_QPA_PLATFORM=windows` on the P-1 rig (MAG 272URDF 3840×2160 at 150 %, LS27B61x
+2560×1440 at 100 %), release and debug. **Judged in PHYSICAL pixels**: `GetWindowRect` on the
+surface against `GetMonitorInfo`'s rectangle for the monitor it is on, after the first placement
+(the control — it was always right) and after each `present.nextMonitor` round the whole ring; Qt's
+own logical geometry is not asserted, because the defect was the window and Qt's account of it
+disagreeing. **Measured before the fix:** after a move from the 4K panel, `surface 3840x2160 |
+monitor 2560x1440` — M-02's report exactly. **After:** 2560×1440 on the 2K, 3840×2160 on the 4K,
+and back, every move. **The red run before the fix is the control**: the case was written against
+the unfixed code and failed on the move for the reason the walk gave.
+**What it does NOT cover** (convention 19): the topology path (A-60), which now moves the surface
+by the same function but needs a monitor removed to be driven for real — **M-04**; and every
+`ctest` run, where it skips.
+**Steps** `QT_QPA_PLATFORM=windows` then `rawpage_ui_tests.exe "[I-14]"`, on a desktop with two
+monitors at different scale factors.
+**Expect** The surface's physical rectangle equals its monitor's after the first placement and after
+every move. **If it fails** S2 — I-14 is back.
+
 **A-61 · Transitions, auto-advance, loop and blank** ✅
 **2026-09-21, T10 — and the reader is the first in this project PDFium could not supply.**
 Two halves. **`render.`** reads `corpus/ordinary/transitions.pdf` through the backend: page 1's
@@ -1212,15 +1240,35 @@ fixed the same day, and the re-walk on the fixed build passed every step.
   dropped it; no page is drawn at the wrong size after a monitor change.
 - **If it fails** S2; S1 if a page is shown at the wrong size or the window becomes unreachable.
 
-**M-02 · Full Screen on the monitor you chose** ☐
+**M-02 · Full Screen on the monitor you chose** ✅ **signed off by the user, 2026-09-26** — every step
+passed, and the walk raised **I-14 (S2)**, fixed the same day.
+- **Walk result** On the P-1 rig — **MAG 272URDF**, 4K at 150 %, primary, and **LS27B61x**, 2560×1440
+  at 100 % (`--print-screen-metrics`). With `fullScreen/monitor` = `LS27B61x` the presentation opened
+  on the 100 % monitor while the window stayed on the 4K; `Ctrl+Shift+M` moved it and moved it back;
+  `Esc` left the window where it was. With the key empty it opened on the monitor the window was on.
+  `F11` took the window full screen on its own monitor and a second `F11` restored it exactly. **And
+  I-14**: every `Ctrl+Shift+M` kept the surface's physical size — 2560×1440 physical in a corner of the
+  4K, or 3840×2160 overflowing the 2K. M-02 is the first real test of Stage 2's **I-20** join
+  succeeding against a second monitor, and it did.
+- **THE STEPS BELOW WERE CORRECTED BEFORE THE WALK, and the walk used them.** As written from the plan
+  they pressed `F11` and expected the chosen monitor — but `fullScreen/monitor` governs the
+  PRESENTATION (`present.start`, its own surface), `F11` is the window's own full screen on the monitor
+  it is on (the key's declaration says so: *"EMPTY means the monitor the window is already on, which is
+  what a person expects from pressing `F11`"*), and `Ctrl+Shift+M` is bound only in the presentation's
+  `FullScreen` context. **Whether `F11` should honour the setting too was put to the user, who
+  decided on 2026-09-26 that it should NOT** — `F11` stays on the window's own monitor, as built.
+  `Features.md` §1.2's *"Choose which monitor Full Screen occupies"*, which read both ways, now says
+  *presentation* and records the decision.
 - **Goal** `fullScreen/monitor` and the `QScreen` join (**I-20**), which no offscreen run can exercise.
-- **Pre** P-1.
-- **Steps** Set Full Screen to the secondary monitor in Preferences → Full Screen. Press `F11` with
-  the window on the **primary**. Press `Ctrl+Shift+M`. Press `Esc`. Repeat with the setting on
-  *the monitor the window is on*.
-- **Expect** Full Screen opens on the monitor you named, not the one the window was on; the other
-  monitor keeps showing what it showed; `Ctrl+Shift+M` moves it; `Esc` returns the window to exactly
-  the position and size it had.
+- **Pre** P-1. A document copied into `tests\manual\M-02\`.
+- **Steps** In Preferences → Full Screen type the second monitor's name, exactly as
+  `rawpage.exe --print-screen-metrics` prints it (the field is a text box), and press `Tab`. With the
+  window on the **primary**, choose **View → Presentation**. Press `Ctrl+Shift+M`, and again. Press
+  `Esc`. Repeat with the field empty, from each monitor. Then press `F11` on each monitor, and again.
+- **Expect** The presentation opens on the monitor you named, not the one the window is on, and FILLS
+  it; the other monitor keeps showing what it showed; `Ctrl+Shift+M` moves it and it fills each
+  monitor it lands on; `Esc` leaves the window exactly where it was. Empty means the window's own
+  monitor. `F11` is full screen on the window's own monitor, and a second `F11` restores it exactly.
 - **If it fails** S2; S1 if the window does not come back.
 
 **M-03 · A presentation, start to finish** ☐
@@ -1425,6 +1473,7 @@ uses.
 | **I-11** | **S2** | **On a document of mixed page sizes, `Ctrl+2` from 400 % drew the landscape page at TWICE the window's width: the fit re-measured whichever page the zoom change had scrolled onto** | ✅ **Closed 2026-09-26, the day M-01 raised it** — every fit is anchored to the page it was chosen on, a zoom command keeps the reader's place, and **A-81** asserts both over mixed sizes |
 | **I-12** | **S3** | **A split had no visible divider: the stock `QSplitter` handle is painted in `QPalette::Window`, which is the desk's own colour** | ✅ **Closed 2026-09-26, the day M-01 raised it** — a handle that paints itself from the theme tokens, and **A-82** measures it against the desk in both themes |
 | **I-13** | **S3** | **The vertical ruler printed NO numbers: each label was rotated about x = 0, which carried it off the widget's left edge** | ✅ **Closed 2026-09-26, the day the user asked** — the label is anchored at the tick side of its strip, and **A-83** counts painted ink in both rulers |
+| **I-14** | **S2** | **`Ctrl+Shift+M` moved the presentation to a monitor of another scale and kept its PHYSICAL size — a quarter of the 4K panel, or overflowing the 2K one** | ✅ **Closed 2026-09-26, the day M-02 raised it** — a move hides, places and shows, as the first placement always did; **A-85** measures physical rectangles on the real monitors |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -1784,28 +1833,54 @@ would have been blind to the fix as well as the defect until it loaded a real fo
 **Controls.** The planted old origin reads vertical ink **0** on both the `windows` platform and, with
 the font loaded, offscreen; the fix reads 123 and 171.
 
+**I-14 · A presentation moved to a monitor of another scale kept its physical size.** *(Raised
+2026-09-26 by the user's M-02 walk.)*
+
+**Mechanism.** `FullScreenController::moveToNextMonitor` re-targeted a surface that was already full
+screen — `setScreen`, `setGeometry(screen->geometry())`, `showFullScreen` — and a full-screen window
+moved in place onto a monitor of another scale kept its size in PHYSICAL pixels. From the 150 % panel
+to the 100 % one that is a 3840×2160 surface on a 2560×1440 monitor; the other way, 2560×1440 in a
+corner of the 4K. The FIRST placement never had it, because it happens before the surface is shown —
+and that is the fix: a move now hides the surface, places it and shows it full screen again
+(`moveSurfaceTo`), which is the first placement's path. `onTopologyChanged`, which moves the surface
+to the primary when its monitor disappears, went through the same two calls and now goes through the
+same function — the same defect, on the path M-04 walks.
+
+**Measured, not inferred.** On the P-1 rig through `GetWindowRect`: before the fix, after a move
+from the 4K, `surface 3840x2160 | monitor 2560x1440`; after it, every move fills its monitor.
+
+**Why no case caught it.** The offscreen platform has ONE screen, so `moveToNextMonitor` returned at
+`screens.size() < 2` in every `ctest` run ever made of it — A-57 proves `Ctrl+Shift+M` DISPATCHES,
+and nothing had ever seen it move. The suite's header names *"it cannot unplug a monitor"*; it did
+not name that it could not have a second one at all. **A-85** is therefore a case that SKIPS under
+`ctest` with its reason, and whose evidence is a run on the `windows` platform on a two-monitor desk —
+the first of its kind in this file, and recorded as such rather than as a pass it cannot have.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-26 — all 85 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 85th are **A-81**, **A-82** and **A-83**, added 2026-09-26 with the fixes for I-11, I-12 and I-13, and **A-84**, D4-18's; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-26 — all 86 carry a result.** The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 86th are **A-81**, **A-82**, **A-83** and **A-85**, added 2026-09-26 with the fixes for I-11 to I-14, and **A-84**, D4-18's — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Two of the twelve are
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Three of the twelve are
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
-   re-walk on the fixed build, the same day.**
-   The other ten are the stage's largest remaining gap and the honest summary of its state.
+   re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
+   fixed the same day.**
+   The other nine are the stage's largest remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-26, re-run after I-13's fix and D4-18's case: 1116/1116 on `x64-release` and on
-   `x64-debug`**, the battery case the one named skip, `checks` clean (`layer-lint` 423 files / 3,364
-   includes) — the two new cases are A-83 and A-84. *Earlier that day,* **with the fixes for I-11 and
+4. ✅ **2026-09-26, re-run after I-14's fix: 1117/1117 on `x64-release` and on `x64-debug`**, with
+   **two** named skips — the battery case, and **A-85**, which needs two monitors at different scales
+   and was run on the `windows` platform instead, passing on both presets — and `checks` clean
+   (`layer-lint` 423 files / 3,368 includes). *Before that,* **after I-13's fix and D4-18's case:
+   1116/1116**, the two new cases A-83 and A-84. *Earlier that day,* **with the fixes for I-11 and
    I-12: 1114/1114 on both presets** — the six new cases are A-81's four and A-82's two — with `checks` clean on four
    gates (`layer-lint` 423 files / 3,362 includes; `mutation-lint` still **one command**) and no
    `warning:` line from either incremental build (which compiled only the changed files, so the
@@ -1855,7 +1930,8 @@ restated as a checklist.
 9. ✅ **2026-09-26 — met again, the same day it was broken, for the second time.** M-01's walk
    raised **I-11 (S2)** and **I-12 (S3)** and both closed that day, with **A-81** and **A-82**; the
    user's question after it raised **I-13 (S3)**, the vertical ruler with no numbers, closed the same
-   day with **A-83**.
+   day with **A-83**; and M-02's walk raised **I-14 (S2)**, a moved presentation keeping its physical
+   size, closed the same day with **A-85**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -1869,12 +1945,12 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; TWO OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, AND M-01 ON ITS RE-WALK — AND EVERY ISSUE
-EITHER RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — ten unwalked cases. That
-each of the first two manual cases walked in this stage found defects the complete automated half
-had ratified, and that each fix needed a new case rather than only a new line of code, is the
-argument for the other ten rather than against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; THREE OF THE
+TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, AND M-02 — AND EVERY ISSUE
+ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — nine unwalked cases.
+That each of the first three manual cases walked in this stage found a defect the complete automated
+half had ratified, and that each fix needed a new case rather than only a new line of code, is the
+argument for the other nine rather than against them. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
 says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.

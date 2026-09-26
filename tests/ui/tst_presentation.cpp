@@ -41,6 +41,8 @@
 #include "ui/viewer/ViewportController.h"
 
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QEvent>
@@ -50,6 +52,13 @@
 #include <QLayout>
 
 #include <memory>
+#include <utility>
+
+// I-14's case reads the PHYSICAL window rectangle, which only Win32 reports.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 
 using namespace rawpage;
 using core::ActionId;
@@ -379,6 +388,81 @@ TEST_CASE("an unknown monitor name falls back to the primary and still presents"
     CHECK(presenter.controller()->isPresenting());
     REQUIRE(presenter.controller()->surface() != nullptr);
     CHECK(presenter.controller()->surface()->screen() != nullptr);
+}
+
+// =============================================================================================
+// I-14 -- `Ctrl+Shift+M` moved the presentation and kept its PHYSICAL size.
+//
+// Found by the user's M-02 walk, 2026-09-26: presenting on the 100 % monitor and moving to the 150 %
+// one left a 2560 x 1440 surface in a corner of the 4K panel; the other way round, a 3840 x 2160
+// surface overflowing the 2K one. The first placement was always right -- it happens before the
+// surface is shown -- and every MOVE was wrong.
+//
+// Judged in PHYSICAL pixels through Win32, because Qt's logical geometry is Qt's own account of the
+// window and the defect is the window and that account disagreeing. **What it does NOT cover**
+// (convention 19): anything on the offscreen platform, which has ONE screen -- so under `ctest` this
+// case SKIPS and says why, and its evidence is a run on the `windows` platform on a desktop with two
+// monitors at different scale factors (`QT_QPA_PLATFORM=windows`, guide A-85). A topology change
+// moves the surface by the same path and is not driven here: that needs a monitor unplugged (M-04).
+// =============================================================================================
+
+TEST_CASE("moving a presentation to a monitor of another scale refits it to that monitor",
+          "[presentation][I-14]")
+{
+    const QList<QScreen*> screens = QGuiApplication::screens();
+    bool mixed = false;
+    for (QScreen* screen : screens)
+        if (!qFuzzyCompare(screen->devicePixelRatio(), screens.front()->devicePixelRatio())) mixed = true;
+    if (screens.size() < 2 || !mixed)
+        SKIP("needs two monitors at different scale factors -- run on QT_QPA_PLATFORM=windows (guide A-85)");
+
+    Presenter presenter;
+    presenter.present();
+    ui::PresentationSurface* surface = presenter.controller()->surface();
+    REQUIRE(surface != nullptr);
+
+    // The physical rectangle of the surface, and of the monitor it is mostly on.
+    const auto measure = [surface] {
+        const HWND window = reinterpret_cast<HWND>(surface->winId());
+        RECT frame{};
+        REQUIRE(GetWindowRect(window, &frame));
+        MONITORINFO info{};
+        info.cbSize = sizeof(info);
+        const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+        REQUIRE(GetMonitorInfoW(monitor, &info));
+        return std::make_pair(monitor, std::make_pair(frame, info.rcMonitor));
+    };
+    const auto fills = [](const RECT& frame, const RECT& monitor) {
+        UNSCOPED_INFO("surface " << frame.left << "," << frame.top << " " << frame.right - frame.left
+                      << "x" << frame.bottom - frame.top << " | monitor " << monitor.left << ","
+                      << monitor.top << " " << monitor.right - monitor.left << "x"
+                      << monitor.bottom - monitor.top);
+        return frame.left == monitor.left && frame.top == monitor.top
+               && frame.right == monitor.right && frame.bottom == monitor.bottom;
+    };
+
+    const auto settle = [] {
+        for (int i = 0; i < 10; ++i) QCoreApplication::processEvents();
+    };
+    settle();
+
+    // THE FIRST PLACEMENT -- the control: it was always right, because it happens before the
+    // surface is shown. A case whose control fails is measuring something else.
+    const auto first = measure();
+    CHECK(fills(first.second.first, first.second.second));
+
+    // EVERY MOVE, round the whole ring and back to the start, so both directions of scale are
+    // crossed whichever monitor the presentation opened on.
+    HMONITOR previous = first.first;
+    for (qsizetype step = 0; step < screens.size(); ++step) {
+        presenter.dispatch(ActionId::PresentNextMonitor);
+        settle();
+        const auto moved = measure();
+        CHECK(moved.first != previous);   // it moved at all
+        CHECK(fills(moved.second.first, moved.second.second));
+        previous = moved.first;
+    }
+    CHECK(previous == first.first);   // the ring closes
 }
 
 // =============================================================================================

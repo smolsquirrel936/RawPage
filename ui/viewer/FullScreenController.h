@@ -178,6 +178,10 @@ private:
     // the window's own screen, and an unknown name logs once.
     QScreen* chosenScreen(const QString& friendlyName) const;
     void     placeOnScreen(QScreen* screen);
+    // A MOVE of a surface already on screen -- `Ctrl+Shift+M` and a topology change. Hides, places,
+    // shows: a full-screen window re-targeted in place keeps its physical size across a change of
+    // scale (I-14).
+    void     moveSurfaceTo(QScreen* screen);
 
     void onTopologyChanged();
     void restartAutoAdvance();

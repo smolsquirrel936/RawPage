@@ -205,7 +205,9 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Auto-advance pages on a timer, with loop-after-last-page.
 - Blank the screen to black or white during a presentation.
 - On-screen pointer / laser-pointer cursor in Full Screen mode.
-- Choose which monitor Full Screen occupies on a multi-monitor desktop.
+- Choose which monitor a **presentation** occupies on a multi-monitor desktop, and move it to the next
+  monitor while presenting. `F11` full screen stays on the monitor the window is on — decided by the
+  user on 2026-09-26, after Stage 4's M-02 walk found this line read both ways.
 
 ### 1.3 Rulers, grid, and guides
 

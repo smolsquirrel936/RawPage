@@ -282,9 +282,25 @@ void FullScreenController::moveToNextMonitor()
     if (screens.size() < 2) return;      // nothing to move to, and not an error
 
     const qsizetype at = screens.indexOf(surface_->screen());
-    QScreen* next = screens.at((at < 0 ? 0 : at + 1) % screens.size());
-    placeOnScreen(next);
+    moveSurfaceTo(screens.at((at < 0 ? 0 : at + 1) % screens.size()));
+}
+
+void FullScreenController::moveSurfaceTo(QScreen* screen)
+{
+    if (surface_ == nullptr || screen == nullptr) return;
+
+    // **HIDDEN FIRST, THEN PLACED, THEN SHOWN -- I-14.** Re-targeting a window that is ALREADY full
+    // screen onto a monitor of another scale kept its PHYSICAL size: from the 150 % panel to the
+    // 100 % one a 3840 x 2160 surface overflowed a 2560 x 1440 monitor, and the other way a 2560 x
+    // 1440 one sat in a corner of the 4K. Measured on the P-1 rig through `GetWindowRect`, which is
+    // where it shows: Qt's own logical account of the window agreed with itself throughout. The
+    // first placement never had the defect because it happens BEFORE the surface is shown, so a move
+    // now takes exactly that path. A hide is not a close -- only `closeEvent` ends a presentation --
+    // and the page view keeps its page; focus is handed back because a hidden widget loses it.
+    surface_->hide();
+    placeOnScreen(screen);
     surface_->showFullScreen();
+    if (PageView* view = surface_->view()) view->setFocus(Qt::OtherFocusReason);
 }
 
 void FullScreenController::onTopologyChanged()
@@ -300,9 +316,7 @@ void FullScreenController::onTopologyChanged()
 
     RAWPAGE_LOG_INFO(LogSubsystem::Ui)
         << "fullScreen: the presenting monitor is gone; moving to the primary";
-    placeOnScreen(QGuiApplication::primaryScreen());
-    surface_->showFullScreen();
-    if (PageView* view = surface_->view()) view->setFocus(Qt::OtherFocusReason);
+    moveSurfaceTo(QGuiApplication::primaryScreen());   // the same path as a move, and I-14's fix
 }
 
 // =============================================================================================
