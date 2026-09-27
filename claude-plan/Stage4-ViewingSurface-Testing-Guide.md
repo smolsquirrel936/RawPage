@@ -2237,7 +2237,7 @@ uses.
 | **I-04** | **S2** | **A pane swallowed `Alt+↑`/`Alt+↓` and moved the selection — a Stage 7 chord doing something plausible and wrong** | ✅ **Closed 2026-09-20 at T5** (Thumbnails) **and again 2026-09-21 at T6** (Bookmarks): one mechanism, two panes, two layers of Qt |
 | **I-05** | **S3** | **A destination's FIT is read, carried and not applied — a `/XYZ` point lands at its page's top** | ✅ **Closed 2026-09-23 at T12**, by the arithmetic D4-14 promised — and it found a second defect on the way in |
 | **I-06** | **S2** | **Registering `edit.cancel` — §8's `Common` row — swallowed `Esc` application-wide, including the tool finder's mouse-grabbing popup** | ✅ **Closed 2026-09-21 at T7**: the id is left unregistered and `Esc` is handled where the drag is |
-| **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, owned by Stage 8's colour work; nothing is broken and nothing is inert** |
+| **I-07** | **S4** | **A page colour can be INVERTED but not SUBSTITUTED: no declared settings key holds a colour pair, so `view.pageBackground` stays unregistered** | ⚪ **Open — a scope finding, nothing broken and nothing inert; DEFERRED by the user on 2026-09-27 and registered as `DW-1` (`Deferred-Work.md`), no stage owning it yet** |
 | **I-09** | **S2** | **`Qt::UniqueConnection` asked for with a LAMBDA slot: fatal in `x64-debug`, and silently NO CONNECTION AT ALL in `x64-release`** | ✅ **Closed 2026-09-23 at T13**, by guarding uniqueness with the container the connection is about |
 | **I-08** | **S3** | **FOUR targets had been compiling at the compiler's DEFAULT language standard, not C++20 — `rawpage_fuzz_seeds` since Stage 3 T13 and the three `tests/fuzz` drivers since Stage 2 T5** | ✅ **Closed 2026-09-23 at T12**, in two rounds: the flags call each target lacked, and then `rawpage_assert_language_standard()`, which refuses to configure a target that omits it |
 | **I-10** | **S2** | **Fit Page measures the SHEET while the product draws the CROP: `Ctrl+0` leaves 17 % of the window empty on a page whose CropBox is inset** | ✅ **Closed 2026-09-24, the day M-11 raised it** — `FitMode::Page` measures the CropBox, the assertion that pinned the sheet is inverted, and **A-80** asserts the zoom against the drawn page |
@@ -2365,9 +2365,12 @@ its assertion is `CHECK_FALSE(isRegistered(ViewPageBackground))` — a green tic
 feature is worth less than an honest amber one, and an assertion that the id is unregistered fails
 the day somebody registers it without giving it a key.
 
-**Owner.** Stage 8, whose colour and conversion work is where a page-colour pair belongs; or any
-earlier stage that finds it needs one, which would then be a `SettingsKeys.def` row and two lines of
-painting, since the paint path (`PageView::paintContent`, over the tiles) is already there.
+**Owner — corrected 2026-09-27: NONE YET.** This paragraph said *Stage 8, whose colour and conversion
+work is where a page-colour pair belongs*, and Stage 8's plan in `Implementation-Plan.md` §4 carries
+export colour space only — no stage's plan names this item. Offered building it inside Stage 4,
+assigning it to a later stage's plan, or removing it from scope, **the user deferred it**, and it is
+**`DW-1` in [`Deferred-Work.md`](./Deferred-Work.md)**, which records what exists today and what is
+absent, and stays *unassigned* until a stage's plan takes it in.
 
 **I-08 · A test helper had been compiling at a different language standard from the rest of the tree.**
 *(Raised and closed 2026-09-23 at T12, by a compile failure in a target this task never touched.)*
@@ -3384,7 +3387,8 @@ restated as a checklist.
    §8 holds thirty-one issues, and only I-07 is open.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
-   key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
+   key holds a colour pair — a scope finding, nothing broken and nothing inert (its owner, then written
+   as Stage 8, is corrected in §8: none yet, `DW-1` in `Deferred-Work.md`).
    **I-10 (S2) was raised by M-11's walk and closed the same day** — `FitMode::Page` measures the
    CropBox, the assertion that pinned the sheet is inverted, and **A-80** asserts the zoom against
    the drawn page. This item spent one commit red, which is the honest record of a green suite having
@@ -3399,7 +3403,7 @@ restated as a checklist.
 COMPLETE, the Linux job included; **ALL TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF** — M-11, M-01 ON
 ITS RE-WALK, M-02, M-06, M-03, M-04, M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF
 STEP 1, M-09 ON ITS RE-WALK, M-10 ON ITS RESUMED WALK AND M-12 ON ITS LOUPE RE-WALK — AND EVERY ISSUE ANY
-OF THEM RAISED IS FIXED; only I-07 (S4) is open, owned by Stage 8. The four issues found after the
+OF THEM RAISED IS FIXED; only I-07 (S4) is open, deferred by the user as `DW-1` (`Deferred-Work.md`) with no stage owning it yet. The four issues found after the
 walk are fixed and closed: I-28 and I-29 by A-103 and A-104 — I-29's fix, a product change, was also
 walked on a real panel by the user on 2026-09-27 and passed, a check outside §6, which has no case
 for it — and I-30 and I-31 by A-105 to A-107. **I-31 was an S1 in Stage 3's save path**, open since

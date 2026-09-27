@@ -18,6 +18,7 @@ order.
 | ④ | **[Implementation-Plan.md](./Implementation-Plan.md)** | **Stage ordering and live status**, the shared conventions, the testing strategy and Definition of Done, milestones, and traceability. |
 | ⑤ | `Stage<N>-<Area>-Plan.md` — **written for [Stage 0](./Stage0-Toolchain-Plan.md), [Stage 1](./Stage1-AppShell-Plan.md), [Stage 2](./Stage2-Rendering-Plan.md), [Stage 3](./Stage3-Mutation-Plan.md) and [Stage 4](./Stage4-ViewingSurface-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
 | ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **written for [Stage 0](./Stage0-Toolchain-Testing-Guide.md), [Stage 1](./Stage1-AppShell-Testing-Guide.md), [Stage 2](./Stage2-Rendering-Testing-Guide.md), [Stage 3](./Stage3-Mutation-Testing-Guide.md) and [Stage 4](./Stage4-ViewingSurface-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
+| ⑦ | **[Deferred-Work.md](./Deferred-Work.md)** | Work a stage deliberately did not do and that **no later stage's plan has taken in** (`DW-n`) — each item's ownership state, what exists today and what is absent. Not the capability (①) and not the finding (the raising ⑥'s §8). |
 
 **⑤ and ⑥ are forms, not a full set of existing files.** One guide per stage, written **immediately
 after that stage's plan and before its first line of code** — the sequence is
@@ -44,6 +45,7 @@ state rather than a gap — those files are written when their stage comes up, n
 | What are we building next, and when is it done? | ④ §3–§4 |
 | Which stage implements catalog section §N? | ④ §7 |
 | What is still undecided? | ② §10 (risks) and ④ §8 (open decisions) |
+| What was deferred that no stage has picked up? | ⑦ |
 | What are the concrete tasks for the stage we are on? | ⑤ where it exists; ④'s *Components* otherwise |
 | What must I set up before work can start? | ⑤ §7 — the precondition checklist (Stage 1's is P-1…P-4; Stage 2's is P-1…P-4 too, with P-2 withdrawn and none open; Stage 3's is P-1…P-5, with P-4 replaced by automation; **Stage 4's is P-1…P-4, all cleared — its P-2, a way to remove a monitor while the product runs, was answered on 2026-09-19 as `Win`+`P` → *PC screen only***) |
 | How do I verify stage N by hand? | ④'s *Testing → Manual* line now; ⑥ once stage N is under way |
