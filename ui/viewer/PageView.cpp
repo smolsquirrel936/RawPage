@@ -1029,6 +1029,17 @@ void PageView::wheelEvent(QWheelEvent* event)
     if (scrollOrTurnPage(0.0, notches > 0.0 ? -1.0 : 1.0)) event->accept();
 }
 
+void PageView::keyReleaseEvent(QKeyEvent* event)
+{
+    // LETTING GO OF THE MODIFIER ENDS THE TEMPORARY HAND AT ONCE (S4 guide I-27) -- the armed
+    // tool's cursor and, for the loupe, its lens come back without waiting for the pointer to move.
+    // The released key is counted as UP, whatever the platform reports on its own release, and a
+    // release while the pointer is elsewhere still reaches nothing here, which A-41 already covers.
+    tools_->setModifiers(event->key() == Qt::Key_Shift ? event->modifiers() & ~Qt::ShiftModifier
+                                                       : event->modifiers());
+    QAbstractScrollArea::keyReleaseEvent(event);
+}
+
 void PageView::keyPressEvent(QKeyEvent* event)
 {
     // `Esc` CANCELS THE TOOL'S GESTURE, and it is handled here rather than through `edit.cancel`
@@ -1056,8 +1067,10 @@ void PageView::keyPressEvent(QKeyEvent* event)
 
     // EVERY KEY RE-DERIVES THE MODIFIER STATE, which is what makes the temporary hand reliable:
     // a modifier released while the pointer is outside this widget produces no release event
-    // here, so the state is read from whatever arrives next rather than remembered (A-41).
-    tools_->setModifiers(event->modifiers());
+    // here, so the state is read from whatever arrives next rather than remembered (A-41). The
+    // modifier KEY ITSELF is counted as held, whatever the platform reports on its own press.
+    tools_->setModifiers(event->key() == Qt::Key_Shift ? event->modifiers() | Qt::ShiftModifier
+                                                       : event->modifiers());
 
     // THE ARROW KEYS ARE `RAWPAGE_BINDING_NATIVE` ROWS (`core/cmd/KeyBindingDefaults.def`): the
     // focused widget owns them, so the boundary behaviour `Features.md` §8 specifies for them --

@@ -104,6 +104,10 @@ public:
     void setModifiers(Qt::KeyboardModifiers modifiers);
     bool temporaryHandActive() const noexcept { return temporaryHand_; }
 
+    // The loupe's state -- where the lens is and whether it is pinned -- for the cases that assert
+    // how it answers a click and a drag (S4 guide I-26). Read-only: the loupe is driven by events.
+    const LoupeTool& loupe() const noexcept { return loupe_; }
+
     // ---- Input ---------------------------------------------------------------------------------
     // Each returns whether the tool took the event; the host falls back to its base class when not.
     bool press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers);

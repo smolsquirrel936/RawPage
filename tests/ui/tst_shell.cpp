@@ -773,7 +773,7 @@ TEST_CASE("a floated sidebar re-docks into its place by the float button and by 
 // S4 guide A-96 -- the edge strip of a CLOSED sidebar opens it (I-25)
 // =============================================================================================
 
-TEST_CASE("clicking the edge strip of a closed sidebar opens it, and of an auto-hidden one peeks",
+TEST_CASE("clicking the edge strip of a closed sidebar opens it and of an auto-hidden one peeks",
           "[shell][I-25]")
 {
     // From Stage 1 T9 the strip stood in for a closed pane as well as an auto-hidden one, and both

@@ -2,6 +2,7 @@
 
 #include <QGuiApplication>
 #include <QPainter>
+#include <QStyleHints>
 #include <QPalette>
 #include <QPixmap>
 
@@ -25,8 +26,14 @@ QRect LoupeTool::lensRect(const ToolHost& host) const
 
 void LoupeTool::press(ToolHost& host, QPoint pos)
 {
-    // A PRESS PINS IT. Nothing scrolls and nothing zooms -- see the header, and guide case A-43.
-    pinned_ = !pinned_;
+    // A PRESS DECIDES NOTHING YET -- S4 guide I-26. Whether it is a CLICK (which toggles the pin) or
+    // the start of a DRAG (which aims the lens) is only known at the release, so the press puts the
+    // lens under the pointer and waits. Until 2026-09-27 the press toggled the pin, so a drag pinned
+    // the lens where it began and the rest of the drag moved nothing. Nothing scrolls and nothing
+    // zooms, either way -- see the header, and guide case A-43.
+    pressed_ = true;
+    moved_ = false;
+    pressAt_ = pos;
     centre_ = pos;
     visible_ = true;
     host.requestRepaint();
@@ -34,7 +41,14 @@ void LoupeTool::press(ToolHost& host, QPoint pos)
 
 void LoupeTool::move(ToolHost& host, QPoint pos)
 {
-    if (pinned_) return;
+    // WITH THE BUTTON DOWN THE LENS FOLLOWS, pinned or not: a drag is how a pinned lens is moved.
+    // Past the platform's drag distance it is no longer a click, and the release will not toggle.
+    if (pressed_) {
+        if ((pos - pressAt_).manhattanLength() >= QGuiApplication::styleHints()->startDragDistance())
+            moved_ = true;
+    } else if (pinned_) {
+        return;
+    }
     centre_ = pos;
     visible_ = true;
     host.requestRepaint();
@@ -42,12 +56,21 @@ void LoupeTool::move(ToolHost& host, QPoint pos)
 
 void LoupeTool::release(ToolHost& host, QPoint pos)
 {
-    (void)host;
-    (void)pos;
+    if (!pressed_) return;
+    pressed_ = false;
+
+    // A CLICK TOGGLES THE PIN -- the lens stays at the click, or follows the pointer again. A DRAG
+    // AIMED IT and leaves the pin as it was: an unpinned lens goes on following the hover, and a
+    // pinned one stays pinned where the drag put it.
+    if (!moved_) pinned_ = !pinned_;
+    else centre_ = pos;
+    host.requestRepaint();
 }
 
 void LoupeTool::cancel(ToolHost& host)
 {
+    pressed_ = false;
+    moved_ = false;
     if (!visible_ && !pinned_) return;
     visible_ = false;
     pinned_ = false;

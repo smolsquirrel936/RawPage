@@ -20,10 +20,19 @@
 // ===========================================================================================
 // IT MOVES NOTHING.
 // ===========================================================================================
-// No scroll, no zoom, no view-history entry — which is guide case **A-43**'s second half and the
-// reason this tool's `press`/`release` do almost nothing. It follows the pointer on HOVER rather
-// than on drag (`tracksHover()`), because a magnifier you have to hold a button down to aim is a
-// magnifier nobody can aim; pressing only pins it, so a person can let go of the mouse and look.
+// No scroll, no zoom, no view-history entry — which is guide case **A-43**'s second half. It follows
+// the pointer on HOVER (`tracksHover()`), because a magnifier you have to hold a button down to aim
+// is a magnifier nobody can aim.
+//
+// ===========================================================================================
+// A CLICK PINS IT, A DRAG AIMS IT — S4 guide I-26, chosen by the user during M-12, 2026-09-27.
+// ===========================================================================================
+// A PIN holds the lens still so a person can let go of the mouse and look. Until 2026-09-27 a
+// PRESS toggled it, so a drag pinned the lens where the drag began and the rest of the drag did
+// nothing. Now the press decides nothing: a release within the platform's drag distance of the
+// press is a CLICK and toggles the pin; anything further is a DRAG, during which the lens follows
+// the pointer — pinned or not — and after which the pin is what it was. So a pinned lens is moved
+// by dragging it and stays pinned there.
 
 #ifndef RAWPAGE_UI_VIEWER_TOOLS_LOUPETOOL_H
 #define RAWPAGE_UI_VIEWER_TOOLS_LOUPETOOL_H
@@ -55,14 +64,16 @@ public:
     void release(ToolHost& host, QPoint pos) override;
     void cancel(ToolHost& host) override;
 
-    // A loupe is never mid-gesture in the sense `Esc` cares about: it changes nothing, so there is
-    // nothing to abandon. `cancel()` hides the lens, and this stays false so that `Esc` with the
-    // loupe armed reports *nothing was cancelled* — the control in A-42.
-    bool isDragging() const override { return false; }
+    // TRUE WHILE THE BUTTON IS DOWN (I-26) — a click or a drag in progress. It is what keeps
+    // `ToolController` from swapping to the temporary hand under a held button, which would hand
+    // the release to a tool that never saw the press, and what makes arming another tool mid-press
+    // put the lens away. It changes nothing in the document either way.
+    bool isDragging() const override { return pressed_; }
 
     void paint(QPainter& painter, const ToolHost& host) const override;
 
     bool   isVisible() const noexcept { return visible_; }
+    bool   isPinned() const noexcept { return pinned_; }
     QPoint centre() const noexcept { return centre_; }
 
     // The lens rectangle in widget coordinates, clamped inside the viewport so the magnifier never
@@ -72,6 +83,9 @@ public:
 private:
     bool   visible_ = false;
     bool   pinned_ = false;
+    bool   pressed_ = false;   // the button is down: a click or a drag, not yet known which
+    bool   moved_ = false;     // it went past the drag distance, so the release is not a click
+    QPoint pressAt_;
     QPoint centre_;
 };
 

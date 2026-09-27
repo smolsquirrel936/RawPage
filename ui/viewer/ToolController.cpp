@@ -108,6 +108,12 @@ void ToolController::setModifiers(Qt::KeyboardModifiers modifiers)
 
     temporaryHand_ = wanted;
     emitCursor();
+
+    // AND THE PAGE IS REPAINTED, because the tool that paints an overlay just changed (S4 guide
+    // I-27). The loupe's lens is painted by whichever tool is in effect, so under the temporary hand
+    // it must go -- and come back when the modifier is let go. Until 2026-09-27 only the cursor
+    // changed here, and the lens stayed on screen until a pan happened to repaint the page.
+    host_.requestRepaint();
 }
 
 bool ToolController::press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers)

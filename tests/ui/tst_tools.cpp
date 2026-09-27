@@ -551,3 +551,154 @@ TEST_CASE("the auto-scroll speed reaches the controller from the settings key", 
 
     CHECK(viewer.tools().autoScrollSpeed() == 175);
 }
+
+// =============================================================================================
+// S4 guide A-97 -- a CLICK pins the loupe and a DRAG aims it (I-26)
+// =============================================================================================
+
+TEST_CASE("the loupe pins on a click and follows a drag pinned or not", "[tools][I-26]")
+{
+    // M-12's walk, 2026-09-27: a drag without the modifier left the lens stuck where the drag
+    // began, because a PRESS toggled the pin. The user chose the model this case asserts: only a
+    // click pins or unpins; a drag moves the lens, and leaves the pin as it was. And through all
+    // of it the view does not move (A-43).
+    Viewer viewer;
+    REQUIRE(viewer.fixture.actions.dispatch(ActionId::ToolLoupe, core::KeyContext::Viewer));
+    driveLayout(viewer.window.get());
+    const ui::LoupeTool& loupe = viewer.tools().loupe();
+
+    viewer.controller().setScroll(core::DevicePoint{0.0, 300.0});
+    const core::DevicePoint scroll = viewer.controller().scroll();
+    const double zoom = viewer.controller().zoom().factor;
+
+    // HOVER aims an unpinned lens.
+    viewer.mouse(QEvent::MouseMove, QPoint(300, 300), Qt::NoButton);
+    REQUIRE(loupe.isVisible());
+    CHECK(loupe.centre() == QPoint(300, 300));
+    CHECK_FALSE(loupe.isPinned());
+
+    // A DRAG, unpinned: the lens follows the drag, and is NOT pinned at the end of it.
+    viewer.mouse(QEvent::MouseButtonPress, QPoint(320, 320), Qt::LeftButton);
+    viewer.mouse(QEvent::MouseMove, QPoint(380, 360), Qt::LeftButton);
+    CHECK(loupe.centre() == QPoint(380, 360));
+    viewer.mouse(QEvent::MouseMove, QPoint(440, 400), Qt::LeftButton);
+    CHECK(loupe.centre() == QPoint(440, 400));
+    viewer.mouse(QEvent::MouseButtonRelease, QPoint(440, 400), Qt::LeftButton);
+    CHECK_FALSE(loupe.isPinned());
+    viewer.mouse(QEvent::MouseMove, QPoint(250, 280), Qt::NoButton);
+    CHECK(loupe.centre() == QPoint(250, 280));   // still following the hover
+
+    // A CLICK pins it where it was clicked; the hover no longer moves it.
+    viewer.mouse(QEvent::MouseButtonPress, QPoint(350, 330), Qt::LeftButton);
+    viewer.mouse(QEvent::MouseButtonRelease, QPoint(350, 330), Qt::LeftButton);
+    CHECK(loupe.isPinned());
+    CHECK(loupe.centre() == QPoint(350, 330));
+    viewer.mouse(QEvent::MouseMove, QPoint(500, 450), Qt::NoButton);
+    CHECK(loupe.centre() == QPoint(350, 330));
+
+    // A DRAG, pinned: it moves the lens, and the lens stays pinned where the drag put it.
+    viewer.mouse(QEvent::MouseButtonPress, QPoint(350, 330), Qt::LeftButton);
+    viewer.mouse(QEvent::MouseMove, QPoint(420, 380), Qt::LeftButton);
+    CHECK(loupe.centre() == QPoint(420, 380));
+    viewer.mouse(QEvent::MouseButtonRelease, QPoint(460, 410), Qt::LeftButton);
+    CHECK(loupe.isPinned());
+    CHECK(loupe.centre() == QPoint(460, 410));
+    viewer.mouse(QEvent::MouseMove, QPoint(200, 200), Qt::NoButton);
+    CHECK(loupe.centre() == QPoint(460, 410));
+
+    // A CLICK unpins it, and the hover aims it again.
+    viewer.mouse(QEvent::MouseButtonPress, QPoint(300, 300), Qt::LeftButton);
+    viewer.mouse(QEvent::MouseButtonRelease, QPoint(300, 300), Qt::LeftButton);
+    CHECK_FALSE(loupe.isPinned());
+    viewer.mouse(QEvent::MouseMove, QPoint(330, 310), Qt::NoButton);
+    CHECK(loupe.centre() == QPoint(330, 310));
+
+    // AND NONE OF IT MOVED THE VIEW (A-43).
+    CHECK(viewer.controller().scroll().x == scroll.x);
+    CHECK(viewer.controller().scroll().y == scroll.y);
+    CHECK(viewer.controller().zoom().factor == zoom);
+}
+
+TEST_CASE("the temporary hand does not take over a held loupe button", "[tools][I-26]")
+{
+    // The control I-26 needs, and the reason a held button now counts as the loupe's gesture: with
+    // the button down, the modifier must not swap the tool, or the release would go to a hand that
+    // never saw the press and the loupe would be left believing its button is still down.
+    Viewer viewer;
+    REQUIRE(viewer.fixture.actions.dispatch(ActionId::ToolLoupe, core::KeyContext::Viewer));
+    driveLayout(viewer.window.get());
+
+    viewer.mouse(QEvent::MouseButtonPress, QPoint(300, 300), Qt::LeftButton);
+    REQUIRE(viewer.tools().isDragging());
+    viewer.mouse(QEvent::MouseMove, QPoint(380, 360), Qt::LeftButton,
+                 ui::ToolController::kTemporaryHandModifier);
+    CHECK(viewer.tools().effective() == ui::ToolKind::Loupe);
+    viewer.mouse(QEvent::MouseButtonRelease, QPoint(380, 360), Qt::LeftButton);
+    CHECK_FALSE(viewer.tools().isDragging());
+    CHECK(viewer.tools().loupe().centre() == QPoint(380, 360));
+}
+
+// =============================================================================================
+// S4 guide A-98 -- the temporary hand's modifier, down and up, repaints and swaps at once (I-27)
+// =============================================================================================
+
+namespace {
+
+// Counts the paints a widget actually receives -- the observable I-27 was missing: the controller
+// changed its tool and nothing asked the page to be drawn again.
+class PaintCounter : public QObject {
+public:
+    int paints = 0;
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() == QEvent::Paint) ++paints;
+        return QObject::eventFilter(watched, event);
+    }
+};
+
+} // namespace
+
+TEST_CASE("the temporary hand's modifier repaints the page and swaps the tool on the key alone",
+          "[tools][I-27]")
+{
+    // M-12's walk, 2026-09-27: with the loupe armed, holding the modifier did not take the lens
+    // away until a drag started. The controller swapped to the hand and asked for no repaint, so
+    // the lens -- painted by whichever tool is in effect -- stayed on screen until a pan repainted
+    // the page; and a modifier RELEASE was not read at all, so the lens came back only when the
+    // pointer moved. Both are asserted on the KEY ALONE: no mouse event between key and check.
+    Viewer viewer;
+    REQUIRE(viewer.fixture.actions.dispatch(ActionId::ToolLoupe, core::KeyContext::Viewer));
+    driveLayout(viewer.window.get());
+    viewer.view->setFocus(Qt::OtherFocusReason);
+    viewer.mouse(QEvent::MouseMove, QPoint(300, 300), Qt::NoButton);
+    REQUIRE(viewer.tools().loupe().isVisible());
+
+    PaintCounter counter;
+    viewer.view->viewport()->installEventFilter(&counter);
+    QCoreApplication::processEvents();
+    counter.paints = 0;
+
+    // MODIFIER DOWN: the hand is in effect and the page is drawn again, which takes the lens away.
+    {
+        QKeyEvent down(QEvent::KeyPress, Qt::Key_Shift, Qt::ShiftModifier);
+        QCoreApplication::sendEvent(viewer.view, &down);
+        QCoreApplication::processEvents();
+    }
+    CHECK(viewer.tools().effective() == ui::ToolKind::Hand);
+    CHECK(viewer.tools().armed() == ui::ToolKind::Loupe);
+    CHECK(counter.paints > 0);
+
+    // MODIFIER UP -- sent the way a platform may report it, with the modifier still set on its own
+    // release: the loupe is back, its cursor too, and the page is drawn again with the lens.
+    counter.paints = 0;
+    {
+        QKeyEvent up(QEvent::KeyRelease, Qt::Key_Shift, Qt::ShiftModifier);
+        QCoreApplication::sendEvent(viewer.view, &up);
+        QCoreApplication::processEvents();
+    }
+    CHECK(viewer.tools().effective() == ui::ToolKind::Loupe);
+    CHECK(viewer.tools().cursor() == Qt::CrossCursor);
+    CHECK(counter.paints > 0);
+
+    viewer.view->viewport()->removeEventFilter(&counter);
+}

@@ -7,10 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **97 automated** (A-01 … A-96, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 97 carry
-> a result** as of 2026-09-27 (re-derived from this file: 97 case headers, none still boxed — the
-> 96th and 97th are **A-95** and **A-96**, added 2026-09-27 with I-24's and I-25's fixes during
+> partly run.** **99 automated** (A-01 … A-98, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 99 carry
+> a result** as of 2026-09-27 (re-derived from this file: 99 case headers, none still boxed — the
+> 98th and 99th are **A-97** and **A-98**, added 2026-09-27 with I-26's and I-27's fixes during
+> M-12's walk; the 96th and 97th are **A-95** and **A-96**, added 2026-09-27 with I-24's and I-25's fixes during
 > M-10's first walk; the 95th is **A-94**, added 2026-09-27 with I-23's fix, which like A-85 SKIPS under `ctest` and is run
 > on the `windows` platform — the
 > 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
@@ -64,10 +65,13 @@
 > showed nothing to a hover or a click — **I-25 (S3)**; both fixed the same day, I-24 in two rounds
 > after the re-walk found a MOVED float still stranded; **the walk then passed every step, and M-10
 > is signed off** — step 5's pane-per-window behaviour judged the expected one and recorded as
-> **D4-19**. **M-12 is the one manual case left.**
-> §8 holds **twenty-five** issues and **only I-07 (S4) is open**;
+> **D4-19**. **M-12 is the one manual case left**, and its walk, begun on 2026-09-27, raised **I-26
+> (S3)** — a drag with the loupe armed pinned the lens where the drag began — and **I-27 (S3)** — the
+> temporary hand's modifier left the lens on screen until a pan repainted the page; both fixed the
+> same day, I-26 on the user's choice of model (*a click pins, a drag aims*).
+> §8 holds **twenty-seven** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26**, and **I-18 to I-25 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-27 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -302,6 +306,8 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-23)* Tile and cascade leave every window's title bar on its monitor and uncovered | **A-94** (on the `windows` platform), and **M-09**, which found it |
 | *(I-24)* A floated sidebar re-docks into its place, by the float button and by a double-click | **A-95**, and **M-10**, which found it |
 | *(I-25)* The edge strip of a closed sidebar opens it on a click | **A-96**, and **M-10**, which found it |
+| *(I-26)* The Loupe: a click pins it, a drag aims it | **A-97**, and **M-12**, which found it |
+| *(I-27)* The temporary hand takes the lens away and gives it back on the key alone | **A-98**, and **M-12**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1471,6 +1477,33 @@ every state, as it did from Stage 1 T9 — run red**: the pane stayed closed and
 **Steps** `ctest --preset x64-release -R "edge strip of a closed sidebar"`.
 **Expect** Passed. **If it fails** S3 — the strip that stands in for a closed sidebar cannot open it.
 
+**A-97 · A CLICK pins the loupe and a DRAG aims it, pinned or not — I-26, closed** ✅
+✅ **2026-09-27** (`tests/ui/tst_tools.cpp`, tag `[I-26]`, two cases, under `ctest`). The loupe armed by
+dispatch, then real mouse events on the viewport: a hover aims it; **a drag, unpinned, is followed
+point by point and leaves the lens unpinned**, so the hover aims it again; **a click pins it at the
+click**, and the hover no longer moves it; **a drag, pinned, moves it and it stays pinned** where the
+drag ended; **a click unpins it**. And through all of it the scroll and the zoom are exactly as they
+were (A-43). **Its control case** holds the button down and moves with the modifier held: the tool
+stays the loupe, and the release reaches it — why a held button now counts as the loupe's gesture.
+**Planted control — the old press-toggles-the-pin — run red** from the first drag on: the lens stayed
+where the drag began, which is M-12's finding reproduced.
+**What it does NOT cover** (convention 19): the platform's drag distance is Qt's
+`startDragDistance()`; the case's clicks are exact and its drags are 60 pixels or more, so it asserts
+the two ends and not where the boundary lies.
+**Steps** `ctest --preset x64-release -R "loupe pins on a click|held loupe button"`.
+**Expect** Passed. **If it fails** S3 — a drag pins the lens or a click does not.
+
+**A-98 · The temporary hand's modifier, down and up, repaints and swaps the tool on the key alone — I-27, closed** ✅
+✅ **2026-09-27** (`tests/ui/tst_tools.cpp`, tag `[I-27]`, under `ctest`). The loupe armed and its lens
+shown by a hover; a paint counter on the viewport; then **a `Shift` press and nothing else**: the hand
+is in effect, the loupe still armed, **and the page was repainted** — which is what takes the lens away.
+Then **a `Shift` release, sent with the modifier still set** the way a platform may report its own
+release: the loupe is back in effect, its cursor too, **and the page was repainted again**. No mouse
+event between the key and the checks. **Planted control — the repaint removed, and the release not
+read — run red**: zero paints on the press, and the hand still in effect after the release.
+**Steps** `ctest --preset x64-release -R "temporary hand's modifier repaints"`.
+**Expect** Passed. **If it fails** S3 — the lens outlives the temporary hand, or returns only on a move.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -1906,7 +1939,24 @@ case walked in this stage, and it raised I-10 (S2)**
   page, `Ctrl+3` and `Ctrl+0` are close — and that is correct, which is why the first file exists.
 - **If it fails** S2, and **I-28 stays open in Stage 2's guide** rather than being closed here.
 
-**M-12 · Input devices** ☐
+**M-12 · Input devices** ☐ — **walk in progress, 2026-09-27; I-26 (S3) and I-27 (S3) raised at step 2
+and fixed the same day**
+- **Walk so far, 2026-09-27** On copies of `pages-900.pdf` and `text-a4.pdf` in `tests\manual\M-12\`,
+  with the Loupe and Auto-Scroll reached through the tool finder (`Ctrl+Shift+U`), since neither is on
+  the ribbon nor has a chord. Two findings with the **Loupe** armed, in the user's words: *"When loupe is
+  armed, drag without holding shift will stick the loupe at the position where dragging started"* —
+  **I-26** — and *"Holding shift while loupe is armed will not make loupe disapper immediately. Loupe
+  disappear after starting draging"* — **I-27**. The user chose I-26's fix from three offered models:
+  **a click pins, a drag aims**. Nothing else was reported as failing so far.
+- **Re-walk of the Loupe, 2026-09-27, on the fixed build** Reported by the user as *"those two are
+  fixed"* — recorded as that, and as covering I-26 and I-27 only. The steps not yet reported — the
+  wheel, auto-scroll, and the modifier question below — are still to walk.
+- **What the rest of the walk must look at:** the Loupe — hover aims it; a **click** pins it and another
+  unpins it; a **drag** moves it, pinned or not, and leaves the pin as it was; holding `Shift` takes the
+  lens away AT ONCE, with no drag, and releasing it brings the lens back at once. Then any step not yet
+  reported. **A gap to judge, not a defect found:** `Features.md` §1.2 says *"Choose whether the wheel
+  scrolls or zooms, and which modifier swaps the two"*; only the first half is built — the modifier is
+  always `Ctrl`.
 - **Pre** P-4 — a wheel mouse, and **no pen or touch screen on this rig** (confirmed 2026-09-19), so
   the pen/touch step below is recorded *not run for want of hardware* rather than skipped silently.
 - **Steps** Wheel-scroll, then wheel-zoom with the modifier, then swap them with
@@ -1979,6 +2029,8 @@ uses.
 | **I-23** | **S2** | **An arranged window's TITLE BAR was off the screen: tile and cascade placed each window's CONTENTS in its cell, and the title bar went above it** | ✅ **Closed 2026-09-27, the day M-09 raised it** — the cell is the frame, and the cascade steps by the window's own title bar; **A-94**, on the `windows` platform |
 | **I-24** | **S2** | **A floated sidebar re-docked by its float button — or by a double-click — was left OUT of the window: flagged docked, drawn as a stray block, the page running beneath it** | ✅ **Closed 2026-09-27, the day M-10 raised it — in two rounds** — Qt 6.11.1's `setFloating(false)`, measured on a bare `QMainWindow`; the first fix (`restoreDockWidget`) held only for a pane never MOVED while floating, which the re-walk found; re-docking is now `SidebarDock::toggleFloating()`, ending in a `restoreState(saveState())` round trip that unfreezes the layout a drag leaves; **A-95**, rewritten |
 | **I-25** | **S3** | **The edge strip of a CLOSED sidebar did nothing to a hover or a click, although its tooltip says *Show the sidebar* — since Stage 1 T9** | ✅ **Closed 2026-09-27, the day M-10 raised it** — a click on a closed pane's strip is `view.toggleSidebar`; a hover stays a peek; **A-96** |
+| **I-26** | **S3** | **A drag with the Loupe armed pinned the lens where the drag began, and the rest of the drag moved nothing: a PRESS toggled the pin** | ✅ **Closed 2026-09-27, the day M-12 raised it** — on the user's choice of model: a click pins, a drag aims; **A-97** |
+| **I-27** | **S3** | **Holding the temporary hand's `Shift` left the loupe's lens on screen until a pan repainted the page, and releasing it brought the lens back only on a mouse move** | ✅ **Closed 2026-09-27, the day M-12 raised it** — the controller repaints when the temporary hand switches, and `PageView` reads the key's release; **A-98** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -2693,12 +2745,51 @@ command `F4` and the pane's close button already are. **A hover still only peeks
 nothing to a closed pane, **by decision**: a pinned pane opening because the pointer crossed the edge
 would move the page under a person who did not ask. **A-96**, with its planted control run red.
 
+**I-26 · A drag with the Loupe armed pinned the lens where the drag began.** *(Raised 2026-09-27 by the
+user's M-12 walk, step 2: *"When loupe is armed, drag without holding shift will stick the loupe at the
+position where dragging started."* S3 — feel, and nothing moved in the document.)*
+
+**Mechanism.** `LoupeTool::press` toggled the PIN, and a pinned lens ignored the pointer. A drag starts
+with a press, so every drag pinned the lens where it began, and the moves after it did nothing. The
+file's header argued for the pin — *"a magnifier you have to hold a button down to aim is a magnifier
+nobody can aim"* — which is about hovering, and said nothing about what a drag should do.
+
+**Why no case caught it.** A-43's loupe case hovers and presses `Esc`; no case pressed a button with the
+loupe armed.
+
+**The fix, 2026-09-27, on the user's decision.** Offered three models — *a click pins, a drag aims*;
+*a drag follows and the release pins*; *keep it* — the user chose the first. The press now decides
+nothing: a release within the platform's drag distance of the press is a CLICK and toggles the pin;
+further than that is a DRAG, during which the lens follows the pointer, pinned or not, and after which
+the pin is what it was. A held button now counts as the loupe's gesture (`isDragging()`), so the
+temporary hand cannot take the release from it. **A-97**, and its control case; the planted old
+behaviour runs red from the first drag on.
+
+**I-27 · The temporary hand's modifier left the lens on screen.** *(Raised 2026-09-27 by the same walk:
+*"Holding shift while loupe is armed will not make loupe disapper immediately. Loupe disappear after
+starting draging."* S3.)*
+
+**Mechanism.** `ToolController::setModifiers` switched the effective tool to the hand and changed the
+cursor — and asked for no repaint. The lens is painted by whichever tool is in effect, so it vanished
+only when something else repainted the page, which a pan does. And `PageView` had no key-release
+handler, so letting go of `Shift` without moving the mouse left the hand in effect until the next event.
+
+**Why no case caught it.** A-41 asserts the controller's STATE after the modifier — `effective()`,
+`cursor()` — and never what reached the screen; and it drives the modifier through `setModifiers`
+directly or through mouse events, never a key release.
+
+**The fix, 2026-09-27.** `setModifiers` requests a repaint whenever the temporary hand switches on or
+off, and `PageView::keyReleaseEvent` re-derives the modifiers from the release — counting the released
+`Shift` as UP whatever the platform reports on its own release, and a pressed `Shift` as DOWN. **A-98**,
+on the key alone with a paint counter on the viewport; the planted control — no repaint, no release —
+runs red on both halves.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 97 carry a result.** The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 99 carry a result.** The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2722,12 +2813,21 @@ restated as a checklist.
    sidebar left out of the window, and I-25 (S3), a closed sidebar's strip that opened nothing, both
    fixed the same day, I-24 in two rounds — **and the resumed walk passed every step the same day,
    signing M-10 off**, step 5 on the user's judgement that one pane per window is the expected
-   behaviour (**D4-19**). **M-12 is unwalked, and it is the stage's remaining gap** and the honest
+   behaviour (**D4-19**). **M-12's walk is in progress** — it raised I-26 and I-27 at step 2, both fixed
+   the same day — **and it is the stage's remaining gap** and the honest
    summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after I-24's SECOND round: 1134/1134 on `x64-release` and on `x64-debug`**,
+4. ✅ **2026-09-27, re-run after I-26's and I-27's fixes: 1137/1137 on `x64-debug`, and on
+   `x64-release` 1137 run with ONE FAILURE the first time** — `platform.durable replace control: a plain
+   rename over the target loses the stream`, a Stage 3 case this change does not touch — which then
+   **passed six times in a row alone** and in the same day's debug run. Recorded rather than explained:
+   the failing run's output was not kept, so the cause is NOT established (the case renames a file under
+   `%TEMP%` with `MoveFileExW`, and a scanner holding the file briefly is a guess, not a finding). The
+   three new cases are A-97's two and A-98's; the same three named skips; `checks` clean on four gates
+   (`layer-lint` 423 files / 3,394 includes). Two case names were renamed to drop a comma (convention 2):
+   A-96's, committed with one, and A-97's. *Before that,* **re-run after I-24's SECOND round: 1134/1134 on `x64-release` and on `x64-debug`**,
    A-95 rewritten rather than added, the same three named skips, `checks` clean on four gates
    (`layer-lint` 423 files / 3,393 includes). *Before that, the same day,* **after I-24's first round
    and I-25's fix: 1134/1134 on `x64-release` and on
@@ -2829,7 +2929,9 @@ restated as a checklist.
    cascaded window's title bar off the screen — the tilings measured the same — closed that day with
    **A-94**. And M-10's first walk that day raised **I-24 (S2)**, a re-docked sidebar left out of the
    window — Qt's own `setFloating(false)` — and **I-25 (S3)**, a closed sidebar's edge strip that
-   opened nothing, both closed that day with **A-95** and **A-96**.
+   opened nothing, both closed that day with **A-95** and **A-96**. And M-12's walk that day raised
+   **I-26 (S3)**, a loupe drag pinning the lens where it began, and **I-27 (S3)**, the temporary hand
+   leaving the lens on screen, both closed that day with **A-97** and **A-98**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -2847,7 +2949,7 @@ restated as a checklist.
 TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
 M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF STEP 1, M-09 ON ITS RE-WALK AND M-10
 ON ITS RESUMED WALK — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is
-outstanding** — one unwalked case, M-12. That each of the first three manual cases walked in this stage found a defect the
+outstanding** — one case, M-12, whose walk is in progress. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, is the argument for the other four rather than against them — and M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's
