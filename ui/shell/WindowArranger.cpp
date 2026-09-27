@@ -11,6 +11,7 @@
 
 #include <QApplication>
 #include <QGuiApplication>
+#include <QMargins>
 #include <QScreen>
 #include <QStyle>
 
@@ -61,6 +62,28 @@ int stripsThatFit(int extent, int count, int minimum)
 {
     if (minimum <= 0) return std::max(1, count);
     return std::clamp(extent / minimum, 1, std::max(1, count));
+}
+
+// The frame Qt reports around a top-level window's contents -- the title bar above, and whatever
+// border Qt counts at the other three sides (I-23). A window with no native frame yet reports its
+// frame equal to its geometry, which is zero margins, and a cell is then used as it is.
+QMargins frameMarginsOf(const QWidget& window)
+{
+    const QRect frame = window.frameGeometry();
+    const QRect inner = window.geometry();
+    const QMargins margins(inner.left() - frame.left(), inner.top() - frame.top(),
+                           frame.right() - inner.right(), frame.bottom() - inner.bottom());
+    if (margins.left() < 0 || margins.top() < 0 || margins.right() < 0 || margins.bottom() < 0)
+        return {};
+    return margins;
+}
+
+// Maximized and minimized windows ignore `setGeometry` -- the state wins over the rectangle -- so
+// tiling one would silently do nothing and look like a dead command. Restored FIRST, and before
+// anything reads the frame, because a maximized window's frame is not the one it will have.
+void restoreIfNeeded(QWidget& window)
+{
+    if (window.isMaximized() || window.isMinimized()) window.showNormal();
 }
 
 } // namespace
@@ -128,8 +151,15 @@ QList<QRect> WindowArranger::cascadeGeometry(const QRect& workArea, int count, i
     return out;
 }
 
-int WindowArranger::cascadeStep()
+int WindowArranger::cascadeStep(const QWidget* sample)
 {
+    // THE WINDOW'S OWN TITLE BAR FIRST (I-23). The style's metric is what Qt would draw for a title
+    // bar of its own; the native one on the user's machine is 30 logical pixels where the style
+    // said 21, and a step shorter than the title bar covers part of every title bar but the last.
+    if (sample != nullptr) {
+        const int titleBar = frameMarginsOf(*sample).top();
+        if (titleBar > 0) return titleBar;
+    }
     if (QStyle* style = QApplication::style()) {
         const int titleBar = style->pixelMetric(QStyle::PM_TitleBarHeight);
         if (titleBar > 0) return titleBar;
@@ -170,30 +200,35 @@ void WindowArranger::tile(Orientation orientation)
 
         const QList<QRect> cells =
             tileGeometry(screen->availableGeometry(), static_cast<int>(windows.size()), orientation);
-        for (int i = 0; i < windows.size() && i < cells.size(); ++i) {
-            // `showNormal()` FIRST. A maximized or minimized window ignores `setGeometry` -- the
-            // state wins over the rectangle -- so tiling a maximized window would silently do
-            // nothing and look like a dead command.
-            if (windows.at(i)->isMaximized() || windows.at(i)->isMinimized()) windows.at(i)->showNormal();
-            windows.at(i)->setGeometry(cells.at(i));
-        }
+        for (int i = 0; i < windows.size() && i < cells.size(); ++i) placeFrame(windows.at(i), cells.at(i));
     }
+}
+
+void WindowArranger::placeFrame(MainWindow* window, const QRect& cell)
+{
+    // THE CELL IS THE FRAME (I-23). `setGeometry` places the client area, and the title bar sits
+    // above it: handed the cell as it was, the top window's title bar went off the screen and every
+    // lower one covered the window above. See the header.
+    restoreIfNeeded(*window);
+    window->setGeometry(cell.marginsRemoved(frameMarginsOf(*window)));
 }
 
 void WindowArranger::cascade()
 {
     if (MainWindow::shellWindows().size() < 2) return;   // see `tile()`
 
-    const int step = cascadeStep();
     for (QScreen* screen : QGuiApplication::screens()) {
         const QList<MainWindow*> windows = windowsOnScreen(screen);
         if (windows.isEmpty()) continue;
 
+        // RESTORED BEFORE THE STEP IS MEASURED, since the step is a restored window's title bar.
+        for (MainWindow* window : windows) restoreIfNeeded(*window);
+        const int step = cascadeStep(windows.first());
+
         const QList<QRect> cells =
             cascadeGeometry(screen->availableGeometry(), static_cast<int>(windows.size()), step);
         for (int i = 0; i < windows.size() && i < cells.size(); ++i) {
-            if (windows.at(i)->isMaximized() || windows.at(i)->isMinimized()) windows.at(i)->showNormal();
-            windows.at(i)->setGeometry(cells.at(i));
+            placeFrame(windows.at(i), cells.at(i));
 
             // RAISED IN ORDER, so the last window in the set is the one on top and the one the
             // person is left looking at. A cascade whose stacking order did not match its offsets

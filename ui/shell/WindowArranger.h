@@ -46,6 +46,29 @@
 // (convention 19) rather than left for a reader to discover.
 //
 // ===========================================================================================
+// A CELL IS WHERE THE WINDOW'S FRAME GOES, NOT ITS CONTENTS -- issue I-23.
+// ===========================================================================================
+// `QWidget::setGeometry` on a top-level window places the CLIENT area; the title bar is drawn
+// ABOVE it. Until 2026-09-27 every cell was handed to `setGeometry` as it was, so on the user's
+// 150 % monitor (M-09's walk, `Stage4-ViewingSurface-Testing-Guide.md` §8) the first cascaded
+// window and the top tile had their title bars 45 physical pixels above the screen, every column
+// of a vertical tiling did, and each lower strip's title bar covered the bottom of the strip above
+// it. A-64 could not see it: it judges the arithmetic, and the arithmetic was right.
+//
+// So `placeFrame` removes the frame margins Qt reports -- `frameGeometry()` minus `geometry()` --
+// from the cell first, and the cascade steps by the window's OWN title-bar height from the same
+// margins rather than by the style's `PM_TitleBarHeight`, which on this machine said 21 where the
+// native title bar is 30 and would have left each window covering a third of the one before it.
+// **Still Qt's answer, and still no `platform/` interface** (D4-17): Qt already knows the frame.
+//
+// **What Qt's margins do NOT include, measured** (convention 19): Windows 11 draws a visible
+// border about one logical pixel wide at the left, right and bottom that Qt counts as client, so a
+// tiled window's visible edge sits that far outside its cell -- 2 physical pixels at 150 %, 3 where
+// a logical edge lands on a half pixel (guide case A-94 bounds it). Two
+// neighbouring tiles share a border line and the bottom one touches the taskbar's edge by that
+// much. Removing it would need DWM's extended frame bounds, which is `platform/` and a decision.
+//
+// ===========================================================================================
 // MERGE, AND WHY IT TARGETS THE FIRST WINDOW RATHER THAN THE ACTIVE ONE.
 // ===========================================================================================
 // *Merge all windows* must produce **one window with every tab in its original order** (guide case
@@ -77,6 +100,7 @@
 #include <QStringList>
 
 class QScreen;
+class QWidget;
 
 namespace rawpage::ui {
 
@@ -115,9 +139,9 @@ public:
     // the next step would not fit, so the twentieth window is as reachable as the second.
     static QList<QRect> cascadeGeometry(const QRect& workArea, int count, int step);
 
-    // What a cascade will step by on this build: the style's title-bar height, or
-    // `kCascadeFallbackStep` where the style has no opinion.
-    static int cascadeStep();
+    // What a cascade will step by: `sample`'s own title-bar height from the frame Qt reports around
+    // it (I-23), else the style's title-bar height, else `kCascadeFallbackStep`.
+    static int cascadeStep(const QWidget* sample = nullptr);
 
     // ---- The operations, over `MainWindow::shellWindows()` -----------------------------------
 
@@ -145,6 +169,9 @@ public:
 private:
     // Every window that is currently on `screen`, in creation order.
     static QList<MainWindow*> windowsOnScreen(const QScreen* screen);
+
+    // Puts `window`'s FRAME -- title bar included -- on `cell` (I-23).
+    static void placeFrame(MainWindow* window, const QRect& cell);
 };
 
 } // namespace rawpage::ui

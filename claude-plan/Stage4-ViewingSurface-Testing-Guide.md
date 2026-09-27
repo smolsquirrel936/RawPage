@@ -7,9 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **94 automated** (A-01 … A-93, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 94 carry
-> a result** as of 2026-09-27 (re-derived from this file: 94 case headers, none still boxed — the
+> partly run.** **95 automated** (A-01 … A-94, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 95 carry
+> a result** as of 2026-09-27 (re-derived from this file: 95 case headers, none still boxed — the
+> 95th is **A-94**, added 2026-09-27 with I-23's fix, which like A-85 SKIPS under `ctest` and is run
+> on the `windows` platform — the
 > 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
 > **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**,
 > the case D4-18 was recorded with that day; the 88th and 89th are **A-87** and **A-88**, added
@@ -51,10 +53,13 @@
 > the same day confirmed both fixed and raised I-20 (S2)** — a wheel up over a header row frozen at
 > the page's top did nothing, and a hand drag over a frozen pane ran away, both from I-19's first fix
 > — **and I-21 (S3)**, `Ctrl` with the keypad's `+` zooming nothing; both fixed that day, and **the second re-walk of
-> step 1 PASSED, the same day — M-08 is signed off**. The other three — M-09, M-10 and M-12 —
-> are the stage's largest remaining gap. §8 holds **twenty-two** issues and **only I-07 (S4) is open**;
+> step 1 PASSED, the same day — M-08 is signed off**. **M-09**, by the user on 2026-09-27, **failed
+> its first walk at the cascade** — the first window's title bar was above the top of the screen —
+> which raised **I-23 (S2)**; measured, the tilings had the same defect, and it was fixed the same
+> day; **the cascade's re-walk the same day confirmed it fixed, and both tilings await theirs**. The other two — M-10 and M-12 — are unwalked.
+> §8 holds **twenty-three** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26**, and **I-18 to I-22 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-23 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -266,7 +271,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | All four layout modes plus split views work | A-53 … A-56, **A-90** and **A-91** for the splits; the four layout modes are Stage 2's suites, re-run by name in A-74; **M-01**, **M-08** |
 | Rulers, grid, guides and snapping behave identically at 50 % and 400 % | A-45 … A-52, **A-87**, **M-07** |
 | Full Screen and presentation work on a chosen monitor | A-57 … A-63, **A-85** (on the `windows` platform), **M-02**, **M-03** |
-| Window arrangement and session restore survive a monitor topology change | A-18 … A-24 (the fingerprint and the clamp), A-64 … A-66 (arrangement), A-75 … A-79 (restore), A-60 (a presentation's monitor disappearing), **M-04**, **M-05**, **M-09** |
+| Window arrangement and session restore survive a monitor topology change | A-18 … A-24 (the fingerprint and the clamp), A-64 … A-66 and **A-94** (arrangement), A-75 … A-79 (restore), A-60 (a presentation's monitor disappearing), **M-04**, **M-05**, **M-09** |
 | *(Plan D4-1)* The viewing surface changes no document | A-06, A-07, A-31, A-35, A-48, A-63, A-69 |
 | *(Plan D4-10)* The pane does not starve the viewport | A-14 … A-17, A-32, A-72, **M-06** |
 | *(Plan D4-14)* Fit Visible fits the content — Stage 2's **I-28** | A-11, A-67, A-68, **M-11** |
@@ -285,6 +290,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-20)* A frozen pane's wheel and hand move the body one-to-one, in every direction, from a freeze at the document's corner | **A-91** (rewritten), and **M-08**'s re-walk, which found it |
 | *(I-21)* `Ctrl` with the keypad's `+` and `-` zooms like the main row's | **A-92**, and **M-08**'s re-walk, where it was found |
 | *(I-22)* No tracked text file holds a control byte — a path's backslashes read as escapes | **A-93** |
+| *(I-23)* Tile and cascade leave every window's title bar on its monitor and uncovered | **A-94** (on the `windows` platform), and **M-09**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1022,6 +1028,7 @@ also reports from the other side, still one command on the stage's eighth task a
 
 **A-64 · Tile and cascade over synthetic screen geometry** ✅
 ✅ **2026-09-21, T11.** `ui.` over `WindowArranger::tileGeometry` and `cascadeGeometry`, which are pure functions of a work area and a count — the offscreen platform reports one screen of a size no case may depend on, so a tiling case written against it would have to be loosened until it asserted nothing. Over counts 1, 2, 3, 4, 5 and 7 in both orientations the cells **cover the work area exactly**, pairwise never intersect, and none is below `kMinTileWidth`/`kMinTileHeight`. The ORIENTATION is asserted rather than assumed: `Horizontal` gives full-width strips one above another and `Vertical` gives columns side by side, which is the coin flip a swapped implementation would pass every other check on. Eight windows on a 1040-pixel work area is 130 pixels a strip, so the strips stop at four and the surplus is laid across them — the **grid fallback**, with the cover and the minimum both still holding. Cascade steps by the step it was GIVEN (never by the constant, so a theme with taller title bars cannot redden it), keeps every window wholly inside the work area, and restarts the diagonal rather than marching off the corner. **The control, from both ends:** with one window `window.tileHorizontal`, `window.tileVertical`, `window.cascade` and `window.merge` are all refused with `Unavailable`, AND calling `tile()`/`cascade()` directly moves the geometry not at all — only the second says the operation is a no-op, and only the first says the button is not merely broken (Stage 1's I-53). `window.list` is deliberately not among the four. **Two planted-bug controls run red for the right reason** (convention 7): dropping the remainder in the size share reddens the exact-cover assertion, and merging with `adoptDocument(document, 0)` instead of appending reddens A-65's order. **What this case does NOT cover** (convention 19): a real taskbar — `availableGeometry()` offscreen is the whole screen — and windows on two monitors. Both are **M-09**'s.
+**Corrected 2026-09-27 (I-23):** this case's ✅ covered the cells and never where a window's frame lands in one — *"keeps every title bar on-screen"* was not observable here, and on a real desktop it did not hold. **A-94** asserts it.
 **Expect** Tiling N windows fills the work area with no overlap and no window smaller than a stated minimum; cascade steps by the title-bar height and keeps every title bar on-screen. **The control:** arranging with one window changes nothing. **If it fails** S2.
 
 **A-65 · Merge windows re-docks every detached tab, in order** ✅
@@ -1031,6 +1038,30 @@ also reports from the other side, still one command on the stage's eighth task a
 **A-66 · The window list and `window.new`** ✅
 ✅ **2026-09-21, T11 — five cases.** The LIST names every window in creation order by its own title, `activateWindow` moves `activeShell()` (which is what every Global command resolves through, so that is the claim rather than anything about a menu), and an out-of-range index is a no-op, because the list a menu was built from can be stale by the time it is clicked. **`window.new` is a second view**: same path, **different `DocumentHandle`** — two windows are two `DocumentWindow`s and each runs the three-step close protocol, so a shared handle would be closed out from under the other, which is the exact opposite of why a split shares one (D4-13) — and **no second journal**, so the companion is not editable and never dirty. A rotation run in the leader's window moves both to the same revision and the second view's laid-out page has its width and height SWAPPED (geometry before pixels, Stage 1's I-36): it lays out from the leader's model tree while rasterizing through its own handle, and a companion reading its own engine tree would show the page upright with nothing on screen to say so. Closing the leader **detaches** the companion rather than taking it down, and it goes on drawing the file through the handle it always had. The two scroll together by default and `window.syncScroll` unlinks them, mirrored in PDF points and both ways, behind an echo guard — without which two windows each following the other is a loop with no fixed point.
 **Expect** The list names every window and switching activates it; `window.new` opens a **second view of the same document** in a new window with its own handle (D4-13's exception), and both views stay correct after a rotation in one. **If it fails** S2.
+
+**A-94 · An arranged window's TITLE BAR is on its monitor, and no tile covers another — I-23, closed** ✅
+✅ **2026-09-27, on `QT_QPA_PLATFORM=windows`, 86 assertions; under `ctest` it SKIPS by design**
+(`ui.an arranged window's title bar is on its monitor and no tile covers another`, tag `[I-23]`) —
+the offscreen platform draws no frame, so there `frameGeometry() == geometry()` and the case would
+pass against the code that shipped I-23, which is how A-64 stayed green. Three documents, two torn
+off, all three moved onto the primary monitor (150 % on the rig), and **each arrangement started with
+the first window MAXIMIZED**, because a maximized window's frame is not the one it will have. After a
+cascade, a horizontal tiling and a vertical tiling, it reads each window twice: **Qt's frame**, which
+must lie inside `availableGeometry()`, and **what Windows draws** — DWM's extended frame bounds, in
+physical pixels — whose TOP must be on or below the monitor's work area, which is the claim I-23
+broke. Tiled frames may not intersect; each cascaded window must start at least one of the previous
+window's OWN title bars below it. **Two planted controls, both run red for the right reason:** the old
+`setGeometry(cell)` — cascade window 0 visible from **y = −45**, the top strip and all three columns
+likewise, and Qt's frame at y = −30 outside the work area — and the style's cascade step — **21 against
+a 30-pixel title bar** on windows 1 and 2.
+**What it does NOT cover** (convention 19): the border Windows 11 draws at the left, right and bottom
+that Qt counts as client — it is BOUNDED, at one logical pixel plus one physical pixel of rounding (a
+column starting at logical 1707, physical 2560.5, measured 3 pixels past the work area where the border
+alone is 2), not removed; two monitors, which is M-09's; and a title bar's text, which no rectangle
+judges.
+**Steps** `$env:QT_QPA_PLATFORM='windows'; .\build\x64-release\bin\rawpage_ui_tests.exe "[I-23]"` —
+three windows appear and move on the primary monitor for a few seconds.
+**Expect** `All tests passed`. **If it fails** S2 — a title bar is off the screen or under another window.
 
 **A-66(a) · A window that is not in front asks for its viewport at `Prefetch`** ✅
 ✅ **2026-09-21, T11 — a case this guide did not have, added with A2's named work.** [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified)'s *A2 at Stage 4* records the two-window column as leaving the 16.667 ms budget **under a named, reachable condition**, and names that condition as T11's: *a window that does not have focus enqueues its viewport at `Prefetch`, not `Visible`*. Nothing on screen can tell the two apart — the same tiles are asked for and they arrive — so `RenderScheduler::Stats` gained three per-lane counters and the case asserts on those. With two windows over one document, scrolling the BACKGROUND one moves `enqueuedPrefetch` and leaves `enqueuedVisible` exactly where it was; **the control convention 22 says the criterion will not ask for** is the same gesture in the same window once it is in front, which moves `enqueuedVisible`. Without it, *"the background window queues at Prefetch"* and *"this build queues everything at Prefetch"* would be the same passing case. **Planted-bug control run red:** ignoring the background flag in `TilePresenter` reddens the first half. **What it does not claim** (convention 19): that the change buys the milliseconds §3.3 predicts. That is `bench_pipeline --stage4`'s to measure, and **T14 re-reads it**.
@@ -1716,7 +1747,32 @@ M-09 by mistake — and which no case asked for)*
   be able to tell which pane it is reading. If you cannot, that is the finding.
 - **If it fails** S2; S3 for the rulers.
 
-**M-09 · Arranging windows** ☐
+**M-09 · Arranging windows** ☐ — **FAILED its first walk, 2026-09-27, at the cascade; I-23 (S2) fixed
+the same day; the cascade's re-walk PASSED that day; both tilings and the two-monitor tiling await
+theirs**
+- **Re-walk of the cascade, 2026-09-27** On the build that fixed I-23: reported by the user as *"The
+  issue of cascading is fixed."* — recorded as that, and as the cascade only: nothing was reported
+  about the two tilings or the two-monitor tiling, so they are not recorded as re-walked.
+- **First walk result, 2026-09-27** Walked by the user, every step, on copies of `text-a4.pdf`,
+  `cropbox-margins.pdf`, `mixed-page-sizes.pdf` and `pages-900.pdf` in `tests\manual\M-09\`, with
+  `mixed-page-sizes` and then `pages-900` torn off. **After *Cascade* the first window sat so high its
+  title bar could not be seen** — the topmost thing on the monitor was the Quick Access Toolbar row
+  below it — **I-23 (S2)**, with a screenshot. Every other step was reported as passing, and recorded
+  as that rather than as figures nobody gave. **Measured afterwards, the tilings were wrong in the same
+  way** (§8, I-23): the top strip of *Tile Horizontal* and all three columns of *Tile Vertical* had
+  their title bars 45 physical pixels above the screen. The walk did not report them, which is why the
+  re-walk below names them.
+- **What the re-walk must look at:** on the build that fixed I-23, with the first window MAXIMIZED
+  before each arrangement — *Cascade*, *Tile Horizontal* and *Tile Vertical* each leave **every
+  window's title bar visible and draggable**, the top one included; no strip's title bar sits over the
+  window above it; each cascaded window starts **below the previous one's whole title bar**. A hairline
+  where two tiles meet or where the bottom tile meets the taskbar is the bounded residual in I-23, not
+  a finding. Then the two-monitor tiling once more.
+- **Pre** Four documents open, e.g. copies in `tests\manual\M-09\` of `text-a4.pdf`,
+  `cropbox-margins.pdf`, `mixed-page-sizes.pdf` and `pages-900.pdf`. Tear a tab off by dragging it
+  **40 px or more** above or below the tab strip and releasing away from any other window's strip; tear
+  off the LAST two tabs, left one first, since a merge appends detached windows' tabs in the order the
+  windows were made (A-65).
 - **Steps** Open four documents; detach two into their own windows; tile horizontally, then
   vertically; cascade; use the window list; merge all windows. Then tile with windows on **both**
   monitors.
@@ -1831,6 +1887,12 @@ uses.
 | **I-15** | **S2** | **No `general/` preference was ever read back after a real restart — theme, UI font scale, touch mode and all three session switches: QSettings reads `[%General]` back as `General/`** | ✅ **Closed 2026-09-26, the day M-05 raised it** — `Settings` maps `general/` ↔ `General/` at its one boundary with QSettings; **A-86** reloads from a copy, past QSettings' per-process cache |
 | **I-16** | **S2** | **`Ctrl+;` snapped no guide: `GridGuideLayer::snap` had no caller, so a guide dragged off a ruler or moved on the page stored the raw pointer coordinate** | ✅ **Closed 2026-09-26, the day it was found** — reading the code before M-07's walk; `dragTo` and `dropGuide` resolve through the snap with the dragged guide excluded, and **A-87** asserts where a dragged guide lands |
 | **I-17** | **S3** | **No cursor readout anywhere: `Features.md` §1.3 promised the cursor's page coordinates live in the status bar, the stage plan listed "the coordinate readout", and neither was built — the rulers' accent-blue markers were the only indication** | ✅ **Closed 2026-09-26, the day the user raised it** — on their decision, a **red** marker on each ruler with the **reading beside it** in the ruler's unit; `Features.md` §1.3 corrected to say so; **A-88** |
+| **I-18** | **S2** | **A zoom reached one pane of a spreadsheet split: `Ctrl+=` zoomed the body, and the frozen row and column slid at the old zoom** | ✅ **Closed 2026-09-27, the day M-08 raised it** — the body leads everything in a spreadsheet split; **A-90** |
+| **I-19** | **S2** | **A frozen pane of a spreadsheet split could be scrolled on its own** | ✅ **Closed 2026-09-27, the day M-08 raised it**; **A-91** |
+| **I-20** | **S2** | **A wheel up over a frozen header row did nothing, and a hand drag over a frozen pane ran away — a defect in I-19's fix** | ✅ **Closed 2026-09-27, the day M-08's re-walk raised it** — a frozen pane's gestures are the body's before they move anything; **A-91** rewritten |
+| **I-21** | **S3** | **`Ctrl` with the keypad's `+` did not zoom in** | ✅ **Closed 2026-09-27, the day M-08's re-walk raised it** — a fallback to `Ctrl+=`; **A-92** |
+| **I-22** | **S3** | **Four Windows paths in two documents held control bytes where their backslashes had been** | ✅ **Closed 2026-09-27, the day a byte-level read found it** — repaired, and **A-93** refuses a control byte in any tracked text file |
+| **I-23** | **S2** | **An arranged window's TITLE BAR was off the screen: tile and cascade placed each window's CONTENTS in its cell, and the title bar went above it** | ✅ **Closed 2026-09-27, the day M-09 raised it** — the cell is the frame, and the cascade steps by the window's own title bar; **A-94**, on the `windows` platform |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -2443,12 +2505,52 @@ no opinion on a control byte.
 refuses a control byte in any tracked text file, run red over the damaged tree before the repair. And
 `CLAUDE.md` gains rule 10 under *How to write it*, naming the here-document trap.
 
+**I-23 · An arranged window's title bar was off the screen.** *(Raised 2026-09-27 by the user's M-09
+walk, with a screenshot: *"after cascasding, the first window is put much higher so that the title bar
+cannot be seen. The top-most in the monitor is function bar."* S2 — M-09's *"cascade keeps every title
+bar reachable"*, and a window whose title bar is off the screen cannot be dragged by it. Predicted from
+the code while M-09's walk was being prepared, before anyone had walked it; the prediction was
+recorded as one, not as a finding.)*
+
+**Mechanism — measured.** `WindowArranger::tile` and `cascade` handed each cell to
+`QWidget::setGeometry`, which on a top-level window places the **client area**; Windows draws the title
+bar above it. A probe on the rig's 150 % primary, three windows, physical pixels, work area 0,0 →
+3840 × 2088: Qt reported every frame **30 logical pixels above** its contents, and DWM's visible frame
+of the first cascaded window started at **y = −45**, the second at −13. **The tilings had the same
+defect, which the walk did not report**: the top strip of *Tile Horizontal* at −45, with each lower
+strip's title bar covering the bottom 47 pixels of the strip above, and **all three columns** of *Tile
+Vertical* at −45. And a second defect under the first: the cascade stepped by the style's
+`PM_TitleBarHeight`, **21**, against a native title bar of **30**, so once the frame was in its cell
+each window would still have covered a third of the previous one's title bar.
+
+**Why no case caught it.** **A-64 judged the cells and was right about them** — it is arithmetic over
+synthetic work areas, on purpose, and its own file said it *"cannot see a taskbar"*. Nothing looked at
+where a FRAME lands in a cell, and nothing could have under `ctest`: the offscreen platform draws no
+frame, so there `frameGeometry() == geometry()` and the defect does not exist. A-64's *Expect* claimed
+*"keeps every title bar on-screen"* all the same, and was ticked.
+
+**The fix, 2026-09-27.** **The cell is where the FRAME goes** (`WindowArranger::placeFrame`): the
+margins Qt reports — `frameGeometry()` minus `geometry()` — are removed from the cell before
+`setGeometry`, after a maximized or minimized window is restored and not before, since a maximized
+window's frame is not the one it will have. **The cascade steps by the window's own title bar**, read
+from the same margins, with the style's metric and the old constant as fallbacks. Still Qt's answer and
+still no `platform/` interface (D4-17). **A-94** reads what Windows draws, on the `windows` platform,
+with the first window maximized before each arrangement; **two planted controls run red** — the old
+`setGeometry(cell)` (−45) and the style's step (21 against 30).
+
+**The residual, measured and not removed.** Qt counts as client the border Windows 11 draws at the
+left, right and bottom, so a tile's visible edge lies up to one logical pixel outside its cell — 2
+physical pixels at 150 %, 3 where a logical edge lands on a half pixel. Two neighbouring tiles share a
+hairline and the bottom tile touches the taskbar's edge by that much. Removing it would need DWM's
+extended frame bounds in the product, which is `platform/` and a decision D4-17 made the other way;
+recorded in `WindowArranger.h` and bounded by A-94 rather than left for a reader to find.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 94 carry a result.** The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 95 carry a result.** The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2465,12 +2567,18 @@ restated as a checklist.
    its first walk at step 1** — I-18 (S2) and I-19 (S2), both fixed the same day — with every other step
    passing; **step 1's re-walk the same day confirmed both and raised I-20 (S2) and I-21 (S3)**, both
    fixed that day; **and the second re-walk of step 1 PASSED the same day, signing M-08 off.**
-   The other three — M-09, M-10 and M-12 — are the stage's largest remaining gap and the honest
-   summary of its state.
+   **M-09, 2026-09-27, FAILED its first walk at the cascade** — I-23 (S2), a title bar off the
+   screen, which measurement showed in both tilings too — fixed the same day; the cascade's re-walk
+   that day confirmed the fix, and the tilings await theirs. The other two — M-10 and M-12 — are unwalked, and with M-09's re-walk are the
+   stage's remaining gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after I-22's guard: 1131/1131 on `x64-release` and on `x64-debug`**, the
+4. ✅ **2026-09-27, re-run after I-23's fix: 1132/1132 on `x64-release` and on `x64-debug`**, the
+   one new case A-94's, with **three** named skips — the battery case, A-85 and now **A-94**, both
+   of which need a real desktop and were run on the `windows` platform instead, A-94 passing with 86
+   assertions — and `checks` clean on four gates (`layer-lint` 423 files / 3,390 includes); no
+   `warning:` line from either incremental build. *Before that,* **re-run after I-22's guard: 1131/1131 on `x64-release` and on `x64-debug`**, the
    two new cases `gates.text_bytes.*` (A-93), and the `gates` preset **126/126**, with the same two
    named skips and `checks` clean on four gates. *(A first debug run made WHILE the release suite
    was running reported two failures — the segment-heap manifest case and `recovery.kill_saves` —
@@ -2553,7 +2661,9 @@ restated as a checklist.
    closed the same day with **A-90** and **A-91**; and its re-walk that day raised **I-20 (S2)**, a
    defect in I-19's fix, closed with A-91 rewritten, and **I-21 (S3)**, the keypad's `+`, closed with
    **A-92**. And **I-22 (S3)**, four document paths holding control bytes, found the same day by a
-   byte-level read and closed with **A-93**.
+   byte-level read and closed with **A-93**. And M-09's first walk that day raised **I-23 (S2)**, a
+   cascaded window's title bar off the screen — the tilings measured the same — closed that day with
+   **A-94**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -2570,8 +2680,9 @@ restated as a checklist.
 **WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; NINE OF THE
 TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
 M-05 ON ITS STEP-5 RE-WALK, M-07 AND M-08 ON ITS SECOND RE-WALK OF STEP 1 — AND EVERY ISSUE ANY OF
-THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — three unwalked cases,
-M-09, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
+THEM RAISED IS FIXED — AND M-09 FAILED ITS FIRST WALK, RAISING I-23, FIXED THE SAME DAY.** **Item 2
+is the whole of what is outstanding** — M-09's re-walk of its tilings (its cascade's passed), and two unwalked
+cases, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, is the argument for the other four rather than against them — and M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's

@@ -14,9 +14,12 @@
 // ---------------------------------------------------------------------------------------------
 // WHAT THIS SUITE CANNOT SEE, NAMED HERE RATHER THAN DISCOVERED (convention 19).
 //
-//   * **It cannot see a taskbar.** `tile()` and `cascade()` read `QScreen::availableGeometry()`,
-//     and under `offscreen` that is the whole screen. Whether a real tiling clears a real taskbar,
-//     and what happens with windows on two monitors, is manual case **M-09**.
+//   * **It cannot see a taskbar or a title bar under `offscreen`.** `tile()` and `cascade()` read
+//     `QScreen::availableGeometry()`, which there is the whole screen, and the offscreen platform
+//     draws no frame -- so A-64's arithmetic was green while every arranged window on a real
+//     desktop had its title bar above its cell (**I-23**, found by M-09's walk). **A-94**, the last
+//     case here, is the real-desktop half and SKIPS under `ctest`; run it on `QT_QPA_PLATFORM=windows`.
+//     What happens with windows on two monitors is still manual case **M-09**.
 //   * **It cannot judge stacking order.** `cascade()` raises each window in turn; whether the
 //     result LOOKS like a cascade is M-09's.
 //   * **No real engine.** `uitest::FakeBackend` decides the page count and hands a distinct
@@ -63,6 +66,20 @@
 #include <QRect>
 
 #include <memory>
+
+#include <QGuiApplication>
+#include <QScreen>
+
+#include <cmath>
+
+// A-94 reads the frame WINDOWS draws, which is the only witness to I-23 -- Qt's own numbers were
+// self-consistent while the title bars were off the screen. Its one Win32 dependency; the suite is
+// Windows-only already, as tst_presentation's A-85 is.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <dwmapi.h>
 
 using namespace rawpage;
 using core::ActionId;
@@ -628,4 +645,141 @@ TEST_CASE("a background window asks for its viewport at Prefetch, not Visible", 
 
     INFO("front visible " << beforeFront.enqueuedVisible << " -> " << afterFront.enqueuedVisible);
     CHECK(afterFront.enqueuedVisible > beforeFront.enqueuedVisible);
+}
+
+// =============================================================================================
+// A-94 -- an arranged window's TITLE BAR is on its monitor, and no tile covers another (I-23)
+// =============================================================================================
+
+namespace {
+
+// What the person SEES of a window, in the OS's physical pixels: DWM's extended frame bounds, title
+// bar included and the invisible resize border excluded, beside the work area of its monitor.
+struct Seen {
+    RECT   visible{};
+    RECT   work{};
+    double dpr = 1.0;
+};
+
+Seen seen(ui::MainWindow* window)
+{
+    Seen out;
+    const HWND handle = reinterpret_cast<HWND>(window->winId());
+    REQUIRE(SUCCEEDED(DwmGetWindowAttribute(handle, DWMWA_EXTENDED_FRAME_BOUNDS, &out.visible,
+                                            sizeof(out.visible))));
+    MONITORINFO info{};
+    info.cbSize = sizeof(info);
+    REQUIRE(GetMonitorInfoW(MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST), &info));
+    out.work = info.rcWork;
+    out.dpr = window->devicePixelRatio();
+    return out;
+}
+
+void settle()
+{
+    for (int i = 0; i < 20; ++i) QCoreApplication::processEvents();
+}
+
+} // namespace
+
+TEST_CASE("an arranged window's title bar is on its monitor and no tile covers another",
+          "[arranger][I-23]")
+{
+    // THE OFFSCREEN PLATFORM DRAWS NO FRAME, so under it `frameGeometry() == geometry()` and this
+    // case would pass against the very code that shipped I-23 -- which is exactly how A-64 stayed
+    // green. It needs a real desktop, and skips rather than passing vacuously (A-85's precedent).
+    if (QGuiApplication::platformName() != QLatin1String("windows"))
+        SKIP("needs a real window frame -- run on QT_QPA_PLATFORM=windows (guide A-94)");
+
+    Desk desk;
+    REQUIRE(desk.open(QStringLiteral("one.pdf")) != nullptr);
+    REQUIRE(desk.open(QStringLiteral("two.pdf")) != nullptr);
+    REQUIRE(desk.open(QStringLiteral("three.pdf")) != nullptr);
+    REQUIRE(desk.first->detachDocument(2, QPoint(4000, 4000)) != nullptr);
+    REQUIRE(desk.first->detachDocument(1, QPoint(4000, 4000)) != nullptr);
+
+    const QList<ui::MainWindow*> windows = ui::MainWindow::shellWindows();
+    REQUIRE(windows.size() == 3);
+
+    // ALL ON THE PRIMARY MONITOR, so the three share one work area and the tiling is one tiling.
+    // Which monitor gets which window is M-09's to judge; this case is about where a frame lands.
+    QScreen* primary = QGuiApplication::primaryScreen();
+    for (int i = 0; i < windows.size(); ++i) {
+        windows.at(i)->show();
+        windows.at(i)->move(primary->availableGeometry().topLeft() + QPoint(80 + 40 * i, 80 + 40 * i));
+    }
+    settle();
+    for (ui::MainWindow* window : windows) REQUIRE(window->screen() == primary);
+
+    const auto check = [&](const char* what, bool tiled) {
+        settle();
+        const QRect available = primary->availableGeometry();
+
+        QList<QRect> frames;
+        for (int i = 0; i < windows.size(); ++i) {
+            ui::MainWindow* window = windows.at(i);
+            const QRect frame = window->frameGeometry();
+            frames.append(frame);
+
+            const Seen s = seen(window);
+            INFO(what << ", window " << i << ": Qt frame " << frame.x() << "," << frame.y() << " "
+                      << frame.width() << "x" << frame.height() << " | visible " << s.visible.left
+                      << "," << s.visible.top << "," << s.visible.right << "," << s.visible.bottom
+                      << " | work " << s.work.left << "," << s.work.top << "," << s.work.right << ","
+                      << s.work.bottom << " | dpr " << s.dpr);
+
+            // QT'S ACCOUNT: the whole frame, title bar included, inside the work area.
+            CHECK(available.contains(frame));
+
+            // THE CLAIM I-23 BROKE, IN THE PIXELS WINDOWS DRAWS: the top of what the person sees --
+            // the title bar -- is on the monitor. Before the fix this was -45 at 150 %.
+            CHECK(s.visible.top >= s.work.top);
+
+            // AND THE RESIDUAL, bounded rather than ignored (convention 19, the header): Windows
+            // 11's one-logical-pixel border at the other three sides, which Qt counts as client, PLUS
+            // one physical pixel for rounding a logical edge onto the device grid: measured at 150 %,
+            // a column starting at logical 1707 -- physical 2560.5 -- ended 3 pixels out, not 2.
+            const int slack = static_cast<int>(std::ceil(s.dpr)) + 1;
+            CHECK(s.visible.left >= s.work.left - slack);
+            CHECK(s.visible.right <= s.work.right + slack);
+            CHECK(s.visible.bottom <= s.work.bottom + slack);
+        }
+
+        if (tiled) {
+            // NO TILE'S FRAME TOUCHES ANOTHER'S, so no title bar is under the window above it.
+            for (int i = 0; i < frames.size(); ++i)
+                for (int j = i + 1; j < frames.size(); ++j) {
+                    INFO(what << ", windows " << i << " and " << j);
+                    CHECK_FALSE(frames.at(i).intersects(frames.at(j)));
+                }
+        } else {
+            // EACH CASCADED WINDOW STARTS BELOW THE TITLE BAR OF THE ONE BEFORE IT, measured against
+            // that window's OWN title bar -- the style's metric said 21 where the native bar is 30.
+            for (int i = 1; i < frames.size(); ++i) {
+                const int titleBar = windows.at(i - 1)->geometry().top() - frames.at(i - 1).top();
+                INFO(what << ", window " << i << ": step " << frames.at(i).top() - frames.at(i - 1).top()
+                          << ", title bar " << titleBar);
+                CHECK(titleBar > 0);
+                CHECK(frames.at(i).top() - frames.at(i - 1).top() >= titleBar);
+            }
+        }
+    };
+
+    // EACH ARRANGEMENT STARTS WITH THE FIRST WINDOW MAXIMIZED, because a maximized window's frame is
+    // not the one it will have: the margins must be read after it is restored, not before.
+    windows.first()->showMaximized();
+    settle();
+    REQUIRE(windows.first()->isMaximized());
+    WindowArranger::cascade();
+    check("cascade", false);
+
+    windows.first()->showMaximized();
+    settle();
+    WindowArranger::tile(Orientation::Horizontal);
+    check("tile horizontal", true);
+
+    windows.first()->showMaximized();
+    settle();
+    WindowArranger::tile(Orientation::Vertical);
+    check("tile vertical", true);
 }

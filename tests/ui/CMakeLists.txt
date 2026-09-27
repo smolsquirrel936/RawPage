@@ -123,6 +123,13 @@ target_link_libraries(rawpage_ui_tests PRIVATE
     Catch2::Catch2
 )
 
+# dwmapi for guide case A-94 (issue I-23): the frame Windows DRAWS -- DWM's extended frame bounds --
+# is the one witness to a title bar off the screen, because Qt's own numbers stayed self-consistent
+# while it was. The test binary's dependency only; nothing under ui/ names DWM.
+if(WIN32)
+    target_link_libraries(rawpage_ui_tests PRIVATE dwmapi)
+endif()
+
 set_target_properties(rawpage_ui_tests PROPERTIES AUTOMOC ON)
 
 # The suite installs rawpage_en.qm so the widgets are exercised against real text rather than
