@@ -36,7 +36,7 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Eleven manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **All twelve manual cases are walked and signed off** — the twelfth, M-12, on 2026-09-27. **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-07**, on 2026-09-26, passed with no finding — after **I-16** and **I-17** had been found and
 > fixed while preparing it, so the build walked was the first on which it could pass.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
@@ -67,10 +67,12 @@
 > showed nothing to a hover or a click — **I-25 (S3)**; both fixed the same day, I-24 in two rounds
 > after the re-walk found a MOVED float still stranded; **the walk then passed every step, and M-10
 > is signed off** — step 5's pane-per-window behaviour judged the expected one and recorded as
-> **D4-19**. **M-12 is the one manual case left**, and its walk, begun on 2026-09-27, raised **I-26
-> (S3)** — a drag with the loupe armed pinned the lens where the drag began — and **I-27 (S3)** — the
-> temporary hand's modifier left the lens on screen until a pan repainted the page; both fixed the
-> same day, I-26 on the user's choice of model (*a click pins, a drag aims*).
+> **D4-19**. **M-12**, on 2026-09-27, raised **I-26 (S3)** — a drag with the loupe armed pinned the
+> lens where the drag began — and **I-27 (S3)** — the temporary hand's modifier left the lens on screen
+> until a pan repainted the page; both fixed the same day, I-26 on the user's choice of model (*a click
+> pins, a drag aims*); the walk led to decisions **D4-20** (a sharp lens), **D4-21** and **D4-22**
+> (`Alt`+wheel on the lens, key tips on `Alt`'s release), all built that day, **and the Loupe's
+> re-walk on that build passed — M-12 is signed off** (pen and touch not run, for want of hardware).
 > §8 holds **twenty-seven** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-17 on 2026-09-26**, and **I-18 to I-27 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -2035,8 +2037,14 @@ case walked in this stage, and it raised I-10 (S2)**
   page, `Ctrl+3` and `Ctrl+0` are close — and that is correct, which is why the first file exists.
 - **If it fails** S2, and **I-28 stays open in Stage 2's guide** rather than being closed here.
 
-**M-12 · Input devices** ☐ — **walk in progress, 2026-09-27; I-26 (S3) and I-27 (S3) raised at step 2
-and fixed the same day**
+**M-12 · Input devices** ✅ **signed off by the user, 2026-09-27, on the Loupe's re-walk** — the walk
+raised I-26 (S3) and I-27 (S3) at step 2, both fixed the same day, and led to decisions D4-20 (a sharp
+lens), D4-21 (`Ctrl` stays the wheel's zoom modifier) and D4-22 (`Alt`+wheel sets the lens's
+magnification, key tips on `Alt`'s release), all built that day; **pen and touch: not run, for want of
+hardware** (P-4), never recorded as passed
+- **Re-walk of the Loupe on D4-20 and D4-22, 2026-09-27** Reported by the user as *"Loupe re-walk
+  passed, all fixed."* — recorded as that, with nothing more specific, and as covering the sharp lens,
+  `Alt`+wheel and the key tips on `Alt`'s release. No new finding.
 - **Walk so far, 2026-09-27** On copies of `pages-900.pdf` and `text-a4.pdf` in `tests\manual\M-12\`,
   with the Loupe and Auto-Scroll reached through the tool finder (`Ctrl+Shift+U`), since neither is on
   the ribbon nor has a chord. Two findings with the **Loupe** armed, in the user's words: *"When loupe is
@@ -2908,8 +2916,9 @@ restated as a checklist.
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
-2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Eleven of the twelve are
+2. ✅ **2026-09-27 — all twelve walked and signed off by you**, the last M-12. M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
+   want of hardware (M-12's touch half) is recorded as such, never as passed — **it was not run, for want
+   of a pen or touch screen (P-4)**. **Eleven of the twelve were
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
@@ -2927,9 +2936,9 @@ restated as a checklist.
    sidebar left out of the window, and I-25 (S3), a closed sidebar's strip that opened nothing, both
    fixed the same day, I-24 in two rounds — **and the resumed walk passed every step the same day,
    signing M-10 off**, step 5 on the user's judgement that one pane per window is the expected
-   behaviour (**D4-19**). **M-12's walk is in progress** — it raised I-26 and I-27 at step 2, both fixed
-   the same day — **and it is the stage's remaining gap** and the honest
-   summary of its state.
+   behaviour (**D4-19**). **M-12, 2026-09-27, the twelfth**: it raised I-26 and I-27 at step 2, both
+   fixed the same day, led to D4-20, D4-21 and D4-22, all built that day, **and the Loupe's re-walk on
+   that build PASSED, signing M-12 off** — pen and touch not run, for want of hardware.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -3071,16 +3080,18 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; ELEVEN OF THE
-TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
-M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF STEP 1, M-09 ON ITS RE-WALK AND M-10
-ON ITS RESUMED WALK — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is
-outstanding** — one case, M-12, whose walk is in progress. That each of the first three manual cases walked in this stage found a defect the
+**WHERE THAT LEAVES THE STAGE: EVERY ITEM ABOVE IS MET (2026-09-27).** The automated half is
+COMPLETE, the Linux job included; **ALL TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF** — M-11, M-01 ON
+ITS RE-WALK, M-02, M-06, M-03, M-04, M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF
+STEP 1, M-09 ON ITS RE-WALK, M-10 ON ITS RESUMED WALK AND M-12 ON ITS LOUPE RE-WALK — AND EVERY ISSUE ANY
+OF THEM RAISED IS FIXED; only I-07 (S4) is open, owned by Stage 8. **What remains is the user's sign-off
+of the stage itself**, which is theirs to give and is not recorded here until they give it. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
-of code, is the argument for the other four rather than against them — and M-07's two defects were found
+of code, was the argument for walking every one of the twelve — and the walks bore it out: M-08 to
+M-12 raised ten more issues between them, each fixed the day it was found, and three decisions a person
+had to make. M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's
 verdict case, M-03, M-04 and M-07 found nothing is the verdict, the presentation and the topology path holding up
-to a person. That is a legitimate state to report and it is not *done* — `CLAUDE.md`'s workflow
-says so in as many words, and Stage 4's manual half is the largest of any stage because its subject
+to a person. Stage 4's manual half is the largest of any stage because its subject
 is what a person sees: two monitors at different scaling, a display unplugged mid-presentation, a
 900-page pane judged for smoothness, a guide dragged off a ruler by hand.
