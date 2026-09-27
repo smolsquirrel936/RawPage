@@ -506,8 +506,11 @@ public:
     // not, `replacement` is moved there. `replacement` must be on the same volume -- the caller puts
     // it in the target's directory -- and no longer exists under its own name afterwards.
     //
-    // A replace that fails leaves BOTH files as they were: the target unchanged, the replacement
-    // still present. A read-only target is refused rather than overwritten.
+    // A replace that fails leaves BOTH files: the target unchanged, the replacement still present
+    // with its content (it may already carry the target's streams and metadata). And a replace that
+    // never RETURNS -- the process killed, crashed or the power lost inside it -- never leaves the
+    // target's path empty: at every instant it names the old file or the new one (Stage 4 guide
+    // I-31). A read-only target is refused rather than overwritten.
     virtual Status replaceFile(const QString& target, const QString& replacement) = 0;
 
     // Added at Stage 3 T8, for the save path's temporary files. Removes `path`; a path that does not

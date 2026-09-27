@@ -160,7 +160,9 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Set an arbitrary zoom percentage.
 - Marquee zoom: drag a rectangle to zoom to it.
 - Dynamic (loupe) zoom: drag to zoom continuously.
-- Loupe tool: a magnifier window over a small area.
+- Loupe tool: a magnifier window over a small area — re-rasterized sharp rather than an enlarged
+  frame, and its magnification stepped from 1.5× to 8× with `Alt`+wheel (S4 decisions D4-20 and
+  D4-22, `Stage4-ViewingSurface-Plan.md` §3).
 - Pan & Zoom window: a thumbnail with a draggable viewport rectangle.
 - Fit Page (fit the page **as a reader is shown it** — the CropBox — inside the window; not the
   sheet outside it, which is [`Stage4-ViewingSurface-Testing-Guide.md` §8](./Stage4-ViewingSurface-Testing-Guide.md)'s **I-10**).

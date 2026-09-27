@@ -271,6 +271,7 @@
         "ReplaceFileW(",
         "MoveFileExW(",
         "DeleteFileW(",
+        "SetFileInformationByHandle(",
         "std::filesystem::remove",
         "std::filesystem::rename",
         "std::filesystem::create_",
@@ -301,6 +302,9 @@
     "standard library. Before they were listed, all three passed clean anywhere in the tree -- the",
     "I-15 shape again, a rule tested only against the spellings its fixtures happened to use.",
     "DeleteFileW( is beyond the plan's two: the same file deletes the backup ReplaceFileW leaves.",
+    "SetFileInformationByHandle( JOINED on 2026-09-27 (Stage 4 guide I-31), when WinDurableFiles stopped",
+    "using ReplaceFileW and began renaming by handle: it renames and deletes files, and a rename the",
+    "gate cannot see is I-15 again. ReplaceFileW( stays listed although nothing calls it now.",
     "",
     "tools/ and tests/ are allowed to write because they are not product code: license-audit",
     "generates THIRD-PARTY.md, and the test harness writes fixtures and diff images."

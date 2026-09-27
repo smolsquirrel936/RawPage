@@ -2226,10 +2226,6 @@
         <translation>無法將檔案寫入磁碟：%1</translation>
     </message>
     <message>
-        <source>error.file.originalMoved</source>
-        <translation>儲存失敗，且無法將原始檔案放回。原始檔案位於：%1</translation>
-    </message>
-    <message>
         <source>error.file.removeFailed</source>
         <translation>無法移除檔案：%1</translation>
     </message>

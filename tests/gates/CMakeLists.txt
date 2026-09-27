@@ -181,6 +181,11 @@ rawpage_add_gate_test(NAME gates.layer_lint.win32_delete_outside_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-delete-write --rules ${LL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write: found 'DeleteFileW")
 
+# Stage 4 guide I-31: the rename WinDurableFiles makes by handle since ReplaceFileW left it.
+rawpage_add_gate_test(NAME gates.layer_lint.win32_setinfo_outside_allowed
+    COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-setinfo-write --rules ${LL_RULES}
+    EXPECT_EXIT 1 EXPECT_MATCH "filesystem-write: found 'SetFileInformationByHandle")
+
 rawpage_add_gate_test(NAME gates.layer_lint.win32_write_in_comment_is_allowed
     COMMAND ${LL} --root ${FIXTURES}/layer-lint/win32-write-in-comment --rules ${LL_RULES}
     EXPECT_EXIT 0 EXPECT_MATCH "clean")

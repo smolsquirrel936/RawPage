@@ -2226,10 +2226,6 @@
         <translation>The file could not be written to disk: %1</translation>
     </message>
     <message>
-        <source>error.file.originalMoved</source>
-        <translation>The save failed, and the original file could not be put back. It is here: %1</translation>
-    </message>
-    <message>
         <source>error.file.removeFailed</source>
         <translation>The file could not be removed: %1</translation>
     </message>

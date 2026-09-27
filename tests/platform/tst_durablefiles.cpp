@@ -6,10 +6,12 @@
 // held open -- so the thing being read back is the filesystem's answer and not this class's.
 //
 // WHAT THIS SUITE DOES NOT COVER (convention 19):
-//   * `ERROR_UNABLE_TO_MOVE_REPLACEMENT_2`, where the target has moved to the backup name, and a backup
-//     that cannot be deleted. Both need the filesystem to fail between two steps of one call, and
-//     nothing here can arrange that. The recovery code for the first is read, not run.
-//   * the security descriptor `ReplaceFileW` keeps: none is planted.
+//   * a replace that DIES midway -- `tst_recoverykill`'s A-69 kills one at random instants, and that is
+//     where the replace was found to leave no file at the target (S4 guide I-31).
+//   * the DACL the replace carries: none is planted.
+//   * the classic rename on an OS or volume that truly lacks the POSIX one: the classic cases below
+//     FORCE it on this machine's NTFS, which proves the fallback's handling and not that Windows
+//     before 1809 takes it.
 //   * durability. `syncToDisk` succeeding proves the flush was asked for and accepted; no test can
 //     observe a file surviving a power loss (A-49).
 //   * a real application holding the file -- manual case M-08. A-48 plants the handle.
@@ -181,8 +183,91 @@ TEST_CASE("durable replace keeps the target's Zone.Identifier stream and creatio
     CHECK(readRaw(target) == QByteArray("%PDF-1.7 saved by RawPage"));
     CHECK(readRaw(target + QStringLiteral(":Zone.Identifier")) == kZone);
     CHECK(creationTime(target) == asNumber(plantedCreationTime()));
-    // The replacement is gone under its own name, and the backup ReplaceFileW was given is deleted.
+    // The replacement is gone under its own name, and nothing else is left beside the target.
     CHECK(entries(dir) == QStringList{QStringLiteral("report.pdf")});
+}
+
+TEST_CASE("durable replace carries the hidden attribute and not the replacement's", "[platform][durablefiles]")
+{
+    // The attributes a document carries (`kCarriedAttributes`): a hidden target stays hidden. A rename
+    // alone would give it the replacement's attributes, which is the control.
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString target = plantDownloadedTarget(dir, QStringLiteral("hidden.pdf"));
+    REQUIRE(SetFileAttributesW(wide(target).c_str(), FILE_ATTRIBUTE_HIDDEN));
+    const QString replacement = dir.filePath(QStringLiteral("hidden.pdf.saving"));
+    writeRaw(replacement, "new");
+    REQUIRE_FALSE(GetFileAttributesW(wide(replacement).c_str()) & FILE_ATTRIBUTE_HIDDEN);   // the control
+
+    win::WinDurableFiles files;
+    REQUIRE(files.replaceFile(target, replacement));
+    CHECK(readRaw(target) == QByteArray("new"));
+    CHECK((GetFileAttributesW(wide(target).c_str()) & FILE_ATTRIBUTE_HIDDEN) != 0);
+    CHECK(readRaw(target + QStringLiteral(":Zone.Identifier")) == kZone);
+}
+
+// ==========================================================================================
+// S4 guide A-107 -- the CLASSIC rename, forced: what Windows before 1809 or a volume without POSIX
+// renames would take. It is as atomic and must carry the same identity; it refuses ANY held target.
+// ==========================================================================================
+
+namespace {
+struct ClassicRenameOnly {
+    ClassicRenameOnly() { win::WinDurableFiles::forceClassicRenameForTesting(true); }
+    ~ClassicRenameOnly() { win::WinDurableFiles::forceClassicRenameForTesting(false); }
+};
+} // namespace
+
+TEST_CASE("durable replace through the classic rename keeps the stream and creation time", "[platform][durablefiles][classic]")
+{
+    const ClassicRenameOnly classic;
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString target = plantDownloadedTarget(dir, QStringLiteral("report.pdf"));
+    const QString replacement = dir.filePath(QStringLiteral("report.pdf.saving"));
+    writeRaw(replacement, "%PDF-1.7 saved by the classic rename");
+
+    win::WinDurableFiles files;
+    const Status result = files.replaceFile(target, replacement);
+    INFO("context: " << (result ? std::string() : result.error().context.toStdString()));
+    REQUIRE(result);
+    CHECK(readRaw(target) == QByteArray("%PDF-1.7 saved by the classic rename"));
+    CHECK(readRaw(target + QStringLiteral(":Zone.Identifier")) == kZone);
+    CHECK(creationTime(target) == asNumber(plantedCreationTime()));
+    CHECK(entries(dir) == QStringList{QStringLiteral("report.pdf")});
+}
+
+TEST_CASE("durable replace through the classic rename refuses a held target as in use whatever its sharing", "[platform][durablefiles][classic]")
+{
+    // The classic rename reports ACCESS DENIED over a held target (measured 2026-09-27), and refuses
+    // even a reader that shares delete -- which the POSIX rename lets through. Either way the user must
+    // be told the file is IN USE, not that they may not write it, and both files must be left.
+    const ClassicRenameOnly classic;
+    for (const DWORD share : {DWORD{FILE_SHARE_READ | FILE_SHARE_WRITE}, DWORD{FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE}}) {
+        INFO("the holder's share mode: " << share);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString target = plantDownloadedTarget(dir, QStringLiteral("held.pdf"));
+        const QString replacement = dir.filePath(QStringLiteral("held.pdf.saving"));
+        writeRaw(replacement, "new");
+        HANDLE holder = CreateFileW(wide(target).c_str(), GENERIC_READ, share, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        REQUIRE(holder != INVALID_HANDLE_VALUE);
+
+        win::WinDurableFiles files;
+        const Status result = files.replaceFile(target, replacement);
+        CloseHandle(holder);
+
+        REQUIRE_FALSE(result);
+        INFO("context: " << result.error().context.toStdString());
+        CHECK(keyOf(result.error()) == "error.file.inUse");
+        CHECK(readRaw(target) == QByteArray("%PDF-1.7 original"));
+        CHECK(readRaw(target + QStringLiteral(":Zone.Identifier")) == kZone);
+        CHECK(readRaw(replacement) == QByteArray("new"));
+
+        // THE CONTROL: the handle was the reason. Closed, the same classic replace succeeds.
+        CHECK(files.replaceFile(target, replacement));
+        CHECK(readRaw(target) == QByteArray("new"));
+    }
 }
 
 TEST_CASE("durable replace control: a plain rename over the target loses the stream", "[platform][durablefiles][control]")

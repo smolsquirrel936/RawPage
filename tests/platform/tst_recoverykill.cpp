@@ -10,6 +10,13 @@
 // kills never landed in a required window FAILS AS UNMEASURED rather than passing. The windows are held
 // open by the probe's test-only phase observers, which sleep; the header of the probe says why.
 //
+// A RANDOM DELAY IS NOT A RANDOM INSTANT UNLESS THE SLEEP IS OFF THE TICK (`Stage4-ViewingSurface-Testing-Guide.md`
+// I-30, A-105). Until 2026-09-27 the harness slept with `QThread::msleep`, which wakes on Windows' 15.6 ms
+// tick like the probe's own dwells, so every kill arrived as a dwell ended: 1 kill in 4 reached the
+// window before the flush rather than 1 in 2, the floor below tripped by chance (about 0.4 % of runs), and
+// a kill almost never reached the inside of a save's replace -- which is why A-69 had never seen a killed
+// replace leave NO FILE at the target (I-31, A-106). `sleepOffTheTick` is the fix for both.
+//
 // WHAT THIS DOES NOT COVER (convention 19): a power loss -- the OS survives every kill here, so the file
 // cache is flushed by Windows whether or not FlushFileBuffers ran; a kill in the OS's own write path; and
 // the product's composition (T11's recovery prompt replays through `ui/`). The replay here runs through
@@ -79,10 +86,26 @@ std::unique_ptr<QProcess> startProbe(const QStringList& arguments)
     return probe;
 }
 
-// Kills it and returns every line it managed to write.
-QList<QByteArray> killProbe(QProcess& probe, int afterMs)
+// Sleeps `us` microseconds OFF the system timer tick. `QThread::msleep` is `Sleep`, which wakes only on
+// Windows' default 15.6 ms tick -- and so do the probe's dwells, so a kill after an msleep was PHASE-LOCKED
+// to the probe: it arrived as a dwell ended, and a random delay chose which tick rather than which instant
+// (S4 guide I-30). A high-resolution waitable timer (Windows 10 1803+) wakes within about a millisecond of
+// the time asked for, whatever the tick.
+void sleepOffTheTick(qint64 us)
 {
-    QThread::msleep(static_cast<unsigned long>(afterMs));
+    const HANDLE timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    REQUIRE(timer != nullptr);
+    LARGE_INTEGER due;
+    due.QuadPart = -us * 10;                                 // relative, in 100 ns units
+    REQUIRE(SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE));
+    WaitForSingleObject(timer, INFINITE);
+    CloseHandle(timer);
+}
+
+// Kills it and returns every line it managed to write.
+QList<QByteArray> killProbe(QProcess& probe, qint64 afterUs)
+{
+    sleepOffTheTick(afterUs);
     probe.kill();                                            // TerminateProcess
     REQUIRE(probe.waitForFinished(10000));
     QByteArray all = probe.readAllStandardOutput();
@@ -127,7 +150,7 @@ TEST_CASE("recovery.kill_commands: twenty kills during commands recover every ac
             // A-65's child half, first part: the probe is alive, so its journal is NOT offered.
             CHECK(core::RecoveryJournal::discover(root).empty());
         }
-        const QList<QByteArray> lines = killProbe(*probe, 20 + static_cast<int>(random.bounded(380)));
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
         REQUIRE_FALSE(lines.isEmpty());
 
         int acknowledged = 0;
@@ -200,7 +223,7 @@ TEST_CASE("recovery.kill_saves: twenty kills during saves leave the target at a 
 
         auto probe = startProbe({QStringLiteral("saves"), target, QString::number(kDwellMs)});
         const qint64 probePid = probe->processId();
-        const QList<QByteArray> lines = killProbe(*probe, 30 + static_cast<int>(random.bounded(570)));
+        const QList<QByteArray> lines = killProbe(*probe, 30000 + static_cast<qint64>(random.bounded(570000)));
         REQUIRE_FALSE(lines.isEmpty());
 
         // The hashes the target may legitimately have: the last acknowledged save's (or the original), and
@@ -224,8 +247,10 @@ TEST_CASE("recovery.kill_saves: twenty kills during saves leave the target at a 
                                                                : "between saves";
         ++landed[where];
 
+        INFO("killed " << where << " after save " << acknowledged << "; the directory holds: "
+             << QDir(dir.path()).entryList(QDir::Files | QDir::Hidden).join(QStringLiteral(", ")).toStdString());
+        REQUIRE(QFileInfo::exists(target));                           // a kill never leaves the path empty
         const std::string now = shaOf(target);
-        INFO("killed " << where << " after save " << acknowledged);
         CHECK(allowed.count(now) == 1);                              // a whole revision, never anything else
         std::string streamBytes;
         {

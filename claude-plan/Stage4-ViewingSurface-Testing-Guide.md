@@ -337,6 +337,10 @@ green its cases did not record.
 ### 5.1 Build, boundary, environment
 
 **A-01 · Configure and build, both presets, from clean** ✅
+**Re-taken 2026-09-27, after every fix the walk raised and D4-20's `ui/viewer/LoupeRaster`**:
+`--clean-first` on both presets, 325 of 325 steps each, **0 `warning:` and 0 `error:` lines in either
+log** over **303 objects release and 292 debug** — the +1 on each is `LoupeRaster.cpp`, the one new
+translation unit since T14. *Before that —*
 **2026-09-23, T14.** `--clean-first` on both presets: **0 `warning:` and 0 `error:` lines in either
 log**, `ui/` included, over **302 objects release and 291 debug** (re-counted from the built trees;
 they were 232 each at Stage 3's sign-off, and the growth is this stage's). Clean rather than
@@ -1653,6 +1657,56 @@ directly — nor how the scaled text LOOKS on a panel.
 **Steps** `ctest --preset x64-release -R "second window keeps the UI font scale"`.
 **Expect** Passed. **If it fails** S2 — I-29 is back.
 
+**A-105 · The kill harness kills at INSTANTS, not at timer ticks — I-30, closed** ✅
+✅ **2026-09-27** (`tests/platform/tst_recoverykill.cpp`, `sleepOffTheTick`). Stage 3's A-68 and A-69
+now wait their random delay on a high-resolution waitable timer, in microseconds, instead of
+`QThread::msleep`. **Measured against the old sleep, which is the control**: A-68's kills landing
+*between apply and the flush* went from **7, 2, 8, 4, 2, 2, 3, 8, 7, 7, 8, 1, 4, 6, 4** of twenty in
+fifteen runs on the tick to **10, 10, 11, 12, 8, 12, 13, 12, 13, 15** in ten runs off it — about one in
+four became about one in two, which is what two windows of 15.0 and 16.2 ms (measured) give random
+instants. A-69's kills *inside the replace* went from rare to **96 in 800** — and that is how I-31 was
+found.
+**What it does NOT cover** (convention 19): the probe's own dwells still sleep on the tick, so the
+windows are tick-aligned — what changed is that the KILL is not; and no case asserts the distribution
+itself, only the floors, whose false-red rate is now about 0.58²⁰ ≈ 2 × 10⁻⁵ a run (116 of 200 kills
+landed before the flush, so the flush window's floor is the one that binds).
+**Steps** `ctest --preset x64-release -R "recovery.kill_"`, each printing where its kills landed.
+**Expect** Passed; A-68's line shows both windows near evenly. **If it fails** S3 on a floor — read the
+printed landing line before the verdict; S1 on anything recovery asserts.
+
+**A-106 · A save killed inside the replace never leaves the target's path empty — I-31, closed** ✅
+✅ **2026-09-27** (`tests/platform/tst_recoverykill.cpp`, A-69's loop). After every kill the case now
+`REQUIRE`s that **the target exists**, naming where the kill landed and **the directory's listing**,
+before it reads a hash. **The planted control is the old product**: on `ReplaceFileW`, **5 of 36 runs
+failed** — two with this assertion, seeds 2967787561 and 1887416610, each listing
+`.approval.pdf.rawpage-<pid>.tmp` and `approval.pdf.rawpage-replace-<uuid>.tmp` and **no `approval.pdf`**,
+*"killed inside the replace"*. On the rebuilt replace: **40 runs of 40 green, 96 kills inside the
+replace**, every one leaving the target at a whole revision with its stream.
+**What it does NOT cover** (convention 19): a power loss, where the question is whether NTFS's log
+holds the rename — the OS survives every kill here; and the product's composition, as A-69 says.
+**Steps** `ctest --preset x64-release -R "recovery.kill_saves"`; for a run of many,
+`rawpage_platform_tests.exe "recovery.kill_saves: twenty kills during saves leave the target at a whole revision with its stream"`
+from `build\x64-release\tests\platform`, repeated.
+**Expect** Passed, and *"inside the replace"* in its landing line on most runs. **If it fails** **S1** —
+the listing in the message says what the directory held.
+
+**A-107 · The replace's identity and its fallback — the classic rename, forced** ✅
+✅ **2026-09-27** (`tests/platform/tst_durablefiles.cpp`, tag `[classic]`, and one case more). A-47's
+case — stream and creation time kept, nothing left beside the target — **run again through the classic
+rename** (`WinDurableFiles::forceClassicRenameForTesting`); a target held by a reader **with and
+without** delete sharing refused as **`error.file.inUse`** under the classic rename, both files left, and
+the same replace succeeding once the handle closes; and a **hidden** target staying hidden after a
+replace, against a replacement asserted not hidden first. **Measured to write them**: over a holder
+without delete sharing the POSIX rename reports **32** and the classic one **5**, which is why a classic
+access-denied is re-asked as exclusive access. And the gate: `SetFileInformationByHandle(` joined
+`layer-lint`'s `filesystem-write` spellings, with `gates.layer_lint.win32_setinfo_outside_allowed` and
+the comment control extended — the product's four waivers in `WinDurableFiles.cpp` are one per
+spelling.
+**What it does NOT cover** (convention 19): Windows before 1809 or a FAT volume actually TAKING the
+fallback — forced here on NTFS; a DACL, which is not planted; and the owner, which is not carried.
+**Steps** `ctest --preset x64-release -R "durable"`; `ctest --preset gates -R win32_`.
+**Expect** Passed. **If it fails** S1 for a target path left empty or a stream lost; S2 for a wrong key.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -2206,6 +2260,8 @@ uses.
 | **I-27** | **S3** | **Holding the temporary hand's `Shift` left the loupe's lens on screen until a pan repainted the page, and releasing it brought the lens back only on a mouse move** | ✅ **Closed 2026-09-27, the day M-12 raised it** — the controller repaints when the temporary hand switches, and `PageView` reads the key's release; **A-98** |
 | **I-28** | **S3** | **`rawpage_ui_tests.exe` run WHOLE died — an access violation, `std::bad_alloc` or no output, in a different case each run: cases left process-wide state behind, and a closed tab's pending deletion ran in a later case against a destroyed fixture** | ✅ **Closed 2026-09-27, the day it was investigated** — `ShellFixture` flushes deferred deletes before its members go, the font leaks are scoped, and **A-103**'s guard fails the leaking case under `ctest` |
 | **I-29** | **S2** | **A second window compounded the UI font scale: at 1.5, a second `MainWindow` set 20.25 pt over a 9 pt base, and setting 1.0 then left 13.5 — reachable since Stage 1's tab tear-out** | ✅ **Closed 2026-09-27, the day I-28's investigation found it** — the unscaled base is recorded once per process, on the application; **A-104** |
+| **I-30** | **S3** | **The kill harness's "random" instants were phase-locked to the Windows timer tick, so A-68's coverage floor tripped by chance and A-69 never reached the inside of a replace** | ✅ **Closed 2026-09-27, the day a clean-rebuild run tripped it** — the harness sleeps off the tick; **A-105** |
+| **I-31** | **S1** | **A save killed inside `ReplaceFileW` left NO FILE at the document's path — the content under `<name>.rawpage-replace-<uuid>.tmp`, the new revision under its temporary name — since Stage 3 T7** | ✅ **Closed 2026-09-27, the day I-30's fix found it** — the identity carried onto the temporary file, then one atomic rename, on the user's choice; **A-106**, **A-107** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -3027,12 +3083,76 @@ per-window capture runs red at all three checks. **Walked on a real panel by the
 and passed** (*"I-29 walked, passed"*): at an interface font scale of 1.5, a second window from *New
 Window* left the text the same size in both windows, and setting 1.0 returned both to normal size.
 
+**I-30 · A random delay is not a random instant when both sides sleep on the timer tick.** *(Raised
+2026-09-27 — a clean-rebuild run of the whole suite, §9 item 4.)*
+
+**What was seen.** Stage 3's A-68, `platform.recovery.kill_commands`, failed once on `x64-release`
+with every recovery assertion green: its coverage floor `landed["between apply and the flush"] >= 1`
+read 0, all twenty kills *inside the flush*. Fifteen runs alone passed, but the landings were lopsided
+— **1 to 8 of twenty** before the flush, T9's own record 4 of 20 — although the probe holds the two
+windows open for the same 15 ms.
+
+**Mechanism.** Measured, the windows are **15.0 and 16.2 ms** wide (the second adds a real
+`FlushFileBuffers`), so width does not explain it. **The harness waited its random delay with
+`QThread::msleep` — `Sleep` — which wakes only on Windows' 15.6 ms tick, and the probe's dwells end on
+the same tick.** A command is two ticks long. So every kill arrived as a dwell ended: at the end of the
+window before the flush, the probe prints `flushing` within microseconds, before `TerminateProcess`
+takes effect; at the end of the flush window, the kill lands inside the real flush, whose last line is
+also `flushing`. Both read as *inside the flush*. The random delay chose WHICH tick, never where in it.
+
+**Why the suite did not catch it.** The floor is a floor — it asks for one kill in a window, not for a
+fair share — and one in four is enough nearly always (a run with none about 0.4 % of the time). And
+what the tick HID was worse than the flake: A-69's kills gathered at its dwell's end too, so for twelve
+days no kill landed inside a save's replace — see I-31.
+
+**The fix, 2026-09-27.** `sleepOffTheTick`: a high-resolution waitable timer, in microseconds. Ten runs:
+**8 to 15** of twenty before the flush. **A-105.**
+
+**I-31 · A save killed inside the replace left no file at the document's path.** *(Raised 2026-09-27
+by A-69 on I-30's fix. S1: the user's document disappears from where they keep it.)*
+
+**What was seen.** Once kills stopped being tick-locked, **5 of 36** runs of A-69 failed. The first
+three could not open the target at all; with the case made to list the directory, the next two read:
+*"killed inside the replace after save 2; the directory holds: `.approval.pdf.rawpage-32636.tmp`,
+`approval.pdf.rawpage-replace-2733e573….tmp`"* — **no `approval.pdf`**.
+
+**Mechanism.** Stage 3 T7 built D3-4's replace on `ReplaceFileW` with a backup name, for a sound
+reason — every documented failure then leaves both files findable, where without one
+`ERROR_UNABLE_TO_MOVE_REPLACEMENT` deletes the target. But `ReplaceFileW` is **two renames made in user
+mode by the calling process**: the target to the backup name, then the replacement to the target's.
+The failure codes cover the second rename FAILING; nothing covers the process DYING between them — a
+kill, a crash, a power loss — and then nothing runs to move the backup back. The document survives,
+under a name nobody would look for; and a later save to that path would sweep the new revision's
+temporary file away as a dead process's debris (A-60).
+
+**Why the suite did not catch it.** A-69 exists to find exactly this and never got the chance: its
+kills landed where the tick put them, *"between writing the temporary file and the replace: 20"* at
+T9. And `WinDurableFiles.h` had listed, under *what the tests cannot reach*, the failure BETWEEN two
+steps of one call — the right hole, named as a failure code rather than as a death.
+
+**The fix, 2026-09-27, on the user's choice** (offered: carry-then-rename, keep `ReplaceFileW` and
+repair the debris at the next launch, or record only). `WinDurableFiles::replaceFile` now **carries
+the target's identity onto the replacement while the target is untouched** — named streams copied and
+flushed, the DACL with its inheritance protection, the creation time and the hidden, system, archive
+and not-indexed attributes — and then makes **one rename over the target** through
+`SetFileInformationByHandle`, which NTFS makes atomically: POSIX semantics first (it alone succeeds
+past a reader that shares delete, as `ReplaceFileW` did), the classic rename where the OS (before 10
+1809) or the volume has none. D3-4 is corrected in `Stage3-Mutation-Plan.md` §3; the header of
+`platform/win/WinDurableFiles.h` records what `ReplaceFileW` carried that this does not — the short
+name, the object id, compression, encryption, the owner — and why none matters here.
+`SetFileInformationByHandle(` joined `layer-lint`'s write spellings, because a rename the gate cannot
+see is Stage 1 I-15's shape. **A-106**: 40 runs of 40, 96 kills inside the replace, the path never
+empty. **A-107**: the fallback forced, the identity asserted through it, the in-use refusal kept. What
+a person sees when another program holds the file — Stage 3's M-08 — is unchanged, because the two
+share modes still end where they did (the in-use refusal and the reader keeping its bytes), and it was
+not re-walked.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 105 carry a result.** The 104th and 105th are **A-103** and **A-104**, I-28's guard and I-29's case, both run under `ctest` with planted controls run red. *Before that, the same day — all 103.* The 102nd and 103rd are **A-101** and **A-102**, D4-22's — `Alt`+wheel on the Loupe and the key tips on `Alt`'s release. The 100th and 101st are **A-99** and **A-100**, D4-20's — the sharp lens and its A2 measurement. The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 108 carry a result.** The 106th to 108th are **A-105**, **A-106** and **A-107**, I-30's and I-31's — the kill harness off the timer tick, a killed save never emptying the target's path, and the replace's fallback and identity — each measured against its control (the old sleep, the old `ReplaceFileW`, and a replacement asserted unlike the target first). *Before that, the same day — all 105.* The 104th and 105th are **A-103** and **A-104**, I-28's guard and I-29's case, both run under `ctest` with planted controls run red. *Before that, the same day — all 103.* The 102nd and 103rd are **A-101** and **A-102**, D4-22's — `Alt`+wheel on the Loupe and the key tips on `Alt`'s release. The 100th and 101st are **A-99** and **A-100**, D4-20's — the sharp lens and its A2 measurement. The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -3063,7 +3183,28 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after I-28's and I-29's fixes: 1143/1143 on `x64-release` and on
+4. ✅ **2026-09-27, re-run after I-30's and I-31's fixes: 1147/1147 on `x64-release` and on
+   `x64-debug`**, the four new cases the three `tst_durablefiles` cases of A-107 and the gate case
+   `gates.layer_lint.win32_setinfo_outside_allowed` (the `gates` preset **127/127**), the same three
+   named skips, `checks` clean on four gates (`layer-lint` 425 files / 3,433 includes) — and
+   `i18n-lint`'s one note, `error.file.originalMoved` orphaned by the removal of `ReplaceFileW`'s
+   backup path, answered by removing the key from both catalogs. A-68 and A-69 run many times beyond
+   the suite: A-69 **40 of 40**, A-68 **10 of 10** (A-105, A-106).
+   *Before that,* **re-run after a CLEAN rebuild of both presets (A-01's census, no source change):
+   1143/1143 on `x64-debug`; on `x64-release` 1142 of 1143 with ONE red** — Stage 3's A-68,
+   `platform.recovery.kill_commands`, and **not on anything it recovers**: all 282 of its recovery
+   assertions held, every acknowledged command was replayed, and what failed is its coverage floor
+   `landed["between apply and the flush"] >= 1` — all twenty kills landed *inside the flush* (seed
+   1321356238). The floor is `Stage3-Mutation-Testing-Guide.md`'s rule 4, *unmeasured is a failure*,
+   doing what it says: a run whose kills never reached a window proves nothing about it. **Re-run
+   alone fifteen times, 15 of 15 green**, the kills landing in that window 7, 2, 8, 4, 2, 2, 3, 8, 7,
+   7, 8, 1, 4, 6 and 4 times of twenty (Stage 3 T9 measured 4) — about one in four, which puts a run
+   with none near **0.4 %** by chance, measured alone; whether a full suite's load moves it was not
+   measured. Kept from `LastTest.log` before any re-run
+   (`CLAUDE.md`'s trap). **Investigated the same day on the user's request, and raised as I-30**: the
+   lopsided landings were the harness's `msleep` waking on the timer tick with the probe's dwells, and
+   fixing that found **I-31**, an S1 in the save path (§8). Same three named skips.
+   *Before that,* **re-run after I-28's and I-29's fixes: 1143/1143 on `x64-release` and on
    `x64-debug`**, the one new case A-104's — A-103 is a listener, not a case — the same three named
    skips, `checks` clean on four gates (`layer-lint` 425 files / 3,430 includes); no `warning:` line
    from either incremental build. **And `rawpage_ui_tests.exe` now runs WHOLE**: 368 cases, in
@@ -3098,7 +3239,12 @@ restated as a checklist.
    red with the target planted as held open without `FILE_SHARE_DELETE`, the control printed
    *"MoveFileExW(… -> …\report.pdf) failed, GetLastError 5"* — access denied, not a sharing violation —
    so a recurrence reporting 5 at that call fits the scanner guess, and anything else rules it out.
-   Still open, and not an issue: no defect is established. The
+   Still open, and not an issue: no defect is established. **It is the case's SECOND unexplained
+   red, not its first**: on 2026-09-15 one full `x64-debug` run failed it the same way at Stage 3
+   T10, its output likewise not captured, and it passed alone and in the runs after
+   (`Implementation-Plan.md` §4, Stage 3's T10 row). Both reds were in full runs and none in the
+   ~8,500 runs of the case alone or of its suite, which is worth keeping beside the scanner guess.
+   The
    three new cases are A-97's two and A-98's; the same three named skips; `checks` clean on four gates
    (`layer-lint` 423 files / 3,394 includes). Two case names were renamed to drop a comma (convention 2):
    A-96's, committed with one, and A-97's. *Before that,* **re-run after I-24's SECOND round: 1134/1134 on `x64-release` and on `x64-debug`**,
@@ -3208,8 +3354,11 @@ restated as a checklist.
    leaving the lens on screen, both closed that day with **A-97** and **A-98**. And after the walk,
    investigating why the UI binary could not be run whole raised **I-28 (S3)**, cases leaving
    process-wide state behind, and through it **I-29 (S2)**, a second window compounding the UI font
-   scale — both closed that day with **A-103** and **A-104**. §8 holds twenty-nine issues, and only
-   I-07 is open.
+   scale — both closed that day with **A-103** and **A-104**. And a clean-rebuild run that day raised
+   **I-30 (S3)**, the kill harness's instants locked to the timer tick, and through its fix **I-31
+   (S1)** — a save killed inside `ReplaceFileW` leaving no file at the document's path, since Stage 3
+   T7 — both closed that day with **A-105**, **A-106** and **A-107**, I-31 on the user's choice of fix.
+   §8 holds thirty-one issues, and only I-07 is open.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -3227,10 +3376,12 @@ restated as a checklist.
 COMPLETE, the Linux job included; **ALL TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF** — M-11, M-01 ON
 ITS RE-WALK, M-02, M-06, M-03, M-04, M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF
 STEP 1, M-09 ON ITS RE-WALK, M-10 ON ITS RESUMED WALK AND M-12 ON ITS LOUPE RE-WALK — AND EVERY ISSUE ANY
-OF THEM RAISED IS FIXED; only I-07 (S4) is open, owned by Stage 8. The two issues found after the
-walk, I-28 and I-29, are fixed and closed by A-103 and A-104; I-29's fix, a product change, was also
-walked on a real panel by the user on 2026-09-27 and passed — a check outside §6, which has no case
-for it. **What remains is the user's sign-off
+OF THEM RAISED IS FIXED; only I-07 (S4) is open, owned by Stage 8. The four issues found after the
+walk are fixed and closed: I-28 and I-29 by A-103 and A-104 — I-29's fix, a product change, was also
+walked on a real panel by the user on 2026-09-27 and passed, a check outside §6, which has no case
+for it — and I-30 and I-31 by A-105 to A-107. **I-31 was an S1 in Stage 3's save path**, open since
+Stage 3 T7 and invisible to that stage's own kill case until I-30's fix; its fix changes how every save
+replaces a file, and no manual case was re-walked for it. **What remains is the user's sign-off
 of the stage itself**, which is theirs to give and is not recorded here until they give it. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, was the argument for walking every one of the twelve — and the walks bore it out: M-08 to
