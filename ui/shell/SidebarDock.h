@@ -80,6 +80,11 @@ public:
     int rememberedWidth() const { return rememberedWidth_; }
     void setRememberedWidth(int width);
 
+    // Float the pane, or dock it back -- the float button and a double-click on the title. Docking
+    // back is ours rather than Qt's `setFloating(false)`, which leaves the dock out of the window's
+    // layout on Qt 6.11.1 (S4 guide I-24); the .cpp says how, and what a drag does to it.
+    void toggleFloating();
+
     bool isAutoHidden() const { return autoHidden_; }
 
     // Auto-hiding a pane hides the dock and hands the window a strip to put on the edge. Pinning it
@@ -130,6 +135,10 @@ signals:
     void currentPaneChanged(core::ActionId id);
 
 protected:
+    // A double-click on the title is `toggleFloating()`, taken before `QDockWidget::event` can toggle
+    // through the broken path (I-24).
+    bool event(QEvent* event) override;
+
     // Width memory is captured on resize rather than on hide: by the time hide() runs, a dock
     // being collapsed by a splitter drag has already reported width 0.
     void resizeEvent(QResizeEvent* event) override;
@@ -156,6 +165,7 @@ private:
     bool suppressChooserSignal_ = false;
 
     int  rememberedWidth_ = 280;
+    Qt::DockWidgetArea lastDockedArea_ = Qt::LeftDockWidgetArea;   // where `toggleFloating()` returns it
     bool autoHidden_ = false;
     bool peeking_ = false;
 };

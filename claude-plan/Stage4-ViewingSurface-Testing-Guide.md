@@ -7,10 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **95 automated** (A-01 … A-94, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 95 carry
-> a result** as of 2026-09-27 (re-derived from this file: 95 case headers, none still boxed — the
-> 95th is **A-94**, added 2026-09-27 with I-23's fix, which like A-85 SKIPS under `ctest` and is run
+> partly run.** **97 automated** (A-01 … A-96, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 97 carry
+> a result** as of 2026-09-27 (re-derived from this file: 97 case headers, none still boxed — the
+> 96th and 97th are **A-95** and **A-96**, added 2026-09-27 with I-24's and I-25's fixes during
+> M-10's first walk; the 95th is **A-94**, added 2026-09-27 with I-23's fix, which like A-85 SKIPS under `ctest` and is run
 > on the `windows` platform — the
 > 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**,
 > **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**,
@@ -57,10 +58,14 @@
 > its first walk at the cascade** — the first window's title bar was above the top of the screen —
 > which raised **I-23 (S2)**; measured, the tilings had the same defect, and it was fixed the same
 > day; **the re-walk the same day confirmed the cascade fixed and found nothing wrong with the tilings on
-> either monitor — M-09 is signed off**. The other two — M-10 and M-12 — are unwalked.
-> §8 holds **twenty-three** issues and **only I-07 (S4) is open**;
+> either monitor — M-09 is signed off**. M-12 is unwalked; M-10 is below.
+> **M-10**, by the user on 2026-09-27, **stopped at step 3**: a floated sidebar re-docked by its
+> float button was left out of the window — **I-24 (S2)** — and the edge strip left in its place
+> showed nothing to a hover or a click — **I-25 (S3)**; both fixed the same day, and the walk
+> resumes at step 3 on the fixed build.
+> §8 holds **twenty-five** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26**, and **I-18 to I-23 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-25 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -292,6 +297,8 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-21)* `Ctrl` with the keypad's `+` and `-` zooms like the main row's | **A-92**, and **M-08**'s re-walk, where it was found |
 | *(I-22)* No tracked text file holds a control byte — a path's backslashes read as escapes | **A-93** |
 | *(I-23)* Tile and cascade leave every window's title bar on its monitor and uncovered | **A-94** (on the `windows` platform), and **M-09**, which found it |
+| *(I-24)* A floated sidebar re-docks into its place, by the float button and by a double-click | **A-95**, and **M-10**, which found it |
+| *(I-25)* The edge strip of a closed sidebar opens it on a click | **A-96**, and **M-10**, which found it |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1430,6 +1437,37 @@ yet track.
 passed, positions exact`. **If it fails** S3 — a document or source file holds a control byte; the
 report names the file, line and column.
 
+**A-95 · A floated sidebar re-docks INTO the window, by the float button and by a double-click — I-24, closed** ✅
+✅ **2026-09-27, rewritten the same day** (`tests/ui/tst_shell.cpp`, tag `[I-24]`; runs under `ctest`
+offscreen, and was also run on `QT_QPA_PLATFORM=windows`, **38 assertions** each). The sidebar is
+floated and re-docked **by its float button**, the gesture M-10 found it by, and **by a double-click on
+its title**; then — **the re-walk's finding** — **floated, DRAGGED by its title, and re-docked**, by the
+button and by a double-click; and a pane **docked on the right** is floated, dragged and re-docked. Each
+time it must be back **where it was docked**: not floating, visible, on its own side, at its docked
+top-left and height, **with the central widget beside it rather than under it**. The drag is sent as a
+hand makes it — a press on the title, ten moves to whichever widget holds the mouse, a release — and
+the case REQUIREs that the pane really moved before it re-docks. **Two planted controls, both run red
+on BOTH platforms:** the first fix's call removed — the unmoved re-dock stranded at **580,408** on
+Windows (2,164 offscreen), the stray block of M-10's screenshot; and, with that call restored, **the
+`restoreState(saveState())` round trip removed** — the unmoved re-docks pass and every MOVED one fails,
+at **4720,961** on Windows and 302,364 offscreen, which is the re-walk's report reproduced. **What it
+does NOT cover** (convention 19): a re-dock by dragging the pane ONTO an edge, which is Qt's own plug
+and never reaches the fix — M-10's re-walk is where that is seen; and whether Windows' own system move
+of a floating window, which a real hand may trigger instead of Qt's drag, freezes the layout the same
+way — the synthetic drag reproduced the user's symptom exactly, which is the evidence it does.
+**Steps** `ctest --preset x64-release -R "re-docks into its place"`.
+**Expect** Passed. **If it fails** S2 — a re-docked sidebar is out of the window's layout.
+
+**A-96 · The edge strip of a CLOSED sidebar opens it; of an auto-hidden one, a click still peeks — I-25, closed** ✅
+✅ **2026-09-27** (`tests/ui/tst_shell.cpp`, tag `[I-25]`, under `ctest`, and on the `windows`
+platform). Closed by `view.toggleSidebar` (the `F4` state): the strip is up, and **a click brings the
+pane back pinned** — visible, not auto-hidden, not peeking, the strip gone. **A hover over a closed
+pane's strip opens nothing** — the half the fix must not add. **Auto-hidden, a click is still a peek
+and not a pin** (Stage 1's I-37 behaviour, re-asserted). **Planted control — the click peeking in
+every state, as it did from Stage 1 T9 — run red**: the pane stayed closed and the strip stayed up.
+**Steps** `ctest --preset x64-release -R "edge strip of a closed sidebar"`.
+**Expect** Passed. **If it fails** S3 — the strip that stands in for a closed sidebar cannot open it.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -1786,7 +1824,33 @@ the first walk
   one.
 - **If it fails** S2; S3 for the two-monitor tiling if it is merely unhelpful.
 
-**M-10 · Panes, reading mode, and what is remembered** ☐
+**M-10 · Panes, reading mode, and what is remembered** ☐ — **first walk STOPPED at step 3,
+2026-09-27; I-24 (S2) and I-25 (S3) fixed the same day; resumes at step 3**
+- **First walk, 2026-09-27, to step 3** On copies of `text-a4.pdf` and `outline-labels.pdf` in
+  `tests\manual\M-10\`. Steps 1 and 2 were not reported as failing. **Step 3: the sidebar, floated and
+  then re-docked with its float button, disappeared from its place** — a white block sat at the lower
+  part of the window and the page ran the full width — and **`F4` then left only the edge strip, which
+  neither a hover nor a click would open** (the user's words: *"there's only a collapsed bar (named
+  panes) at the window's left, but I cannot expand it through mouse hovering or clicking. And there's
+  a white block at the lower part of window"*, with a screenshot). A restart brought the sidebar back.
+  **I-24 (S2)** and **I-25 (S3)** in §8. **Before resuming, read what the code predicts for the rest**
+  (written down when the walk was prepared, not found by it): **step 5 will fail by construction** —
+  the sidebar is one per WINDOW and nothing records which pane each document had open, although
+  `Features.md` §1.1 promises it and `SidebarDock`'s FileMap row still owes it — and **an auto-hidden
+  sidebar at quit should come back CLOSED**, because `MainWindow::paneLayoutState()` reads a hidden
+  dock as a closed one. Both are predictions to be confirmed or refuted by the walk.
+- **Re-walk of step 3, 2026-09-27, on the first fix** *"It can be re-dock if I never move the floated
+  sidebar. It will still be gone with the white block after move it and click float button."* — the
+  first fix was half right, and I-24's entry in §8 records the second round. I-25 was not reported on.
+- **Second re-walk of step 3, 2026-09-27, on the second fix** Reported by the user as *"It's fixed
+  now."* — recorded as that, with nothing more specific, and as covering the re-dock after a move. The
+  walk continues from step 4.
+- **What the resumed walk must look at, at step 3:** float the sidebar, **MOVE it by its title**, and
+  re-dock it **by ❐** — then again **by a double-click on its title** — and once **by dragging it onto
+  an edge**; each lands back where it was docked, with the page beside it. Once more with the sidebar
+  docked on the **right** first: it goes back to the right. Then close it with `F4` and **click the edge strip: it opens the sidebar**.
+  **Hovering that strip does nothing, by decision** — a closed (not auto-hidden) pane opens on a click;
+  only an auto-hidden one peeks on a hover.
 - **Steps** Open and resize the sidebar; auto-hide it and peek; float a pane and re-dock it; enter
   reading mode (`Ctrl+L`) and leave it; switch between two documents with different panes open; quit
   and relaunch with `general/rememberPaneLayout` on, then off.
@@ -1897,6 +1961,8 @@ uses.
 | **I-21** | **S3** | **`Ctrl` with the keypad's `+` did not zoom in** | ✅ **Closed 2026-09-27, the day M-08's re-walk raised it** — a fallback to `Ctrl+=`; **A-92** |
 | **I-22** | **S3** | **Four Windows paths in two documents held control bytes where their backslashes had been** | ✅ **Closed 2026-09-27, the day a byte-level read found it** — repaired, and **A-93** refuses a control byte in any tracked text file |
 | **I-23** | **S2** | **An arranged window's TITLE BAR was off the screen: tile and cascade placed each window's CONTENTS in its cell, and the title bar went above it** | ✅ **Closed 2026-09-27, the day M-09 raised it** — the cell is the frame, and the cascade steps by the window's own title bar; **A-94**, on the `windows` platform |
+| **I-24** | **S2** | **A floated sidebar re-docked by its float button — or by a double-click — was left OUT of the window: flagged docked, drawn as a stray block, the page running beneath it** | ✅ **Closed 2026-09-27, the day M-10 raised it — in two rounds** — Qt 6.11.1's `setFloating(false)`, measured on a bare `QMainWindow`; the first fix (`restoreDockWidget`) held only for a pane never MOVED while floating, which the re-walk found; re-docking is now `SidebarDock::toggleFloating()`, ending in a `restoreState(saveState())` round trip that unfreezes the layout a drag leaves; **A-95**, rewritten |
+| **I-25** | **S3** | **The edge strip of a CLOSED sidebar did nothing to a hover or a click, although its tooltip says *Show the sidebar* — since Stage 1 T9** | ✅ **Closed 2026-09-27, the day M-10 raised it** — a click on a closed pane's strip is `view.toggleSidebar`; a hover stays a peek; **A-96** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -2549,12 +2615,74 @@ hairline and the bottom tile touches the taskbar's edge by that much. Removing i
 extended frame bounds in the product, which is `platform/` and a decision D4-17 made the other way;
 recorded in `WindowArranger.h` and bounded by A-94 rather than left for a reader to find.
 
+**I-24 · A floated sidebar, re-docked, was left out of the window.** *(Raised 2026-09-27 by the user's
+M-10 walk, step 3, with a screenshot: *"make sidebar float -> click float button again. It should
+re-dock back to intial position, but even press F4, there's only a collapsed bar (named panes) at the
+window's left … And there's a white block at the lower part of window."* S2 — the sidebar is what
+every pane of every later stage lives in, and after this it was unreachable until a restart.)*
+
+**Mechanism — measured, and it is Qt's.** A probe on the `windows` platform clicked the real float
+button twice: after the second click the dock reported `floating 0`, `area 1` (left) — and sat at
+**580,408**, which was its SCREEN position while floating, now read as a position inside the window,
+with the dock area zero wide. No relayout moved it: not `layout()->invalidate()` and `activate()`, not a
+posted `LayoutRequest`, not resizing the window. **The same probe on a bare `QMainWindow` and
+`QDockWidget`**, with and without a custom title bar, gave the same result, so **Qt 6.11.1's
+`setFloating(false)` after `setFloating(true)` does not put the dock back into the layout**; it only
+clears the flag. A **double-click on the title** — Qt's own toggle — goes the same way. `addDockWidget`
+leaves a floating dock floating. **`setFloating(false)` followed by `QMainWindow::restoreDockWidget`
+re-plugs it**, at its docked origin and full height — measured on both.
+
+**The second half of what the walk saw is I-25**: with the dock out of the layout, `F4` hid and showed
+a widget nobody could see, and the only thing left on screen was the edge strip, which could not open
+anything.
+
+**Why no case caught it.** **No case in any stage floated the sidebar** (checked 2026-09-27: before
+A-95 no test under `tests/` calls `setFloating` or reads `isFloating`) — floating and re-docking were
+left to manual walks, and a re-dock by DRAGGING, which is Qt's working path, is the one a hand reaches
+for first.
+
+**The first fix, 2026-09-27, and why it was not enough.** `SidebarDock` answered its own
+`topLevelChanged(false)` with `restoreDockWidget(this)`. A-95 went green, and **the user's re-walk the
+same day found it half right**: *"It can be re-dock if I never move the floated sidebar. It will still
+be gone with the white block after move it and click float button."* Measured the same hour, step by
+step, after a synthetic drag of the floating pane's title: **`restoreDockWidget` RETURNS TRUE AND MOVES
+NOTHING**; `addDockWidget` moves nothing; `removeDockWidget` then `addDockWidget` moves nothing; no mouse
+grab is left behind, and sending the dock a release changes nothing. **The window's layout is frozen** —
+it ignores every relayout — and **a round trip through `restoreState(saveState())` unfreezes it**, after
+which the dock is laid out where the state says and ordinary docking works again. The mechanism inside
+Qt was not read; only its effect was measured, which is why the round trip is always done rather than
+guessed at.
+
+**The fix, as it stands.** Re-docking is no longer Qt's toggle. The float button and a double-click on
+the title — which `SidebarDock::event` now takes before `QDockWidget::event` can — both call
+`SidebarDock::toggleFloating()`: `setFloating(false)`, then `restoreDockWidget` (or, if that finds
+nothing, `addDockWidget` on the side the pane was last docked on), then `restoreState(saveState())`. A
+drag onto an edge is Qt's own plug and never comes here. **A-95** covers the unmoved and the moved
+re-dock by both gestures, and a pane on the right; both planted controls run red on both platforms.
+
+**I-25 · The edge strip of a closed sidebar did nothing.** *(Raised 2026-09-27 by the same M-10 walk —
+*"I cannot expand it through mouse hovering or clicking"* — and present since Stage 1 T9. S3: `F4`
+still worked.)*
+
+**Mechanism.** `MainWindow::updateAutoHideStrips` shows the edge strip for an **auto-hidden** sidebar
+AND for a **closed** one, and the strip's tooltip says *Show the sidebar*. But both the hover and the
+click called `SidebarDock::peek()`, which does nothing unless the pane is auto-hidden. So a strip
+standing in for a closed pane was a control with no effect — the thing `buildAutoHideStrips`' own
+comment calls a broken control.
+
+**Why no case caught it.** Every strip case auto-hides the pane first; none closed it.
+
+**The fix, 2026-09-27.** A click on a closed pane's strip dispatches **`view.toggleSidebar`** — the
+command `F4` and the pane's close button already are. **A hover still only peeks**, so it still does
+nothing to a closed pane, **by decision**: a pinned pane opening because the pointer crossed the edge
+would move the page under a person who did not ask. **A-96**, with its planted control run red.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 95 carry a result.** The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 97 carry a result.** The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2574,12 +2702,25 @@ restated as a checklist.
    **M-09, 2026-09-27, FAILED its first walk at the cascade** — I-23 (S2), a title bar off the
    screen, which measurement showed in both tilings too — fixed the same day; **the re-walk that day
    confirmed the cascade and found nothing wrong with the tilings on either monitor, signing M-09
-   off.** The other two — M-10 and M-12 — are unwalked, and are the stage's remaining gap and the
-   honest summary of its state.
+   off.** **M-10, 2026-09-27, STOPPED at step 3 on its first walk** — I-24 (S2), a re-docked
+   sidebar left out of the window, and I-25 (S3), a closed sidebar's strip that opened nothing, both
+   fixed the same day — and resumes at step 3. M-12 is unwalked. The two are the stage's remaining
+   gap and the honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after I-23's fix: 1132/1132 on `x64-release` and on `x64-debug`**, the
+4. ✅ **2026-09-27, re-run after I-24's SECOND round: 1134/1134 on `x64-release` and on `x64-debug`**,
+   A-95 rewritten rather than added, the same three named skips, `checks` clean on four gates
+   (`layer-lint` 423 files / 3,393 includes). *Before that, the same day,* **after I-24's first round
+   and I-25's fix: 1134/1134 on `x64-release` and on
+   `x64-debug`**, the two new cases A-95's and A-96's, with the same three named skips and `checks`
+   clean on four gates (`layer-lint` 423 files / 3,392 includes); no `warning:` line from either
+   incremental build. On the `windows` platform A-94, A-95, A-96 and A-85 passed together, 142
+   assertions, with nobody touching the desktop. *(A first run of that selection with the `[shell]`
+   cases included stopped on a real **Open PDF** dialog — offscreen the product refuses to prompt, on
+   the `windows` platform it prompts — and the walker's mouse, moving meanwhile, dismissed it and
+   failed one assertion. Recorded, not a product finding: `[shell]` is an offscreen suite.)*
+   *Before that,* **re-run after I-23's fix: 1132/1132 on `x64-release` and on `x64-debug`**, the
    one new case A-94's, with **three** named skips — the battery case, A-85 and now **A-94**, both
    of which need a real desktop and were run on the `windows` platform instead, A-94 passing with 86
    assertions — and `checks` clean on four gates (`layer-lint` 423 files / 3,390 includes); no
@@ -2668,7 +2809,9 @@ restated as a checklist.
    **A-92**. And **I-22 (S3)**, four document paths holding control bytes, found the same day by a
    byte-level read and closed with **A-93**. And M-09's first walk that day raised **I-23 (S2)**, a
    cascaded window's title bar off the screen — the tilings measured the same — closed that day with
-   **A-94**.
+   **A-94**. And M-10's first walk that day raised **I-24 (S2)**, a re-docked sidebar left out of the
+   window — Qt's own `setFloating(false)` — and **I-25 (S3)**, a closed sidebar's edge strip that
+   opened nothing, both closed that day with **A-95** and **A-96**.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -2685,8 +2828,8 @@ restated as a checklist.
 **WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; TEN OF THE
 TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
 M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF STEP 1 AND M-09 ON ITS RE-WALK — AND
-EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — two
-unwalked cases, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
+EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — M-10,
+whose first walk stopped at step 3 on I-24 and I-25 (both fixed) and resumes there, and M-12, unwalked. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, is the argument for the other four rather than against them — and M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's

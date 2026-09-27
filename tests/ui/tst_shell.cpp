@@ -34,6 +34,7 @@
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QProgressBar>
 #include <QTemporaryDir>
 #include <QToolButton>
@@ -638,4 +639,182 @@ TEST_CASE("a well-formed key resolves through the catalog and a bare word does n
     // screen, where it is noticed on the first run rather than in a zh-TW screenshot three stages
     // later.
     CHECK(ui::catalog::translate(QStringLiteral("nodots")) == QStringLiteral("nodots"));
+}
+
+// =============================================================================================
+// S4 guide A-95 -- a floated sidebar re-docks INTO the window (I-24)
+// =============================================================================================
+
+TEST_CASE("a floated sidebar re-docks into its place by the float button and by double-click",
+          "[shell][I-24]")
+{
+    // M-10's walk, 2026-09-27: float the sidebar, press the float button again, and the pane was
+    // left OUT of the window's layout -- flagged docked, drawn as a stray block at the position it
+    // had floated to, the dock area zero wide. Qt 6.11.1's `setFloating(false)` does that on a bare
+    // `QMainWindow` too; `SidebarDock` now re-plugs through `restoreDockWidget`. The claim is the
+    // GEOMETRY: back where it was docked, at the same size, and the central widget beside it.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.resize(1400, 900);
+    window.show();
+    const auto settle = [] {
+        for (int i = 0; i < 30; ++i) QCoreApplication::processEvents();
+    };
+    settle();
+
+    ui::SidebarDock* sidebar = window.sidebar();
+    auto* floatButton = sidebar->findChild<QToolButton*>(QStringLiteral("sidebarFloatButton"));
+    auto* title = sidebar->findChild<QLabel*>(QStringLiteral("sidebarTitleLabel"));
+    REQUIRE(floatButton != nullptr);
+    REQUIRE(title != nullptr);
+    REQUIRE_FALSE(sidebar->isFloating());
+
+    const QRect docked = sidebar->geometry();
+    INFO("docked at " << docked.x() << "," << docked.y() << " " << docked.width() << "x" << docked.height());
+    REQUIRE(docked.width() > 0);
+
+    const auto checkDockedAgain = [&](const char* how) {
+        settle();
+        const QRect now = sidebar->geometry();
+        INFO(how << ": now " << now.x() << "," << now.y() << " " << now.width() << "x" << now.height()
+                 << ", floating " << sidebar->isFloating());
+        CHECK_FALSE(sidebar->isFloating());
+        CHECK(sidebar->isVisible());
+        CHECK(window.dockWidgetArea(sidebar) == Qt::LeftDockWidgetArea);
+        CHECK(now.topLeft() == docked.topLeft());
+        CHECK(now.height() == docked.height());
+        // AND THE PAGE AREA MAKES ROOM FOR IT, which is what a stray child widget does not get.
+        CHECK(window.centralWidget()->geometry().left() >= now.right());
+    };
+
+    // THE FLOAT BUTTON, both ways -- the gesture M-10 found it by.
+    floatButton->click();
+    settle();
+    REQUIRE(sidebar->isFloating());
+    floatButton->click();
+    checkDockedAgain("float button");
+
+    // A DOUBLE-CLICK ON THE TITLE, both ways -- Qt's own toggle, and the same defect by another road.
+    // The title label ignores the event and it reaches the dock, as it does from a real mouse.
+    const auto doubleClick = [&] {
+        const QPointF at(5, 5);
+        QMouseEvent event(QEvent::MouseButtonDblClick, at, title->mapToGlobal(at), Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(title, &event);
+    };
+    doubleClick();
+    settle();
+    REQUIRE(sidebar->isFloating());
+    doubleClick();
+    checkDockedAgain("double-click");
+
+    // AFTER THE FLOATING PANE HAS BEEN MOVED -- the re-walk's finding, the same day. Dragging a
+    // floating pane anywhere but an edge left the window's layout frozen, so the first fix
+    // (`restoreDockWidget` alone) re-docked an UNMOVED pane and stranded a moved one exactly as
+    // before. The drag is sent the way a hand makes it: a press on the title, moves past the drag
+    // distance to whichever widget holds the mouse, and a release.
+    const auto drag = [&](QPoint by) {
+        const QPoint start(10, 8);
+        const QPoint global = title->mapToGlobal(start);
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(start), QPointF(global), Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(title, &press);
+        for (int i = 1; i <= 10; ++i) {
+            const QPoint to = global + by * i / 10;
+            QWidget* target = QWidget::mouseGrabber() != nullptr ? QWidget::mouseGrabber() : title;
+            QMouseEvent move(QEvent::MouseMove, QPointF(target->mapFromGlobal(to)), QPointF(to),
+                             Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(target, &move);
+            settle();
+        }
+        const QPoint end = global + by;
+        QWidget* target = QWidget::mouseGrabber() != nullptr ? QWidget::mouseGrabber() : title;
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(target->mapFromGlobal(end)),
+                            QPointF(end), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &release);
+        settle();
+    };
+
+    floatButton->click();
+    settle();
+    REQUIRE(sidebar->isFloating());
+    const QRect floated = sidebar->geometry();
+    drag(QPoint(300, 200));
+    REQUIRE(sidebar->isFloating());
+    REQUIRE(sidebar->geometry().topLeft() != floated.topLeft());   // it really moved
+    floatButton->click();
+    checkDockedAgain("float button after a move");
+
+    floatButton->click();
+    settle();
+    drag(QPoint(-200, 150));
+    doubleClick();
+    checkDockedAgain("double-click after a move");
+
+    // AND A PANE DOCKED ON THE RIGHT GOES BACK TO THE RIGHT, not to a default side.
+    window.addDockWidget(Qt::RightDockWidgetArea, sidebar);
+    settle();
+    const QRect onRight = sidebar->geometry();
+    REQUIRE(window.dockWidgetArea(sidebar) == Qt::RightDockWidgetArea);
+    floatButton->click();
+    settle();
+    drag(QPoint(-300, 100));
+    floatButton->click();
+    settle();
+    const QRect back = sidebar->geometry();
+    INFO("right side: was " << onRight.x() << "," << onRight.y() << ", now " << back.x() << "," << back.y());
+    CHECK_FALSE(sidebar->isFloating());
+    CHECK(window.dockWidgetArea(sidebar) == Qt::RightDockWidgetArea);
+    CHECK(back.topLeft() == onRight.topLeft());
+    CHECK(window.centralWidget()->geometry().right() <= back.left());
+}
+
+// =============================================================================================
+// S4 guide A-96 -- the edge strip of a CLOSED sidebar opens it (I-25)
+// =============================================================================================
+
+TEST_CASE("clicking the edge strip of a closed sidebar opens it, and of an auto-hidden one peeks",
+          "[shell][I-25]")
+{
+    // From Stage 1 T9 the strip stood in for a closed pane as well as an auto-hidden one, and both
+    // only PEEKED -- which does nothing to a pane that is not auto-hidden. So the strip M-10's walk
+    // was left with, tooltip *Show the sidebar*, showed nothing to a click or a hover.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+    QCoreApplication::processEvents();
+
+    ui::SidebarDock* sidebar = window.sidebar();
+    auto* left = window.findChild<QToolButton*>(QStringLiteral("sidebarStripLeft"));
+    REQUIRE(left != nullptr);
+    REQUIRE(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
+
+    // CLOSED -- the `F4` state. The strip is up, and a click on it brings the pane back PINNED.
+    REQUIRE(fixture.actions.dispatch(core::ActionId::ViewToggleSidebar, core::KeyContext::Global));
+    REQUIRE_FALSE(sidebar->isVisible());
+    REQUIRE_FALSE(sidebar->isAutoHidden());
+    REQUIRE(left->isVisible());
+
+    left->click();
+    CHECK(sidebar->isVisible());
+    CHECK_FALSE(sidebar->isAutoHidden());
+    CHECK_FALSE(sidebar->isPeeking());
+    CHECK_FALSE(left->isVisible());
+
+    // A HOVER OVER A CLOSED PANE'S STRIP OPENS NOTHING -- the half the fix must not add. Opening a
+    // pinned pane because the pointer crossed the edge would be the pane moving under a person.
+    REQUIRE(fixture.actions.dispatch(core::ActionId::ViewToggleSidebar, core::KeyContext::Global));
+    REQUIRE(left->isVisible());
+    QEnterEvent arrive(QPointF(1, 1), QPointF(1, 1), QPointF(1, 1));
+    QCoreApplication::sendEvent(left, &arrive);
+    CHECK_FALSE(sidebar->isVisible());
+
+    // AUTO-HIDDEN -- the click is still a PEEK, not a pin, exactly as before (I-37).
+    left->click();
+    REQUIRE(sidebar->isVisible());
+    sidebar->setAutoHidden(true);
+    REQUIRE(left->isVisible());
+    left->click();
+    CHECK(sidebar->isPeeking());
+    CHECK(sidebar->isAutoHidden());
 }

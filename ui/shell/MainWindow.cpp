@@ -1943,8 +1943,23 @@ void MainWindow::buildAutoHideStrips()
     leftStrip_->installEventFilter(this);
     rightStrip_->installEventFilter(this);
 
-    connect(leftStrip_, &QToolButton::clicked, this, [this]() { sidebar_->peek(); });
-    connect(rightStrip_, &QToolButton::clicked, this, [this]() { sidebar_->peek(); });
+    // A CLOSED SIDEBAR'S STRIP OPENS IT (S4 guide I-25). The strip stands in for an auto-hidden pane
+    // AND for a closed one (`updateAutoHideStrips`), and from Stage 1 T9 until 2026-09-27 both kinds
+    // only peeked -- which does nothing to a pane that is not auto-hidden, so a strip whose tooltip
+    // says *Show the sidebar* showed nothing, and a sidebar lost to I-24 had no way back but `F4`.
+    // A click on a closed pane's strip is `view.toggleSidebar`, the command `F4` and the pane's own
+    // close button already are. HOVER stays a peek and nothing else: opening a pinned pane because
+    // the pointer crossed the edge would be the pane moving under a person who did not ask.
+    const auto reach = [this]() {
+        if (sidebar_->isAutoHidden()) {
+            sidebar_->peek();
+            return;
+        }
+        if (!services_.actions.dispatch(ActionId::ViewToggleSidebar, core::KeyContext::Global))
+            toggleSidebar();   // unregistered in a bare fixture: still open it, as the close button still closes
+    };
+    connect(leftStrip_, &QToolButton::clicked, this, reach);
+    connect(rightStrip_, &QToolButton::clicked, this, reach);
 
     // Which edge the pane would return to is named in the strip's tooltip rather than given a
     // button. Moving a pane between edges is a rare deliberate act, and two more permanent controls

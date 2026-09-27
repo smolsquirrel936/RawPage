@@ -7,6 +7,8 @@
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMainWindow>
+#include <QMouseEvent>
 #include <QResizeEvent>
 #include <QStackedWidget>
 #include <QToolButton>
@@ -49,6 +51,12 @@ SidebarDock::SidebarDock(core::ActionRegistry& actions, QWidget* parent)
     setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable
                 | QDockWidget::DockWidgetClosable);
 
+    // THE SIDE TO GO BACK TO, for `toggleFloating()` -- only ever a real side: a floating dock reports
+    // `NoDockWidgetArea`, and recording that would leave nowhere to return to.
+    connect(this, &QDockWidget::dockLocationChanged, this, [this](Qt::DockWidgetArea area) {
+        if (area == Qt::LeftDockWidgetArea || area == Qt::RightDockWidgetArea) lastDockedArea_ = area;
+    });
+
     // --- the title bar -------------------------------------------------------------------------
     auto* titleBar = new QWidget(this);
     titleBar->setObjectName(QStringLiteral("sidebarTitleBar"));
@@ -70,7 +78,7 @@ SidebarDock::SidebarDock(core::ActionRegistry& actions, QWidget* parent)
     auto* floatButton = makeChromeButton(catalog::translate(catalog::key::SidebarFloat),
                                          QStringLiteral("\u2750"));  // ❐
     floatButton->setObjectName(QStringLiteral("sidebarFloatButton"));
-    connect(floatButton, &QToolButton::clicked, this, [this]() { setFloating(!isFloating()); });
+    connect(floatButton, &QToolButton::clicked, this, [this]() { toggleFloating(); });
     titleLayout->addWidget(floatButton);
 
     auto* closeButton = makeChromeButton(catalog::translate(catalog::key::SidebarHide),
@@ -228,6 +236,60 @@ void SidebarDock::setRememberedWidth(int width)
     // A zero or negative width is what a collapsed splitter reports on its way out. Recording it
     // would mean the pane comes back invisible and the user concludes it is broken.
     if (width > 0) rememberedWidth_ = width;
+}
+
+void SidebarDock::toggleFloating()
+{
+    if (!isFloating()) {
+        setFloating(true);
+        return;
+    }
+
+    // RE-DOCKING IS OURS, because Qt's is broken (S4 guide I-24). All measured on Qt 6.11.1 on the
+    // `windows` platform, 2026-09-27:
+    //
+    //   * `setFloating(false)` clears the flag and leaves the dock OUT of the layout -- a child widget
+    //     at its last screen position read as a window position, the page running beneath it. The
+    //     same on a bare `QMainWindow`, with and without a custom title bar.
+    //   * `restoreDockWidget` puts it back -- but only if the floating pane was NEVER DRAGGED.
+    //   * **After the floating pane has been dragged anywhere but an edge** (the user's re-walk found
+    //     it), the window's layout is FROZEN: `restoreDockWidget` returns true and moves nothing,
+    //     and `addDockWidget`, `removeDockWidget` + `addDockWidget`, a relayout and a resize all
+    //     leave the dock where it was. What unfreezes it is a round trip through the public state
+    //     API, `restoreState(saveState())`, after which the dock is laid out where the state says
+    //     and ordinary docking works again. The mechanism inside Qt was not read -- only its effect
+    //     was measured -- so the round trip is ALWAYS done rather than guessed at: it re-applies the
+    //     window's own current layout, which is a no-op for everything that was not stuck.
+    //
+    // The main window is reached as a `QMainWindow` -- Qt's type, not ours -- because docking is what
+    // a `QDockWidget` and its `QMainWindow` do together. The header's rule against reaching through
+    // the parent is about placing a SIBLING, which this is not. A drag onto an edge never comes
+    // here: that is Qt's own plug, which works.
+    setFloating(false);
+    auto* window = qobject_cast<QMainWindow*>(parentWidget());
+    if (window == nullptr) return;
+
+    const bool restored = window->restoreDockWidget(this);
+    if (!restored) window->addDockWidget(lastDockedArea_, this);
+    window->restoreState(window->saveState());
+    if (!restored) window->resizeDocks({this}, {rememberedWidth_}, Qt::Horizontal);
+}
+
+bool SidebarDock::event(QEvent* event)
+{
+    // A DOUBLE-CLICK ON THE TITLE IS THE FLOAT BUTTON. `QDockWidget::event` would otherwise take it
+    // and toggle through the same broken `setFloating(false)` (I-24), so it is answered here first --
+    // anywhere in the title bar but its buttons, which consume their own clicks.
+    if (event->type() == QEvent::MouseButtonDblClick) {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        const QWidget* title = titleBarWidget();
+        if (mouse->button() == Qt::LeftButton && title != nullptr
+            && title->geometry().contains(mouse->position().toPoint())) {
+            toggleFloating();
+            return true;
+        }
+    }
+    return QDockWidget::event(event);
 }
 
 void SidebarDock::setAutoHidden(bool autoHidden)
