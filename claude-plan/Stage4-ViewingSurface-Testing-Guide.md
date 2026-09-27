@@ -33,7 +33,7 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Ten manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Eleven manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-07**, on 2026-09-26, passed with no finding — after **I-16** and **I-17** had been found and
 > fixed while preparing it, so the build walked was the first on which it could pass.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
@@ -58,11 +58,13 @@
 > its first walk at the cascade** — the first window's title bar was above the top of the screen —
 > which raised **I-23 (S2)**; measured, the tilings had the same defect, and it was fixed the same
 > day; **the re-walk the same day confirmed the cascade fixed and found nothing wrong with the tilings on
-> either monitor — M-09 is signed off**. M-12 is unwalked; M-10 is below.
+> either monitor — M-09 is signed off**.
 > **M-10**, by the user on 2026-09-27, **stopped at step 3**: a floated sidebar re-docked by its
 > float button was left out of the window — **I-24 (S2)** — and the edge strip left in its place
-> showed nothing to a hover or a click — **I-25 (S3)**; both fixed the same day, and the walk
-> resumes at step 3 on the fixed build.
+> showed nothing to a hover or a click — **I-25 (S3)**; both fixed the same day, I-24 in two rounds
+> after the re-walk found a MOVED float still stranded; **the walk then passed every step, and M-10
+> is signed off** — step 5's pane-per-window behaviour judged the expected one and recorded as
+> **D4-19**. **M-12 is the one manual case left.**
 > §8 holds **twenty-five** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-17 on 2026-09-26**, and **I-18 to I-25 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -286,6 +288,7 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-12)* A split's divider is visible against the desk, in both themes | **A-82**, and **M-01**, which found it |
 | *(I-13)* Both rulers print their numbers | **A-83**, and **M-07** |
 | *(Plan D4-18)* One pair of rulers, following the focused pane of a split | **A-84**, **M-08** |
+| *(Plan D4-19)* The pane in front belongs to the window; its contents follow the document in front | **A-39** (the contents, re-pointed on a tab switch), **M-10** (the pane kept in front, judged by the user) |
 | *(I-14)* A presentation moved to a monitor of another scale fills that monitor | **A-85**, and **M-02**, which found it |
 | *(I-15)* A `general/` preference survives a real restart | **A-86**, and **M-05**, which found it |
 | *(I-16)* A guide SNAPS when a person drags it — off a ruler or on the page | **A-87**, and **M-07** |
@@ -1824,8 +1827,18 @@ the first walk
   one.
 - **If it fails** S2; S3 for the two-monitor tiling if it is merely unhelpful.
 
-**M-10 · Panes, reading mode, and what is remembered** ☐ — **first walk STOPPED at step 3,
-2026-09-27; I-24 (S2) and I-25 (S3) fixed the same day; resumes at step 3**
+**M-10 · Panes, reading mode, and what is remembered** ✅ **signed off by the user, 2026-09-27** —
+the first walk STOPPED at step 3 and raised I-24 (S2) and I-25 (S3), both fixed the same day, I-24 in
+two rounds; the walk resumed and every step passed, **step 5 on the user's judgement, recorded as
+decision D4-19**
+- **Rest of the walk, steps 4 to 6, 2026-09-27** Reported by the user as *"All tests are pass."* —
+  recorded as that, with nothing more specific. **Step 5** showed what the code predicted — one pane
+  per window, the last one chosen still in front after a tab switch — and the user judged it the
+  expected behaviour: *"this is work as expect. Only the last choice of sidebar is shown after switch
+  between tabs."* That is recorded as **D4-19** (`Stage4-ViewingSurface-Plan.md` §3), and this case's
+  *Expect* line is corrected below to say it, rather than a failing expectation being passed. **The
+  extra step 6c** — quitting with the sidebar auto-hidden, predicted to come back closed — was not
+  reported on, so the prediction is neither confirmed nor refuted.
 - **First walk, 2026-09-27, to step 3** On copies of `text-a4.pdf` and `outline-labels.pdf` in
   `tests\manual\M-10\`. Steps 1 and 2 were not reported as failing. **Step 3: the sidebar, floated and
   then re-docked with its float button, disappeared from its place** — a white block sat at the lower
@@ -1854,7 +1867,10 @@ the first walk
 - **Steps** Open and resize the sidebar; auto-hide it and peek; float a pane and re-dock it; enter
   reading mode (`Ctrl+L`) and leave it; switch between two documents with different panes open; quit
   and relaunch with `general/rememberPaneLayout` on, then off.
-- **Expect** Reading mode restores exactly what it hid; each document keeps its own open panes;
+- **Expect** Reading mode restores exactly what it hid; the pane in front belongs to the WINDOW and
+  stays in front across a tab switch while its contents follow the document in front (**D4-19** —
+  *corrected 2026-09-27; this line said "each document keeps its own open panes", which no task was
+  given and the user judged not wanted*);
   widths come back with the setting on and do not with it off.
 - **If it fails** S3; S2 if a pane comes back attached to the wrong document.
 
@@ -2688,7 +2704,7 @@ restated as a checklist.
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Ten of the twelve are
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Eleven of the twelve are
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
@@ -2704,8 +2720,10 @@ restated as a checklist.
    confirmed the cascade and found nothing wrong with the tilings on either monitor, signing M-09
    off.** **M-10, 2026-09-27, STOPPED at step 3 on its first walk** — I-24 (S2), a re-docked
    sidebar left out of the window, and I-25 (S3), a closed sidebar's strip that opened nothing, both
-   fixed the same day — and resumes at step 3. M-12 is unwalked. The two are the stage's remaining
-   gap and the honest summary of its state.
+   fixed the same day, I-24 in two rounds — **and the resumed walk passed every step the same day,
+   signing M-10 off**, step 5 on the user's judgement that one pane per window is the expected
+   behaviour (**D4-19**). **M-12 is unwalked, and it is the stage's remaining gap** and the honest
+   summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -2825,11 +2843,11 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; TEN OF THE
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; ELEVEN OF THE
 TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
-M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF STEP 1 AND M-09 ON ITS RE-WALK — AND
-EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — M-10,
-whose first walk stopped at step 3 on I-24 and I-25 (both fixed) and resumes there, and M-12, unwalked. That each of the first three manual cases walked in this stage found a defect the
+M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF STEP 1, M-09 ON ITS RE-WALK AND M-10
+ON ITS RESUMED WALK — AND EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is
+outstanding** — one unwalked case, M-12. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, is the argument for the other four rather than against them — and M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's
