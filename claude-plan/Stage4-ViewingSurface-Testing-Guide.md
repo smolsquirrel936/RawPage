@@ -3142,10 +3142,33 @@ past a reader that shares delete, as `ReplaceFileW` did), the classic rename whe
 name, the object id, compression, encryption, the owner — and why none matters here.
 `SetFileInformationByHandle(` joined `layer-lint`'s write spellings, because a rename the gate cannot
 see is Stage 1 I-15's shape. **A-106**: 40 runs of 40, 96 kills inside the replace, the path never
-empty. **A-107**: the fallback forced, the identity asserted through it, the in-use refusal kept. What
-a person sees when another program holds the file — Stage 3's M-08 — is unchanged, because the two
-share modes still end where they did (the in-use refusal and the reader keeping its bytes), and it was
-not re-walked.
+empty. **A-107**: the fallback forced, the identity asserted through it, the in-use refusal kept.
+
+**Walked by the user on the fixed build, 2026-09-27, and PASSED** — Stage 3's M-02 step 3 and M-08
+re-walked, and two checks new to this fix, in `tests\manual\I-31`; the results read back from the
+logs and from disk rather than only reported:
+1. **The identity survives a save** (M-02 step 3). A copy of `hybrid-xrefstm.pdf` given a
+   `Zone.Identifier` stream (`ZoneId=3`) and a 2001-01-01 12:00 creation time, rotated and saved
+   (`rawpage-20260927-215007-082.log`, 21:50:19): the stream is still there, 26 bytes, **the creation
+   time is still 2001-01-01**, and the file is the 3,785-byte original **unchanged as a prefix** plus
+   333 appended bytes — `/Rotate 90`, `/Prev 3605`, `/XRefStm 3152`, `startxref 3927`, `%%EOF` —
+   **4,118 bytes, byte for byte what `ReplaceFileW` produced at M-02's 2026-09-18 walk**. The user
+   reported it as expected in the readers. *(A first pass of this step left no trace: the file was
+   still the corpus's 3,785 bytes and no log named it, so it was re-walked rather than recorded.)*
+2. **Acrobat holding the file** (M-08): refused, `error.file.inUse` **(win32 error 32)**, Save As
+   offered — the same answer as under `ReplaceFileW`, because the POSIX rename reports the sharing
+   violation itself; with Acrobat closed, saved; set read-only, refused as `error.file.readOnly` with
+   Save As offered, the file unchanged (`rawpage-20260927-214013-574.log`, 21:41–21:44).
+3. **A reader that shares delete — new.** With **SumatraPDF**, and then **Firefox**, holding the file,
+   **every save succeeded** (the user; `rawpage-20260927-215447-082.log`, four saves 21:54–21:56, no
+   refusal line) — so both open a PDF with `FILE_SHARE_DELETE`, where Acrobat does not. This is the
+   case the POSIX rename exists for, and under the classic rename it would have been refused.
+4. **A hidden file stays hidden — new.** `attrib` read `A H` after the last save (21:56:43).
+
+**And the file was never partial**: `held.pdf` is the 12,895-byte original as an unchanged prefix
+followed by **seven** whole updates, each `%%EOF` exactly at a size the log reported (13,219 …
+15,157) and each `startxref` on an `xref` keyword; its creation time, 21:35:51 from the walk's
+setup, survived all seven; no temporary or backup file was ever left in the folder.
 
 ## 9. Sign-off criteria
 
@@ -3381,7 +3404,9 @@ walk are fixed and closed: I-28 and I-29 by A-103 and A-104 — I-29's fix, a pr
 walked on a real panel by the user on 2026-09-27 and passed, a check outside §6, which has no case
 for it — and I-30 and I-31 by A-105 to A-107. **I-31 was an S1 in Stage 3's save path**, open since
 Stage 3 T7 and invisible to that stage's own kill case until I-30's fix; its fix changes how every save
-replaces a file, and no manual case was re-walked for it. **What remains is the user's sign-off
+replaces a file, so Stage 3's M-02 step 3 and M-08 were **re-walked on it by the user on 2026-09-27
+and passed**, with two new checks — a reader sharing delete, and a hidden file (I-31's write-up).
+**What remains is the user's sign-off
 of the stage itself**, which is theirs to give and is not recorded here until they give it. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, was the argument for walking every one of the twelve — and the walks bore it out: M-08 to
