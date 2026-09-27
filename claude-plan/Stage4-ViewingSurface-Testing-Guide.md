@@ -6,10 +6,13 @@
 > **before any Stage 4 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **105 automated** (A-01 … A-104, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 105 carry
-> a result** as of 2026-09-27 (re-derived from this file: 105 case headers, none still boxed — the
+> **Status:** ✅ **CLOSED — the stage was signed off by the user on 2026-09-27, with every §9 item
+> met.** Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off.
+> **108 automated** (A-01 … A-107, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 108 carry
+> a result** as of 2026-09-27 (re-derived from this file: 108 case headers, none still boxed — the
+> 106th to 108th are **A-105**, **A-106** and **A-107**, added 2026-09-27 with the fixes for I-30 and
+> I-31; the
 > 104th and 105th are **A-103** and **A-104**, added 2026-09-27 with the fixes for I-28 and I-29, both
 > found by investigating why the UI binary could not be run whole; the
 > 102nd and 103rd are **A-101** and **A-102**, written from decision D4-22 before its code; the
@@ -78,10 +81,15 @@
 > **After the walk, on 2026-09-27:** investigating why `rawpage_ui_tests.exe` could not be run whole
 > raised **I-28 (S3)** — cases leaving process-wide state behind, a pending tab deletion among it, so a
 > later case in the same process crashed — and, through it, **I-29 (S2)** — a second window compounded
-> the UI font scale, reachable since Stage 1's tab tear-out; both fixed the same day.
-> §8 holds **twenty-nine** issues and **only I-07 (S4) is open**;
+> the UI font scale, reachable since Stage 1's tab tear-out; both fixed the same day. And a
+> clean-rebuild run that day raised **I-30 (S3)** — the kill harness's instants locked to the timer
+> tick — and, through its fix, **I-31 (S1)** — a save killed inside `ReplaceFileW` left no file at the
+> document's path, since Stage 3 T7; both fixed the same day, I-31 re-walked by the user through
+> Stage 3's M-02 step 3 and M-08 and passed.
+> §8 holds **thirty-one** issues and **only I-07 (S4) is open**, deferred by the user as `DW-1`
+> (`Deferred-Work.md`);
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26**, and **I-18 to I-29 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-31 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -3410,8 +3418,12 @@ for it — and I-30 and I-31 by A-105 to A-107. **I-31 was an S1 in Stage 3's sa
 Stage 3 T7 and invisible to that stage's own kill case until I-30's fix; its fix changes how every save
 replaces a file, so Stage 3's M-02 step 3 and M-08 were **re-walked on it by the user on 2026-09-27
 and passed**, with two new checks — a reader sharing delete, and a hidden file (I-31's write-up).
-**What remains is the user's sign-off
-of the stage itself**, which is theirs to give and is not recorded here until they give it. That each of the first three manual cases walked in this stage found a defect the
+**THE STAGE WAS SIGNED OFF BY THE USER ON 2026-09-27**, on this list as it stands. **One bound on
+that record:** the last CI run over the tree is 36307895451, on `e739cb1` (M-12's sign-off), all five
+jobs green; the five commits after it — I-28 and I-29, the durable-replace diagnostics, I-30 and
+I-31, I-31's walk, and `DW-1` — were verified on this machine (item 4) and had not been pushed when
+the stage was signed off, so CI's Windows job has not yet run over I-31's change to
+`platform/win/WinDurableFiles.cpp`. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, was the argument for walking every one of the twelve — and the walks bore it out: M-08 to
 M-12 raised ten more issues between them, each fixed the day it was found, and three decisions a person
