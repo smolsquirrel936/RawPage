@@ -32,7 +32,7 @@
 > MinGW GCC has no ASan runtime, so its result was **read from Linux CI's log on 2026-09-24** rather
 > than produced here — run 35879213301, 609/609 with all 39 Stage 4 `core/` cases by name and no
 > sanitizer line.
-> **Nine manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
+> **Ten manual cases are walked and signed off.** **M-11**, by the user on 2026-09-24, passed and raised **I-10**.
 > **M-07**, on 2026-09-26, passed with no finding — after **I-16** and **I-17** had been found and
 > fixed while preparing it, so the build walked was the first on which it could pass.
 > **M-02**, on 2026-09-26, passed — walked against the PRESENTATION, which is what the monitor
@@ -56,7 +56,8 @@
 > step 1 PASSED, the same day — M-08 is signed off**. **M-09**, by the user on 2026-09-27, **failed
 > its first walk at the cascade** — the first window's title bar was above the top of the screen —
 > which raised **I-23 (S2)**; measured, the tilings had the same defect, and it was fixed the same
-> day; **the cascade's re-walk the same day confirmed it fixed, and both tilings await theirs**. The other two — M-10 and M-12 — are unwalked.
+> day; **the re-walk the same day confirmed the cascade fixed and found nothing wrong with the tilings on
+> either monitor — M-09 is signed off**. The other two — M-10 and M-12 — are unwalked.
 > §8 holds **twenty-three** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
 > I-17 on 2026-09-26**, and **I-18 to I-23 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
@@ -1747,9 +1748,12 @@ M-09 by mistake — and which no case asked for)*
   be able to tell which pane it is reading. If you cannot, that is the finding.
 - **If it fails** S2; S3 for the rulers.
 
-**M-09 · Arranging windows** ☐ — **FAILED its first walk, 2026-09-27, at the cascade; I-23 (S2) fixed
-the same day; the cascade's re-walk PASSED that day; both tilings and the two-monitor tiling await
-theirs**
+**M-09 · Arranging windows** ✅ **signed off by the user, 2026-09-27, on its re-walk** — the first walk
+that day FAILED at the cascade and raised I-23 (S2), fixed the same day; every other step passed on
+the first walk
+- **Re-walk of the tilings, 2026-09-27** On the same build: reported by the user as *"I ran tile on
+  both montior and not find anything weird."* — recorded as that, with nothing more specific, and as
+  covering the tilings on both monitors. No new finding.
 - **Re-walk of the cascade, 2026-09-27** On the build that fixed I-23: reported by the user as *"The
   issue of cascading is fixed."* — recorded as that, and as the cascade only: nothing was reported
   about the two tilings or the two-monitor tiling, so they are not recorded as re-walked.
@@ -2556,7 +2560,7 @@ restated as a checklist.
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
    39 Stage 4 `core/` cases present by name and no sanitizer line.
 2. ☐ M-01 … M-12 **walked and signed off by you**. I do not mark a manual case. A case not run for
-   want of hardware (M-12's touch half) is recorded as such, never as passed. **Nine of the twelve are
+   want of hardware (M-12's touch half) is recorded as such, never as passed. **Ten of the twelve are
    walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2); M-01, 2026-09-26,
    failed its first walk — raising I-11 (S2) and I-12 (S3), both fixed the same day — and PASSED its
    re-walk on the fixed build, the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2),
@@ -2568,9 +2572,10 @@ restated as a checklist.
    passing; **step 1's re-walk the same day confirmed both and raised I-20 (S2) and I-21 (S3)**, both
    fixed that day; **and the second re-walk of step 1 PASSED the same day, signing M-08 off.**
    **M-09, 2026-09-27, FAILED its first walk at the cascade** — I-23 (S2), a title bar off the
-   screen, which measurement showed in both tilings too — fixed the same day; the cascade's re-walk
-   that day confirmed the fix, and the tilings await theirs. The other two — M-10 and M-12 — are unwalked, and with M-09's re-walk are the
-   stage's remaining gap and the honest summary of its state.
+   screen, which measurement showed in both tilings too — fixed the same day; **the re-walk that day
+   confirmed the cascade and found nothing wrong with the tilings on either monitor, signing M-09
+   off.** The other two — M-10 and M-12 — are unwalked, and are the stage's remaining gap and the
+   honest summary of its state.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
@@ -2677,12 +2682,11 @@ restated as a checklist.
     re-derived rather than edited. `Implementation-Plan.md`'s Stage 4 block is task by task with
     every deviation named.
 
-**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; NINE OF THE
+**WHERE THAT LEAVES THE STAGE: the automated half is COMPLETE, the Linux job included; TEN OF THE
 TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF — M-11, M-01 ON ITS RE-WALK, M-02, M-06, M-03, M-04,
-M-05 ON ITS STEP-5 RE-WALK, M-07 AND M-08 ON ITS SECOND RE-WALK OF STEP 1 — AND EVERY ISSUE ANY OF
-THEM RAISED IS FIXED — AND M-09 FAILED ITS FIRST WALK, RAISING I-23, FIXED THE SAME DAY.** **Item 2
-is the whole of what is outstanding** — M-09's re-walk of its tilings (its cascade's passed), and two unwalked
-cases, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
+M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF STEP 1 AND M-09 ON ITS RE-WALK — AND
+EVERY ISSUE ANY OF THEM RAISED IS FIXED.** **Item 2 is the whole of what is outstanding** — two
+unwalked cases, M-10 and M-12. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, is the argument for the other four rather than against them — and M-07's two defects were found
 by reading the code to prepare it, before a person had walked it at all; that M-06, the stage's
