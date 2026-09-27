@@ -40,25 +40,52 @@ std::wstring wide(const QString& path)
     return std::wstring(reinterpret_cast<const wchar_t*>(native.utf16()), static_cast<std::size_t>(native.size()));
 }
 
+// EVERY WIN32 CALL BELOW NAMES ITS PATH AND `GetLastError()` IF IT FAILS. The control case further down
+// failed ONCE, in a full `ctest` run on 2026-09-27, and passed about 8,500 times afterwards -- alone,
+// four loops at once, thirty passes of the platform suite, and under a Defender scanning load -- while
+// the one failing run's output was lost. What is still unknown is which call failed and why; another
+// process holding one of these files without `FILE_SHARE_DELETE` (an on-access scanner, the indexer)
+// is a guess that fits and nothing has confirmed. So the next failure names the call and the error
+// code rather than printing `REQUIRE( ok )` (`Stage4-ViewingSurface-Testing-Guide.md` §9 item 4).
+std::string failed(const char* call, const QString& path, DWORD error)
+{
+    return std::string(call) + "(" + QDir::toNativeSeparators(path).toStdString() + ") failed, GetLastError "
+           + std::to_string(error);
+}
+
+// The error of the last `readRaw` that could not open its file -- a read-back that returns nothing is
+// otherwise indistinguishable from a file that is not there.
+DWORD g_lastReadError = 0;
+
 // Writes `bytes` to `path`, which may name a stream (`file.pdf:Zone.Identifier`) -- hence Win32 and not
 // QFile, whose path handling is not documented to accept a stream name.
 void writeRaw(const QString& path, const QByteArray& bytes)
 {
     const HANDLE file = CreateFileW(wide(path).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    REQUIRE(file != INVALID_HANDLE_VALUE);
+    const DWORD openError = GetLastError();
+    {
+        INFO(failed("CreateFileW", path, openError));   // scoped: an INFO describes every check after it
+        REQUIRE(file != INVALID_HANDLE_VALUE);
+    }
     DWORD written = 0;
     const BOOL ok = WriteFile(file, bytes.constData(), static_cast<DWORD>(bytes.size()), &written, nullptr);
+    const DWORD writeError = GetLastError();
     CloseHandle(file);
-    REQUIRE(ok);
-    REQUIRE(written == static_cast<DWORD>(bytes.size()));
+    {
+        INFO(failed("WriteFile", path, writeError));
+        REQUIRE(ok);
+        REQUIRE(written == static_cast<DWORD>(bytes.size()));
+    }
 }
 
 std::optional<QByteArray> readRaw(const QString& path)
 {
     const HANDLE file = CreateFileW(wide(path).c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                                     nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE)
+    if (file == INVALID_HANDLE_VALUE) {
+        g_lastReadError = GetLastError();
         return std::nullopt;
+    }
     QByteArray bytes;
     char buffer[4096];
     DWORD got = 0;
@@ -86,10 +113,18 @@ void setCreationTime(const QString& path, const FILETIME& time)
 {
     const HANDLE file = CreateFileW(wide(path).c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    REQUIRE(file != INVALID_HANDLE_VALUE);
+    const DWORD openError = GetLastError();
+    {
+        INFO(failed("CreateFileW", path, openError));   // scoped: an INFO describes every check after it
+        REQUIRE(file != INVALID_HANDLE_VALUE);
+    }
     const BOOL ok = SetFileTime(file, &time, nullptr, nullptr);
+    const DWORD setError = GetLastError();
     CloseHandle(file);
-    REQUIRE(ok);
+    {
+        INFO(failed("SetFileTime", path, setError));
+        REQUIRE(ok);
+    }
 }
 
 quint64 creationTime(const QString& path)
@@ -161,9 +196,20 @@ TEST_CASE("durable replace control: a plain rename over the target loses the str
     const QString replacement = dir.filePath(QStringLiteral("report.pdf.saving"));
     writeRaw(replacement, "%PDF-1.7 saved by a rename");
 
-    REQUIRE(MoveFileExW(wide(replacement).c_str(), wide(target).c_str(), MOVEFILE_REPLACE_EXISTING));
+    const BOOL moved = MoveFileExW(wide(replacement).c_str(), wide(target).c_str(), MOVEFILE_REPLACE_EXISTING);
+    const DWORD moveError = GetLastError();
+    {
+        INFO(failed("MoveFileExW", replacement + QStringLiteral(" -> ") + target, moveError));
+        REQUIRE(moved);
+    }
 
-    CHECK(readRaw(target) == QByteArray("%PDF-1.7 saved by a rename"));
+    // Read FIRST, then describe: INFO formats its message when it runs, not when a check fails.
+    g_lastReadError = 0;
+    const std::optional<QByteArray> content = readRaw(target);
+    {
+        INFO("the read-back's open error, if it could not open: GetLastError " << g_lastReadError);
+        CHECK(content == QByteArray("%PDF-1.7 saved by a rename"));
+    }
     CHECK_FALSE(readRaw(target + QStringLiteral(":Zone.Identifier")).has_value());
     // NOT asserted: the creation time. A rename measured at T7 lost it too, but NTFS documents
     // "tunneling" -- a creation time restored to a name re-created within fifteen seconds of its

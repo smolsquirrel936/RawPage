@@ -3086,7 +3086,19 @@ restated as a checklist.
    rename over the target loses the stream`, a Stage 3 case this change does not touch — which then
    **passed six times in a row alone** and in the same day's debug run. Recorded rather than explained:
    the failing run's output was not kept, so the cause is NOT established (the case renames a file under
-   `%TEMP%` with `MoveFileExW`, and a scanner holding the file briefly is a guess, not a finding). The
+   `%TEMP%` with `MoveFileExW`, and a scanner holding the file briefly is a guess, not a finding).
+   **Investigated the same day, on the user's request, and NOT reproduced**: about **8,500** further
+   runs of the case with no failure — 500 alone, 2,000 as four concurrent loops, 30 passes of the whole
+   `platform.` suite (1,440 case runs), and 6,000 while large executables were copied alongside to keep
+   Defender's on-access scanning busy (Defender real-time protection and the Windows Search indexer are
+   both running on this machine). CTest keeps a failure's output only in
+   `build\<preset>\Testing\Temporary\LastTest.log`, which the next run overwrites — which is how it was
+   lost. **So the case now explains its next failure**: every Win32 call in `tst_durablefiles.cpp`'s
+   helpers, and the control's `MoveFileExW`, names its path and `GetLastError()` when it fails. Run
+   red with the target planted as held open without `FILE_SHARE_DELETE`, the control printed
+   *"MoveFileExW(… -> …\report.pdf) failed, GetLastError 5"* — access denied, not a sharing violation —
+   so a recurrence reporting 5 at that call fits the scanner guess, and anything else rules it out.
+   Still open, and not an issue: no defect is established. The
    three new cases are A-97's two and A-98's; the same three named skips; `checks` clean on four gates
    (`layer-lint` 423 files / 3,394 includes). Two case names were renamed to drop a comma (convention 2):
    A-96's, committed with one, and A-97's. *Before that,* **re-run after I-24's SECOND round: 1134/1134 on `x64-release` and on `x64-debug`**,

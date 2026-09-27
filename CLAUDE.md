@@ -633,6 +633,11 @@ guides' §8 logs. They survive their stage, so they live here rather than in a s
   before a `ctest` run is still in the binaries until a real build (measured 2026-09-18).
 - **A failed Catch2 `CHECK` on two `QByteArray`s crashes the reporter** while it prints them — compare
   SHA-256 hex strings instead (S3 guide I-09).
+- **A failing `ctest` run's output survives only until the NEXT run**: it is in
+  `build\<preset>\Testing\Temporary\LastTest.log`, which every run overwrites. Copy that file before
+  re-running anything, or an intermittent failure becomes a failure nobody can explain —
+  `platform.durable replace control` failed once on 2026-09-27, was re-run, and its cause could not
+  be recovered (S4 guide §9 item 4).
 - **A probe output open in a PDF viewer makes the A4 probe's write fail**: close `build\<preset>\a4-probe\`
   files before running the suite (S3 T3).
 - **A corpus PDF held open by a viewer makes `make-corpus.py` stop part-way with `PermissionError`** (S3 T1).
