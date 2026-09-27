@@ -83,6 +83,16 @@ inline constexpr int kFakeTileBlue = 0xd0;
 // reads this rather than the pixels. Atomic because the rasterizer runs on the scheduler's worker.
 inline std::atomic<int> fakeFirstPageRotationDelta{-1};
 
+// THE LOUPE'S SHARP LENS IS A DIFFERENT COLOUR (S4 guide A-99, D4-20). A request at a device scale at
+// or above this threshold is filled with `kFakeLens*` instead of the tile blue -- so a case can tell
+// the lens's re-rasterized region from the enlarged frame under it, which is the whole of what D4-20
+// changes and which two rasters of one flat colour could never show. Zero, the default, turns it off,
+// so no other case sees a difference. Atomic for the reason the delta above is.
+inline std::atomic<double> fakeLensScaleThreshold{0.0};
+inline constexpr int kFakeLensRed = 0xe0;
+inline constexpr int kFakeLensGreen = 0x30;
+inline constexpr int kFakeLensBlue = 0xa0;
+
 class FakeRasterizer final : public core::IPageRasterizer {
 public:
     core::Result<core::RasterImage> raster(const core::render::RenderRequest& request) override
@@ -111,13 +121,19 @@ public:
         image.pixels = QByteArray(static_cast<qsizetype>(image.bytesPerLine) * image.height,
                                   Qt::Uninitialized);
 
+        const double lensAbove = fakeLensScaleThreshold.load();
+        const bool lens = lensAbove > 0.0 && request.deviceScale >= lensAbove;
+        const int red = lens ? kFakeLensRed : kFakeTileRed;
+        const int green = lens ? kFakeLensGreen : kFakeTileGreen;
+        const int blue = lens ? kFakeLensBlue : kFakeTileBlue;
+
         for (int y = 0; y < image.height; ++y) {
             auto* row = reinterpret_cast<unsigned char*>(image.pixels.data())
                         + static_cast<std::size_t>(y) * image.bytesPerLine;
             for (int x = 0; x < image.width; ++x) {
-                row[x * 4 + 0] = static_cast<unsigned char>(kFakeTileBlue);
-                row[x * 4 + 1] = static_cast<unsigned char>(kFakeTileGreen);
-                row[x * 4 + 2] = static_cast<unsigned char>(kFakeTileRed);
+                row[x * 4 + 0] = static_cast<unsigned char>(blue);
+                row[x * 4 + 1] = static_cast<unsigned char>(green);
+                row[x * 4 + 2] = static_cast<unsigned char>(red);
                 // A HOLE IN THE MIDDLE when the page is rendered onto transparency, so the
                 // checkerboard behind it has somewhere to show. A real page's transparent regions
                 // are wherever its content is not; this fake's are a quarter of every tile.

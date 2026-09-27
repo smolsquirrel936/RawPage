@@ -165,15 +165,20 @@ RenderRequest TilePresenter::requestFor(int pageIndex, const TileRect& tile,
                                         const core::render::Resolution& resolution,
                                         core::PageRotation viewRotation) const
 {
+    // The RASTER scale, never the presented one. The rasterizer produces `resolution.dpi` and the
+    // painter enlarges by `upscale`; passing the presented scale here would ask the engine for the
+    // pixels the cap exists to avoid.
+    return requestAt(pageIndex, tile, resolution.rasterScale(), viewRotation);
+}
+
+RenderRequest TilePresenter::requestAt(int pageIndex, const TileRect& tile, double deviceScale,
+                                       core::PageRotation viewRotation) const
+{
     RenderRequest request;
     request.document = document_;
     request.pageIndex = pageIndex;
     request.tile = tile;
-
-    // The RASTER scale, never the presented one. The rasterizer produces `resolution.dpi` and the
-    // painter enlarges by `upscale`; passing the presented scale here would ask the engine for the
-    // pixels the cap exists to avoid.
-    request.deviceScale = resolution.rasterScale();
+    request.deviceScale = deviceScale;
     request.revision = revision_;
 
     // PART OF THE KEY. A rotated tile is different pixels, so a request that omitted this would be

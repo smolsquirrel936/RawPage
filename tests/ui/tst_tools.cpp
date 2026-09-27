@@ -26,6 +26,8 @@
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/viewer/LoupeRaster.h"
+#include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/viewer/ViewportController.h"
@@ -33,9 +35,11 @@
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QWheelEvent>
 #include <QLayout>
 #include <QMouseEvent>
 
@@ -701,4 +705,255 @@ TEST_CASE("the temporary hand's modifier repaints the page and swaps the tool on
     CHECK(counter.paints > 0);
 
     viewer.view->viewport()->removeEventFilter(&counter);
+}
+
+// =============================================================================================
+// S4 guide A-99 -- the Loupe's lens re-rasterizes its region at the magnified scale (D4-20)
+// =============================================================================================
+
+namespace {
+
+// Real time passes, with the event loop running -- the lens's settle interval is a real timer, and a
+// case that faked it would not be testing that a SWEEP never lets it fire.
+void waitMs(int ms)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < ms) QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+}
+
+// The fake rasterizer paints the lens's scale in its own colour for the length of a case, and only
+// then -- `uitest::fakeLensScaleThreshold` is off for every other case.
+struct LensColour {
+    explicit LensColour(double threshold) { uitest::fakeLensScaleThreshold = threshold; }
+    ~LensColour() { uitest::fakeLensScaleThreshold = 0.0; }
+};
+
+QColor pixelAt(QWidget* widget, QPoint at)
+{
+    const QImage image = widget->grab().toImage();
+    const double ratio = image.devicePixelRatio();
+    return image.pixelColor(QPoint(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio)));
+}
+
+bool isLensColour(const QColor& colour)
+{
+    return std::abs(colour.red() - uitest::kFakeLensRed) <= 8
+           && std::abs(colour.green() - uitest::kFakeLensGreen) <= 8
+           && std::abs(colour.blue() - uitest::kFakeLensBlue) <= 8;
+}
+
+bool isTileColour(const QColor& colour)
+{
+    return std::abs(colour.red() - uitest::kFakeTileRed) <= 8
+           && std::abs(colour.green() - uitest::kFakeTileGreen) <= 8
+           && std::abs(colour.blue() - uitest::kFakeTileBlue) <= 8;
+}
+
+// The lens's source around a pointer, in widget pixels -- `LoupeTool::paint`'s own arithmetic.
+QRectF lensSourceAt(QPoint centre)
+{
+    const double span = ui::LoupeTool::kLensSize / ui::LoupeTool::kDefaultMagnification;
+    return QRectF(centre.x() - span / 2.0, centre.y() - span / 2.0, span, span);
+}
+
+} // namespace
+
+TEST_CASE("the loupe's lens asks for its region once still and paints it sharp", "[tools][D4-20]")
+{
+    Viewer viewer;
+    REQUIRE(viewer.fixture.actions.dispatch(ActionId::ToolLoupe, core::KeyContext::Viewer));
+    driveLayout(viewer.window.get());
+    viewer.fixture.pumpTiles();
+
+    const double presented = viewer.view->layoutEngine().layout().presentedScale();
+    REQUIRE(presented > 0.0);
+    const double lensScale = presented * ui::LoupeTool::kDefaultMagnification;
+    LensColour colour(lensScale * 0.99);
+
+    const ui::LoupeRaster& raster = viewer.view->loupeRaster();
+    const core::DevicePoint scroll = viewer.controller().scroll();
+    const double zoom = viewer.controller().zoom().factor;
+
+    // (1) A SWEEP ASKS FOR NOTHING: each hover lands well inside the settle interval of the last.
+    for (int step = 0; step <= 5; ++step) {
+        viewer.mouse(QEvent::MouseMove, QPoint(300 + 10 * step, 300), Qt::NoButton);
+        QCoreApplication::processEvents();
+    }
+    CHECK(raster.enqueuedCount() == 0);
+
+    // (2) STILL FOR THE SETTLE INTERVAL: ONE request, in the Visible lane, for exactly the lens's
+    // region at the magnified scale, shaped by the presenter's own builder.
+    const QPoint still(350, 300);
+    const auto before = viewer.fixture.renderScheduler.stats();
+    waitMs(ui::PageView::kLoupeSettleMs + 120);
+    const auto after = viewer.fixture.renderScheduler.stats();
+
+    const ui::PageView::LoupeRegion region = viewer.view->loupeRegionFor(lensSourceAt(still));
+    REQUIRE(region.request.isValid());
+    CHECK(raster.enqueuedCount() == 1);
+    CHECK(raster.aimed() == region.request);
+    CHECK(std::abs(raster.aimed().deviceScale - lensScale) < 1e-9);
+    CHECK(after.enqueuedVisible == before.enqueuedVisible + 1);
+    CHECK(after.enqueuedPrefetch == before.enqueuedPrefetch);
+
+    // (3) WHEN IT ARRIVES THE LENS PAINTS IT -- the lens's colour at the lens's centre, while the
+    // page outside the lens is still the tiles' colour.
+    viewer.fixture.pumpTiles();
+    QCoreApplication::processEvents();
+    const QColor inLens = pixelAt(viewer.view->viewport(), still);
+    INFO("in the lens: " << inLens.red() << "," << inLens.green() << "," << inLens.blue());
+    CHECK(isLensColour(inLens));
+    const QColor outside = pixelAt(viewer.view->viewport(), QPoint(still.x(), still.y() + 200));
+    INFO("outside: " << outside.red() << "," << outside.green() << "," << outside.blue());
+    CHECK(isTileColour(outside));
+
+    // (4) MOVING ON CANCELS: with the worker paused the next region's request sits in the queue,
+    // and moving again drops it before it ever starts -- and the lens shows the enlarged frame, not
+    // the old sharp raster, while it waits.
+    viewer.fixture.renderScheduler.pause();
+    const QPoint second(420, 420);
+    viewer.mouse(QEvent::MouseMove, second, Qt::NoButton);
+    QCoreApplication::processEvents();
+    CHECK(isTileColour(pixelAt(viewer.view->viewport(), second)));
+    waitMs(ui::PageView::kLoupeSettleMs + 120);
+    REQUIRE(raster.enqueuedCount() == 2);
+    REQUIRE(raster.isPending());
+    const auto queued = viewer.fixture.renderScheduler.stats();
+
+    viewer.mouse(QEvent::MouseMove, QPoint(480, 380), Qt::NoButton);
+    QCoreApplication::processEvents();
+    CHECK_FALSE(raster.isPending());
+    CHECK(viewer.fixture.renderScheduler.stats().cancelledBeforeStart
+          == queued.cancelledBeforeStart + 1);
+    viewer.fixture.renderScheduler.resume();
+
+    // (6) AND NONE OF IT MOVED THE VIEW (A-43).
+    CHECK(viewer.controller().scroll().x == scroll.x);
+    CHECK(viewer.controller().scroll().y == scroll.y);
+    CHECK(viewer.controller().zoom().factor == zoom);
+}
+
+TEST_CASE("the loupe's lens asks only for the part of its region on a page", "[tools][D4-20]")
+{
+    // Claim (5): a region straddling a page's edge asks only for its part on the page, and one over
+    // the desk beside every page asks for nothing. Pure arithmetic over the laid-out view, so it is
+    // asserted on `loupeRegionFor` rather than through a timer.
+    Viewer viewer;
+    driveLayout(viewer.window.get());
+
+    const core::render::PageLayout& layout = viewer.view->layoutEngine().layout();
+    const core::DeviceRect visible = viewer.controller().visibleRect();
+    const double dpr = viewer.view->devicePixelRatioF();
+    const std::vector<core::render::PageSlot> onScreen = layout.slotsIntersecting(visible);
+    REQUIRE_FALSE(onScreen.empty());
+    const core::render::PageSlot& slot = onScreen.front();
+
+    // The page's right edge and its vertical middle, in widget pixels.
+    const double rightEdge = (slot.rect.right() - visible.left()) / dpr;
+    const double middle = (std::max(slot.rect.top(), visible.top()) - visible.top()) / dpr + 100.0;
+
+    // STRADDLING THE RIGHT EDGE: 20 widget pixels on the page, the rest over the desk.
+    const QRectF straddle(rightEdge - 20.0, middle, 64.0, 64.0);
+    const ui::PageView::LoupeRegion part = viewer.view->loupeRegionFor(straddle);
+    REQUIRE(part.request.isValid());
+    INFO("tile " << part.request.tile.x << "," << part.request.tile.y << " " << part.request.tile.width
+                 << "x" << part.request.tile.height << "  widget right " << part.widget.right()
+                 << " page right " << rightEdge);
+    CHECK(part.request.tile.width <= static_cast<int>(std::ceil(20.0 * dpr * ui::LoupeTool::kDefaultMagnification)) + 2);
+    CHECK(part.widget.right() <= rightEdge + 0.5);
+
+    // ENTIRELY OVER THE DESK to the page's right: nothing to ask for.
+    const QRectF desk(rightEdge + 10.0, middle, 64.0, 64.0);
+    CHECK_FALSE(viewer.view->loupeRegionFor(desk).request.isValid());
+}
+
+// =============================================================================================
+// S4 guide A-101 -- Alt and the wheel step the Loupe's magnification (D4-22)
+// =============================================================================================
+
+namespace {
+
+// One wheel event on the viewport, `notches` of them in one delta, on either axis.
+void wheel(ui::PageView* view, QPoint at, int notches, Qt::KeyboardModifiers modifiers,
+           bool horizontal = false)
+{
+    const QPoint delta = horizontal ? QPoint(120 * notches, 0) : QPoint(0, 120 * notches);
+    QWheelEvent event(QPointF(at), QPointF(view->viewport()->mapToGlobal(at)), QPoint(), delta,
+                      Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(view->viewport(), &event);
+    QCoreApplication::processEvents();
+}
+
+} // namespace
+
+TEST_CASE("Alt and the wheel step the loupe's magnification and move nothing else", "[tools][D4-22]")
+{
+    // The user, during M-12: *"Use alt+wheel to adjust zoom level of lens"*. A ladder, one rung a
+    // notch, clamped; the page does not move; and the sharp lens asks at the new scale.
+    Viewer viewer;
+    REQUIRE(viewer.fixture.actions.dispatch(ActionId::ToolLoupe, core::KeyContext::Viewer));
+    driveLayout(viewer.window.get());
+    viewer.fixture.pumpTiles();
+
+    const ui::LoupeTool& loupe = viewer.tools().loupe();
+    REQUIRE(loupe.magnification() == ui::LoupeTool::kDefaultMagnification);
+
+    const QPoint at(320, 300);
+    viewer.mouse(QEvent::MouseMove, at, Qt::NoButton);
+    const core::DevicePoint scroll = viewer.controller().scroll();
+    const double zoom = viewer.controller().zoom().factor;
+
+    // (1) AWAY IS MORE, TOWARDS IS LESS, one rung a notch.
+    wheel(viewer.view, at, +1, Qt::AltModifier);
+    CHECK(loupe.magnification() == 3.0);
+    wheel(viewer.view, at, +1, Qt::AltModifier);
+    CHECK(loupe.magnification() == 4.0);
+    wheel(viewer.view, at, -1, Qt::AltModifier);
+    CHECK(loupe.magnification() == 3.0);
+
+    // (3) A HORIZONTAL notch -- how Qt reports an Alt+wheel on some platforms -- steps the same.
+    wheel(viewer.view, at, +1, Qt::AltModifier, true);
+    CHECK(loupe.magnification() == 4.0);
+
+    // (2) CLAMPED at both ends.
+    wheel(viewer.view, at, +10, Qt::AltModifier);
+    CHECK(loupe.magnification() == 8.0);
+    wheel(viewer.view, at, +1, Qt::AltModifier);
+    CHECK(loupe.magnification() == 8.0);
+    wheel(viewer.view, at, -20, Qt::AltModifier);
+    CHECK(loupe.magnification() == 1.5);
+
+    // (4) AND THE PAGE DID NOT MOVE.
+    CHECK(viewer.controller().scroll().x == scroll.x);
+    CHECK(viewer.controller().scroll().y == scroll.y);
+    CHECK(viewer.controller().zoom().factor == zoom);
+
+    // (5) THE SHARP LENS ASKS AT THE NEW SCALE, for the region the new magnification shows.
+    wheel(viewer.view, at, +4, Qt::AltModifier);   // 1.5 -> 4
+    REQUIRE(loupe.magnification() == 4.0);
+    viewer.view->viewport()->update();
+    waitMs(ui::PageView::kLoupeSettleMs + 120);
+    const double span = ui::LoupeTool::kLensSize / 4.0;
+    const ui::PageView::LoupeRegion region = viewer.view->loupeRegionFor(
+        QRectF(at.x() - span / 2.0, at.y() - span / 2.0, span, span));
+    REQUIRE(region.request.isValid());
+    const ui::LoupeRaster& raster = viewer.view->loupeRaster();
+    CHECK(raster.aimed() == region.request);
+    CHECK(std::abs(raster.aimed().deviceScale
+                   - viewer.view->layoutEngine().layout().presentedScale() * 4.0) < 1e-9);
+}
+
+TEST_CASE("Alt and the wheel leave the magnification alone when the loupe is not the tool",
+          "[tools][D4-22]")
+{
+    // The control: the gesture is the Loupe's only while the Loupe is in effect. With the Hand armed
+    // the wheel does what it always did, and the lens's magnification -- kept for when the Loupe is
+    // armed again -- is untouched.
+    Viewer viewer;
+    viewer.press(Qt::Key_H);
+    REQUIRE(viewer.tools().armed() == ui::ToolKind::Hand);
+
+    wheel(viewer.view, QPoint(320, 300), +2, Qt::AltModifier);
+    CHECK(viewer.tools().loupe().magnification() == ui::LoupeTool::kDefaultMagnification);
 }

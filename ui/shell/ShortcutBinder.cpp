@@ -413,21 +413,61 @@ ShortcutBinder::Outcome ShortcutBinder::activate(const Chord& chord, KeyContext 
 
 bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
 {
-    if (event->type() != QEvent::KeyPress) return QObject::eventFilter(watched, event);
+    // A LONE `Alt` IS ANSWERED ON ITS RELEASE, and only if nothing else happened while it was held
+    // (S4 decision D4-22) -- Windows' own menu convention. §8 binds a bare `Alt` to the ribbon's key
+    // tips, which take focus; answered on the key going DOWN, as it was until 2026-09-27, an
+    // `Alt`+wheel on the Loupe popped the key tips and took the page's focus every time. So any other
+    // key, a mouse button, a wheel, or the window losing focus while `Alt` is down means `Alt` was a
+    // MODIFIER, and its release does nothing.
+    switch (event->type()) {
+    case QEvent::Wheel:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::ApplicationDeactivate:
+    case QEvent::WindowDeactivate:
+        loneAltHeld_ = false;
+        return QObject::eventFilter(watched, event);
+    case QEvent::KeyPress:
+    case QEvent::KeyRelease:
+        break;
+    default:
+        return QObject::eventFilter(watched, event);
+    }
 
     auto* widget = qobject_cast<QWidget*>(watched);
     if (!widget || !belongsToScope(widget))
         return QObject::eventFilter(watched, event);
 
     auto* keyEvent = static_cast<QKeyEvent*>(event);
+    const bool isAlt = keyEvent->key() == Qt::Key_Alt;
+
+    if (event->type() == QEvent::KeyRelease) {
+        if (!isAlt || !loneAltHeld_ || keyEvent->isAutoRepeat()) return QObject::eventFilter(watched, event);
+        loneAltHeld_ = false;
+        const std::vector<Chord> candidates = chordCandidatesFor(keyEvent);
+        if (candidates.empty()) return QObject::eventFilter(watched, event);
+        return resolveKey(watched, keyEvent, candidates);
+    }
+
     const std::vector<Chord> candidates = chordCandidatesFor(keyEvent);
-    if (candidates.empty()) return QObject::eventFilter(watched, event);
 
-    // HOLDING A MODIFIER IS ONE GESTURE. Auto-repeat is right for `Page Down` and wrong for `Alt`:
-    // key tips should open once and stay open, not reopen thirty times a second.
-    if (keyEvent->isAutoRepeat() && candidates.front().key() == "Alt")
+    // `Alt` GOING DOWN is only remembered. HOLDING A MODIFIER IS ONE GESTURE, so its auto-repeat is
+    // the same press and changes nothing -- key tips open once, not thirty times a second.
+    if (isAlt) {
+        if (!keyEvent->isAutoRepeat() && !candidates.empty() && candidates.front().key() == "Alt")
+            loneAltHeld_ = true;
         return QObject::eventFilter(watched, event);
+    }
 
+    // ANY OTHER KEY while `Alt` is down makes it a modifier (`Alt+Left`, say), not the key tips.
+    loneAltHeld_ = false;
+    if (candidates.empty()) return QObject::eventFilter(watched, event);
+    return resolveKey(watched, keyEvent, candidates);
+}
+
+bool ShortcutBinder::resolveKey(QObject* watched, QKeyEvent* keyEvent,
+                                const std::vector<Chord>& candidates)
+{
     // FIRST REFUSAL TO THE FOCUSED WIDGET, through Qt's own handshake -- see the class comment.
     // The probe is `ignore()`d before it is sent because QEvent starts out accepted, and a widget
     // that does nothing with it must read as "no".
@@ -437,7 +477,7 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
                         static_cast<ushort>(keyEvent->count()));
         probe.ignore();
         QCoreApplication::sendEvent(focus, &probe);
-        if (probe.isAccepted()) return QObject::eventFilter(watched, event);
+        if (probe.isAccepted()) return QObject::eventFilter(watched, keyEvent);
     }
 
     // THE FIRST CANDIDATE ANY ROW BINDS, and "binds" includes a row nothing has registered: a
@@ -468,7 +508,7 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
     // but leaves the event's flag saying whatever it said, and a caller that reads the flag to
     // decide whether anybody handled the key -- Qt itself does, when propagating -- would be told
     // the wrong thing.
-    if (!consumes(outcome)) return QObject::eventFilter(watched, event);
+    if (!consumes(outcome)) return QObject::eventFilter(watched, keyEvent);
     keyEvent->accept();
     return true;
 }

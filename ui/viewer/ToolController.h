@@ -108,6 +108,10 @@ public:
     // how it answers a click and a drag (S4 guide I-26). Read-only: the loupe is driven by events.
     const LoupeTool& loupe() const noexcept { return loupe_; }
 
+    // Steps the lens's magnification `steps` rungs and repaints -- `Alt`+wheel (decision D4-22).
+    // Returns whether it changed.
+    bool stepLoupeMagnification(int steps);
+
     // ---- Input ---------------------------------------------------------------------------------
     // Each returns whether the tool took the event; the host falls back to its base class when not.
     bool press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers);

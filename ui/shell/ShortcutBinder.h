@@ -231,9 +231,17 @@ private:
     // cannot see into an owned one, which is the other half of the same S4 T10 problem.
     QWidget* scopedFocusWidget() const;
 
+    // The focused widget's first refusal, then the first candidate a row binds, then whether the
+    // key was consumed -- one path for a key's press and for a lone `Alt`'s release (D4-22).
+    bool resolveKey(QObject* watched, QKeyEvent* keyEvent, const std::vector<core::Chord>& candidates);
+
     core::ActionRegistry&        registry_;
     const core::KeyBindingStore& bindings_;
     QWidget*                     scope_ = nullptr;
+
+    // S4 D4-22: a bare `Alt` is down and nothing else has happened yet -- its release shows the key
+    // tips. Cleared by any other key, a mouse button, a wheel, or losing focus.
+    bool                         loneAltHeld_ = false;
 };
 
 } // namespace rawpage::ui

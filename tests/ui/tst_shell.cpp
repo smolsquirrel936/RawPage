@@ -35,6 +35,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QProgressBar>
 #include <QTemporaryDir>
 #include <QToolButton>
@@ -817,4 +818,85 @@ TEST_CASE("clicking the edge strip of a closed sidebar opens it and of an auto-h
     left->click();
     CHECK(sidebar->isPeeking());
     CHECK(sidebar->isAutoHidden());
+}
+
+// =============================================================================================
+// S4 guide A-102 -- the ribbon's key tips show on Alt's release and never after Alt and the wheel
+// =============================================================================================
+
+TEST_CASE("the ribbon's key tips show on Alt's release and never after Alt and the wheel",
+          "[shell][D4-22]")
+{
+    // Decision D4-22. A lone Alt is Features.md section 8's key-tips row, and it was answered on the
+    // key going DOWN -- so reaching for Alt+wheel on the Loupe popped the key tips and took the
+    // page's focus. Now it is answered on the RELEASE, and only when nothing else happened while Alt
+    // was held. The events are SENT, so they pass through `ShortcutBinder`'s application filter as a
+    // keyboard's would.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+    QCoreApplication::processEvents();
+
+    ui::Ribbon* ribbon = window.ribbon();
+    REQUIRE(ribbon != nullptr);
+    QWidget* target = window.centralWidget();
+    REQUIRE(target != nullptr);
+
+    const auto key = [&](QEvent::Type type, int code, Qt::KeyboardModifiers modifiers) {
+        QKeyEvent event(type, code, modifiers);
+        QCoreApplication::sendEvent(target, &event);
+        QCoreApplication::processEvents();
+    };
+    const auto altDown = [&] { key(QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier); };
+    const auto altUp = [&] { key(QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier); };
+
+    // (1) DOWN ALONE SHOWS NOTHING, and (2) THE RELEASE SHOWS THEM.
+    REQUIRE_FALSE(ribbon->keyTipsVisible());
+    altDown();
+    CHECK_FALSE(ribbon->keyTipsVisible());
+    altUp();
+    CHECK(ribbon->keyTipsVisible());
+
+    // (6) A LONE Alt WITH THEM SHOWING HIDES THEM, as it always did.
+    altDown();
+    altUp();
+    CHECK_FALSE(ribbon->keyTipsVisible());
+
+    // (3) Alt, A WHEEL NOTCH, Alt up: none -- the case D4-22 exists for.
+    altDown();
+    {
+        QWheelEvent event(QPointF(10, 10), QPointF(target->mapToGlobal(QPoint(10, 10))), QPoint(),
+                          QPoint(0, 120), Qt::NoButton, Qt::AltModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(target, &event);
+        QCoreApplication::processEvents();
+    }
+    altUp();
+    CHECK_FALSE(ribbon->keyTipsVisible());
+
+    // (4) Alt, ANOTHER KEY, Alt up: none -- Alt was a modifier.
+    altDown();
+    key(QEvent::KeyPress, Qt::Key_Q, Qt::AltModifier);
+    key(QEvent::KeyRelease, Qt::Key_Q, Qt::AltModifier);
+    altUp();
+    CHECK_FALSE(ribbon->keyTipsVisible());
+
+    // (5) Alt, A MOUSE PRESS, Alt up: none.
+    altDown();
+    {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(10, 10), QPointF(target->mapToGlobal(QPoint(10, 10))),
+                          Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+        QCoreApplication::sendEvent(target, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(10, 10),
+                            QPointF(target->mapToGlobal(QPoint(10, 10))), Qt::LeftButton,
+                            Qt::NoButton, Qt::AltModifier);
+        QCoreApplication::sendEvent(target, &release);
+        QCoreApplication::processEvents();
+    }
+    altUp();
+    CHECK_FALSE(ribbon->keyTipsVisible());
+
+    // AND A PLAIN PRESS-AND-RELEASE AFTER ALL THAT STILL WORKS -- nothing was left half-held.
+    altDown();
+    altUp();
+    CHECK(ribbon->keyTipsVisible());
 }

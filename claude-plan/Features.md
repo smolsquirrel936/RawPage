@@ -1311,7 +1311,7 @@ that downstream documents cite a defined number rather than an ambiguous one.
 | `F4` | Show / hide the sidebar |
 | `F9` | Show / hide the ribbon |
 | `F11` | Enter / leave Full Screen |
-| `Alt` | Show ribbon key tips |
+| `Alt` | Show ribbon key tips — on `Alt`'s **release**, and only when nothing else was pressed, clicked or wheeled while it was held (Windows' menu convention; S4 decision D4-22, so that `Alt`+wheel can set the Loupe's magnification) |
 | `Ctrl+Shift+U` | Focus the tool finder |
 | `Ctrl+Shift+P` | Page Thumbnails pane |
 | `Ctrl+Shift+B` | Bookmarks pane |

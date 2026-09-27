@@ -36,6 +36,8 @@
 #define RAWPAGE_UI_VIEWER_TOOLS_TOOL_H
 
 #include <QPoint>
+#include <QRect>
+#include <QRectF>
 #include <QSize>
 
 #include <Qt>
@@ -89,6 +91,19 @@ public:
     // it (`Tool::needsFrame()`), because copying every paint into a pixmap to serve a tool nobody
     // armed is a cost paid for nothing.
     virtual const QPixmap* lastFrame() const { return nullptr; }
+
+    // The LOUPE'S SHARP LENS (S4 D4-20): paint `source` -- a region of the viewport, in logical
+    // widget pixels -- re-rasterized at the magnified scale into `lens`, over whatever the tool has
+    // already drawn there. Returns false when there is nothing sharp to paint yet (the region has
+    // not been still long enough, or its raster has not arrived), and the tool's enlarged frame
+    // stays as it is. The host decides when to ask the engine; the tool only draws.
+    virtual bool paintSharpLens(QPainter& painter, const QRect& lens, const QRectF& source) const
+    {
+        (void)painter;
+        (void)lens;
+        (void)source;
+        return false;
+    }
 };
 
 class Tool {

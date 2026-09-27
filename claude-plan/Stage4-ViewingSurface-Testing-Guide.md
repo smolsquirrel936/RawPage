@@ -7,10 +7,12 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **99 automated** (A-01 … A-98, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 99 carry
-> a result** as of 2026-09-27 (re-derived from this file: 99 case headers, none still boxed — the
-> 98th and 99th are **A-97** and **A-98**, added 2026-09-27 with I-26's and I-27's fixes during
+> partly run.** **103 automated** (A-01 … A-102, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 103 carry
+> a result** as of 2026-09-27 (re-derived from this file: 103 case headers, none still boxed — the
+> 102nd and 103rd are **A-101** and **A-102**, written from decision D4-22 before its code; the
+> 100th and 101st are **A-99** and **A-100**, written from decision D4-20 before its code and run the
+> same day, the second a `bench_surface` column; the 98th and 99th are **A-97** and **A-98**, added 2026-09-27 with I-26's and I-27's fixes during
 > M-12's walk; the 96th and 97th are **A-95** and **A-96**, added 2026-09-27 with I-24's and I-25's fixes during
 > M-10's first walk; the 95th is **A-94**, added 2026-09-27 with I-23's fix, which like A-85 SKIPS under `ctest` and is run
 > on the `windows` platform — the
@@ -308,6 +310,9 @@ thumbnail arriving late is a thumbnail, and a tile arriving late is a stutter.
 | *(I-25)* The edge strip of a closed sidebar opens it on a click | **A-96**, and **M-10**, which found it |
 | *(I-26)* The Loupe: a click pins it, a drag aims it | **A-97**, and **M-12**, which found it |
 | *(I-27)* The temporary hand takes the lens away and gives it back on the key alone | **A-98**, and **M-12**, which found it |
+| *(Plan D4-20)* The Loupe's lens is sharp — its region re-rasterized at the magnified scale — without starving the viewport | **A-99**, **A-100** (A2), **M-12** (a person judges sharp) |
+| *(Plan D4-21)* The wheel's zoom modifier is `Ctrl`, fixed | **M-12** (the user's judgement) |
+| *(Plan D4-22)* `Alt`+wheel sets the Loupe's magnification; key tips show on `Alt`'s release | **A-101**, **A-102**, **M-12** |
 | *(Plan D4-9)* Restore never resurrects an edit, and never doubles with recovery | A-76, A-77, **M-05** |
 | *(Plan D4-12)* A presentation releases what it suppressed | A-58, **M-03** |
 | *(§1.4)* Navigation by thumbnail, bookmark, destination, number and **label** | A-26, A-29, A-33, A-35, A-36, **M-01** |
@@ -1504,6 +1509,97 @@ read — run red**: zero paints on the press, and the hand still in effect after
 **Steps** `ctest --preset x64-release -R "temporary hand's modifier repaints"`.
 **Expect** Passed. **If it fails** S3 — the lens outlives the temporary hand, or returns only on a move.
 
+**A-99 · The Loupe's lens re-rasterizes its region at the magnified scale — D4-20** ✅
+✅ **2026-09-27** (`tests/ui/tst_tools.cpp`, tag `[D4-20]`, two cases, 34 assertions, under `ctest`;
+also passed on `QT_QPA_PLATFORM=windows` and offscreen at `QT_SCALE_FACTOR=1.5`, because the lens's
+arithmetic multiplies and divides by the device-pixel ratio and offscreen is 1.0). The fake rasterizer
+paints any request at or above the lens's scale in its own colour (`uitest::fakeLensScaleThreshold`,
+off for every other case), so claim 3 reads the lens's centre as that colour and the page below it as
+the tile blue. **All three planted controls run red for the right reason:** the settle interval set to
+0 — the sweep enqueued **6** lens requests where the case allows 0; the request left at the presented
+scale — `deviceScale` off by 2.08 and the lens not the lens colour; the raster never drawn — the lens
+still the enlarged frame after it arrived. Claim 4 pauses the scheduler so the next region's request
+sits queued, and moving on counts one more `cancelledBeforeStart`.
+*(Written 2026-09-27 from D4-20, before its code.)* `ui.`, with the fake rasterizer, the loupe armed and
+its lens shown by a hover. **Claims:** (1) **while the lens moves it asks for nothing** — a sweep of
+hovers enqueues no loupe request; (2) **once still for the settle interval it asks ONCE**, in the
+**Visible** lane, for exactly the lens's source region of the page under it, at a device scale of
+`presentedScale × kMagnification`, built by the presenter's own request builder (so its revision,
+flags and view rotation are the page's); (3) **when it arrives the lens paints it** — the lens pixels
+are the raster's, not the enlarged frame's, told apart by a fake raster colour that the frame cannot
+contain; (4) **moving on CANCELS it** — the old ticket is cancelled and the lens falls back to the
+enlarged frame until the new region's raster arrives; (5) **a region off every page asks for nothing**,
+and one straddling a page's edge asks only for the part on the page; (6) **the view is untouched**
+throughout (A-43). **Controls, each run red:** the settle interval removed (a sweep enqueues per move);
+the request's scale left at the presented scale (claim 2's scale fails); the raster never drawn
+(claim 3 fails).
+**What it does NOT cover** (convention 19): whether the lens LOOKS sharp — the fake raster is flat
+colour — which is M-12's re-walk on a real page; and the cost, which is A-100's.
+**Steps** `ctest --preset x64-release -R "D4-20"`.
+**Expect** Passed. **If it fails** S3 — the lens is not sharp, or asks while moving, or for the wrong region.
+
+**A-100 · A2 with the Loupe sweeping — the Visible lane still inside the budget — D4-20** ✅
+✅ **2026-09-27, two full runs of `rawpage_bench_surface.exe`, offscreen at A2's configuration** —
+288.0 dpi over a 1920×1080 device-pixel viewport, device scale 1.50, printed by the column itself.
+**`+ loupe` VISIBLE p95 4.607 and 4.435 ms, beside the `viewer` column's 4.920 and 4.398 ms in the
+same runs** — a difference of −0.313 and +0.037 ms, which is noise — against the 16.667 ms budget. The
+column made **24 lens requests** each run, two a round, and its Visible count is exactly the viewer
+column's 261 plus those 24: the lens's work was inside the graded figure, not beside it. **PASS**, and
+D4-20's *Revisit* (the Prefetch lane) is not needed. The same runs' other four columns read 3.04–4.92
+ms, all inside the budget. **What it does NOT cover** (convention 19): a real screen's paint cost for
+the lens — offscreen draws to memory — and a page more expensive than `pages-900.pdf`'s; both are what
+a person re-walking M-12 on a real page would notice as lag.
+*(Written 2026-09-27 from D4-20, before its code.)* `bench_surface`, a new **`+ loupe`** column: the
+single-window workload of the first column, with the Loupe armed and, each round, the lens moved across
+the page and left still long enough to settle — so its re-rasterizations are enqueued in the **Visible**
+lane beside the viewport's own tiles and are INSIDE the graded figure, not beside it. **Graded as A2 is**
+(`Tech-Stack-Plan.md` §3.3): the Visible lane's p95 queued latency against **16.667 ms**, read beside the
+first column's figure from the same run and the same machine, and the column prints the dpi, viewport
+and the number of lens requests it actually made (A-72's lesson — a column that made none measured
+nothing). **Pass:** p95 ≤ 16.667 ms. **If it does not pass**, D4-20's *Revisit* applies — the lens moves
+to the `Prefetch` lane and is re-measured — and the figure is recorded either way.
+**Steps** `.\build\x64-release\bin\rawpage_bench_surface.exe` (all columns), or with the column's label
+alone.
+**Expect** The `+ loupe` column's VISIBLE p95 ≤ 16.667 ms, with a non-zero lens request count.
+**If it fails** S2 — the sharp lens starves the viewport; D4-20 is revisited before M-12 is re-walked.
+
+**A-101 · `Alt`+wheel steps the Loupe's magnification and moves nothing else — D4-22** ✅
+✅ **2026-09-27** (`tests/ui/tst_tools.cpp`, tag `[D4-22]`, two cases, under `ctest`). Every claim holds:
+2.5 → 3 → 4 → 3 by notch, a horizontal notch steps the same, clamped at 8 and at 1.5, the view
+unmoved, and after the settle interval the sharp lens asked at `presentedScale × 4` for the region a
+4× lens shows. The control case — the Hand armed — leaves the magnification at 2.5. **Planted
+control — the `Alt`+wheel handler disabled — run red**: every step read 2.5.
+*(Written 2026-09-27 from D4-22, before its code.)* `ui.`, wheel events on the viewport with the Loupe
+armed. **Claims:** (1) `Alt`+wheel away steps the magnification UP one rung of the ladder per notch
+(2.5 → 3 → 4), and towards steps it DOWN; (2) it CLAMPS at 1.5 and 8 — further notches change nothing;
+(3) a notch delivered as a HORIZONTAL delta — how Qt reports an `Alt`+wheel on some platforms — steps
+it the same; (4) the view neither scrolls nor zooms; (5) the sharp lens (D4-20), once still, asks at
+`presentedScale ×` the NEW magnification, for the region the new magnification shows. **Control, run
+red:** with the Hand armed, `Alt`+wheel does what the wheel did before and the magnification is
+untouched — and with the handler removed, claims 1–4 fail.
+**Steps** `ctest --preset x64-release -R "D4-22"`.
+**Expect** Passed. **If it fails** S3 — the lens cannot be magnified, or the gesture moves the page.
+
+**A-102 · The ribbon's key tips show on `Alt`'s release, and never after `Alt`+wheel — D4-22** ✅
+✅ **2026-09-27** (`tests/ui/tst_shell.cpp`, tag `[D4-22]`, under `ctest`, 10 assertions). All six
+claims hold, and a plain press-and-release after all of them still shows the key tips — nothing was
+left half-held. **Planted control — the old dispatch on `Alt` going down — run red**: `Alt` down showed
+the key tips (claim 1), `Alt`+wheel left them showing (claim 3), and two later checks followed from it.
+The Stage 1 key-tip cases (`tst_shell` *"Alt key tips are reachable through the registry"*,
+`tst_context`'s chord formation) are unchanged and green: they dispatch the command and form the
+chord, and neither depends on WHEN the binder answers.
+*(Written 2026-09-27 from D4-22, before its code.)* `ui.`, key and wheel events sent through the
+application, so they reach `ShortcutBinder`'s filter as a keyboard's would. **Claims:** (1) `Alt` DOWN
+alone shows no key tips; (2) its RELEASE shows them; (3) `Alt` down, a wheel notch, `Alt` up shows none;
+(4) `Alt` down, another key, `Alt` up shows none; (5) `Alt` down, a mouse press, `Alt` up shows none;
+(6) with key tips showing, a lone `Alt` press-and-release hides them, as before. **Control, run red:**
+the old press-time dispatch — claim 1 and claim 3 fail.
+**What it does NOT cover** (convention 19): what Windows itself does with a lone `Alt` release (its menu
+mode) — synthetic events never reach it — which is M-12's re-walk.
+**Steps** `ctest --preset x64-release -R "D4-22"`.
+**Expect** Passed. **If it fails** S2 for claim 3 (an `Alt`+wheel pops the key tips and takes focus
+from the page), S3 otherwise.
+
 ---
 
 ## 6. Manual verification — you run this
@@ -1951,6 +2047,24 @@ and fixed the same day**
 - **Re-walk of the Loupe, 2026-09-27, on the fixed build** Reported by the user as *"those two are
   fixed"* — recorded as that, and as covering I-26 and I-27 only. The steps not yet reported — the
   wheel, auto-scroll, and the modifier question below — are still to walk.
+- **The rest of the walk, 2026-09-27** Reported by the user as *"All test passed."* — recorded as that:
+  the wheel, the temporary hand with Marquee Zoom, and auto-scroll. **Pen and touch: not run, for want
+  of hardware** (P-4), never recorded as passed. The user answered the modifier question — **`Ctrl`,
+  fixed** — recorded as **D4-21**. And the user asked for a **sharp lens**, not an enlarged frame
+  (*"I want it to be sharp in len, not just enlarge the pixel"*), which reverses T7's recorded choice:
+  recorded as **D4-20**, with **A-99** and **A-100** written before its code. **M-12 is therefore not
+  signed off: its loupe step is re-walked on the D4-20 build** — the lens appears at once, and a
+  moment after the pointer stops it turns SHARP, on small text at 100 % and at 400 %, with guides and
+  an inverted page shown in it as on the page.
+- **D4-20 built the same day**: A-99 ✅ with its three controls red, and A-100 ✅ — the `+ loupe`
+  column's Visible p95 4.44–4.61 ms beside the viewer's 4.40–4.92 ms, inside the budget. **What is
+  left of M-12 is that re-walk.**
+- **And D4-22 the same day**, on the user's instruction *"Use alt+wheel to adjust zoom level of lens"*:
+  `Alt`+wheel steps the lens through 1.5–8×, and the ribbon's key tips moved to `Alt`'s release so the
+  gesture never pops them. A-101 and A-102 ✅. **The re-walk also looks at:** `Alt`+wheel over the page
+  with the Loupe armed changes the number in the lens's corner and nothing else; a lone `Alt` press and
+  release still shows the key tips, and after an `Alt`+wheel it does not; and nothing odd happens in
+  Windows itself after a lone `Alt` release (its menu mode) — which no synthetic event reaches.
 - **What the rest of the walk must look at:** the Loupe — hover aims it; a **click** pins it and another
   unpins it; a **drag** moves it, pinned or not, and leaves the pin as it was; holding `Shift` takes the
   lens away AT ONCE, with no drag, and releasing it brings the lens back at once. Then any step not yet
@@ -2789,7 +2903,7 @@ runs red on both halves.
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 99 carry a result.** The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 103 carry a result.** The 102nd and 103rd are **A-101** and **A-102**, D4-22's — `Alt`+wheel on the Loupe and the key tips on `Alt`'s release. The 100th and 101st are **A-99** and **A-100**, D4-20's — the sharp lens and its A2 measurement. The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2819,7 +2933,19 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after I-26's and I-27's fixes: 1137/1137 on `x64-debug`, and on
+4. ✅ **2026-09-27, re-run after D4-22, `Alt`+wheel and the release-time key tips: 1142/1142 on
+   `x64-release` and on `x64-debug`**, the three new cases A-101's two and A-102's, the same three named
+   skips, `checks` clean on four gates (`layer-lint` 425 files / 3,416 includes). **Recorded, not a
+   product finding: running `rawpage_ui_tests.exe` WHOLE — every case in one process — does not
+   finish**: it ended in `std::bad_alloc` after about two hundred cases, and the case it stopped before
+   passes alone, with its tag and under `ctest`. **It predates D4-20 and D4-22**: the binary rebuilt at
+   `8ca0784`, before either, also died whole (exit 148, no output). `ctest` runs one case per process,
+   which is the suite's mode and is green; the cause — something that accumulates across cases in one
+   process — is NOT established. *Before that,* **re-run after D4-20, the sharp lens: 1139/1139 on `x64-release` and on
+   `x64-debug`**, the two new cases A-99's, with the same three named skips and `checks` clean on four
+   gates (`layer-lint` 425 files / 3,412 includes — two new files, `ui/viewer/LoupeRaster.{h,cpp}`); no
+   `warning:` line from either incremental build. The intermittent Stage 3 failure did not recur.
+   *Before that,* **re-run after I-26's and I-27's fixes: 1137/1137 on `x64-debug`, and on
    `x64-release` 1137 run with ONE FAILURE the first time** — `platform.durable replace control: a plain
    rename over the target loses the stream`, a Stage 3 case this change does not touch — which then
    **passed six times in a row alone** and in the same day's debug run. Recorded rather than explained:

@@ -140,6 +140,15 @@ public:
     // resolution moves far enough that nothing held is worth keeping.
     void clear();
 
+    // A request for `tile` of `pageIndex` at an ARBITRARY device scale, shaped exactly as this
+    // presenter shapes its own -- the document, the revision, the render flags, the view rotation
+    // and the unsaved-rotation delta (D3-15). Public for the Loupe's sharp lens (S4 D4-20), which
+    // asks for its region at the magnified scale: a second request builder would be a second place
+    // to forget a field of the cache key, which is D2-12's stale-tile bug waiting. Invalid -- and
+    // refused by the scheduler -- while no document is set.
+    core::render::RenderRequest requestAt(int pageIndex, const core::render::TileRect& tile,
+                                          double deviceScale, core::PageRotation viewRotation) const;
+
     // ---- What a case can assert, rather than a screenshot ------------------------------------
     std::size_t heldTileCount() const noexcept { return tiles_.size(); }
     std::size_t pendingTicketCount() const noexcept { return tickets_.size(); }

@@ -432,6 +432,17 @@ why — of 11,532 viewport enqueues in that column, **10,108 went to `Prefetch`*
 `Visible`. Without the T11 change every one of them would have been `Visible`. **A2 at Stage 4 is
 therefore `go`, with nothing named and nothing owed.**
 
+**AND THE LOUPE'S SHARP LENS DID NOT MOVE IT** — decision **D4-20** (`Stage4-ViewingSurface-Plan.md`
+§3), measured on 2026-09-27 before it was accepted, as `ui/viewer/tools/LoupeTool.h` had said a
+re-rasterizing loupe would have to be (guide case **A-100**). A `+ loupe` column — the `viewer`
+column's workload with the Loupe armed and its lens stopped twice a round, so its magnified
+re-rasterizations wait in the graded `Visible` lane — read **4.435–4.607 ms**, beside the same runs'
+`viewer` column at **4.398–4.920 ms**: a difference inside the noise, 24 lens requests a run, and
+every column of both runs inside the budget (3.04–4.92 ms). Those runs' `viewer` figures are lower
+than T14's table above on the same machine; **the table is T14's record and is not re-derived here**
+— the claim is the column-against-column difference within one run, which is the only comparison the
+two runs support.
+
 **WHY THE PRODUCT'S NUMBERS ARE LOWER THAN THE BENCH'S, WHICH IS NOT GOOD NEWS BY ITSELF.** T2
 enqueued a whole viewport at `Visible` each round and drained it, so every tile waited behind every
 other tile of the same viewport. **The product does not ask that way.** `TilePresenter` asks for the

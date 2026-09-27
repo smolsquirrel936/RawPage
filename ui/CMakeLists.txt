@@ -111,6 +111,12 @@ add_library(rawpage_ui STATIC
     viewer/HeldRaster.h
     viewer/HeldRaster.cpp
 
+    # S4 D4-20 -- the Loupe's sharp lens: the scheduler's third client, one region of one page at the
+    # magnified scale, one request at a time with the old one cancelled. Its request is built by
+    # TilePresenter::requestAt, so the cache key is shaped in one place.
+    viewer/LoupeRaster.h
+    viewer/LoupeRaster.cpp
+
     # S4 T7 -- the tool state machine and the first four of the seventeen tools
     # Architecture-FileMap.md section 3.14 schedules across Stages 4 to 10. A tool is handed a
     # ToolHost rather than a PageView, so the family names no widget: that is what keeps the

@@ -64,6 +64,7 @@
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/SidebarDock.h"
+#include "ui/viewer/LoupeRaster.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ViewportController.h"
@@ -74,6 +75,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QMouseEvent>
 #include <QString>
 #include <QStringList>
 #include <QTemporaryDir>
@@ -181,6 +183,10 @@ struct Column {
     bool split = false;
     bool pane = false;
     bool secondWindow = false;
+    // S4 D4-20 (guide A-100): the Loupe armed and its lens stopped twice a round, so its sharp
+    // re-rasterizations are enqueued in the Visible lane beside the viewport's and are INSIDE the
+    // graded figure rather than beside it.
+    bool loupe = false;
 };
 
 } // namespace
@@ -237,12 +243,14 @@ int main(int argc, char** argv)
         {"+ split",      true,  false, false},
         {"+ pane",       true,  true,  false},
         {"two windows",  true,  true,  true },
+        {"+ loupe",      false, false, false, true},
     };
 
     double viewerP95 = 0.0;
     double splitP95 = 0.0;
     double paneP95 = 0.0;
     double twoWindowP95 = 0.0;
+    double loupeP95 = 0.0;
     bool measuredAll = true;
 
     for (const Column& column : columns) {
@@ -369,6 +377,18 @@ int main(int argc, char** argv)
                         pane->controller().visibleRect().size.height);
         }
 
+        // THE LOUPE, ARMED THROUGH THE PRODUCT'S OWN PATH -- `PageView::setTool`, which `tool.loupe`
+        // dispatches to -- so the lens is the shipped one, fed by the shipped scheduler.
+        ui::PageView* lensView = column.loupe ? tab->view() : nullptr;
+        if (lensView != nullptr) lensView->setTool(ui::ToolKind::Loupe);
+        const auto lensTo = [lensView](QPoint at) {
+            if (lensView == nullptr) return;
+            QMouseEvent move(QEvent::MouseMove, QPointF(at),
+                             QPointF(lensView->viewport()->mapToGlobal(at)), Qt::NoButton,
+                             Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(lensView->viewport(), &move);
+        };
+
         // Settle: the first paint, the first tiles, the pane's first stream. Everything measured
         // below is steady-state scrolling, and counting the open would measure a document opening.
         pump(pumpMs * 2);
@@ -397,7 +417,22 @@ int main(int argc, char** argv)
             if (column.pane && window->thumbnailsPane() != nullptr)
                 window->thumbnailsPane()->setCurrentPage((round + 1) * 30);
 
-            pump(pumpMs);
+            // AND THE LENS, TWICE A ROUND: swept across the page onto a spot, still long enough to
+            // settle (`PageView::kLoupeSettleMs`), then onto a second spot and still again -- two
+            // sharp requests a round, each over a page the viewport has only just asked for.
+            if (lensView != nullptr) {
+                const QSize area = lensView->viewport()->size();
+                const int x = area.width() / 3 + (round % 4) * 40;
+                for (int step = 0; step < 6; ++step) {
+                    lensTo(QPoint(x + step * 12, area.height() / 3));
+                    pump(8);
+                }
+                pump(ui::PageView::kLoupeSettleMs + 60);
+                lensTo(QPoint(x + 200, area.height() * 2 / 3));
+                pump(std::max(0, pumpMs - ui::PageView::kLoupeSettleMs - 60 - 48));
+            } else {
+                pump(pumpMs);
+            }
         }
 
         const core::render::RenderScheduler::Stats after = root.renderScheduler().stats();
@@ -416,6 +451,15 @@ int main(int argc, char** argv)
                     after.enqueuedVisible - before.enqueuedVisible,
                     after.enqueuedPrefetch - before.enqueuedPrefetch,
                     after.enqueuedSpeculative - before.enqueuedSpeculative);
+        if (lensView != nullptr) {
+            std::printf("                   lens requests %lld (the Loupe's sharp regions, in the VISIBLE lane)\n",
+                        lensView->loupeRaster().enqueuedCount());
+            if (lensView->loupeRaster().enqueuedCount() == 0) {
+                std::fprintf(stderr, "surface: %s made no lens request -- it measured nothing\n",
+                             column.label);
+                measuredAll = false;
+            }
+        }
         std::printf("                   cache lookups %lld   hits %lld (%.1f %%)   CROSS-DOCUMENT evictions %zu\n",
                     cache.lookups, cache.hits(), cache.hitRate() * 100.0,
                     root.renderCache().crossDocumentEvictions());
@@ -430,6 +474,7 @@ int main(int argc, char** argv)
         else if (std::strcmp(column.label, "+ split") == 0)      splitP95 = p95;
         else if (std::strcmp(column.label, "+ pane") == 0)       paneP95 = p95;
         else if (std::strcmp(column.label, "two windows") == 0)  twoWindowP95 = p95;
+        else if (std::strcmp(column.label, "+ loupe") == 0)      loupeP95 = p95;
 
         // The probe outlives nothing: the scheduler is destroyed with the root below, but the
         // lambda holds a reference to a `Samples` on this stack frame, so it is removed first.
@@ -452,6 +497,8 @@ int main(int argc, char** argv)
         std::printf("      two WINDOWS, the second in the background ............ %7.3f ms   (%+.3f)"
                     "   (T2: 18.91-19.33, BEFORE T11's named work)\n",
                     twoWindowP95, twoWindowP95 - paneP95);
+        std::printf("      one viewport + the Loupe's SHARP lens (D4-20, A-100) . %7.3f ms   (%+.3f)"
+                    "   against the one viewport\n", loupeP95, loupeP95 - viewerP95);
         std::printf("      frame budget ......................................... %7.3f ms\n",
                     kFrameBudgetMs);
         std::printf("\n    Record this in Tech-Stack-Plan.md 3.3 as THE PRODUCT'S, beside T2's bench"

@@ -179,6 +179,13 @@ bool ToolController::cancel()
     return true;
 }
 
+bool ToolController::stepLoupeMagnification(int steps)
+{
+    if (!loupe_.stepMagnification(steps)) return false;
+    host_.requestRepaint();
+    return true;
+}
+
 bool ToolController::isDragging() const
 {
     return activeTool().isDragging();

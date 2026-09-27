@@ -5,7 +5,9 @@
 #include "core/doc/PageTree.h"
 #include "core/render/RenderScheduler.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/viewer/LoupeRaster.h"
 #include "ui/viewer/TilePresenter.h"
+#include "ui/viewer/tools/LoupeTool.h"
 
 #include <QContextMenuEvent>
 #include <QKeyEvent>
@@ -15,6 +17,8 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QScrollBar>
+#include <QTimer>
+#include <QTransform>
 #include <QCoreApplication>
 #include <QWheelEvent>
 
@@ -82,6 +86,21 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
     connect(tools_.get(), &ToolController::cursorChanged, this,
             [this](Qt::CursorShape shape) { viewport()->setCursor(shape); });
 
+    // THE LOUPE'S SHARP LENS (S4 D4-20). Its raster arriving repaints, as a tile does and for the
+    // same reason: a re-request inside a delivery would loop. The settle timer is what makes the
+    // lens ask only once its region has been still -- see `paintSharpLens`.
+    loupeRaster_ = std::make_unique<LoupeRaster>(scheduler_, this);
+    connect(loupeRaster_.get(), &LoupeRaster::arrived, this, [this] { viewport()->update(); });
+    loupeSettle_ = new QTimer(this);
+    loupeSettle_->setSingleShot(true);
+    loupeSettle_->setInterval(kLoupeSettleMs);
+    connect(loupeSettle_, &QTimer::timeout, this, [this] {
+        // ONLY IF THE LENS IS STILL THERE TO SHOW IT. A lens put away by `Esc`, or a loupe disarmed,
+        // inside the interval would otherwise spend a rasterization on a region nobody will see.
+        const bool shown = tools_->effective() == ToolKind::Loupe && tools_->loupe().isVisible();
+        if (shown) loupeRaster_->aim(pendingLoupe_);
+    });
+
     connect(tools_.get(), &ToolController::armedChanged, this, [this](ToolKind kind) {
         // MOUSE TRACKING FOLLOWS THE TOOL. Only the loupe wants moves with no button down, and
         // leaving tracking on for every tool would deliver a move event per pixel to tools that
@@ -111,7 +130,9 @@ PageView::~PageView()
     // The presenter goes first and explicitly: its destructor unsubscribes from the scheduler and
     // cancels every ticket. Leaving it to the member's own destruction order would work today and
     // is written out because guide case A-39 is precisely *a `PageView` destroyed with tiles in
-    // flight*, and the ordering is the thing that case is about.
+    // flight*, and the ordering is the thing that case is about. The lens's client goes with it,
+    // for the same reason: it too holds a subscription and may hold a ticket (D4-20).
+    loupeRaster_.reset();
     presenter_.reset();
 }
 
@@ -962,6 +983,27 @@ void PageView::resizeEvent(QResizeEvent* event)
 
 void PageView::wheelEvent(QWheelEvent* event)
 {
+    // `Alt`+WHEEL IS THE LOUPE'S MAGNIFICATION while the Loupe is in effect (decision D4-22), and it
+    // is taken FIRST -- before a frozen pane hands its wheel to the body -- because the lens being
+    // magnified is this pane's. It scrolls and zooms nothing. `Ctrl` with it is left to the zoom.
+    //
+    // WHICHEVER AXIS MOVED: Qt reports an `Alt`+wheel as a HORIZONTAL one on some platforms, so the
+    // notch is read from `y` and, failing that, from `x`. Sub-notch deltas from a precise wheel are
+    // gathered until they make a notch, so a smooth wheel steps a rung per notch too.
+    const Qt::KeyboardModifiers held = event->modifiers();
+    if (held.testFlag(Qt::AltModifier) && !held.testFlag(Qt::ControlModifier)
+        && tools_->effective() == ToolKind::Loupe) {
+        const QPoint delta = event->angleDelta();
+        loupeWheel_ += delta.y() != 0 ? delta.y() : delta.x();
+        const int notches = static_cast<int>(loupeWheel_ / kWheelNotch);
+        if (notches != 0) {
+            loupeWheel_ -= notches * kWheelNotch;
+            (void)tools_->stepLoupeMagnification(notches);
+        }
+        event->accept();
+        return;
+    }
+
     // A FROZEN PANE'S WHEEL IS THE BODY'S (I-20), scroll and zoom alike, and it is handed over
     // BEFORE this pane moves -- a pane frozen at the top of the document has nowhere to scroll up
     // to, and measuring its movement afterwards was I-19's first fix and the reason a wheel up over
@@ -1192,14 +1234,125 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
     guides_->paint(painter, engine_.layout(), visible, dpr);
 }
 
+PageView::LoupeRegion PageView::loupeRegionFor(const QRectF& source) const
+{
+    LoupeRegion region;
+    if (!document_.isValid() || pages_ == nullptr || pages_->isEmpty() || source.isEmpty()) return region;
+
+    const core::render::PageLayout& layout = engine_.layout();
+    const core::DeviceRect visible = controller_->visibleRect();
+    const double dpr = devicePixelRatioF();
+    const double magnification = tools_->loupe().magnification();   // the rung `Alt`+wheel set (D4-22)
+
+    // THE LENS'S SOURCE IN CONTENT SPACE -- device pixels, the scroll added back. The inverse of the
+    // one conversion `TilePresenter::paint` makes, and written the same way round.
+    const QRectF content(visible.left() + source.x() * dpr, visible.top() + source.y() * dpr,
+                         source.width() * dpr, source.height() * dpr);
+
+    // THE PAGE THE LENS IS OVER: the one it overlaps most. A source over the gap between two pages,
+    // or the desk beside one, asks for nothing, and one straddling an edge asks only for its part.
+    const core::DeviceRect sourceRect{core::DevicePoint{content.left(), content.top()},
+                                      core::DeviceSize{content.width(), content.height()}};
+    const core::render::PageSlot* best = nullptr;
+    double bestArea = 0.0;
+    const std::vector<core::render::PageSlot> candidates = layout.slotsIntersecting(sourceRect);
+    for (const core::render::PageSlot& slot : candidates) {
+        const QRectF sheet(slot.rect.left(), slot.rect.top(), slot.rect.size.width, slot.rect.size.height);
+        const QRectF part = sheet.intersected(content);
+        const double area = part.width() * part.height();
+        if (area > bestArea) {
+            bestArea = area;
+            best = &slot;
+        }
+    }
+    if (best == nullptr || bestArea <= 0.0) return region;
+
+    // THE REGION IN THE PAGE'S OWN RASTER SPACE AT THE MAGNIFIED SCALE: sheet-relative, times the
+    // magnification, rounded OUTWARD so the raster covers the whole of what the lens shows, and
+    // clamped to the page, whose raster at that scale is `ceil(extent x magnification)` -- the
+    // rasterizer refuses a rectangle that starts beyond the page (`PdfiumRasterizer`).
+    const QRectF sheet(best->rect.left(), best->rect.top(), best->rect.size.width, best->rect.size.height);
+    const QRectF part = sheet.intersected(content);
+    const int pageWidth = static_cast<int>(std::ceil(sheet.width() * magnification));
+    const int pageHeight = static_cast<int>(std::ceil(sheet.height() * magnification));
+    const int x0 = std::clamp(static_cast<int>(std::floor((part.left() - sheet.left()) * magnification)), 0, pageWidth);
+    const int y0 = std::clamp(static_cast<int>(std::floor((part.top() - sheet.top()) * magnification)), 0, pageHeight);
+    const int x1 = std::clamp(static_cast<int>(std::ceil((part.right() - sheet.left()) * magnification)), 0, pageWidth);
+    const int y1 = std::clamp(static_cast<int>(std::ceil((part.bottom() - sheet.top()) * magnification)), 0, pageHeight);
+    if (x1 <= x0 || y1 <= y0 || x0 >= pageWidth || y0 >= pageHeight) return region;
+
+    const core::render::TileRect tile{x0, y0, x1 - x0, y1 - y0};
+    region.request = presenter_->requestAt(best->pageIndex, tile, layout.presentedScale() * magnification,
+                                           controller_->viewRotation());
+
+    // WHERE THAT RASTER SITS IN THE VIEWPORT, in widget pixels: back to content space by dividing
+    // out the magnification, then the same conversion `TilePresenter::paint` makes.
+    region.widget = QRectF((sheet.left() + x0 / magnification - visible.left()) / dpr,
+                           (sheet.top() + y0 / magnification - visible.top()) / dpr,
+                           (tile.width / magnification) / dpr, (tile.height / magnification) / dpr);
+    return region;
+}
+
+bool PageView::paintSharpLens(QPainter& painter, const QRect& lens, const QRectF& source) const
+{
+    const LoupeRegion region = loupeRegionFor(source);
+
+    // OVER NO PAGE: nothing to ask for, and nothing waiting either.
+    if (!region.request.isValid()) {
+        loupeSettle_->stop();
+        pendingLoupe_ = core::render::RenderRequest{};
+        return false;
+    }
+
+    const QImage* image = loupeRaster_->imageFor(region.request);
+    if (image == nullptr) {
+        // THE REGION MOVED ON, OR IS NEW. What was aimed at is cancelled at once rather than when the
+        // new region is asked for -- a lens swept across a page must not leave a job in front of the
+        // viewport's tiles (D4-20) -- and the new region starts its settle interval, restarted only
+        // when the region CHANGES, so a repaint of a lens standing still does not postpone it.
+        if (loupeRaster_->aimed().isValid() && !(loupeRaster_->aimed() == region.request))
+            loupeRaster_->clear();
+        if (!(pendingLoupe_ == region.request)) {
+            pendingLoupe_ = region.request;
+            loupeSettle_->start();
+        }
+        return false;
+    }
+
+    // THE SHARP REGION, COMPOSED AS THE PAGE IS. The same mapping the enlarged frame is drawn with --
+    // `source` onto `lens` -- so the sharp raster lands exactly where the enlarged one was, and under
+    // it the raster is 1:1 with the screen's device pixels. Then the inversion and the grid and
+    // guides, as `paintContent` lays them over the tiles, or the lens would show a page the view
+    // does not (D4-11: none of the three is in the raster).
+    const double scaleX = lens.width() / source.width();
+    const double scaleY = lens.height() / source.height();
+    QTransform map;
+    map.translate(lens.left() - source.left() * scaleX, lens.top() - source.top() * scaleY);
+    map.scale(scaleX, scaleY);
+
+    painter.save();
+    painter.setTransform(map, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.drawImage(region.widget, *image);
+    if (invertColors_) {
+        painter.setCompositionMode(QPainter::RasterOp_NotDestination);
+        painter.fillRect(region.widget, Qt::white);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    }
+    guides_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF());
+    painter.restore();
+    return true;
+}
+
 void PageView::paintEvent(QPaintEvent* event)
 {
     // TWO PATHS, AND THE SECOND ONE COSTS SOMETHING (S4 T7). Ordinarily the page is painted
     // straight onto the viewport. When the armed tool needs a FRAME -- only the loupe does -- the
     // same content goes into a pixmap first, which is then blitted and handed to the tool to
     // magnify. That is one extra viewport-sized copy per paint, paid only while the loupe is
-    // armed and never otherwise; `ui/viewer/tools/LoupeTool.h` says why the alternative (asking
-    // the engine for a magnified raster) was refused.
+    // armed and never otherwise. The enlarged frame is what the lens shows the instant it moves;
+    // since D4-20 a SHARP re-rasterization of the lens's region is painted over it once the region
+    // has been still -- `paintSharpLens`, and `ui/viewer/tools/LoupeTool.h` for why both.
     if (tools_->activeTool().needsFrame()) {
         const double ratio = devicePixelRatioF();
         const QSize pixels(static_cast<int>(viewport()->width() * ratio),
@@ -1217,8 +1370,14 @@ void PageView::paintEvent(QPaintEvent* event)
     }
 
     // The frame is dropped as soon as nothing wants it, so an armed-then-disarmed loupe does not
-    // leave a viewport-sized pixmap resident for the life of the tab.
-    if (!frame_.isNull()) frame_ = QPixmap();
+    // leave a viewport-sized pixmap resident for the life of the tab -- and so is the lens's sharp
+    // raster, and any region still waiting out the settle interval (D4-20).
+    if (!frame_.isNull()) {
+        frame_ = QPixmap();
+        loupeSettle_->stop();
+        pendingLoupe_ = core::render::RenderRequest{};
+        loupeRaster_->clear();
+    }
 
     QPainter painter(viewport());
     paintContent(painter, event->rect());

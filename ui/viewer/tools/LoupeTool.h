@@ -1,21 +1,26 @@
 // The Loupe -- `Features.md` §1.2 *"a magnifier window over a small area"*, Stage 4 T7.
 //
 // ===========================================================================================
-// IT MAGNIFIES WHAT IS ALREADY ON SCREEN, AND THAT IS A DECISION WITH A COST.
+// IT IS SHARP — decision D4-20, 2026-09-27, which reverses T7's choice and was measured first.
 // ===========================================================================================
-// The obvious implementation asks the engine for the region under the cursor at a higher scale.
-// It is also the wrong one here: a raster is asynchronous (`RenderScheduler`, one worker behind
-// PDFium's engine lock), so a lens fed that way would lag the pointer by a frame or more and would
-// put one more competitor in front of the viewport's own tiles — the exact cost **D4-10** bounds
-// for the thumbnails pane and **A2 at Stage 4** grades.
+// T7 magnified only the **last painted frame**: a raster is asynchronous (`RenderScheduler`, one
+// worker behind PDFium's engine lock), so a lens fed by the engine would lag the pointer and put
+// one more competitor in front of the viewport's tiles. The cost it recorded was that the lens
+// made small things bigger and never made blurry things sharp — and that a re-rasterizing loupe
+// *"would be measured against A2 before it was built"*. The user asked for exactly that during
+// M-12 (*"I want it to be sharp in len, not just enlarge the pixel"*), so:
 //
-// So the lens magnifies the **last painted frame**, which the host keeps only while a tool asks
-// for it (`Tool::needsFrame()`). What that buys: the lens is exact, instant, and costs one
-// viewport-sized blit per paint while the loupe is armed and nothing at all when it is not. **What
-// it costs, stated rather than discovered** (convention 19): the magnified pixels are the SCREEN's
-// pixels enlarged, not a re-rasterization, so the lens shows the page's own resolution magnified —
-// it makes small things bigger, and it does not make blurry things sharp. A loupe that
-// re-rasterized is a different feature and would be measured against A2 before it was built.
+//   * **The frame is still drawn first**, so the lens appears the instant it moves and never
+//     waits for the engine — T7's reason, kept.
+//   * **The host then paints the region SHARP over it** (`ToolHost::paintSharpLens`): once the
+//     region has been still for `PageView::kLoupeSettleMs`, `ui/viewer/LoupeRaster` asks the
+//     shipped scheduler for exactly that region at `presentedScale × magnification()`, one request
+//     at a time with the last one cancelled, and the page's inversion, grid and guides are laid
+//     over it at the same magnification.
+//   * **Measured as T7 said it must be** (guide case A-100): a `+ loupe` column in
+//     `bench_surface`, two lens requests a round inside the graded Visible lane, read 4.44–4.61 ms
+//     against the plain viewer's 4.40–4.92 ms in the same runs — noise, and inside the 16.667 ms
+//     budget. `Tech-Stack-Plan.md` §3.3 records it.
 //
 // ===========================================================================================
 // IT MOVES NOTHING.
@@ -46,11 +51,22 @@ namespace rawpage::ui {
 
 class LoupeTool final : public Tool {
 public:
-    // The lens, in logical pixels, and how much it enlarges. Fixed rather than configurable at
-    // Stage 4: `D4-5` declares fifteen settings keys and none of them is this, and a knob nothing
-    // reads back is the shape Stage 2's I-11 warns about.
-    static constexpr int    kLensSize = 160;
-    static constexpr double kMagnification = 2.5;
+    // The lens, in logical pixels -- fixed.
+    static constexpr int kLensSize = 160;
+
+    // HOW MUCH IT ENLARGES: a rung of this ladder, stepped by `Alt`+wheel (decision D4-22), 2.5 until
+    // somebody steps it. A LADDER rather than a continuous factor, so a notch is a visible change and
+    // the ends are round numbers a person can find again. It belongs to the view for the session and
+    // is not a setting: `D4-5` declared Stage 4's settings keys and none of them is this.
+    static constexpr double kMagnifications[] = {1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0};
+    static constexpr int    kDefaultRung = 2;   // 2.5
+    static constexpr double kDefaultMagnification = kMagnifications[kDefaultRung];
+
+    double magnification() const noexcept { return kMagnifications[rung_]; }
+
+    // Moves `steps` rungs up (positive) or down, clamped at both ends. Returns whether the
+    // magnification changed -- a notch at the top of the ladder changes nothing and asks for nothing.
+    bool stepMagnification(int steps);
 
     ToolKind kind() const override { return ToolKind::Loupe; }
     Qt::CursorShape cursor() const override { return Qt::CrossCursor; }
@@ -87,6 +103,7 @@ private:
     bool   moved_ = false;     // it went past the drag distance, so the release is not a click
     QPoint pressAt_;
     QPoint centre_;
+    int    rung_ = kDefaultRung;
 };
 
 } // namespace rawpage::ui

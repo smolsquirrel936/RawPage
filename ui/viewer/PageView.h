@@ -67,8 +67,11 @@ namespace rawpage::platform {
 class IDisplayTopology;
 }
 
+class QTimer;
+
 namespace rawpage::ui {
 
+class LoupeRaster;
 class TilePresenter;
 
 // The eleven `pageDisplay/` preferences, resolved into what a viewer actually needs. Stage 2 T15.
@@ -451,6 +454,11 @@ private:
         void requestRepaint() override { view_.requestRepaint(); }
         void recordView() override;
         const QPixmap* lastFrame() const override { return view_.lastFrame(); }
+        bool paintSharpLens(QPainter& painter, const QRect& lens,
+                            const QRectF& source) const override
+        {
+            return view_.paintSharpLens(painter, lens, source);
+        }
 
     private:
         PageView& view_;
@@ -462,6 +470,37 @@ private:
     // nothing -- see `ui/viewer/tools/LoupeTool.h` for what the choice buys and what it does not.
     std::unique_ptr<ToolController> tools_;
     QPixmap                         frame_;
+
+    // S4 D4-20: the Loupe's SHARP lens. The region under the lens, re-rasterized at the magnified
+    // scale by the scheduler's third client -- asked for only once the region has been still for
+    // `kLoupeSettleMs`, one request at a time. `pendingLoupe_` is the region waiting out that
+    // interval; it and the timer are touched from the const paint path, which is where the lens's
+    // region is first known, hence `mutable`. See `paintSharpLens`.
+    std::unique_ptr<LoupeRaster>        loupeRaster_;
+    QTimer*                             loupeSettle_ = nullptr;
+    mutable core::render::RenderRequest pendingLoupe_;
+
+    // S4 D4-22: `Alt`+wheel's delta not yet a whole notch -- a precise wheel reports fractions.
+    double loupeWheel_ = 0.0;
+
+public:
+    // The lens region's request, and the part of the viewport it covers in widget pixels -- or an
+    // invalid request when the region is over no page. Public for the cases (A-99), which assert
+    // WHAT was asked for against this, rather than re-deriving the arithmetic a second time.
+    struct LoupeRegion {
+        core::render::RenderRequest request;
+        QRectF                      widget;
+    };
+    LoupeRegion loupeRegionFor(const QRectF& source) const;
+
+    // The lens's scheduler client, read-only, for the same cases.
+    const LoupeRaster& loupeRaster() const noexcept { return *loupeRaster_; }
+
+    // D4-20's settle interval: how long the lens's region must be still before it is asked for.
+    static constexpr int kLoupeSettleMs = 100;
+
+private:
+    bool paintSharpLens(QPainter& painter, const QRect& lens, const QRectF& source) const override;
 
     // S4 T8: the grid and the guides painted over the tiles, and the page-colour inversion that
     // is painted the same way and for the same reason (D4-11).
