@@ -13,6 +13,8 @@
 
 #include "core/settings/Settings.h"
 #include "tests/ui/ColorDistance.h"
+#include "tests/ui/ShellFixture.h"
+#include "ui/shell/MainWindow.h"
 #include "ui/shell/ThemeManager.h"
 
 #include <QApplication>
@@ -20,9 +22,11 @@
 #include <QStyleHints>
 #include <QDir>
 #include <QFont>
+#include <QPalette>
 #include <QTemporaryDir>
 
 #include <cmath>
+#include <memory>
 #include <set>
 
 using namespace rawpage;
@@ -46,6 +50,20 @@ const std::vector<ui::ThemeToken>& allTokens()
     };
     return tokens;
 }
+
+// The application font and palette as a case found them, put back when it ends. `apply()` writes
+// both process-wide, and a case that applied a scale of 2.0 left every later case in the same
+// process laying out at twice the text size -- and every `ThemeManager` built after it capturing
+// that doubled font as its BASE.
+struct RestoreAppLook {
+    QFont    font = QApplication::font();
+    QPalette palette = QApplication::palette();
+    ~RestoreAppLook()
+    {
+        QApplication::setFont(font);
+        QApplication::setPalette(palette);
+    }
+};
 
 } // namespace
 
@@ -346,6 +364,7 @@ TEST_CASE("the resolved theme is handed to the style and not only to the palette
 
 TEST_CASE("the UI font scale is clamped by the schema rather than by the theme", "[theme]")
 {
+    const RestoreAppLook restore;
     QTemporaryDir directory;
     REQUIRE(directory.isValid());
     core::Settings settings(QDir(directory.path()).filePath(QStringLiteral("settings.ini")));
@@ -359,4 +378,45 @@ TEST_CASE("the UI font scale is clamped by the schema rather than by the theme",
     ui::ThemeManager theme(settings);
     theme.apply();
     CHECK(QApplication::font().pointSizeF() > 0.0);
+}
+
+// =============================================================================================
+// A-104 -- a second window takes the UI font scale; it does not compound it (I-29)
+// =============================================================================================
+
+TEST_CASE("a second window keeps the UI font scale rather than compounding it", "[theme][I-29]")
+{
+    // THROUGH `MainWindow`, not two bare `ThemeManager`s, because the defect was in how many of
+    // them the PRODUCT builds -- one per window -- and a case that built them by hand would be
+    // asserting a count the product does not have to share. What it does NOT cover (convention 19):
+    // that `window.new` and a torn-out tab each build a `MainWindow`; the arranger and tab cases
+    // assert that, and this one constructs the second window directly.
+    const RestoreAppLook restore;
+    uitest::ShellFixture fixture;
+
+    const double base = QApplication::font().pointSizeF();
+    REQUIRE(base > 0.0);
+    fixture.settings.set(core::keys::general::uiFontScale, 1.5);
+
+    auto first = std::make_unique<ui::MainWindow>(fixture.services());
+    INFO("base " << base << " pt");
+    CHECK(QApplication::font().pointSizeF() == base * 1.5);
+
+    // THE DEFECT: the second window took the first one's 13.5 pt as its base and set 20.25.
+    auto second = std::make_unique<ui::MainWindow>(fixture.services());
+    CHECK(QApplication::font().pointSizeF() == base * 1.5);
+
+    // AND THE WAY BACK, which is what the compounding took away: 1.0 is the base again, whichever
+    // window's theme answers the change last.
+    fixture.settings.set(core::keys::general::uiFontScale, 1.0);
+    CHECK(QApplication::font().pointSizeF() == base);
+
+    // A window opened AFTER the scale went back reads the same base, not a stale scaled one.
+    fixture.settings.set(core::keys::general::uiFontScale, 1.25);
+    auto third = std::make_unique<ui::MainWindow>(fixture.services());
+    CHECK(QApplication::font().pointSizeF() == base * 1.25);
+
+    third.reset();
+    second.reset();
+    first.reset();
 }

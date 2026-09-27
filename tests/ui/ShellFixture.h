@@ -202,6 +202,17 @@ struct FakeTopology final : platform::IDisplayTopology {
 struct ShellFixture {
     ShellFixture() = default;
 
+    // EVERY WIDGET DELETED LATER IS DELETED HERE, while this fixture's members still exist. A closed
+    // tab is a `deleteLater()` (`MainWindow::closeDocument`), and its destructor cancels, drains and
+    // closes its handle on THIS scheduler and backend. Left pending, it runs in whichever later case
+    // next flushes `DeferredDelete` -- against a fixture that is gone, whose stack slot the new case
+    // has reused -- and that is how `rawpage_ui_tests.exe` run whole died with an access violation,
+    // `std::bad_alloc` or no output at all, in a different case for every random order, while every
+    // case passed under `ctest`, one process each. This body runs after any window a case built from
+    // the fixture has been destroyed (a derived fixture's members and the case's locals go first) and
+    // before the members below do, which is the one point where the flush is always safe.
+    ~ShellFixture() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
+
     // A fixture whose settings file EXISTS BEFORE `Settings` loads it, read through a supplied alias
     // table. Stage 2 I-39: what a user keeps across an action rename is decided at load, so a case
     // about it has to hand the loader a file it did not write itself -- and the shipped alias table

@@ -7,9 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** 🟡 **Written 2026-09-18, the same day as the plan and the day Stage 3 was signed off;
-> partly run.** **103 automated** (A-01 … A-102, plus **A-66(a)**; A-66(a) came with T11's A2 named
-> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 103 carry
-> a result** as of 2026-09-27 (re-derived from this file: 103 case headers, none still boxed — the
+> partly run.** **105 automated** (A-01 … A-104, plus **A-66(a)**; A-66(a) came with T11's A2 named
+> work — a lane no case in this file claimed) and **12 manual** (M-01 … M-12); **all 105 carry
+> a result** as of 2026-09-27 (re-derived from this file: 105 case headers, none still boxed — the
+> 104th and 105th are **A-103** and **A-104**, added 2026-09-27 with the fixes for I-28 and I-29, both
+> found by investigating why the UI binary could not be run whole; the
 > 102nd and 103rd are **A-101** and **A-102**, written from decision D4-22 before its code; the
 > 100th and 101st are **A-99** and **A-100**, written from decision D4-20 before its code and run the
 > same day, the second a `bench_surface` column; the 98th and 99th are **A-97** and **A-98**, added 2026-09-27 with I-26's and I-27's fixes during
@@ -73,9 +75,13 @@
 > pins, a drag aims*); the walk led to decisions **D4-20** (a sharp lens), **D4-21** and **D4-22**
 > (`Alt`+wheel on the lens, key tips on `Alt`'s release), all built that day, **and the Loupe's
 > re-walk on that build passed — M-12 is signed off** (pen and touch not run, for want of hardware).
-> §8 holds **twenty-seven** issues and **only I-07 (S4) is open**;
+> **After the walk, on 2026-09-27:** investigating why `rawpage_ui_tests.exe` could not be run whole
+> raised **I-28 (S3)** — cases leaving process-wide state behind, a pending tab deletion among it, so a
+> later case in the same process crashed — and, through it, **I-29 (S2)** — a second window compounded
+> the UI font scale, reachable since Stage 1's tab tear-out; both fixed the same day.
+> §8 holds **twenty-nine** issues and **only I-07 (S4) is open**;
 > I-02, I-03, I-04, I-05, I-06, I-08, **I-01 and I-09 at T13**, **I-10 on 2026-09-24** and **I-11 to
-> I-17 on 2026-09-26**, and **I-18 to I-27 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
+> I-17 on 2026-09-26**, and **I-18 to I-29 on 2026-09-27** are closed — **I-01 where this file said its owner would settle it, I-09 found
 > by `x64-debug` after `x64-release` had reported green, and I-10 to I-15 each found by a person
 > looking at the product over a green automated half** — I-13, the vertical ruler with no numbers, by
 > the user asking about it after M-01 rather than inside a case. **I-16** — `Ctrl+;` snapped no guide,
@@ -1537,7 +1543,8 @@ the request's scale left at the presented scale (claim 2's scale fails); the ras
 (claim 3 fails).
 **What it does NOT cover** (convention 19): whether the lens LOOKS sharp — the fake raster is flat
 colour — which is M-12's re-walk on a real page; and the cost, which is A-100's.
-**Steps** `ctest --preset x64-release -R "D4-20"`.
+**Steps** `ctest --preset x64-release -R "the loupe's lens asks"` — two cases. *(Corrected
+2026-09-27: this line said `-R "D4-20"` — the TAG, which selected no test.)*
 **Expect** Passed. **If it fails** S3 — the lens is not sharp, or asks while moving, or for the wrong region.
 
 **A-100 · A2 with the Loupe sweeping — the Visible lane still inside the budget — D4-20** ✅
@@ -1579,7 +1586,9 @@ it the same; (4) the view neither scrolls nor zooms; (5) the sharp lens (D4-20),
 `presentedScale ×` the NEW magnification, for the region the new magnification shows. **Control, run
 red:** with the Hand armed, `Alt`+wheel does what the wheel did before and the magnification is
 untouched — and with the handler removed, claims 1–4 fail.
-**Steps** `ctest --preset x64-release -R "D4-22"`.
+**Steps** `ctest --preset x64-release -R "Alt and the wheel (step|leave)"` — two cases. *(Corrected
+2026-09-27: this line said `-R "D4-22"`, which is the Catch2 TAG; `ctest` selects by NAME and that
+regex selected nothing.)*
 **Expect** Passed. **If it fails** S3 — the lens cannot be magnified, or the gesture moves the page.
 
 **A-102 · The ribbon's key tips show on `Alt`'s release, and never after `Alt`+wheel — D4-22** ✅
@@ -1598,9 +1607,51 @@ alone shows no key tips; (2) its RELEASE shows them; (3) `Alt` down, a wheel not
 the old press-time dispatch — claim 1 and claim 3 fail.
 **What it does NOT cover** (convention 19): what Windows itself does with a lone `Alt` release (its menu
 mode) — synthetic events never reach it — which is M-12's re-walk.
-**Steps** `ctest --preset x64-release -R "D4-22"`.
+**Steps** `ctest --preset x64-release -R "key tips show on Alt's release"`. *(Corrected 2026-09-27:
+this line said `-R "D4-22"` — the TAG, which selected no test.)*
 **Expect** Passed. **If it fails** S2 for claim 3 (an `Alt`+wheel pops the key tips and takes focus
 from the page), S3 otherwise.
+
+**A-103 · No UI case leaves process-wide state behind, and the binary runs WHOLE in any order — I-28, closed** ✅
+✅ **2026-09-27.** A guard, not a case: `ProcessStateGuard`, a Catch2 listener in `tests/ui/main.cpp`,
+checks after EVERY case of `rawpage_ui_tests` that (a) no widget is still alive, (b) the application
+font's point size is what it was when the case began, and (c) the font database holds the same number
+of families — the three things I-28 measured leaking — and makes the process exit non-zero naming the
+case. Under `ctest`, one case per process, that fails the LEAKING case itself, deterministically.
+**Run green:** `ctest` **1143/1143** on both presets with the guard in and silent; and the binary run
+whole, **368 cases**, in declaration order and under seeds 1799723808 and 51879852 (the two that had
+crashed or failed) plus four random seeds, **on each preset — 12 of 12 runs, 366 passed and the two
+named skips**, no line from the guard. **And on the `windows` platform**, the four real-desktop cases
+— A-85 `[I-14]`, A-94 `[I-23]`, A-95 `[I-24]` and A-96 `[I-25]` — run together with the guard in and
+nobody touching the desktop: **162 assertions in 4 cases passed on each preset**, none skipped, no line
+from the guard. Before the guard was written, the same fixes had been run
+whole under declaration order and 13 random seeds per preset, 28 of 28 green.
+**Planted controls, run red under `ctest`, each naming its case:** `ShellFixture` without its
+`DeferredDelete` flush — *"closing the last document empties the pane…"*: **12 widget(s) still
+alive**; the ruler case loading Arial without its scoped unload — *"the font database went from 0 to
+1 families"*; the font-scale case without its restore — *"the application font went from 9 pt to
+18 pt"*. Every case in each passed its own assertions, which is the point: none of the three leaks is
+visible to the case that commits it.
+**What it does NOT cover** (convention 19): the application PALETTE — `MainWindow`'s theme writes it
+in nearly every shell case, and a palette moves no geometry — nor any other process-wide Qt state
+(style, translators, focus, the clipboard). And it guards `rawpage_ui_tests` only: the composition
+suite links the widgets too and has no such listener.
+**Steps** `ctest --preset x64-release -R "^ui\."`; and whole,
+`build\x64-release\bin\rawpage_ui_tests.exe --order rand` (offscreen, from `build\x64-release\tests\ui`).
+**Expect** Passed, and no `PROCESS STATE LEAKED` line. **If it fails** S3 — the line names the case.
+
+**A-104 · A second window keeps the UI font scale rather than compounding it — I-29, closed** ✅
+✅ **2026-09-27** (`tests/ui/tst_theme.cpp`, tag `[I-29]`, 5 assertions). Two real `MainWindow`s
+over one fixture at `general/uiFontScale` 1.5: the application font is base × 1.5 after the first
+**and after the second**; back to exactly the base when the scale returns to 1.0; and base × 1.25 for
+a THIRD window opened after a change to 1.25. **Planted control — the old per-window capture of
+`QApplication::font()` — run red at all three**: **20.25 == 13.5** at the second window, **13.5 ==
+9.0** on the way back, **21.09375 == 11.25** for the later window.
+**What it does NOT cover** (convention 19): that `window.new` and a torn-out tab each build a
+`MainWindow` — the arranger and tab cases assert that; this one constructs the second window
+directly — nor how the scaled text LOOKS on a panel.
+**Steps** `ctest --preset x64-release -R "second window keeps the UI font scale"`.
+**Expect** Passed. **If it fails** S2 — I-29 is back.
 
 ---
 
@@ -2153,6 +2204,8 @@ uses.
 | **I-25** | **S3** | **The edge strip of a CLOSED sidebar did nothing to a hover or a click, although its tooltip says *Show the sidebar* — since Stage 1 T9** | ✅ **Closed 2026-09-27, the day M-10 raised it** — a click on a closed pane's strip is `view.toggleSidebar`; a hover stays a peek; **A-96** |
 | **I-26** | **S3** | **A drag with the Loupe armed pinned the lens where the drag began, and the rest of the drag moved nothing: a PRESS toggled the pin** | ✅ **Closed 2026-09-27, the day M-12 raised it** — on the user's choice of model: a click pins, a drag aims; **A-97** |
 | **I-27** | **S3** | **Holding the temporary hand's `Shift` left the loupe's lens on screen until a pan repainted the page, and releasing it brought the lens back only on a mouse move** | ✅ **Closed 2026-09-27, the day M-12 raised it** — the controller repaints when the temporary hand switches, and `PageView` reads the key's release; **A-98** |
+| **I-28** | **S3** | **`rawpage_ui_tests.exe` run WHOLE died — an access violation, `std::bad_alloc` or no output, in a different case each run: cases left process-wide state behind, and a closed tab's pending deletion ran in a later case against a destroyed fixture** | ✅ **Closed 2026-09-27, the day it was investigated** — `ShellFixture` flushes deferred deletes before its members go, the font leaks are scoped, and **A-103**'s guard fails the leaking case under `ctest` |
+| **I-29** | **S2** | **A second window compounded the UI font scale: at 1.5, a second `MainWindow` set 20.25 pt over a 9 pt base, and setting 1.0 then left 13.5 — reachable since Stage 1's tab tear-out** | ✅ **Closed 2026-09-27, the day I-28's investigation found it** — the unscaled base is recorded once per process, on the application; **A-104** |
 
 **I-01 · Guides are keyed by an identity that the first save invalidates.** *(Raised 2026-09-19 at T3, while implementing D4-7 rather than by a failing case — which is itself the finding: no case in §5.5 would have caught it, because a round trip through one `SessionState` never changes a document.)*
 
@@ -2906,12 +2959,80 @@ off, and `PageView::keyReleaseEvent` re-derives the modifiers from the release �
 on the key alone with a paint counter on the viewport; the planted control — no repaint, no release —
 runs red on both halves.
 
+**I-28 · The UI binary run whole died, somewhere different every time.** *(Raised 2026-09-27 — §9
+item 4 had recorded, earlier that day, that `rawpage_ui_tests.exe` run as one process "does not finish"
+with the cause "NOT established"; the user asked for it to be investigated. S3: no product behaviour
+was wrong, and `ctest` — the suite's mode — was green throughout.)*
+
+**Mechanism — three leaks, one shared process.** Every case in the binary shares one `QApplication`.
+`ctest` runs each case in a process of its own, so a case that leaves something behind is followed by
+nothing; run whole, it is followed by every other case. **Catch2 v3 shuffles cases by default**, which
+is why each run died somewhere else — a fixed `--rng-seed` (1799723808) reproduced it every time, and
+`--order decl` did too, at a third place.
+* **A closed tab outlived its fixture.** `MainWindow::closeDocument` ends in `deleteLater()`
+  (`ui/shell/MainWindow.cpp:765`). Five cases ended with widgets still pending deletion — three of
+  them closed tabs, one in `tst_panes` and two in `tst_documenttabs`, the other two leaving 5 and 3
+  lesser widgets in `tst_aliassurvival` — and their fixtures had no teardown that flushed them (the `Desk` fixture in `tst_arranger` did, with a comment naming exactly this trap). The
+  next case to flush `DeferredDelete` ran `~DocumentWindow` there, and its `cancelDocument` locked a
+  mutex inside a scheduler that had been a stack object of an EARLIER case. gdb on `x64-debug` showed
+  it: the dying window held `pages.pdf`, which the crashing case never opened, and its scheduler and
+  backend references were each **16 bytes** off the crashing case's own fixture — the same stack slot,
+  reused. What that garbage did next depended on what the new case had put there: a SIGSEGV in
+  `pthread_mutex_lock`, a `bad_alloc`, or an exit with no output.
+* **An application font, loaded and never unloaded.** Two ruler cases (I-13's and I-17's) load
+  `arial.ttf` into the font database for real glyph metrics, which offscreen otherwise lacks, and left
+  it loaded. Every later case laid out in Arial rather than offscreen's boxes. The Tab-order case from
+  Stage 1's I-05 then failed — falsely: it walks `nextInFocusChain()`, which includes group captions
+  Tab can never land on, and under Arial those captions sat out of order. Filtered to widgets with
+  `Qt::TabFocus`, the chain was strictly left to right.
+* **The application font, doubled and never restored.** *"The UI font scale is clamped by the
+  schema…"* applies a scale of 2.0 and left `QApplication::font()` at 18 pt — and every
+  `ThemeManager` built after it took 18 pt as its base (which is **I-29**). The ribbon-scroll case,
+  A-90 and A-95 failed after it, each passing alone.
+
+**Why no case caught it.** Each leak is invisible to the case that commits it — all three leaking cases
+passed their own assertions — and `ctest`'s one-process-per-case isolation, the thing that keeps the
+suite green, is also what hid them. Nothing ran the cases in one process until a person did by hand.
+
+**The fix, 2026-09-27.** `uitest::ShellFixture` flushes `DeferredDelete` in its destructor, whose body
+runs after any window built from the fixture is gone and before the scheduler and backend it owns —
+one place covering every case built on it. The two ruler cases unload their font through a scoped
+guard; the font-scale case restores the application font and palette. **A-103** — a listener that
+fails the process after any case leaving a widget alive, the application font resized or the font
+database changed — so the next leak fails its OWN case under `ctest`. Its three planted controls each
+named their case; its clean runs were silent.
+
+**I-29 · A second window compounded the UI font scale.** *(Raised 2026-09-27 by I-28's
+investigation: the font-scale case's leak was a TEST defect, but why a leaked font became every later
+window's base was a PRODUCT one. S2 — a documented setting that is wrong, and the way back to the
+default is a restart.)*
+
+**Mechanism.** `ThemeManager` captured `QApplication::font().pointSizeF()` as its base in its
+constructor, and its comment said why — *"captured once, before anything is scaled"*, so that two
+changes of 1.5 would not compound. But every `MainWindow` owns a `ThemeManager`, so it was captured
+once PER WINDOW, and a second window's constructor read the font the first window had already scaled.
+Measured headlessly through `MainWindow` at `general/uiFontScale` 1.5 over a 9 pt base: **13.5** after
+the first window, **20.25** after the second, and **13.5** — not 9 — once the scale was set back to
+1.0; closing every window left it there. **Reachable since Stage 1 T10–T12** (2026-08-24), when a tab
+could first be torn out into a window of its own; Stage 4 T11's `window.new` added a second way in. At
+the default scale of 1.0 it cannot show, which is why no walk met it.
+
+**Why no case caught it.** Every theme case builds ONE `ThemeManager`, and every multi-window case runs
+at the default scale — the two conditions never met in one case.
+
+**The fix, 2026-09-27.** The unscaled base is recorded once per process — by the first `ThemeManager`
+constructed, as a property of the application object whose font it describes — and every later one
+reads it from there. **A-104**, two real `MainWindow`s and a third after a change; the planted
+per-window capture runs red at all three checks. **Walked on a real panel by the user on 2026-09-27,
+and passed** (*"I-29 walked, passed"*): at an interface font scale of 1.5, a second window from *New
+Window* left the text the same size in both windows, and setting 1.0 returned both to normal size.
+
 ## 9. Sign-off criteria
 
 Stage 4 is done when **all** of these hold — [`Stage4-ViewingSurface-Plan.md` §13](./Stage4-ViewingSurface-Plan.md#13-definition-of-done-for-stage-4)
 restated as a checklist.
 
-1. ✅ **2026-09-27 — all 103 carry a result.** The 102nd and 103rd are **A-101** and **A-102**, D4-22's — `Alt`+wheel on the Loupe and the key tips on `Alt`'s release. The 100th and 101st are **A-99** and **A-100**, D4-20's — the sharp lens and its A2 measurement. The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
+1. ✅ **2026-09-27 — all 105 carry a result.** The 104th and 105th are **A-103** and **A-104**, I-28's guard and I-29's case, both run under `ctest` with planted controls run red. *Before that, the same day — all 103.* The 102nd and 103rd are **A-101** and **A-102**, D4-22's — `Alt`+wheel on the Loupe and the key tips on `Alt`'s release. The 100th and 101st are **A-99** and **A-100**, D4-20's — the sharp lens and its A2 measurement. The 98th and 99th are **A-97** and **A-98**, I-26's and I-27's, both under `ctest`. The 96th and 97th are **A-95** and **A-96**, I-24's and I-25's, both run under `ctest` and on the `windows` platform. The 95th is **A-94**, I-23's, whose result — like A-85's — is a `windows`-platform run, because under `ctest` it skips by design. The 94th is **A-93**, I-22's guard. The 91st and 92nd are **A-90** and **A-91**, added with the fixes for I-18 and I-19 — A-91 rewritten the same day with I-20's — and the 93rd is **A-92**, I-21's. *Before that, 2026-09-26 — all 90.* The 81st is **A-80**, added 2026-09-24 with I-10's fix, and the 82nd to 87th are **A-81**, **A-82**, **A-83**, **A-85** and **A-86**, added 2026-09-26 with the fixes for I-11 to I-15, and **A-84**, D4-18's; the 88th and 89th are **A-87** and **A-88**, I-16's and I-17's, the same day, and the 90th **A-89**, the dotted preview — **A-85's result is a `windows`-platform run, because under `ctest` it skips by design**; the last of the original eighty to get one was A-04. Every case
    in this file was run and its actual output recorded against it, not summarized (Stage 1's I-32).
    **A-04 is a `portable-asan` CI job and this machine has no ASan runtime**, so it was read from that
    job's **log** rather than its tick (rule 3): CI run 35879213301, the T14 push, **609/609** with all
@@ -2942,15 +3063,21 @@ restated as a checklist.
 3. ✅ **2026-09-23, T14.** `checks` clean — four gates — and **`mutation-lint` reports one command**
    (A-06), with `Commands.def` and `core/cmd/commands/` **byte-unchanged across the whole stage**
    (A-07), which is the stronger claim.
-4. ✅ **2026-09-27, re-run after D4-22, `Alt`+wheel and the release-time key tips: 1142/1142 on
+4. ✅ **2026-09-27, re-run after I-28's and I-29's fixes: 1143/1143 on `x64-release` and on
+   `x64-debug`**, the one new case A-104's — A-103 is a listener, not a case — the same three named
+   skips, `checks` clean on four gates (`layer-lint` 425 files / 3,430 includes); no `warning:` line
+   from either incremental build. **And `rawpage_ui_tests.exe` now runs WHOLE**: 368 cases, in
+   declaration order and six seeded orders per preset, 12 of 12 runs green with A-103's guard silent.
+   *Before that,* **re-run after D4-22, `Alt`+wheel and the release-time key tips: 1142/1142 on
    `x64-release` and on `x64-debug`**, the three new cases A-101's two and A-102's, the same three named
-   skips, `checks` clean on four gates (`layer-lint` 425 files / 3,416 includes). **Recorded, not a
-   product finding: running `rawpage_ui_tests.exe` WHOLE — every case in one process — does not
-   finish**: it ended in `std::bad_alloc` after about two hundred cases, and the case it stopped before
-   passes alone, with its tag and under `ctest`. **It predates D4-20 and D4-22**: the binary rebuilt at
-   `8ca0784`, before either, also died whole (exit 148, no output). `ctest` runs one case per process,
-   which is the suite's mode and is green; the cause — something that accumulates across cases in one
-   process — is NOT established. *Before that,* **re-run after D4-20, the sharp lens: 1139/1139 on `x64-release` and on
+   skips, `checks` clean on four gates (`layer-lint` 425 files / 3,416 includes). **Running
+   `rawpage_ui_tests.exe` WHOLE — every case in one process — did not finish**: it ended in
+   `std::bad_alloc` after about two hundred cases, and the case it stopped before passed alone. It
+   predated D4-20 and D4-22 (the binary at `8ca0784` died whole too, exit 148, no output). **The cause
+   was established the same day and is I-28**: not something accumulating, as this item first guessed,
+   but cases leaving process-wide state behind — a closed tab's pending deletion that a later case ran
+   against a destroyed fixture, and two font leaks — under an order Catch2 v3 shuffles by default.
+   *Before that,* **re-run after D4-20, the sharp lens: 1139/1139 on `x64-release` and on
    `x64-debug`**, the two new cases A-99's, with the same three named skips and `checks` clean on four
    gates (`layer-lint` 425 files / 3,412 includes — two new files, `ui/viewer/LoupeRaster.{h,cpp}`); no
    `warning:` line from either incremental build. The intermittent Stage 3 failure did not recur.
@@ -3066,7 +3193,11 @@ restated as a checklist.
    window — Qt's own `setFloating(false)` — and **I-25 (S3)**, a closed sidebar's edge strip that
    opened nothing, both closed that day with **A-95** and **A-96**. And M-12's walk that day raised
    **I-26 (S3)**, a loupe drag pinning the lens where it began, and **I-27 (S3)**, the temporary hand
-   leaving the lens on screen, both closed that day with **A-97** and **A-98**.
+   leaving the lens on screen, both closed that day with **A-97** and **A-98**. And after the walk,
+   investigating why the UI binary could not be run whole raised **I-28 (S3)**, cases leaving
+   process-wide state behind, and through it **I-29 (S2)**, a second window compounding the UI font
+   scale — both closed that day with **A-103** and **A-104**. §8 holds twenty-nine issues, and only
+   I-07 is open.
    *Before that, 2026-09-24:* §8 held ten issues and **only I-07
    is open**, at S4: a page colour can be inverted but not substituted, because no declared settings
    key holds a colour pair — a scope finding owned by Stage 8, nothing broken and nothing inert.
@@ -3084,7 +3215,10 @@ restated as a checklist.
 COMPLETE, the Linux job included; **ALL TWELVE MANUAL CASES ARE WALKED AND SIGNED OFF** — M-11, M-01 ON
 ITS RE-WALK, M-02, M-06, M-03, M-04, M-05 ON ITS STEP-5 RE-WALK, M-07, M-08 ON ITS SECOND RE-WALK OF
 STEP 1, M-09 ON ITS RE-WALK, M-10 ON ITS RESUMED WALK AND M-12 ON ITS LOUPE RE-WALK — AND EVERY ISSUE ANY
-OF THEM RAISED IS FIXED; only I-07 (S4) is open, owned by Stage 8. **What remains is the user's sign-off
+OF THEM RAISED IS FIXED; only I-07 (S4) is open, owned by Stage 8. The two issues found after the
+walk, I-28 and I-29, are fixed and closed by A-103 and A-104; I-29's fix, a product change, was also
+walked on a real panel by the user on 2026-09-27 and passed — a check outside §6, which has no case
+for it. **What remains is the user's sign-off
 of the stage itself**, which is theirs to give and is not recorded here until they give it. That each of the first three manual cases walked in this stage found a defect the
 complete automated half had ratified, and that each fix needed a new case rather than only a new line
 of code, was the argument for walking every one of the twelve — and the walks bore it out: M-08 to

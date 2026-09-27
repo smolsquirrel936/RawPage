@@ -5,25 +5,49 @@
 #include "ui/shell/Catalog.h"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QFont>
 #include <QGuiApplication>
 #include <QPalette>
 #include <QStyleHints>
+#include <QVariant>
 
 namespace rawpage::ui {
 namespace {
 
 using core::LogSubsystem;
 
+// Where the application's UNSCALED point size is kept: on the application object, whose font it
+// describes, and not on any one `ThemeManager`. See `unscaledBasePointSize()`.
+constexpr char kBaseFontProperty[] = "rawpage.ui.unscaledFontPointSize";
+
+// The application font's point size BEFORE any `ThemeManager` scaled it -- recorded by the first
+// one constructed in this process and read by every later one. Stage 4 guide I-29: each
+// `MainWindow` owns a `ThemeManager`, and when each captured `QApplication::font()` for itself, a
+// second window opened at a scale of 1.5 took the first window's 13.5 pt as its base and set
+// 20.25, and setting the scale back to 1.0 then left 13.5 -- the compounding the capture exists to
+// prevent, reached through the one path it did not consider: more than one window.
+double unscaledBasePointSize()
+{
+    QCoreApplication* application = QCoreApplication::instance();
+    const QVariant recorded = application->property(kBaseFontProperty);
+    if (recorded.isValid()) return recorded.toDouble();
+
+    const double base = QApplication::font().pointSizeF();
+    application->setProperty(kBaseFontProperty, base);
+    return base;
+}
+
 } // namespace
 
 ThemeManager::ThemeManager(core::Settings& settings, QObject* parent)
     : QObject(parent), settings_(settings)
 {
-    // The BASE point size is captured once, before anything is scaled. Scaling the current font
-    // instead would compound: two changes of 1.5 would give 2.25 and there would be no way back to
-    // 1.0 except restarting.
-    baseFontPointSize_ = QApplication::font().pointSizeF();
+    // The BASE point size is captured once PER PROCESS, before anything is scaled. Scaling the
+    // current font instead would compound: two changes of 1.5 would give 2.25 and there would be no
+    // way back to 1.0 except restarting -- and "once per ThemeManager" was not once, because every
+    // window has one (I-29).
+    baseFontPointSize_ = unscaledBasePointSize();
 
     settingsSubscription_ = settings_.subscribe([this](const core::Settings::Change& change) {
         if (change.group == core::SettingsGroup::General) apply();

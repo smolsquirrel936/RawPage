@@ -184,6 +184,18 @@ struct Viewer {
     }
 };
 
+// A font file loaded for ONE case and unloaded when it ends. An application font is process-wide:
+// left loaded, every later case in the same process lays its widgets out in Arial's metrics
+// instead of offscreen's boxes, which moved the ribbon's collapse points under the Tab-order case
+// when `rawpage_ui_tests.exe` ran whole. `ctest` runs one case per process and never saw it.
+struct ScopedAppFont {
+    int id;
+    explicit ScopedAppFont(const QString& path) : id(QFontDatabase::addApplicationFont(path)) {}
+    ~ScopedAppFont() { if (id >= 0) QFontDatabase::removeApplicationFont(id); }
+    ScopedAppFont(const ScopedAppFont&) = delete;
+    ScopedAppFont& operator=(const ScopedAppFont&) = delete;
+};
+
 } // namespace
 
 // =============================================================================================
@@ -681,8 +693,8 @@ TEST_CASE("both rulers print their numbers inside themselves", "[rulers][I-13]")
     // of this case fail after the fix exactly as it had before it (vertical ink 0 both times). The
     // `windows` platform read 123 after the fix and 0 with the old origin planted back; a font file
     // is what lets `ctest`'s offscreen run see the same difference.
-    const int loaded =
-        QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/arial.ttf"));
+    const ScopedAppFont arial(QStringLiteral("C:/Windows/Fonts/arial.ttf"));
+    const int loaded = arial.id;
     REQUIRE(loaded >= 0);
     const QStringList families = QFontDatabase::applicationFontFamilies(loaded);
     REQUIRE_FALSE(families.isEmpty());
@@ -1021,8 +1033,8 @@ TEST_CASE("the cursor marker is red with its reading beside it, in both themes",
 
     // A real font, for the reason the I-13 case above gives: offscreen draws glyphs as boxes, and
     // the readout's box is sized from the text's metrics.
-    const int loaded =
-        QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/arial.ttf"));
+    const ScopedAppFont arial(QStringLiteral("C:/Windows/Fonts/arial.ttf"));
+    const int loaded = arial.id;
     REQUIRE(loaded >= 0);
     const QStringList families = QFontDatabase::applicationFontFamilies(loaded);
     REQUIRE_FALSE(families.isEmpty());
