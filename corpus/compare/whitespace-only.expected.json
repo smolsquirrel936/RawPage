@@ -1,0 +1,21 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/whitespace-only.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "whitespace",
+   "page": 0,
+   "item": 0,
+   "doubleAfter": [
+    3,
+    11,
+    17
+   ]
+  }
+ ],
+ "summary": [
+  "page 1, paragraph 1: three single spaces became double spaces; no word changed"
+ ]
+}

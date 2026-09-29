@@ -22,3 +22,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 9 (filtered on `cropbox-margins`, `dests-named`, `ordinary/transitions`)
 - **Reason** Stage 4 T1: three corpus files added (ordinary/cropbox-margins.pdf, ordinary/dests-named.pdf, ordinary/transitions.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files.
+
+## 2026-09-29T12:29:04Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 84 (filtered on `compare/`, `columns-`, `table-ruled`, `rtl-text`, `cjk-vertical`, `hyphenated`, `text-tounicode`, `cjk-readable`, `search-classes`, `text-900`)
+- **Reason** Stage 5 T1: 27 corpus files added (ordinary/columns-two, columns-three, table-ruled, rtl-text, cjk-vertical, hyphenated, text-tounicode, cjk-readable, search-classes, text-900, and the 17 files of compare/). Additions only -- no existing baseline is regenerated, and the filter names only the new files.

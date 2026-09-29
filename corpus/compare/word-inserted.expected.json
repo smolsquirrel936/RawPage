@@ -1,0 +1,20 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/word-inserted.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "insert",
+   "page": 0,
+   "item": 1,
+   "at": 9,
+   "after": [
+    "urgently"
+   ]
+  }
+ ],
+ "summary": [
+  "page 1, paragraph 2: the word 'urgently' inserted after its ninth word"
+ ]
+}

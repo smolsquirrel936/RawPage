@@ -33,6 +33,516 @@
         },
         {
             "dpi": 96,
+            "file": "compare/base.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/base.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/base.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/header-changed.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/header-changed.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/header-changed.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/identical.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/identical.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/identical.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/image-moved.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/image-moved.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/image-moved.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/page-deleted.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/page-deleted.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/page-deleted.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/page-inserted.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/page-inserted.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/page-inserted.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/page-numbers-shifted.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/page-numbers-shifted.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/page-numbers-shifted.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/pages-reordered.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/pages-reordered.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/pages-reordered.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/paragraph-moved.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/paragraph-moved.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/paragraph-moved.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/report-v1.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/report-v1.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/report-v1.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/report-v2.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/report-v2.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/report-v2.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/unrelated-a.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/unrelated-a.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/unrelated-a.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/unrelated-b.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/unrelated-b.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/unrelated-b.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/whitespace-only.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/whitespace-only.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/whitespace-only.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/word-deleted.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/word-deleted.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/word-deleted.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/word-inserted.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/word-inserted.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/word-inserted.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "compare/word-replaced.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "compare/word-replaced.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "compare/word-replaced.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "encrypted/aes-128.pdf",
             "height": 1123,
             "page": 0,
@@ -867,6 +1377,129 @@
         {
             "dpi": 192,
             "file": "ordinary/cjk-embedded.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/cjk-readable.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]",
+                "STSong -> SimSun [substituted]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/cjk-readable.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]",
+                "STSong -> SimSun [substituted]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/cjk-readable.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]",
+                "STSong -> SimSun [substituted]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/cjk-vertical.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/cjk-vertical.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/cjk-vertical.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/columns-three.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/columns-three.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/columns-three.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/columns-two.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/columns-two.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/columns-two.pdf",
             "height": 2246,
             "page": 0,
             "substitutions": [
@@ -1053,6 +1686,36 @@
         {
             "dpi": 192,
             "file": "ordinary/hybrid-xrefstm.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/hyphenated.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/hyphenated.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/hyphenated.pdf",
             "height": 2246,
             "page": 0,
             "substitutions": [
@@ -1902,6 +2565,66 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/rtl-text.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/rtl-text.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/rtl-text.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/search-classes.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/search-classes.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/search-classes.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/shading-patterns.pdf",
             "height": 1123,
             "page": 0,
@@ -1962,6 +2685,36 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/table-ruled.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/table-ruled.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/table-ruled.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/tagged.pdf",
             "height": 1123,
             "page": 0,
@@ -1985,6 +2738,66 @@
             "file": "ordinary/tagged.pdf",
             "height": 2246,
             "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/text-900.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/text-900.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/text-900.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/text-900.pdf",
+            "height": 1123,
+            "page": 899,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/text-900.pdf",
+            "height": 1684,
+            "page": 899,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/text-900.pdf",
+            "height": 2246,
+            "page": 899,
             "substitutions": [
                 "Helvetica -> (engine) [standard-declined]"
             ],
@@ -2049,6 +2862,36 @@
                 "Helvetica -> (engine) [standard-declined]"
             ],
             "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/text-tounicode.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/text-tounicode.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/text-tounicode.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
         },
         {
             "dpi": 96,
@@ -2321,7 +3164,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-09-18T18:39:48Z",
+    "capturedUtc": "2026-09-29T12:29:04Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 4 T1: three corpus files added (ordinary/cropbox-margins.pdf, ordinary/dests-named.pdf, ordinary/transitions.pdf). Additions only -- no existing baseline is regenerated, and the filter names only the new files."
+    "reason": "Stage 5 T1: 27 corpus files added (ordinary/columns-two, columns-three, table-ruled, rtl-text, cjk-vertical, hyphenated, text-tounicode, cjk-readable, search-classes, text-900, and the 17 files of compare/). Additions only -- no existing baseline is regenerated, and the filter names only the new files."
 }

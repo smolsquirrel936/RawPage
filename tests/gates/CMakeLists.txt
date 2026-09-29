@@ -858,7 +858,23 @@ if(Python3_Interpreter_FOUND)
     # interrupted run cannot leave the real corpus damaged.
     rawpage_add_gate_test(NAME gates.corpus.self_test
         COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --self-test
-        EXPECT_EXIT 0 EXPECT_MATCH "5 of 5 controls fired")
+        EXPECT_EXIT 0 EXPECT_MATCH "10 of 10 controls fired")
+
+    # Stage 5 T1 (Stage5-TextSearch-Testing-Guide.md A-14): each text fixture carries the fault or
+    # feature its PROVENANCE.md row claims, read from its bytes with every stream decoded -- a
+    # /ToUnicode that is there, Hebrew emitted in visual order, a control word that is absent. Its
+    # controls are two of --self-test's ten, above: a fixture stripped of its /ToUnicode, and the
+    # control word planted, must each be reported.
+    rawpage_add_gate_test(NAME gates.corpus.faults
+        COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --check-faults
+        EXPECT_EXIT 0 EXPECT_MATCH "every Stage 5 fixture carries what its row claims")
+
+    # Stage 5 T1 (A-15): every comparison record re-derives its revised document from its base, by
+    # code that shares nothing with the edits, and each kind of pair keeps its promise about words.
+    # Four controls damage a pair and must each be caught.
+    rawpage_add_gate_test(NAME gates.corpus.compare
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/corpus/make-compare.py --self-test
+        EXPECT_EXIT 0 EXPECT_MATCH "14 pairs checked, 4 of 4 controls fired")
 
     # ----------------------------------------------------------------------------------
     # corpus/signed/ (Stage 3 T1, decision D3-2) -- the instrument A4's verdict will read.
@@ -908,7 +924,7 @@ if(Python3_Interpreter_FOUND)
                 --shapes-self-test ${CMAKE_SOURCE_DIR}/corpus/signed
         EXPECT_EXIT 0 EXPECT_MATCH "7 of 7 detections fired")
 else()
-    foreach(case reproducible provenance self_test signed signed_accepting_validator_stops
+    foreach(case reproducible provenance self_test faults compare signed signed_accepting_validator_stops
                  signed_rejecting_validator_fails signed_shapes signed_shapes_self_test)
         add_test(NAME gates.corpus.${case}
             COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RequirePython.cmake")

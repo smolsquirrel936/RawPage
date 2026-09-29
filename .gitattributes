@@ -44,6 +44,12 @@ golden/**   binary
 corpus/*.py     text eol=lf diff=python merge
 corpus/*.md     text eol=lf diff merge
 corpus/*.json   text eol=lf diff merge
+# Stage 5 T1's sidecars, one directory down, where `corpus/*.json` does not reach (a pattern with a
+# slash is anchored, and `*` does not cross one). They are ground truth a reviewer must be able to
+# read in a diff -- a label edited to match a wrong answer is the change this project most needs to
+# see -- and `eol=lf` keeps them byte-identical on checkout, which `--verify` requires.
+corpus/labels/*.json    text eol=lf diff merge
+corpus/compare/*.json   text eol=lf diff merge
 
 # ...and golden/ is no longer only data either, for exactly the same reason and with the same fix.
 # Stage 2 T17 put manifest.json (which cases are baselined, hand-authored), captured.json (what the

@@ -1,0 +1,16 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/page-numbers-shifted.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "page-numbers",
+   "before": 0,
+   "after": 4
+  }
+ ],
+ "summary": [
+  "every footer's page number is 4 higher; nothing else changed"
+ ]
+}

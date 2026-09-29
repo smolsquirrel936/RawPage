@@ -1,0 +1,10 @@
+{
+ "base": "compare/unrelated-a.pdf",
+ "revised": "compare/unrelated-b.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "unrelated",
+ "changes": null,
+ "summary": [
+  "two 50-page documents that share no word: the bound on a comparison of documents with nothing in common"
+ ]
+}

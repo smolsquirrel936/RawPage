@@ -1,9 +1,9 @@
 # `golden/` — reference rasters
 
-**231 PNGs, 65 corpus files, 77 pages, three resolutions, one rasterizer.** Produced by
+**315 PNGs, 92 corpus files, 105 pages, three resolutions, one rasterizer.** Produced by
 `tools/golden-update` — 198 at Stage 2 T17, 24 more at Stage 3 T1 for the six corpus files that
-task added, and 9 more at Stage 4 T1 for its three — each one filtered capture that regenerated
-none of the baselines before it — and compared on every `ctest` run by `tests/golden`
+task added, 9 more at Stage 4 T1 for its three, and 84 more at Stage 5 T1 for its twenty-seven — each
+one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
@@ -62,7 +62,9 @@ captured only where the *pixels* differ for a reason page 0 cannot show: the fou
 `rotated-pages`, the three ways `rotate-inherited`'s pages reach their rotation, the four media boxes of `mixed-page-sizes`, the three revisions of
 `incremental-3gen`, the second annotation page of `annots-mixed`, and the **last** page of
 `pages-900` — which is what proves a 30 × 30 page tree is walked to its end rather than to its first
-leaf. `cover-odd-count`, `rtl-binding` and `outline-labels` are *layout* fixtures; their later pages
+leaf — and, for the same reason, of Stage 5's `text-900`. The seventeen `compare/` pairs are cases
+like every other corpus file, page 0 each: a baseline proves a pair RENDERS, and what a comparison
+finds in it is `tst_comparecorpus`'s question, graded against the pair's `expected.json`. `cover-odd-count`, `rtl-binding` and `outline-labels` are *layout* fixtures; their later pages
 are ordinary ink and `PagePresentation`'s arithmetic is `tests/unit`'s subject.
 
 **Five corpus files are excluded, each with a stated reason in the manifest**, and every one of them
@@ -86,7 +88,7 @@ is `corpus/make-corpus.py --check-provenance`'s rule in a second subject.
    control case *one task before these baselines existed*. Had it not been found, every image here
    would have been a claim about whichever Segoe UI this Windows shipped.
 
-3. **A substituted face is not reproducible, and two cases say so.** `machineDependent` marks them;
+3. **A substituted face is not reproducible, and three cases say so.** `machineDependent` marks them;
    their capture-time substitutions are recorded in `captured.json`; and the suite **skips such a
    case by name** on a machine that resolves differently rather than reporting a rendering
    regression (guide case A-62's rule — *report not applicable explicitly rather than pass
@@ -97,6 +99,10 @@ is `corpus/make-corpus.py --check-provenance`'s rule in a second subject.
      `#`-escape truncates `/Helvetica` to `/Helve`, which is not a standard-14 name, so the bridge
      matches a real installed face (Segoe UI here) instead of declining. The damage the file is
      named for is what makes its baseline a claim about this machine's fonts.
+   - `ordinary/cjk-readable.pdf` (Stage 5 T1) embeds no font **on purpose**: its CJK is drawn with
+     the machine's own face (`STSong -> SimSun` here) so a person can read it. It is a file of its
+     own because the capture records a substitution per DOCUMENT — as a third page of
+     `text-tounicode.pdf` it made that file's Latin baseline machine-dependent too (measured at T1).
 
    A case asserts that **no other** baseline resolved a face off this disk — which is I-13's
    tripwire: if the base-14 decline is ever removed, every image moves at once and that case names
@@ -111,7 +117,8 @@ PNG, through QtGui's built-in handler — a raster class that needs no display a
 **Baselines whose every pixel has `R == G == B` are stored as 8-bit grey** — 171 of the 198 at T17,
 192 of 222 re-counted at Stage 3 T1 from each PNG's colour-type byte, and **198 of 231** re-counted
 the same way at Stage 4 T1, whose nine are six grey and three RGB — `cropbox-margins.pdf` is the
-one of its three files that carries colour — and expanded back to RGB
+one of its three files that carries colour — and **279 of 315** at Stage 5 T1, whose 84 are 81 grey and
+three RGB, `search-classes.pdf`'s yellow note — and expanded back to RGB
 on read, which is lossless in both directions and took the T17 tree from 30.5 MB to 13.1 MB. The comparison reads the three colour bytes on both sides, so the encoding is
 invisible above `readPng`.
 

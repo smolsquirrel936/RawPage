@@ -1,0 +1,23 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/word-replaced.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "replace",
+   "page": 2,
+   "item": 0,
+   "at": 20,
+   "before": [
+    "annotation"
+   ],
+   "after": [
+    "carefully"
+   ]
+  }
+ ],
+ "summary": [
+  "page 3, paragraph 1: 'annotation' replaced by 'carefully'"
+ ]
+}

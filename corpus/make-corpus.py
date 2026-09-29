@@ -4,6 +4,7 @@
     python corpus/make-corpus.py                  # write every file
     python corpus/make-corpus.py --verify         # regenerate in memory, compare against disk
     python corpus/make-corpus.py --check-provenance
+    python corpus/make-corpus.py --check-faults    # the Stage 5 fixtures carry what they claim
     python corpus/make-corpus.py --list
 
 WHY `--verify` IS THE POINT OF THIS FILE. D2-11 (`Stage2-Rendering-Plan.md` section 3) makes every
@@ -33,6 +34,7 @@ reports success because it never looked.
 import argparse
 import hashlib
 import importlib.util
+import json
 import pathlib
 import sys
 
@@ -62,14 +64,25 @@ def build_all():
     files = {}
     files["minimal.pdf"] = _load("make-minimal.py").build()
     files["a2-text-page.pdf"] = _load("make-a2-text-page.py").build()
-    for script in ("make-ordinary.py", "make-malformed.py", "make-encrypted.py", "make-signed.py"):
+    for script in ("make-ordinary.py", "make-malformed.py", "make-encrypted.py", "make-signed.py",
+                   "make-text.py", "make-compare.py"):
         files.update(_load(script).generate())
     return files
 
 
+# What --verify treats as corpus DATA, orphans included. Stage 5 T1 added the two JSON kinds: a
+# label (`labels/`) is the ground truth for a text fixture and an `expected.json` (`compare/`) the
+# change list for a comparison pair, and each is generated beside its PDF and checked byte for byte
+# like it -- a hand-edited label is a test whose answer was changed to match.
+DATA_GLOBS = ("*.pdf", "labels/*.json", "compare/*.json")
+
+
 def _on_disk():
-    return sorted(str(path.relative_to(ROOT)).replace("\\", "/")
-                  for path in ROOT.rglob("*.pdf"))
+    found = set()
+    for pattern in DATA_GLOBS:
+        glob = ROOT.rglob(pattern) if pattern == "*.pdf" else ROOT.glob(pattern)
+        found.update(str(path.relative_to(ROOT)).replace("\\", "/") for path in glob)
+    return sorted(found)
 
 
 def write(files):
@@ -146,12 +159,44 @@ def check_provenance(files, rows=None):
     for name in sorted(duplicates):
         problems.append("DUPLICATE %s -- two PROVENANCE.md rows" % name)
     listed = set(rows)
-    for relative in files:
+    pdfs = [relative for relative in files if relative.endswith(".pdf")]
+    for relative in pdfs:
         if relative not in listed:
             problems.append("UNLISTED  %s -- generated, but no PROVENANCE.md row" % relative)
-    for name in sorted(listed - set(files)):
+    for name in sorted(listed - set(pdfs)):
         problems.append("STALE     %s -- a PROVENANCE.md row for a file nothing generates" % name)
+    return problems + check_sidecars(files)
+
+
+def check_sidecars(files, labelled=None):
+    """Stage 5 T1: every label names a corpus file that exists and every text fixture has a label;
+    every comparison record names a base and a revised file that exist. A label for a file that is
+    gone is ground truth for nothing, and a text fixture with no label is one nobody can grade."""
+    problems = []
+    if labelled is None:
+        labelled = ["ordinary/" + name for name in _load("make-text.py").FILES]
+    for relative, data in files.items():
+        if relative.startswith("labels/"):
+            named = json.loads(data.decode("utf-8")).get("file")
+            if named not in files:
+                problems.append("LABEL     %s -- names %r, which the corpus does not contain"
+                                % (relative, named))
+        elif relative.startswith("compare/") and relative.endswith(".json"):
+            record = json.loads(data.decode("utf-8"))
+            for key in ("base", "revised"):
+                if record.get(key) not in files:
+                    problems.append("EXPECTED  %s -- its %s %r is not in the corpus"
+                                    % (relative, key, record.get(key)))
+    for fixture in labelled:
+        label = "labels/" + fixture.split("/")[-1].replace(".pdf", ".json")
+        if label not in files:
+            problems.append("UNLABELLED %s -- a text fixture with no %s" % (fixture, label))
     return problems
+
+
+def check_faults(files):
+    import fixturecheck
+    return fixturecheck.check(files)
 
 
 def self_test(files):
@@ -159,8 +204,9 @@ def self_test(files):
 
     `--verify` passing on a clean tree is equally satisfied by a checker that returns success
     without looking -- which is the shape of Stage 1's I-30 and of every waived gate this project
-    has had to re-examine. So each of the five detections gets an input that must trigger it, and
-    a detection that stays quiet fails this test.
+    has had to re-examine. So each detection gets an input that must trigger it -- the five of Stage
+    2 T4 and the five Stage 5 T1 added for labels, comparison records and fixture faults -- and a
+    detection that stays quiet fails this test.
 
     Nothing here touches the corpus on disk: the stand-in tree and the stand-in row list are
     built in memory, so an interrupted run cannot leave the real files damaged.
@@ -192,6 +238,25 @@ def self_test(files):
     control("row for no file is STALE",
             check_provenance(clean, rows + ["ordinary/documented-but-absent.pdf"]), "STALE")
 
+    # Stage 5 T1's sidecars and fixtures -- each detection driven by damage that must trigger it.
+    orphan_label = dict(clean)
+    orphan_label["labels/orphan.json"] = b'{"file": "ordinary/not-in-the-corpus.pdf"}'
+    control("label for no file is LABEL", check_sidecars(orphan_label), "LABEL")
+    unlabelled = {k: v for k, v in clean.items() if k != "labels/columns-two.json"}
+    control("fixture with no label is UNLABELLED", check_sidecars(unlabelled), "UNLABELLED")
+    orphan_record = dict(clean)
+    orphan_record["compare/orphan.expected.json"] = (
+        b'{"base": "compare/base.pdf", "revised": "compare/gone.pdf"}')
+    control("record for no file is EXPECTED", check_sidecars(orphan_record), "EXPECTED")
+    no_tounicode = dict(clean)
+    no_tounicode["ordinary/text-tounicode.pdf"] = clean["ordinary/text-tounicode.pdf"].replace(
+        b"/ToUnicode", b"/ToUnicodX")
+    control("fixture without its fault is FAULT", check_faults(no_tounicode), "FAULT")
+    control_word = dict(clean)
+    control_word["ordinary/search-classes.pdf"] = (clean["ordinary/search-classes.pdf"]
+                                                   + b"% wombat" + bytes([10]))
+    control("control word present is FAULT", check_faults(control_word), "FAULT")
+
     for name, fired, sample in results:
         print("  %-32s %s%s" % (name, "detected" if fired else "NOT DETECTED",
                                 ("  <- " + sample[0]) if fired and sample else ""))
@@ -208,6 +273,8 @@ def main():
                         help="regenerate in memory and compare against the files on disk")
     parser.add_argument("--check-provenance", action="store_true",
                         help="every file has a PROVENANCE.md row and every row has a file")
+    parser.add_argument("--check-faults", action="store_true",
+                        help="the Stage 5 text fixtures carry the fault or feature each claims")
     parser.add_argument("--self-test", action="store_true",
                         help="the negative controls: prove each --verify failure path fires")
     parser.add_argument("--list", action="store_true",
@@ -227,10 +294,13 @@ def main():
         problems += verify(files)
     if arguments.check_provenance:
         problems += check_provenance(files)
+    if arguments.check_faults:
+        problems += check_faults(files)
     if arguments.self_test:
         problems += self_test(files)
 
-    if not (arguments.verify or arguments.check_provenance or arguments.self_test):
+    if not (arguments.verify or arguments.check_provenance or arguments.check_faults
+            or arguments.self_test):
         count = write(files)
         print("wrote %d corpus files under %s" % (count, ROOT))
         return 0
@@ -246,6 +316,11 @@ def main():
         checked.append("%d files regenerate byte-identically" % len(files))
     if arguments.check_provenance:
         checked.append("%d PROVENANCE.md rows, one per file" % len(provenance_rows()))
+        checked.append("%d labels and %d comparison records name files that exist" % (
+            sum(1 for k in files if k.startswith("labels/")),
+            sum(1 for k in files if k.startswith("compare/") and k.endswith(".json"))))
+    if arguments.check_faults:
+        checked.append("every Stage 5 fixture carries what its row claims")
     if checked:
         print("corpus check ok: " + "; ".join(checked))
     return 0

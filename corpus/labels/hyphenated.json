@@ -1,0 +1,227 @@
+{
+ "file": "ordinary/hyphenated.pdf",
+ "generator": "corpus/make-text.py",
+ "units": "PDF points, page space",
+ "pages": [
+  {
+   "index": 0,
+   "columns": 1,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - hyphenated.pdf",
+     "x0": 54,
+     "x1": 169.478,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      169.478,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 1 of 1",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "hyphenated.pdf - soft hyphens and a real compound",
+     "x0": 54,
+     "x1": 327.823,
+     "baseline": 780,
+     "size": 11,
+     "box": [
+      54,
+      777.723,
+      327.823,
+      787.898
+     ]
+    },
+    {
+     "id": 3,
+     "text": "The renderer draws every page of the exam-",
+     "x0": 54,
+     "x1": 291.432,
+     "baseline": 740,
+     "size": 12,
+     "box": [
+      54,
+      737.516,
+      291.432,
+      748.616
+     ]
+    },
+    {
+     "id": 4,
+     "text": "ple document before the viewport asks for it,",
+     "x0": 54,
+     "x1": 289.44,
+     "baseline": 724,
+     "size": 12,
+     "box": [
+      54,
+      721.516,
+      289.44,
+      732.616
+     ]
+    },
+    {
+     "id": 5,
+     "text": "and a well-known trick keeps the cache warm",
+     "x0": 54,
+     "x1": 295.416,
+     "baseline": 708,
+     "size": 12,
+     "box": [
+      54,
+      705.516,
+      295.416,
+      716.616
+     ]
+    },
+    {
+     "id": 6,
+     "text": "while the worker thread finishes the in-",
+     "x0": 54,
+     "x1": 258.744,
+     "baseline": 692,
+     "size": 12,
+     "box": [
+      54,
+      689.516,
+      258.744,
+      700.616
+     ]
+    },
+    {
+     "id": 7,
+     "text": "cremental work that the scheduler queued for the",
+     "x0": 54,
+     "x1": 314.796,
+     "baseline": 676,
+     "size": 12,
+     "box": [
+      54,
+      673.516,
+      314.796,
+      684.616
+     ]
+    },
+    {
+     "id": 8,
+     "text": "tiles along the North-",
+     "x0": 54,
+     "x1": 164.712,
+     "baseline": 660,
+     "size": 12,
+     "box": [
+      54,
+      657.516,
+      164.712,
+      668.616
+     ]
+    },
+    {
+     "id": 9,
+     "text": "West edge of the page.",
+     "x0": 54,
+     "x1": 178.08,
+     "baseline": 644,
+     "size": 12,
+     "box": [
+      54,
+      641.516,
+      178.08,
+      652.616
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+     ]
+    },
+    {
+     "id": 3,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "tables": [],
+   "negatives": [],
+   "hyphenation": [
+    {
+     "lines": [
+      3,
+      4
+     ],
+     "joins": true,
+     "word": "example"
+    },
+    {
+     "lines": [
+      6,
+      7
+     ],
+     "joins": true,
+     "word": "incremental"
+    },
+    {
+     "lines": [
+      8,
+      9
+     ],
+     "joins": false,
+     "word": "North-West",
+     "why": "the next line begins with a capital letter"
+    }
+   ],
+   "midlineHyphens": [
+    "well-known"
+   ]
+  }
+ ]
+}

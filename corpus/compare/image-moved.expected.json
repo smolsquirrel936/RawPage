@@ -1,0 +1,18 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/image-moved.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "image-move",
+   "page": 1,
+   "item": 1,
+   "before": 0,
+   "after": 180
+  }
+ ],
+ "summary": [
+  "page 2: the image moved 180 pt to the right; no text changed"
+ ]
+}

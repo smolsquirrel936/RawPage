@@ -67,6 +67,30 @@ LATIN_GLYPHS = [
 ]
 
 
+# Hebrew, likewise rectangles only -- added at Stage 5 T1 for `ordinary/rtl-text.pdf`. Unlike the
+# nine hanzi these are APPROXIMATIONS: square Hebrew is mostly straight strokes, but its joins and
+# serifs are not rectangles, so a reader sees block letters of the right proportions rather than
+# the letters themselves. That is enough for what the fixture tests -- right-to-left ORDER through
+# extraction, selection and copy, which reads codes, positions and /ToUnicode, never outlines -- and
+# `Stage5-TextSearch-Plan.md` D5-23 says so where the walk that looks at them is defined.
+HEBREW_GLYPHS = [
+    (" ", []),
+    ("ב", [(80, 480, 500, 560), (420, 60, 500, 560), (60, 0, 580, 80)]),                     # bet
+    ("ד", [(60, 480, 560, 560), (480, 0, 560, 560)]),                                        # dalet
+    ("ה", [(60, 480, 560, 560), (480, 0, 560, 560), (100, 0, 180, 380)]),                    # he
+    ("ו", [(260, 0, 340, 560), (200, 480, 340, 560)]),                                       # vav
+    ("ח", [(60, 480, 560, 560), (480, 0, 560, 560), (80, 0, 160, 560)]),                     # het
+    ("י", [(260, 320, 340, 560), (200, 480, 340, 560)]),                                     # yod
+    ("כ", [(80, 480, 500, 560), (420, 80, 500, 560), (80, 0, 500, 80)]),                     # kaf
+    ("ל", [(140, 300, 220, 760), (140, 300, 500, 380), (420, 0, 500, 380)]),                 # lamed
+    ("ם", [(80, 0, 160, 560), (480, 0, 560, 560), (80, 480, 560, 560), (80, 0, 560, 80)]),   # final mem
+    ("נ", [(200, 480, 340, 560), (260, 80, 340, 560), (100, 0, 340, 80)]),                   # nun
+    ("ר", [(100, 480, 500, 560), (420, 0, 500, 560)]),                                       # resh
+    ("ש", [(80, 80, 160, 560), (270, 160, 350, 560), (460, 80, 540, 560), (80, 0, 540, 80)]),  # shin
+    ("ת", [(60, 480, 580, 560), (500, 0, 580, 560), (120, 60, 200, 480), (60, 0, 200, 60)]),  # tav
+]
+
+
 def _checksum(data):
     padded = data + b"\x00" * ((4 - len(data) % 4) % 4)
     total = 0
@@ -288,6 +312,11 @@ def latin_font():
     return build(LATIN_GLYPHS, "RawPage Corpus Latin")
 
 
+def hebrew_font():
+    """The embedded Hebrew subset (Stage 5 T1): thirteen rectangle letters, a space and .notdef."""
+    return build(HEBREW_GLYPHS, "RawPage Corpus Hebrew")
+
+
 def selfcheck(font, mapping):
     """Parse the font back with FreeType through Pillow, when it is importable, and confirm the
     glyphs are reachable. Opportunistic -- its absence is reported, never silently skipped."""
@@ -310,7 +339,7 @@ def selfcheck(font, mapping):
 
 
 if __name__ == "__main__":
-    for maker in (cjk_font, latin_font):
+    for maker in (cjk_font, latin_font, hebrew_font):
         font, mapping, widths = maker()
         assert (font, mapping, widths) == maker(), "not deterministic"
         print("%-6s %5d bytes, %d glyphs; %s" % (

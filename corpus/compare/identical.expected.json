@@ -1,0 +1,10 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/identical.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "identical",
+ "changes": [],
+ "summary": [
+  "nothing: the pages are identical and only the Info /Title differs"
+ ]
+}

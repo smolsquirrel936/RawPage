@@ -1,0 +1,163 @@
+{
+ "file": "ordinary/search-classes.pdf",
+ "generator": "corpus/make-text.py",
+ "units": "PDF points, page space",
+ "classes": {
+  "pageText": [
+   "papaya"
+  ],
+  "comments": [
+   "quokka"
+  ],
+  "bookmarks": [
+   "zeppelin"
+  ],
+  "fields": [
+   "marmot",
+   "walrus"
+  ],
+  "attachments": [
+   "lemur",
+   "ocelot",
+   "narwhal",
+   "axolotl"
+  ]
+ },
+ "notFound": {
+  "wombat": "the control: in no class and no byte of the file",
+  "hedgehog": "the CONTENT of a .txt attachment -- a non-PDF attachment is searched by name and description only (plan D5-12)",
+  "pangolin": "the text of a PDF attached INSIDE the attached PDF -- one level deep only (D5-12)"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "columns": 1,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - search-classes.pdf",
+     "x0": 54,
+     "x1": 180.293,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      180.293,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 1 of 1",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "search-classes.pdf - one word in each content class",
+     "x0": 54,
+     "x1": 326.041,
+     "baseline": 780,
+     "size": 11,
+     "box": [
+      54,
+      777.723,
+      326.041,
+      787.898
+     ]
+    },
+    {
+     "id": 3,
+     "text": "The page text of this file carries exactly one unusual",
+     "x0": 54,
+     "x1": 307.121,
+     "baseline": 740,
+     "size": 11,
+     "box": [
+      54,
+      737.723,
+      307.121,
+      747.898
+     ]
+    },
+    {
+     "id": 4,
+     "text": "word of its own, and that word is papaya; every other",
+     "x0": 54,
+     "x1": 311.4,
+     "baseline": 724,
+     "size": 11,
+     "box": [
+      54,
+      721.723,
+      311.4,
+      731.898
+     ]
+    },
+    {
+     "id": 5,
+     "text": "class carries its word somewhere a page never shows.",
+     "x0": 54,
+     "x1": 320.53,
+     "baseline": 708,
+     "size": 11,
+     "box": [
+      54,
+      705.723,
+      320.53,
+      715.898
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4,
+      5
+     ]
+    },
+    {
+     "id": 3,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "tables": [],
+   "negatives": []
+  }
+ ]
+}

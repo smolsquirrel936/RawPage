@@ -1,0 +1,1007 @@
+{
+ "file": "ordinary/table-ruled.pdf",
+ "generator": "corpus/make-text.py",
+ "units": "PDF points, page space",
+ "pages": [
+  {
+   "index": 0,
+   "columns": 1,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - table-ruled.pdf",
+     "x0": 54,
+     "x1": 165.713,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      165.713,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 1 of 1",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "Two tables and a list that is not one",
+     "x0": 54,
+     "x1": 290.502,
+     "baseline": 780,
+     "size": 14,
+     "box": [
+      54,
+      777.102,
+      290.502,
+      790.052
+     ]
+    },
+    {
+     "id": 3,
+     "text": "document journal filter tile outline glyph frame layer incremental monitor viewport stream annotation permission tag",
+     "x0": 54,
+     "x1": 535.507,
+     "baseline": 756.0,
+     "size": 9.5,
+     "box": [
+      54,
+      754.034,
+      535.507,
+      762.821
+     ]
+    },
+    {
+     "id": 4,
+     "text": "offset object schedule filter physical percentile throughput repair scope page monitor signature render annotation",
+     "x0": 54,
+     "x1": 527.119,
+     "baseline": 744.0,
+     "size": 9.5,
+     "box": [
+      54,
+      742.034,
+      527.119,
+      750.821
+     ]
+    },
+    {
+     "id": 5,
+     "text": "scaling",
+     "x0": 54,
+     "x1": 83.564,
+     "baseline": 732.0,
+     "size": 9.5,
+     "box": [
+      54,
+      730.034,
+      83.564,
+      738.821
+     ]
+    },
+    {
+     "id": 6,
+     "text": "Component",
+     "x0": 58.0,
+     "x1": 107.995,
+     "baseline": 699.5,
+     "size": 9,
+     "box": [
+      58.0,
+      697.637,
+      107.995,
+      705.962
+     ]
+    },
+    {
+     "id": 7,
+     "text": "Stage",
+     "x0": 188.0,
+     "x1": 212.507,
+     "baseline": 699.5,
+     "size": 9,
+     "box": [
+      188.0,
+      697.637,
+      212.507,
+      705.962
+     ]
+    },
+    {
+     "id": 8,
+     "text": "Cases",
+     "x0": 248.0,
+     "x1": 274.514,
+     "baseline": 699.5,
+     "size": 9,
+     "box": [
+      248.0,
+      697.637,
+      274.514,
+      705.962
+     ]
+    },
+    {
+     "id": 9,
+     "text": "State",
+     "x0": 308.0,
+     "x1": 330.005,
+     "baseline": 699.5,
+     "size": 9,
+     "box": [
+      308.0,
+      697.637,
+      330.005,
+      705.962
+     ]
+    },
+    {
+     "id": 10,
+     "text": "PageTextModel",
+     "x0": 58.0,
+     "x1": 121.027,
+     "baseline": 681.5,
+     "size": 9,
+     "box": [
+      58.0,
+      679.637,
+      121.027,
+      687.962
+     ]
+    },
+    {
+     "id": 11,
+     "text": "5",
+     "x0": 188.0,
+     "x1": 193.004,
+     "baseline": 681.5,
+     "size": 9,
+     "box": [
+      188.0,
+      679.637,
+      193.004,
+      687.962
+     ]
+    },
+    {
+     "id": 12,
+     "text": "12",
+     "x0": 248.0,
+     "x1": 258.008,
+     "baseline": 681.5,
+     "size": 9,
+     "box": [
+      248.0,
+      679.637,
+      258.008,
+      687.962
+     ]
+    },
+    {
+     "id": 13,
+     "text": "planned",
+     "x0": 308.0,
+     "x1": 340.022,
+     "baseline": 681.5,
+     "size": 9,
+     "box": [
+      308.0,
+      679.637,
+      340.022,
+      687.962
+     ]
+    },
+    {
+     "id": 14,
+     "text": "LayoutAnalyzer",
+     "x0": 58.0,
+     "x1": 120.028,
+     "baseline": 663.5,
+     "size": 9,
+     "box": [
+      58.0,
+      661.637,
+      120.028,
+      669.962
+     ]
+    },
+    {
+     "id": 15,
+     "text": "5",
+     "x0": 188.0,
+     "x1": 193.004,
+     "baseline": 663.5,
+     "size": 9,
+     "box": [
+      188.0,
+      661.637,
+      193.004,
+      669.962
+     ]
+    },
+    {
+     "id": 16,
+     "text": "18",
+     "x0": 248.0,
+     "x1": 258.008,
+     "baseline": 663.5,
+     "size": 9,
+     "box": [
+      248.0,
+      661.637,
+      258.008,
+      669.962
+     ]
+    },
+    {
+     "id": 17,
+     "text": "planned",
+     "x0": 308.0,
+     "x1": 340.022,
+     "baseline": 663.5,
+     "size": 9,
+     "box": [
+      308.0,
+      661.637,
+      340.022,
+      669.962
+     ]
+    },
+    {
+     "id": 18,
+     "text": "SearchEngine",
+     "x0": 58.0,
+     "x1": 114.529,
+     "baseline": 645.5,
+     "size": 9,
+     "box": [
+      58.0,
+      643.637,
+      114.529,
+      651.962
+     ]
+    },
+    {
+     "id": 19,
+     "text": "5",
+     "x0": 188.0,
+     "x1": 193.004,
+     "baseline": 645.5,
+     "size": 9,
+     "box": [
+      188.0,
+      643.637,
+      193.004,
+      651.962
+     ]
+    },
+    {
+     "id": 20,
+     "text": "24",
+     "x0": 248.0,
+     "x1": 258.008,
+     "baseline": 645.5,
+     "size": 9,
+     "box": [
+      248.0,
+      643.637,
+      258.008,
+      651.962
+     ]
+    },
+    {
+     "id": 21,
+     "text": "planned",
+     "x0": 308.0,
+     "x1": 340.022,
+     "baseline": 645.5,
+     "size": 9,
+     "box": [
+      308.0,
+      643.637,
+      340.022,
+      651.962
+     ]
+    },
+    {
+     "id": 22,
+     "text": "DocumentIndex",
+     "x0": 58.0,
+     "x1": 121.027,
+     "baseline": 627.5,
+     "size": 9,
+     "box": [
+      58.0,
+      625.637,
+      121.027,
+      633.962
+     ]
+    },
+    {
+     "id": 23,
+     "text": "5",
+     "x0": 188.0,
+     "x1": 193.004,
+     "baseline": 627.5,
+     "size": 9,
+     "box": [
+      188.0,
+      625.637,
+      193.004,
+      633.962
+     ]
+    },
+    {
+     "id": 24,
+     "text": "9",
+     "x0": 248.0,
+     "x1": 253.004,
+     "baseline": 627.5,
+     "size": 9,
+     "box": [
+      248.0,
+      625.637,
+      253.004,
+      633.962
+     ]
+    },
+    {
+     "id": 25,
+     "text": "planned",
+     "x0": 308.0,
+     "x1": 340.022,
+     "baseline": 627.5,
+     "size": 9,
+     "box": [
+      308.0,
+      625.637,
+      340.022,
+      633.962
+     ]
+    },
+    {
+     "id": 26,
+     "text": "DocumentComparer",
+     "x0": 58.0,
+     "x1": 139.018,
+     "baseline": 609.5,
+     "size": 9,
+     "box": [
+      58.0,
+      607.637,
+      139.018,
+      615.962
+     ]
+    },
+    {
+     "id": 27,
+     "text": "5",
+     "x0": 188.0,
+     "x1": 193.004,
+     "baseline": 609.5,
+     "size": 9,
+     "box": [
+      188.0,
+      607.637,
+      193.004,
+      615.962
+     ]
+    },
+    {
+     "id": 28,
+     "text": "15",
+     "x0": 248.0,
+     "x1": 258.008,
+     "baseline": 609.5,
+     "size": 9,
+     "box": [
+      248.0,
+      607.637,
+      258.008,
+      615.962
+     ]
+    },
+    {
+     "id": 29,
+     "text": "planned",
+     "x0": 308.0,
+     "x1": 340.022,
+     "baseline": 609.5,
+     "size": 9,
+     "box": [
+      308.0,
+      607.637,
+      340.022,
+      615.962
+     ]
+    },
+    {
+     "id": 30,
+     "text": "boundary resolution monitor logical render policy cache tag baseline object journal latency physical trailer",
+     "x0": 54,
+     "x1": 495.399,
+     "baseline": 580.0,
+     "size": 9.5,
+     "box": [
+      54,
+      578.034,
+      495.399,
+      586.821
+     ]
+    },
+    {
+     "id": 31,
+     "text": "throughput kerning boundary page monitor logical stream annotation permission invalidate budget worker",
+     "x0": 54,
+     "x1": 495.95,
+     "baseline": 568.0,
+     "size": 9.5,
+     "box": [
+      54,
+      566.034,
+      495.95,
+      574.821
+     ]
+    },
+    {
+     "id": 32,
+     "text": "Setting",
+     "x0": 54.0,
+     "x1": 84.501,
+     "baseline": 530.0,
+     "size": 9,
+     "box": [
+      54.0,
+      528.137,
+      84.501,
+      536.462
+     ]
+    },
+    {
+     "id": 33,
+     "text": "Default",
+     "x0": 170.0,
+     "x1": 200.501,
+     "baseline": 530.0,
+     "size": 9,
+     "box": [
+      170.0,
+      528.137,
+      200.501,
+      536.462
+     ]
+    },
+    {
+     "id": 34,
+     "text": "Page",
+     "x0": 250.0,
+     "x1": 271.51,
+     "baseline": 530.0,
+     "size": 9,
+     "box": [
+      250.0,
+      528.137,
+      271.51,
+      536.462
+     ]
+    },
+    {
+     "id": 35,
+     "text": "wholeWords",
+     "x0": 54.0,
+     "x1": 103.509,
+     "baseline": 515.0,
+     "size": 9,
+     "box": [
+      54.0,
+      513.137,
+      103.509,
+      521.462
+     ]
+    },
+    {
+     "id": 36,
+     "text": "off",
+     "x0": 170.0,
+     "x1": 180.008,
+     "baseline": 515.0,
+     "size": 9,
+     "box": [
+      170.0,
+      513.137,
+      180.008,
+      521.462
+     ]
+    },
+    {
+     "id": 37,
+     "text": "Search",
+     "x0": 250.0,
+     "x1": 278.512,
+     "baseline": 515.0,
+     "size": 9,
+     "box": [
+      250.0,
+      513.137,
+      278.512,
+      521.462
+     ]
+    },
+    {
+     "id": 38,
+     "text": "caseSensitive",
+     "x0": 54.0,
+     "x1": 109.521,
+     "baseline": 500.0,
+     "size": 9,
+     "box": [
+      54.0,
+      498.137,
+      109.521,
+      506.462
+     ]
+    },
+    {
+     "id": 39,
+     "text": "off",
+     "x0": 170.0,
+     "x1": 180.008,
+     "baseline": 500.0,
+     "size": 9,
+     "box": [
+      170.0,
+      498.137,
+      180.008,
+      506.462
+     ]
+    },
+    {
+     "id": 40,
+     "text": "Search",
+     "x0": 250.0,
+     "x1": 278.512,
+     "baseline": 500.0,
+     "size": 9,
+     "box": [
+      250.0,
+      498.137,
+      278.512,
+      506.462
+     ]
+    },
+    {
+     "id": 41,
+     "text": "maxResults",
+     "x0": 54.0,
+     "x1": 101.007,
+     "baseline": 485.0,
+     "size": 9,
+     "box": [
+      54.0,
+      483.137,
+      101.007,
+      491.462
+     ]
+    },
+    {
+     "id": 42,
+     "text": "500",
+     "x0": 170.0,
+     "x1": 185.012,
+     "baseline": 485.0,
+     "size": 9,
+     "box": [
+      170.0,
+      483.137,
+      185.012,
+      491.462
+     ]
+    },
+    {
+     "id": 43,
+     "text": "Search",
+     "x0": 250.0,
+     "x1": 278.512,
+     "baseline": 485.0,
+     "size": 9,
+     "box": [
+      250.0,
+      483.137,
+      278.512,
+      491.462
+     ]
+    },
+    {
+     "id": 44,
+     "text": "snapshotDpi",
+     "x0": 54.0,
+     "x1": 104.022,
+     "baseline": 470.0,
+     "size": 9,
+     "box": [
+      54.0,
+      468.137,
+      104.022,
+      476.462
+     ]
+    },
+    {
+     "id": 45,
+     "text": "0",
+     "x0": 170.0,
+     "x1": 175.004,
+     "baseline": 470.0,
+     "size": 9,
+     "box": [
+      170.0,
+      468.137,
+      175.004,
+      476.462
+     ]
+    },
+    {
+     "id": 46,
+     "text": "Page Display",
+     "x0": 250.0,
+     "x1": 303.019,
+     "baseline": 470.0,
+     "size": 9,
+     "box": [
+      250.0,
+      468.137,
+      303.019,
+      476.462
+     ]
+    },
+    {
+     "id": 47,
+     "text": "1.",
+     "x0": 54,
+     "x1": 61.923,
+     "baseline": 430.0,
+     "size": 9.5,
+     "box": [
+      54,
+      428.034,
+      61.923,
+      436.821
+     ]
+    },
+    {
+     "id": 48,
+     "text": "report logical thread annotation permission interface offset object facade latency physical",
+     "x0": 72,
+     "x1": 445.312,
+     "baseline": 430.0,
+     "size": 9.5,
+     "box": [
+      72,
+      428.034,
+      445.312,
+      436.821
+     ]
+    },
+    {
+     "id": 49,
+     "text": "percentile throughput kerning layer page monitor viewport render revision cache invalidate",
+     "x0": 72,
+     "x1": 450.575,
+     "baseline": 418.0,
+     "size": 9.5,
+     "box": [
+      72,
+      416.034,
+      450.575,
+      424.821
+     ]
+    },
+    {
+     "id": 50,
+     "text": "baseline document",
+     "x0": 72,
+     "x1": 151.733,
+     "baseline": 406.0,
+     "size": 9.5,
+     "box": [
+      72,
+      404.034,
+      151.733,
+      412.821
+     ]
+    },
+    {
+     "id": 51,
+     "text": "2.",
+     "x0": 54,
+     "x1": 61.923,
+     "baseline": 390.0,
+     "size": 9.5,
+     "box": [
+      54,
+      388.034,
+      61.923,
+      396.821
+     ]
+    },
+    {
+     "id": 52,
+     "text": "percentile glyph kerning scope incremental monitor viewport stream revision scaling invalidate",
+     "x0": 72,
+     "x1": 466.383,
+     "baseline": 390.0,
+     "size": 9.5,
+     "box": [
+      72,
+      388.034,
+      466.383,
+      396.821
+     ]
+    },
+    {
+     "id": 53,
+     "text": "offset document journal raster append outline glyph kerning scope incremental typeface",
+     "x0": 72,
+     "x1": 440.039,
+     "baseline": 378.0,
+     "size": 9.5,
+     "box": [
+      72,
+      376.034,
+      440.039,
+      384.821
+     ]
+    },
+    {
+     "id": 54,
+     "text": "signature render",
+     "x0": 72,
+     "x1": 141.169,
+     "baseline": 366.0,
+     "size": 9.5,
+     "box": [
+      72,
+      364.034,
+      141.169,
+      372.821
+     ]
+    },
+    {
+     "id": 55,
+     "text": "3.",
+     "x0": 54,
+     "x1": 61.923,
+     "baseline": 350.0,
+     "size": 9.5,
+     "box": [
+      54,
+      348.034,
+      61.923,
+      356.821
+     ]
+    },
+    {
+     "id": 56,
+     "text": "render policy cache interface baseline document journal filter physical trailer table kerning",
+     "x0": 72,
+     "x1": 447.925,
+     "baseline": 350.0,
+     "size": 9.5,
+     "box": [
+      72,
+      348.034,
+      447.925,
+      356.821
+     ]
+    },
+    {
+     "id": 57,
+     "text": "boundary incremental monitor viewport render annotation permission interface baseline object",
+     "x0": 72,
+     "x1": 466.411,
+     "baseline": 338.0,
+     "size": 9.5,
+     "box": [
+      72,
+      336.034,
+      466.411,
+      344.821
+     ]
+    },
+    {
+     "id": 58,
+     "text": "journal raster",
+     "x0": 72,
+     "x1": 127.433,
+     "baseline": 326.0,
+     "size": 9.5,
+     "box": [
+      72,
+      324.034,
+      127.433,
+      332.821
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4,
+      5
+     ]
+    },
+    {
+     "id": 3,
+     "role": "table",
+     "lines": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+     ]
+    },
+    {
+     "id": 4,
+     "role": "body",
+     "lines": [
+      30,
+      31
+     ]
+    },
+    {
+     "id": 5,
+     "role": "table",
+     "lines": [
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46
+     ]
+    },
+    {
+     "id": 6,
+     "role": "list-item",
+     "lines": [
+      47,
+      48,
+      49,
+      50
+     ]
+    },
+    {
+     "id": 7,
+     "role": "list-item",
+     "lines": [
+      51,
+      52,
+      53,
+      54
+     ]
+    },
+    {
+     "id": 8,
+     "role": "list-item",
+     "lines": [
+      55,
+      56,
+      57,
+      58
+     ]
+    },
+    {
+     "id": 9,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "tables": [
+    {
+     "box": [
+      54.0,
+      604.0,
+      394.0,
+      712.0
+     ],
+     "rows": 6,
+     "cols": 4,
+     "ruled": true
+    },
+    {
+     "box": [
+      54.0,
+      468.137,
+      303.019,
+      536.462
+     ],
+     "rows": 5,
+     "cols": 3,
+     "ruled": false
+    }
+   ],
+   "negatives": [
+    {
+     "role": "list",
+     "box": [
+      54,
+      320.034,
+      466.411,
+      436.821
+     ]
+    }
+   ]
+  }
+ ]
+}

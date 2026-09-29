@@ -1,0 +1,16 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/header-changed.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "header",
+   "before": "Quarterly engine notes",
+   "after": "Quarterly engine notes revised"
+  }
+ ],
+ "summary": [
+  "the running header gains the word 'revised' on every page"
+ ]
+}

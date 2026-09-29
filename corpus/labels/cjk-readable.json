@@ -1,0 +1,177 @@
+{
+ "file": "ordinary/cjk-readable.pdf",
+ "generator": "corpus/make-text.py",
+ "units": "PDF points, page space",
+ "machineDependent": "the characters are drawn with the machine's own CJK face; SimSun where this was generated",
+ "pages": [
+  {
+   "index": 0,
+   "columns": 1,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - cjk-readable.pdf",
+     "x0": 54,
+     "x1": 171.127,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      171.127,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 1 of 1",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "cjk-readable.pdf - STSong-Light, not embedded, UniGB-UCS2",
+     "x0": 54,
+     "x1": 374.87,
+     "baseline": 780,
+     "size": 11,
+     "box": [
+      54,
+      777.723,
+      374.87,
+      787.898
+     ]
+    },
+    {
+     "id": 3,
+     "text": "文本提取与选择",
+     "x0": 54,
+     "x1": 222,
+     "baseline": 720,
+     "size": 24,
+     "box": [
+      54,
+      715.032,
+      222,
+      737.232
+     ]
+    },
+    {
+     "id": 4,
+     "text": "查找、搜索与比较",
+     "x0": 54,
+     "x1": 246,
+     "baseline": 680,
+     "size": 24,
+     "box": [
+      54,
+      675.032,
+      246,
+      697.232
+     ]
+    },
+    {
+     "id": 5,
+     "text": "中文排版测试页",
+     "x0": 54,
+     "x1": 222,
+     "baseline": 640,
+     "size": 24,
+     "box": [
+      54,
+      635.032,
+      222,
+      657.232
+     ]
+    },
+    {
+     "id": 6,
+     "text": "竖排文字测试",
+     "x0": 408.0,
+     "x1": 432.0,
+     "baseline": 560.0,
+     "size": 24.0,
+     "box": [
+      408.0,
+      416.0,
+      432.0,
+      560.0
+     ],
+     "direction": "ttb"
+    },
+    {
+     "id": 7,
+     "text": "从右向左阅读",
+     "x0": 358.0,
+     "x1": 382.0,
+     "baseline": 560.0,
+     "size": 24.0,
+     "box": [
+      358.0,
+      416.0,
+      382.0,
+      560.0
+     ],
+     "direction": "ttb"
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4,
+      5
+     ]
+    },
+    {
+     "id": 3,
+     "role": "body",
+     "lines": [
+      6,
+      7
+     ]
+    },
+    {
+     "id": 4,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "tables": [],
+   "negatives": []
+  }
+ ]
+}

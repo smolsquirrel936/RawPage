@@ -1,0 +1,147 @@
+{
+ "file": "ordinary/cjk-vertical.pdf",
+ "generator": "corpus/make-text.py",
+ "units": "PDF points, page space",
+ "pages": [
+  {
+   "index": 0,
+   "columns": 2,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - cjk-vertical.pdf",
+     "x0": 54,
+     "x1": 165.697,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      165.697,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 1 of 1",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "cjk-vertical.pdf - Identity-V, two columns right to left",
+     "x0": 54,
+     "x1": 325.381,
+     "baseline": 780,
+     "size": 11,
+     "box": [
+      54,
+      777.723,
+      325.381,
+      787.898
+     ]
+    },
+    {
+     "id": 3,
+     "text": "一二三十口日田中目",
+     "x0": 406.0,
+     "x1": 434.0,
+     "baseline": 740.0,
+     "size": 28.0,
+     "box": [
+      406.0,
+      488.0,
+      434.0,
+      740.0
+     ],
+     "direction": "ttb"
+    },
+    {
+     "id": 4,
+     "text": "中日田口十三二一目",
+     "x0": 346.0,
+     "x1": 374.0,
+     "baseline": 740.0,
+     "size": 28.0,
+     "box": [
+      346.0,
+      488.0,
+      374.0,
+      740.0
+     ],
+     "direction": "ttb"
+    },
+    {
+     "id": 5,
+     "text": "日中田口",
+     "x0": 54,
+     "x1": 150,
+     "baseline": 200,
+     "size": 24,
+     "box": [
+      54,
+      195.032,
+      150,
+      217.232
+     ],
+     "direction": "ltr"
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4
+     ]
+    },
+    {
+     "id": 3,
+     "role": "body",
+     "lines": [
+      5
+     ]
+    },
+    {
+     "id": 4,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "tables": [],
+   "negatives": []
+  }
+ ]
+}

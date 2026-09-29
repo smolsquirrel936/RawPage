@@ -1,0 +1,19 @@
+{
+ "base": "compare/base.pdf",
+ "revised": "compare/pages-reordered.pdf",
+ "generator": "corpus/make-compare.py",
+ "pair": "edit",
+ "changes": [
+  {
+   "kind": "page-order",
+   "order": [
+    0,
+    2,
+    1
+   ]
+  }
+ ],
+ "summary": [
+  "pages 2 and 3 swapped; the footer numbers stay 1, 2, 3 in page order"
+ ]
+}

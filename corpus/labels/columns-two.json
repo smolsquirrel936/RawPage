@@ -1,0 +1,2511 @@
+{
+ "file": "ordinary/columns-two.pdf",
+ "generator": "corpus/make-text.py",
+ "units": "PDF points, page space",
+ "pages": [
+  {
+   "index": 0,
+   "columns": 2,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - columns-two.pdf",
+     "x0": 54,
+     "x1": 172.373,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      172.373,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 1 of 3",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "Two columns and a spanning headline",
+     "x0": 54,
+     "x1": 384.084,
+     "baseline": 772,
+     "size": 18,
+     "box": [
+      54,
+      768.274,
+      384.084,
+      784.924
+     ]
+    },
+    {
+     "id": 3,
+     "text": "Glyph frame layer page report logical stream revision",
+     "x0": 54.0,
+     "x1": 276.794,
+     "baseline": 744,
+     "size": 9.5,
+     "box": [
+      54.0,
+      742.034,
+      276.794,
+      750.821
+     ]
+    },
+    {
+     "id": 4,
+     "text": "cache interface budget document schedule filter",
+     "x0": 54.0,
+     "x1": 255.714,
+     "baseline": 732.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      730.034,
+      255.714,
+      738.821
+     ]
+    },
+    {
+     "id": 5,
+     "text": "append trailer table kerning scope resolution monitor",
+     "x0": 54.0,
+     "x1": 275.236,
+     "baseline": 720.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      718.034,
+      275.236,
+      726.821
+     ]
+    },
+    {
+     "id": 6,
+     "text": "logical stream policy scaling tag baseline document",
+     "x0": 54.0,
+     "x1": 269.945,
+     "baseline": 708.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      706.034,
+      269.945,
+      714.821
+     ]
+    },
+    {
+     "id": 7,
+     "text": "journal raster append outline table frame layer",
+     "x0": 54.0,
+     "x1": 247.781,
+     "baseline": 696.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      694.034,
+      247.781,
+      702.821
+     ]
+    },
+    {
+     "id": 8,
+     "text": "resolution typeface logical render revision scaling",
+     "x0": 54.0,
+     "x1": 260.967,
+     "baseline": 684.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      682.034,
+      260.967,
+      690.821
+     ]
+    },
+    {
+     "id": 9,
+     "text": "invalidate budget worker journal raster append",
+     "x0": 54.0,
+     "x1": 249.368,
+     "baseline": 672.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      670.034,
+      249.368,
+      678.821
+     ]
+    },
+    {
+     "id": 10,
+     "text": "percentile table frame scope page monitor.",
+     "x0": 54.0,
+     "x1": 234.054,
+     "baseline": 660.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      658.034,
+      234.054,
+      666.821
+     ]
+    },
+    {
+     "id": 11,
+     "text": "Object journal filter physical trailer glyph frame scope",
+     "x0": 54.0,
+     "x1": 276.794,
+     "baseline": 642.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      640.034,
+      276.794,
+      648.821
+     ]
+    },
+    {
+     "id": 12,
+     "text": "resolution report signature thread revision scaling",
+     "x0": 54.0,
+     "x1": 261.499,
+     "baseline": 630.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      628.034,
+      261.499,
+      636.821
+     ]
+    },
+    {
+     "id": 13,
+     "text": "invalidate budget object journal latency physical trailer",
+     "x0": 54.0,
+     "x1": 281.041,
+     "baseline": 618.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      616.034,
+      281.041,
+      624.821
+     ]
+    },
+    {
+     "id": 14,
+     "text": "glyph frame boundary incremental report logical",
+     "x0": 54.0,
+     "x1": 254.631,
+     "baseline": 606.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      604.034,
+      254.631,
+      612.821
+     ]
+    },
+    {
+     "id": 15,
+     "text": "stream policy cache interface budget object schedule",
+     "x0": 54.0,
+     "x1": 277.355,
+     "baseline": 594.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      592.034,
+      277.355,
+      600.821
+     ]
+    },
+    {
+     "id": 16,
+     "text": "filter tile outline throughput repair boundary",
+     "x0": 54.0,
+     "x1": 234.585,
+     "baseline": 582.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      580.034,
+      234.585,
+      588.821
+     ]
+    },
+    {
+     "id": 17,
+     "text": "incremental monitor logical render revision cache",
+     "x0": 54.0,
+     "x1": 260.425,
+     "baseline": 570.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      568.034,
+      260.425,
+      576.821
+     ]
+    },
+    {
+     "id": 18,
+     "text": "interface baseline document schedule filter physical",
+     "x0": 54.0,
+     "x1": 271.009,
+     "baseline": 558.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      556.034,
+      271.009,
+      564.821
+     ]
+    },
+    {
+     "id": 19,
+     "text": "outline table frame layer incremental report logical",
+     "x0": 54.0,
+     "x1": 264.13,
+     "baseline": 546.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      544.034,
+      264.13,
+      552.821
+     ]
+    },
+    {
+     "id": 20,
+     "text": "thread annotation cache interface offset object",
+     "x0": 54.0,
+     "x1": 248.864,
+     "baseline": 534.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      532.034,
+      248.864,
+      540.821
+     ]
+    },
+    {
+     "id": 21,
+     "text": "schedule.",
+     "x0": 54.0,
+     "x1": 94.66,
+     "baseline": 522.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      520.034,
+      94.66,
+      528.821
+     ]
+    },
+    {
+     "id": 22,
+     "text": "Scope resolution monitor signature stream policy",
+     "x0": 54.0,
+     "x1": 259.38,
+     "baseline": 504.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      502.034,
+      259.38,
+      510.821
+     ]
+    },
+    {
+     "id": 23,
+     "text": "permission invalidate baseline document facade filter",
+     "x0": 54.0,
+     "x1": 276.813,
+     "baseline": 492.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      490.034,
+      276.813,
+      498.821
+     ]
+    },
+    {
+     "id": 24,
+     "text": "append percentile table repair boundary incremental",
+     "x0": 54.0,
+     "x1": 273.659,
+     "baseline": 480.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      478.034,
+      273.659,
+      486.821
+     ]
+    },
+    {
+     "id": 25,
+     "text": "typeface logical render annotation cache interface",
+     "x0": 54.0,
+     "x1": 263.637,
+     "baseline": 468.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      466.034,
+      263.637,
+      474.821
+     ]
+    },
+    {
+     "id": 26,
+     "text": "baseline object schedule latency append trailer glyph",
+     "x0": 54.0,
+     "x1": 276.832,
+     "baseline": 456.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      454.034,
+      276.832,
+      462.821
+     ]
+    },
+    {
+     "id": 27,
+     "text": "frame boundary page typeface signature render",
+     "x0": 54.0,
+     "x1": 254.659,
+     "baseline": 444.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      442.034,
+      254.659,
+      450.821
+     ]
+    },
+    {
+     "id": 28,
+     "text": "revision scaling tag budget object journal raster tile",
+     "x0": 54.0,
+     "x1": 267.313,
+     "baseline": 432.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      430.034,
+      267.313,
+      438.821
+     ]
+    },
+    {
+     "id": 29,
+     "text": "percentile.",
+     "x0": 54.0,
+     "x1": 97.823,
+     "baseline": 420.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      418.034,
+      97.823,
+      426.821
+     ]
+    },
+    {
+     "id": 30,
+     "text": "Signature stream policy cache tag baseline object",
+     "x0": 54.0,
+     "x1": 263.095,
+     "baseline": 402.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      400.034,
+      263.095,
+      408.821
+     ]
+    },
+    {
+     "id": 31,
+     "text": "schedule latency tile percentile throughput frame",
+     "x0": 54.0,
+     "x1": 258.345,
+     "baseline": 390.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      388.034,
+      258.345,
+      396.821
+     ]
+    },
+    {
+     "id": 32,
+     "text": "scope incremental monitor logical stream revision",
+     "x0": 54.0,
+     "x1": 262.002,
+     "baseline": 378.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      376.034,
+      262.002,
+      384.821
+     ]
+    },
+    {
+     "id": 33,
+     "text": "scaling interface budget worker schedule latency tile",
+     "x0": 54.0,
+     "x1": 273.649,
+     "baseline": 366.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      364.034,
+      273.649,
+      372.821
+     ]
+    },
+    {
+     "id": 34,
+     "text": "trailer throughput kerning layer resolution report logical",
+     "x0": 54.0,
+     "x1": 283.672,
+     "baseline": 354.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      352.034,
+      283.672,
+      360.821
+     ]
+    },
+    {
+     "id": 35,
+     "text": "thread annotation scaling invalidate budget worker",
+     "x0": 54.0,
+     "x1": 265.745,
+     "baseline": 342.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      340.034,
+      265.745,
+      348.821
+     ]
+    },
+    {
+     "id": 36,
+     "text": "schedule filter tile outline table kerning boundary",
+     "x0": 54.0,
+     "x1": 257.291,
+     "baseline": 330.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      328.034,
+      257.291,
+      336.821
+     ]
+    },
+    {
+     "id": 37,
+     "text": "incremental report viewport stream policy cache",
+     "x0": 54.0,
+     "x1": 255.143,
+     "baseline": 318.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      316.034,
+      255.143,
+      324.821
+     ]
+    },
+    {
+     "id": 38,
+     "text": "invalidate offset document journal latency physical",
+     "x0": 54.0,
+     "x1": 265.204,
+     "baseline": 306.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      304.034,
+      265.204,
+      312.821
+     ]
+    },
+    {
+     "id": 39,
+     "text": "outline.",
+     "x0": 54.0,
+     "x1": 84.628,
+     "baseline": 294.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      292.034,
+      84.628,
+      300.821
+     ]
+    },
+    {
+     "id": 40,
+     "text": "Monitor viewport thread policy permission tag baseline",
+     "x0": 54.0,
+     "x1": 282.608,
+     "baseline": 276.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      274.034,
+      282.608,
+      282.821
+     ]
+    },
+    {
+     "id": 41,
+     "text": "worker journal latency append trailer glyph kerning",
+     "x0": 54.0,
+     "x1": 266.249,
+     "baseline": 264.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      262.034,
+      266.249,
+      270.821
+     ]
+    },
+    {
+     "id": 42,
+     "text": "scope incremental monitor logical thread policy",
+     "x0": 54.0,
+     "x1": 251.458,
+     "baseline": 252.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      250.034,
+      251.458,
+      258.821
+     ]
+    },
+    {
+     "id": 43,
+     "text": "permission invalidate baseline worker schedule raster",
+     "x0": 54.0,
+     "x1": 279.435,
+     "baseline": 240.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      238.034,
+      279.435,
+      246.821
+     ]
+    },
+    {
+     "id": 44,
+     "text": "physical outline throughput frame scope page monitor",
+     "x0": 54.0,
+     "x1": 279.995,
+     "baseline": 228.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      226.034,
+      279.995,
+      234.821
+     ]
+    },
+    {
+     "id": 45,
+     "text": "viewport thread revision cache invalidate baseline.",
+     "x0": 54.0,
+     "x1": 265.726,
+     "baseline": 216.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      214.034,
+      265.726,
+      222.821
+     ]
+    },
+    {
+     "id": 46,
+     "text": "Outline table kerning layer incremental monitor",
+     "x0": 54.0,
+     "x1": 250.403,
+     "baseline": 198.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      196.034,
+      250.403,
+      204.821
+     ]
+    },
+    {
+     "id": 47,
+     "text": "signature thread revision scaling interface baseline",
+     "x0": 54.0,
+     "x1": 267.313,
+     "baseline": 186.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      184.034,
+      267.313,
+      192.821
+     ]
+    },
+    {
+     "id": 48,
+     "text": "object journal filter physical outline throughput frame",
+     "x0": 54.0,
+     "x1": 273.649,
+     "baseline": 174.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      172.034,
+      273.649,
+      180.821
+     ]
+    },
+    {
+     "id": 49,
+     "text": "boundary page report signature thread policy scaling",
+     "x0": 54.0,
+     "x1": 275.245,
+     "baseline": 162.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      160.034,
+      275.245,
+      168.821
+     ]
+    },
+    {
+     "id": 50,
+     "text": "tag offset object facade filter physical percentile",
+     "x0": 54.0,
+     "x1": 253.595,
+     "baseline": 150.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      148.034,
+      253.595,
+      156.821
+     ]
+    },
+    {
+     "id": 51,
+     "text": "throughput kerning layer page typeface signature",
+     "x0": 54.0,
+     "x1": 260.473,
+     "baseline": 138.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      136.034,
+      260.473,
+      144.821
+     ]
+    },
+    {
+     "id": 52,
+     "text": "render revision scaling interface budget worker journal",
+     "x0": 54.0,
+     "x1": 282.086,
+     "baseline": 126.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      124.034,
+      282.086,
+      132.821
+     ]
+    },
+    {
+     "id": 53,
+     "text": "filter tile outline throughput frame layer.",
+     "x0": 54.0,
+     "x1": 218.208,
+     "baseline": 114.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      112.034,
+      218.208,
+      120.821
+     ]
+    },
+    {
+     "id": 54,
+     "text": "Stream revision cache invalidate baseline document",
+     "x0": 309.638,
+     "x1": 528.755,
+     "baseline": 744,
+     "size": 9.5,
+     "box": [
+      309.638,
+      742.034,
+      528.755,
+      750.821
+     ]
+    },
+    {
+     "id": 55,
+     "text": "schedule latency append trailer glyph repair scope",
+     "x0": 309.638,
+     "x1": 521.374,
+     "baseline": 732.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      730.034,
+      521.374,
+      738.821
+     ]
+    },
+    {
+     "id": 56,
+     "text": "incremental typeface signature render revision cache",
+     "x0": 309.638,
+     "x1": 532.451,
+     "baseline": 720.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      718.034,
+      532.451,
+      726.821
+     ]
+    },
+    {
+     "id": 57,
+     "text": "interface offset object journal latency append",
+     "x0": 309.638,
+     "x1": 498.156,
+     "baseline": 708.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      706.034,
+      498.156,
+      714.821
+     ]
+    },
+    {
+     "id": 58,
+     "text": "percentile throughput frame layer incremental monitor",
+     "x0": 309.638,
+     "x1": 535.082,
+     "baseline": 696.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      694.034,
+      535.082,
+      702.821
+     ]
+    },
+    {
+     "id": 59,
+     "text": "signature thread revision permission tag baseline",
+     "x0": 309.638,
+     "x1": 516.082,
+     "baseline": 684.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      682.034,
+      516.082,
+      690.821
+     ]
+    },
+    {
+     "id": 60,
+     "text": "document facade raster append trailer table frame",
+     "x0": 309.638,
+     "x1": 520.319,
+     "baseline": 672.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      670.034,
+      520.319,
+      678.821
+     ]
+    },
+    {
+     "id": 61,
+     "text": "boundary page monitor viewport stream annotation",
+     "x0": 309.638,
+     "x1": 524.015,
+     "baseline": 660.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      658.034,
+      524.015,
+      666.821
+     ]
+    },
+    {
+     "id": 62,
+     "text": "scaling interface offset object facade filter tile",
+     "x0": 309.638,
+     "x1": 498.669,
+     "baseline": 648.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      646.034,
+      498.669,
+      654.821
+     ]
+    },
+    {
+     "id": 63,
+     "text": "percentile glyph kerning scope resolution typeface",
+     "x0": 309.638,
+     "x1": 520.319,
+     "baseline": 636.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      634.034,
+      520.319,
+      642.821
+     ]
+    },
+    {
+     "id": 64,
+     "text": "logical stream.",
+     "x0": 309.638,
+     "x1": 370.875,
+     "baseline": 624.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      622.034,
+      370.875,
+      630.821
+     ]
+    },
+    {
+     "id": 65,
+     "text": "Invalidate offset document facade raster physical",
+     "x0": 309.638,
+     "x1": 515.569,
+     "baseline": 606.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      604.034,
+      515.569,
+      612.821
+     ]
+    },
+    {
+     "id": 66,
+     "text": "outline table kerning layer incremental typeface",
+     "x0": 309.638,
+     "x1": 508.169,
+     "baseline": 594.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      592.034,
+      508.169,
+      600.821
+     ]
+    },
+    {
+     "id": 67,
+     "text": "signature stream revision scaling tag baseline worker",
+     "x0": 309.638,
+     "x1": 532.964,
+     "baseline": 582.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      580.034,
+      532.964,
+      588.821
+     ]
+    },
+    {
+     "id": 68,
+     "text": "facade raster tile trailer throughput kerning layer page",
+     "x0": 309.638,
+     "x1": 535.101,
+     "baseline": 570.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      568.034,
+      535.101,
+      576.821
+     ]
+    },
+    {
+     "id": 69,
+     "text": "monitor logical thread annotation cache invalidate",
+     "x0": 309.638,
+     "x1": 518.21,
+     "baseline": 558.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      556.034,
+      518.21,
+      564.821
+     ]
+    },
+    {
+     "id": 70,
+     "text": "baseline worker facade raster append percentile",
+     "x0": 309.638,
+     "x1": 512.396,
+     "baseline": 546.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      544.034,
+      512.396,
+      552.821
+     ]
+    },
+    {
+     "id": 71,
+     "text": "throughput kerning layer page typeface logical.",
+     "x0": 309.638,
+     "x1": 506.601,
+     "baseline": 534.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      532.034,
+      506.601,
+      540.821
+     ]
+    },
+    {
+     "id": 72,
+     "text": "Permission invalidate offset document journal latency",
+     "x0": 309.638,
+     "x1": 533.505,
+     "baseline": 516.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      514.034,
+      533.505,
+      522.821
+     ]
+    },
+    {
+     "id": 73,
+     "text": "append trailer table kerning scope resolution monitor",
+     "x0": 309.638,
+     "x1": 530.874,
+     "baseline": 504.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      502.034,
+      530.874,
+      510.821
+     ]
+    },
+    {
+     "id": 74,
+     "text": "logical stream annotation permission tag budget",
+     "x0": 309.638,
+     "x1": 511.342,
+     "baseline": 492.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      490.034,
+      511.342,
+      498.821
+     ]
+    },
+    {
+     "id": 75,
+     "text": "document schedule raster physical percentile",
+     "x0": 309.638,
+     "x1": 499.714,
+     "baseline": 480.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      478.034,
+      499.714,
+      486.821
+     ]
+    },
+    {
+     "id": 76,
+     "text": "throughput repair boundary page report logical thread",
+     "x0": 309.638,
+     "x1": 534.588,
+     "baseline": 468.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      466.034,
+      534.588,
+      474.821
+     ]
+    },
+    {
+     "id": 77,
+     "text": "revision cache invalidate baseline worker journal raster",
+     "x0": 309.638,
+     "x1": 540.355,
+     "baseline": 456.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      454.034,
+      540.355,
+      462.821
+     ]
+    },
+    {
+     "id": 78,
+     "text": "physical trailer throughput kerning scope incremental",
+     "x0": 309.638,
+     "x1": 531.919,
+     "baseline": 444.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      442.034,
+      531.919,
+      450.821
+     ]
+    },
+    {
+     "id": 79,
+     "text": "monitor logical stream policy scaling interface budget",
+     "x0": 309.638,
+     "x1": 532.442,
+     "baseline": 432.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      430.034,
+      532.442,
+      438.821
+     ]
+    },
+    {
+     "id": 80,
+     "text": "worker journal filter tile trailer glyph kerning.",
+     "x0": 309.638,
+     "x1": 492.827,
+     "baseline": 420.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      418.034,
+      492.827,
+      426.821
+     ]
+    },
+    {
+     "id": 81,
+     "text": "Resolution report signature thread revision permission",
+     "x0": 309.638,
+     "x1": 537.192,
+     "baseline": 402.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      400.034,
+      537.192,
+      408.821
+     ]
+    },
+    {
+     "id": 82,
+     "text": "invalidate offset document schedule raster append",
+     "x0": 309.638,
+     "x1": 521.915,
+     "baseline": 390.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      388.034,
+      521.915,
+      396.821
+     ]
+    },
+    {
+     "id": 83,
+     "text": "outline throughput kerning boundary incremental report",
+     "x0": 309.638,
+     "x1": 540.915,
+     "baseline": 378.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      376.034,
+      540.915,
+      384.821
+     ]
+    },
+    {
+     "id": 84,
+     "text": "viewport render policy scaling interface budget object",
+     "x0": 309.638,
+     "x1": 532.983,
+     "baseline": 366.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      364.034,
+      532.983,
+      372.821
+     ]
+    },
+    {
+     "id": 85,
+     "text": "schedule latency append outline table kerning",
+     "x0": 309.638,
+     "x1": 502.383,
+     "baseline": 354.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      352.034,
+      502.383,
+      360.821
+     ]
+    },
+    {
+     "id": 86,
+     "text": "boundary resolution typeface logical render annotation",
+     "x0": 309.638,
+     "x1": 538.284,
+     "baseline": 342.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      340.034,
+      538.284,
+      348.821
+     ]
+    },
+    {
+     "id": 87,
+     "text": "permission.",
+     "x0": 309.638,
+     "x1": 358.202,
+     "baseline": 330.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      328.034,
+      358.202,
+      336.821
+     ]
+    },
+    {
+     "id": 88,
+     "text": "Baseline worker facade filter tile percentile glyph repair",
+     "x0": 309.638,
+     "x1": 539.832,
+     "baseline": 312.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      310.034,
+      539.832,
+      318.821
+     ]
+    },
+    {
+     "id": 89,
+     "text": "boundary resolution monitor logical stream revision",
+     "x0": 309.638,
+     "x1": 523.986,
+     "baseline": 300.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      298.034,
+      523.986,
+      306.821
+     ]
+    },
+    {
+     "id": 90,
+     "text": "scaling invalidate offset object schedule raster tile",
+     "x0": 309.638,
+     "x1": 518.201,
+     "baseline": 288.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      286.034,
+      518.201,
+      294.821
+     ]
+    },
+    {
+     "id": 91,
+     "text": "outline throughput frame layer page report logical",
+     "x0": 309.638,
+     "x1": 516.624,
+     "baseline": 276.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      274.034,
+      516.624,
+      282.821
+     ]
+    },
+    {
+     "id": 92,
+     "text": "thread revision scaling tag budget worker schedule",
+     "x0": 309.638,
+     "x1": 523.483,
+     "baseline": 264.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      262.034,
+      523.483,
+      270.821
+     ]
+    },
+    {
+     "id": 93,
+     "text": "filter tile trailer glyph frame scope resolution report",
+     "x0": 309.638,
+     "x1": 520.291,
+     "baseline": 252.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      250.034,
+      520.291,
+      258.821
+     ]
+    },
+    {
+     "id": 94,
+     "text": "logical stream annotation scaling invalidate offset",
+     "x0": 309.638,
+     "x1": 516.092,
+     "baseline": 240.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      238.034,
+      516.092,
+      246.821
+     ]
+    },
+    {
+     "id": 95,
+     "text": "document schedule.",
+     "x0": 309.638,
+     "x1": 394.654,
+     "baseline": 228.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      226.034,
+      394.654,
+      234.821
+     ]
+    },
+    {
+     "id": 96,
+     "text": "Filter append percentile glyph kerning layer resolution",
+     "x0": 309.638,
+     "x1": 535.092,
+     "baseline": 210.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      208.034,
+      535.092,
+      216.821
+     ]
+    },
+    {
+     "id": 97,
+     "text": "report signature stream revision permission invalidate",
+     "x0": 309.638,
+     "x1": 534.541,
+     "baseline": 198.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      196.034,
+      534.541,
+      204.821
+     ]
+    },
+    {
+     "id": 98,
+     "text": "baseline object facade latency physical percentile",
+     "x0": 309.638,
+     "x1": 517.678,
+     "baseline": 186.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      184.034,
+      517.678,
+      192.821
+     ]
+    },
+    {
+     "id": 99,
+     "text": "glyph frame layer page monitor viewport render",
+     "x0": 309.638,
+     "x1": 508.682,
+     "baseline": 174.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      172.034,
+      508.682,
+      180.821
+     ]
+    },
+    {
+     "id": 100,
+     "text": "revision scaling interface budget worker schedule",
+     "x0": 309.638,
+     "x1": 517.137,
+     "baseline": 162.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      160.034,
+      517.137,
+      168.821
+     ]
+    },
+    {
+     "id": 101,
+     "text": "latency tile outline throughput kerning boundary",
+     "x0": 309.638,
+     "x1": 509.242,
+     "baseline": 150.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      148.034,
+      509.242,
+      156.821
+     ]
+    },
+    {
+     "id": 102,
+     "text": "incremental report logical stream revision scaling tag",
+     "x0": 309.638,
+     "x1": 530.846,
+     "baseline": 138.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      136.034,
+      530.846,
+      144.821
+     ]
+    },
+    {
+     "id": 103,
+     "text": "baseline worker journal raster append percentile",
+     "x0": 309.638,
+     "x1": 512.387,
+     "baseline": 126.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      124.034,
+      512.387,
+      132.821
+     ]
+    },
+    {
+     "id": 104,
+     "text": "throughput repair boundary incremental monitor",
+     "x0": 309.638,
+     "x1": 510.278,
+     "baseline": 114.0,
+     "size": 9.5,
+     "box": [
+      309.638,
+      112.034,
+      510.278,
+      120.821
+     ]
+    },
+    {
+     "id": 105,
+     "text": "1 A footnote: it belongs to the page, and is read after the body.",
+     "x0": 54,
+     "x1": 247.795,
+     "baseline": 84,
+     "size": 7,
+     "box": [
+      54,
+      82.551,
+      247.795,
+      89.026
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+     ]
+    },
+    {
+     "id": 3,
+     "role": "body",
+     "lines": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21
+     ]
+    },
+    {
+     "id": 4,
+     "role": "body",
+     "lines": [
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+     ]
+    },
+    {
+     "id": 5,
+     "role": "body",
+     "lines": [
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+     ]
+    },
+    {
+     "id": 6,
+     "role": "body",
+     "lines": [
+      40,
+      41,
+      42,
+      43,
+      44,
+      45
+     ]
+    },
+    {
+     "id": 7,
+     "role": "body",
+     "lines": [
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53
+     ]
+    },
+    {
+     "id": 8,
+     "role": "body",
+     "lines": [
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64
+     ]
+    },
+    {
+     "id": 9,
+     "role": "body",
+     "lines": [
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71
+     ]
+    },
+    {
+     "id": 10,
+     "role": "body",
+     "lines": [
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80
+     ]
+    },
+    {
+     "id": 11,
+     "role": "body",
+     "lines": [
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87
+     ]
+    },
+    {
+     "id": 12,
+     "role": "body",
+     "lines": [
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95
+     ]
+    },
+    {
+     "id": 13,
+     "role": "body",
+     "lines": [
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104
+     ]
+    },
+    {
+     "id": 14,
+     "role": "footnote",
+     "lines": [
+      105
+     ]
+    },
+    {
+     "id": 15,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "tables": [],
+   "negatives": []
+  },
+  {
+   "index": 1,
+   "columns": 2,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - columns-two.pdf",
+     "x0": 54,
+     "x1": 172.373,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      172.373,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 2 of 3",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "signature render annotation cache interface offset",
+     "x0": 54.0,
+     "x1": 263.114,
+     "baseline": 790,
+     "size": 9.5,
+     "box": [
+      54.0,
+      788.034,
+      263.114,
+      796.821
+     ]
+    },
+    {
+     "id": 3,
+     "text": "object schedule.",
+     "x0": 54.0,
+     "x1": 122.647,
+     "baseline": 778.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      776.034,
+      122.647,
+      784.821
+     ]
+    },
+    {
+     "id": 4,
+     "text": "Schedule latency physical percentile throughput repair",
+     "x0": 54.0,
+     "x1": 282.105,
+     "baseline": 760.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      758.034,
+      282.105,
+      766.821
+     ]
+    },
+    {
+     "id": 5,
+     "text": "scope incremental monitor signature stream revision",
+     "x0": 54.0,
+     "x1": 274.153,
+     "baseline": 748.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      746.034,
+      274.153,
+      754.821
+     ]
+    },
+    {
+     "id": 6,
+     "text": "permission tag baseline worker schedule latency",
+     "x0": 54.0,
+     "x1": 258.326,
+     "baseline": 736.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      734.034,
+      258.326,
+      742.821
+     ]
+    },
+    {
+     "id": 7,
+     "text": "physical outline table frame scope resolution monitor",
+     "x0": 54.0,
+     "x1": 275.226,
+     "baseline": 724.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      722.034,
+      275.226,
+      730.821
+     ]
+    },
+    {
+     "id": 8,
+     "text": "logical render revision cache tag offset object schedule",
+     "x0": 54.0,
+     "x1": 284.745,
+     "baseline": 712.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      710.034,
+      284.745,
+      718.821
+     ]
+    },
+    {
+     "id": 9,
+     "text": "raster physical outline glyph frame boundary",
+     "x0": 54.0,
+     "x1": 240.381,
+     "baseline": 700.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      698.034,
+      240.381,
+      706.821
+     ]
+    },
+    {
+     "id": 10,
+     "text": "incremental report viewport thread revision.",
+     "x0": 54.0,
+     "x1": 236.143,
+     "baseline": 688.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      686.034,
+      236.143,
+      694.821
+     ]
+    },
+    {
+     "id": 11,
+     "text": "Annotation permission invalidate offset worker",
+     "x0": 54.0,
+     "x1": 247.772,
+     "baseline": 670.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      668.034,
+      247.772,
+      676.821
+     ]
+    },
+    {
+     "id": 12,
+     "text": "schedule filter append trailer glyph frame layer",
+     "x0": 54.0,
+     "x1": 248.826,
+     "baseline": 658.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      656.034,
+      248.826,
+      664.821
+     ]
+    },
+    {
+     "id": 13,
+     "text": "resolution report logical stream revision cache",
+     "x0": 54.0,
+     "x1": 247.23,
+     "baseline": 646.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      644.034,
+      247.23,
+      652.821
+     ]
+    },
+    {
+     "id": 14,
+     "text": "invalidate baseline worker schedule raster physical",
+     "x0": 54.0,
+     "x1": 267.826,
+     "baseline": 634.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      632.034,
+      267.826,
+      640.821
+     ]
+    },
+    {
+     "id": 15,
+     "text": "percentile throughput frame layer resolution typeface",
+     "x0": 54.0,
+     "x1": 275.768,
+     "baseline": 622.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      620.034,
+      275.768,
+      628.821
+     ]
+    },
+    {
+     "id": 16,
+     "text": "logical render revision cache invalidate offset",
+     "x0": 54.0,
+     "x1": 243.022,
+     "baseline": 610.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      608.034,
+      243.022,
+      616.821
+     ]
+    },
+    {
+     "id": 17,
+     "text": "document schedule latency tile outline throughput",
+     "x0": 54.0,
+     "x1": 262.582,
+     "baseline": 598.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      596.034,
+      262.582,
+      604.821
+     ]
+    },
+    {
+     "id": 18,
+     "text": "repair scope incremental monitor logical thread",
+     "x0": 54.0,
+     "x1": 251.458,
+     "baseline": 586.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      584.034,
+      251.458,
+      592.821
+     ]
+    },
+    {
+     "id": 19,
+     "text": "revision cache invalidate budget document facade",
+     "x0": 54.0,
+     "x1": 264.691,
+     "baseline": 574.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      572.034,
+      264.691,
+      580.821
+     ]
+    },
+    {
+     "id": 20,
+     "text": "latency physical percentile.",
+     "x0": 54.0,
+     "x1": 167.516,
+     "baseline": 562.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      560.034,
+      167.516,
+      568.821
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "body",
+     "lines": [
+      2,
+      3
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+     ]
+    },
+    {
+     "id": 3,
+     "role": "body",
+     "lines": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+     ]
+    },
+    {
+     "id": 4,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "tables": [],
+   "negatives": []
+  },
+  {
+   "index": 2,
+   "columns": 1,
+   "lines": [
+    {
+     "id": 0,
+     "text": "RawPage corpus - columns-two.pdf",
+     "x0": 54,
+     "x1": 172.373,
+     "baseline": 812,
+     "size": 7.5,
+     "box": [
+      54,
+      810.447,
+      172.373,
+      817.385
+     ]
+    },
+    {
+     "id": 1,
+     "text": "page 3 of 3",
+     "x0": 54,
+     "x1": 91.53,
+     "baseline": 30,
+     "size": 7.5,
+     "box": [
+      54,
+      28.448,
+      91.53,
+      35.385
+     ]
+    },
+    {
+     "id": 2,
+     "text": "One column: the control page",
+     "x0": 54,
+     "x1": 252.366,
+     "baseline": 772,
+     "size": 14,
+     "box": [
+      54,
+      769.102,
+      252.366,
+      782.052
+     ]
+    },
+    {
+     "id": 3,
+     "text": "Monitor logical thread revision scaling tag budget document facade filter physical trailer table repair layer page",
+     "x0": 54.0,
+     "x1": 516.526,
+     "baseline": 748,
+     "size": 9.5,
+     "box": [
+      54.0,
+      746.034,
+      516.526,
+      754.821
+     ]
+    },
+    {
+     "id": 4,
+     "text": "monitor viewport stream revision permission invalidate offset document facade filter tile percentile throughput frame",
+     "x0": 54.0,
+     "x1": 537.626,
+     "baseline": 736.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      734.034,
+      537.626,
+      742.821
+     ]
+    },
+    {
+     "id": 5,
+     "text": "scope page report signature stream annotation scaling tag budget document facade filter physical trailer glyph",
+     "x0": 54.0,
+     "x1": 515.5,
+     "baseline": 724.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      722.034,
+      515.5,
+      730.821
+     ]
+    },
+    {
+     "id": 6,
+     "text": "repair layer incremental typeface viewport stream revision cache invalidate budget worker journal filter physical",
+     "x0": 54.0,
+     "x1": 519.13,
+     "baseline": 712.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      710.034,
+      519.13,
+      718.821
+     ]
+    },
+    {
+     "id": 7,
+     "text": "outline.",
+     "x0": 54.0,
+     "x1": 84.628,
+     "baseline": 700.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      698.034,
+      84.628,
+      706.821
+     ]
+    },
+    {
+     "id": 8,
+     "text": "Outline glyph frame boundary resolution monitor signature render annotation scaling tag baseline worker facade",
+     "x0": 54.0,
+     "x1": 523.937,
+     "baseline": 682.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      680.034,
+      523.937,
+      688.821
+     ]
+    },
+    {
+     "id": 9,
+     "text": "latency physical percentile glyph repair scope page report logical render annotation scaling interface budget",
+     "x0": 54.0,
+     "x1": 505.991,
+     "baseline": 670.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      668.034,
+      505.991,
+      676.821
+     ]
+    },
+    {
+     "id": 10,
+     "text": "document journal raster physical trailer table frame boundary incremental report viewport render.",
+     "x0": 54.0,
+     "x1": 459.479,
+     "baseline": 658.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      656.034,
+      459.479,
+      664.821
+     ]
+    },
+    {
+     "id": 11,
+     "text": "Stream revision cache tag offset document facade raster physical trailer table repair layer resolution report viewport",
+     "x0": 54.0,
+     "x1": 538.158,
+     "baseline": 640.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      638.034,
+      538.158,
+      646.821
+     ]
+    },
+    {
+     "id": 12,
+     "text": "thread annotation permission invalidate budget object schedule raster tile outline throughput kerning scope page",
+     "x0": 54.0,
+     "x1": 525.552,
+     "baseline": 628.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      626.034,
+      525.552,
+      634.821
+     ]
+    },
+    {
+     "id": 13,
+     "text": "monitor signature stream annotation permission invalidate offset object journal latency tile outline glyph frame scope",
+     "x0": 54.0,
+     "x1": 540.818,
+     "baseline": 616.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      614.034,
+      540.818,
+      622.821
+     ]
+    },
+    {
+     "id": 14,
+     "text": "page report viewport render policy scaling tag budget.",
+     "x0": 54.0,
+     "x1": 279.995,
+     "baseline": 604.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      602.034,
+      279.995,
+      610.821
+     ]
+    },
+    {
+     "id": 15,
+     "text": "Invalidate offset document schedule filter append percentile throughput repair layer page typeface logical thread",
+     "x0": 54.0,
+     "x1": 523.965,
+     "baseline": 586.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      584.034,
+      523.965,
+      592.821
+     ]
+    },
+    {
+     "id": 16,
+     "text": "annotation scaling tag offset object schedule raster tile percentile glyph frame layer incremental report logical thread",
+     "x0": 54.0,
+     "x1": 540.295,
+     "baseline": 574.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      572.034,
+      540.295,
+      580.821
+     ]
+    },
+    {
+     "id": 17,
+     "text": "revision cache interface offset object journal filter physical trailer table repair boundary page monitor viewport thread",
+     "x0": 54.0,
+     "x1": 540.808,
+     "baseline": 562.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      560.034,
+      540.808,
+      568.821
+     ]
+    },
+    {
+     "id": 18,
+     "text": "annotation cache interface budget document schedule filter tile outline glyph repair boundary resolution monitor",
+     "x0": 54.0,
+     "x1": 520.783,
+     "baseline": 550.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      548.034,
+      520.783,
+      556.821
+     ]
+    },
+    {
+     "id": 19,
+     "text": "logical thread revision scaling invalidate baseline.",
+     "x0": 54.0,
+     "x1": 261.499,
+     "baseline": 538.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      536.034,
+      261.499,
+      544.821
+     ]
+    },
+    {
+     "id": 20,
+     "text": "Permission invalidate baseline object facade latency append percentile throughput kerning layer resolution typeface",
+     "x0": 54.0,
+     "x1": 539.26,
+     "baseline": 520.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      518.034,
+      539.26,
+      526.821
+     ]
+    },
+    {
+     "id": 21,
+     "text": "viewport thread revision permission interface offset worker schedule filter tile outline table frame boundary",
+     "x0": 54.0,
+     "x1": 498.03,
+     "baseline": 508.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      506.034,
+      498.03,
+      514.821
+     ]
+    },
+    {
+     "id": 22,
+     "text": "resolution report signature stream policy scaling tag budget object facade filter physical outline glyph repair",
+     "x0": 54.0,
+     "x1": 502.276,
+     "baseline": 496.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      494.034,
+      502.276,
+      502.821
+     ]
+    },
+    {
+     "id": 23,
+     "text": "boundary page typeface logical.",
+     "x0": 54.0,
+     "x1": 188.131,
+     "baseline": 484.0,
+     "size": 9.5,
+     "box": [
+      54.0,
+      482.034,
+      188.131,
+      490.821
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "id": 0,
+     "role": "header",
+     "lines": [
+      0
+     ]
+    },
+    {
+     "id": 1,
+     "role": "headline",
+     "lines": [
+      2
+     ]
+    },
+    {
+     "id": 2,
+     "role": "body",
+     "lines": [
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    },
+    {
+     "id": 3,
+     "role": "body",
+     "lines": [
+      8,
+      9,
+      10
+     ]
+    },
+    {
+     "id": 4,
+     "role": "body",
+     "lines": [
+      11,
+      12,
+      13,
+      14
+     ]
+    },
+    {
+     "id": 5,
+     "role": "body",
+     "lines": [
+      15,
+      16,
+      17,
+      18,
+      19
+     ]
+    },
+    {
+     "id": 6,
+     "role": "body",
+     "lines": [
+      20,
+      21,
+      22,
+      23
+     ]
+    },
+    {
+     "id": 7,
+     "role": "footer",
+     "lines": [
+      1
+     ]
+    }
+   ],
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "tables": [],
+   "negatives": []
+  }
+ ]
+}
