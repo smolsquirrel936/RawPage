@@ -58,6 +58,10 @@ RAWPAGE_BINDING(Global, "F9",            ViewToggleRibbon)
 RAWPAGE_BINDING(Global, "F11",           ViewFullScreen)
 RAWPAGE_BINDING(Global, "Alt",           AppRibbonKeyTips)
 RAWPAGE_BINDING(Global, "Ctrl+Shift+U",  AppToolFinder)
+// Advanced Search. A FindSearch row until 2026-09-29, which left it unreachable from the page;
+// MOVED here rather than duplicated, because a Global chord bound again in a context is a class-1
+// shadow to census() whatever its action (Stage5-TextSearch-Plan.md D5-15; Features.md 8).
+RAWPAGE_BINDING(Global, "Ctrl+Shift+F",  FindAdvancedSearch)
 RAWPAGE_BINDING(Global, "Ctrl+Shift+P",  PaneThumbnails)
 RAWPAGE_BINDING(Global, "Ctrl+Shift+B",  PaneBookmarks)
 RAWPAGE_BINDING(Global, "Ctrl+Shift+C",  PaneComments)
@@ -282,7 +286,6 @@ RAWPAGE_BINDING(FindSearch, "F3",              FindNext)
 RAWPAGE_BINDING(FindSearch, "Shift+F3",        FindPrevious)
 RAWPAGE_BINDING(FindSearch, "Ctrl+G",          FindNext)
 RAWPAGE_BINDING(FindSearch, "Ctrl+Shift+G",    FindPrevious)
-RAWPAGE_BINDING(FindSearch, "Ctrl+Shift+F",    FindAdvancedSearch)
 RAWPAGE_BINDING(FindSearch, "Enter",           FindJumpToResult)
 RAWPAGE_BINDING_NATIVE(FindSearch, "Up",   "moves through the result list; the item view owns it")
 RAWPAGE_BINDING_NATIVE(FindSearch, "Down", "moves through the result list; the item view owns it")

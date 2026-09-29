@@ -1291,9 +1291,13 @@ chord disagree most.
 
 Other, wider counts exist over these tables and are **not** what "twelve" refers to — a census of
 every context gives **6** chords where any context redefines a `Global` chord, **9** where a context
-overrides a `Common` one, and **52** chords appearing in more than one table at all (mostly the
+overrides a `Common` one, and **53** chords appearing in more than one table at all (mostly the
 ordinary per-context meanings of `Enter`, `Delete` and the arrow keys). Stating the scope here so
-that downstream documents cite a defined number rather than an ambiguous one.
+that downstream documents cite a defined number rather than an ambiguous one. *(Re-derived
+2026-09-29 by parsing these tables, a gesture cell such as `Alt`+drag counted as one key; the method
+reproduced the previous **52** and **6** before the edit. **53** is 52 plus Stage 5's `Alt`+drag, now
+in Viewer and Annotation tools with different meanings. `Ctrl+Shift+F` MOVED from Find / Search to
+Global rather than appearing in both, so it adds nothing, and the **6** does not move.)*
 
 ### Global (active in every context)
 
@@ -1315,6 +1319,7 @@ that downstream documents cite a defined number rather than an ambiguous one.
 | `F11` | Enter / leave Full Screen |
 | `Alt` | Show ribbon key tips — on `Alt`'s **release**, and only when nothing else was pressed, clicked or wheeled while it was held (Windows' menu convention; S4 decision D4-22, so that `Alt`+wheel can set the Loupe's magnification) |
 | `Ctrl+Shift+U` | Focus the tool finder |
+| `Ctrl+Shift+F` | Open the Advanced Search pane *(Acrobat)* — MOVED here from the Find / Search table on 2026-09-29 (S5 decision D5-15, `Stage5-TextSearch-Plan.md` §3): bound in that context alone it could not be reached from the page, and bound in both the store counts it as a Global chord a context takes back, which it is not |
 | `Ctrl+Shift+P` | Page Thumbnails pane |
 | `Ctrl+Shift+B` | Bookmarks pane |
 | `Ctrl+Shift+C` | Comments pane |
@@ -1358,6 +1363,7 @@ that downstream documents cite a defined number rather than an ambiguous one.
 | `Ctrl+;` | Toggle Snap to Grid |
 | `Ctrl+Shift+H` | Toggle single-page ↔ continuous scrolling |
 | `Ctrl+Shift+T` | Toggle Two-Up |
+| `Alt`+drag | Select a column of text — with the Selection tool (`V`), the spans of every line the rectangle crosses (S5 decision D5-8, 2026-09-29) |
 | `Ctrl+Alt+C` | Compare documents… |
 | `Ctrl+.` / `Ctrl+,` | Next / previous comment |
 | `Ctrl+]` / `Ctrl+[` | Next / previous difference (during a comparison) |
@@ -1522,13 +1528,15 @@ that downstream documents cite a defined number rather than an ambiguous one.
 | `Ctrl+F` | Open the Find toolbar *(Acrobat)* |
 | `F3` / `Shift+F3` | Find next / previous |
 | `Ctrl+G` / `Ctrl+Shift+G` | Find next / previous (alias) |
-| `Ctrl+Shift+F` | Open the Advanced Search pane *(Acrobat)* |
 | `Enter` | Jump to the highlighted result |
 | `↑` / `↓` | Move through the result list |
 | `Alt+R` | Toggle regular-expression matching |
 | `Alt+W` | Toggle whole-words-only |
 | `Alt+C` | Toggle case sensitivity |
 | `Esc` | Close Find and clear the match highlighting |
+
+`Ctrl+Shift+F` (Advanced Search) was listed here until 2026-09-29 and is now a **Global** row, which
+reaches this context too: resolution falls back to Global.
 
 ### Full Screen & Presentation
 

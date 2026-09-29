@@ -539,7 +539,7 @@ early — which is how a stage's risk retirement gets scrambled.
 | **Any mutation of any kind.** No `Command`, no `CommandJournal`, no save, no `mutation-lint`. The document is strictly read-only, and `Ctrl+S` stays `NotFound` | Stage 3 |
 | `pdf/cos/IncrementalWriter`, `ObjectAllocator` — the **writer** half of the COS layer (D2-4) | Stage 3 |
 | `core/doc/Document`, `DocumentId`, `Outline`, `Metadata`, and the **mutating** half of `PageTree` (D2-5) | Stage 3 |
-| Text selection, text extraction, search, `PdfiumTextExtractor`, `ContentStreamParser` | Stage 5 |
+| Text selection, text extraction, search, `PdfiumTextExtractor`, `ContentStreamParser` | Stage 5 — **except `ContentStreamParser`, moved to Stage 10 on 2026-09-29** (`Stage5-TextSearch-Plan.md` D5-19) |
 | Annotations, forms, security, signatures, export | Stages 6–11 |
 | **Split views, rulers, grid, guides, full-screen, presentation, session restore.** `Ctrl+U`, `Ctrl+'`, `Ctrl+;` and the Full Screen context stay unregistered | Stage 4 |
 | The sidebar's document panes — thumbnails, bookmarks, destinations | Stage 4 |

@@ -34,6 +34,7 @@ takes it.
 | # | Item | Raised by | State | Owner |
 |---|---|---|---|---|
 | **DW-1** | **Substitute page colours** — the second half of `Features.md` §1.2's *"invert / substitute page colors for high-contrast reading"* | `Stage4-ViewingSurface-Testing-Guide.md` §8 **I-07** (S4), Stage 4 T8, 2026-09-21 | ⚪ **Deferred** by the user, 2026-09-27 | **Unassigned** — no stage's plan names it |
+| **DW-2** | **A vector snapshot** — `Features.md` §8's `S` (*"copy a dragged region as an image"*) as a vector metafile that stays sharp when scaled, rather than a bitmap | `Stage5-TextSearch-Plan.md` §0 **Q3** and **D5-10**, written 2026-09-29 before any Stage 5 code | ⚪ **Deferred** by the user, 2026-09-29 (option B of three) | **Unassigned** — no stage's plan names it |
 
 ---
 
@@ -72,5 +73,40 @@ to settle it — build it inside Stage 4, assign it to a later stage's plan, or 
 control for them; a registration for `view.pageBackground`; and a paint of substituted colours. No
 design decision exists for whether substitution is per view like the inversion or persistent like
 the grid colour, or how it combines with the inversion — the stage that takes this decides.
+
+**Taken by:** —
+
+---
+
+### DW-2 · A vector snapshot
+
+**The capability.** The Snapshot tool (`S`, `Features.md` §8's Viewer table) copies a dragged region to the
+clipboard. As a **bitmap** it is Stage 5's; as a **vector metafile** — which Word and PowerPoint keep sharp at
+any size and print from — it is this entry. `Architecture-FileMap.md`'s `WinRichClipboard` row once promised
+it among *"bitmap, vector-metafile, and HTML clipboard flavours"*.
+
+**Why it was deferred.** Qt already publishes plain text, HTML (as CF_HTML) and bitmaps to the Windows
+clipboard, which is everything Stage 5's copy and snapshot need. What Qt cannot do is turn **PDF content**
+into vector drawing commands, and the one engine call that can — PDFium's `FPDF_RenderPage(HDC, …)` — takes a
+Windows device context: `pdf/render/` may not be OS code, only buffers and callbacks may cross
+`core/backend.h`, and PDFium may be called only from the render thread. Offered three ways on 2026-09-29 — a
+bitmap at the view's scale (A), that plus a resolution setting (B), or build the vector path now (C) — **the
+user chose B**, which removes most of the practical cost, a blurry print, with one settings key
+(`pageDisplay/snapshotDpi`, `Stage5-TextSearch-Plan.md` D5-11), and leaves the vector flavour here.
+
+**What exists today** (checked 2026-09-29, before any Stage 5 code):
+
+- `platform/platform.h` declares **`IRichClipboard`** — `setVectorMetafile`, `setHtml`, `vectorMetafile()`,
+  `html()` — and **nothing implements it**; the platform census is **6 of 18**.
+- The pinned PDFium DLL **exports `FPDF_RenderPage`** (`third_party/pdfium/pdfium.def`), declared under
+  `_WIN32` in `third_party/pdfium/include/fpdfview.h`, and nothing calls it.
+- `Implementation-Plan.md` § Stage 12 lists `platform/win/WinRichClipboard` for its **paste** path —
+  *reading* the clipboard to create a PDF. That is not this item, and does not make Stage 12 its owner.
+- Stage 5's snapshot is **planned** as a bitmap at `pageDisplay/snapshotDpi`; it is not built yet.
+
+**What is absent:** any producer of vector page content for the clipboard; a sanctioned place for an
+engine call that takes a Windows device context; and any measurement of what PDFium's `HDC` path emits for
+transparency, soft masks and shadings — a print path may turn those into bitmaps inside the metafile, which
+would make the *vector* snapshot partly a bitmap anyway. The stage that takes this decides.
 
 **Taken by:** —

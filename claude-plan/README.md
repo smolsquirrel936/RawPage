@@ -16,8 +16,8 @@ order.
 | ② | **[Tech-Stack-Plan.md](./Tech-Stack-Plan.md)** | The locked stack and license posture, the directory layout and **inward-only dependency rule**, the **mutation-through-commands** cross-cutting design, and the risk-reducing first milestone. |
 | ③ | **[Architecture-FileMap.md](./Architecture-FileMap.md)** | What **every file** does and what it interacts with, plus the primary call-trace flows. |
 | ④ | **[Implementation-Plan.md](./Implementation-Plan.md)** | **Stage ordering and live status**, the shared conventions, the testing strategy and Definition of Done, milestones, and traceability. |
-| ⑤ | `Stage<N>-<Area>-Plan.md` — **written for [Stage 0](./Stage0-Toolchain-Plan.md), [Stage 1](./Stage1-AppShell-Plan.md), [Stage 2](./Stage2-Rendering-Plan.md), [Stage 3](./Stage3-Mutation-Plan.md) and [Stage 4](./Stage4-ViewingSurface-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
-| ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **written for [Stage 0](./Stage0-Toolchain-Testing-Guide.md), [Stage 1](./Stage1-AppShell-Testing-Guide.md), [Stage 2](./Stage2-Rendering-Testing-Guide.md), [Stage 3](./Stage3-Mutation-Testing-Guide.md) and [Stage 4](./Stage4-ViewingSurface-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
+| ⑤ | `Stage<N>-<Area>-Plan.md` — **written for [Stage 0](./Stage0-Toolchain-Plan.md), [Stage 1](./Stage1-AppShell-Plan.md), [Stage 2](./Stage2-Rendering-Plan.md), [Stage 3](./Stage3-Mutation-Plan.md), [Stage 4](./Stage4-ViewingSurface-Plan.md) and [Stage 5](./Stage5-TextSearch-Plan.md)** | *Optional per stage.* One stage's **task-level execution order** and its **stage-local design choices** — the detail that would swamp ④. Owns no product facts; ④ keeps the objectives, exit criteria, and live status. |
+| ⑥ | `Stage<N>-<Area>-Testing-Guide.md` — **written for [Stage 0](./Stage0-Toolchain-Testing-Guide.md), [Stage 1](./Stage1-AppShell-Testing-Guide.md), [Stage 2](./Stage2-Rendering-Testing-Guide.md), [Stage 3](./Stage3-Mutation-Testing-Guide.md), [Stage 4](./Stage4-ViewingSurface-Testing-Guide.md) and [Stage 5](./Stage5-TextSearch-Testing-Guide.md)** | How one stage is verified: an **automated** section (exact commands and pass conditions, run by the implementer) and a **manual** section (numbered cases for what cannot run headless, walked by a person). |
 | ⑦ | **[Deferred-Work.md](./Deferred-Work.md)** | Work a stage deliberately did not do and that **no later stage's plan has taken in** (`DW-n`) — each item's ownership state, what exists today and what is absent. Not the capability (①) and not the finding (the raising ⑥'s §8). |
 
 **⑤ and ⑥ are forms, not a full set of existing files.** One guide per stage, written **immediately
@@ -29,7 +29,8 @@ confirms whatever got built, including the parts built wrong. The schedule is
 passing is part of that stage's Definition of Done.
 
 **Stages 0 to 4 have both** — Stage 4's pair written on 2026-09-18, the day Stage 3 was signed off and
-before any Stage 4 code. Every later stage has neither yet, and that absence is the correct
+before any Stage 4 code — **and Stage 5's pair** (2026-09-29, before any Stage 5 code, its plan's §0
+answered the same day). Every later stage has neither yet, and that absence is the correct
 state rather than a gap — those files are written when their stage comes up, not in advance.
 
 ## Where to look for a given question
@@ -64,7 +65,8 @@ where the work is and points at the owner; the numbers live there and are re-mea
 | 2 — Engine boundary and tiled rendering | ✅ complete, signed off 2026-09-14 | [④'s Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering), [⑥ Stage 2](./Stage2-Rendering-Testing-Guide.md) — §6 carries each manual case's ✅ or ☐, §8 the issue log |
 | 3 — Document model, command journal, incremental save | ✅ complete, signed off 2026-09-18 | [⑤ Stage 3](./Stage3-Mutation-Plan.md), [⑥ Stage 3](./Stage3-Mutation-Testing-Guide.md), [④'s Stage 3 block](./Implementation-Plan.md#stage-3--document-model-command-journal-incremental-save) |
 | 4 — Viewing and navigation surface | ✅ complete, signed off 2026-09-27 | [⑤ Stage 4](./Stage4-ViewingSurface-Plan.md), [⑥ Stage 4](./Stage4-ViewingSurface-Testing-Guide.md), [④'s Stage 4 entry](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface) |
-| 5 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
+| 5 — Text layer: extraction, selection, find, search, comparison | ⚪ not started — plan and guide **written 2026-09-29**, §0 answered; next is T1 | [⑤ Stage 5](./Stage5-TextSearch-Plan.md), [⑥ Stage 5](./Stage5-TextSearch-Testing-Guide.md) |
+| 6 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
 
 **What is live, in one sentence each, with the owner of every figure:**
 

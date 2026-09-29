@@ -1357,7 +1357,9 @@ dispatching **Stage 3's** `page.rotate`. [Bookmarks](./Features.md#bookmarks-pan
 rows only: `Enter`, `→`/`←`, `*`/`/`. Full
 [Full Screen & Presentation](./Features.md#full-screen--presentation) table.
 **`Ctrl+4` (Reflow) and `S` (Snapshot) move to Stage 5** *(D4-15)* — the first needs
-`core/text/LayoutAnalyzer` and the second `platform::IRichClipboard`, both of which are Stage 5's,
+`core/text/LayoutAnalyzer` and the second `platform::IRichClipboard`, both of which are Stage 5's *(the
+second corrected 2026-09-29: Stage 5 snapshots through Qt's clipboard and does not implement
+`IRichClipboard` — `Stage5-TextSearch-Plan.md` D5-10)*,
 whose component list already names `SnapshotTool`. `Features.md` §8 is unchanged: the chords are
 right, their stage was wrong.
 
@@ -1443,7 +1445,12 @@ editing (Stage 8). Touch mode — `general/touchMode` stays declared and inert (
 
 ### Stage 5 — Text layer: extraction, selection, find, search, comparison
 
-**Status:** ⚪ **Not started.** `core/text/LayoutAnalyzer` is on the critical path for Stage 13's
+**Status:** ⚪ **Not started — no Stage 5 code exists.** Its plan,
+[`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md), and its testing guide,
+[`Stage5-TextSearch-Testing-Guide.md`](./Stage5-TextSearch-Testing-Guide.md), were **written on
+2026-09-29**, and **all seven of the plan's §0 questions were answered by the user the same day** —
+Q1, Q2, Q5, Q6 and Q7 approved, Q3 and Q4 answered with option B — with every correction they carry
+made below, in `Features.md` §8 and in § Stage 8. **Next: T1**, the corpus. `core/text/LayoutAnalyzer` is on the critical path for Stage 13's
 reflow engine, so its quality bar here is higher than this stage alone needs.
 
 **Objectives.** Text becomes first-class: extract it, select it, copy it, find it, search across
@@ -1458,19 +1465,26 @@ files, and diff two documents.
   `Hits findAcross(const QStringList& paths, const SearchQuery&)`.
 - `core/text/SearchQuery.h`, `core/text/DocumentIndex`.
 - `core/text/DocumentComparer` — `DiffSet compare(const Document&, const Document&, CompareOptions)`.
-- `pdf/render/PdfiumTextExtractor`, `pdf/cos/ContentStreamParser`.
+- `pdf/render/PdfiumTextExtractor`. *(`pdf/cos/ContentStreamParser` was listed here and **moved to
+  Stage 10** on 2026-09-29 — `Stage5-TextSearch-Plan.md` D5-19: extraction is PDFium's, so its only
+  Stage 5 caller would have been a test; `RedactionOps` is its first product caller.)*
 - `ui/viewer/SelectionOverlay`, `ui/viewer/ComparisonView`, `ui/panes/SearchPane`,
   `ui/panes/DifferencesPane`, `ui/write/FindReplaceBar` (find half only),
   `ui/viewer/tools/SnapshotTool`, `ui/dialogs/CompareDialog`.
-- `platform/win/WinRichClipboard`.
+- *(`platform/win/WinRichClipboard` was listed here. **Not built at Stage 5** — `Stage5-TextSearch-Plan.md`
+  D5-10, the user's answer to Q3 on 2026-09-29: Qt already publishes text, HTML and bitmaps, and the vector
+  snapshot is `DW-2` in `Deferred-Work.md`. The file is **Stage 12's**, whose entry lists it for the paste path.)*
 
 **Key bindings handled** — the whole [Find / Search](./Features.md#find--search) table
-(`KeyContext::Search`): `Ctrl+F`, `F3`/`Shift+F3`, `Ctrl+G`/`Ctrl+Shift+G`, `Ctrl+Shift+F`, `Enter`,
-`↑`/`↓`, `Alt+R`, `Alt+W`, `Alt+C`, `Esc`. [Viewer](./Features.md#viewer-review-mode):
+(`KeyContext::Search`): `Ctrl+F`, `F3`/`Shift+F3`, `Ctrl+G`/`Ctrl+Shift+G`, `Enter`,
+`↑`/`↓`, `Alt+R`, `Alt+W`, `Alt+C`, `Esc` — and [Global](./Features.md#global-active-in-every-context)
+`Ctrl+Shift+F`, **moved there from the Find / Search table on 2026-09-29** so Advanced Search opens
+from the page (`Stage5-TextSearch-Plan.md` D5-15).
+[Viewer](./Features.md#viewer-review-mode): `Alt`+drag (column selection, added 2026-09-29, D5-8),
 `Ctrl+Alt+C` (compare), `Ctrl+]`/`Ctrl+[` (next/previous difference), and — **moved here from Stage 4
 on 2026-09-18** (`Stage4-ViewingSurface-Plan.md` D4-15) — **`Ctrl+4`** (Reflow view, which needs this
-stage's `LayoutAnalyzer`) and **`S`** (Snapshot, which needs this stage's `WinRichClipboard` and whose
-`SnapshotTool` this stage's component list already named).
+stage's `LayoutAnalyzer`) and **`S`** (Snapshot, whose `SnapshotTool` this stage's component list already named — and which
+puts a bitmap on the clipboard through Qt, at `pageDisplay/snapshotDpi`, D5-10 and D5-11).
 [Common](./Features.md#common-all-contexts-unless-a-context-above-overrides-the-chord): `Ctrl+C`,
 `Ctrl+A` in the Viewer context.
 
@@ -1478,7 +1492,11 @@ stage's `LayoutAnalyzer`) and **`S`** (Snapshot, which needs this stage's `WinRi
 `search/useRegex`, `search/includeComments`, `search/includeBookmarks`, `search/includeFields`,
 `search/includeAttachments`, `search/maxResults`, `search/indexCacheMB`,
 `documents/compareSensitivity`, `documents/compareIgnoreHeaderFooter`,
-`documents/compareIgnoreWhitespace`.
+`documents/compareIgnoreWhitespace`, and **`documents/compareIgnorePageNumbers`** — added 2026-09-29
+(`Stage5-TextSearch-Plan.md` D5-20), because `Features.md` §1.5 names page numbers apart from
+headers and footers and a renumbered document changes one without the other; and
+**`pageDisplay/snapshotDpi`** — added 2026-09-29 with the answer to Q3 (D5-11): the snapshot's resolution,
+0 meaning as displayed.
 
 **Cross-cutting additions.** No document mutation. i18n: `search.*`, `compare.*`.
 
@@ -1499,13 +1517,19 @@ text), `tst_layout` (precision/recall against the labelled subset), `tst_search`
 each content class, CJK, combining marks), `tst_index`, `tst_compare` (known before/after pairs).
 *Manual:* → queued **`Stage5-TextSearch-Testing-Guide.md`** (see §5), whose manual section is brief:
 selection across columns and page boundaries; copy into Word and confirm formatting;
-snapshot into an image editor; search a CJK document; compare two real revisions.
+snapshot into an image editor; search a CJK document; compare two revisions — **on GENERATED
+documents, by the user's decision of 2026-09-29** (`Stage5-TextSearch-Plan.md` D5-23): no Stage 5 case
+meets a real document.
 
 **Exit criteria.** Selection is accurate on multi-column, RTL, and CJK pages; every §1.8 search
 toggle works and is honoured across all five content classes; cross-file search returns correct
-snippets; comparison finds text, appearance, and page-level changes on real revision pairs.
+snippets; comparison finds text, appearance, and page-level changes on real revision pairs — **met on
+GENERATED revision pairs, by the user's decision of 2026-09-29** (`Stage5-TextSearch-Plan.md` D5-23),
+so the claim is bounded to the generated corpus and a real pair first meets the comparer after Stage 5.
 
-**Deferrals.** Replace (needs Write mode, Stage 13). Catalog index (Stage 16). OCR'd-layer search
+**Deferrals.** Replace (needs Write mode, Stage 13). Catalog index (Stage 16). The comparison's **summary
+page** and **annotated PDF report** (Stage 8, taken 2026-09-29 — D5-17). A **vector** snapshot (`DW-2`,
+unassigned — D5-10). OCR'd-layer search
 works automatically once Stage 16 adds OCR — no change needed here.
 
 ---
@@ -1675,7 +1699,8 @@ here every path has been incremental-save only.
 
 **Objectives.** All of [`Features.md` §2.5](./Features.md#25-save-and-export): full-rewrite Save-As,
 version and conformance targets, export to every listed format, content reuse, optimization, and
-flattening.
+flattening — **and the two PDF outputs of [`Features.md` §1.5](./Features.md#15-document-comparison-)'s
+comparison**, taken from Stage 5 on 2026-09-29 (below).
 
 **Components & responsibilities.**
 - `pdf/cos/FullWriter` — `Result<void> write(QIODevice&, const Document&, WriteOptions)`.
@@ -1687,6 +1712,12 @@ flattening.
   `Result<void> exportOffice(Format, const QString& path)`.
 - `pdf/ops/ConformanceChecker` — `Report check(const Document&, Conformance) const`.
 - `platform/win/WinPrinting`, `platform/win/WinOfficeBridge` (export path).
+- **The comparison's PDF outputs — *generate a difference summary page* and *export the comparison as an
+  annotated PDF report*** (`Features.md` §1.5). **Taken from Stage 5 on 2026-09-29** by the user's answer
+  to its plan's Q4 (`Stage5-TextSearch-Plan.md` D5-17): both write a new PDF from Stage 5's
+  `core/text/DocumentComparer` difference set, which needs Stage 6's annotation appearances and this
+  stage's writer, and Stage 5 changes no document. Like every export here they are **not** commands —
+  they write a new file and change neither compared document. How they are built is this stage's.
 - `ui/dialogs/{ExportDialog,OptimizerDialog,ConformanceReportDialog,PrintDialog,FlattenDialog}`.
 
 **Key bindings handled** — [Global](./Features.md#global-active-in-every-context): `Ctrl+Shift+S`,
@@ -1820,6 +1851,10 @@ certificate encryption, security schemes, redaction, hidden-content removal, and
 - `core/security/{EncryptionPolicy,SecurityScheme,SecuritySchemeStore,RedactionPlan,HiddenContentScanner,TrustPolicy}`.
 - `core/cmd/commands/SecurityCommands`.
 - `pdf/cos/{StandardSecurityHandler,PublicKeySecurityHandler}`.
+- `pdf/cos/ContentStreamParser` — content-stream operators into a token stream with graphics-state
+  tracking, which `RedactionOps` needs to find and rewrite what a mark covers. **Moved here from Stage 5
+  on 2026-09-29** (`Stage5-TextSearch-Plan.md` D5-19), because this is its first product caller; it is
+  portable `pdf/cos/` code and brings a fuzz target with it.
 - `pdf/ops/{EncryptionOps,RedactionOps,SanitizeOps}` —
   `RedactionOps::Result apply(const RedactionPlan&)` returns what it removed, per page.
 - `platform/win/WinProcessSandbox`, `platform/win/WinCertificateStore` (recipient lookup).
@@ -2253,15 +2288,17 @@ Each guide carries **two sections**, per §2:
 
 Stages whose surface is entirely headless still get a guide — its manual section is short or empty,
 and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1, 2, 3 and 4 have theirs**, each
-written from its plan before its code — Stage 4's on 2026-09-18, the day Stage 3 was signed off; every other row below is a schedule, not a backlog of missing
+written from its plan before its code — Stage 4's on 2026-09-18, the day Stage 3 was signed off — **and Stage 5's** (2026-09-29, with its plan, before
+any Stage 5 code); every other row below is a schedule, not a backlog of missing
 documents.
 
 **A stage's §4 entry may also be expanded into a `Stage<N>-<Area>-Plan.md` execution document** when
 its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md),
 [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md),
 [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md),
-[`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md) and
-[`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md) are the five that exist. Such a document
+[`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md),
+[`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md) and
+[`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md) are the six that exist. Such a document
 owns **only** that stage's
 task ordering and its stage-local design choices; the objectives, components, and exit criteria stay
 here, and the stage's live status stays in its §4 status block. It sits between plan and guide in the
@@ -2275,7 +2312,7 @@ guide.**
 | 2 — Rendering | [`Stage2-Rendering-Testing-Guide.md`](./Stage2-Rendering-Testing-Guide.md) | ✅ **Written 2026-08-31** from [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md), before any Stage 2 code · 🟡 **partly run — T1–T9's cases have results, the stage's EXIT CRITERION (A-21) is met on Windows, and A-46 is closed.** **78 automated** (A-01…A-78: A-75 added 2026-08-31 with I-02, A-76…A-78 at T4), **10 manual** (M-01…M-10). **Four automated cases are Linux jobs this machine cannot run — A-04, A-24, A-25 and A-26** — and are recorded as such rather than as pending. Six issues: I-01 and I-03 closed, **I-02 half-closed at T7**, I-04, I-05 and **I-06** (T7's JBIG2 scope finding) open. The manual half is **smaller than Stage 1's**, on purpose: most of this stage is pure arithmetic and is automated, so what is left is the irreducible residue — two monitors at different scaling, perceived smoothness while scrolling, fidelity judged beside a reference, and a memory checker the CI runner does not have. **Needs two monitors at different scaling** (satisfied — the rig matches A2's specification exactly) and carries the **A2** verdict, plus **O7** and **O10**. One issue, **I-01**, raised by reading rather than running and closed the same day |
 | 3 — Mutation & save | [`Stage3-Mutation-Testing-Guide.md`](./Stage3-Mutation-Testing-Guide.md) | ✅ **Written 2026-09-14** from [`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md), before any Stage 3 code · **Every task's cases run, T1 to T13** (2026-09-14 … 2026-09-17), the last six — A-01, A-02, A-06, A-07, A-12, A-13 — on 2026-09-18, **so every case carries a result**. **Every manual case is signed off by the user**: M-03's probe walk 2026-09-14 (A4's probe verdict `go`); M-01, M-02, M-03's product walk and M-04 … M-07 on 2026-09-17 (M-02's walk found I-14, S1, closed); **M-08 on 2026-09-18**, its walk having found I-15 (S2, fixed the same day and confirmed by a re-walk). **The stage was signed off by the user on 2026-09-18.** The guide's own status line and §9 checklist are authoritative. **83 automated** (A-01…A-83), **8 manual** (M-01…M-08). Carries the **A4** verdict, measured twice and judged by OpenSSL (integrity) and Acrobat (policy). ~~Needs a hex editor~~ — the byte comparison is automated against bytes read back from disk; **killing mid-edit is automated too**, with `TerminateProcess` at instants the harness must prove it reached, and the manual residue is the real product killed by hand. **Sixteen issues, none open**: **I-01** and **I-02** raised by reading, **I-03** at T1, **I-04** to **I-06** at T2, **I-07** at T3, **I-08** at T6, **I-09** at T8, **I-10** at T10, **I-11** at T11, **I-12** and **I-13** at T13 — found by the new fuzz target — **I-14** by M-02's walk (S1, closed) and **I-15** by M-08's (S2, fixed the same day), and **I-16** by A-12's first run (S4, this guide's own Expect) (§8 of the guide) |
 | 4 — Viewing surface | [`Stage4-ViewingSurface-Testing-Guide.md`](./Stage4-ViewingSurface-Testing-Guide.md) | ✅ **Written 2026-09-18** from [`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md), the same day and **before any Stage 4 code** · ✅ **automated half COMPLETE, and the manual half COMPLETE — all twelve cases walked and signed off, the last on 2026-09-27; every §9 item met, and THE STAGE SIGNED OFF BY THE USER ON 2026-09-27 — T1 to T14 recorded, the last on 2026-09-23, and A-04 read from Linux CI's `portable-asan` log on 2026-09-24**: **108 automated** (A-01…A-107 plus **A-66(a)**), **12 manual** (M-01…M-12), **all 108 carry a result** (re-derived 2026-09-27 from the guide itself — 108 headers; A-105 to A-107 came with I-30's and I-31's fixes; A-103 and A-104 came with I-28's and I-29's fixes, after the walk; A-101 and A-102 came with decision D4-22; A-99 and A-100 came with decision D4-20, the sharp lens, A-100 a `bench_surface` column; A-97 and A-98 came with I-26's and I-27's fixes; A-95 and A-96 came with I-24's and I-25's fixes, none still boxed; A-94 came with I-23's fix and, like A-85, is a `windows`-platform run; A-90 and A-91 came with I-18's and I-19's fixes on 2026-09-27, A-91 rewritten with I-20's, A-92 with I-21's, and A-93 with I-22's guard; the 81st is A-80, added with I-10's fix, A-81 to A-83, A-85 and A-86 came with I-11's to I-15's on 2026-09-26, A-84 with decision D4-18, A-87 and A-88 with I-16's and I-17's fixes, and A-89 with the user's dotted-preview request; A-85's result is a `windows`-platform run, because under `ctest` it skips): the T1 corpus cases, T2’s four A2 cases, T3’s seven session cases, T4’s four reader cases, T5’s seven pane cases, T6’s two plus the two re-reads T5 owed — A-30's pane half and A-37 against all three panes, both now ✅ — **T7’s five tool cases**, **T8’s eight ruler, grid, guide and snap cases**, **T9’s four split cases**, **T10’s seven**, **T11’s four**, **T12’s six** and **T13’s five session-restore cases, A-75 … A-79**, the last including **A-11 and A-29, which T1 and T4 had recorded amber and grey because the observables they are written against did not exist until T12 built them**. A-01 to A-09 are the stage-wide gate and suite cases that T14 runs. **All twelve manual cases are walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2), which is what a manual half is for; M-01, 2026-09-26, failed its first walk — it raised I-11 (S2) and I-12 (S3), both fixed the same day — and passed its re-walk the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2), fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding; M-05, 2026-09-26, failed at step 5 — I-15, fixed that day — and passed that step's re-walk; M-07, 2026-09-26, passed with no finding, on the build that fixed I-16 and I-17, both found while preparing it; and M-08, 2026-09-27, FAILED its first walk at step 1 — I-18 and I-19 — and its first re-walk of that step — I-20 and I-21 — all four fixed that day — and passed its second re-walk the same day; and M-09, 2026-09-27, FAILED its first walk at the cascade — I-23, fixed that day — and passed its re-walk the same day; and M-10, 2026-09-27, stopped at step 3 of its first walk — I-24 and I-25, fixed that day — and passed its resumed walk the same day, step 5 by decision D4-19; and M-12, 2026-09-27, raising I-26 and I-27 at step 2, both fixed that day, and passing its Loupe re-walk on D4-20's sharp lens and D4-22's `Alt`+wheel the same day — pen and touch not run, for want of hardware.** Carries the **A2-at-Stage-4** verdict, **recorded at T2 as `go, with named custom work` and re-read at T14 through the shipped panes as a plain `go`**, which also answered `platform::IAcceleratedSurface`: **not built**. **The manual half is the largest of any stage** and says why: this stage's subject is what a person sees on hardware the harness does not have — two monitors at different scaling, a monitor removed mid-presentation, a session restored onto a desktop that changed shape, a 900-page thumbnails pane judged for smoothness. **All four preconditions are cleared** (P-2 is `Win`+`P`, P-4 a wheel mouse with no pen or touch). It inherited Stage 2's **I-28** (Fit Visible), **which T12 closed in Stage 2's own guide on 2026-09-23**, with the measurement; its own §8 holds **thirty-one issues, one open: I-07 (S4, deferred as `DW-1` in `Deferred-Work.md`, no stage owning it yet); I-30 (S3), the kill harness's instants locked to the timer tick, and I-31 (S1), a save killed inside `ReplaceFileW` leaving no file at the document's path since Stage 3 T7, closed 2026-09-27; I-28 (S3), cases leaving process-wide state behind so the UI binary could not run whole, and I-29 (S2), a second window compounding the UI font scale, were found after the walk on 2026-09-27 by investigating the first, and closed the same day with A-103 and A-104; I-26 (S3), a loupe drag pinning the lens, and I-27 (S3), the temporary hand leaving the lens on screen, were raised by M-12's walk on 2026-09-27 and closed the same day with A-97 and A-98; I-24 (S2), a re-docked sidebar left out of the window, and I-25 (S3), a closed sidebar's edge strip that opened nothing, were raised by M-10's walk on 2026-09-27 and closed the same day with A-95 and A-96; I-23 (S2), an arranged window's title bar off the screen, was raised by M-09's walk on 2026-09-27 and closed the same day with A-94; I-22 (S3), four document paths holding control bytes where their backslashes had been, was found by a byte-level read on 2026-09-27 and closed with a `gates` check, A-93; I-18 (S2), a zoom reaching one pane of a spreadsheet split, and I-19 (S2), a frozen pane scrolling on its own, were raised by M-08's walk on 2026-09-27, and I-20 (S2), a defect in I-19's fix, and I-21 (S3), the keypad's `+`, by its re-walk, all closed the same day; I-10 (S2, raised 2026-09-24 by M-11's walk — Fit Page measured the sheet while the product draws the crop — was closed the same day, as were I-11 (S2) and I-12 (S3), raised 2026-09-26 by M-01's walk — a fit measuring the wrong page of a mixed document, and a split with no visible divider — I-13 (S3), the vertical ruler with no numbers, raised by the user that day, I-14 (S2), a moved presentation keeping its physical size, raised by M-02's walk that day, I-15 (S2), no general preference surviving a restart, raised by M-05's walk that day, I-16 (S2), a guide snap no gesture called, found by reading the code before M-07's walk, and I-17 (S3), no cursor readout anywhere, raised by the user preparing that walk; the other eight are closed — I-05 at T12, the task this guide named as its owner, and I-01 and I-09 at T13** |
-| 5 — Text, selection, search | `Stage5-TextSearch-Testing-Guide.md` | ⚪ Queued — near-entirely automated; the manual section covers selection feel and RTL/CJK rendering only |
+| 5 — Text, selection, search | [`Stage5-TextSearch-Testing-Guide.md`](./Stage5-TextSearch-Testing-Guide.md) | ✅ **Written 2026-09-29** from [`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md), **before any Stage 5 code**, and its plan's §0 answered the same day · **not run — no case has a result.** **114 automated** (A-01…A-114 — A-114 added with the answer to Q3), **9 manual** (M-01…M-09). Carries the **A2-at-Stage-5** verdict, the **layout baseline** evidence for R1, and **O7**'s revisit, each with its scale fixed in the guide's §3 before the measurement. The manual half walks **generated documents** — the user's decision of 2026-09-29 (plan D5-23), so every Stage 5 claim, manual included, is bounded to the generated corpus — with Word and Excel from Office LTSC Professional Plus 2024 for the paste (plan §7, P-1 … P-5, **all answered**) |
 | 6 — Annotations | `Stage6-Annotations-Testing-Guide.md` | ⚪ Queued |
 | 7 — Assembly | `Stage7-Assembly-Testing-Guide.md` | ⚪ Queued |
 | 8 — Save & export | `Stage8-SaveExport-Testing-Guide.md` | ⚪ Queued |
@@ -2312,7 +2349,7 @@ guide.**
 | §1.2 Page display | 2 (layout modes, zoom, fidelity controls), 4 (scroll modes, split, reading/full-screen/presentation) — **except *substitute page colors*, which no stage carries: `DW-1` in [`Deferred-Work.md`](./Deferred-Work.md)** |
 | §1.3 Rulers, grid, guides | 4 |
 | §1.4 Navigation | 2 (page controls, zoom, view history), 4 (thumbnails, bookmarks, destinations), 5 (comment/field/result/difference navigation) |
-| §1.5 Document comparison | 5 |
+| §1.5 Document comparison | 5, 8 (the summary page and the annotated PDF report, taken 2026-09-29 — `Stage5-TextSearch-Plan.md` D5-17) |
 | ~~§1.6 Read Aloud~~ | ⤵ **withdrawn 2026-08-23** — see [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23) |
 | §1.7 AI assistant | 16 |
 | §1.8 Search and find | 5 (find, advanced search, per-document index), 16 (catalog index) |
