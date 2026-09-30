@@ -47,6 +47,28 @@
 // is Stage 1's I-12 with a thread in it. The destructor stops and JOINS before anything else is
 // destroyed, and a subscription is removed by token rather than by hoping the lambda outlives
 // nothing.
+//
+// ===========================================================================================
+// STAGE 5 T2: A SECOND KIND OF JOB ON THE SAME THREAD (D5-3), AND A FOURTH LANE
+// ===========================================================================================
+// Text extraction is engine work, so it runs HERE -- on the one render thread, under the same
+// engine lock -- as a job of its own kind beside the raster requests. A second thread that took the
+// engine lock page by page would hold it for a whole page's text parse while a visible tile waited,
+// and a mutex is not a priority queue: strict priority is what kept Stage 4's 900-page thumbnail
+// pane from starving the page (D4-10), and a text job gets the same guarantee by being in the same
+// queue. `Background`, below `Speculative`, is the lane for work nobody is watching -- an index
+// build, a folder search, a comparison. A page a person is SELECTING on is asked for at `Visible`,
+// because someone is waiting for it; that choice is the CALLER's (Stage 5 T5, T6), and this class
+// only honours the lane it is given.
+//
+// **WHAT THIS DOES NOT GIVE: PREEMPTION.** A text job already inside PDFium runs to its end, as a
+// speculative raster does, so one page's extraction time is the longest a visible tile can wait
+// behind background work. That is the number Stage 5 T3 measures (D5-22), and why it is measured
+// before any surface queues text here.
+//
+// What a text job is NOT: it is never looked up in or written to `RenderCache` (text is not tiles,
+// and D5-4 keeps it out of the tile budget), it is never SUPERSEDED by `documentChanged()` (see
+// `TextRequest`), and it is never reported to the latency probe, whose subject is the tile.
 
 #ifndef RAWPAGE_CORE_RENDER_RENDERSCHEDULER_H
 #define RAWPAGE_CORE_RENDER_RENDERSCHEDULER_H
@@ -68,6 +90,10 @@
 #include <utility>
 #include <vector>
 
+namespace rawpage::core::text {
+class PageTextModel;
+}
+
 namespace rawpage::core::render {
 
 class RenderCache;
@@ -79,9 +105,52 @@ enum class RenderPriority {
     Visible = 0,
     Prefetch = 1,
     Speculative = 2,   // a page the user has not reached; Stage 4's thumbnails
+    Background = 3,    // Stage 5 (D5-3): text work nobody is watching -- an index, a folder, a diff
 };
 
 const char* renderPriorityName(RenderPriority priority) noexcept;
+
+// ONE PAGE'S TEXT, asked of the engine thread -- Stage 5 T2, D5-3. Deliberately smaller than a
+// `RenderRequest`, and the absences are the design:
+//
+//   * NO `Revision`. The engine never reloads a document it opened (D3-15): an unsaved rotation
+//     reaches the pixels as a render DELTA, and a page's text is in unrotated PAGE space (D5-2), so
+//     what a page's text is depends on the handle and the index and on nothing a Stage 5 command
+//     can change. A revision here would make every rotation throw away a 900-page index build for
+//     text that did not move. When a later stage's command changes a page's CONTENT, it is
+//     `core/text/DocumentIndex` (T6) that drops the page by `Scope` -- the index is where text is
+//     kept, so the index is where it goes stale.
+//   * NO SCALE, NO FLAGS. Text has no resolution and no layers to hide.
+//
+// Its equality is what coalesces two asks for one page into one extraction, as two viewports over
+// one tile share one rasterization.
+struct TextRequest {
+    DocumentHandle document;
+    int pageIndex = 0;
+
+    bool isValid() const noexcept { return document.isValid() && pageIndex >= 0; }
+
+    friend bool operator==(const TextRequest& a, const TextRequest& b) noexcept
+    {
+        return a.document == b.document && a.pageIndex == b.pageIndex;
+    }
+    friend bool operator!=(const TextRequest& a, const TextRequest& b) noexcept { return !(a == b); }
+};
+
+struct TextRequestHash {
+    std::size_t operator()(const TextRequest& request) const noexcept
+    {
+        return std::hash<std::uint64_t>{}(request.document.id)
+               ^ (static_cast<std::size_t>(request.pageIndex) * 0x9e3779b97f4a7c15ULL);
+    }
+};
+
+// What a text job delivers: the page's model, SHARED and immutable -- `core/text/DocumentIndex`
+// keeps it and a selection reads it, and neither should pay for a copy -- or the error that says
+// why there is none. A FAILURE IS DELIVERED, unlike a raster's: a tile that fails is asked for
+// again at the next paint, but a caller waiting on a page's text has nothing to repaint, and a
+// failure it never heard about is a selection that never starts (guide case A-26).
+using TextResult = Result<std::shared_ptr<const text::PageTextModel>>;
 
 // A ticket for one caller's interest in one tile. Deliberately NOT the request: two viewports over
 // one tile coalesce into one rasterization and get two handles, so that either can cancel without
@@ -99,6 +168,14 @@ public:
     // One rasterizer per worker (see the header). A factory rather than an instance, because
     // sharing one across threads is exactly what I-05 says must not happen.
     using RasterizerFactory = std::function<std::unique_ptr<IPageRasterizer>()>;
+
+    // Stage 5 T2 (D5-3). One per worker, made ON the worker, for the rasterizer's reason. Null is
+    // legitimate -- every suite and bench before Stage 5 builds a scheduler with no text -- and a
+    // text job run without one is DELIVERED as a failure naming the interface, never dropped.
+    using TextExtractorFactory = std::function<std::unique_ptr<ITextExtractor>()>;
+
+    // Called from `deliverReady()`, on the pumping thread, never from a worker -- the tile rule.
+    using TextReadyHandler = std::function<void(const TextRequest&, const TextResult&)>;
 
     // Called from `deliverReady()`, on the pumping thread, never from a worker.
     using ReadyHandler = std::function<void(const RenderRequest&, const RasterImage&)>;
@@ -147,9 +224,14 @@ public:
     // initializers are not available inside the enclosing class's own definition, so
     // `Config config = {}` in this signature does not compile -- a C++ rule that costs one line
     // here and reads as a puzzle if it is met without the explanation.
-    RenderScheduler(RasterizerFactory factory, RenderCache* cache, Config config);
+    RenderScheduler(RasterizerFactory factory, TextExtractorFactory textFactory, RenderCache* cache,
+                    Config config);
+    RenderScheduler(RasterizerFactory factory, RenderCache* cache, Config config)
+        : RenderScheduler(std::move(factory), nullptr, cache, config)
+    {
+    }
     RenderScheduler(RasterizerFactory factory, RenderCache* cache)
-        : RenderScheduler(std::move(factory), cache, Config{})
+        : RenderScheduler(std::move(factory), nullptr, cache, Config{})
     {
     }
     ~RenderScheduler();
@@ -161,6 +243,14 @@ public:
     // exists so a request with no real `Revision` cannot become a cache key, and queueing one would
     // spend a rasterization to produce a tile nothing can ever find again.
     RenderTicket enqueue(const RenderRequest& request, RenderPriority priority);
+
+    // ONE PAGE'S TEXT, on the engine thread (Stage 5 T2, D5-3), delivered through
+    // `subscribeText()`'s handlers from `deliverReady()`. Same queue, same strict priority, same
+    // tickets, same cancellation as a tile: a text job not started is removed and the extractor is
+    // never entered, a running one is marked and dropped on delivery. An equal request coalesces,
+    // and a `Visible` ask raises a queued `Background` one -- the person who started selecting on a
+    // page the index build had not reached yet must not wait behind the other 899.
+    RenderTicket enqueueText(const TextRequest& request, RenderPriority priority);
 
     // Drops this caller's interest. The job goes only when NO ticket is left on it -- two viewports
     // over one tile must not have one of them cancel the other's pixels.
@@ -191,6 +281,8 @@ public:
     // repaint of a dead widget.
     SubscriptionToken subscribeReady(ReadyHandler handler);
     void unsubscribeReady(SubscriptionToken token);
+    SubscriptionToken subscribeText(TextReadyHandler handler);
+    void unsubscribeText(SubscriptionToken token);
     void setWakeHandler(WakeHandler handler);
     void setLatencyProbe(LatencyProbe probe);
 
@@ -219,6 +311,12 @@ public:
     std::size_t pendingCount() const;
     std::size_t runningCount() const;
 
+    // THE GENERAL COUNTERS COUNT BOTH KINDS OF JOB -- `enqueued`, the lanes, `coalesced`,
+    // `started`, `completed`, the cancellations, `droppedOverflow`, `failed`, `delivered`,
+    // `priorityRaised` -- because each describes the one queue and the one engine thread, which
+    // is what a starvation question is about. `servedFromCache` and `droppedSuperseded` are TILE
+    // counters: a text job is never cached and never superseded. The `text*` counters are the text
+    // subset, so the tile figures are the general ones minus them.
     struct Stats {
         long long enqueued = 0;
 
@@ -231,6 +329,7 @@ public:
         long long enqueuedVisible = 0;
         long long enqueuedPrefetch = 0;
         long long enqueuedSpeculative = 0;
+        long long enqueuedBackground = 0;   // Stage 5 T2
         long long coalesced = 0;          // an equal request joined a job already queued or running
         long long servedFromCache = 0;
         long long started = 0;
@@ -242,12 +341,22 @@ public:
         long long delivered = 0;
         long long failed = 0;
         long long priorityRaised = 0;     // a prefetch job that a visible request joined
+
+        // Stage 5 T2 -- the text subset of the counters above.
+        long long textEnqueued = 0;
+        long long textCompleted = 0;      // the extractor returned, success or not
+        long long textFailed = 0;         // ... and it was a failure, which is still DELIVERED
+        long long textDelivered = 0;
     };
     Stats stats() const;
 
 private:
+    enum class JobKind { Raster, Text };
+
     struct Job {
-        RenderRequest request;
+        JobKind kind = JobKind::Raster;
+        RenderRequest request;   // meaningful for a Raster job
+        TextRequest text;        // meaningful for a Text job
         RenderPriority priority = RenderPriority::Visible;
         std::uint64_t sequence = 0;
 
@@ -261,8 +370,13 @@ private:
     };
 
     struct Completion {
+        JobKind kind = JobKind::Raster;
         RenderRequest request;
         RasterImage image;
+        // A Text completion's payload: the model or the error. A text completion is ALWAYS usable
+        // -- a failure is delivered (see `TextResult`).
+        TextRequest text;
+        std::shared_ptr<TextResult> textResult;
         bool usable = false;
         // A hit is delivered through the same path as a render so that no subscriber has to know
         // where a tile came from -- but it must not be written BACK into the cache, or the
@@ -278,12 +392,16 @@ private:
     };
 
     void workerLoop(int index);
+    // Requires the lock. Forgets a job -- its tickets and its coalescing key, by kind -- and erases
+    // it. It does not touch `pending_`; the caller knows whether the job is in it.
+    void forgetJobLocked(std::unordered_map<std::uint64_t, Job>::iterator job);
     // Requires the lock. Returns 0 when nothing may start.
     std::uint64_t selectNextLocked(int workerIndex) const;
     void dropLowestPriorityLocked();
     bool isSupersededLocked(const RenderRequest& request) const;
 
     RasterizerFactory factory_;
+    TextExtractorFactory textFactory_;
     RenderCache* cache_ = nullptr;
     Config config_;
 
@@ -293,6 +411,7 @@ private:
 
     std::unordered_map<std::uint64_t, Job> jobs_;             // by job id
     std::unordered_map<RenderRequest, std::uint64_t> byRequest_;
+    std::unordered_map<TextRequest, std::uint64_t, TextRequestHash> byText_;
     std::unordered_map<std::uint64_t, std::uint64_t> ticketToJob_;
     std::vector<std::uint64_t> pending_;                       // job ids, chosen by priority
     std::size_t running_ = 0;
@@ -309,6 +428,7 @@ private:
     SubscriptionToken nextToken_ = 1;
 
     std::vector<std::pair<SubscriptionToken, ReadyHandler>> subscribers_;
+    std::vector<std::pair<SubscriptionToken, TextReadyHandler>> textSubscribers_;
     WakeHandler wake_;
     LatencyProbe latencyProbe_;
 

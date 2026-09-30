@@ -2458,6 +2458,10 @@
         <translation>Page %1 could not be drawn.</translation>
     </message>
     <message>
+        <source>error.text.extractFailed</source>
+        <translation>The text of page %1 could not be read.</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>This PDF opened without repair.</translation>
     </message>

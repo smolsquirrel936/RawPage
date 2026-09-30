@@ -4,7 +4,8 @@
 // this task the implemented set is `{IDocumentBackend, IPageRasterizer}` and the other five are
 // still null** (guide case A-46's second half, which the file that asserts it has been waiting for
 // since T1): `ITextExtractor` is Stage 5, `MutationSink` Stage 3, `ISigner` Stage 11, `IOcrEngine`
-// Stage 16, `IIndexer` Stage 12. Each stays a **null accessor rather than an empty stub**, which is
+// Stage 16, `IIndexer` Stage 12. **Stage 5 T2 added `ITextExtractor`** (`pdf/render/PdfiumTextExtractor`),
+// so the census reads 4 of 7. Each unimplemented one stays a **null accessor rather than an empty stub**, which is
 // CLAUDE.md convention 6 applied to the second interface header — a stub that silently succeeds
 // lets a caller believe a page was extracted or a signature applied, and that surfaces stages later
 // as data nobody produced.

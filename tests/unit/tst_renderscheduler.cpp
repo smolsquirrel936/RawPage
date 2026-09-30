@@ -14,6 +14,7 @@
 
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
+#include "core/text/PageTextModel.h"
 
 #include <atomic>
 #include <chrono>
@@ -21,6 +22,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -657,4 +659,345 @@ TEST_CASE("render scheduler bounds its queue by dropping the most speculative wo
     std::lock_guard<std::mutex> lock(probe.mutex);
     REQUIRE_FALSE(probe.seen.empty());
     CHECK(probe.seen.front().pageIndex == 99);
+}
+
+// =============================================================================================
+// STAGE 5 T2 -- THE TEXT JOB (D5-3): one engine thread, two kinds of job, one queue
+// =============================================================================================
+// A COUNTING FAKE EXTRACTOR, for the rasterizer fake's reason: "the extractor is never entered" is
+// a statement about a call that did not happen. It can share an ORDER log with a logging
+// rasterizer, so a case can say which of a tile and a text job went first -- A-29's claim.
+//
+// WHAT THESE CASES DO NOT COVER (convention 19): the real engine. They prove the queue's rules;
+// that PDFium's text is extracted on this thread through the shipped adapter is
+// `tests/render/tst_extract.cpp` (guide case A-24's engine half). And WHICH lane a selection or a
+// search asks in is the CALLER's (Stage 5 T5, T6) -- these cases choose the lane themselves.
+
+namespace {
+
+struct ExtractorProbe {
+    std::mutex mutex;
+    std::atomic<int> calls{0};
+    std::atomic<bool> fail{false};
+    std::set<std::thread::id> callingThreads;
+    std::vector<int> pages;
+};
+
+// One log both fakes write to, so an ordering between a tile and a text job is observable.
+struct OrderLog {
+    std::mutex mutex;
+    std::vector<std::string> entries;
+
+    void add(std::string entry)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        entries.push_back(std::move(entry));
+    }
+};
+
+class FakeExtractor final : public rawpage::core::ITextExtractor {
+public:
+    FakeExtractor(ExtractorProbe& probe, OrderLog* log) : probe_(probe), log_(log) {}
+
+    rawpage::core::Status extractPage(DocumentHandle, int pageIndex,
+                                      rawpage::core::text::PageTextModel& into) override
+    {
+        ++probe_.calls;
+        {
+            std::lock_guard<std::mutex> lock(probe_.mutex);
+            probe_.callingThreads.insert(std::this_thread::get_id());
+            probe_.pages.push_back(pageIndex);
+        }
+        if (log_ != nullptr) log_->add("text:" + std::to_string(pageIndex));
+        if (probe_.fail.load())
+            return Error{ErrorCode::ParseFailure, QLatin1String("error.text.extractFailed"),
+                         QString::number(pageIndex)};
+        rawpage::core::text::PageTextModel model(pageIndex);
+        rawpage::core::text::TextChar c;
+        c.codepoint = static_cast<char32_t>(0x61 + (pageIndex % 26));
+        model.append(c);
+        into = std::move(model);
+        return {};
+    }
+
+private:
+    ExtractorProbe& probe_;
+    OrderLog* log_;
+};
+
+class LoggingRasterizer final : public IPageRasterizer {
+public:
+    explicit LoggingRasterizer(OrderLog& log) : log_(log) {}
+    Result<RasterImage> raster(const RenderRequest& request) override
+    {
+        log_.add("tile:" + std::to_string(request.pageIndex));
+        RasterImage image;
+        image.width = request.tile.width;
+        image.height = request.tile.height;
+        image.bytesPerLine = request.tile.width * 4;
+        image.pixels = QByteArray(image.bytesPerLine * image.height, '\0');
+        return image;
+    }
+
+private:
+    OrderLog& log_;
+};
+
+RenderScheduler::TextExtractorFactory extractorFor(ExtractorProbe& probe, OrderLog* log = nullptr)
+{
+    return [&probe, log] {
+        return std::unique_ptr<rawpage::core::ITextExtractor>(new FakeExtractor(probe, log));
+    };
+}
+
+RenderScheduler::RasterizerFactory loggingFactory(OrderLog& log)
+{
+    return [&log] { return std::unique_ptr<IPageRasterizer>(new LoggingRasterizer(log)); };
+}
+
+using rawpage::core::render::TextRequest;
+using rawpage::core::render::TextResult;
+
+TextRequest textFor(int page, DocumentHandle document = kDocA)
+{
+    return TextRequest{document, page};
+}
+
+} // namespace
+
+TEST_CASE("render scheduler extracts text on its worker and delivers it on the pumping thread",
+          "[core][render][text]")
+{
+    // A-24's headless half: the extractor is entered on the worker and never on this thread, and
+    // the model comes back on this thread through `deliverReady()` -- the tile rule, for text.
+    RasterizerProbe rasters;
+    ExtractorProbe probe;
+    RenderScheduler scheduler(factoryFor(rasters), extractorFor(probe), nullptr,
+                              RenderScheduler::Config{});
+
+    std::vector<int> delivered;
+    std::set<std::thread::id> deliveringThreads;
+    scheduler.subscribeText([&](const TextRequest& request, const TextResult& result) {
+        deliveringThreads.insert(std::this_thread::get_id());
+        REQUIRE(result);
+        REQUIRE(result.value() != nullptr);
+        CHECK(result.value()->pageIndex() == request.pageIndex);
+        delivered.push_back(request.pageIndex);
+    });
+
+    for (int page = 0; page < 5; ++page)
+        REQUIRE(scheduler.enqueueText(textFor(page), RenderPriority::Background).isValid());
+    REQUIRE(scheduler.waitForIdle(3000));
+    CHECK(scheduler.deliverReady() == 5);
+
+    CHECK(delivered.size() == 5);
+    REQUIRE(probe.callingThreads.size() == 1);
+    CHECK(*probe.callingThreads.begin() != std::this_thread::get_id());
+    REQUIRE(deliveringThreads.size() == 1);
+    CHECK(*deliveringThreads.begin() == std::this_thread::get_id());
+
+    const auto stats = scheduler.stats();
+    CHECK(stats.enqueuedBackground == 5);
+    CHECK(stats.textEnqueued == 5);
+    CHECK(stats.textCompleted == 5);
+    CHECK(stats.textDelivered == 5);
+    CHECK(stats.textFailed == 0);
+    // No tile was asked for, so the rasterizer was never entered -- text work is not tile work.
+    CHECK(rasters.calls.load() == 0);
+}
+
+TEST_CASE("render scheduler runs a visible tile before background text queued ahead of it",
+          "[core][render][text]")
+{
+    // A-29's queue half: strict priority across the two kinds of job. The pool is PAUSED so the
+    // order the jobs START in is decided by the queue alone, not by a race with the worker.
+    OrderLog log;
+    ExtractorProbe probe;
+    RenderScheduler scheduler(loggingFactory(log), extractorFor(probe, &log), nullptr,
+                              RenderScheduler::Config{});
+    scheduler.pause();
+
+    for (int page = 0; page < 3; ++page)
+        scheduler.enqueueText(textFor(page), RenderPriority::Background);
+    scheduler.enqueue(requestFor(7), RenderPriority::Speculative);
+    scheduler.enqueue(requestFor(9), RenderPriority::Visible);
+
+    scheduler.resume();
+    REQUIRE(scheduler.waitForIdle(3000));
+    scheduler.deliverReady();
+
+    std::lock_guard<std::mutex> lock(log.mutex);
+    REQUIRE(log.entries.size() == 5);
+    CHECK(log.entries[0] == "tile:9");        // Visible, although enqueued LAST
+    CHECK(log.entries[1] == "tile:7");        // Speculative, above Background
+    CHECK(log.entries[2] == "text:0");        // then the background text, FIFO
+    CHECK(log.entries[3] == "text:1");
+    CHECK(log.entries[4] == "text:2");
+}
+
+TEST_CASE("render scheduler raises a background text job a visible ask joins", "[core][render][text]")
+{
+    // D5-3's promise to a selection: the page a person is dragging over must not wait behind an
+    // index build that happened to queue it at Background.
+    OrderLog log;
+    ExtractorProbe probe;
+    RenderScheduler scheduler(loggingFactory(log), extractorFor(probe, &log), nullptr,
+                              RenderScheduler::Config{});
+    scheduler.pause();
+
+    for (int page = 0; page < 4; ++page)
+        scheduler.enqueueText(textFor(page), RenderPriority::Background);
+    const auto selection = scheduler.enqueueText(textFor(3), RenderPriority::Visible);
+    REQUIRE(selection.isValid());
+    CHECK(scheduler.pendingCount() == 4);          // coalesced, not a fifth job
+    CHECK(scheduler.stats().coalesced == 1);
+    CHECK(scheduler.stats().priorityRaised == 1);
+
+    int deliveries = 0;
+    scheduler.subscribeText([&](const TextRequest&, const TextResult&) { ++deliveries; });
+    scheduler.resume();
+    REQUIRE(scheduler.waitForIdle(3000));
+    scheduler.deliverReady();
+
+    CHECK(probe.calls.load() == 4);                // page 3 extracted ONCE for two asks
+    CHECK(deliveries == 4);
+    std::lock_guard<std::mutex> lock(log.mutex);
+    REQUIRE_FALSE(log.entries.empty());
+    CHECK(log.entries.front() == "text:3");        // raised to the front of the queue
+
+    SECTION("THE CONTROL: without the visible ask, page 3 goes last")
+    {
+        // Asserted on a fresh scheduler, because the log above already holds this run's order.
+        OrderLog plainLog;
+        ExtractorProbe plainProbe;
+        RenderScheduler plain(loggingFactory(plainLog), extractorFor(plainProbe, &plainLog), nullptr,
+                              RenderScheduler::Config{});
+        plain.pause();
+        for (int page = 0; page < 4; ++page)
+            plain.enqueueText(textFor(page), RenderPriority::Background);
+        plain.resume();
+        REQUIRE(plain.waitForIdle(3000));
+        std::lock_guard<std::mutex> plainLock(plainLog.mutex);
+        REQUIRE(plainLog.entries.size() == 4);
+        CHECK(plainLog.entries.back() == "text:3");
+    }
+}
+
+TEST_CASE("render scheduler never enters the extractor for a cancelled text job", "[core][render][text]")
+{
+    // A-36's rule, for text: not "no model arrived" but "the extractor was never called".
+    RasterizerProbe rasters;
+    ExtractorProbe probe;
+    RenderScheduler scheduler(factoryFor(rasters), extractorFor(probe), nullptr,
+                              RenderScheduler::Config{});
+    scheduler.pause();
+
+    const auto kept = scheduler.enqueueText(textFor(0), RenderPriority::Background);
+    const auto dropped = scheduler.enqueueText(textFor(1), RenderPriority::Background);
+    scheduler.enqueueText(textFor(0, kDocB), RenderPriority::Background);
+    scheduler.enqueueText(textFor(1, kDocB), RenderPriority::Background);
+    REQUIRE(kept.isValid());
+    scheduler.cancel(dropped);
+    // A document's text jobs go with its tiles -- `close()`'s protocol is cancel, drain, close, and
+    // a text job left behind would be inside the engine on a document being destroyed.
+    scheduler.cancelDocument(kDocB);
+    CHECK(scheduler.pendingCount() == 1);
+
+    scheduler.resume();
+    REQUIRE(scheduler.waitForIdle(3000));
+    CHECK(scheduler.deliverReady() == 1);
+    CHECK(probe.calls.load() == 1);
+    std::lock_guard<std::mutex> lock(probe.mutex);
+    REQUIRE(probe.pages.size() == 1);
+    CHECK(probe.pages.front() == 0);
+    CHECK(scheduler.stats().cancelledBeforeStart == 3);
+}
+
+TEST_CASE("render scheduler DELIVERS a failed extraction rather than dropping it", "[core][render][text]")
+{
+    // A caller waiting on a page's text has nothing to repaint -- a failure it never heard about is
+    // a selection that never starts (guide case A-26).
+    RasterizerProbe rasters;
+    ExtractorProbe probe;
+    probe.fail.store(true);
+    RenderScheduler scheduler(factoryFor(rasters), extractorFor(probe), nullptr,
+                              RenderScheduler::Config{});
+    std::vector<QString> errors;
+    scheduler.subscribeText([&](const TextRequest&, const TextResult& result) {
+        REQUIRE_FALSE(result);
+        errors.push_back(result.error().messageKey);
+    });
+    scheduler.enqueueText(textFor(2), RenderPriority::Visible);
+    REQUIRE(scheduler.waitForIdle(3000));
+    CHECK(scheduler.deliverReady() == 1);
+    REQUIRE(errors.size() == 1);
+    CHECK(errors.front() == QStringLiteral("error.text.extractFailed"));
+    CHECK(scheduler.stats().textFailed == 1);
+
+    SECTION("and a scheduler built with NO extractor says which interface is missing")
+    {
+        RenderScheduler bare(factoryFor(rasters), nullptr);
+        std::vector<QString> contexts;
+        bare.subscribeText([&](const TextRequest&, const TextResult& result) {
+            REQUIRE_FALSE(result);
+            CHECK(result.error().code == ErrorCode::Unavailable);
+            contexts.push_back(result.error().context);
+        });
+        bare.enqueueText(textFor(0), RenderPriority::Background);
+        REQUIRE(bare.waitForIdle(3000));
+        CHECK(bare.deliverReady() == 1);
+        REQUIRE(contexts.size() == 1);
+        CHECK(contexts.front() == QStringLiteral("ITextExtractor"));
+    }
+}
+
+TEST_CASE("render scheduler keeps text out of the tile cache and out of supersession",
+          "[core][render][text]")
+{
+    // D5-4: text is never a tile, so the cache sees neither a lookup nor an insertion for it. And a
+    // text job carries no revision, so a mutation does not throw it away (`TextRequest`'s note).
+    RenderCache cache;
+    RasterizerProbe rasters;
+    ExtractorProbe probe;
+    RenderScheduler scheduler(factoryFor(rasters), extractorFor(probe), &cache,
+                              RenderScheduler::Config{});
+    scheduler.pause();
+
+    scheduler.enqueueText(textFor(0), RenderPriority::Background);
+    scheduler.enqueueText(textFor(1), RenderPriority::Background);
+    scheduler.documentChanged(kDocA, Scope::page(0), Revision::initial().next());
+    CHECK(scheduler.pendingCount() == 2);
+
+    SECTION("the text jobs survive the change and never touch the cache")
+    {
+        scheduler.resume();
+        REQUIRE(scheduler.waitForIdle(3000));
+        CHECK(scheduler.deliverReady() == 2);
+        CHECK(probe.calls.load() == 2);
+        CHECK(cache.stats().lookups == 0);
+        CHECK(cache.stats().insertions == 0);
+        CHECK(scheduler.stats().droppedSuperseded == 0);
+    }
+
+    SECTION("THE CONTROL: the same kind of change DOES supersede a queued tile")
+    {
+        scheduler.enqueue(requestFor(0, 0, Revision::initial().next()), RenderPriority::Visible);
+        CHECK(scheduler.pendingCount() == 3);
+        scheduler.documentChanged(kDocA, Scope::page(0), Revision::initial().next().next());
+        CHECK(scheduler.pendingCount() == 2);
+        scheduler.resume();
+        REQUIRE(scheduler.waitForIdle(3000));
+    }
+}
+
+TEST_CASE("render scheduler refuses an invalid text request by ticket", "[core][render][text]")
+{
+    RasterizerProbe rasters;
+    ExtractorProbe probe;
+    RenderScheduler scheduler(factoryFor(rasters), extractorFor(probe), nullptr,
+                              RenderScheduler::Config{});
+    CHECK_FALSE(scheduler.enqueueText(TextRequest{DocumentHandle{}, 0}, RenderPriority::Visible).isValid());
+    CHECK_FALSE(scheduler.enqueueText(TextRequest{kDocA, -1}, RenderPriority::Visible).isValid());
+    CHECK(scheduler.pendingCount() == 0);
+    CHECK(scheduler.stats().textEnqueued == 0);
 }

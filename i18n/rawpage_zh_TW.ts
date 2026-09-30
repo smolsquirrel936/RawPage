@@ -2458,6 +2458,10 @@
         <translation>無法繪製第 %1 頁。</translation>
     </message>
     <message>
+        <source>error.text.extractFailed</source>
+        <translation>無法讀取第 %1 頁的文字。</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>此 PDF 無須修復即可開啟。</translation>
     </message>

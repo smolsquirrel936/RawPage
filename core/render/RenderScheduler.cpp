@@ -2,6 +2,7 @@
 
 #include "core/Log.h"
 #include "core/render/RenderCache.h"
+#include "core/text/PageTextModel.h"
 
 #include <algorithm>
 #include <chrono>
@@ -15,12 +16,15 @@ const char* renderPriorityName(RenderPriority priority) noexcept
     case RenderPriority::Visible:     return "visible";
     case RenderPriority::Prefetch:    return "prefetch";
     case RenderPriority::Speculative: return "speculative";
+    case RenderPriority::Background:  return "background";
     }
     return "?";
 }
 
-RenderScheduler::RenderScheduler(RasterizerFactory factory, RenderCache* cache, Config config)
-    : factory_(std::move(factory)), cache_(cache), config_(config)
+RenderScheduler::RenderScheduler(RasterizerFactory factory, TextExtractorFactory textFactory,
+                                 RenderCache* cache, Config config)
+    : factory_(std::move(factory)), textFactory_(std::move(textFactory)), cache_(cache),
+      config_(config)
 {
     if (config_.workerCount < 1) config_.workerCount = 1;
     if (config_.maxPending < 1) config_.maxPending = 1;
@@ -62,6 +66,7 @@ void noteLaneLocked(RenderScheduler::Stats& stats, RenderPriority priority)
     case RenderPriority::Visible: ++stats.enqueuedVisible; break;
     case RenderPriority::Prefetch: ++stats.enqueuedPrefetch; break;
     case RenderPriority::Speculative: ++stats.enqueuedSpeculative; break;
+    case RenderPriority::Background: ++stats.enqueuedBackground; break;
     }
 }
 
@@ -90,8 +95,14 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
                 // Stamped even though the lookup already succeeded: a hit still travels back
                 // through `deliverReady()`, so it has a real queued latency (a short one), and a
                 // probe that skipped hits would report the pipeline as slower than it is.
-                completed_.push_back(Completion{request, std::move(*hit), true, true, priority,
-                                                std::chrono::steady_clock::now()});
+                Completion completion;
+                completion.request = request;
+                completion.image = std::move(*hit);
+                completion.usable = true;
+                completion.fromCache = true;
+                completion.priority = priority;
+                completion.enqueuedAt = std::chrono::steady_clock::now();
+                completed_.push_back(std::move(completion));
                 wake = wake_;
             }
 
@@ -151,6 +162,76 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
     return RenderTicket{ticket};
 }
 
+RenderTicket RenderScheduler::enqueueText(const TextRequest& request, RenderPriority priority)
+{
+    // Refused by an invalid ticket, as `enqueue` refuses an invalid tile: a caller can tell.
+    if (!request.isValid()) return RenderTicket{};
+
+    std::unique_lock<std::mutex> lock(mutex_);
+    ++stats_.enqueued;
+    ++stats_.textEnqueued;
+    noteLaneLocked(stats_, priority);
+    const std::uint64_t ticket = nextTicketId_++;
+
+    const auto existing = byText_.find(request);
+    if (existing != byText_.end()) {
+        // COALESCED, and RAISED when the new ask is more urgent -- `enqueue`'s rule, and here it is
+        // the whole of D5-3's promise to a selection: the page a person is dragging over, asked at
+        // `Visible`, must not wait behind an index build that happened to queue it at `Background`.
+        Job& job = jobs_[existing->second];
+        job.tickets.push_back(ticket);
+        ticketToJob_[ticket] = existing->second;
+        ++stats_.coalesced;
+        if (!job.started && static_cast<int>(priority) < static_cast<int>(job.priority)) {
+            job.priority = priority;
+            ++stats_.priorityRaised;
+        }
+        return RenderTicket{ticket};
+    }
+
+    if (pending_.size() >= config_.maxPending) dropLowestPriorityLocked();
+
+    const std::uint64_t id = nextJobId_++;
+    Job job;
+    job.kind = JobKind::Text;
+    job.text = request;
+    job.priority = priority;
+    job.sequence = nextSequence_++;
+    job.enqueuedAt = std::chrono::steady_clock::now();
+    job.tickets.push_back(ticket);
+    jobs_.emplace(id, std::move(job));
+    byText_.emplace(request, id);
+    ticketToJob_[ticket] = id;
+    pending_.push_back(id);
+
+    lock.unlock();
+    workAvailable_.notify_one();
+    return RenderTicket{ticket};
+}
+
+void RenderScheduler::forgetJobLocked(std::unordered_map<std::uint64_t, Job>::iterator job)
+{
+    for (const std::uint64_t ticket : job->second.tickets) ticketToJob_.erase(ticket);
+    // BY KIND. A text job's coalescing key is in `byText_`; erasing its default-constructed
+    // `request` from `byRequest_` instead would leave the text key behind, and the next ask for that
+    // page would coalesce onto a job that no longer exists.
+    if (job->second.kind == JobKind::Text) {
+        byText_.erase(job->second.text);
+    } else {
+        byRequest_.erase(job->second.request);
+    }
+    jobs_.erase(job);
+}
+
+namespace {
+
+DocumentHandle documentOf(const RenderRequest& request, const TextRequest& text, bool isText)
+{
+    return isText ? text.document : request.document;
+}
+
+} // namespace
+
 void RenderScheduler::dropLowestPriorityLocked()
 {
     if (pending_.empty()) return;
@@ -175,11 +256,7 @@ void RenderScheduler::dropLowestPriorityLocked()
     if (worst == pending_.end()) return;
 
     const auto victim = jobs_.find(*worst);
-    if (victim != jobs_.end()) {
-        for (const std::uint64_t ticket : victim->second.tickets) ticketToJob_.erase(ticket);
-        byRequest_.erase(victim->second.request);
-        jobs_.erase(victim);
-    }
+    if (victim != jobs_.end()) forgetJobLocked(victim);
     pending_.erase(worst);
     ++stats_.droppedOverflow;
 }
@@ -212,8 +289,7 @@ void RenderScheduler::cancel(RenderTicket ticket)
     }
 
     pending_.erase(std::remove(pending_.begin(), pending_.end(), id), pending_.end());
-    byRequest_.erase(job.request);
-    jobs_.erase(jobIt);
+    forgetJobLocked(jobIt);
     ++stats_.cancelledBeforeStart;
     idle_.notify_all();
 }
@@ -224,9 +300,7 @@ void RenderScheduler::cancelAll()
     for (const std::uint64_t id : pending_) {
         const auto found = jobs_.find(id);
         if (found == jobs_.end()) continue;
-        for (const std::uint64_t ticket : found->second.tickets) ticketToJob_.erase(ticket);
-        byRequest_.erase(found->second.request);
-        jobs_.erase(found);
+        forgetJobLocked(found);
         ++stats_.cancelledBeforeStart;
     }
     pending_.clear();
@@ -245,19 +319,22 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
     for (const std::uint64_t id : pending_) {
         const auto found = jobs_.find(id);
         if (found == jobs_.end()) continue;
-        if (found->second.request.document != document) {
+        const Job& job = found->second;
+        if (documentOf(job.request, job.text, job.kind == JobKind::Text) != document) {
             keep.push_back(id);
             continue;
         }
-        for (const std::uint64_t ticket : found->second.tickets) ticketToJob_.erase(ticket);
-        byRequest_.erase(found->second.request);
-        jobs_.erase(found);
+        forgetJobLocked(found);
         ++stats_.cancelledBeforeStart;
     }
     pending_ = std::move(keep);
+    // TEXT JOBS TOO, and for the reason that makes this method exist: `close()`'s protocol is
+    // cancel, drain, close, and a text job left running after it would be inside the engine on a
+    // document whose extractor the close is about to destroy.
     for (auto& [id, job] : jobs_) {
         (void)id;
-        if (job.started && job.request.document == document) job.cancelled = true;
+        if (job.started && documentOf(job.request, job.text, job.kind == JobKind::Text) == document)
+            job.cancelled = true;
     }
 
     // AND WHAT HAS ALREADY FINISHED. The two steps above cover a tile that is queued and a tile
@@ -268,7 +345,10 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
     // memory budget until eviction. Measured in the product at ~4 MB per round of ten documents.
     completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
                                     [this, document](const Completion& completion) {
-                                        if (completion.request.document != document) return false;
+                                        const bool isText = completion.kind == JobKind::Text;
+                                        if (documentOf(completion.request, completion.text, isText)
+                                            != document)
+                                            return false;
                                         // A cache hit was never rasterized, so it is not a
                                         // finished job being dropped -- `droppedCancelled` stays
                                         // a count of work the engine did for nothing.
@@ -290,23 +370,25 @@ void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scop
 
     std::vector<std::uint64_t> keep;
     keep.reserve(pending_.size());
+    // TILES ONLY. A text job carries no revision because the text it reads cannot be changed by a
+    // command at this stage (`TextRequest`'s header note); superseding it would throw away work that
+    // is still right.
     for (const std::uint64_t id : pending_) {
         const auto found = jobs_.find(id);
         if (found == jobs_.end()) continue;
-        if (!isSupersededLocked(found->second.request)) {
+        if (found->second.kind == JobKind::Text || !isSupersededLocked(found->second.request)) {
             keep.push_back(id);
             continue;
         }
-        for (const std::uint64_t ticket : found->second.tickets) ticketToJob_.erase(ticket);
-        byRequest_.erase(found->second.request);
-        jobs_.erase(found);
+        forgetJobLocked(found);
         ++stats_.cancelledBeforeStart;
     }
     pending_ = std::move(keep);
 
     for (auto& [id, job] : jobs_) {
         (void)id;
-        if (job.started && isSupersededLocked(job.request)) job.superseded = true;
+        if (job.started && job.kind == JobKind::Raster && isSupersededLocked(job.request))
+            job.superseded = true;
     }
 
     // A completion already sitting in the queue for a request the mutation superseded must go too.
@@ -314,7 +396,8 @@ void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scop
     // being applied -- and it is exactly the one that puts a stale pixel on screen.
     completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
                                     [this](const Completion& completion) {
-                                        return isSupersededLocked(completion.request);
+                                        return completion.kind == JobKind::Raster
+                                               && isSupersededLocked(completion.request);
                                     }),
                      completed_.end());
     idle_.notify_all();
@@ -343,6 +426,22 @@ void RenderScheduler::unsubscribeReady(SubscriptionToken token)
                        subscribers_.end());
 }
 
+RenderScheduler::SubscriptionToken RenderScheduler::subscribeText(TextReadyHandler handler)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const SubscriptionToken token = nextToken_++;
+    textSubscribers_.emplace_back(token, std::move(handler));
+    return token;
+}
+
+void RenderScheduler::unsubscribeText(SubscriptionToken token)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    textSubscribers_.erase(std::remove_if(textSubscribers_.begin(), textSubscribers_.end(),
+                                          [token](const auto& entry) { return entry.first == token; }),
+                           textSubscribers_.end());
+}
+
 void RenderScheduler::setWakeHandler(WakeHandler handler)
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -359,17 +458,35 @@ int RenderScheduler::deliverReady()
 {
     std::deque<Completion> batch;
     std::vector<std::pair<SubscriptionToken, ReadyHandler>> subscribers;
+    std::vector<std::pair<SubscriptionToken, TextReadyHandler>> textSubscribers;
     LatencyProbe probe;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         batch.swap(completed_);
         subscribers = subscribers_;
+        textSubscribers = textSubscribers_;
         probe = latencyProbe_;
     }
 
     int delivered = 0;
+    int textDelivered = 0;
     for (Completion& completion : batch) {
         if (!completion.usable) continue;
+
+        // A PAGE'S TEXT: to the text subscribers and nowhere else -- not the cache (D5-4), and not
+        // the latency probe, whose quantity is the TILE's queued latency (A2's) and would be
+        // diluted by work nobody is watching.
+        if (completion.kind == JobKind::Text) {
+            if (completion.textResult) {
+                for (const auto& [token, handler] : textSubscribers) {
+                    (void)token;
+                    if (handler) handler(completion.text, *completion.textResult);
+                }
+            }
+            ++delivered;
+            ++textDelivered;
+            continue;
+        }
 
         // BEFORE the subscribers, so a slow repaint is not counted as queueing. The subscriber is
         // what draws the tile, and folding its cost in here would make the number a function of
@@ -395,6 +512,7 @@ int RenderScheduler::deliverReady()
     if (delivered > 0) {
         std::lock_guard<std::mutex> lock(mutex_);
         stats_.delivered += delivered;
+        stats_.textDelivered += textDelivered;
     }
     return delivered;
 }
@@ -491,6 +609,8 @@ void RenderScheduler::workerLoop(int index)
     // objects belong to whoever will call them, and I-05's finding is precisely that PDFium is
     // fussier about threads than it looks.
     std::unique_ptr<IPageRasterizer> rasterizer = factory_ ? factory_() : nullptr;
+    // Stage 5 T2 (D5-3): the text extractor, likewise one per worker and made on it.
+    std::unique_ptr<ITextExtractor> extractor = textFactory_ ? textFactory_() : nullptr;
 
     for (;;) {
         std::unique_lock<std::mutex> lock(mutex_);
@@ -508,8 +628,62 @@ void RenderScheduler::workerLoop(int index)
         pending_.erase(std::remove(pending_.begin(), pending_.end(), id), pending_.end());
         ++running_;
         ++stats_.started;
+        const JobKind kind = jobIt->second.kind;
         const RenderRequest request = jobIt->second.request;
+        const TextRequest textRequest = jobIt->second.text;
         lock.unlock();
+
+        if (kind == JobKind::Text) {
+            // A PAGE'S TEXT, on this thread and no other (D5-3, guide case A-24). The model is built
+            // here and handed over SHARED and const: from the moment it leaves this block nothing
+            // may write to it, because the index and a selection may both be reading it.
+            auto result = std::make_shared<TextResult>(Error{ErrorCode::Unavailable,
+                                                             kBackendNotImplementedKey,
+                                                             QStringLiteral("ITextExtractor")});
+            if (extractor != nullptr) {
+                auto model = std::make_shared<text::PageTextModel>(textRequest.pageIndex);
+                const Status status =
+                    extractor->extractPage(textRequest.document, textRequest.pageIndex, *model);
+                if (status) {
+                    *result = TextResult(std::shared_ptr<const text::PageTextModel>(std::move(model)));
+                } else {
+                    *result = TextResult(status.error());
+                }
+            }
+
+            lock.lock();
+            --running_;
+            ++stats_.completed;
+            ++stats_.textCompleted;
+            if (!*result) {
+                ++stats_.failed;
+                ++stats_.textFailed;
+            }
+            auto finished = jobs_.find(id);
+            const bool cancelled = finished != jobs_.end() && finished->second.cancelled;
+            if (finished != jobs_.end()) forgetJobLocked(finished);
+            if (cancelled) {
+                ++stats_.droppedCancelled;
+            } else {
+                Completion completion;
+                completion.kind = JobKind::Text;
+                completion.text = textRequest;
+                completion.textResult = std::move(result);
+                completion.usable = true;
+                completed_.push_back(std::move(completion));
+            }
+
+            WakeHandler wake = wake_;
+            ++handingOff_;
+            lock.unlock();
+            if (wake) wake();
+            lock.lock();
+            --handingOff_;
+            const bool nowIdle = pending_.empty() && running_ == 0 && handingOff_ == 0;
+            lock.unlock();
+            if (nowIdle) idle_.notify_all();
+            continue;
+        }
 
         Result<RasterImage> result = rasterizer != nullptr
                                          ? rasterizer->raster(request)
@@ -532,11 +706,7 @@ void RenderScheduler::workerLoop(int index)
         const bool superseded =
             (finished != jobs_.end() && finished->second.superseded) || isSupersededLocked(request);
 
-        if (finished != jobs_.end()) {
-            for (const std::uint64_t ticket : finished->second.tickets) ticketToJob_.erase(ticket);
-            byRequest_.erase(finished->second.request);
-            jobs_.erase(finished);
-        }
+        if (finished != jobs_.end()) forgetJobLocked(finished);
 
         if (!result) {
             ++stats_.failed;
@@ -545,8 +715,13 @@ void RenderScheduler::workerLoop(int index)
         } else if (superseded) {
             ++stats_.droppedSuperseded;
         } else {
-            completed_.push_back(
-                Completion{request, std::move(result.value()), true, false, lane, enqueuedAt});
+            Completion completion;
+            completion.request = request;
+            completion.image = std::move(result.value());
+            completion.usable = true;
+            completion.priority = lane;
+            completion.enqueuedAt = enqueuedAt;
+            completed_.push_back(std::move(completion));
         }
 
         WakeHandler wake = wake_;

@@ -8,6 +8,7 @@
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumRasterizer.h"
+#include "pdf/render/PdfiumTextExtractor.h"
 
 #include <QDateTime>
 #include <QFileInfo>
@@ -17,12 +18,15 @@
 
 namespace rawpage::pdf {
 
-// One open document and the rasterizer that serves it. The rasterizer holds the document by
-// reference, so declaration order here is the destruction contract: `rasterizer` is destroyed
-// first because members are destroyed in reverse order of declaration.
+// One open document and the rasterizer and text extractor that serve it. Both hold the document by
+// reference, so declaration order here is the destruction contract: they are destroyed before
+// `document` because members are destroyed in reverse order of declaration.
 struct DocumentBackendImpl::Open {
     std::unique_ptr<render::PdfiumDocument> document;
     std::unique_ptr<render::PdfiumRasterizer> rasterizer;
+    // Stage 5 T2 (D5-2). Made once the handle exists, in `open()`, because it refuses every handle
+    // but its own (guide case A-25).
+    std::unique_ptr<render::PdfiumTextExtractor> extractor;
 
     // Stage 3 T4. The bytes the engine loaded, held by this entry so the first-party sink's views into
     // them stay valid: a `QByteArray` copy shares the engine's buffer rather than duplicating it, and
@@ -57,7 +61,9 @@ std::array<bool, core::kBackendInterfaceCount> DocumentBackendImpl::implementedI
     // Stage 3 T4: `pdf/ops/MutationSinkImpl`, handed out per document by `mutationSink()` -- and only
     // for a document `Permissions` lets this build edit.
     implemented[static_cast<std::size_t>(core::BackendInterface::Mutation)] = true;
-    // The other five stay false and their accessors stay null. Convention 6: a stub that silently
+    // Stage 5 T2 (D5-2): `pdf/render/PdfiumTextExtractor`, per document like the rasterizer.
+    implemented[static_cast<std::size_t>(core::BackendInterface::TextExtractor)] = true;
+    // The other three stay false and their accessors stay null. Convention 6: a stub that silently
     // succeeds surfaces stages later as data nobody produced.
     return implemented;
 }
@@ -140,6 +146,7 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
 
     const std::lock_guard<std::mutex> guard(mutex_);
     const core::DocumentHandle handle{nextHandle_++};
+    entry->extractor = std::make_unique<render::PdfiumTextExtractor>(*entry->document, handle);
     RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
         << "backend: opened" << path << "as handle" << static_cast<int>(handle.id) << "with"
         << entry->document->pageCount() << "pages;"
@@ -222,9 +229,14 @@ core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, c
     return core::Status{};
 }
 
-core::ITextExtractor* DocumentBackendImpl::textExtractor(core::DocumentHandle)
+// CALLED FROM THE RENDER THREAD, as a text job (D5-3) -- `rasterizer()`'s arrangement exactly, and
+// `close()`'s protocol covers it the same way: a document's text jobs are cancelled and drained with
+// its tiles before the entry this pointer points into is destroyed.
+core::ITextExtractor* DocumentBackendImpl::textExtractor(core::DocumentHandle document)
 {
-    return nullptr;   // Stage 5
+    const std::lock_guard<std::mutex> guard(mutex_);
+    Open* entry = find(document);
+    return entry ? entry->extractor.get() : nullptr;
 }
 
 core::MutationSink* DocumentBackendImpl::mutationSink(core::DocumentHandle document)

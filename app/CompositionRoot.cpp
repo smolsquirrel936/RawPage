@@ -1,6 +1,7 @@
 #include "app/CompositionRoot.h"
 
 #include "app/BackendRasterizer.h"
+#include "app/BackendTextExtractor.h"
 #include "app/CrashHandler.h"
 
 #include "pdf/BackendFactory.h"
@@ -189,9 +190,14 @@ CompositionRoot::CompositionRoot(Options options)
     // once and resizing one at runtime is a feature nothing has asked for.
     schedulerConfig.workerCount = settings_->get(core::keys::performance::renderWorkers);
 
+    // Stage 5 T2 (D5-3): the SAME thread extracts text, through the second factory -- one engine
+    // thread with two kinds of job, so PDFium's single-threadedness stays structural.
     renderScheduler_ = std::make_unique<core::render::RenderScheduler>(
         [backend = backend_.get()]() -> std::unique_ptr<core::IPageRasterizer> {
             return std::make_unique<BackendRasterizer>(*backend);
+        },
+        [backend = backend_.get()]() -> std::unique_ptr<core::ITextExtractor> {
+            return std::make_unique<BackendTextExtractor>(*backend);
         },
         renderCache_.get(), schedulerConfig);
 
@@ -275,7 +281,7 @@ CompositionRoot::~CompositionRoot()
     // THE RENDER PIPELINE GOES FIRST, and the order inside it matters twice over. Dropping the
     // wake handler stops new posts; releasing `pumpAlive_` makes any post already in Qt's queue a
     // no-op; destroying the scheduler joins its worker, which is what guarantees no thread is
-    // inside `BackendRasterizer` -- and therefore inside the backend -- when the backend is
+    // inside `BackendRasterizer` or `BackendTextExtractor` -- and therefore inside the backend -- when the backend is
     // destroyed further down.
     if (renderScheduler_) {
         renderScheduler_->setWakeHandler(nullptr);

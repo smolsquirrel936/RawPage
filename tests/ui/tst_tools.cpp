@@ -171,9 +171,9 @@ TEST_CASE("H V and Z arm their tool from a key event and the cursor follows", "[
 TEST_CASE("the selection tool selects nothing and says so", "[tools]")
 {
     // convention 19, as a case rather than only a comment. `V` arms a real tool with a real
-    // cursor, and a drag with it does nothing at all -- text selection needs
-    // `core/text/PageTextModel` and `ITextExtractor`, which are STAGE 5's. The backend census at
-    // every launch says `missing: ITextExtractor`, so this is the honest state and not a defect.
+    // cursor, and a drag with it does nothing at all -- text selection is STAGE 5 T5's. Stage 5 T2
+    // built the model and the extractor (the census says 4 of 7 since then); T5 gives this tool
+    // `TextSelection` and `SelectionOverlay`, and this case changes with it.
     Viewer viewer;
     viewer.press(Qt::Key_V);
 

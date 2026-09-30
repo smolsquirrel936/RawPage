@@ -3,10 +3,10 @@
 // ===========================================================================================
 // IT SELECTS NOTHING, IT IS THE DEFAULT, AND BOTH OF THOSE ARE DELIBERATE.
 // ===========================================================================================
-// Text selection needs `core/text/PageTextModel` and `ITextExtractor`, which are **Stage 5's**:
-// the backend census says so out loud at every launch — *3 of 7 interfaces implemented; missing:
-// ITextExtractor, …*. So this tool arms, shows an I-beam over the page, and does nothing with a
-// drag. `Stage4-ViewingSurface-Plan.md` §11 lists that as an explicit non-goal and the guide's
+// Text selection needs `core/text/PageTextModel` and `ITextExtractor`, which are **Stage 5's** —
+// T2 built both (the census reads 4 of 7 since 2026-09-30), and the selection itself,
+// `TextSelection` and `SelectionOverlay`, is Stage 5 **T5**'s. Until then this tool arms, shows an
+// I-beam over the page, and does nothing with a drag. `Stage4-ViewingSurface-Plan.md` §11 lists that as an explicit non-goal and the guide's
 // out-of-scope table repeats it, so a bug report saying *dragging selects nothing* is answered
 // before it is filed.
 //

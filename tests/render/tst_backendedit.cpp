@@ -114,18 +114,20 @@ TEST_CASE("the shipped backend refuses editing the file its two readers count di
 
 TEST_CASE("the shipped backend implements three of seven and hands out a sink per document", "[render][backend]")
 {
-    // GUIDE CASE A-37.
+    // GUIDE CASE A-37. FOUR of seven since Stage 5 T2 added `ITextExtractor` (Stage 5 guide case
+    // A-25); the case's NAME still says three and is kept, because Stage 5 guide case A-109 requires
+    // every Stage 4 name to stay registered.
     DocumentBackendImpl backend;
     const auto implemented = backend.implementedInterfaces();
     CHECK(implemented[static_cast<std::size_t>(BackendInterface::DocumentBackend)]);
     CHECK(implemented[static_cast<std::size_t>(BackendInterface::PageRasterizer)]);
     CHECK(implemented[static_cast<std::size_t>(BackendInterface::Mutation)]);
+    CHECK(implemented[static_cast<std::size_t>(BackendInterface::TextExtractor)]);
     const auto missing = rawpage::core::unimplementedBackendInterfaces(backend);
-    REQUIRE(missing.size() == 4);
-    CHECK(missing[0] == "ITextExtractor");
-    CHECK(missing[1] == "ISigner");
-    CHECK(missing[2] == "IOcrEngine");
-    CHECK(missing[3] == "IIndexer");
+    REQUIRE(missing.size() == 3);
+    CHECK(missing[0] == "ISigner");
+    CHECK(missing[1] == "IOcrEngine");
+    CHECK(missing[2] == "IIndexer");
 
     auto first = backend.open(corpusPath("ordinary/text-a4.pdf"), nullptr);
     auto second = backend.open(corpusPath("ordinary/text-a4.pdf"), nullptr);

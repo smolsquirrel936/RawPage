@@ -78,7 +78,11 @@ add_executable(rawpage_tests
     tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34
     tst_rendercache.cpp           # Stage 2 T11 -- guide cases A-40, A-41
-    tst_renderscheduler.cpp       # Stage 2 T11 -- guide cases A-36, A-37, A-38, A-39's core/ half
+    tst_renderscheduler.cpp       # Stage 2 T11 -- guide cases A-36, A-37, A-38, A-39's core/ half;
+                                  #   Stage 5 T2 adds the TEXT JOB's cases (D5-3): A-24's headless
+                                  #   half and the strict-priority half of A-29
+    tst_textmodel.cpp             # Stage 5 T2 -- core/text/PageTextModel (D5-2), headless: the
+                                  #   unmapped rule, the font table, extractable-or-not
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
                                   #   face substitutes, asserted with no engine and no Windows
     tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23

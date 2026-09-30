@@ -194,6 +194,12 @@ add_library(rawpage_core STATIC
     # tests/unit with no display, no Windows and no PDFium linked.
     render/FontSubstitution.h
     render/FontSubstitution.cpp
+
+    # text/ -- Stage 5. PageTextModel is T2's (D5-2): characters with geometry, filled by
+    # pdf/render/PdfiumTextExtractor through core/backend.h's ITextExtractor, and nothing in it names
+    # an engine -- which is what lets the headless suite and fuzz_text_pipeline (D5-21) build it.
+    text/PageTextModel.h
+    text/PageTextModel.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

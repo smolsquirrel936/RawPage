@@ -208,6 +208,9 @@ add_library(rawpage_pdfium STATIC
     render/PdfiumDocument.cpp
     render/PdfiumRasterizer.h
     render/PdfiumRasterizer.cpp
+    # Stage 5 T2 (D5-2): the text page, one Unicode scalar at a time, into core/text/PageTextModel.
+    render/PdfiumTextExtractor.h
+    render/PdfiumTextExtractor.cpp
 
     # T16: font substitution on OUR side of the engine boundary. FontResolverBridge is the
     # FPDF_SYSFONTINFO hook -- PDFium asks, platform::IFontResolver answers, and every substitution

@@ -174,6 +174,9 @@ struct Samples {
         case RenderPriority::Visible:     visible.push_back(ms); break;
         case RenderPriority::Prefetch:    prefetch.push_back(ms); break;
         case RenderPriority::Speculative: speculative.push_back(ms); break;
+        // Stage 5 T2 (D5-3): the lane below Speculative. The probe reports TILES only, and no
+        // shipped surface queues a tile there -- text jobs use it and are never probed.
+        case RenderPriority::Background:  break;
         }
     }
 };

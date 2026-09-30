@@ -54,6 +54,10 @@ add_executable(rawpage_render_tests
                                   #   not link an engine), and the other cases here call the
                                   #   rasterizer with no scheduler. The assembly the product
                                   #   actually runs had no case until this file.
+    tst_extract.cpp               # Stage 5 T2 -- guide cases A-17 to A-26: pdf/render/PdfiumTextExtractor
+                                  #   over the corpus, graded against the GENERATOR's labels in
+                                  #   corpus/labels/ and never against PDFium's own FPDFText_GetText,
+                                  #   and through the real scheduler via app/BackendTextExtractor
     tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it

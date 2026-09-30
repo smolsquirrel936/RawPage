@@ -445,10 +445,13 @@ TEST_CASE("the shipped backend hands out a rasterizer and nulls for the unimplem
     REQUIRE(rasterizer != nullptr);
     CHECK(rasterizer->raster(requestFor(0, TileRect{0, 0, 64, 64})));
 
-    // The four that are not are NULL, never an empty stub -- convention 6, because a stub that
+    // The ones that are not are NULL, never an empty stub -- convention 6, because a stub that
     // silently succeeds lets a caller believe a page was extracted or a signature applied. (Five until
-    // Stage 3 T4, when `mutationSink()` became real for an editable document -- `tst_backendedit.cpp`.)
-    CHECK(backend.textExtractor(handle.value()) == nullptr);
+    // Stage 3 T4, when `mutationSink()` became real for an editable document -- `tst_backendedit.cpp`;
+    // four until Stage 5 T2, when `textExtractor()` did -- `tst_extract.cpp`, guide case A-25. The
+    // case's NAME still says four, and is kept: Stage 5 guide case A-109 requires every Stage 4 name
+    // to stay registered.)
+    CHECK(backend.textExtractor(handle.value()) != nullptr);
     CHECK(backend.signer(handle.value()) == nullptr);
     CHECK(backend.ocrEngine() == nullptr);
     CHECK(backend.indexer() == nullptr);
