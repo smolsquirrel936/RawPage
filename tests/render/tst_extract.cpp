@@ -38,9 +38,10 @@
 // ---------------------------------------------------------------------------------------------
 //   * Reading order across lines, blocks and columns -- `LayoutAnalyzer`'s, T4. A-17 compares
 //     each LINE's characters in the model's order and places no claim on the order of lines.
-//   * What a consumer does with an unmapped page -- find reporting it, copy producing nothing --
-//     is T5's and T6's; A-21 here is the extractor's half.
-//   * Which lane a selection or a search asks in: A-24 chooses its lanes itself.
+//   * What a consumer does with an unmapped page -- copy producing nothing is T5's
+//     (`tests/unit/tst_selection.cpp`), find reporting it T6's; A-21 here is the extractor's half.
+//   * Which lane a selection or a search asks in: A-24 chooses its lanes itself. A selection's is
+//     `tests/ui/tst_selecttool.cpp`'s (T5), a search's T6's.
 //   * Every file is ours (D2-11, D5-23). None of this says anything about a real document.
 
 #include <catch2/catch_test_macros.hpp>
@@ -610,7 +611,8 @@ TEST_CASE("extraction reports cjk-embedded's hanzi as unmapped and invents nothi
     CHECK(cjk == 90);
     CHECK(model.unmappedCount() == 90);
     // The page still has extractable text -- its two Helvetica lines. What a consumer does with
-    // the 90 is T5's and T6's: this is the extractor's half of A-21.
+    // the 90 is the copy's (T5, `tst_selection.cpp`) and find's (T6): this is the extractor's half
+    // of A-21.
     CHECK(model.hasExtractableText());
 
     SECTION("THE CONTROL: the same glyphs WITH /ToUnicode extract as the right hanzi")

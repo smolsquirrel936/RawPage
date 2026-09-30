@@ -94,7 +94,9 @@ bitmap at the view's scale (A), that plus a resolution setting (B), or build the
 user chose B**, which removes most of the practical cost, a blurry print, with one settings key
 (`pageDisplay/snapshotDpi`, `Stage5-TextSearch-Plan.md` D5-11), and leaves the vector flavour here.
 
-**What exists today** (checked 2026-09-29, before any Stage 5 code):
+**What exists today** (checked 2026-09-29, before any Stage 5 code; **re-checked 2026-10-01 after Stage 5
+T5** — every line below still holds, and text copy now goes through `QClipboard` with its HTML measured
+reaching Windows as CF_HTML, `Stage5-TextSearch-Testing-Guide.md` A-50):
 
 - `platform/platform.h` declares **`IRichClipboard`** — `setVectorMetafile`, `setHtml`, `vectorMetafile()`,
   `html()` — and **nothing implements it**; the platform census is **6 of 18**.

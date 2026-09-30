@@ -97,42 +97,44 @@ inherit it — with a gate fixture in each direction.
 | ○ | Planned. The parenthesized **S*n*** is the [roadmap](./Implementation-Plan.md) stage that builds it. |
 | ⤵ | Folded into another file — the row stays as a breadcrumb, pointing at where the responsibility went. |
 
-**The census, re-counted at Stage 4 T7 (2026-09-21) from the rows below: 140 ✅, 24 🟡, 124 ○, 1 ⤵
-— 289 file rows.** It was *122 ✅, 13 🟡, 148 ○* at Stage 2 T18, and every figure in the shape below
-had drifted by Stage 4 T7; the paragraph before that read *"three rows are 🟡"* and *"no document
-code exists yet"* until the T16 recount, both true at Stage 1 T7 and false long before anyone
-looked. **A summary of a table is a second copy of it**, and the two drift the moment nobody
-re-measures — so what follows is deliberately a shape rather than a list, the counts are re-derived
-in the same change that quotes them, and the rows themselves are the authority.
+**The census, re-counted at Stage 5 T5 (2026-10-01) by a script over §3's rows: 178 ✅, 24 🟡, 114 ○,
+1 ⤵ — 317 file rows**, every row of §3 being a file row. It was *140 ✅, 24 🟡, 124 ○* at Stage 4 T7 and
+*122 ✅, 13 🟡, 148 ○* at Stage 2 T18; the paragraph before that read *"three rows are 🟡"* and *"no
+document code exists yet"* until the Stage 2 T16 recount, both true at Stage 1 T7 and false long before
+anyone looked, and **the version this replaces had drifted from itself** -- its sentence said 140 ✅ and
+its bullet 169, and it credited five §3 rows to a layer-dependency table that §3 does not contain.
+**A summary of a table is a second copy of it**, and the two drift the moment nobody re-measures — so
+what follows is deliberately a shape rather than a list, the counts are re-derived in the same change
+that quotes them, and the rows themselves are the authority.
 
-- **✅ (169)** — everything Stages 0 to 3 built, plus Stage 4 T1–T12: the four gates and the build
-  system, including the language-standard assertion T12 added; the four `core/` vocabulary headers
+- **✅ (178)** — everything Stages 0 to 4 built, plus Stage 5 T1–T5: the four gates and the build
+  system, including the language-standard assertion; the four `core/` vocabulary headers
   and `core/backend.h`; the action, key-binding and settings layers, including
   `core/settings/SessionState`; **`pdf/cos/`, the complete first-party COS reader**, `pdf/render/`,
-  the PDFium facade, and `pdf/ops/`, which realizes each mutation; `core/cmd/` with its one command,
-  its journal and its recovery journal; the whole of `core/render/`, `core/render/FitPolicy`
-  included; most of `ui/shell/`, `ui/dialogs/`, `ui/panes/` and `ui/viewer/`; **six of the eighteen
-  `platform/win/` implementations** — the product logs that census itself at every launch, and
-  `--list-actions` prints it; the corpus and its generators; **`tests/golden/` and
-  `tools/golden-update/`, with the 231 reference rasters they produce and check**; and **the whole
-  of `tests/bench/`**, whose seven targets are the project's only numbers-rather-than-verdicts —
-  six distinct measurements and one control, `rawpage_bench_openclose_ui_classicheap`, which is the
-  same harness without the product's manifest.
+  the PDFium facade with its text extractor, and `pdf/ops/`, which realizes each mutation; `core/cmd/`
+  with its one command, its journal and its recovery journal; the whole of `core/render/`;
+  **`core/text/`'s model, normalizer, layout analyzer and selection**; most of `ui/shell/`,
+  `ui/dialogs/`, `ui/panes/` and `ui/viewer/`; **six of the eighteen `platform/win/` implementations**
+  — the product logs that census itself at every launch, and `--list-actions` prints it; the corpus and
+  its generators; **`tests/golden/` and `tools/golden-update/`, with the 315 reference rasters they
+  produce and check** (counted in `golden/` on 2026-10-01); and **the whole of `tests/bench/`**, whose
+  eight targets are the project's only numbers-rather-than-verdicts — seven distinct measurements and
+  one control, `rawpage_bench_openclose_ui_classicheap`, which is the same harness without the
+  product's manifest.
 - **🟡 (24)** — a row whose Role describes the target while only part of it is real, each carrying
   its own *Real as of* / *Still owed* split. It nearly doubled across Stages 3 and 4, and that is
   the shape of both: a stage that builds the READ half of a model, or the navigating half of a
   pane, leaves a row that is honest about which half. `core/doc/{Outline,Destinations,Metadata}`
   are read-only halves owed their editing halves at Stages 7 and 8; `ui/panes/{Thumbnails,Bookmarks,
-  Destinations}Pane` navigate and do not edit; `ui/viewer/tools/*` holds four of seventeen tools.
-  **Re-derived 2026-09-23 at Stage 4 T12**, as the three counts above and below it were: 318 rows in
-  §3, of which 313 describe a file and five are the layer-dependency table's own rows.
+  Destinations}Pane` navigate and do not edit; `ui/viewer/tools/*` holds four of seventeen tools;
+  `ui/viewer/SelectionOverlay` paints the text selection and is owed search highlights at Stage 5 T7.
   **Every 🟡 names the stage that completes it** — none is debt from a stage already signed off.
-- **○ (119)** — planned, each with the stage tag that builds it. **None is still ○ (S2) or ○ (S3)**
-  — the one ○ row whose tag mentions S2 is `ui/dialogs/*`, a FAMILY row spanning S2–S16 whose own
-  Stage 2 and 3 members are built or folded; the Stage 4 rows that remain are **T13's and T14's**. `platform/win/WinAcceleratedSurface` is the
-  one row whose ○ is now an ANSWER rather than a schedule: **Stage 4 T2 measured it on 2026-09-19
-  and it is not built**, because the cost is PDFium rasterizing behind the engine lock and a surface
-  presents pixels rather than making them.
+- **○ (114)** — planned, each with the stage tag that builds it. **None is still ○ (S2), ○ (S3) or
+  ○ (S4)** — the one ○ row whose tag mentions S2 is `ui/dialogs/*`, a FAMILY row spanning S2–S16 whose
+  own Stage 2 and 3 members are built or folded; **eight are ○ (S5)**, the files of Stage 5 T6 to T13.
+  `platform/win/WinAcceleratedSurface` is the one row whose ○ is an ANSWER rather than a schedule:
+  **Stage 4 T2 measured it on 2026-09-19 and it is not built**, because the cost is PDFium rasterizing
+  behind the engine lock and a surface presents pixels rather than making them.
 - **⤵ (1)** — `tools/spike-pdfium/`, deleted at Stage 2 T2 exactly as its row said it would be. A
   folded row stays as a breadcrumb; rows are never deleted.
 
@@ -747,8 +749,8 @@ keystroke in Write mode, follows exactly this shape.
 Ctrl+Alt+H ─▶ KeyContext::Viewer ─▶ ActionId::HighlightTool
  └─ ToolController.activate(MarkupTool{Highlight})
      └─ drag over text
-         ├─ TextSelection.hitTest → run-offset range     // core/text
-         │    └─ over PageTextModel hydrated by ITextExtractor
+         ├─ PageReading.caretAt → TextSelection range    // core/text (built S5 · T5)
+         │    └─ over a PageTextModel the engine thread's text job extracted (D5-3)
          └─ release ─▶ AddAnnotationCommand{Highlight, quadPoints, colour from tool defaults}
              └─ journal.run(...)                          // ← identical shape to flow D
                  ├─ AnnotationStore.add(Annotation)       // core model

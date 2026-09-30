@@ -455,10 +455,10 @@ TEST_CASE("the three tool chords arm a tool and report which is armed", "[viewer
     CHECK(viewer.view->tool() == ui::ToolKind::Select);
 
     // WHAT IS NOT HERE, said at the assertion rather than discovered (convention 19): the sticky
-    // tool, the temporary-hand modifier, `Esc` cancellation and the seventeen tool classes are
-    // `ui/viewer/ToolController` and are ○ (S4). Stage 2 owns the three BINDINGS and what a drag
-    // does; `Select` selects nothing until Stage 5 gives it text, which is why there is no
-    // assertion here about selecting.
+    // tool, the temporary-hand modifier, `Esc` cancellation and the tool classes are
+    // `ui/viewer/ToolController`'s, built at Stage 4 T7 and asserted in `tst_tools.cpp`. This case
+    // owns the three BINDINGS; what a Select drag selects is Stage 5 T5's, asserted in
+    // `tst_selecttool.cpp`, which is why there is no assertion here about selecting.
     SUCCEED();
 }
 

@@ -746,7 +746,7 @@ process launching · SVG icon rendering · high-precision timers.
 | `ISecretStore` | Qt has no OS-key-protected secret storage. |
 | `IFontResolver` | Resolving a *fallback for a missing embedded document font* requires the platform's font-matching engine; Qt's font DB serves UI text, not document glyph substitution. |
 | `IAcceleratedSurface` | Presenting rendered tiles through the platform's accelerated 2D API, with a software fallback. |
-| `IRichClipboard` | Vector-metafile and HTML clipboard flavours beyond `QClipboard`'s text/image. |
+| `IRichClipboard` | Vector-metafile and HTML clipboard flavours beyond `QClipboard`'s text/image. *(Corrected 2026-10-01: the HTML half is NOT beyond Qt — Qt's Windows platform publishes `text/html` as CF_HTML, measured by reading it back through Win32 at Stage 5 T5, `Stage5-TextSearch-Testing-Guide.md` A-50. The reason that remains is the vector metafile, which needs PDFium's HDC path and is `DW-2` in `Deferred-Work.md`; `WinRichClipboard` is Stage 12's paste path — `Stage5-TextSearch-Plan.md` D5-10.)* |
 | `ISingleInstanceBus` | Qt's local-socket trick works, but the file-open handoff and activation-to-foreground are OS behaviours worth isolating. |
 | `IOfficeBridge` | Driving the installed office suite and hosting its add-ins is COM automation. |
 | `IBrowserBridge` | The browser extensions' native-messaging host is an OS registration. |

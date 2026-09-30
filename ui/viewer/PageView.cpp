@@ -804,10 +804,10 @@ void PageView::setBackgroundWindow(bool background)
 void PageView::mousePressEvent(QMouseEvent* event)
 {
     // A GUIDE IS PICKED UP BEFORE THE TOOL SEES THE PRESS, and that order is the decision. Every
-    // Stage 4 tool takes a press anywhere on the surface -- the hand pans from any pixel -- so a
-    // tool-first order would make a guide impossible to grab with anything but the Select tool
-    // armed, which is the tool that does nothing until Stage 5. The guide is a thin line the
-    // person aimed at; the tool has the rest of the page.
+    // tool takes a press anywhere on the surface -- the hand pans from any pixel, and since Stage 5 T5
+    // the Select tool starts a text selection from any pixel -- so a tool-first order would make a
+    // guide impossible to grab at all. The guide is a thin line the person aimed at; the tool has the
+    // rest of the page.
     if (event->button() == Qt::LeftButton) {
         const int guide = guides_->guideAt(engine_.layout(), toContentPoint(event->pos()));
         if (guide >= 0 && guides_->beginDrag(guide)) {

@@ -48,6 +48,10 @@
 // `QEvent::ShortcutOverride`, and a widget that implements a key ACCEPTS it. `QLineEdit`,
 // `QTextEdit` and `QAbstractSpinBox` all do. So this class asks the same question with the same
 // event, and defers to whoever answers yes -- no list, and correct for widgets written later.
+// **The one case the handshake misses** is selectable text that is READ-ONLY: Qt's text control
+// answers yes only when editable, yet handles Copy and Select All either way, so those two keys are
+// left to any widget whose `textInteractionFlags` say its text can be selected
+// (`selectableTextOwnsKey`, S5 guide I-04).
 //
 // ---------------------------------------------------------------------------------------------
 // WHAT IT CONSUMES, WHICH IS NOT THE SAME AS WHAT IT RECOGNISES.

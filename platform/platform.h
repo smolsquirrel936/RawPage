@@ -302,8 +302,14 @@ public:
 };
 
 // =======================================================================================
-// 9. IRichClipboard -- flavours beyond QClipboard's text and image (Stage 5)
+// 9. IRichClipboard -- flavours beyond QClipboard's text and image (Stage 12's paste path)
 // =======================================================================================
+// NOT IMPLEMENTED AT STAGE 5, by decision (`Stage5-TextSearch-Plan.md` D5-10, the user's answer to
+// its Q3): Qt already publishes text, HTML -- as CF_HTML, measured by reading it back through Win32
+// (Stage 5 guide A-50) -- and bitmaps, so a copy goes through `QClipboard`, and a member half
+// implemented would contradict convention 6. The vector metafile needs PDFium's HDC path, a Windows
+// call `pdf/render/` may not make; it is `DW-2` in `Deferred-Work.md`. `WinRichClipboard` is Stage 12's,
+// whose paste path READS the clipboard.
 class IRichClipboard {
 public:
     virtual ~IRichClipboard() = default;

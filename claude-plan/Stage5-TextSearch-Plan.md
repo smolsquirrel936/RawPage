@@ -14,7 +14,8 @@
 > | How Stage 5 is verified | [`Stage5-TextSearch-Testing-Guide.md`](./Stage5-TextSearch-Testing-Guide.md) — written from this plan, **before** the code |
 >
 > **Status:** ⚪ **Written 2026-09-29, two days after Stage 4 was signed off, as a draft; §0 ANSWERED
-> the same day, all seven — so this is now the plan. No Stage 5 code exists.** Q1, Q2, Q5, Q6 and Q7
+> the same day, all seven — so this is now the plan.** *(It was written before any Stage 5 code; T1 to T5
+> have been built since, 2026-09-29 to 2026-10-01, and where they stand is the status block named below.)* Q1, Q2, Q5, Q6 and Q7
 > were approved as proposed (Q1 with the correction D5-15 records); Q3 and Q4 were answered with
 > **option B** after the user asked for more detail — a snapshot resolution setting (D5-10, D5-11) and
 > the comparison's PDF outputs given to **Stage 8** (D5-17). §0 is kept as the record of what was
@@ -411,8 +412,9 @@ that is yours:
 - ✅ **Q3 (B), paid 2026-09-29** → `Architecture-FileMap.md`'s `WinRichClipboard` row re-tagged ○ (S12 paste path),
   and `TextSelection`'s row no longer names `IRichClipboard`; `Implementation-Plan.md` § Stage 5 loses it from
   *Components* and gains `pageDisplay/snapshotDpi`; its Stage 4 section's D4-15 sentence corrected in place;
-  `Deferred-Work.md` gains **`DW-2`**, the vector snapshot. **Owed with T10's code:** `platform/platform.h`'s
-  comment on `IRichClipboard` still says *(Stage 5)*, and is corrected in the change that builds the snapshot.
+  `Deferred-Work.md` gains **`DW-2`**, the vector snapshot. ✅ **Paid 2026-10-01, after T5, ahead of T10:**
+  `platform/platform.h`'s comment on `IRichClipboard` said *(Stage 5)*; it now says Stage 12's paste path
+  and why, citing A-50's measurement.
 - ✅ **Q4 (B), paid 2026-09-29** → `Implementation-Plan.md` § Stage 8 gains both PDF outputs in its objectives and
   components; §7's §1.5 row names Stage 8 beside Stage 5; § Stage 5's deferrals say so.
 - ✅ **Q5, paid 2026-09-29** → `ContentStreamParser`'s FileMap row re-tagged ○ (S10); moved from § Stage 5's to
