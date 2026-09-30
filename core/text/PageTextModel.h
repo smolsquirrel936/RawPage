@@ -35,6 +35,13 @@
 // ---------------------------------------------------------------------------------------------
 // WHAT IT IS NOT
 // ---------------------------------------------------------------------------------------------
+// ONE THING BESIDES TEXT: RULING LINES (Stage 5 T4). `LayoutAnalyzer` finds a ruled table by its
+// rules (D5-6: "tables from ruling lines plus alignment"), and a model of characters alone has none --
+// so the extractor also records every THIN path the page draws, a horizontal or vertical stroke, as a
+// page-space rectangle. It is not the page's graphics: no curves, no fills that are not thin, no
+// colour, and a table drawn inside a form XObject is not seen. That is the bound the table detector
+// inherits.
+//
 // It is not a reading order: lines, blocks, columns and the order a person reads them in are
 // `core/text/LayoutAnalyzer`'s (Stage 5 T4, D5-6). It is not a normalized string: NFKC, case
 // folding and diacritics are `core/text/TextNormalizer`'s (T4, D5-5). And it holds no engine type
@@ -145,6 +152,11 @@ public:
     // each producer.
     void append(TextChar character);
 
+    // A thin horizontal or vertical path, in page space (see the header). Rectangles that are not
+    // thin in one direction are refused, so a producer cannot hand the table detector a filled box.
+    void addRule(const PdfRect& rule);
+    const std::vector<PdfRect>& rules() const noexcept { return rules_; }
+
     // --- Reading ------------------------------------------------------------------------------
     const std::vector<TextChar>& chars() const noexcept { return chars_; }
     const std::vector<FontIdentity>& fonts() const noexcept { return fonts_; }
@@ -174,7 +186,13 @@ private:
     int pageIndex_ = -1;
     std::vector<TextChar> chars_;
     std::vector<FontIdentity> fonts_;
+    std::vector<PdfRect> rules_;
 };
+
+// The thickness a path may have and still be a rule, and the length it needs to be one. A table's
+// rules are hairlines to a point or two; a character-sized dash is not a rule.
+inline constexpr double kRuleMaxThickness = 2.5;
+inline constexpr double kRuleMinLength = 8.0;
 
 } // namespace rawpage::core::text
 

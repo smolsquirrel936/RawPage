@@ -386,9 +386,10 @@ jobs:
       # A-25's S2 half, made mechanical: the binaries exist and are executable. Checked before they
       # are run, because "it did not crash" is also what a missing file produces if nobody looks.
       # THREE from Stage 3 T13 (D3-17): fuzz_cos_roundtrip, the reader and the writer against each other.
-      - name: A-25 / A-26 / A-83 -- all three targets linked
+      # FOUR from Stage 5 T4 (D5-21): fuzz_text_pipeline, core/text/ over hostile geometry.
+      - name: A-25 / A-26 / A-83 / S5 A-40 -- all four targets linked
         run: |
-          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip; do
+          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip fuzz_text_pipeline; do
             path="build/portable-fuzz/bin/$target"
             if [ ! -x "$path" ]; then
               echo "::error::$path was not built -- a preset that has never linked anything has not been proven to link anything"
@@ -433,6 +434,15 @@ jobs:
           mkdir -p fuzz-work/roundtrip
           ./build/portable-fuzz/bin/fuzz_cos_roundtrip fuzz-work/roundtrip fuzz-seeds/roundtrip \
               corpus/malformed corpus/ordinary corpus/signed -max_total_time=60 -error_exitcode=1
+
+      # Stage 5 T4, D5-21 (S5 guide A-40): the layout analyzer and the normalizer over synthetic
+      # geometry -- NaN, the infinities, zero, negative and huge sizes. Seeded with corpus/labels/ as
+      # plain bytes; the first directory is scratch, as above.
+      - name: S5 A-40 -- fuzz_text_pipeline
+        run: |
+          mkdir -p fuzz-work/text
+          ./build/portable-fuzz/bin/fuzz_text_pipeline fuzz-work/text corpus/labels \
+              -max_total_time=60 -error_exitcode=1
 
   # =====================================================================================
   # 5. The coverage this run did NOT have.

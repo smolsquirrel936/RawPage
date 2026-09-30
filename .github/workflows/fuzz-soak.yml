@@ -68,6 +68,9 @@ jobs:
             seeds: corpus/malformed
           - target: fuzz_cos_roundtrip
             seeds: fuzz-seeds/roundtrip corpus/malformed corpus/ordinary corpus/signed
+          # Stage 5 T4 (D5-21, S5 guide A-40): core/text/ over hostile geometry.
+          - target: fuzz_text_pipeline
+            seeds: corpus/labels
     env:
       SOAK_SECONDS: ${{ github.event.inputs.seconds || '600' }}
     steps:

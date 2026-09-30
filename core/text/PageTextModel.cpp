@@ -59,6 +59,18 @@ void PageTextModel::append(TextChar character)
     chars_.push_back(character);
 }
 
+void PageTextModel::addRule(const PdfRect& rule)
+{
+    const double w = rule.size.width;
+    const double h = rule.size.height;
+    // `!(x >= y)` rather than `x < y`, so a NaN is refused rather than let through by a comparison
+    // that is false both ways.
+    if (!(w >= 0.0) || !(h >= 0.0)) return;
+    const bool horizontal = h <= kRuleMaxThickness && w >= kRuleMinLength;
+    const bool vertical = w <= kRuleMaxThickness && h >= kRuleMinLength;
+    if (horizontal || vertical) rules_.push_back(rule);
+}
+
 const FontIdentity* PageTextModel::fontOf(const TextChar& character) const noexcept
 {
     if (character.font < 0 || character.font >= static_cast<int>(fonts_.size())) return nullptr;

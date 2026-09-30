@@ -83,6 +83,9 @@ add_executable(rawpage_tests
                                   #   half and the strict-priority half of A-29
     tst_textmodel.cpp             # Stage 5 T2 -- core/text/PageTextModel (D5-2), headless: the
                                   #   unmapped rule, the font table, extractable-or-not
+    tst_normalize.cpp             # Stage 5 T4 -- core/text/TextNormalizer (D5-5): guide A-32 ... A-36
+    tst_layout.cpp                # Stage 5 T4 -- core/text/LayoutAnalyzer (D5-6) on synthetic
+                                  #   geometry: guide A-37, A-39 and A-41, each rule with its control
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
                                   #   face substitutes, asserted with no engine and no Windows
     tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23

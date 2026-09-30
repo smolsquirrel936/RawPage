@@ -4,6 +4,7 @@
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumInit.h"
 
+#include <fpdf_edit.h>
 #include <fpdf_text.h>
 #include <fpdfview.h>
 
@@ -187,6 +188,22 @@ core::Status PdfiumTextExtractor::extractPage(core::DocumentHandle document, int
             character.codepoint = static_cast<char32_t>(unit);
             character.flags = flags;
             model.append(character);
+        }
+
+        // THE PAGE'S RULING LINES (Stage 5 T4), for `LayoutAnalyzer`'s ruled tables: every top-level
+        // path object that is thin in one direction. A bound on the count, because a hostile page can
+        // carry a hundred thousand paths and a table detector needs a few dozen.
+        constexpr int kMaxRules = 10000;
+        const int objects = FPDFPage_CountObjects(page);
+        int rules = 0;
+        for (int i = 0; i < objects && rules < kMaxRules; ++i) {
+            FPDF_PAGEOBJECT object = FPDFPage_GetObject(page, i);
+            if (object == nullptr || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_PATH) continue;
+            float left = 0.0F, bottom = 0.0F, right = 0.0F, top = 0.0F;
+            if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
+            const std::size_t before = model.rules().size();
+            model.addRule(rectFrom(left, bottom, right, top));
+            if (model.rules().size() > before) ++rules;
         }
 
         FPDFText_ClosePage(textPage);

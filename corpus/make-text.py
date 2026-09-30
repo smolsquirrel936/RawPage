@@ -356,8 +356,13 @@ def columns_two():
               (second, left, 790, 60, column), (second, left + column + gutter, 790, 60, column)]
     rest = flow(frames, paragraphs(21, 14))
     assert not rest, "columns-two: the prose did not fit its frames"
+    # The columns that HOLD body text, not the frames laid out: the prose runs out in the second
+    # page's left column, so that page shows one column of text, and a label saying two described a
+    # column no reader -- and no analyzer of the text -- can see. Corrected at Stage 5 T4, where the
+    # layout measurement found it (Stage5-TextSearch-Testing-Guide.md I-03).
     for page in (first, second):
-        page.columns = 2
+        page.columns = len({line["x0"] for block in page.blocks if block["role"] == "body"
+                            for line in page.lines if line["id"] in block["lines"]})
 
     first.op(b"0 G 0.5 w 54 94 m 204 94 l S")
     note = first.text(54, 84, 7, "1 A footnote: it belongs to the page, and is read after the body.")

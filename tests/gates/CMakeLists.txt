@@ -739,6 +739,15 @@ rawpage_add_fuzz_count_test(NAME gates.fuzz_count.zero_fails
     EXTRA "-DFIXTURE_TARGETS=0|-DFIXTURE_EXPECTED=3"
     EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
 
+# Stage 5 T4 (guide A-40): the count the stage ships, FOUR -- the control -- and three of four refused.
+# The three-target cases above stay as they are: they prove the function, whatever the shipped count.
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.four_of_four_with_a_helper
+    EXTRA "-DFIXTURE_TARGETS=4|-DFIXTURE_EXPECTED=4|-DFIXTURE_HELPER=ON"
+    EXPECT_EXIT 0 EXPECT_MATCH "as expected")
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.three_of_four_fails
+    EXTRA "-DFIXTURE_TARGETS=3|-DFIXTURE_EXPECTED=4"
+    EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
+
 # And the helper cannot stand in for a missing target: two targets plus a helper is still two.
 rawpage_add_fuzz_count_test(NAME gates.fuzz_count.helper_is_not_a_target
     EXTRA "-DFIXTURE_TARGETS=2|-DFIXTURE_EXPECTED=3|-DFIXTURE_HELPER=ON"

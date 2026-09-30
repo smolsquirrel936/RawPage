@@ -200,6 +200,12 @@ add_library(rawpage_core STATIC
     # an engine -- which is what lets the headless suite and fuzz_text_pipeline (D5-21) build it.
     text/PageTextModel.h
     text/PageTextModel.cpp
+    # T4 (D5-5, D5-6): one normalizer for find, search and compare, and the analyzer every reading
+    # order comes from -- geometry only, measured against corpus/labels/ (D5-7).
+    text/TextNormalizer.h
+    text/TextNormalizer.cpp
+    text/LayoutAnalyzer.h
+    text/LayoutAnalyzer.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

@@ -48,14 +48,18 @@ rawpage_add_fuzz_target(fuzz_cos_parser fuzz_cos_parser.cpp)   # T6, and the PRI
 # the portable mutation library (D3-3) -- which is the reason that library builds on Linux at all.
 rawpage_add_fuzz_target(fuzz_cos_roundtrip fuzz_cos_roundtrip.cpp rawpage_ops)
 
+# Stage 5 T4, decision D5-21: core/text/ -- the layout analyzer and the normalizer -- over synthetic
+# geometry decoded from the bytes, NaN and the infinities included. core/ only: no PDF, no engine.
+rawpage_add_fuzz_target(fuzz_text_pipeline fuzz_text_pipeline.cpp)
+
 # Guide case A-27 (Stage 2) and A-83(a) (Stage 3): "Expect exactly N fuzz targets. ZERO IS A FAILURE,
 # NOT A PASS." That case exists because A-25 and A-26 -- "no crashes in ten minutes" -- are passed
 # trivially by a target that builds nothing. The count is asserted here, at configure time, so the
 # build graph cannot quietly become empty between now and the Linux run.
 #
-# It was 1 at Stage 2 T5, 2 from T6, and 3 from Stage 3 T13 with fuzz_cos_roundtrip. The next task to
-# add or remove a target changes this number in the same commit. The assertion itself is
+# It was 1 at Stage 2 T5, 2 from T6, 3 from Stage 3 T13 with fuzz_cos_roundtrip, and 4 from Stage 5 T4
+# with fuzz_text_pipeline. The next task to add or remove a target changes this number in the same commit. The assertion itself is
 # cmake/RawPageFuzzTargets.cmake, where the gates.fuzz_count.* cases can prove it fires.
-set(RAWPAGE_EXPECTED_FUZZ_TARGETS 3)
+set(RAWPAGE_EXPECTED_FUZZ_TARGETS 4)
 include("${CMAKE_SOURCE_DIR}/cmake/RawPageFuzzTargets.cmake")
 rawpage_assert_fuzz_target_count(${RAWPAGE_EXPECTED_FUZZ_TARGETS})

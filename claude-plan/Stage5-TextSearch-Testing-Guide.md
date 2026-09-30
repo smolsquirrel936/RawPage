@@ -7,11 +7,11 @@
 > confirms whatever got built, including the parts built wrong.
 >
 > **Status:** ⚪ **Written 2026-09-29 with the plan, before any Stage 5 code; the plan's §0 answered
-> the same day.** **T1's five corpus cases (A-12 … A-16) have results, from 2026-09-29, and T2's ten (A-17 … A-26) from 2026-09-30 — seven ticked, three 🟡 with their T2 half recorded and the rest owed to the task that builds it (A-21's consumers and A-24's callers to T5/T6, A-23's reorder to T4) — and T3's five (A-27 … A-31), all ticked, from the same day: **A2 at Stage 5 is `go, with named custom work`.** No other case has one.** **114 automated** (A-01 … A-114) and **9 manual**
+> the same day.** **T1's five corpus cases (A-12 … A-16) have results, from 2026-09-29, and T2's ten (A-17 … A-26) from 2026-09-30 — seven ticked, three 🟡 with their T2 half recorded and the rest owed to the task that builds it (A-21's consumers and A-24's callers to T5/T6, A-23's reorder to T4) — and T3's five (A-27 … A-31), all ticked, from the same day: **A2 at Stage 5 is `go, with named custom work`.** T4's ten (A-32 … A-41) from 2026-09-30, nine ticked and A-40 🟡 until the Linux job's log is read, and A-23 ticked with its second half. **The layout baseline meets every §3.2 target.** No other case has a result.** **114 automated** (A-01 … A-114) and **9 manual**
 > (M-01 … M-09). Five cases were written against a §0 answer — A-46 (Q2), A-50 (Q3), A-51's `Ctrl+A`
 > half (Q6), A-89 (Q1) and A-98 (Q7) — and **all five stand as written**, their answers approved or,
 > for Q3, answered with option B; **A-114** was added with Q3's answer, for the snapshot resolution.
-> §8's issue log holds **two** issues, both raised and closed at T3 (I-01 S1, I-02 S2).
+> §8's issue log holds **three** issues, all closed: I-01 (S1) and I-02 (S2) at T3, I-03 (S3) at T4.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -424,7 +424,8 @@ green its cases did not record.
 ✅ **2026-09-30, T2.** `render.extracted boxes are in unrotated page space and land on the ink at every rotation`: **(a)** `rotated-pages.pdf`'s four pages — one content stream under `/Rotate` 0, 90, 180 and 270 — hold the same 97 characters in the same boxes. **Measured:** the engine returns the `/Rotate 90` page's characters in a **different order** (the 180 and 270 pages in the same order), so the comparison is a set; order is `LayoutAnalyzer`'s. **(b)** *"3064 glyphs over 7 pages x 4 view rotations, 0 outside"*: each model box through the PRODUCT's mapping (`PagePresentation`'s layout, what a highlight will be drawn through) contains the ink the case finds through its OWN quarter-turn mapping, over both files, every page `/Rotate` and every view rotation. **The control:** the same boxes through a layout a quarter-turn off put *"3064 outside"*. **Found on the way, in the oracle and not the model:** both fixtures draw a 2 pt arrow through their second line, across the `p` of *points*, and the first run reported 16 misses, every one that `p` — so a glyph whose window touches a stroke the generator drew is left out (16 of them).
 **Expect** On `rotated-pages.pdf` and `rotate-inherited.pdf`, each character's box is in unrotated user space, and a highlight drawn through the view's transform lands on the ink at 0°, 90°, 180° and 270°, `/Rotate` and view rotation both (rule 6). **If it fails** S2.
 
-**A-23 · Right-to-left order is MEASURED and the rule applied** 🟡
+**A-23 · Right-to-left order is MEASURED and the rule applied** ✅
+✅ **2026-09-30, T4 — the second half.** `render.right-to-left lines read in logical order on both emissions`: `LayoutAnalyzer`'s reading text of BOTH pages of `rtl-text.pdf` holds each of the four Hebrew lines exactly as the generator's logical string, `בית 123 שלום` included. **The bound, stated as D5-6 asks:** the reorder is UAX #9's L1–L2 over resolved levels — strong right-to-left runs, numbers inside them and the neutrals between them — with **no explicit embeddings, overrides or isolates**, and the line's base direction taken from its majority of strong characters. The **planted control** (the reorder removed) failed this case and `unit.layout reorders a right-to-left line into logical order`. *(T4 found the logical-emission page's separately drawn spaces arriving with zero-size boxes, which had made each a line of its own; see the T4 row.)*
 🟡 **2026-09-30, T2 — the MEASUREMENT is recorded and asserted; the reorder is `LayoutAnalyzer`'s (T4) and this box stays unticked until it is.** `render.right-to-left order as the engine returns it is measured on both emissions`. **The measurement, in words: PDFium's order is NEITHER logical NOR visual.** Each Hebrew word's letters come back in logical order, and the words come back in left-to-right PAGE order — `שלום בית` is returned as `בית שלום`, `בית 123 שלום` as `שלום 123 בית` — and **identically** for the page whose content stream emits visual order and the page that emits logical order. So the model does not hold logical order and D5-6's second branch applies: the analyzer reorders. The case asserts the engine's order exactly, so a PDFium upgrade that changes it fails here rather than silently changing what T4 receives. The bound T4 states will be D5-6's: strong-RTL runs only, no explicit embeddings.
 **Goal** D5-6: what PDFium returns is a measurement, not a belief.
 **Steps** Extract `rtl-text.pdf`'s visual-order page and its logical-order control.
@@ -468,38 +469,48 @@ green its cases did not record.
 
 ### 5.6 Normalization and layout (T4)
 
-**A-32 · Ligatures are found both ways** ☐
+**A-32 · Ligatures are found both ways** ✅
+✅ **2026-09-30, T4.** `unit.normalizer finds a ligature both ways` and `render.the ligatures of text-tounicode are found both ways`: `fish` and `file` find the glyph PDFium decomposes from U+FB01 and the one `/ToUnicode` maps to `fi`; a typed `ﬁ` finds both; `fjord`, the control, finds nothing.
 **Expect** `fi` finds the `ﬁ` glyph mapped to U+FB01 and the one mapped to `fi`; `ﬁ` typed into a query finds both. **If it fails** S2.
 
-**A-33 · Case folding does what D5-5 says** ☐
+**A-33 · Case folding does what D5-5 says** ✅
+✅ **2026-09-30, T4.** `unit.normalizer folds case and says what simple folding does not do`: case-insensitive `LOREM` finds `Lorem`; case-sensitive it does not (the control) and `Lorem` does. **Recorded as the behaviour:** `QString::toCaseFolded` is simple folding — `STRASSE` does not find `Straße`, `STRAßE` does. The option is set directly: `search/caseSensitive` is T6's key, and its wiring is not covered here.
 **Expect** Case-insensitive `LOREM` finds `lorem`; with `search/caseSensitive` on it does not (the control). **What `toCaseFolded` does not do is recorded at the case**: it is simple folding, so `ß` does not match `SS`, and the case asserts that behaviour rather than leaving it to be found. **If it fails** S2.
 
-**A-34 · Diacritics, precomposed and decomposed** ☐
+**A-34 · Diacritics, precomposed and decomposed** ✅
+✅ **2026-09-30, T4.** Synthetic and over `text-tounicode.pdf` page 1: `café` occurs **twice** in the normalized page — the precomposed and the `e` + U+0301 forms compose to one; `cafe` finds neither with diacritics kept (the control) and both with them stripped.
 **Expect** With `search/ignoreDiacritics` on, `cafe` finds `café` precomposed and `cafe`+U+0301; with it off, `cafe` finds neither, while `café` finds **both** forms (NFKC composes them). **If it fails** S2.
 
-**A-35 · The offset map highlights the glyphs that matched** ☐
+**A-35 · The offset map highlights the glyphs that matched** ✅
+✅ **2026-09-30, T4.** `unit.normalizer maps a hit back to whole glyphs`: a hit on the `f` or the `i` of a `ﬁ` maps to the one ligature character; a hit on a composed `é` maps to the base AND its mark; a synthesized space maps to none. Highlighting is T5's — this is the map it will read.
 **Expect** A hit on `f` inside a `ﬁ` glyph highlights the whole glyph; a hit on `e` of a decomposed `é` highlights the base and its mark; no highlight starts or ends mid-glyph. **If it fails** S2.
 
-**A-36 · A line-final hyphen joins, and a mid-line one does not** ☐
+**A-36 · A line-final hyphen joins, and a mid-line one does not** ✅
+✅ **2026-09-30, T4.** Synthetic and over `hyphenated.pdf`: `example` and `incremental` are found across their line breaks; `well-known` is found and `wellknown` is not (the control); **`North-West` is found as one compound** — the hyphen before a capital stays with no space, D5-5 as clarified at T4. An unflagged line-end hyphen is not joined: the engine's flag is the evidence. The **planted control** (the join removed) failed both levels.
 **Expect** On `hyphenated.pdf`, `example` finds `exam-`⏎`ple`; `wellknown` does **not** find `well-known` (the control); `well-known` finds it. **If it fails** S2.
 
-**A-37 · The analyzer on synthetic geometry** ☐
+**A-37 · The analyzer on synthetic geometry** ✅
+✅ **2026-09-30, T4.** `tst_layout`: ±1 pt jitter and a raised superscript stay one line; a 12 pt gutter makes two columns, read column by column, and a 2 pt gap does not split a line but is reported as a word gap; ruled cells form a 3 × 3 grid and an unruled aligned table a 4 × 3 one; **the controls** — two lines 30 pt apart are two lines and two blocks, and two columns of prose that align exactly as cells do are not a table — hold. Also: a right-to-left line with a number reorders to logical order, vertical CJK reads top to bottom with its columns right to left, and three lines that each begin with a wide `M` are not a vertical line. The **planted control** (the short-cell rule removed) failed the prose control.
 **Steps** `tst_layout` — headless, synthetic `PageTextModel`s built in the case.
 **Expect** Baseline jitter of ±1 pt stays one line; a superscript stays in its line; a 12 pt gutter separates two columns and a 2 pt gap does not; ruled cells form a grid; **the controls** — two lines 30 pt apart are not merged, and aligned prose is not a table. **If it fails** S2.
 
-**A-38 · The layout baseline, graded on §3.2** ☐
+**A-38 · The layout baseline, graded on §3.2** ✅
+✅ **2026-09-30, T4.** `render.the layout analyzer meets the section 3.2 targets on the labelled corpus`, 17 labelled pages: line F1 **1.000** (620 of 620), block F1 **1.000** (104 of 104), columns **17 of 17 pages**, reading order **1.000** (87 of 87 pairs), tables precision and recall **1.00** (2 of 2, none invented from the list that looks like one), grids **2 of 2**. **Every target met**, recorded in R1's row (`Tech-Stack-Plan.md` §10) with two bounds: *on our own generated corpus*, and **not out of sample** — the thresholds were chosen beside the generator, so this is the analyzer agreeing with the corpus it was built next to. **Two misses on the first run were found and fixed, neither by lowering a target:** the zero-size boxes of separately drawn spaces (an analyzer fix), and **I-03**, a label that counted a column holding no text (a label fix, on the user's decision).
 **Goal** D5-7 — the stage's second verdict.
 **Steps** `tst_layoutcorpus` over every labelled page.
 **Expect** Every §3.2 figure printed, and every target met. **The figures are recorded in R1's row** with the bound *"on our own generated corpus"*. **If it fails** S2 — a miss is logged, never smoothed.
 
-**A-39 · Every product caller passes no tag tree, and the analyzer is deterministic** ☐
+**A-39 · Every product caller passes no tag tree, and the analyzer is deterministic** ✅
+✅ **2026-09-30, T4.** `unit.layout is deterministic under a shuffled model and passes no tag tree` — five shuffles of a model with a right-to-left line give byte-identical reading text — and `render.a tagged document is ordered by geometry because no tag tree is passed`, over `tagged.pdf`, both stating at the assertion that the tree is null for every Stage 5 caller. What a tree would improve is Stage 7's.
 **Expect** The case states at its assertion that `TagTree` is null for every Stage 5 caller (convention 19) and that `tagged.pdf` is therefore ordered by geometry; the same model, its characters shuffled, gives byte-identical output. **If it fails** S3.
 
-**A-40 · `fuzz_text_pipeline` exists, is counted, and runs** ☐
+**A-40 · `fuzz_text_pipeline` exists, is counted, and runs** 🟡
+🟡 **2026-09-30, T4 — the Windows half; the Linux job's log is owed.** The target and its body (`tests/fuzz/TextPipelineFuzzBody.h`) exist, `RAWPAGE_EXPECTED_FUZZ_TARGETS` is **4**, `gates.fuzz_count.four_of_four_with_a_helper` passes and `gates.fuzz_count.three_of_four_fails` refuses three; the body's invariants hold over 3,000 adversarial inputs replayed in `unit.the text pipeline fuzz body holds its invariants on adversarial bytes`. `ci.yml` runs it for 60 s and `fuzz-soak.yml` in its matrix — **this box is ticked when a pushed run's `portable-fuzz` log shows *"Done … runs"* for it** (rule 3).
 **Steps** `ctest --preset gates -R fuzz_count`; the `portable-fuzz` job's **log**.
 **Expect** The count assertion at **four**, its cases proving it refuses three; the job runs `fuzz_text_pipeline` for its seconds with *"Done … runs"* and no crash; the soak runs all four. **If it fails** S2.
 
-**A-41 · Hostile geometry is survived headless** ☐
+**A-41 · Hostile geometry is survived headless** ✅
+✅ **2026-09-30, T4.** `unit.layout survives hostile geometry within its bounds`: NaN, ±∞, zero, negative and 1e300 sizes and twenty identical boxes lay out with the non-finite reported unplaced and every other character placed once; normalization runs over the result; **a million characters on one line** exceed `kMaxCharsLaidOut` and degrade to model order in well under the 10 s bound. The fuzz body adds NaN rules, surrogates, controls and marks. Selection and search join at T5 and T6.
 **Expect** Characters with NaN, ±∞, zero and negative sizes, 10⁶ characters on one line and every box identical: the analyzer, selection and search return without crashing, looping or allocating beyond a stated bound. **If it fails** S1.
 
 ### 5.7 Selection and copy (T5)
@@ -886,7 +897,10 @@ uses.
 | # | Sev | Title | State |
 |---|---|---|---|
 | **I-01** | **S1** (latent) | **Opening a document entered PDFium WITHOUT the engine lock** — the outline, named destinations and Info dictionary since Stage 4 T4, and `FPDF_GetLastError` after a failed load | ✅ Closed 2026-09-30 (T3) |
+| **I-03** | **S3** | **A corpus label counted a column that holds no text**: `columns-two.pdf` page 2 labelled two columns, its body text in one | ✅ Closed 2026-09-30 (T4), the label corrected on the user's decision |
 | **I-02** | **S2** | **The engine lock was not fair**: a thread taking it in pieces won it back ahead of the waiting render worker, so a document's open stalled a viewport tile **131–260 ms** | ✅ Closed 2026-09-30 (T3); the open's own length is T9's named work |
+
+**I-03 · A corpus label counted a column that holds no text.** *Mechanism:* `corpus/make-text.py` set `columns = 2` on both pages of `columns-two.pdf`'s flow, and the prose runs out in page 2's LEFT column, so that page shows one column of text under a label saying two. *Why it was not seen at T1:* A-14 checks the bytes and A-13 the labels' consistency with the files, and neither asks whether a label's structure is visible in the text. *Found* by A-38's first run — the one columns miss, 16 of 17 pages (94.1 %) against a 95 % target. *Decision (the user's, 2026-09-30):* correct the label rather than the target or the analyzer — a page's `columns` now counts the columns that hold body text. One label line changed (`labels/columns-two.json`, `[2, 2, 1]` → `[2, 1, 1]`), no PDF; `--verify` 121 files byte-identical. *Regression:* A-38 itself grades every page's column count against the label.
 
 **I-01 · Opening a document entered PDFium without the engine lock.** *Mechanism:* `PdfiumDocument::open` held `engineLock()` around the load, the form environment and the page walk, and then called `readOutline`, `readDestinations` and `readMetadata` with none — every `FPDFBookmark_*`, `FPDF_GetNamedDest`, `FPDFDest_*` and `FPDF_GetMetaText` of them; `FPDF_GetLastError` was read after the load's lock was released. The product opens documents on the UI thread while the render worker is inside the engine, and Stage 2's I-05 measured two threads in PDFium corrupting the heap. *Why the suite missed it:* a missing lock is an absence, and the race it opens corrupts memory only sometimes; no case opened a document while another thread rendered, and the rule *"hold it across the whole engine interaction"* was a comment in `PdfiumInit.h`. *Found* by reading `open()` at T3, when the folder-search bench put an opener thread beside the render worker for the first time. *Fix:* the three readers run under the lock and the error is read under the load's; `EngineMutex` records its owner and `requireEngineLock()` counts any reader entered without it. *Regression:* `render.opening a document enters the engine only under the engine lock` — four files with an outline, named destinations, page labels and an Info dictionary, **0** unlocked entries — with its control section (the counter counts a real unlocked call). **The planted control** — the readers' lock removed — failed it with **12** unlocked entries.
 
