@@ -152,6 +152,18 @@ struct TextRequestHash {
 // failure it never heard about is a selection that never starts (guide case A-26).
 using TextResult = Result<std::shared_ptr<const text::PageTextModel>>;
 
+// WHETHER A TILE GOES THROUGH `RenderCache` -- Stage 5 T3, for decision D5-4. `Use` is every tile
+// the viewer asks for: looked up before it is queued, inserted when it is delivered. `Bypass` is a
+// tile somebody CONSUMES rather than shows -- the 72-dpi rasters a comparison diffs (D5-17) -- which
+// D5-4 keeps out of the tile budget, because a 900-page comparison's rasters inserted into the cache
+// would evict the page a person is reading for pixels nobody will look at twice. A bypassing tile
+// is neither looked up nor inserted; it is still coalesced with an equal request, and if ANY holder
+// of a coalesced job asked for `Use`, the result is cached.
+enum class CachePolicy {
+    Use,
+    Bypass,
+};
+
 // A ticket for one caller's interest in one tile. Deliberately NOT the request: two viewports over
 // one tile coalesce into one rasterization and get two handles, so that either can cancel without
 // cancelling the other's work.
@@ -242,7 +254,8 @@ public:
     // An invalid request is refused with an invalid ticket rather than queued: D2-12's `isValid()`
     // exists so a request with no real `Revision` cannot become a cache key, and queueing one would
     // spend a rasterization to produce a tile nothing can ever find again.
-    RenderTicket enqueue(const RenderRequest& request, RenderPriority priority);
+    RenderTicket enqueue(const RenderRequest& request, RenderPriority priority,
+                         CachePolicy cachePolicy = CachePolicy::Use);
 
     // ONE PAGE'S TEXT, on the engine thread (Stage 5 T2, D5-3), delivered through
     // `subscribeText()`'s handlers from `deliverReady()`. Same queue, same strict priority, same
@@ -330,6 +343,7 @@ public:
         long long enqueuedPrefetch = 0;
         long long enqueuedSpeculative = 0;
         long long enqueuedBackground = 0;   // Stage 5 T2
+        long long enqueuedBypassingCache = 0;   // Stage 5 T3 (D5-4): tiles asked for with `Bypass`
         long long coalesced = 0;          // an equal request joined a job already queued or running
         long long servedFromCache = 0;
         long long started = 0;
@@ -364,6 +378,8 @@ private:
         // a wall clock can step backwards over one.
         std::chrono::steady_clock::time_point enqueuedAt{};
         std::vector<std::uint64_t> tickets;
+        // False only while EVERY holder asked for `CachePolicy::Bypass` (Stage 5 T3).
+        bool cacheable = true;
         bool started = false;
         bool cancelled = false;
         bool superseded = false;
@@ -382,6 +398,8 @@ private:
         // where a tile came from -- but it must not be written BACK into the cache, or the
         // insertion and eviction counts O7 is measured on would grow with every lookup.
         bool fromCache = false;
+        // Stage 5 T3 (D5-4): a tile nobody asked to keep is delivered and not inserted.
+        bool cacheable = true;
 
         // Carried from the job so `deliverReady()` can report the queued latency without looking
         // the job up -- by then it has been erased. A CACHE HIT carries its own enqueue instant and

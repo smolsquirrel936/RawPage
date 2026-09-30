@@ -48,6 +48,7 @@ bool looksLikePdf(const QByteArray& bytes)
 // the ordinary case -- most files number their pages implicitly.
 QString pageLabel(FPDF_DOCUMENT document, int index)
 {
+    requireEngineLock();
     const unsigned long bytes = FPDF_GetPageLabel(document, index, nullptr, 0);
     // 2 is the terminator alone. PDFium reports the size INCLUDING it, so a label of zero
     // characters and no label at all are indistinguishable here -- and both mean "no label".
@@ -187,6 +188,7 @@ void readOutlineLevel(FPDF_DOCUMENT document, FPDF_BOOKMARK parent, int depth,
 
 core::Outline readOutline(FPDF_DOCUMENT document)
 {
+    requireEngineLock();
     core::Outline outline;
     std::size_t budget = kMaxOutlineNodes;
     readOutlineLevel(document, nullptr, 0, budget, outline.roots());
@@ -195,6 +197,7 @@ core::Outline readOutline(FPDF_DOCUMENT document)
 
 core::Destinations readDestinations(FPDF_DOCUMENT document)
 {
+    requireEngineLock();
     core::Destinations destinations;
     const int count = static_cast<int>(FPDF_CountNamedDests(document));
     for (int index = 0; index < count; ++index) {
@@ -222,6 +225,7 @@ core::Destinations readDestinations(FPDF_DOCUMENT document)
 
 core::Metadata readMetadata(FPDF_DOCUMENT document)
 {
+    requireEngineLock();
     core::Metadata metadata;
     const auto field = [document](const char* key) {
         return wideStringFrom([document, key](void* buffer, unsigned long size) {
@@ -301,7 +305,7 @@ PdfiumDocument::PdfiumDocument() : engine_(std::make_unique<Engine>()) {}
 PdfiumDocument::~PdfiumDocument()
 {
     if (engine_ && engine_->document != nullptr) {
-        const std::lock_guard<std::mutex> guard(engineLock());
+        const std::lock_guard<EngineMutex> guard(engineLock());
         // THE FORM HANDLE GOES FIRST, and the order is not cosmetic: the environment holds a
         // reference to the document, and closing the document under it is a use-after-free that
         // shows up as a crash on close rather than as anything to do with forms.
@@ -359,7 +363,7 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
 
     std::optional<core::PdfRect> computed;
     {
-        const std::lock_guard<std::mutex> guard(engineLock());
+        const std::lock_guard<EngineMutex> guard(engineLock());
         FPDF_DOCUMENT document = engine_->document;
         if (document == nullptr) {
             return core::Error{core::ErrorCode::Unavailable,
@@ -479,16 +483,20 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
     QByteArray attemptPassword;
     int attempt = 0;
     for (;;) {
+        unsigned long error = 0;
         {
-            const std::lock_guard<std::mutex> guard(engineLock());
+            // THE ERROR IS READ UNDER THE SAME LOCK AS THE LOAD (Stage 5 guide I-01): PDFium's last
+            // error is process-global, and another thread's call between the two would answer for
+            // a different document.
+            const std::lock_guard<EngineMutex> guard(engineLock());
             self->engine_->document = FPDF_LoadMemDocument64(
                 self->bytes_.constData(), static_cast<size_t>(self->bytes_.size()),
                 attempt == 0 ? nullptr : attemptPassword.constData());
+            if (self->engine_->document == nullptr) error = FPDF_GetLastError();
         }
         if (self->engine_->document != nullptr)
             break;
 
-        const unsigned long error = FPDF_GetLastError();
         if (error != FPDF_ERR_PASSWORD) {
             // Not an encryption problem: the bytes are not a PDF, or are damaged past what even
             // PDFium's own silent repair can do -- and PDFium does not say which, so the header
@@ -524,7 +532,7 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
 
     // --- The form-fill environment, for widget appearance streams only (I-21) ------------
     {
-        const std::lock_guard<std::mutex> guard(engineLock());
+        const std::lock_guard<EngineMutex> guard(engineLock());
 
         // VERSION 2 is what a document with no XFA wants; `FPDF_FORMFILLINFO` is otherwise all
         // zeroes, which is the whole point. Every callback in it is a way for PDFium to ask the
@@ -550,14 +558,23 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
     }
 
     // --- The page tree ------------------------------------------------------------------
+    // A LOCK PER PAGE, NOT ONE ACROSS THE WALK (Stage 5 T3). Held across all 900 pages of
+    // `text-900.pdf`, the walk kept the engine for ~150 ms -- measured by `bench_pipeline --stage5`,
+    // where a folder search's open made a viewport tile wait 141-260 ms. Taken per page, the render
+    // worker gets the engine between two pages; nothing else can see this document yet, so the walk
+    // loses nothing by being interleaved.
     std::vector<core::Page> pages;
     {
-        const std::lock_guard<std::mutex> guard(engineLock());
         FPDF_DOCUMENT document = self->engine_->document;
-        const int count = FPDF_GetPageCount(document);
+        int count = 0;
+        {
+            const std::lock_guard<EngineMutex> guard(engineLock());
+            count = FPDF_GetPageCount(document);
+        }
         pages.reserve(static_cast<std::size_t>(std::max(0, count)));
 
         for (int index = 0; index < count; ++index) {
+            const std::lock_guard<EngineMutex> guard(engineLock());
             // Boxes are read WITHOUT loading the page where PDFium allows it, because loading
             // every page of a 900-page document to learn its size is the difference between an
             // open that feels instant and one that does not. `FPDFPage_Get*Box` needs a page, so
@@ -641,9 +658,18 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
     // Once, here. A pane that re-read these every time it was shown would be a cost nobody
     // measured (guide case A-30), and a lazy reader would have to keep the engine handle reachable
     // from `core/`, which is the layering this facade exists to prevent.
-    self->outline_ = readOutline(self->engine_->document);
-    self->destinations_ = readDestinations(self->engine_->document);
-    self->metadata_ = readMetadata(self->engine_->document);
+    //
+    // **UNDER THE ENGINE LOCK, which they were not from Stage 4 T4 to Stage 5 T3** (Stage 5 guide
+    // issue **I-01**): every call below enters PDFium, the product opens documents on the UI thread
+    // while the render worker is inside the engine, and I-05 measured two threads in PDFium
+    // corrupting the heap. Each reader now counts an entry made without the lock
+    // (`requireEngineLock()`), and `tst_pdfiumdoc` asserts that count is zero.
+    {
+        const std::lock_guard<EngineMutex> guard(engineLock());
+        self->outline_ = readOutline(self->engine_->document);
+        self->destinations_ = readDestinations(self->engine_->document);
+        self->metadata_ = readMetadata(self->engine_->document);
+    }
 
     // --- What the first-party reader thinks of the same bytes ------------------------------
     // **PDFium repairs silently and reports nothing.** A document it opened may have had its

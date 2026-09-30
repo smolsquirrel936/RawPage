@@ -31,6 +31,7 @@
 #include <QFile>
 
 #include <filesystem>
+#include <mutex>
 #include <string>
 
 using rawpage::core::PasswordCallback;
@@ -410,4 +411,41 @@ TEST_CASE("pdfium is initialized exactly once however many documents open", "[re
     }
     CHECK(rawpage::pdf::render::initializationCount() == 1);
     CHECK(rawpage::pdf::render::isInitialized());
+}
+
+// ==========================================================================================
+// Stage 5 guide I-01 -- every entry into the engine at open is made UNDER the engine lock
+// ==========================================================================================
+
+TEST_CASE("opening a document enters the engine only under the engine lock", "[render][document][I-01]")
+{
+    // From Stage 4 T4 to Stage 5 T3 the outline, named destinations and Info dictionary were read
+    // through PDFium with NO lock -- on the UI thread, beside a render worker inside the engine,
+    // which I-05 measured corrupting the heap. The readers now count an entry made without the lock
+    // (`requireEngineLock()`), and every file here exercises all four of them: an outline, named
+    // destinations, page labels and an Info dictionary between them.
+    const long long before = rawpage::pdf::render::unlockedEngineEntries();
+    for (const char* file : {"ordinary/outline-labels.pdf", "ordinary/dests-named.pdf",
+                             "ordinary/search-classes.pdf", "ordinary/text-900.pdf"}) {
+        INFO(file);
+        auto opened = PdfiumDocument::open(corpusPath(file), nullptr);
+        REQUIRE(opened);
+    }
+    CHECK(rawpage::pdf::render::unlockedEngineEntries() == before);
+    CHECK(before == 0);
+
+    SECTION("THE CONTROL: the counter counts an entry made without the lock")
+    {
+        // Rule 5: a counter that stays at zero because it never counts would pass the case above.
+        // Called here with the lock NOT held, it must move -- and it is left moved, which is fine:
+        // this section is the last thing this process does.
+        rawpage::pdf::render::requireEngineLock();
+        CHECK(rawpage::pdf::render::unlockedEngineEntries() == before + 1);
+        {
+            const std::lock_guard<rawpage::pdf::render::EngineMutex> guard(
+                rawpage::pdf::render::engineLock());
+            rawpage::pdf::render::requireEngineLock();
+        }
+        CHECK(rawpage::pdf::render::unlockedEngineEntries() == before + 1);
+    }
 }

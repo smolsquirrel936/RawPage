@@ -94,7 +94,7 @@ core::Status PdfiumTextExtractor::extractPage(core::DocumentHandle document, int
         // EVERYTHING inside the lock, as the rasterizer does -- the page load, the text page, every
         // query and both closes. PDFium's sharing is process-global (I-05), so a text query racing a
         // render on another document is the same heap corruption as two renders.
-        const std::lock_guard<std::mutex> guard(engineLock());
+        const std::lock_guard<EngineMutex> guard(engineLock());
 
         auto* engine = static_cast<FPDF_DOCUMENT>(document_.engineHandle());
         if (engine == nullptr)

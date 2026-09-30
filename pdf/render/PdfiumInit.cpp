@@ -85,14 +85,63 @@ void shutdown()
     RAWPAGE_LOG_DEBUG(LogSubsystem::Render) << "pdfium: destroyed";
 }
 
-std::mutex& engineLock()
+void EngineMutex::lock()
+{
+    std::unique_lock<std::mutex> guard(state_);
+    const std::uint64_t ticket = nextTicket_++;
+    turn_.wait(guard, [this, ticket] { return serving_ == ticket; });
+    owner_.store(std::this_thread::get_id());
+}
+
+bool EngineMutex::try_lock()
+{
+    const std::lock_guard<std::mutex> guard(state_);
+    if (serving_ != nextTicket_) return false;   // held, or someone is already waiting
+    ++nextTicket_;
+    owner_.store(std::this_thread::get_id());
+    return true;
+}
+
+void EngineMutex::unlock()
+{
+    {
+        const std::lock_guard<std::mutex> guard(state_);
+        owner_.store(std::thread::id{});
+        ++serving_;
+    }
+    // ALL, because the next ticket's holder is one particular waiter and a condition variable
+    // cannot wake a chosen thread. The others re-check and sleep; with one render worker and at
+    // most one other caller there are rarely others.
+    turn_.notify_all();
+}
+
+bool EngineMutex::heldByCurrentThread() const noexcept
+{
+    return owner_.load() == std::this_thread::get_id();
+}
+
+EngineMutex& engineLock()
 {
     // A function-local static, so its construction order cannot matter and it is never destroyed
     // before a worker that is still holding it. Deliberately NOT the same mutex as `g_mutex`
     // above: that one guards initialization and is taken briefly, while this one is held across a
     // whole render and would make `ensure()` wait behind an unrelated tile.
-    static std::mutex lock;
+    static EngineMutex lock;
     return lock;
+}
+
+namespace {
+std::atomic<long long> g_unlockedEntries{0};
+}
+
+void requireEngineLock() noexcept
+{
+    if (!engineLock().heldByCurrentThread()) g_unlockedEntries.fetch_add(1);
+}
+
+long long unlockedEngineEntries() noexcept
+{
+    return g_unlockedEntries.load();
 }
 
 QLatin1String version()

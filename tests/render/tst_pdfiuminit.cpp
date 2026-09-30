@@ -23,6 +23,7 @@
 #include "pdf/render/PdfiumInit.h"
 
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include <vector>
 
@@ -104,4 +105,57 @@ TEST_CASE("shutdown() puts the state back and ensure() can start it again", "[pd
     REQUIRE(render::ensure());
     REQUIRE(render::isInitialized());
     REQUIRE(render::initializationCount() == 2);
+}
+
+TEST_CASE("the engine lock serves a waiting thread before its holder can take it back", "[pdfiuminit][S5-T3]")
+{
+    // Stage 5 T3. A thread that takes the engine in short pieces -- a document's open walking 900
+    // pages, one lock per page -- must let a thread that is ALREADY WAITING in between two pieces.
+    // `std::mutex` did not: its releaser won it straight back, and a viewport tile waited 60-104 ms
+    // for a lock it needed for 0.4 ms (`bench_pipeline --stage5`). The ticket lock serves in the
+    // order the threads asked.
+    auto& lock = rawpage::pdf::render::engineLock();
+    std::vector<int> order;
+    std::atomic<bool> waiterStarted{false};
+
+    lock.lock();
+    order.push_back(1);
+    std::thread waiter([&] {
+        waiterStarted.store(true);
+        lock.lock();
+        order.push_back(2);
+        lock.unlock();
+    });
+    while (!waiterStarted.load()) std::this_thread::yield();
+    // Long enough that the waiter is inside lock() holding its ticket; the order below is decided
+    // by that ticket, not by this sleep.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    lock.unlock();
+    lock.lock();   // the holder asks again at once -- exactly the open's page walk
+    order.push_back(3);
+    lock.unlock();
+    waiter.join();
+
+    REQUIRE(order.size() == 3);
+    CHECK(order[1] == 2);   // the waiter, before the holder's second turn
+    CHECK(order[2] == 3);
+
+    SECTION("try_lock refuses while another thread is queued, so it cannot barge either")
+    {
+        lock.lock();
+        std::atomic<bool> queued{false};
+        std::thread second([&] {
+            queued.store(true);
+            lock.lock();
+            lock.unlock();
+        });
+        while (!queued.load()) std::this_thread::yield();
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        lock.unlock();
+        second.join();
+        CHECK(lock.try_lock());   // nobody waiting now: it may be taken
+        CHECK(lock.heldByCurrentThread());
+        lock.unlock();
+        CHECK_FALSE(lock.heldByCurrentThread());
+    }
 }

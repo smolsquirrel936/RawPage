@@ -1001,3 +1001,48 @@ TEST_CASE("render scheduler refuses an invalid text request by ticket", "[core][
     CHECK(scheduler.pendingCount() == 0);
     CHECK(scheduler.stats().textEnqueued == 0);
 }
+
+TEST_CASE("render scheduler delivers a bypassing tile without looking it up or keeping it",
+          "[core][render][text]")
+{
+    // Stage 5 T3, for D5-4: a comparison's 72-dpi rasters are CONSUMED, not shown, and must not
+    // enter the tile budget a person's page lives in -- nor appear in the cache's figures O7 is
+    // read from.
+    using rawpage::core::render::CachePolicy;
+    RenderCache cache;
+    RasterizerProbe probe;
+    RenderScheduler scheduler(factoryFor(probe), &cache);
+
+    int delivered = 0;
+    scheduler.subscribeReady([&](const RenderRequest&, const RasterImage&) { ++delivered; });
+    scheduler.enqueue(requestFor(3), RenderPriority::Background, CachePolicy::Bypass);
+    REQUIRE(scheduler.waitForIdle(3000));
+    CHECK(scheduler.deliverReady() == 1);
+    CHECK(delivered == 1);
+    CHECK(cache.stats().lookups == 0);
+    CHECK(cache.stats().insertions == 0);
+    CHECK(cache.entryCount() == 0);
+    CHECK(scheduler.stats().enqueuedBypassingCache == 1);
+
+    SECTION("THE CONTROL: the same tile asked for normally is looked up and kept")
+    {
+        scheduler.enqueue(requestFor(3), RenderPriority::Visible);
+        REQUIRE(scheduler.waitForIdle(3000));
+        scheduler.deliverReady();
+        CHECK(cache.stats().lookups == 1);
+        CHECK(cache.stats().insertions == 1);
+        CHECK(probe.calls.load() == 2);   // the bypassing render left nothing to hit
+    }
+
+    SECTION("a holder that wants the tile KEPT keeps a coalesced bypassing job")
+    {
+        scheduler.pause();
+        scheduler.enqueue(requestFor(5), RenderPriority::Background, CachePolicy::Bypass);
+        scheduler.enqueue(requestFor(5), RenderPriority::Visible);
+        CHECK(scheduler.pendingCount() == 1);
+        scheduler.resume();
+        REQUIRE(scheduler.waitForIdle(3000));
+        scheduler.deliverReady();
+        CHECK(cache.stats().insertions == 1);
+    }
+}

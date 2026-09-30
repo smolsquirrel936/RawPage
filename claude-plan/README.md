@@ -65,7 +65,7 @@ where the work is and points at the owner; the numbers live there and are re-mea
 | 2 — Engine boundary and tiled rendering | ✅ complete, signed off 2026-09-14 | [④'s Stage 2 block](./Implementation-Plan.md#stage-2--pdf-engine-boundary-and-tiled-rendering), [⑥ Stage 2](./Stage2-Rendering-Testing-Guide.md) — §6 carries each manual case's ✅ or ☐, §8 the issue log |
 | 3 — Document model, command journal, incremental save | ✅ complete, signed off 2026-09-18 | [⑤ Stage 3](./Stage3-Mutation-Plan.md), [⑥ Stage 3](./Stage3-Mutation-Testing-Guide.md), [④'s Stage 3 block](./Implementation-Plan.md#stage-3--document-model-command-journal-incremental-save) |
 | 4 — Viewing and navigation surface | ✅ complete, signed off 2026-09-27 | [⑤ Stage 4](./Stage4-ViewingSurface-Plan.md), [⑥ Stage 4](./Stage4-ViewingSurface-Testing-Guide.md), [④'s Stage 4 entry](./Implementation-Plan.md#stage-4--viewing-and-navigation-surface) |
-| 5 — Text layer: extraction, selection, find, search, comparison | 🟡 in progress — plan and guide written 2026-09-29, §0 answered; **T1 done 2026-09-29, T2 2026-09-30**, next is T3 | [⑤ Stage 5](./Stage5-TextSearch-Plan.md), [⑥ Stage 5](./Stage5-TextSearch-Testing-Guide.md) |
+| 5 — Text layer: extraction, selection, find, search, comparison | 🟡 in progress — plan and guide written 2026-09-29, §0 answered; **T1 done 2026-09-29, T2 and T3 2026-09-30** (A2 at Stage 5: `go, with named custom work`), next is T4 | [⑤ Stage 5](./Stage5-TextSearch-Plan.md), [⑥ Stage 5](./Stage5-TextSearch-Testing-Guide.md) |
 | 6 – 16 | ⚪ not started | [④ §3–§4](./Implementation-Plan.md) |
 
 **What is live, in one sentence each, with the owner of every figure:**

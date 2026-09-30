@@ -72,7 +72,8 @@ void noteLaneLocked(RenderScheduler::Stats& stats, RenderPriority priority)
 
 } // namespace
 
-RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriority priority)
+RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriority priority,
+                                      CachePolicy cachePolicy)
 {
     // D2-12: a request with no real `Revision` cannot be a cache key, so rasterizing it would spend
     // the work to produce a tile nothing can ever find again. Refused by ticket rather than
@@ -82,7 +83,10 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
     // The cache is consulted on THIS thread -- see `RenderCache.h`. A hit still travels back
     // through `deliverReady()` rather than being handed over here: a subscriber called from inside
     // `enqueue()` would re-enter a paint handler that has not finished asking for its tiles.
-    if (cache_ != nullptr) {
+    // A BYPASSING tile is not looked up: a comparison's raster that happened to hit would still be
+    // right, but the lookup is itself a statistic O7 is read from (D5-4), and a consumer that does
+    // not keep tiles should not appear in the cache's figures at all.
+    if (cache_ != nullptr && cachePolicy == CachePolicy::Use) {
         if (auto hit = cache_->lookup(request)) {
             std::uint64_t ticket = 0;
             WakeHandler wake;
@@ -124,6 +128,7 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
     std::unique_lock<std::mutex> lock(mutex_);
     ++stats_.enqueued;
     noteLaneLocked(stats_, priority);
+    if (cachePolicy == CachePolicy::Bypass) ++stats_.enqueuedBypassingCache;
     const std::uint64_t ticket = nextTicketId_++;
 
     const auto existing = byRequest_.find(request);
@@ -131,6 +136,8 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
         // COALESCED. Two viewports over one tile is one rasterization (plan 5.3's second property).
         Job& job = jobs_[existing->second];
         job.tickets.push_back(ticket);
+        // One holder that wants the tile KEPT is enough to keep it.
+        if (cachePolicy == CachePolicy::Use) job.cacheable = true;
         ticketToJob_[ticket] = existing->second;
         ++stats_.coalesced;
         // A visible request that lands on a queued prefetch RAISES it. Without this, a tile that
@@ -149,6 +156,7 @@ RenderTicket RenderScheduler::enqueue(const RenderRequest& request, RenderPriori
     Job job;
     job.request = request;
     job.priority = priority;
+    job.cacheable = cachePolicy == CachePolicy::Use;
     job.sequence = nextSequence_++;
     job.enqueuedAt = std::chrono::steady_clock::now();
     job.tickets.push_back(ticket);
@@ -500,7 +508,7 @@ int RenderScheduler::deliverReady()
         // threaded by construction rather than by a lock. A completion that CAME from the cache is
         // not written back: re-inserting it would count as an insertion, and the eviction rate O7
         // is measured on would become a function of how often tiles were looked at.
-        if (cache_ != nullptr && !completion.fromCache)
+        if (cache_ != nullptr && !completion.fromCache && completion.cacheable)
             cache_->put(completion.request, completion.image);
         for (const auto& [token, handler] : subscribers) {
             (void)token;
@@ -703,6 +711,7 @@ void RenderScheduler::workerLoop(int index)
             finished != jobs_.end() ? finished->second.enqueuedAt
                                     : std::chrono::steady_clock::now();
         const bool cancelled = finished != jobs_.end() && finished->second.cancelled;
+        const bool cacheable = finished == jobs_.end() || finished->second.cacheable;
         const bool superseded =
             (finished != jobs_.end() && finished->second.superseded) || isSupersededLocked(request);
 
@@ -721,6 +730,7 @@ void RenderScheduler::workerLoop(int index)
             completion.usable = true;
             completion.priority = lane;
             completion.enqueuedAt = enqueuedAt;
+            completion.cacheable = cacheable;
             completed_.push_back(std::move(completion));
         }
 

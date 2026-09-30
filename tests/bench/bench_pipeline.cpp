@@ -52,6 +52,9 @@
 // THE OTHER TWO QUESTIONS THIS ANSWERS, BECAUSE THE INSTRUMENTATION WAS BUILT WITH THE CACHE
 // ===============================================================================================
 //
+// **PHASE 6, `--stage5`** (Stage 5 T3, D5-22) is A2 AT STAGE 5: the viewport while text extraction
+// shares this pipeline's one engine thread -- see the phase's own header, below phase 5.
+//
 // **O7** -- is the render cache's disk tier shared between documents or per-document? D2-14 says
 // that is answered by MEASUREMENT over the corpus rather than by preference, and `CacheStats` plus
 // `crossDocumentEvictions()` exist in `RenderCache` for it (T11) rather than being bolted on here.
@@ -104,6 +107,7 @@
 // because it is the thing most likely to be "improved" by someone adding a threshold.
 
 #include "app/BackendRasterizer.h"
+#include "app/BackendTextExtractor.h"
 #include "core/backend.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Revision.h"
@@ -113,21 +117,27 @@
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
 #include "core/render/TileGrid.h"
+#include "core/text/PageTextModel.h"
 #include "pdf/BackendFactory.h"
 #include "pdf/render/PdfiumInit.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
+#include <QFileInfo>
 #include <QString>
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <deque>
 #include <functional>
 #include <cstdio>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -711,6 +721,648 @@ int runStage4Workload(core::IDocumentBackend& backend, const OpenFn& open,
     return 0;
 }
 
+
+// =============================================================================================
+// PHASE 6 -- STAGE 5's WORKLOAD (D5-22): the viewport while TEXT shares the one engine thread
+// =============================================================================================
+//
+// Stage 5 puts a second kind of job on the render thread (D5-3): extracting a page's text, which
+// a first search, a folder search and a comparison each do by the hundred. It goes in the fourth
+// lane, `Background`, below everything a person is looking at -- and strict priority is not
+// preemption. **A text job already inside PDFium runs to its end**, so one page's extraction time is
+// the longest a visible tile can wait behind background work. D5-22 says that has to be measured
+// BEFORE the find bar, the search pane and the comparison queue anything here, because a no-go moves
+// extraction off this thread and all three would be redesigned.
+//
+// WHAT A SAMPLE IS: the same as phases 1 and 5 -- the VIEWPORT's queued latency, enqueue to
+// delivery, for the visible tiles of a 1920x1080 viewport at A2's configuration. Text jobs' own
+// latency is not graded: a search result arriving late is a slow search; a tile arriving late is a
+// stutter (`Stage5-TextSearch-Testing-Guide.md` §3.1).
+//
+// THE SHAPE OF A ROUND is a person reading while the machine works: a scroll -- a viewport's tiles
+// on a page not seen before, all at `Visible` -- then `kStage5GapMs` of reading, during which the
+// background work runs. Scrolling back to back would starve the background entirely (that is what
+// strict priority does), measure nothing about sharing, and never finish the index.
+//
+// THE BACKGROUND IS FED, NOT DUMPED. At most `kBackgroundWindow` background jobs are queued at once,
+// topped up as they complete -- which is how an index or a folder search has to feed the scheduler
+// anyway: `Config::maxPending` is 4,096, a 900-page comparison is 3,600 jobs, and a queue that
+// overflowed would DROP the lowest-priority work (`droppedOverflow`) silently. The count is printed.
+//
+// WHAT THE WORKER DID IS STAMPED ON THE WORKER. The rasterizer and the extractor the scheduler is
+// given are thin timing wrappers around the shipped adapters, recording when each job STARTED and
+// how long the engine took. That is what A-28's per-page extraction distribution is read from, and
+// what the inversion count below is computed from -- not from the pump, which only sees deliveries.
+//
+// THE INVERSION COUNT (guide A-29): a background job that STARTED after a viewport tile was
+// enqueued and before that tile started is the page waiting on work nobody is watching. The one
+// background job already inside the engine when the tile arrives started BEFORE it, so it is not
+// counted -- it is the bounded wait D5-3 accepts, and the per-page maximum is its size. The bound on
+// the count is therefore ZERO.
+
+constexpr int kStage5GapMs = 50;
+constexpr int kStage5ViewerRounds = 60;
+constexpr int kStage5MinRounds = 20;
+constexpr int kStage5MaxRounds = 250;
+constexpr int kBackgroundWindow = 32;
+constexpr int kStage5IndexRuns = 3;
+constexpr double kComparisonDpi = 72.0;   // D5-17's appearance pass
+
+struct ServiceLog {
+    struct Entry {
+        Clock::time_point start;
+        double ms = 0.0;
+        bool text = false;
+        std::string key;
+    };
+    std::mutex mutex;
+    std::vector<Entry> entries;
+
+    void add(Entry entry)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        entries.push_back(std::move(entry));
+    }
+};
+
+std::string textKey(core::DocumentHandle document, int page)
+{
+    return "text:" + std::to_string(document.id) + "/" + std::to_string(page);
+}
+
+class TimingRasterizer final : public core::IPageRasterizer {
+public:
+    TimingRasterizer(core::IDocumentBackend& backend, ServiceLog& log) : inner_(backend), log_(log) {}
+    core::Result<core::RasterImage> raster(const RenderRequest& request) override
+    {
+        const Clock::time_point start = Clock::now();
+        core::Result<core::RasterImage> result = inner_.raster(request);
+        log_.add({start, millisSince(start), false, scaledTileKey(request)});
+        return result;
+    }
+
+private:
+    app::BackendRasterizer inner_;
+    ServiceLog& log_;
+};
+
+class TimingExtractor final : public core::ITextExtractor {
+public:
+    TimingExtractor(core::IDocumentBackend& backend, ServiceLog& log) : inner_(backend), log_(log) {}
+    core::Status extractPage(core::DocumentHandle document, int page,
+                             core::text::PageTextModel& into) override
+    {
+        const Clock::time_point start = Clock::now();
+        core::Status status = inner_.extractPage(document, page, into);
+        log_.add({start, millisSince(start), true, textKey(document, page)});
+        return status;
+    }
+
+private:
+    app::BackendTextExtractor inner_;
+    ServiceLog& log_;
+};
+
+enum class Stage5Load { None, Index, Folder, Comparison };
+
+struct Stage5Outcome {
+    std::vector<double> viewport;
+    std::vector<double> extractionMs;   // service time, per page, on the worker
+    std::vector<double> tileMs;         // service time, per viewport tile, on the worker
+    double    wallMs = 0.0;
+    int       rounds = 0;
+    long long viewportTiles = 0;
+    long long viewportTilesRendered = 0;   // not served from the cache
+    long long backgroundPlanned = 0;
+    long long backgroundDone = 0;
+    long long backgroundFailed = 0;
+    long long backgroundUndone = 0;
+    long long inversions = 0;
+    long long filesOpened = 0;
+    double    openMaxMs = 0.0;
+    QString   slowestOpen;              // which file, so a stall can be traced to its cause
+    double    slowestExtractionMs = 0.0;
+    QString   slowestExtraction;        // "file, page n"
+    // WHERE THE SLOWEST VIEWPORT TILE'S WAIT WENT: queued -> the worker started it -> the worker
+    // finished it -> the pump delivered it. A long first leg is the engine thread busy; a long last
+    // leg is the PUMP not running -- two different causes that one latency figure cannot separate.
+    double    slowestTileWaitMs = 0.0, slowestTileServiceMs = 0.0, slowestTileDeliveryMs = 0.0;
+    std::string slowestTileKey;
+    std::string workerBefore;   // what the worker did last before the slowest tile, and when
+    core::render::CacheStats cacheStats;
+    core::render::RenderScheduler::Stats schedulerStats;
+    std::size_t evictions = 0;
+    std::size_t crossDocumentEvictions = 0;
+};
+
+const char* stage5LoadName(Stage5Load load)
+{
+    switch (load) {
+    case Stage5Load::None: return "viewer";
+    case Stage5Load::Index: return "+ index build";
+    case Stage5Load::Folder: return "+ folder search";
+    case Stage5Load::Comparison: return "+ comparison";
+    }
+    return "?";
+}
+
+Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocument& reading,
+                              const std::vector<OpenDocument>& compared, const QString& folder,
+                              const Resolution& view, std::size_t cap, Stage5Load load)
+{
+    Stage5Outcome outcome;
+    ServiceLog log;
+    std::vector<core::DocumentHandle> folderDocuments;
+
+    {
+        core::render::RenderCache::Config cacheConfig;
+        cacheConfig.memoryCapBytes = cap;
+        core::render::RenderCache cache(cacheConfig);
+        core::render::RenderScheduler scheduler(
+            [&]() -> std::unique_ptr<core::IPageRasterizer> {
+                return std::make_unique<TimingRasterizer>(backend, log);
+            },
+            [&]() -> std::unique_ptr<core::ITextExtractor> {
+                return std::make_unique<TimingExtractor>(backend, log);
+            },
+            &cache, core::render::RenderScheduler::Config{});
+
+        // --- the background, as a backlog fed through a window ---------------------------------
+        struct Work {
+            bool text = true;
+            core::render::TextRequest textRequest;
+            RenderRequest raster;
+        };
+        std::deque<Work> backlog;
+        long long outstanding = 0;
+
+        const Resolution comparisonRes = resolutionAt(kComparisonDpi);
+        const auto planDocument = [&](const OpenDocument& document, bool withRasters) {
+            for (int page = 0; page < document.pages->count(); ++page) {
+                backlog.push_back(Work{true, core::render::TextRequest{document.handle, page}, {}});
+                ++outcome.backgroundPlanned;
+                if (!withRasters) continue;
+                const core::Page* info = document.pages->at(page);
+                if (info == nullptr) continue;
+                const TileRect bounds = TileGrid::pageBounds(*info, comparisonRes);
+                if (bounds.isEmpty()) continue;
+                RenderRequest request = requestFor(document.handle, page, bounds, kComparisonDpi);
+                request.flags = RenderFlags::None;
+                backlog.push_back(Work{false, {}, request});
+                ++outcome.backgroundPlanned;
+            }
+        };
+
+        if (load == Stage5Load::Index) planDocument(reading, false);
+        if (load == Stage5Load::Comparison) {
+            // Page by page across the two documents, as an aligner would ask for them.
+            for (int page = 0; page < compared[0].pages->count(); ++page) {
+                for (const OpenDocument& document : compared) {
+                    if (page >= document.pages->count()) continue;
+                    backlog.push_back(Work{true, core::render::TextRequest{document.handle, page}, {}});
+                    ++outcome.backgroundPlanned;
+                    const core::Page* info = document.pages->at(page);
+                    const TileRect bounds = TileGrid::pageBounds(*info, comparisonRes);
+                    RenderRequest request = requestFor(document.handle, page, bounds, kComparisonDpi);
+                    request.flags = RenderFlags::None;
+                    backlog.push_back(Work{false, {}, request});
+                    ++outcome.backgroundPlanned;
+                }
+            }
+        }
+
+        // --- the folder search's opener: files are opened OFF the pump -----------------------
+        // Plan D5-13 opens each file on the engine thread (Stage 5 T9). Until that job exists, a
+        // helper thread stands in for it: an open takes the process-wide engine lock exactly as it
+        // would there, so its cost lands on the render worker the same way, and the pump -- the
+        // UI thread's stand-in -- never blocks on a file.
+        std::mutex openedMutex;
+        std::deque<OpenDocument> opened;
+        std::atomic<bool> openerDone{load != Stage5Load::Folder};
+        std::thread opener;
+        std::vector<double> openMs;
+        std::map<std::uint64_t, QString> names;
+        names[reading.handle.id] = reading.name;
+        for (const OpenDocument& document : compared) names[document.handle.id] = document.name;
+        if (load == Stage5Load::Folder) {
+            opener = std::thread([&] {
+                QDirIterator walk(folder, QStringList{QStringLiteral("*.pdf")}, QDir::Files,
+                                  QDirIterator::Subdirectories);
+                std::vector<QString> files;
+                while (walk.hasNext()) files.push_back(walk.next());
+                std::sort(files.begin(), files.end());
+                for (const QString& file : files) {
+                    const Clock::time_point start = Clock::now();
+                    // No password: a folder search never prompts (D5-13), so the encrypted files
+                    // are refused here as they will be there.
+                    const core::Result<core::DocumentHandle> handle = backend.open(file, {});
+                    const double ms = millisSince(start);
+                    if (!handle) continue;
+                    const core::PageTree* pages = backend.pages(handle.value());
+                    const std::lock_guard<std::mutex> lock(openedMutex);
+                    openMs.push_back(ms);
+                    names[handle.value().id] = QDir(folder).relativeFilePath(file);
+                    if (ms > outcome.openMaxMs) {
+                        outcome.openMaxMs = ms;
+                        outcome.slowestOpen = names[handle.value().id];
+                    }
+                    opened.push_back(OpenDocument{handle.value(), pages, file});
+                }
+                openerDone.store(true);
+            });
+        }
+
+        const auto feed = [&] {
+            {
+                const std::lock_guard<std::mutex> lock(openedMutex);
+                while (!opened.empty()) {
+                    folderDocuments.push_back(opened.front().handle);
+                    planDocument(opened.front(), false);
+                    opened.pop_front();
+                }
+            }
+            while (outstanding < kBackgroundWindow && !backlog.empty()) {
+                const Work work = backlog.front();
+                backlog.pop_front();
+                ++outstanding;
+                if (work.text)
+                    scheduler.enqueueText(work.textRequest, RenderPriority::Background);
+                else
+                    scheduler.enqueue(work.raster, RenderPriority::Background,
+                                      core::render::CachePolicy::Bypass);
+            }
+        };
+
+        // --- the viewport, and its samples -----------------------------------------------------
+        std::map<std::string, Clock::time_point> viewportSent;
+        std::map<std::string, Clock::time_point> awaitingViewport;
+        std::map<std::string, Clock::time_point> viewportDelivered;
+        const core::render::RenderScheduler::SubscriptionToken tiles = scheduler.subscribeReady(
+            [&](const RenderRequest& request, const core::RasterImage&) {
+                const std::string key = scaledTileKey(request);
+                const auto at = awaitingViewport.find(key);
+                if (at != awaitingViewport.end()) {
+                    outcome.viewport.push_back(latencySince(at->second));
+                    viewportDelivered[key] = Clock::now();
+                    awaitingViewport.erase(at);
+                    return;
+                }
+                // A comparison raster: consumed here and released, as D5-4 says.
+                --outstanding;
+                ++outcome.backgroundDone;
+            });
+        const core::render::RenderScheduler::SubscriptionToken texts = scheduler.subscribeText(
+            [&](const core::render::TextRequest&, const core::render::TextResult& result) {
+                --outstanding;
+                ++outcome.backgroundDone;
+                if (!result) ++outcome.backgroundFailed;
+            });
+
+        const auto pumpOnce = [&] {
+            scheduler.deliverReady();
+            feed();
+            std::this_thread::yield();
+        };
+        const auto backgroundFinished = [&] {
+            return openerDone.load() && backlog.empty() && outstanding <= 0 && [&] {
+                const std::lock_guard<std::mutex> lock(openedMutex);
+                return opened.empty();
+            }();
+        };
+
+        const TileGrid grid;
+        const Clock::time_point start = Clock::now();
+        feed();
+        for (int round = 0;; ++round) {
+            const bool enough = load == Stage5Load::None ? round >= kStage5ViewerRounds
+                                                         : round >= kStage5MinRounds
+                                                               && backgroundFinished();
+            if (enough || round >= kStage5MaxRounds) break;
+            outcome.rounds = round + 1;
+
+            // A scroll: a page not seen before, its viewport's visible tiles at Visible.
+            const int page = (round * 7) % reading.pages->count();
+            const core::Page* info = reading.pages->at(page);
+            const TileRect bounds = TileGrid::pageBounds(*info, view);
+            TileRect viewport = bounds;
+            viewport.width = std::min(bounds.width, kViewportWidth);
+            viewport.height = std::min(bounds.height, kViewportHeight);
+            for (const TileRect& tile : grid.tilesFor(*info, view, viewport).visible) {
+                const RenderRequest request = requestFor(reading.handle, page, tile, view.dpi);
+                const std::string key = scaledTileKey(request);
+                const long long servedBefore = scheduler.stats().servedFromCache;
+                const Clock::time_point sent = Clock::now();
+                awaitingViewport[key] = sent;
+                scheduler.enqueue(request, RenderPriority::Visible);
+                // The inversion count's reference is when the tile was IN THE QUEUE -- after
+                // `enqueue()` returned. `sent`, taken before the call, is right for the latency and
+                // wrong for this: a background job the worker picked while the tile was still on its
+                // way in counted as an inversion on the first run (1, in the comparison column).
+                viewportSent[key] = Clock::now();
+                ++outcome.viewportTiles;
+                if (scheduler.stats().servedFromCache == servedBefore) ++outcome.viewportTilesRendered;
+            }
+            while (!awaitingViewport.empty()) pumpOnce();
+
+            // Reading: the background has the engine.
+            const Clock::time_point reading0 = Clock::now();
+            while (millisSince(reading0) < kStage5GapMs) pumpOnce();
+        }
+        outcome.wallMs = millisSince(start);
+
+        // Whatever the background did not reach is reported, then abandoned.
+        outcome.backgroundUndone = static_cast<long long>(backlog.size()) + std::max(0LL, outstanding);
+        scheduler.cancelAll();
+        if (opener.joinable()) opener.join();
+        scheduler.waitForIdle(30000);
+        scheduler.deliverReady();
+        {
+            const std::lock_guard<std::mutex> lock(openedMutex);
+            for (const OpenDocument& document : opened) folderDocuments.push_back(document.handle);
+            opened.clear();
+        }
+        scheduler.unsubscribeReady(tiles);
+        scheduler.unsubscribeText(texts);
+
+        outcome.cacheStats = cache.stats();
+        outcome.schedulerStats = scheduler.stats();
+        outcome.evictions = cache.memoryTier().evictionCount();
+        outcome.crossDocumentEvictions = cache.crossDocumentEvictions();
+        outcome.filesOpened = static_cast<long long>(openMs.size());
+
+        // --- what the worker did ------------------------------------------------------------
+        std::vector<Clock::time_point> backgroundStarts;
+        std::map<std::string, Clock::time_point> viewportStarted;
+        {
+            const std::lock_guard<std::mutex> lock(log.mutex);
+            for (const ServiceLog::Entry& entry : log.entries) {
+                if (entry.text) {
+                    outcome.extractionMs.push_back(entry.ms);
+                    backgroundStarts.push_back(entry.start);
+                    if (entry.ms > outcome.slowestExtractionMs) {
+                        // "text:<handle>/<page>" back to a file name and a 1-based page number.
+                        const std::size_t colon = entry.key.find(':');
+                        const std::size_t slash = entry.key.find('/');
+                        const std::uint64_t id = std::stoull(entry.key.substr(colon + 1, slash - colon - 1));
+                        const int page = std::stoi(entry.key.substr(slash + 1));
+                        outcome.slowestExtractionMs = entry.ms;
+                        outcome.slowestExtraction = QStringLiteral("%1, page %2")
+                                                        .arg(names.count(id) != 0 ? names[id] : QStringLiteral("?"))
+                                                        .arg(page + 1);
+                    }
+                } else if (viewportSent.count(entry.key) != 0) {
+                    outcome.tileMs.push_back(entry.ms);
+                    viewportStarted[entry.key] = entry.start;
+                    const auto delivered = viewportDelivered.find(entry.key);
+                    if (delivered != viewportDelivered.end()) {
+                        const double total = std::chrono::duration<double, std::milli>(
+                                                 delivered->second - viewportSent[entry.key]).count();
+                        if (total > outcome.slowestTileWaitMs + outcome.slowestTileServiceMs
+                                        + outcome.slowestTileDeliveryMs) {
+                            outcome.slowestTileWaitMs = std::chrono::duration<double, std::milli>(
+                                                            entry.start - viewportSent[entry.key]).count();
+                            outcome.slowestTileServiceMs = entry.ms;
+                            outcome.slowestTileDeliveryMs = total - outcome.slowestTileWaitMs - entry.ms;
+                            outcome.slowestTileKey = entry.key;
+                        }
+                    }
+                } else {
+                    backgroundStarts.push_back(entry.start);
+                }
+            }
+        }
+        std::sort(backgroundStarts.begin(), backgroundStarts.end());
+        if (!outcome.slowestTileKey.empty()) {
+            const std::lock_guard<std::mutex> lock(log.mutex);
+            const Clock::time_point queued = viewportSent[outcome.slowestTileKey];
+            const Clock::time_point began = viewportStarted[outcome.slowestTileKey];
+            const ServiceLog::Entry* previous = nullptr;
+            for (const ServiceLog::Entry& entry : log.entries)
+                if (entry.start < began && (previous == nullptr || entry.start > previous->start))
+                    previous = &entry;
+            if (previous != nullptr) {
+                char text[200];
+                std::snprintf(text, sizeof(text), "%s started %.1f ms after the tile was queued, took %.1f ms",
+                              previous->key.c_str(),
+                              std::chrono::duration<double, std::milli>(previous->start - queued).count(),
+                              previous->ms);
+                outcome.workerBefore = text;
+            }
+        }
+        for (const auto& [key, started] : viewportStarted) {
+            const Clock::time_point sent = viewportSent[key];
+            const auto first = std::upper_bound(backgroundStarts.begin(), backgroundStarts.end(), sent);
+            const auto last = std::lower_bound(backgroundStarts.begin(), backgroundStarts.end(), started);
+            if (last > first) outcome.inversions += last - first;
+        }
+    }   // the scheduler is idle and gone before any document it served is closed
+
+    for (const core::DocumentHandle handle : folderDocuments) backend.close(handle);
+    return outcome;
+}
+
+void reportStage5(const char* label, const Stage5Outcome& outcome)
+{
+    report(label, outcome.viewport, outcome.wallMs);
+    std::printf("      background %lld of %lld jobs done (%lld failed, %lld not reached) over %d rounds,"
+                " %.1f s",
+                outcome.backgroundDone, outcome.backgroundPlanned, outcome.backgroundFailed,
+                outcome.backgroundUndone, outcome.rounds, outcome.wallMs / 1000.0);
+    if (outcome.filesOpened > 0)
+        std::printf("; %lld files opened, the slowest open %.1f ms (%s)", outcome.filesOpened,
+                    outcome.openMaxMs, qPrintable(outcome.slowestOpen));
+    std::printf("\n");
+    std::printf("      priority   %lld inversion(s) against a bound of 0 -- background jobs STARTED"
+                " while a viewport tile waited\n", outcome.inversions);
+    std::printf("      slowest    viewport tile: %.1f ms queued before the worker took it, %.1f ms in the"
+                " engine, %.1f ms before the pump delivered it\n",
+                outcome.slowestTileWaitMs, outcome.slowestTileServiceMs, outcome.slowestTileDeliveryMs);
+    if (!outcome.workerBefore.empty())
+        std::printf("                 the worker's job before it: %s\n", outcome.workerBefore.c_str());
+    if (!outcome.extractionMs.empty()) {
+        const double p50 = percentile(outcome.extractionMs, 0.50);
+        const double p95 = percentile(outcome.extractionMs, 0.95);
+        const double max = percentile(outcome.extractionMs, 1.00);
+        std::printf("      extraction %zu pages on the worker: p50 %.3f  p95 %.3f  max %.3f ms (%s)\n",
+                    outcome.extractionMs.size(), p50, p95, max, qPrintable(outcome.slowestExtraction));
+    }
+    // D5-4 AND O7: text work, and the comparison's bypassing rasters, insert NOTHING into the tile
+    // cache -- so its insertions are exactly the viewport tiles that were rendered, and its lookups
+    // exactly the viewport tiles that were asked for.
+    const bool textKeptOut = outcome.cacheStats.insertions == outcome.viewportTilesRendered
+                             && outcome.cacheStats.lookups == outcome.viewportTiles;
+    std::printf("      cache      lookups %lld (viewport tiles asked %lld)   insertions %lld (viewport"
+                " tiles rendered %lld)   evictions %zu   CROSS-DOCUMENT %zu   -> %s\n",
+                outcome.cacheStats.lookups, outcome.viewportTiles, outcome.cacheStats.insertions,
+                outcome.viewportTilesRendered, outcome.evictions, outcome.crossDocumentEvictions,
+                textKeptOut ? "background work inserted NOTHING" : "BACKGROUND WORK REACHED THE CACHE");
+    std::printf("      scheduler  enqueued %lld (background %lld, bypassing %lld)   started %lld"
+                "   delivered %lld   droppedOverflow %lld   cancelledBeforeStart %lld"
+                "   droppedCancelled %lld\n",
+                outcome.schedulerStats.enqueued, outcome.schedulerStats.enqueuedBackground,
+                outcome.schedulerStats.enqueuedBypassingCache, outcome.schedulerStats.started,
+                outcome.schedulerStats.delivered, outcome.schedulerStats.droppedOverflow,
+                outcome.schedulerStats.cancelledBeforeStart, outcome.schedulerStats.droppedCancelled);
+}
+
+int runStage5Workload(core::IDocumentBackend& backend, const OpenFn& open, const Resolution& a2)
+{
+    const Resolution view = resolutionAt(a2.dpi);
+    std::printf("\n  phase 6 -- STAGE 5's WORKLOAD (D5-22): the viewport while text shares the engine"
+                " thread\n");
+    std::printf("    viewport      at A2's configuration -> %.1f dpi, %.3f px/pt, %dx%d, at Visible,"
+                " a fresh page each round\n",
+                view.dpi, view.rasterScale(), kViewportWidth, kViewportHeight);
+    std::printf("    rounds        a scroll, then %d ms of reading while the background runs;"
+                " background fed %d jobs at a time\n", kStage5GapMs, kBackgroundWindow);
+
+    const std::optional<OpenDocument> reading = open(QStringLiteral("ordinary/text-900.pdf"), QString{});
+    const std::optional<OpenDocument> v1 = open(QStringLiteral("ordinary/text-900.pdf"), QString{});
+    const std::optional<OpenDocument> v2 = open(QStringLiteral("ordinary/text-900.pdf"), QString{});
+    const std::optional<OpenDocument> a2page = open(QStringLiteral("a2-text-page.pdf"), QString{});
+    if (!reading || !v1 || !v2 || !a2page) {
+        std::fprintf(stderr, "A2 at Stage 5: text-900.pdf or a2-text-page.pdf would not open --"
+                             " no measurement\n");
+        return 1;
+    }
+    std::printf("    document      %s, %d pages -- read in the viewport and indexed in the"
+                " background, ONE handle\n",
+                qPrintable(reading->name), reading->pages->count());
+    std::printf("    comparison    the same file opened TWICE, two handles: every page's text and a"
+                " %.0f-dpi raster of it, at Background, bypassing the cache (D5-4, D5-17)\n",
+                kComparisonDpi);
+
+    // The folder: a SCRATCH COPY of the corpus tree, because a search over the tester's own files
+    // would depend on them (`Stage5-TextSearch-Plan.md` §5.6).
+    QTemporaryDir scratch;
+    if (!scratch.isValid()) {
+        std::fprintf(stderr, "A2 at Stage 5: no scratch directory -- no measurement\n");
+        return 1;
+    }
+    int copied = 0;
+    {
+        const QDir corpus(QStringLiteral(RAWPAGE_CORPUS_DIR));
+        QDirIterator walk(corpus.absolutePath(), QStringList{QStringLiteral("*.pdf")}, QDir::Files,
+                          QDirIterator::Subdirectories);
+        while (walk.hasNext()) {
+            const QString source = walk.next();
+            const QString target = scratch.filePath(corpus.relativeFilePath(source));
+            QDir().mkpath(QFileInfo(target).absolutePath());
+            if (QFile::copy(source, target)) ++copied;
+        }
+    }
+    std::printf("    folder        a scratch copy of the corpus tree, %d PDFs, nested; opened one by one"
+                " off the pump, every page's text at Background\n", copied);
+
+    // A-28's second subject: the dense A2 page, extracted twenty times -- one page, so its
+    // distribution is the engine's variance on it.
+    std::vector<double> a2Extraction;
+    {
+        core::ITextExtractor* extractor = backend.textExtractor(a2page->handle);
+        for (int i = 0; i < 20 && extractor != nullptr; ++i) {
+            core::text::PageTextModel model;
+            const Clock::time_point start = Clock::now();
+            (void)extractor->extractPage(a2page->handle, 0, model);
+            a2Extraction.push_back(millisSince(start));
+        }
+    }
+
+    const std::vector<OpenDocument> compared{*v1, *v2};
+    const std::size_t caps[] = {256u * 1024u * 1024u, 24u * 1024u * 1024u};
+    double viewerP95 = 0.0, folderP95 = 0.0, comparisonP95 = 0.0;
+    std::vector<double> indexP95;
+    long long totalInversions = 0;
+    bool keptOut = true;
+    Stage5Outcome firstIndex;
+    for (const std::size_t cap : caps) {
+        std::printf("\n    cap %4zu MiB\n", cap / (1024u * 1024u));
+        const bool shipped = cap == caps[0];
+        const struct { Stage5Load load; int runs; } columns[] = {
+            {Stage5Load::None, 1},
+            {Stage5Load::Index, shipped ? kStage5IndexRuns : 1},
+            {Stage5Load::Folder, 1},
+            {Stage5Load::Comparison, 1},
+        };
+        for (const auto& column : columns) {
+            for (int run = 0; run < column.runs; ++run) {
+                const Stage5Outcome outcome = runStage5Column(backend, *reading, compared,
+                                                              scratch.path(), view, cap, column.load);
+                if (outcome.viewport.empty()) {
+                    std::fprintf(stderr, "A2 at Stage 5: no viewport tile was delivered --"
+                                         " no measurement\n");
+                    return 1;
+                }
+                char label[40];
+                std::snprintf(label, sizeof(label), "%s%s VIEWPORT", stage5LoadName(column.load),
+                              column.runs > 1 ? (" #" + std::to_string(run + 1)).c_str() : "");
+                reportStage5(label, outcome);
+                totalInversions += outcome.inversions;
+                keptOut = keptOut && outcome.cacheStats.insertions == outcome.viewportTilesRendered
+                          && outcome.cacheStats.lookups == outcome.viewportTiles;
+                if (!shipped) continue;
+                const double p95 = percentile(outcome.viewport, 0.95);
+                switch (column.load) {
+                case Stage5Load::None: viewerP95 = p95; break;
+                case Stage5Load::Index:
+                    indexP95.push_back(p95);
+                    if (run == 0) firstIndex = outcome;
+                    break;
+                case Stage5Load::Folder: folderP95 = p95; break;
+                case Stage5Load::Comparison: comparisonP95 = p95; break;
+                }
+            }
+        }
+    }
+
+    std::printf("\n    A-28 -- ONE PAGE's EXTRACTION, the longest a visible tile can wait behind"
+                " background work (no preemption, D5-3):\n");
+    {
+        const double p50 = percentile(firstIndex.extractionMs, 0.50);
+        const double p95 = percentile(firstIndex.extractionMs, 0.95);
+        const double max = percentile(firstIndex.extractionMs, 1.00);
+        std::printf("      text-900.pdf, %zu pages ............ p50 %7.3f  p95 %7.3f  max %7.3f ms\n",
+                    firstIndex.extractionMs.size(), p50, p95, max);
+        const double a50 = percentile(a2Extraction, 0.50);
+        const double a95 = percentile(a2Extraction, 0.95);
+        const double amax = percentile(a2Extraction, 1.00);
+        std::printf("      a2-text-page.pdf, x%zu ............... p50 %7.3f  p95 %7.3f  max %7.3f ms\n",
+                    a2Extraction.size(), a50, a95, amax);
+        const double t50 = percentile(firstIndex.tileMs, 0.50);
+        const double t95 = percentile(firstIndex.tileMs, 0.95);
+        const double tmax = percentile(firstIndex.tileMs, 1.00);
+        std::printf("      beside it, one viewport TILE ...... p50 %7.3f  p95 %7.3f  max %7.3f ms\n",
+                    t50, t95, tmax);
+        std::printf("      the largest single extraction is %s the %.3f ms frame budget\n",
+                    std::max(max, amax) < kFrameBudgetMs ? "INSIDE" : "OUTSIDE", kFrameBudgetMs);
+    }
+
+    std::printf("\n    WHAT MOVED THE FIGURE, at the shipped 256 MiB cap -- the viewport's p95:\n");
+    std::printf("      one viewport, nothing behind it ...................... %7.3f ms\n", viewerP95);
+    for (std::size_t i = 0; i < indexP95.size(); ++i)
+        std::printf("      + text-900's whole index at Background, run %zu ........ %7.3f ms   (%+.3f)\n",
+                    i + 1, indexP95[i], indexP95[i] - viewerP95);
+    std::printf("      + a folder search over the corpus copy ............... %7.3f ms   (%+.3f)\n",
+                folderP95, folderP95 - viewerP95);
+    std::printf("      + a 900-page comparison's text and rasters ........... %7.3f ms   (%+.3f)\n",
+                comparisonP95, comparisonP95 - viewerP95);
+    std::printf("      frame budget ......................................... %7.3f ms\n",
+                kFrameBudgetMs);
+    std::printf("      priority inversions, every column and cap ............ %lld (bound 0)\n",
+                totalInversions);
+    std::printf("      text work in the tile cache, every column and cap .... %s\n",
+                keptOut ? "none" : "SOME -- D5-4 is not holding");
+    std::printf("      Stage 4 T2, + pane (phase 5) ......................... p95 10.59-10.74 ms\n");
+    std::printf("      Stage 4 T14, the shipped panes (bench_surface) ....... p95 7.03-8.56 ms\n");
+    std::printf("      Stage 2 T18, one viewport ............................ p95 13.03-13.20 ms\n");
+    std::printf("\n    Grade on Stage5-TextSearch-Testing-Guide.md 3.1 and record it in Tech-Stack-Plan.md"
+                " 3.3, LABELLED\n    as Stage 5's workload; O7's row gains the cache lines above"
+                " (guide A-30). This bench never fails\n    on speed: its exit code is about whether"
+                " the measurement was possible.\n\n");
+
+    for (const OpenDocument* document : {&*reading, &*v1, &*v2, &*a2page}) backend.close(document->handle);
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -724,6 +1376,7 @@ int main(int argc, char** argv)
     int workerSweepMax = 1;
     bool wholePage = false;
     bool stage4 = false;
+    bool stage5 = false;
     const QStringList arguments = QCoreApplication::arguments();
     for (int at = 1; at < arguments.size(); ++at) {
         if (arguments.at(at) == QLatin1String("--whole-page")) {
@@ -732,6 +1385,10 @@ int main(int argc, char** argv)
         }
         if (arguments.at(at) == QLatin1String("--stage4")) {
             stage4 = true;
+            continue;
+        }
+        if (arguments.at(at) == QLatin1String("--stage5")) {
+            stage5 = true;
             continue;
         }
         if (arguments.at(at) == QLatin1String("--dead-instrument")) {
@@ -867,6 +1524,11 @@ int main(int argc, char** argv)
             // had moved.
             backend->close(document->handle);
             return runStage4Workload(*backend, open, makeRasterizer, a2);
+        }
+        if (stage5) {
+            // Stage 5 T3 (D5-22). Phase 0 has run, for phase 5's reason; the rest is phase 6.
+            backend->close(document->handle);
+            return runStage5Workload(*backend, open, a2);
         }
 
         std::printf("\n  phase 1 -- A2's configuration, the probe's subject\n");

@@ -476,6 +476,58 @@ while the pane worked, thumbnails filled progressively, nothing froze and memory
 is a person's judgement on one rig, recorded as such (`Stage4-ViewingSurface-Testing-Guide.md` M-06),
 not a measurement; it is the half of the verdict no percentile could give.
 
+**A2 AT STAGE 5 — STAGE 5's WORKLOAD: text extraction on the one engine thread. Measured 2026-09-30,
+Stage 5 task T3, `rawpage_bench_pipeline --stage5`, two full runs. VERDICT: `go, with named custom
+work`** — graded on `Stage5-TextSearch-Testing-Guide.md` §3.1, the scale fixed before the run, and the
+verdict the user chose on 2026-09-30.
+
+D5-3 (`Stage5-TextSearch-Plan.md` §3) puts extracting a page's text on the render thread as a job of
+its own, in a fourth lane, `Background`; strict priority is not preemption, so a text job inside
+PDFium makes a visible tile wait for its whole length. D5-22 asked for that to be measured before any
+surface queues text. The bench drives the shipped scheduler, the shipped backend adapters and a
+1920×1080 viewport at **288 dpi** on a fresh page of `ordinary/text-900.pdf` each round, with 50 ms of
+reading between scrolls during which the background works, fed 32 jobs at a time. The quantity is the
+**viewport's p95 queued latency**, the same as every A2 product figure above:
+
+| Column (shipped 256 MiB cap) | viewport p95 | worst tile | background |
+|---|---|---|---|
+| `viewer` — nothing behind it | **13.02–13.07 ms** | 15.9–16.4 ms | — |
+| `+ index build` — all 900 pages of `text-900.pdf`, three runs × two | **14.05–14.26 ms** | 15.8–18.1 ms | 900 of 900 extracted in 1.7 s |
+| `+ comparison` — `text-900.pdf` against a second handle of itself, every page's text and a 72-dpi raster | **13.67–13.76 ms** | 17.6–18.5 ms | 3,600 of 3,600 |
+| **`+ folder search`** — a scratch copy of the corpus, 88 files opened one by one off the pump | **17.68–17.93 ms** | 23.5–24.8 ms | 2,095 of 2,095 pages |
+
+At a 24 MiB cap the same columns read 12.69–12.83, 13.22–13.43, 13.52–13.59 and **17.75–18.28 ms**.
+**One page's extraction** (guide A-28) is p50 1.43, p95 1.70–1.73 and **max 2.50–2.65 ms** on
+`text-900.pdf` and max 1.70–1.73 ms on `a2-text-page.pdf`, against a viewport tile's p95 of 0.41 ms:
+**the longest a visible tile can wait behind a text job is about 2.6 ms, inside the budget by 6×.**
+Priority inversions — a background job STARTED while a viewport tile waited — **0 in every column at
+both caps**; the queue never overflowed; **text work inserted nothing into the tile cache** (insertions
+exactly equal the viewport tiles rendered, lookups the viewport tiles asked for, cross-document
+evictions 0), and the comparison's 1,800 rasters went through `CachePolicy::Bypass`, built at T3 for
+D5-4.
+
+**THE FOLDER SEARCH IS THE NAMED CONDITION, and it is not text extraction — it is OPENING.**
+`PdfiumDocument::open` loads every page to read its boxes: **~145 ms of engine time for a 900-page
+file** (measured by timing the open's parts). The first runs, with the engine lock as it was, read the
+folder column at 14.2–21.4 ms p95 and a **worst tile of 131–260 ms**: the open released the lock and
+took it back before the waiting render worker could, because `std::mutex` is not fair on this
+toolchain — per-page release and a `yield()` changed nothing. **T3 made the engine lock a first-come,
+first-served ticket lock and the page walk take it per page** (`pdf/render/PdfiumInit`,
+`PdfiumDocument`; Stage 5 guide I-02), which took the worst tile to **23.5–24.8 ms** and left the p95
+at **17.7–17.9 ms**: each viewport tile now waits behind at most one page of an open. **The work that
+brings it inside is named, and it is T9's**: a folder search opens each file on the engine thread at
+`Background` **in pieces no longer than one page's extraction**, so strict priority keeps the viewport
+ahead of it as it does for text (D5-13, amended the same day). The folder column is re-graded at T14.
+
+**Found on the way, and fixed: Stage 5 guide I-01.** The same open had read the outline, the named
+destinations and the Info dictionary through PDFium **without the engine lock** since Stage 4 T4 — on
+the UI thread, beside a render worker inside the engine, which I-05 measured corrupting the heap. The
+lock now records its owner and a test asserts no reader enters the engine without it.
+
+**What this does NOT claim.** It is the bench's own request pattern (a whole viewport at `Visible` each
+round), not the shipped surfaces', which T14 re-reads; one rig; our own generated corpus (D2-11,
+D5-23). The folder search's opener is a helper thread standing in for T9's engine-thread open.
+
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
 `chromium/8009`, SHA-256 `c78a8cd51b48ab…`, acquired by `scripts/fetch-pdfium.ps1`.

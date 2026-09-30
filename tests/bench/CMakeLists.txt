@@ -165,6 +165,17 @@ set_tests_properties(bench.render.a2_stage4 PROPERTIES
         "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
 
+# Stage 5 T3 (D5-22). `--stage5`: the viewport while text extraction shares the engine thread --
+# an index build, a folder search over a scratch copy of the corpus, a comparison. It carries A2 AT
+# STAGE 5 (Tech-Stack-Plan.md 3.3), which T14 re-reads through the shipped surfaces. About 40 s on
+# the reference machine; the exit code is still only whether the measurement was possible.
+add_test(NAME bench.render.a2_stage5 COMMAND rawpage_bench_pipeline --stage5)
+set_tests_properties(bench.render.a2_stage5 PROPERTIES
+    TIMEOUT 600
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)
+
 # rawpage_bench_openclose -- Stage 2 issue I-35's reproducer: private bytes and handles per round of
 # ten documents opened, rendered and closed with no window. NOT registered with CTest: it reports a
 # trend over dozens of rounds, and no threshold for that trend has been decided. It links the

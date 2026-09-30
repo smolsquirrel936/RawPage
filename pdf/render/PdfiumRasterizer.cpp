@@ -100,7 +100,7 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         // EVERYTHING inside the lock -- LoadPage, bitmap creation, the render, and the destroy.
         // Locking only the render call leaves `FPDFBitmap_Create` and `_Destroy` racing on
         // PDFium's allocator, which is what the T3 probe crashed inside (I-05).
-        const std::lock_guard<std::mutex> guard(engineLock());
+        const std::lock_guard<EngineMutex> guard(engineLock());
 
         auto* document = static_cast<FPDF_DOCUMENT>(document_.engineHandle());
         if (document == nullptr) {

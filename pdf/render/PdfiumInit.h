@@ -49,7 +49,11 @@
 
 #include "core/Result.h"
 
+#include <atomic>
+#include <condition_variable>
+#include <cstdint>
 #include <mutex>
+#include <thread>
 
 #include <QLatin1String>
 #include <QString>
@@ -95,7 +99,46 @@ void shutdown();
 //
 // HOLD IT ACROSS THE WHOLE ENGINE INTERACTION, not just the render call: `FPDFBitmap_Create` and
 // `_Destroy` race on PDFium's allocator too, which is what the T3 probe crashed inside.
-std::mutex& engineLock();
+//
+// **IT KNOWS WHO HOLDS IT** since Stage 5 T3 (Stage 5 guide issue **I-01**). `PdfiumDocument::open`
+// had read the outline, the named destinations and the Info dictionary through PDFium with NO lock
+// since Stage 4 T4 -- on the UI thread, while the render worker was inside the engine -- and nothing
+// could see it: a missing lock is an absence, and the race it opens corrupts the heap only
+// sometimes. So the mutex records its owner, and every facade reader that is not visibly inside a
+// `lock_guard` calls `requireEngineLock()`, which COUNTS an entry made without it. The count is a
+// fact a test asserts is zero (`tests/render/tst_pdfiumdoc.cpp`), rather than a rule a reviewer has
+// to notice being broken.
+//
+// **AND IT IS FAIR -- first come, first served -- since Stage 5 T3.** `std::mutex` promises no
+// order, and on this toolchain a thread that releases it and asks again at once wins it back
+// ahead of a thread that was already waiting: measured by `bench_pipeline --stage5`, where a
+// document's open, walking 900 pages and releasing the lock between each, kept a viewport tile
+// waiting 60-104 ms for a lock it needed for 0.4 ms -- per-page release and a `yield()` between
+// pages changed nothing. A ticket lock hands the engine to whoever asked first, so a thread that
+// takes it in short pieces lets the render worker in between them.
+class EngineMutex {
+public:
+    void lock();
+    void unlock();
+    bool try_lock();
+    bool heldByCurrentThread() const noexcept;
+
+private:
+    std::mutex state_;
+    std::condition_variable turn_;
+    std::uint64_t nextTicket_ = 0;
+    std::uint64_t serving_ = 0;
+    std::atomic<std::thread::id> owner_{};
+};
+
+EngineMutex& engineLock();
+
+// Counts one entry into PDFium made by a thread that does not hold `engineLock()`. Call it at the
+// top of a reader whose caller is supposed to hold the lock.
+void requireEngineLock() noexcept;
+
+// How many such entries there have been in this process. Zero is the only correct value.
+long long unlockedEngineEntries() noexcept;
 
 // The pinned version, as a string: "153.0.8009.0".
 //
