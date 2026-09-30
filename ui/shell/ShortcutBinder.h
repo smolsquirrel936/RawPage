@@ -198,6 +198,13 @@ public:
         return outcome == Outcome::Dispatched || outcome == Outcome::Unavailable;
     }
 
+    // Whether the focused widget owns Copy or Select All although it did not say so through the
+    // `ShortcutOverride` handshake: selectable, READ-ONLY text -- a log view, a properties label. Qt's
+    // text control accepts the override only when it is editable, so this is the one case the
+    // handshake misses (S5 guide I-04). Read from the widget's `textInteractionFlags` property, never
+    // from its type.
+    static bool selectableTextOwnsKey(const QWidget* focus, const QKeyEvent* keyEvent);
+
     bool eventFilter(QObject* watched, QEvent* event) override;
 
     // ---------------------------------------------------------------------------------------

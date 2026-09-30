@@ -36,6 +36,7 @@
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/ToolFinder.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/SelectionOverlay.h"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -583,15 +584,24 @@ TEST_CASE("a text field keeps the keys it edits with", "[chord]")
     // correct for widgets nobody has written yet -- there is no list of text widgets to maintain.
     Fixture fixture;
     MainWindow window(fixture.services());
-    window.show();
 
-    // REGISTERED FOR THIS CASE, because nothing registers `edit.selectAll` as of Stage 3 T10 and a test of
-    // a collision needs one. Whichever task registers it for real is the moment that would otherwise break
-    // every line edit in the product -- and the REQUIRE below fails that day, so this line is revisited.
-    bool selectAllDispatched = false;
-    REQUIRE(fixture.actions.register_(
-        core::ActionId::EditSelectAll,
-        [&selectAllDispatched](core::KeyContext) { selectAllDispatched = true; }));
+    // **THE REAL REGISTRATION SINCE Stage 5 T5.** Until then this case registered a stand-in for
+    // `edit.selectAll`, because nothing did, and said the day something did would be the day this line
+    // was revisited -- `REQUIRE(register_(...))` failed on T5's first run, as it was written to. The
+    // collision is now the product's own: a document's selection is what `Ctrl+A` would reach, and
+    // it must stay EMPTY while the field has the focus.
+    REQUIRE(fixture.actions.isRegistered(core::ActionId::EditSelectAll));
+    const QString path = QDir(fixture.directory.path()).filePath(QStringLiteral("field.pdf"));
+    {
+        QFile file(path);
+        REQUIRE(file.open(QIODevice::WriteOnly));
+        file.write("the fake backend decides");
+    }
+    window.openFiles({path});
+    window.show();
+    DocumentWindow* document = window.currentDocument();
+    REQUIRE(document != nullptr);
+    REQUIRE_FALSE(document->selection()->hasSelection());
 
     auto* field = new QLineEdit(&window);
     field->setText(QStringLiteral("select me"));
@@ -602,8 +612,16 @@ TEST_CASE("a text field keeps the keys it edits with", "[chord]")
     QKeyEvent press(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
     press.ignore();
     QCoreApplication::sendEvent(field, &press);
-    CHECK_FALSE(selectAllDispatched);                     // the binder stood aside
+    CHECK_FALSE(document->selection()->hasSelection());   // the binder stood aside
     CHECK(field->selectedText() == field->text());        // and the field did its own job
+
+    // THE CONTROL: the same chord with the PAGE focused selects the document -- so the line above is
+    // the field keeping its key, not `edit.selectAll` doing nothing anywhere.
+    document->view()->setFocus(Qt::OtherFocusReason);
+    QKeyEvent onPage(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
+    QCoreApplication::sendEvent(document->view(), &onPage);
+    CHECK(document->selection()->hasSelection());
+    field->setFocus();
 
     // And a chord the field does NOT implement still reaches the shell from inside it.
     bool sidebarWasVisible = window.sidebar()->isVisible();

@@ -64,6 +64,8 @@
 
 #include <Qt>
 
+#include <optional>
+
 class QPainter;
 class QTimer;
 
@@ -114,7 +116,8 @@ public:
 
     // ---- Input ---------------------------------------------------------------------------------
     // Each returns whether the tool took the event; the host falls back to its base class when not.
-    bool press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers);
+    // `clicks` is how many presses in a row this one is -- the host counts them (S5 T5, D5-8).
+    bool press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers, int clicks = 1);
     bool move(QPoint pos, Qt::KeyboardModifiers modifiers);
     bool release(QPoint pos, Qt::MouseButton button);
 
@@ -160,6 +163,10 @@ private:
 
     ToolKind armed_ = ToolKind::Select;
     bool     temporaryHand_ = false;
+
+    // S5 T5: where a `Shift`-press under the Selection tool went down -- a release there is a
+    // `Shift`+click, which extends the selection, and anywhere else a pan (see `press`).
+    std::optional<QPoint> shiftClickFrom_;
     Qt::CursorShape lastCursor_ = Qt::ArrowCursor;
 
     QTimer* autoScrollTimer_ = nullptr;

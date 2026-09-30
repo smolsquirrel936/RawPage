@@ -29,6 +29,7 @@
 #include "ui/viewer/LoupeRaster.h"
 #include "ui/viewer/PageLayoutEngine.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/viewer/ViewportController.h"
 #include "ui/viewer/tools/LoupeTool.h"
@@ -170,10 +171,13 @@ TEST_CASE("H V and Z arm their tool from a key event and the cursor follows", "[
 
 TEST_CASE("the selection tool selects nothing and says so", "[tools]")
 {
-    // convention 19, as a case rather than only a comment. `V` arms a real tool with a real
-    // cursor, and a drag with it does nothing at all -- text selection is STAGE 5 T5's. Stage 5 T2
-    // built the model and the extractor (the census says 4 of 7 since then); T5 gives this tool
-    // `TextSelection` and `SelectionOverlay`, and this case changes with it.
+    // **THE NAME IS STAGE 4'S AND IS KEPT FOR Stage 5 guide A-109** -- every Stage 4 case stays
+    // registered by name -- and it stopped being true at **Stage 5 T5**, which gave this tool its
+    // subject (D5-8). Until then a drag with `V` armed did nothing at all; now it SELECTS, over the
+    // fixture's fake text (`tests/ui/ShellFixture.h`). What the case still asserts is the half that
+    // never changed: a selection drag moves no view -- no zoom, no scroll -- and ends when released.
+    // What a selection selects, and where it paints, is `tst_selecttool.cpp`'s and
+    // `tests/composition`'s.
     Viewer viewer;
     viewer.press(Qt::Key_V);
 
@@ -181,11 +185,16 @@ TEST_CASE("the selection tool selects nothing and says so", "[tools]")
     const core::DevicePoint scroll = viewer.controller().scroll();
 
     viewer.dragFrom(QPoint(120, 140), QPoint(320, 300));
+    viewer.fixture.pumpTiles();
 
     CHECK(viewer.controller().zoom().factor == zoom.factor);
     CHECK(viewer.controller().scroll().x == scroll.x);
     CHECK(viewer.controller().scroll().y == scroll.y);
     CHECK_FALSE(viewer.tools().isDragging());
+
+    // Since T5: the drag selected.
+    REQUIRE(viewer.window->currentDocument() != nullptr);
+    CHECK(viewer.window->currentDocument()->selection()->hasSelection());
 }
 
 TEST_CASE("the loupe is armed by dispatch because section 8 gives it no chord", "[tools]")

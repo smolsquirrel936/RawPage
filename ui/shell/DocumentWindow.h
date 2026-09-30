@@ -99,6 +99,7 @@ namespace rawpage::ui {
 
 class PageView;
 class RulerWidget;
+class SelectionOverlay;
 class SplitViewContainer;
 
 class DocumentWindow : public QWidget {
@@ -244,6 +245,11 @@ public:
     // `window.*` split commands are the only product caller.
     SplitViewContainer* split() const noexcept { return split_; }
 
+    // THE TEXT SELECTION (S5 T5, D5-8): ONE per document window, handed to every pane the split makes,
+    // so a selection made in one half of a split shows in the other. `edit.copy` and `edit.selectAll`
+    // reach it through this. Never null after `build()`.
+    SelectionOverlay* selection() const noexcept { return selection_; }
+
     // ---- THE SPLIT AS ONE OPAQUE STRING (S4 T13, D4-9) ---------------------------------------
     // What `core::SessionDocument::splitState` holds. Encoded here for the reason
     // `MainWindow::paneLayoutState()` is encoded there: `SplitViewContainer::Mode` is a widget's
@@ -301,6 +307,15 @@ signals:
     void dirtyChanged(bool dirty);
     // The recovery journal stopped recording -- said ONCE, the first time it is noticed (A-80).
     void recoveryUnavailable(const QString& reason);
+
+    // S5 T5 -- the selection's copy, forwarded from `SelectionOverlay` so that the one
+    // `disconnect(document, …)` `MainWindow` makes when a tab leaves it covers these too. The shell
+    // words them; `ui/viewer/` holds no catalog key.
+    void selectionCopyProgress(int done, int total);
+    void selectionCopied(int characters, int unmappedSkipped);
+    void selectionNotExtractable(int unmappedSkipped);
+    void selectionCopyCancelled();
+    void selectionPresenceChanged(bool hasSelection);
 
 private:
     void build(const Recovery* recovery);
@@ -380,6 +395,10 @@ private:
     // S4 T9. The page surface: one view, or up to four over the same document. Never null after
     // `build()`, and `view()` is its active pane.
     SplitViewContainer* split_ = nullptr;
+
+    // S5 T5. A child, but deleted EXPLICITLY in the destructor -- after every pane has let go of it and
+    // before the handle closes, because it holds text tickets on this document's handle.
+    SelectionOverlay* selection_ = nullptr;
 
     // The pane the rulers and the cursor readout are connected to. A raw pointer to a child, kept
     // only so the connections can be undone -- which is the whole of convention 10.

@@ -111,6 +111,16 @@ add_executable(rawpage_ui_tests
     # logical label, the read-only properties dialog, and a reading mode that restores the window it
     # hid rather than a default one.
     tst_properties.cpp
+
+    # S5 T5 -- the Selection tool and SelectionOverlay as a WIDGET (guide A-24's selection half, A-43's
+    # gesture, A-46, A-51 ... A-55): Ctrl+C and Ctrl+A from key events, the Background lane of a copy,
+    # Esc, the panes of a split, the tabs, and every text widget keeping its own Ctrl+C and Ctrl+A. The
+    # fixture's text is fake (ShellFixture.h); geometry against INK is tests/composition's.
+    tst_selecttool.cpp
+
+    # S5 T5 -- guide A-50: the copy's HTML read back through Win32 as CF_HTML. SKIPS under ctest
+    # (offscreen has no system clipboard) and is run by hand on the windows platform, "[D5-10]".
+    tst_clipboard.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

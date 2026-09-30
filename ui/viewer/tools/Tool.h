@@ -35,6 +35,8 @@
 #ifndef RAWPAGE_UI_VIEWER_TOOLS_TOOL_H
 #define RAWPAGE_UI_VIEWER_TOOLS_TOOL_H
 
+#include "core/Geometry.h"
+
 #include <QPoint>
 #include <QRect>
 #include <QRectF>
@@ -47,7 +49,23 @@ class QPixmap;
 
 namespace rawpage::ui {
 
+class SelectionOverlay;
 class ViewportController;
+
+// A point on a page, in PAGE space -- PDF points, unrotated user space. `page` -1 is "no page".
+struct PagePoint {
+    int page = -1;
+    core::PdfPoint point;
+
+    bool isValid() const noexcept { return page >= 0; }
+};
+
+// What a press carries beyond its position (S5 T5): the modifiers held and how many clicks it is -- two,
+// three and four select a word, a line and a block (D5-8). Only the Selection tool reads either today.
+struct PressContext {
+    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+    int clicks = 1;
+};
 
 // The four Stage 4 tools, as a value. Named rather than numbered, and with an ASCII name beside
 // them, for the reason `layoutModeName` and `destinationFitName` carry theirs: a surface, a log
@@ -104,6 +122,29 @@ public:
         (void)source;
         return false;
     }
+
+    // ---- The Selection tool's three (S5 T5, D5-8) -------------------------------------------------
+    // The document window's selection, which every pane of a split shows -- null for a host with no
+    // document, and in a case that has none.
+    virtual SelectionOverlay* selection() const { return nullptr; }
+
+    // The page under a viewport position, in page space -- or, over a gap or the desk, the NEAREST page
+    // with the point held inside it, so a drag that leaves a page keeps selecting to its edge rather than
+    // stopping dead. Invalid only when no page is laid out.
+    virtual PagePoint pagePointAt(QPoint pos) const
+    {
+        (void)pos;
+        return {};
+    }
+
+    // A viewport position in ONE NAMED page's space, wherever the position is: a column selection stays
+    // on the page it started on (`core::render::PageLayout::toPage`).
+    virtual PagePoint pagePointOn(int page, QPoint pos) const
+    {
+        (void)page;
+        (void)pos;
+        return {};
+    }
 };
 
 class Tool {
@@ -128,6 +169,13 @@ public:
     virtual bool tracksHover() const { return false; }
 
     virtual void press(ToolHost& host, QPoint pos) = 0;
+    // The press with what it carries (S5 T5). Every tool but the Selection tool ignores both, which is
+    // what the default says.
+    virtual void pressWith(ToolHost& host, QPoint pos, const PressContext& context)
+    {
+        (void)context;
+        press(host, pos);
+    }
     virtual void move(ToolHost& host, QPoint pos) = 0;
     virtual void release(ToolHost& host, QPoint pos) = 0;
 

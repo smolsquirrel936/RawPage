@@ -154,6 +154,19 @@ std::optional<DevicePoint> PageLayout::toContent(int pageIndex, PdfPoint point) 
     return DevicePoint{slot->rect.left() + local.x, slot->rect.top() + local.y};
 }
 
+std::optional<PdfPoint> PageLayout::toPage(int pageIndex, DevicePoint point) const
+{
+    const PageSlot* slot = slotForPage(pageIndex);
+    if (slot == nullptr) return std::nullopt;
+
+    // `toDocument`'s arithmetic without its containment test: the transform is linear, so a point
+    // outside the slot maps to a point outside the page, on the side it is on.
+    const PageTransform transform(slot->cropBox.size, 1.0, presentedScale_ * 72.0, slot->rotation);
+    const DevicePoint local{point.x - slot->rect.left(), point.y - slot->rect.top()};
+    const PdfPoint inBox = transform.toPdf(local);
+    return PdfPoint{inBox.x + slot->cropBox.left(), inBox.y + slot->cropBox.bottom()};
+}
+
 // ---------------------------------------------------------------------------------------------
 // PagePresentation
 // ---------------------------------------------------------------------------------------------

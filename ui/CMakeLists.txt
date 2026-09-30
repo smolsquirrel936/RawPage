@@ -125,6 +125,9 @@ add_library(rawpage_ui STATIC
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
+    # S5 T5 -- the Selection tool given its subject (D5-8): a drag, a multi-click and an Alt+drag into
+    # the document window's SelectionOverlay, below.
+    viewer/tools/SelectTool.cpp
     viewer/tools/MarqueeZoomTool.h
     viewer/tools/MarqueeZoomTool.cpp
     viewer/tools/LoupeTool.h
@@ -141,6 +144,12 @@ add_library(rawpage_ui STATIC
     viewer/GridGuideLayer.cpp
     viewer/RulerWidget.h
     viewer/RulerWidget.cpp
+
+    # S5 T5 -- one document window's text selection (D5-8, D5-9, D5-10): the page text it asks the
+    # engine thread for, the gesture, the highlight painted OVER the tiles and never into them, and the
+    # copy to Qt's clipboard as plain text and HTML. The range arithmetic is core/text/TextSelection.
+    viewer/SelectionOverlay.h
+    viewer/SelectionOverlay.cpp
 
     viewer/PageView.h
     viewer/PageView.cpp

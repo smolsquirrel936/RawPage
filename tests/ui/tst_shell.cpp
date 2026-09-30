@@ -123,10 +123,16 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `present.start`, the one id T10 declares, because the seven all resolve in the `FullScreen`
     // context and nothing could otherwise enter it.
     //
+    // **Two more at Stage 5 T5**: `edit.copy` and `edit.selectAll`, §8's COMMON rows for `Ctrl+C` and
+    // `Ctrl+A`, declared since Stage 1 with their chords and registered by nothing until the text
+    // selection existed to copy and to select (D5-9). No id is minted: one copy writes every flavour.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 94);
+    CHECK(fixture.actions.registeredCount() == 96);
+    CHECK(fixture.actions.isRegistered(core::ActionId::EditCopy));        // S5 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::EditSelectAll));   // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileQuit));

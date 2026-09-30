@@ -2,6 +2,8 @@
 
 #include "ui/viewer/ViewportController.h"
 
+#include <QGuiApplication>
+#include <QStyleHints>
 #include <QTimer>
 
 #include <cmath>
@@ -116,15 +118,19 @@ void ToolController::setModifiers(Qt::KeyboardModifiers modifiers)
     host_.requestRepaint();
 }
 
-bool ToolController::press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers)
+bool ToolController::press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers, int clicks)
 {
     setModifiers(modifiers);
     if (button != Qt::LeftButton) return false;
 
     Tool& tool = activeTool();
-    if (tool.kind() == ToolKind::Select) return false;   // nothing to do, and the base may want it
 
-    tool.press(host_, pos);
+    // A `Shift`+CLICK WITH THE SELECTION TOOL ARMED EXTENDS THE SELECTION (S5 T5, D5-8) -- and `Shift` is
+    // also the temporary hand. The gesture decides: the hand takes the press as it always has, and if the
+    // release comes back where the press went down, it was a click, and the click extends. A drag pans.
+    shiftClickFrom_ = (temporaryHand_ && armed_ == ToolKind::Select) ? std::optional<QPoint>(pos) : std::nullopt;
+
+    tool.pressWith(host_, pos, PressContext{modifiers, clicks});
     emitCursor();
     return true;
 }
@@ -149,6 +155,13 @@ bool ToolController::release(QPoint pos, Qt::MouseButton button)
     if (!tool.isDragging() && !tool.tracksHover()) return false;
 
     tool.release(host_, pos);
+
+    if (shiftClickFrom_) {
+        const QPoint from = *shiftClickFrom_;
+        shiftClickFrom_.reset();
+        const int slop = QGuiApplication::styleHints() ? QGuiApplication::styleHints()->startDragDistance() : 4;
+        if ((pos - from).manhattanLength() < slop) select_.extendTo(host_, pos);
+    }
     emitCursor();
     return true;
 }
@@ -175,6 +188,7 @@ bool ToolController::cancel()
     if (!tool.isDragging()) return false;   // NOTHING TO CANCEL -- A-42's control; do not consume
 
     tool.cancel(host_);
+    shiftClickFrom_.reset();
     emitCursor();
     return true;
 }

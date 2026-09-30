@@ -25,6 +25,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/FullScreenController.h"
 #include "ui/viewer/PresentationSurface.h"
+#include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -656,6 +657,35 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     });
     connect(document, &DocumentWindow::guideMenuRequested, this,
             [this](int guideIndex, QPoint global) { showGuideMenu(guideIndex, global); });
+
+    // THE SELECTION'S COPY, WORDED (S5 T5, D5-9). Progress while a copy reads its pages, then what reached
+    // the clipboard -- or why nothing did. Only for the tab in front: a copy finishing in a tab the
+    // person has left must not overwrite the status of the one they are looking at.
+    connect(document, &DocumentWindow::selectionCopyProgress, this, [this, document](int done, int total) {
+        if (document != currentDocument() || !status_) return;
+        status_->setTaskProgress(done, total);
+        status_->setMessage(catalog::translate(catalog::key::StatusSelectionPreparing));
+    });
+    connect(document, &DocumentWindow::selectionCopied, this, [this, document](int characters, int unmapped) {
+        if (document != currentDocument() || !status_) return;
+        status_->clearTaskProgress();
+        status_->setMessage(unmapped > 0
+                                ? catalog::translate(catalog::key::StatusSelectionCopiedSkipped).arg(characters).arg(unmapped)
+                                : catalog::translate(catalog::key::StatusSelectionCopied).arg(characters));
+    });
+    connect(document, &DocumentWindow::selectionNotExtractable, this, [this, document](int unmapped) {
+        if (document != currentDocument() || !status_) return;
+        status_->clearTaskProgress();
+        status_->setMessage(catalog::translate(catalog::key::StatusSelectionNotExtractable).arg(unmapped));
+    });
+    connect(document, &DocumentWindow::selectionCopyCancelled, this, [this, document] {
+        if (document != currentDocument() || !status_) return;
+        status_->clearTaskProgress();
+        status_->setMessage(catalog::translate(catalog::key::StatusSelectionCopyCancelled));
+    });
+    connect(document, &DocumentWindow::selectionPresenceChanged, this, [this](bool) {
+        if (actionFactory_) actionFactory_->refresh();
+    });
 
     // SYNCHRONIZED SCROLLING BETWEEN TWO WINDOWS (S4 T11). The tab says it was scrolled; the
     // ARRANGER decides who follows, because a tab may not name another window. Connected here
@@ -1471,6 +1501,47 @@ void MainWindow::registerViewerActions()
     // note at its `ActionId.def` row — and it has no §8 chord, so it is reached from the ribbon,
     // the tool finder and the batch runner. `Features.md` §8 is untouched by this stage.
     registerTool(ActionId::ToolLoupe, ToolKind::Loupe);
+
+    // --- `edit.copy` and `edit.selectAll` (S5 · T5, D5-9) ----------------------------------------
+    //
+    // §8's COMMON rows, so they consume `Ctrl+C` and `Ctrl+A` wherever the key falls through to Common
+    // -- and a text widget that owns the key keeps it, because `ShortcutBinder` offers it to the focused
+    // widget first through Qt's `ShortcutOverride` handshake (guide A-52: Stage 4's I-06 turned round).
+    // Both reach the DOCUMENT WINDOW's selection, which every pane of a split shares (D5-8).
+    //
+    // No `copyAsTable` or `copyFormatted` id: one copy writes every flavour and the paste target
+    // chooses (D5-9). `Ctrl+A` is the whole DOCUMENT (Q6) and extracts nothing by itself; the copy that
+    // follows reads what it needs at `Background`, with progress, and `Esc` cancels it.
+    {
+        const auto selectionInFront = []() -> SelectionOverlay* {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            return document ? document->selection() : nullptr;
+        };
+
+        if (!services_.actions.isRegistered(ActionId::EditCopy)) {
+            core::ActionRegistry::Registration copy;
+            copy.handler = [selectionInFront](KeyContext) {
+                if (SelectionOverlay* selection = selectionInFront()) (void)selection->copy();
+            };
+            copy.enable = [selectionInFront] {
+                const SelectionOverlay* selection = selectionInFront();
+                return selection != nullptr && selection->hasSelection();
+            };
+            copy.unavailableKey = "shell.tooltip.needsSelection";
+            services_.actions.register_(ActionId::EditCopy, std::move(copy));
+        }
+
+        if (!services_.actions.isRegistered(ActionId::EditSelectAll)) {
+            core::ActionRegistry::Registration selectAll;
+            selectAll.handler = [selectionInFront](KeyContext) {
+                if (SelectionOverlay* selection = selectionInFront()) selection->selectAll();
+            };
+            selectAll.enable = hasView;
+            selectAll.unavailableKey = "shell.tooltip.needsDocument";
+            services_.actions.register_(ActionId::EditSelectAll, std::move(selectAll));
+        }
+    }
 
     // --- `view.autoScroll` (S4 · T7) --------------------------------------------------------------
     //

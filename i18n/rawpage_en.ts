@@ -1579,6 +1579,26 @@
         <translation>No background tasks</translation>
     </message>
     <message>
+        <source>shell.status.selectionCopied</source>
+        <translation>Copied %1 characters to the clipboard.</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionCopiedSkipped</source>
+        <translation>Copied %1 characters to the clipboard. %2 glyphs have no Unicode text in this document and were left out.</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionNotExtractable</source>
+        <translation>Nothing was copied: the %1 selected glyphs have no Unicode text in this document, so their text cannot be extracted.</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionPreparing</source>
+        <translation>Reading the text to copy. Press Esc to cancel.</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionCopyCancelled</source>
+        <translation>Copy cancelled. The clipboard is unchanged.</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>Light</translation>
     </message>
@@ -1609,6 +1629,10 @@
     <message>
         <source>shell.tooltip.needsGuide</source>
         <translation>%1 needs a guide under the pointer.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsSelection</source>
+        <translation>%1 needs some text to be selected.</translation>
     </message>
     <message>
         <source>shell.tooltip.atFirstPage</source>

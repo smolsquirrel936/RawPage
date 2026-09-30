@@ -13,6 +13,7 @@
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/RulerWidget.h"
+#include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/SplitViewContainer.h"
 
 #include <QDir>
@@ -152,6 +153,15 @@ void DocumentWindow::build(const Recovery* recovery)
     // "the pane a document opened into" and "a pane a split made" gets in.
     split_ = new SplitViewContainer(services_.renderScheduler,
                                     services_.platform.displayTopology.get(), surface);
+
+    // THE SELECTION BEFORE ANY PANE IS HANDED A DOCUMENT (S5 T5): `handDocumentTo` gives it to each pane,
+    // and the primary pane exists already. Its reports are forwarded as this tab's own signals.
+    selection_ = new SelectionOverlay(services_.renderScheduler, this);
+    connect(selection_, &SelectionOverlay::copyProgress, this, &DocumentWindow::selectionCopyProgress);
+    connect(selection_, &SelectionOverlay::copied, this, &DocumentWindow::selectionCopied);
+    connect(selection_, &SelectionOverlay::copyNotExtractable, this, &DocumentWindow::selectionNotExtractable);
+    connect(selection_, &SelectionOverlay::copyCancelled, this, &DocumentWindow::selectionCopyCancelled);
+    connect(selection_, &SelectionOverlay::presenceChanged, this, &DocumentWindow::selectionPresenceChanged);
     horizontalRuler_ = new RulerWidget(Qt::Horizontal, surface);
     verticalRuler_ = new RulerWidget(Qt::Vertical, surface);
 
@@ -295,6 +305,10 @@ void DocumentWindow::build(const Recovery* recovery)
     // The MODEL's pages for layout, the ENGINE's for the delta each tile carries (D3-15). EVERY
     // pane, because `adoptView` routes a pane a split adds back through the same two lines and a
     // second spelling of them here is a second reading of D3-15 to keep in agreement.
+    //
+    // The selection reads THIS TAB'S handle: text is in unrotated page space (D5-2), so a companion's
+    // own handle extracts the same text its leader's would, and needs no model tree to do it.
+    selection_->setDocument(handle_, pageCount());
     for (PageView* pane : split_->views()) handDocumentTo(pane);
 
     // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
@@ -398,6 +412,9 @@ void DocumentWindow::handDocumentTo(PageView* pane)
     // `NotFound` -- a page with no objects -- becomes `std::nullopt`, and `core/render/FitPolicy`
     // falls back to the CropBox. The error is not logged: an empty page is an ordinary document,
     // not a defect, and a log line per fit would be a log nobody reads.
+    // ONE SELECTION FOR EVERY PANE (S5 T5, D5-8).
+    pane->setSelectionOverlay(selection_);
+
     core::IDocumentBackend& backend = services_.backend;
     const core::DocumentHandle handle = handle_;
     pane->setContentBoxSource([&backend, handle](int pageIndex) -> std::optional<core::PdfRect> {
@@ -692,6 +709,16 @@ DocumentWindow::~DocumentWindow()
     }
     if (horizontalRuler_) disconnect(horizontalRuler_, nullptr, this, nullptr);
     if (verticalRuler_) disconnect(verticalRuler_, nullptr, this, nullptr);
+
+    // THE SELECTION GOES BEFORE THE HANDLE CLOSES (S5 T5): it holds text tickets on this document and a
+    // subscription to the scheduler, and every pane lets go of it first so none paints through a
+    // pointer to a destroyed object.
+    if (selection_ != nullptr) {
+        if (split_)
+            for (PageView* pane : split_->views()) pane->setSelectionOverlay(nullptr);
+        delete selection_;
+        selection_ = nullptr;
+    }
 
     // NOTHING UNSAVED, NOTHING TO RECOVER. A document closed clean takes its recovery directory with it;
     // one closed dirty -- which only a Discard or a process ending reaches -- keeps it for the next

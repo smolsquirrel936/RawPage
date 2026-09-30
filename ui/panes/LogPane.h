@@ -30,10 +30,17 @@
 // WHY A PLAIN TEXT VIEW RATHER THAN A TABLE.
 //
 // §9.5 asks for filtering and copy. A `QPlainTextEdit` gives selection, multi-line copy, find and
-// keyboard navigation for free and gets `Ctrl+C` right by being a text widget -- which is exactly
-// the `ShortcutOverride` handshake `ShortcutBinder` defers to. A table would need each of those
-// written, and would still copy cells rather than lines, which is not what anybody pastes into a
-// support ticket.
+// keyboard navigation for free. A table would need each of those written, and would still copy cells
+// rather than lines, which is not what anybody pastes into a support ticket.
+//
+// **IT DID NOT GET `Ctrl+C` RIGHT BY BEING A TEXT WIDGET**, which this paragraph said from Stage 1 T14
+// until Stage 5 T5 (S5 guide **I-04**). `ShortcutBinder` defers to a widget that accepts Qt's
+// `ShortcutOverride` -- and a READ-ONLY text view accepts it for nothing, because Qt's text control
+// claims the common editing keys only when it is editable. Nothing noticed while `edit.copy` and
+// `edit.selectAll` were unregistered; S5 guide A-52, written to check exactly this before they were,
+// found `Ctrl+A` in this pane selecting the document. The binder now leaves Copy and Select All to ANY
+// focused widget whose text can be selected (`ShortcutBinder::selectableTextOwnsKey`), which is this
+// view and Document Properties' values and whichever read-only text view comes next.
 
 #ifndef RAWPAGE_UI_PANES_LOGPANE_H
 #define RAWPAGE_UI_PANES_LOGPANE_H
@@ -74,6 +81,10 @@ public:
     int     visibleRecordCount() const;
 
     void copyToClipboard();
+
+    // The text view itself -- for S5 guide A-52, which presses `Ctrl+A` and `Ctrl+C` IN it and needs
+    // them to stay its own once `edit.copy` and `edit.selectAll` are registered at §8's Common layer.
+    QPlainTextEdit* textView() const { return view_; }
 
     // Empties the VIEW and the buffer behind it. Both, because a pane that cleared only its own
     // view would refill itself the next time the filter changed, which reads as the button not

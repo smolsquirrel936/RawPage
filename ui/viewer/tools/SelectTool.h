@@ -1,24 +1,27 @@
-// The Selection tool -- `Features.md` §8's `V`, Stage 4 T7.
+// The Selection tool -- `Features.md` §8's `V`. Stage 4 T7 made it; Stage 5 T5 gave it its subject
+// (decision D5-8, `Stage5-TextSearch-Plan.md` §3).
 //
 // ===========================================================================================
-// IT SELECTS NOTHING, IT IS THE DEFAULT, AND BOTH OF THOSE ARE DELIBERATE.
+// WHAT IT DOES WITH A GESTURE
 // ===========================================================================================
-// Text selection needs `core/text/PageTextModel` and `ITextExtractor`, which are **Stage 5's** —
-// T2 built both (the census reads 4 of 7 since 2026-09-30), and the selection itself,
-// `TextSelection` and `SelectionOverlay`, is Stage 5 **T5**'s. Until then this tool arms, shows an
-// I-beam over the page, and does nothing with a drag. `Stage4-ViewingSurface-Plan.md` §11 lists that as an explicit non-goal and the guide's
-// out-of-scope table repeats it, so a bug report saying *dragging selects nothing* is answered
-// before it is filed.
+//   * A DRAG selects text in the document's READING order, across pages (`core/text/TextSelection`).
+//   * Two, three and four CLICKS select the word, the line and the block under the pointer, and a drag
+//     that started so extends by the same unit.
+//   * `Alt`+DRAG selects a COLUMN -- the spans of every line the rectangle crosses, on the page the drag
+//     started on (`Features.md` §8's Viewer row, Q2). `Alt` here is a modifier held during a mouse
+//     gesture, which is not the key tips: `ShortcutBinder` answers a lone `Alt` on its RELEASE and only
+//     if nothing else happened while it was down, and a mouse press is something else (D4-22).
+//   * `Shift`+CLICK extends the selection. `Shift` is also Stage 4's temporary-hand modifier, and the two
+//     are reconciled by the gesture's shape rather than by taking one away: a `Shift`+DRAG pans, as it did,
+//     and a `Shift`+CLICK -- a press and release that did not move -- extends. `ToolController` owns the
+//     decision, because it is the one object that sees both tools (D5-8 as clarified at T5).
 //
-// **It exists now rather than at Stage 5** for the reason `PageView` gave when it carried the
-// three-tool enum at Stage 2 T14: `V` is bound in §8, `tool.select` is registered, and a chord
-// that resolves to nothing at all is indistinguishable from a chord that is broken. Arming a tool
-// that says *I am the selection tool and I have nothing to select yet* is the honest state; having
-// `V` do nothing is not.
+// The selection itself -- one per document window, shown in every pane -- is `ui/viewer/SelectionOverlay`'s,
+// reached through `ToolHost::selection()`. This tool names no widget: it turns viewport positions into
+// page points through the host and hands them on.
 //
-// It is also the DEFAULT tool, which matters more than it looks: the default is the mode a person
-// is in when they have not chosen one, and a viewer whose default was the hand would make every
-// click a pan. Stage 5 gives this tool its subject and changes nothing about that.
+// It is still the DEFAULT tool: the mode a person is in when they have not chosen one, and a viewer whose
+// default was the hand would make every click a pan.
 
 #ifndef RAWPAGE_UI_VIEWER_TOOLS_SELECTTOOL_H
 #define RAWPAGE_UI_VIEWER_TOOLS_SELECTTOOL_H
@@ -31,24 +34,27 @@ class SelectTool final : public Tool {
 public:
     ToolKind kind() const override { return ToolKind::Select; }
 
-    // AN I-BEAM, not an arrow. It is the one piece of feedback the tool can honestly give: the
-    // pointer says *this surface is about to be treated as text*, which is true of the mode even
-    // while the selection it would make is Stage 5's.
+    // AN I-BEAM: the pointer says *this surface is text*.
     Qt::CursorShape cursor() const override { return Qt::IBeamCursor; }
 
-    // Every one of these is deliberately empty. They are not `= 0` left unimplemented — the base
-    // requires them — and they are not a stub pretending to work: this is convention 6's shape
-    // for a tool, where *absent* is expressed by doing nothing visible rather than by a handler
-    // that reports success.
-    void press(ToolHost&, QPoint) override {}
-    void move(ToolHost&, QPoint) override {}
-    void release(ToolHost&, QPoint) override {}
-    void cancel(ToolHost&) override {}
+    void press(ToolHost& host, QPoint pos) override { pressWith(host, pos, PressContext{}); }
+    void pressWith(ToolHost& host, QPoint pos, const PressContext& context) override;
+    void move(ToolHost& host, QPoint pos) override;
+    void release(ToolHost& host, QPoint pos) override;
 
-    // NEVER. `Esc` with the selection tool armed must therefore fall through to *nothing was
-    // cancelled*, which is the control in guide case A-42: `Esc` with no drag in progress changes
-    // neither the tool nor the view.
-    bool isDragging() const override { return false; }
+    // `Esc` under a live drag: the selection goes back to what it was before the press.
+    void cancel(ToolHost& host) override;
+
+    bool isDragging() const override { return dragging_; }
+
+    // A `Shift`+click, decided by `ToolController` under the temporary hand (see the header).
+    void extendTo(ToolHost& host, QPoint pos);
+
+    // The modifier that makes a drag a column, stated once so a case asks the tool rather than copying it.
+    static constexpr Qt::KeyboardModifier kColumnModifier = Qt::AltModifier;
+
+private:
+    bool dragging_ = false;
 };
 
 } // namespace rawpage::ui

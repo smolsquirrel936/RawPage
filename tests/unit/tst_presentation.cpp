@@ -313,6 +313,35 @@ TEST_CASE("render presentation maps a point both ways and back", "[core][render]
         const PageLayout single = presentation.layout(tree, LayoutMode::Single, unitScale(), 0);
         CHECK_FALSE(single.toContent(2, PdfPoint{10.0, 10.0}).has_value());
         CHECK(single.toContent(0, PdfPoint{10.0, 10.0}).has_value());
+        CHECK_FALSE(single.toPage(2, DevicePoint{10.0, 10.0}).has_value());
+    }
+
+    SECTION("a point in a NAMED page's space round-trips even outside that page (S5 T5)")
+    {
+        // What a column selection's drag and a flow drag into a gap ask (D5-8): the page is chosen,
+        // and the point is wherever the pointer went. Probes OUTSIDE each page's box, on every side,
+        // through the rotated page and the offset CropBox -- the two ways a linear map is wrong at an
+        // edge and right at the centre.
+        for (int index = 0; index < 3; ++index) {
+            const PdfRect box = tree.at(index)->cropBox();
+            for (const PdfPoint& probe : {PdfPoint{box.left() - 40.0, box.top() + 25.0},
+                                          PdfPoint{box.right() + 60.0, box.bottom() - 10.0},
+                                          PdfPoint{box.left() + 5.0, box.bottom() + 5.0}}) {
+                const auto device = layout.toContent(index, probe);
+                REQUIRE(device.has_value());
+                const auto back = layout.toPage(index, *device);
+                REQUIRE(back.has_value());
+                CHECK_THAT(back->x, WithinAbs(probe.x, 1e-6));
+                CHECK_THAT(back->y, WithinAbs(probe.y, 1e-6));
+            }
+        }
+        // THE CONTROL: the same outside point asked of `toDocument` is not that page's, which is why
+        // `toPage` exists -- an unnamed question would have answered "the page below" or "no page".
+        const PdfRect first = tree.at(0)->cropBox();
+        const auto below = layout.toContent(0, PdfPoint{first.left() + 5.0, first.bottom() - 30.0});
+        REQUIRE(below.has_value());
+        const auto unnamed = layout.toDocument(*below);
+        CHECK((!unnamed.has_value() || unnamed->pageIndex != 0));
     }
 }
 

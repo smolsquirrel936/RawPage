@@ -83,6 +83,14 @@ RAWPAGE_SHELL_STRING(StatusPage,             "shell.status.page")
 RAWPAGE_SHELL_STRING(StatusPageCountUnknown, "shell.status.pageCountUnknown")
 RAWPAGE_SHELL_STRING(StatusZoom,             "shell.status.zoom")
 RAWPAGE_SHELL_STRING(StatusTasksIdle,        "shell.status.tasksIdle")
+// S5 T5 (D5-9). What a copy of the text selection did. `NotExtractable` is the one that matters most:
+// glyphs with no trustworthy Unicode are refused rather than pasted (D5-2, guide A-21), and a copy that
+// silently did nothing would read as the product being broken.
+RAWPAGE_SHELL_STRING(StatusSelectionCopied,          "shell.status.selectionCopied")
+RAWPAGE_SHELL_STRING(StatusSelectionCopiedSkipped,   "shell.status.selectionCopiedSkipped")
+RAWPAGE_SHELL_STRING(StatusSelectionNotExtractable,  "shell.status.selectionNotExtractable")
+RAWPAGE_SHELL_STRING(StatusSelectionPreparing,       "shell.status.selectionPreparing")
+RAWPAGE_SHELL_STRING(StatusSelectionCopyCancelled,   "shell.status.selectionCopyCancelled")
 
 // --- Theme names -------------------------------------------------------------------------------
 // Named here rather than in the Preferences pages (T14) because the status of the current theme is
@@ -128,6 +136,9 @@ RAWPAGE_SHELL_STRING(TooltipNeedsGuide,         "shell.tooltip.needsGuide")
 // did nothing would be Stage 1's I-53 again. `window.list` is NOT among them -- a list of one is a
 // true statement about the application.
 RAWPAGE_SHELL_STRING(TooltipNeedsWindows,       "shell.tooltip.needsWindows")
+// S5 T5. What `edit.copy` says with nothing selected -- DISABLED there, and still consuming `Ctrl+C`
+// where it falls through to Common, which is §8's row doing its job (D5-9).
+RAWPAGE_SHELL_STRING(TooltipNeedsSelection,     "shell.tooltip.needsSelection")
 RAWPAGE_SHELL_STRING(TooltipAtFirstPage,        "shell.tooltip.atFirstPage")
 RAWPAGE_SHELL_STRING(TooltipAtLastPage,         "shell.tooltip.atLastPage")
 

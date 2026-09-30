@@ -37,6 +37,11 @@ add_executable(rawpage_composition_tests
     # translation unit rather than a second file to keep the session half in.
     tst_restore.cpp
 
+    # Stage 5 T5 -- guide cases A-42 ... A-48: a selection made with the mouse, graded against the
+    # generator's labels for its text and against the RENDERED INK for its highlight (rule 6). Here and
+    # not in rawpage_ui_tests because the ink needs the engine, which that target links none of.
+    tst_selectionink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

@@ -161,6 +161,13 @@ public:
     // And back. `std::nullopt` when that page is not in this layout.
     std::optional<DevicePoint> toContent(int pageIndex, PdfPoint point) const;
 
+    // A content point in ONE NAMED PAGE's space, wherever the point is -- inside that page, in a gap, or
+    // over another page (S5 T5). `toDocument` answers "which page is under this point"; a drag that has
+    // already chosen its page asks this instead: a column selection stays on the page it started on
+    // however far the pointer wanders (D5-8), and a flow drag into the gap between two pages is held on
+    // the nearer one. `std::nullopt` only when that page is not in this layout.
+    std::optional<PdfPoint> toPage(int pageIndex, DevicePoint point) const;
+
 private:
     friend class PagePresentation;
 

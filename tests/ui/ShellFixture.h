@@ -53,6 +53,7 @@
 #include "core/render/RenderScheduler.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
+#include "core/text/PageTextModel.h"
 #include "platform/platform.h"
 #include "tests/ui/FakeBackend.h"
 #include "tests/unit/FakeDurableFiles.h"
@@ -143,6 +144,56 @@ public:
         }
 
         return image;
+    }
+};
+
+// =============================================================================================
+// The TEXT a fake page carries -- S5 T5
+// =============================================================================================
+// The shipped scheduler takes an extractor per worker (D5-3), and until Stage 5 T5 this fixture passed
+// none, so every widget case ran a scheduler that delivered a failure for any text job. T5's selection is
+// the first widget that ASKS for text, so the fake answers: page N holds five lines,
+// `Page N line K text`, at 72 pt from the left, the first baseline at 760 and 14 pt apart, in 10 pt
+// Helvetica-like boxes (0.55 em wide) -- one block, in the order it is drawn.
+//
+// **What this does not cover** (convention 19): whether a highlight lands on INK. The fake rasterizer
+// paints a flat blue and draws no glyph, so geometry against the raster is `tests/composition`'s, over the
+// real engine and the corpus (guide rule 6). These are the WIDGET's cases: the keys, the lanes, the panes.
+inline std::atomic<int> fakeTextExtractions{0};
+
+inline constexpr double kFakeTextLeft = 72.0;
+inline constexpr double kFakeTextFirstBaseline = 760.0;
+inline constexpr double kFakeTextLeading = 14.0;
+inline constexpr double kFakeTextSize = 10.0;
+inline constexpr double kFakeTextAdvance = 5.5;
+inline constexpr int kFakeTextLines = 5;
+
+inline QString fakeLineText(int pageIndex, int line)
+{
+    return QStringLiteral("Page %1 line %2 text").arg(pageIndex + 1).arg(line + 1);
+}
+
+class FakeTextExtractor final : public core::ITextExtractor {
+public:
+    core::Status extractPage(core::DocumentHandle, int pageIndex, core::text::PageTextModel& into) override
+    {
+        ++fakeTextExtractions;
+        for (int line = 0; line < kFakeTextLines; ++line) {
+            const QString text = fakeLineText(pageIndex, line);
+            const double baseline = kFakeTextFirstBaseline - kFakeTextLeading * line;
+            double x = kFakeTextLeft;
+            for (const QChar ch : text) {
+                core::text::TextChar c;
+                c.codepoint = ch.unicode();
+                c.fontSize = kFakeTextSize;
+                c.origin = core::PdfPoint{x, baseline};
+                c.box = core::PdfRect{core::PdfPoint{x, baseline - 0.21 * kFakeTextSize},
+                                      core::PdfSize{kFakeTextAdvance, 1.11 * kFakeTextSize}};
+                into.append(c);
+                x += kFakeTextAdvance;
+            }
+        }
+        return {};
     }
 };
 
@@ -246,8 +297,11 @@ struct ShellFixture {
     // DECLARED LAST of the render pair, so it is DESTROYED FIRST. Its destructor joins the worker,
     // and a worker still inside `FakeRasterizer` when the cache went away would be reaching into a
     // destroyed object -- the same ordering `app/CompositionRoot` writes out explicitly.
+    // S5 T5: with a text extractor, per worker, as `app/CompositionRoot` builds it (D5-3).
     core::render::RenderScheduler renderScheduler{
-        [] { return std::unique_ptr<core::IPageRasterizer>(new FakeRasterizer); }, &renderCache};
+        [] { return std::unique_ptr<core::IPageRasterizer>(new FakeRasterizer); },
+        [] { return std::unique_ptr<core::ITextExtractor>(new FakeTextExtractor); }, &renderCache,
+        core::render::RenderScheduler::Config{}};
 
     app::Services services()
     {

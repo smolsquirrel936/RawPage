@@ -83,6 +83,7 @@ public:
     // object name is a test that keeps passing after the widget is replaced by a different one with
     // the same name.
     QLineEdit*    pageBox() const { return pageBox_; }
+    QLabel*       message() const { return message_; }   // S5 T5: what a copy reported
     QLabel*       pageTotal() const { return pageTotal_; }
     QLabel*       zoomLabel() const { return zoomLabel_; }
     QLabel*       zoomValue() const { return zoomValue_; }

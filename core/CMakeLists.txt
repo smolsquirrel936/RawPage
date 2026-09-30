@@ -206,6 +206,10 @@ add_library(rawpage_core STATIC
     text/TextNormalizer.cpp
     text/LayoutAnalyzer.h
     text/LayoutAnalyzer.cpp
+    # T5 (D5-8, D5-9): a selection as a range over the reading order, or a column; its hit-testing and
+    # its copy as plain text, HTML and a table. Pure -- the clipboard is ui/viewer/SelectionOverlay's.
+    text/TextSelection.h
+    text/TextSelection.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

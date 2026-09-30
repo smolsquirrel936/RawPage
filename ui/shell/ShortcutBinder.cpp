@@ -465,6 +465,25 @@ bool ShortcutBinder::eventFilter(QObject* watched, QEvent* event)
     return resolveKey(watched, keyEvent, candidates);
 }
 
+bool ShortcutBinder::selectableTextOwnsKey(const QWidget* focus, const QKeyEvent* keyEvent)
+{
+    if (focus == nullptr || keyEvent == nullptr) return false;
+    if (!keyEvent->matches(QKeySequence::Copy) && !keyEvent->matches(QKeySequence::SelectAll)) return false;
+
+    // BY THE WIDGET'S OWN PROPERTY, NOT BY ITS TYPE -- the header's "no list" rule kept. `QLabel`,
+    // `QTextEdit`, `QPlainTextEdit` and `QTextBrowser` all publish `textInteractionFlags`, and a text
+    // control whose text can be selected handles Copy and Select All in its key press whether or not it
+    // is editable. What it does NOT do when read-only is accept the `ShortcutOverride` for them -- Qt's
+    // text control claims the common editing keys only for an EDITABLE control -- so without this the
+    // log pane and Document Properties' values lost both keys to `edit.copy` and `edit.selectAll` the
+    // moment Stage 5 T5 registered them (guide A-52 found it). A label with no selectable text publishes
+    // the property with neither flag, and a widget with no such property is not text.
+    const QVariant flags = focus->property("textInteractionFlags");
+    if (!flags.isValid()) return false;
+    const auto interaction = qvariant_cast<Qt::TextInteractionFlags>(flags);
+    return interaction.testAnyFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+}
+
 bool ShortcutBinder::resolveKey(QObject* watched, QKeyEvent* keyEvent,
                                 const std::vector<Chord>& candidates)
 {
@@ -478,6 +497,9 @@ bool ShortcutBinder::resolveKey(QObject* watched, QKeyEvent* keyEvent,
         probe.ignore();
         QCoreApplication::sendEvent(focus, &probe);
         if (probe.isAccepted()) return QObject::eventFilter(watched, keyEvent);
+
+        // AND THE ONE CASE THE HANDSHAKE MISSES (S5 guide I-04): selectable text that is not editable.
+        if (selectableTextOwnsKey(focus, keyEvent)) return QObject::eventFilter(watched, keyEvent);
     }
 
     // THE FIRST CANDIDATE ANY ROW BINDS, and "binds" includes a row nothing has registered: a

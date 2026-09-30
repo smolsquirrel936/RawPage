@@ -1579,6 +1579,26 @@
         <translation>沒有背景工作</translation>
     </message>
     <message>
+        <source>shell.status.selectionCopied</source>
+        <translation>已將 %1 個字元複製到剪貼簿。</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionCopiedSkipped</source>
+        <translation>已將 %1 個字元複製到剪貼簿。其中 %2 個字符在此文件中沒有 Unicode 文字，已略過。</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionNotExtractable</source>
+        <translation>未複製任何內容：所選的 %1 個字符在此文件中沒有 Unicode 文字，無法擷取其文字。</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionPreparing</source>
+        <translation>正在讀取要複製的文字。按 Esc 可取消。</translation>
+    </message>
+    <message>
+        <source>shell.status.selectionCopyCancelled</source>
+        <translation>已取消複製。剪貼簿內容未變更。</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>淺色</translation>
     </message>
@@ -1609,6 +1629,10 @@
     <message>
         <source>shell.tooltip.needsGuide</source>
         <translation>%1 需要指標下方有參考線。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsSelection</source>
+        <translation>%1 需要先選取文字。</translation>
     </message>
     <message>
         <source>shell.tooltip.atFirstPage</source>

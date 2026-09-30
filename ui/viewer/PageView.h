@@ -50,6 +50,7 @@
 #include "ui/viewer/ViewportController.h"
 
 #include <QAbstractScrollArea>
+#include <QColor>
 #include <QPixmap>
 #include <QPoint>
 
@@ -72,6 +73,7 @@ class QTimer;
 namespace rawpage::ui {
 
 class LoupeRaster;
+class SelectionOverlay;
 class TilePresenter;
 
 // The eleven `pageDisplay/` preferences, resolved into what a viewer actually needs. Stage 2 T15.
@@ -252,6 +254,23 @@ public:
     GridGuideLayer&       guides() noexcept { return *guides_; }
     const GridGuideLayer& guides() const noexcept { return *guides_; }
     void applyGuideSettings(const GuideSettings& settings);
+
+    // ---- The text selection (S5 T5, D5-8) ------------------------------------------------------
+    // The DOCUMENT WINDOW's selection, which every pane of a split paints and drives -- so it is handed
+    // in, not owned: `ui/shell/DocumentWindow` makes one and gives it to each pane it adopts. Null
+    // detaches, which is what a window closing does before the object goes. Painted over the tiles and
+    // never rasterized (D4-11).
+    void setSelectionOverlay(SelectionOverlay* selection);
+    SelectionOverlay* selection() const override { return selection_; }
+
+    // S5 T5's two page mappings for the Selection tool (`ToolHost`).
+    PagePoint pagePointAt(QPoint pos) const override;
+    PagePoint pagePointOn(int page, QPoint pos) const override;
+
+    // How many presses in a row the last one was -- two, three and four select a word, a line and a
+    // block. Counted here, where the presses arrive, from the platform's double-click interval and drag
+    // distance; a fifth press starts again at one.
+    int lastClickCount() const noexcept { return clicks_; }
 
     // **A PAINT, NOT A RENDER FLAG** (D4-11). Inversion is a per-pixel map over pixels the
     // scheduler already returned, so toggling it enqueues nothing and changes no cache key --
@@ -459,6 +478,11 @@ private:
         {
             return view_.paintSharpLens(painter, lens, source);
         }
+        // A FROZEN PANE SELECTS IN ITS OWN COORDINATES (S5 T5): the text under the pointer is this
+        // pane's, and the selection is the window's whichever pane made it.
+        SelectionOverlay* selection() const override { return view_.selection(); }
+        PagePoint pagePointAt(QPoint pos) const override { return view_.pagePointAt(pos); }
+        PagePoint pagePointOn(int page, QPoint pos) const override { return view_.pagePointOn(page, pos); }
 
     private:
         PageView& view_;
@@ -506,6 +530,14 @@ private:
     // is painted the same way and for the same reason (D4-11).
     std::unique_ptr<GridGuideLayer> guides_;
     bool                            invertColors_ = false;
+
+    QColor selectionColour() const;
+
+    // S5 T5: the window's selection (not owned), and the click counter.
+    SelectionOverlay* selection_ = nullptr;
+    int               clicks_ = 0;
+    qint64            lastPressMs_ = 0;
+    QPoint            lastPressPos_;
 };
 
 } // namespace rawpage::ui

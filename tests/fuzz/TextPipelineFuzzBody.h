@@ -12,9 +12,10 @@
 // both infinities, zero and negative sizes, huge values, overlaps and duplicates, and it is driven
 // through `LayoutAnalyzer` and `TextNormalizer` with their invariants checked.
 //
-// `TextSelection` and `SearchEngine` join this body when T5 and T6 build them (the plan's pipeline is
-// bytes -> model -> analyzer -> selection -> normalizer -> search); at T4 the "search" is the
-// normalized query found in the normalized page, which is what T6's literal match will be.
+// `TextSelection` joined this body at T5 -- the page's reading, hit-tests at hostile points, word, line
+// and block expansion, and a flow and a column copy -- and `SearchEngine` joins it when T6 builds it (the
+// plan's pipeline is bytes -> model -> analyzer -> selection -> normalizer -> search); until then the
+// "search" is the normalized query found in the normalized page, which is what T6's literal match will be.
 //
 // THE DECODING. Each 12-byte record is one character or, when its first byte says so, one rule:
 //   byte 0      kind: & 0x0F picks the codepoint's range, & 0x30 the flags, 0xF0 == 0xF0 a rule
@@ -30,6 +31,7 @@
 #include "core/text/LayoutAnalyzer.h"
 #include "core/text/PageTextModel.h"
 #include "core/text/TextNormalizer.h"
+#include "core/text/TextSelection.h"
 
 #include <QString>
 
@@ -37,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -185,6 +188,51 @@ inline TextPipelineVerdict textPipelineFuzzOnce(const std::uint8_t* data, std::s
             const qsizetype hit = normalized.text.indexOf(normalizer.normalizeQuery(query));
             if (hit >= 0) (void)normalized.sourceRange(hit, hit + 3);
         }
+    }
+
+    // 4. SELECTION (Stage 5 T5, D5-8): the page's reading holds every placed character once, a hit-test
+    //    anywhere -- NaN included -- answers a caret inside the page, every unit is inside its line, and a
+    //    flow and a column copy never write more characters than the reading holds.
+    const auto shared = std::make_shared<const PageTextModel>(model);
+    const std::shared_ptr<const PageReading> reading = PageReading::build(shared);
+    if (!reading) return fail("no reading was built");
+    std::size_t placed = 0;
+    for (const TextLine& line : reading->layout().lines) placed += line.chars.size();
+    if (static_cast<std::size_t>(reading->size()) != placed) return fail("the reading does not hold every placed character once");
+
+    std::vector<PdfPoint> probes{PdfPoint{0.0, 0.0}, PdfPoint{std::numeric_limits<double>::quiet_NaN(), 5.0},
+                                 PdfPoint{1e300, -1e300}};
+    for (std::size_t at = 0; at + kRecord <= size && probes.size() < 12; at += kRecord * 3)
+        probes.push_back(PdfPoint{detail::coordinate(data + at + 2), detail::coordinate(data + at + 4)});
+    for (const PdfPoint& probe : probes) {
+        const int caret = reading->caretAt(probe);
+        if (caret < 0 || caret > reading->size()) return fail("a caret outside the page");
+        const int position = reading->positionAt(probe);
+        if (position < -1 || position >= reading->size()) return fail("a position outside the page");
+        if (position >= 0) {
+            for (const Span span : {reading->wordAt(position), reading->lineAt(position), reading->blockAt(position)})
+                if (span.begin < 0 || span.end > reading->size() || span.begin > position || span.end <= position)
+                    return fail("a unit that does not hold its own position");
+        }
+    }
+
+    DocumentText text(1);
+    // A page index of -1 (a default model) is refused by `insert`; the fuzz model is page 0.
+    PageTextModel indexed(0);
+    for (const TextChar& c : model.chars()) indexed.append(c);
+    for (const PdfRect& rule : model.rules()) indexed.addRule(rule);
+    const std::shared_ptr<const PageReading> page0 = PageReading::build(std::make_shared<const PageTextModel>(indexed));
+    if (!text.insert(page0)) return fail("page 0 was refused");
+    for (const TextSelection& selection :
+         {TextSelection::wholeDocument(1),
+          TextSelection::column(0, PdfRect{probes.back(), PdfSize{200.0, 300.0}}),
+          TextSelection::column(0, PdfRect{PdfPoint{-1e9, -1e9}, PdfSize{2e9, 2e9}})}) {
+        const CopiedText copied = selection.copy(text);
+        if (copied.characters + copied.unmappedSkipped > page0->size()) return fail("a copy wrote more than the page holds");
+        if (copied.html.isEmpty() != (copied.characters == 0)) return fail("HTML without characters, or characters without HTML");
+        for (const PdfRect& r : selection.highlightOn(*page0))
+            if (!std::isfinite(r.origin.x) || !std::isfinite(r.origin.y) || !std::isfinite(r.size.width) || !std::isfinite(r.size.height))
+                return fail("a highlight that is not finite");
     }
     return verdict;
 }

@@ -86,6 +86,9 @@ add_executable(rawpage_tests
     tst_normalize.cpp             # Stage 5 T4 -- core/text/TextNormalizer (D5-5): guide A-32 ... A-36
     tst_layout.cpp                # Stage 5 T4 -- core/text/LayoutAnalyzer (D5-6) on synthetic
                                   #   geometry: guide A-37, A-39 and A-41, each rule with its control
+    tst_selection.cpp             # Stage 5 T5 -- core/text/TextSelection (D5-8, D5-9) on synthetic
+                                  #   geometry: the arithmetic halves of guide A-43 ... A-47, A-49, A-21's
+                                  #   copy and A-41's selection clause; the INK is tst_selecttool's
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
                                   #   face substitutes, asserted with no engine and no Windows
     tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23

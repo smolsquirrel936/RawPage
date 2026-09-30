@@ -6,10 +6,14 @@
 #include "core/render/RenderScheduler.h"
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/viewer/LoupeRaster.h"
+#include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/tools/LoupeTool.h"
 
 #include <QContextMenuEvent>
+#include <QDateTime>
+#include <QGuiApplication>
+#include <QStyleHints>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -674,6 +678,54 @@ void PageView::applyGuideSettings(const GuideSettings& settings)
     viewport()->update();
 }
 
+void PageView::setSelectionOverlay(SelectionOverlay* selection)
+{
+    if (selection_ == selection) return;
+    if (selection_ != nullptr) disconnect(selection_, nullptr, this, nullptr);
+    selection_ = selection;
+
+    // A CHANGE REPAINTS AND REACHES NOTHING ELSE -- no `refresh()`, no tile request. A selection is
+    // painted over the pixels the scheduler already returned (D4-11), which is what guide A-53 asserts.
+    if (selection_ != nullptr)
+        connect(selection_, &SelectionOverlay::changed, this, [this] { viewport()->update(); });
+    viewport()->update();
+}
+
+PagePoint PageView::pagePointAt(QPoint pos) const
+{
+    const core::render::PageLayout& layout = engine_.layout();
+    const core::DevicePoint content = toContentPoint(pos);
+    if (const auto document = layout.toDocument(content)) return PagePoint{document->pageIndex, document->point};
+
+    // OVER A GAP OR THE DESK: the nearest page, with the point pulled inside it. A drag from page 1
+    // across the gap to page 2 goes on selecting to page 1's edge while the pointer is in the gap,
+    // rather than freezing where the page ended or jumping to whatever `toDocument` found nothing at.
+    const core::render::PageSlot* nearest = nullptr;
+    double best = 0.0;
+    for (const core::render::PageSlot& slot : layout.pageSlots()) {
+        const double dx = std::max({slot.rect.left() - content.x, 0.0, content.x - slot.rect.right()});
+        const double dy = std::max({slot.rect.top() - content.y, 0.0, content.y - slot.rect.bottom()});
+        const double distance = dx * dx + dy * dy;
+        if (nearest == nullptr || distance < best) {
+            nearest = &slot;
+            best = distance;
+        }
+    }
+    if (nearest == nullptr) return {};
+    const core::DevicePoint inside{std::clamp(content.x, nearest->rect.left(), nearest->rect.right()),
+                                   std::clamp(content.y, nearest->rect.top(), nearest->rect.bottom())};
+    const std::optional<core::PdfPoint> point = layout.toPage(nearest->pageIndex, inside);
+    if (!point) return {};
+    return PagePoint{nearest->pageIndex, *point};
+}
+
+PagePoint PageView::pagePointOn(int page, QPoint pos) const
+{
+    const std::optional<core::PdfPoint> point = engine_.layout().toPage(page, toContentPoint(pos));
+    if (!point) return {};
+    return PagePoint{page, *point};
+}
+
 void PageView::setInvertColors(bool invert)
 {
     if (invertColors_ == invert) return;
@@ -764,7 +816,24 @@ void PageView::mousePressEvent(QMouseEvent* event)
         }
     }
 
-    if (!tools_->press(event->pos(), event->button(), event->modifiers())) {
+    // THE CLICK COUNT (S5 T5, D5-8): a press within the platform's double-click interval and drag
+    // distance of the last one is the next click of the same gesture, up to four -- word, line, block --
+    // and a fifth starts again. Counted here rather than from Qt's double-click event, which stops at
+    // two. A double click also arrives as a press through `QWidget::mouseDoubleClickEvent`'s default, so
+    // this counts every press exactly once.
+    if (event->button() == Qt::LeftButton) {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        const QStyleHints* hints = QGuiApplication::styleHints();
+        const int interval = hints != nullptr ? hints->mouseDoubleClickInterval() : 400;
+        const int slop = hints != nullptr ? hints->startDragDistance() : 4;
+        const bool continues = clicks_ > 0 && clicks_ < 4 && now - lastPressMs_ <= interval
+                               && (event->pos() - lastPressPos_).manhattanLength() <= slop;
+        clicks_ = continues ? clicks_ + 1 : 1;
+        lastPressMs_ = now;
+        lastPressPos_ = event->pos();
+    }
+
+    if (!tools_->press(event->pos(), event->button(), event->modifiers(), clicks_)) {
         QAbstractScrollArea::mousePressEvent(event);
         return;
     }
@@ -1105,6 +1174,15 @@ void PageView::keyPressEvent(QKeyEvent* event)
             event->accept();
             return;
         }
+
+        // THEN THE SELECTION (S5 T5): a copy still extracting its pages is cancelled first -- the clipboard
+        // is left as it was (guide A-51) -- and otherwise a selection is cleared. With neither, the key is
+        // NOT consumed, which is Stage 4's A-42 control kept (guide A-54): `edit.cancel` stays
+        // unregistered, and `Esc` is cleared "where the selection is", which is here (D5-8).
+        if (selection_ != nullptr && (selection_->cancelPendingCopy() || selection_->clear())) {
+            event->accept();
+            return;
+        }
     }
 
     // EVERY KEY RE-DERIVES THE MODIFIER STATE, which is what makes the temporary hand reliable:
@@ -1229,9 +1307,24 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
         painter.restore();
     }
 
+    // THE SELECTION, OVER THE INVERSION AND UNDER THE GUIDES (S5 T5). Painted, never rasterized (D4-11);
+    // over the inversion so its colour is the theme's highlight on either page, and under the guides so a
+    // guide stays readable through it.
+    if (selection_ != nullptr) selection_->paint(painter, engine_.layout(), visible, dpr, selectionColour());
+
     // The grid and the guides go OVER the inversion, so a guide keeps its colour on an inverted
     // page rather than becoming its complement.
     guides_->paint(painter, engine_.layout(), visible, dpr);
+}
+
+QColor PageView::selectionColour() const
+{
+    // THE THEME'S HIGHLIGHT, translucent -- from the palette, so it is judged in both themes by the same
+    // token every other selection in the product uses (convention 20), and translucent so the glyphs stay
+    // readable through it.
+    QColor colour = palette().color(QPalette::Highlight);
+    colour.setAlpha(96);
+    return colour;
 }
 
 PageView::LoupeRegion PageView::loupeRegionFor(const QRectF& source) const
@@ -1339,6 +1432,10 @@ bool PageView::paintSharpLens(QPainter& painter, const QRect& lens, const QRectF
         painter.fillRect(region.widget, Qt::white);
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     }
+    // And the selection, as `paintContent` lays it -- the lens shows the page the view shows (S5 T5).
+    if (selection_ != nullptr)
+        selection_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF(),
+                          selectionColour());
     guides_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF());
     painter.restore();
     return true;
