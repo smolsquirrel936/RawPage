@@ -217,15 +217,47 @@ RenderTicket RenderScheduler::enqueueText(const TextRequest& request, RenderPrio
     return RenderTicket{ticket};
 }
 
+RenderTicket RenderScheduler::enqueueTask(DocumentHandle document, RenderPriority priority, EngineTask task)
+{
+    if (!document.isValid() || !task) return RenderTicket{};
+
+    std::unique_lock<std::mutex> lock(mutex_);
+    ++stats_.enqueued;
+    ++stats_.taskEnqueued;
+    noteLaneLocked(stats_, priority);
+    const std::uint64_t ticket = nextTicketId_++;
+
+    // NEVER COALESCED (the header): a callable has no key, and its caller keeps the record of what it
+    // asked. Otherwise exactly a text job's path.
+    if (pending_.size() >= config_.maxPending) dropLowestPriorityLocked();
+
+    const std::uint64_t id = nextJobId_++;
+    Job job;
+    job.kind = JobKind::Task;
+    job.taskDocument = document;
+    job.task = std::move(task);
+    job.priority = priority;
+    job.sequence = nextSequence_++;
+    job.enqueuedAt = std::chrono::steady_clock::now();
+    job.tickets.push_back(ticket);
+    jobs_.emplace(id, std::move(job));
+    ticketToJob_[ticket] = id;
+    pending_.push_back(id);
+
+    lock.unlock();
+    workAvailable_.notify_one();
+    return RenderTicket{ticket};
+}
+
 void RenderScheduler::forgetJobLocked(std::unordered_map<std::uint64_t, Job>::iterator job)
 {
     for (const std::uint64_t ticket : job->second.tickets) ticketToJob_.erase(ticket);
     // BY KIND. A text job's coalescing key is in `byText_`; erasing its default-constructed
     // `request` from `byRequest_` instead would leave the text key behind, and the next ask for that
-    // page would coalesce onto a job that no longer exists.
+    // page would coalesce onto a job that no longer exists. A task has no key.
     if (job->second.kind == JobKind::Text) {
         byText_.erase(job->second.text);
-    } else {
+    } else if (job->second.kind == JobKind::Raster) {
         byRequest_.erase(job->second.request);
     }
     jobs_.erase(job);
@@ -233,9 +265,11 @@ void RenderScheduler::forgetJobLocked(std::unordered_map<std::uint64_t, Job>::it
 
 namespace {
 
-DocumentHandle documentOf(const RenderRequest& request, const TextRequest& text, bool isText)
+template <typename JobOrCompletion>
+DocumentHandle documentOf(const JobOrCompletion& item, bool isText, bool isTask)
 {
-    return isText ? text.document : request.document;
+    if (isTask) return item.taskDocument;
+    return isText ? item.text.document : item.request.document;
 }
 
 } // namespace
@@ -328,7 +362,7 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
         const auto found = jobs_.find(id);
         if (found == jobs_.end()) continue;
         const Job& job = found->second;
-        if (documentOf(job.request, job.text, job.kind == JobKind::Text) != document) {
+        if (documentOf(job, job.kind == JobKind::Text, job.kind == JobKind::Task) != document) {
             keep.push_back(id);
             continue;
         }
@@ -336,12 +370,12 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
         ++stats_.cancelledBeforeStart;
     }
     pending_ = std::move(keep);
-    // TEXT JOBS TOO, and for the reason that makes this method exist: `close()`'s protocol is
-    // cancel, drain, close, and a text job left running after it would be inside the engine on a
-    // document whose extractor the close is about to destroy.
+    // TEXT JOBS AND TASKS TOO, and for the reason that makes this method exist: `close()`'s protocol is
+    // cancel, drain, close, and a text job or a search-units task left running after it would be inside
+    // the engine on a document the close is about to destroy.
     for (auto& [id, job] : jobs_) {
         (void)id;
-        if (job.started && documentOf(job.request, job.text, job.kind == JobKind::Text) == document)
+        if (job.started && documentOf(job, job.kind == JobKind::Text, job.kind == JobKind::Task) == document)
             job.cancelled = true;
     }
 
@@ -353,8 +387,8 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
     // memory budget until eviction. Measured in the product at ~4 MB per round of ten documents.
     completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
                                     [this, document](const Completion& completion) {
-                                        const bool isText = completion.kind == JobKind::Text;
-                                        if (documentOf(completion.request, completion.text, isText)
+                                        if (documentOf(completion, completion.kind == JobKind::Text,
+                                                       completion.kind == JobKind::Task)
                                             != document)
                                             return false;
                                         // A cache hit was never rasterized, so it is not a
@@ -380,11 +414,11 @@ void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scop
     keep.reserve(pending_.size());
     // TILES ONLY. A text job carries no revision because the text it reads cannot be changed by a
     // command at this stage (`TextRequest`'s header note); superseding it would throw away work that
-    // is still right.
+    // is still right. A task likewise: its caller decides what a mutation makes stale.
     for (const std::uint64_t id : pending_) {
         const auto found = jobs_.find(id);
         if (found == jobs_.end()) continue;
-        if (found->second.kind == JobKind::Text || !isSupersededLocked(found->second.request)) {
+        if (found->second.kind != JobKind::Raster || !isSupersededLocked(found->second.request)) {
             keep.push_back(id);
             continue;
         }
@@ -450,6 +484,22 @@ void RenderScheduler::unsubscribeText(SubscriptionToken token)
                            textSubscribers_.end());
 }
 
+RenderScheduler::SubscriptionToken RenderScheduler::subscribeTasks(TaskDoneHandler handler)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const SubscriptionToken token = nextToken_++;
+    taskSubscribers_.emplace_back(token, std::move(handler));
+    return token;
+}
+
+void RenderScheduler::unsubscribeTasks(SubscriptionToken token)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    taskSubscribers_.erase(std::remove_if(taskSubscribers_.begin(), taskSubscribers_.end(),
+                                          [token](const auto& entry) { return entry.first == token; }),
+                           taskSubscribers_.end());
+}
+
 void RenderScheduler::setWakeHandler(WakeHandler handler)
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -467,19 +517,34 @@ int RenderScheduler::deliverReady()
     std::deque<Completion> batch;
     std::vector<std::pair<SubscriptionToken, ReadyHandler>> subscribers;
     std::vector<std::pair<SubscriptionToken, TextReadyHandler>> textSubscribers;
+    std::vector<std::pair<SubscriptionToken, TaskDoneHandler>> taskSubscribers;
     LatencyProbe probe;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         batch.swap(completed_);
         subscribers = subscribers_;
         textSubscribers = textSubscribers_;
+        taskSubscribers = taskSubscribers_;
         probe = latencyProbe_;
     }
 
     int delivered = 0;
     int textDelivered = 0;
+    int taskDelivered = 0;
     for (Completion& completion : batch) {
         if (!completion.usable) continue;
+
+        // A TASK RAN: its caller holds the result and is told which ticket. Not the cache, not the probe
+        // -- the text job's rule, for the text job's reason.
+        if (completion.kind == JobKind::Task) {
+            for (const auto& [token, handler] : taskSubscribers) {
+                (void)token;
+                if (handler) handler(completion.taskTicket);
+            }
+            ++delivered;
+            ++taskDelivered;
+            continue;
+        }
 
         // A PAGE'S TEXT: to the text subscribers and nowhere else -- not the cache (D5-4), and not
         // the latency probe, whose quantity is the TILE's queued latency (A2's) and would be
@@ -521,6 +586,7 @@ int RenderScheduler::deliverReady()
         std::lock_guard<std::mutex> lock(mutex_);
         stats_.delivered += delivered;
         stats_.textDelivered += textDelivered;
+        stats_.taskDelivered += taskDelivered;
     }
     return delivered;
 }
@@ -639,7 +705,46 @@ void RenderScheduler::workerLoop(int index)
         const JobKind kind = jobIt->second.kind;
         const RenderRequest request = jobIt->second.request;
         const TextRequest textRequest = jobIt->second.text;
+        // Moved out: a task runs once, and its callable may hold what it reads into.
+        EngineTask task = kind == JobKind::Task ? std::move(jobIt->second.task) : EngineTask{};
+        const DocumentHandle taskDocument = jobIt->second.taskDocument;
+        const RenderTicket taskTicket{jobIt->second.tickets.empty() ? 0 : jobIt->second.tickets.front()};
         lock.unlock();
+
+        if (kind == JobKind::Task) {
+            // ON THIS THREAD AND NO OTHER, like a page's text (D5-3): the task takes the engine lock itself.
+            task();
+            task = {};   // released here, on the worker, before anything is reported
+
+            lock.lock();
+            --running_;
+            ++stats_.completed;
+            ++stats_.taskCompleted;
+            auto finished = jobs_.find(id);
+            const bool cancelled = finished != jobs_.end() && finished->second.cancelled;
+            if (finished != jobs_.end()) forgetJobLocked(finished);
+            if (cancelled) {
+                ++stats_.droppedCancelled;
+            } else {
+                Completion completion;
+                completion.kind = JobKind::Task;
+                completion.taskTicket = taskTicket;
+                completion.taskDocument = taskDocument;
+                completion.usable = true;
+                completed_.push_back(std::move(completion));
+            }
+
+            WakeHandler wake = wake_;
+            ++handingOff_;
+            lock.unlock();
+            if (wake) wake();
+            lock.lock();
+            --handingOff_;
+            const bool nowIdle = pending_.empty() && running_ == 0 && handingOff_ == 0;
+            lock.unlock();
+            if (nowIdle) idle_.notify_all();
+            continue;
+        }
 
         if (kind == JobKind::Text) {
             // A PAGE'S TEXT, on this thread and no other (D5-3, guide case A-24). The model is built

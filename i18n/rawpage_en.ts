@@ -3448,5 +3448,21 @@
         <source>search.bar.rangePlaceholder</source>
         <translation>e.g. 3-5</translation>
     </message>
+    <message>
+        <source>search.bar.inComment</source>
+        <translation>in a comment</translation>
+    </message>
+    <message>
+        <source>search.bar.inField</source>
+        <translation>in the form field %1</translation>
+    </message>
+    <message>
+        <source>search.bar.inBookmark</source>
+        <translation>in a bookmark</translation>
+    </message>
+    <message>
+        <source>search.bar.inAttachment</source>
+        <translation>in the attachment %1, which is not opened</translation>
+    </message>
 </context>
 </TS>

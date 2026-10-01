@@ -217,6 +217,8 @@ add_library(rawpage_core STATIC
     text/SearchQuery.h
     text/SearchEngine.h
     text/SearchEngine.cpp
+    # T8 (D5-12): the four other content classes as plain search units, read by one facade reader.
+    text/SearchUnit.h
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

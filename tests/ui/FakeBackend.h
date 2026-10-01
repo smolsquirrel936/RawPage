@@ -24,6 +24,7 @@
 #include "core/doc/DocumentId.h"
 #include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
+#include "core/text/SearchUnit.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -31,6 +32,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <atomic>
 #include <functional>
 #include <map>
 #include <memory>
@@ -229,6 +231,22 @@ public:
                                QLatin1String("error.backend.noPageContent")};
         }
         return found->second;
+    }
+
+    // S5 T8 (D5-12). The search units every document of this fake answers, by part -- a page index,
+    // `kOutlinePart` or `kAttachmentsPart`; a part with no entry is an empty success, as the shipped reader
+    // answers a page with no annotation. CALLED ON THE ENGINE THREAD, so the count is atomic and the units
+    // are set before a case searches.
+    std::map<int, std::vector<core::text::SearchUnit>> unitParts;
+    std::atomic<int> searchUnitCalls{0};
+
+    // The handle is not looked up: `trees` is the UI thread's, and this runs on the engine's.
+    core::Status searchUnits(core::DocumentHandle, int part, std::vector<core::text::SearchUnit>& into) override
+    {
+        ++searchUnitCalls;
+        const auto found = unitParts.find(part);
+        into = found == unitParts.end() ? std::vector<core::text::SearchUnit>{} : found->second;
+        return {};
     }
 
     void setContentBox(int pageIndex, core::PdfRect box) { contentBoxes_[pageIndex] = box; }

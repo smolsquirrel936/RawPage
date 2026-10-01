@@ -93,6 +93,7 @@ struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
 }
 namespace text {
 class PageTextModel;         // core/text/PageTextModel.h   -- Stage 5
+struct SearchUnit;           // core/text/SearchUnit.h      -- Stage 5 T8 (D5-12)
 }
 namespace security {
 struct SignatureRequest;     // core/security/SignatureRequest.h -- Stage 11
@@ -436,6 +437,21 @@ public:
     //   * `ErrorCode::InvalidArgument` for a handle this backend did not open or a page index out
     //     of range, and `ErrorCode::Unsupported` from a build that does not implement it.
     virtual Result<PdfRect> contentBox(DocumentHandle document, int pageIndex) = 0;
+
+    // WHAT A SEARCH FINDS OUTSIDE THE PAGE TEXT -- comments, form fields, bookmarks and attachments as
+    // plain search units (`core/text/SearchUnit.h`), added at Stage 5 T8 (**D5-12**). One read-only
+    // reader for four classes, so Stage 5 builds none of Stage 6's or Stage 9's models.
+    //
+    // **ONE PART AT A TIME, AND ON THE ENGINE THREAD.** `part` is a page index -- that page's comments and
+    // fields -- or `text::kOutlinePart` or `text::kAttachmentsPart`; `SearchUnit.h` says why a document is
+    // never read whole. Like `ITextExtractor::extractPage` it is called from the render scheduler's worker
+    // as a job of its own, never from the UI thread, and `close()`'s protocol (cancel, drain, close) covers
+    // it the same way.
+    //
+    // Fills `into` or leaves it UNTOUCHED and fails: `InvalidArgument` for a handle this backend did not
+    // open or a part that does not exist, `Unsupported` from a build that does not implement it. A part
+    // with nothing in it is SUCCESS and an empty list -- most pages carry no annotation.
+    virtual Status searchUnits(DocumentHandle document, int part, std::vector<text::SearchUnit>& into) = 0;
 
     // THE BACKEND'S HALF OF SAVE, added at Stage 3 T8 (`Stage3-Mutation-Plan.md` D3-4, §5.3). Flow F
     // once sketched one `save(Incremental)` doing the whole job; D3-4 splits it three ways, and these

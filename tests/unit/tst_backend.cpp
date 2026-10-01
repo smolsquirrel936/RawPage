@@ -101,6 +101,10 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "contentBox");
     }
+    core::Status searchUnits(core::DocumentHandle, int, std::vector<core::text::SearchUnit>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "searchUnits");
+    }
 
     core::Outline outline_;
     core::Destinations destinations_;

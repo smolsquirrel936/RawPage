@@ -184,6 +184,60 @@ NormalizedText TextNormalizer::normalize(const PageTextModel& model,
     return result;
 }
 
+NormalizedText TextNormalizer::normalizeString(const QString& text) const
+{
+    // A MODEL OF THE STRING, one character per scalar, so the page's pipeline runs unchanged: a second
+    // implementation of these steps for strings would be the second normalizer D5-5 exists to prevent.
+    // Geometry is irrelevant here -- `normalize` reads only codepoints, flags and the stream.
+    PageTextModel model;
+    std::vector<ReadingItem> stream;
+    std::vector<qsizetype> offsetOf;   // per model character: its first UTF-16 unit in `text`
+    std::vector<qsizetype> endOf;      // ... and one past its last
+    qsizetype at = 0;
+    while (at < text.size()) {
+        const QChar unit = text.at(at);
+        char32_t cp = unit.unicode();
+        qsizetype width = 1;
+        if (unit.isHighSurrogate() && at + 1 < text.size() && text.at(at + 1).isLowSurrogate()) {
+            cp = QChar::surrogateToUcs4(unit, text.at(at + 1));
+            width = 2;
+        }
+        if (cp == U'\n' || cp == U'\r') {
+            // `\r\n` is one break.
+            if (!(cp == U'\n' && at > 0 && text.at(at - 1) == QLatin1Char('\r')))
+                stream.push_back(ReadingItem{ReadingItem::Kind::LineBreak, -1});
+            at += width;
+            continue;
+        }
+        TextChar character;
+        character.codepoint = cp;
+        if (cp == 0xFFFD) character.flags = static_cast<std::uint8_t>(CharFlag::Unmapped);
+        // A '-' at the end of a line is the page's line-end hyphen: D5-5's join decides what it means.
+        if (cp == U'-') {
+            const qsizetype next = at + 1;
+            if (next < text.size() && (text.at(next) == QLatin1Char('\n') || text.at(next) == QLatin1Char('\r')))
+                character.flags |= static_cast<std::uint8_t>(CharFlag::Hyphen);
+        }
+        const int index = static_cast<int>(offsetOf.size());
+        model.append(character);
+        offsetOf.push_back(at);
+        endOf.push_back(at + width);
+        stream.push_back(ReadingItem{ReadingItem::Kind::Char, index});
+        at += width;
+    }
+
+    NormalizedText normalized = normalize(model, stream);
+    // MODEL INDICES BACK TO UTF-16 OFFSETS: `first` to where its character starts, `last` to the last unit
+    // of its character, inclusive -- the same inclusive contract a page's map keeps.
+    for (std::size_t u = 0; u < normalized.first.size(); ++u) {
+        const int f = normalized.first[u];
+        const int l = normalized.last[u];
+        normalized.first[u] = f < 0 ? -1 : static_cast<int>(offsetOf[static_cast<std::size_t>(f)]);
+        normalized.last[u] = l < 0 ? -1 : static_cast<int>(endOf[static_cast<std::size_t>(l)] - 1);
+    }
+    return normalized;
+}
+
 QString TextNormalizer::normalizeQuery(const QString& query) const
 {
     QString out;

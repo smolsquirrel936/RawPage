@@ -77,7 +77,8 @@ public:
     const core::Destinations* destinations(core::DocumentHandle document) const override;
     const core::Metadata* metadata(core::DocumentHandle document) const override;
 
-    // S4 T10 (D4-12). The ONE reader that is not PDFium's: the engine has no `/Trans` call, so
+    // S4 T10 (D4-12). The first reader that is not PDFium's -- S5 T8's attachment descriptions are the
+    // second (`searchUnits` below): the engine has no `/Trans` call, so
     // this is hydrated from the first-party walk `open()` already runs -- `pdf/ops/TransitionReader`.
     const core::PageTransitions* pageTransitions(core::DocumentHandle document) const override;
 
@@ -85,6 +86,12 @@ public:
     // per page -- the one reader on this interface that is not hydrated at open, and the header of
     // `core/backend.h` says why.
     core::Result<core::PdfRect> contentBox(core::DocumentHandle document, int pageIndex) override;
+
+    // S5 T8 (D5-12). Forwards to `PdfiumDocument::searchUnits`, with the attachment descriptions the
+    // first-party walk read at open (`pdf/ops/EmbeddedFileReader` -- PDFium's attachment API has no /Desc).
+    // CALLED FROM THE RENDER THREAD, as an engine task; `close()`'s protocol covers it like a text job.
+    core::Status searchUnits(core::DocumentHandle document, int part,
+                             std::vector<core::text::SearchUnit>& into) override;
 
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
     core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;

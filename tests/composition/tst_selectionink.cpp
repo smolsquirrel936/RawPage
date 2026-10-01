@@ -903,3 +903,104 @@ TEST_CASE("the find bar says cjk-embedded's glyphs cannot be searched and finds 
     // THE REPORT, in words a person reads: the 90 glyphs T2 measured, and that they cannot be searched.
     CHECK(status.contains(ui::catalog::translate(ui::catalog::key::SearchBarUnmapped).arg(90).arg(1)));
 }
+
+// =============================================================================================
+// A-77 -- each content class's hit navigates as D5-12 says (Stage 5 T8)
+// =============================================================================================
+
+TEST_CASE("each class's hit in search-classes navigates as D5-12 says and an attachment hit opens nothing",
+          "[selectionink][A-77]")
+{
+    Product product;
+    // THE FOUR SWITCHES ON, as Preferences' Search page sets them -- the bar reads them through
+    // `SearchQuery::fromSettings` like its own three toggles.
+    core::Settings& settings = product.root->services().settings;
+    settings.set(core::keys::search::includeComments, true);
+    settings.set(core::keys::search::includeBookmarks, true);
+    settings.set(core::keys::search::includeFields, true);
+    settings.set(core::keys::search::includeAttachments, true);
+    ui::PageView* view = product.open("ordinary/search-classes.pdf");
+    ui::FindReplaceBar& bar = openTheBar(product);
+
+    // THE GENERATOR'S RECTANGLES (`corpus/make-text.py`, `search_classes()`): the note and the widget.
+    const core::PdfRect note{core::PdfPoint{500.0, 700.0}, core::PdfSize{20.0, 20.0}};
+    const core::PdfRect widget{core::PdfPoint{54.0, 620.0}, core::PdfSize{200.0, 22.0}};
+    // Whether a page-space rectangle is wholly on screen, by THIS file's arithmetic (`mapOf`), not the view's.
+    const auto onScreen = [&](const core::PdfRect& rect) {
+        const QRectF where = mapOf(*view, 0).toWidget(rect.left(), rect.bottom(), rect.right(), rect.top());
+        return QRectF(view->viewport()->rect()).contains(where);
+    };
+    const auto wholePageOnScreen = [&] {
+        const core::render::PageSlot* slot = view->layoutEngine().layout().slotForPage(0);
+        REQUIRE(slot != nullptr);
+        const core::DeviceRect visible = view->controller().visibleRect();
+        return slot->rect.left() >= visible.left() - 1.0 && slot->rect.right() <= visible.right() + 1.0
+               && slot->rect.top() >= visible.top() - 1.0 && slot->rect.bottom() <= visible.bottom() + 1.0;
+    };
+    // Fit width at the foot of the page: the top of an A4 page, where the note and the widget are, is off
+    // screen -- the state each step below starts from, and the control for each "on screen" after it.
+    const auto toTheFoot = [&] {
+        view->setFitMode(core::render::FitMode::Width);
+        product.settle();
+        view->controller().scrollBy(0.0, 1.0e6);
+        product.settle();
+        REQUIRE_FALSE(wholePageOnScreen());
+    };
+    const auto find = [&](const QString& word) -> const core::text::SearchHit& {
+        bar.field()->selectAll();
+        findFromThePage(product, word);
+        REQUIRE(bar.hits().size() == 1);
+        REQUIRE(bar.currentIndex() == 0);
+        return bar.hits().front();
+    };
+    const auto statusSays = [&](const QString& words) {
+        INFO("status: " << bar.statusText().toStdString());
+        CHECK(bar.statusText().contains(words));
+    };
+
+    // A COMMENT: to its page and its rectangle, which is what is highlighted.
+    toTheFoot();
+    REQUIRE_FALSE(onScreen(note));
+    const core::text::SearchHit& comment = find(QStringLiteral("quokka"));
+    CHECK(comment.contentClass() == core::text::ContentClass::Comments);
+    CHECK(onScreen(note));
+    const std::optional<core::PdfRect> commentRect = product.selection().searchHitRect(comment);
+    REQUIRE(commentRect.has_value());
+    CHECK(commentRect->left() == note.left());
+    CHECK(commentRect->top() == note.top());
+    CHECK(product.selection().searchHighlightRects(view->layoutEngine().layout(), 0, true).size() == 1);
+    statusSays(ui::catalog::translate(ui::catalog::key::SearchBarInComment));
+
+    // A FIELD: to its widget, the status naming the field -- the box alone cannot say the VALUE matched.
+    toTheFoot();
+    REQUIRE_FALSE(onScreen(widget));
+    const core::text::SearchHit& field = find(QStringLiteral("walrus"));
+    CHECK(field.contentClass() == core::text::ContentClass::Fields);
+    CHECK(onScreen(widget));
+    statusSays(ui::catalog::translate(ui::catalog::key::SearchBarInField).arg(QStringLiteral("marmot")));
+
+    // A BOOKMARK: to its destination, `/Fit` on page 1 -- the WHOLE page on screen, which fit width at the
+    // foot is not (`toTheFoot`'s REQUIRE is the control).
+    toTheFoot();
+    const core::text::SearchHit& bookmark = find(QStringLiteral("zeppelin"));
+    CHECK(bookmark.contentClass() == core::text::ContentClass::Bookmarks);
+    product.settle();
+    CHECK(wholePageOnScreen());
+    statusSays(ui::catalog::translate(ui::catalog::key::SearchBarInBookmark));
+
+    // AN ATTACHMENT: selected -- the current hit, the status naming the file -- and NOTHING OPENS: no tab,
+    // no scroll, no zoom. Opening it is Stage 6's Attachments pane.
+    toTheFoot();
+    const core::DevicePoint scrollBefore = view->controller().scroll();
+    const core::render::Zoom zoomBefore = view->controller().zoom();
+    const int documentsBefore = product.window->documentCount();
+    const core::text::SearchHit& attachment = find(QStringLiteral("lemur"));
+    CHECK(attachment.contentClass() == core::text::ContentClass::Attachments);
+    product.settle();
+    CHECK(product.window->documentCount() == documentsBefore);
+    CHECK(product.window->currentView() == view);
+    CHECK(view->controller().scroll().x == scrollBefore.x);
+    CHECK(view->controller().scroll().y == scrollBefore.y);
+    CHECK(view->controller().zoom() == zoomBefore);
+    statusSays(ui::catalog::translate(ui::catalog::key::SearchBarInAttachment).arg(QStringLiteral("lemur.pdf")));
+}

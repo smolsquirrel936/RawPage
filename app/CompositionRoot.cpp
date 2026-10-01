@@ -226,6 +226,12 @@ CompositionRoot::CompositionRoot(Options options)
     // WHERE EXTRACTED TEXT LIVES (Stage 5 T6, D5-4): after the scheduler, whose text jobs feed it, and
     // destroyed before it (the destructor). Its budget is `search/indexCacheMB`.
     documentIndex_ = std::make_unique<core::text::DocumentIndex>(*renderScheduler_);
+    // Stage 5 T8 (D5-12): the four other content classes, read through the backend's one facade reader. The
+    // index runs this ON THE ENGINE THREAD, as a scheduler task; the backend outlives the scheduler.
+    documentIndex_->setUnitReader(
+        [backend = backend_.get()](core::DocumentHandle handle, int part, std::vector<core::text::SearchUnit>& into) {
+            return backend->searchUnits(handle, part, into);
+        });
     applySearchSettings();
 
     // THE SEARCH (Stage 5 T7), with ITS OWN pump: its workers finish off the UI thread and say so through a

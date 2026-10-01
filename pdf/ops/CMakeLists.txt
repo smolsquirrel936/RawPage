@@ -33,6 +33,11 @@ add_library(rawpage_ops STATIC
     # in the project that D4-3's "read through PDFium" cannot cover.
     TransitionReader.h
     TransitionReader.cpp
+
+    # S5 T8 (D5-12). The second such reader: an embedded file's /Desc, which PDFium's attachment API
+    # does not read (it reads the embedded file's params dictionary instead). Names only to match.
+    EmbeddedFileReader.h
+    EmbeddedFileReader.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

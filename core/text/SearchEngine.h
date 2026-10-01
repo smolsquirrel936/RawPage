@@ -52,6 +52,21 @@
 // ticket (`DocumentIndex::release`). A run asks the engine for at most `kExtractionWindow` pages at a
 // time, so a 5,000-page document never fills the scheduler's bounded queue with text nobody is looking at
 // and a cancelled search leaves at most that many requests to take back.
+//
+// ---------------------------------------------------------------------------------------------
+// THE OTHER FOUR CONTENT CLASSES (T8, D5-12)
+// ---------------------------------------------------------------------------------------------
+// A query whose `classes` include comments or fields asks, for each page in scope, that page's search-unit
+// part as well as its text, and the page is matched when BOTH are held -- one job, one worker, so a page's
+// comment hits sit beside its text hits. A whole-document search including bookmarks or attachments asks
+// for the outline's and the attachments' parts too, as one more slot ahead of the pages. Each part is read
+// once (`DocumentIndex::requestUnits`) and matched by `findInUnit`, through the page's own normalizer. The
+// classes a query leaves off are never read: a search with all four off asks for no part (guide A-79).
+//
+// **DOCUMENT ORDER, with the document's own units first**: bookmark and attachment hits (page -1), then
+// page by page -- each page's text hits in reading order, then its comments' and fields' in annotation
+// order. **A field is one field however many widgets show it**: a field's hits are kept at the first widget
+// that shows them, by its qualified name, so a radio group of three buttons is not three answers.
 
 #ifndef RAWPAGE_CORE_TEXT_SEARCHENGINE_H
 #define RAWPAGE_CORE_TEXT_SEARCHENGINE_H
@@ -73,20 +88,27 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
 namespace rawpage::core::text {
 
-// One match: a page and the READING positions it covers, [begin, end) -- what a highlight and a selection
-// already speak (`TextSelection`'s `Span`). The model characters are `PageReading::modelIndex` of them.
+// One match. IN PAGE TEXT: a page and the READING positions it covers, [begin, end) -- what a highlight and
+// a selection already speak (`TextSelection`'s `Span`); the model characters are `PageReading::modelIndex`
+// of them. IN ONE OF THE OTHER FOUR CLASSES (T8, D5-12): the search unit it is in, and `within`, the UTF-16
+// range of the unit's text it covers; `page` is the unit's page, -1 for a bookmark or an attachment.
 struct SearchHit {
     int page = -1;
     Span reading;
+    std::shared_ptr<const SearchUnit> unit;   // null for page text
+    Span within;
+
+    ContentClass contentClass() const noexcept { return unit ? unit->contentClass : ContentClass::PageText; }
 
     friend bool operator==(const SearchHit& a, const SearchHit& b) noexcept
     {
-        return a.page == b.page && a.reading == b.reading;
+        return a.page == b.page && a.reading == b.reading && a.unit == b.unit && a.within == b.within;
     }
 };
 
@@ -128,6 +150,7 @@ public:
         std::vector<int> unmappedPages;    // pages in scope with glyphs that have no Unicode (D5-2, A-21)
         int unmappedGlyphs = 0;
         std::vector<int> failedPages;      // pages the engine could not read
+        int failedUnitParts = 0;           // search-unit parts the reader could not read (T8)
     };
     struct Progress {
         int pagesSearched = 0;
@@ -161,6 +184,11 @@ public:
     // caller's to have chosen.
     static std::vector<SearchHit> findOnPage(const CompiledQuery& query, const SearchablePage& page,
                                              const PageReading& reading, int limit = 0);
+    // Every hit in one SEARCH UNIT's text (T8), through the same normalizer and the same rules -- whole
+    // words, regex, case, diacritics -- as a page; at most `limit`. Its class is NOT checked here: which
+    // classes a search includes is the run's to decide.
+    static std::vector<SearchHit> findInUnit(const CompiledQuery& query, std::shared_ptr<const SearchUnit> unit,
+                                             int limit = 0);
 
     // ---- The run (asynchronous) ------------------------------------------------------------------
     // Nothing is delivered from inside `start`: even a search whose every page is already indexed
@@ -192,18 +220,30 @@ public:
     Stats stats() const noexcept { return stats_; }
 
 private:
+    // ONE SLOT'S RESULT. A slot is a page in scope or, when the query includes bookmarks or attachments,
+    // the document's own slot ahead of the pages (the header).
     struct PageResult {
-        int page = -1;
+        int slot = -1;
+        int page = -1;                   // -1 for the document's slot
         std::vector<SearchHit> hits;
         int unmapped = 0;
         bool failed = false;
+        int failedUnitParts = 0;
+    };
+
+    // What one slot is matched over: a page's text (null for the document's slot) and the unit parts the
+    // query needs there.
+    struct Piece {
+        int slot = -1;
+        std::shared_ptr<const IndexedPage> page;
+        std::vector<std::shared_ptr<const SearchUnitPart>> units;
     };
 
     struct Job {
         SearchId run = 0;
         std::shared_ptr<std::atomic<bool>> cancelled;
         std::shared_ptr<const CompiledQuery> query;
-        std::vector<std::shared_ptr<const IndexedPage>> pages;
+        std::vector<Piece> pieces;
         int limitPerPage = 0;
     };
 
@@ -221,20 +261,34 @@ private:
         Handlers handlers;
         int firstPage = 0;
         int pagesInScope = 0;
-        // Per page in scope, by offset from `firstPage`.
+        // T8: which unit parts each slot needs. `pageUnits` -- every page slot's own part (comments or
+        // fields included); `docParts` -- the outline's and the attachments' (a whole-document search
+        // including bookmarks or attachments), in the one document slot, slot 0, when it is not empty.
+        bool pageUnits = false;
+        std::vector<int> docParts;
+        int docSlots = 0;                // 0 or 1
+        // Per slot: the document's first, then the pages in scope by offset from `firstPage`.
         enum PageState : char { Untouched, Waiting, Submitted, Done };
         std::vector<char> state;
-        std::map<int, PageResult> results;
-        int nextToAsk = 0;               // the lowest offset not yet asked for or submitted
+        std::map<int, PageResult> results;   // by slot
+        int nextToAsk = 0;               // the lowest slot not yet asked for or submitted
         int waiting = 0;                 // asked of the index and not arrived -- at most the window
-        int doneCount = 0;
+        int doneCount = 0;               // slots done
+        int pagesDone = 0;               // ... of which pages
+
+        int slotCount() const noexcept { return docSlots + pagesInScope; }
+        int pageOfSlot(int slot) const noexcept { return slot < docSlots ? -1 : firstPage + slot - docSlots; }
+        int slotOfPage(int page) const noexcept { return docSlots + page - firstPage; }
     };
 
     void onIndexEvent(const DocumentIndex::Event& event);
-    // Hands the run every page in scope the index holds and it has not submitted, and asks the index for
-    // the next pages up to the window.
+    // Hands the run every slot whose pieces the index holds and it has not submitted, and asks the index
+    // for the next slots' missing pieces up to the window.
     void advance(Run& run);
-    void submit(Run& run, std::vector<std::shared_ptr<const IndexedPage>> pages);
+    // The slot's pieces when the index holds them all; otherwise null, and with `ask` the missing ones are
+    // asked for.
+    std::optional<Piece> collect(Run& run, int slot, bool ask);
+    void submit(Run& run, std::vector<Piece> pieces);
     // True when the run is over (every page done, or the limit settled), and delivers it.
     bool maybeFinish(SearchId id);
     void finish(Run& run, bool limitReached);

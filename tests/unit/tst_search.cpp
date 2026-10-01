@@ -372,3 +372,91 @@ TEST_CASE("search survives hostile geometry within its bounds", "[search][A-41]"
     // The finite line is still searched: the hostile characters around it did not take it with them.
     CHECK(find(*reading, query(QStringLiteral("lorem ipsum lorem"))).size() == 1);
 }
+
+// =============================================================================================
+// A-76 (the match's half) -- a search unit is matched exactly as a page is (Stage 5 T8, D5-12)
+// =============================================================================================
+
+namespace {
+
+std::shared_ptr<const SearchUnit> unitOf(const QString& text, ContentClass contentClass = ContentClass::Comments)
+{
+    auto unit = std::make_shared<SearchUnit>();
+    unit->contentClass = contentClass;
+    unit->text = text;
+    unit->page = 2;
+    return unit;
+}
+
+// The unit text each hit covers -- `within` is a UTF-16 range of the unit's own string.
+Hits unitHits(const std::shared_ptr<const SearchUnit>& unit, const SearchQuery& q)
+{
+    const auto compiled = SearchEngine::compile(q);
+    REQUIRE(compiled);
+    Hits out;
+    for (const SearchHit& hit : SearchEngine::findInUnit(compiled.value(), unit)) {
+        CHECK(hit.unit == unit);
+        CHECK(hit.page == unit->page);
+        CHECK(hit.contentClass() == unit->contentClass);
+        out.push_back(unit->text.mid(hit.within.begin, hit.within.end - hit.within.begin));
+    }
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("a search unit's text is matched under every flag as page text is", "[search][A-76]")
+{
+    const auto comment = unitOf(QStringLiteral("Quokka sightings near the CAF\u00C9 -- quokkas, not a quokka-like thing"));
+
+    // Case folded by default, kept when asked.
+    CHECK(unitHits(comment, query(QStringLiteral("quokka"))).size() == 3);
+    SearchFlags caseSensitive;
+    caseSensitive.caseSensitive = true;
+    CHECK(unitHits(comment, query(QStringLiteral("Quokka"), caseSensitive)) == Hits{QStringLiteral("Quokka")});
+
+    // Whole words: `quokkas` is not the word, `quokka-like` begins with it (the hyphen is a boundary).
+    SearchFlags whole;
+    whole.wholeWords = true;
+    CHECK(unitHits(comment, query(QStringLiteral("quokka"), whole)) == Hits{QStringLiteral("Quokka"), QStringLiteral("quokka")});
+
+    // Diacritics: `cafe` finds `CAFÉ` only when they are ignored -- THE CONTROL is the same query without.
+    CHECK(unitHits(comment, query(QStringLiteral("cafe"))).empty());
+    SearchFlags marks;
+    marks.ignoreDiacritics = true;
+    CHECK(unitHits(comment, query(QStringLiteral("cafe"), marks)) == Hits{QStringLiteral("CAF\u00C9")});
+
+    // A regular expression over the same normalized text.
+    SearchFlags regex;
+    regex.useRegex = true;
+    CHECK(unitHits(comment, query(QStringLiteral("quokka\\w+"), regex)) == Hits{QStringLiteral("quokkas")});
+}
+
+TEST_CASE("a search unit's offsets are its own string's and a replacement glyph matches nothing", "[search][A-76]")
+{
+    // A DECOMPOSED accent: the hit covers the base and its mark, in the unit's UTF-16 positions.
+    const auto decomposed = unitOf(QStringLiteral("a cafe\u0301 here"));
+    CHECK(unitHits(decomposed, query(QStringLiteral("caf\u00E9"))) == Hits{QStringLiteral("cafe\u0301")});
+
+    // A character above U+FFFF counts two UTF-16 units, and `within` says so.
+    const auto astral = unitOf(QStringLiteral("x \U0001D400 marmot"));
+    const auto compiled = SearchEngine::compile(query(QStringLiteral("marmot")));
+    REQUIRE(compiled);
+    const auto hits = SearchEngine::findInUnit(compiled.value(), astral);
+    REQUIRE(hits.size() == 1);
+    CHECK(hits.front().within.begin == 5);
+    CHECK(hits.front().within.end == 11);
+
+    // U+FFFD IS AN UNMAPPED GLYPH in an attached PDF's text: nothing matches it, not even `.`.
+    const auto attached = unitOf(QStringLiteral("ab\uFFFD"), ContentClass::Attachments);
+    SearchFlags regex;
+    regex.useRegex = true;
+    CHECK(unitHits(attached, query(QStringLiteral("."), regex)) == Hits{QStringLiteral("a"), QStringLiteral("b")});
+    CHECK(unitHits(attached, query(QStringLiteral("\uFFFD"))).empty());
+
+    // A line-end hyphen before a lowercase letter joins, as on a page -- a value typed over two lines.
+    const auto wrapped = unitOf(QStringLiteral("water-\nmelon and well-known"));
+    CHECK(unitHits(wrapped, query(QStringLiteral("watermelon"))).size() == 1);
+    // THE CONTROL: a mid-line hyphen is never joined.
+    CHECK(unitHits(wrapped, query(QStringLiteral("wellknown"))).empty());
+}

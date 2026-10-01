@@ -143,6 +143,11 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "contentBox");
     }
+    // S5 T8 (D5-12): no engine, so no annotations or attachments to read -- said, never an empty list.
+    core::Status searchUnits(core::DocumentHandle, int, std::vector<core::text::SearchUnit>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "searchUnits");
+    }
 
     core::Outline outline_;
     core::Destinations destinations_;

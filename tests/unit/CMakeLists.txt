@@ -97,6 +97,8 @@ add_executable(rawpage_tests
                                   #   Scope, the budget, sharing, the bound, cancellation, the threads --
                                   #   guide A-61 ... A-67
     tst_stage5settings.cpp        # Stage 5 T6 -- the ten search/* rows (D5-20) and A-68's restart probes
+    tst_embeddedfiles.cpp         # Stage 5 T8 -- pdf/ops/EmbeddedFileReader (D5-12): each embedded file's
+                                  #   /Desc, which PDFium's attachment API does not read; A-76's headless half
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
                                   #   face substitutes, asserted with no engine and no Windows
     tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23

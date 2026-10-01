@@ -49,6 +49,7 @@
 #include "core/doc/Outline.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/RepairReport.h"
+#include "core/text/SearchUnit.h"
 
 #include <QByteArray>
 #include <QString>
@@ -57,6 +58,8 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace rawpage::pdf::render {
 
@@ -127,6 +130,26 @@ public:
     // nothing about -- and the whole reason this class is careful is that PDFium's own sharing is
     // process-global (I-05).
     core::Result<core::PdfRect> contentBox(int pageIndex) const;
+
+    // ONE PART OF THE DOCUMENT'S SEARCH UNITS -- Stage 5 T8, decision **D5-12**; `core/text/SearchUnit.h`
+    // says what a part is and why a document is never read whole.
+    //
+    //   * a PAGE: its comments -- every MARKUP annotation's `/Contents` and `/Subj` (ISO 32000-1 12.5.6.2's
+    //     subtypes; a link, a popup and a widget are not comments) -- and its form fields' qualified names
+    //     and values, from the widgets on it, each with the annotation's `/Rect`;
+    //   * the OUTLINE: every bookmark title, from `outline()` -- read at open, so this calls no engine;
+    //   * the ATTACHMENTS: each embedded file's name, its description from `descriptions` (the
+    //     first-party reading, `pdf/ops/EmbeddedFileReader`, joined by position and confirmed by name),
+    //     and -- for a file whose bytes are a PDF -- the text of each of its pages, opened from those
+    //     bytes by `openBytes` with NO password callback (an encrypted attachment is skipped, never
+    //     prompted for) and never written to disk. **One level deep**: the attached PDF's own attachments
+    //     are not read. **The one long part**: an attached PDF's pages are extracted in this one call, so a
+    //     long attached PDF holds the engine thread for its whole extraction -- not split, and not measured
+    //     beyond `search-classes.pdf`'s one-page attachment (guide A-78).
+    //
+    // The engine lock is taken per page, never across a part; every engine call is inside it.
+    core::Status searchUnits(int part, const std::vector<std::pair<QString, QString>>& descriptions,
+                             std::vector<core::text::SearchUnit>& into) const;
 
     // The bytes, for `pdf/cos/`. A view, not a copy: they live as long as this object, because
     // PDFium holds a pointer into them.

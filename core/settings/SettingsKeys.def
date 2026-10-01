@@ -450,10 +450,10 @@ RAWPAGE_SETTING(search, useRegex, bool,
 
 // THE FOUR CONTENT CLASSES BEYOND PAGE TEXT (`Features.md` §1.8, D5-12), which page text always joins.
 // OFF by default, as the readers that offer them have them: a search of a document is a search of its
-// words unless a person asks for its comments too. **Declared at T6 and read by nothing until T8**,
-// which builds the one read-only reader these switch (`IDocumentBackend::searchUnits`); until then a
-// search is over page text whatever they say, and `Stage5-TextSearch-Testing-Guide.md` A-76 is where
-// that changes.
+// words unless a person asks for its comments too. Declared at T6; **read since T8** by
+// `core/text/SearchQuery::fromSettings`, and each switches what the one read-only reader
+// (`IDocumentBackend::searchUnits`) is asked for -- a class switched off is never read
+// (`Stage5-TextSearch-Testing-Guide.md` A-76, A-79).
 RAWPAGE_SETTING(search, includeComments, bool,
                 "search/includeComments", false, Search, true)
 RAWPAGE_SETTING(search, includeBookmarks, bool,

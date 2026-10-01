@@ -11,14 +11,17 @@
 // and every search agree because there is one truth to agree with -- Stage 4's D4-5, *a second key for the
 // same fact is two truths*.
 //
-// WHAT IS NOT HERE YET: the four content-class switches (`search/includeComments`, `…Bookmarks`,
-// `…Fields`, `…Attachments`) are declared at T6 with the other six keys (D5-20) and read by nothing until
-// T8 builds the reader they switch (D5-12). A search at T6 is over PAGE TEXT, which is always included.
+// THE FOUR CONTENT-CLASS SWITCHES (T8, D5-12): `search/includeComments`, `…Bookmarks`, `…Fields` and
+// `…Attachments`, read here like the flags. PAGE TEXT IS ALWAYS INCLUDED. **Where a class is searched
+// depends on the scope**: a comment and a field are ON a page, so a page range searches the ones on its
+// pages; a bookmark and an attachment belong to the DOCUMENT, so only a whole-document search includes
+// them; and a selection is a range of page text, so it includes none of the four.
 
 #ifndef RAWPAGE_CORE_TEXT_SEARCHQUERY_H
 #define RAWPAGE_CORE_TEXT_SEARCHQUERY_H
 
 #include "core/settings/Settings.h"
+#include "core/text/SearchUnit.h"
 #include "core/text/TextNormalizer.h"
 #include "core/text/TextSelection.h"
 
@@ -41,6 +44,27 @@ struct SearchFlags {
         options.stripDiacritics = ignoreDiacritics;
         return options;
     }
+};
+
+// Which of the four other content classes a search includes (the header). Page text is not a switch.
+struct SearchClasses {
+    bool comments = false;      // search/includeComments
+    bool bookmarks = false;     // search/includeBookmarks
+    bool fields = false;        // search/includeFields
+    bool attachments = false;   // search/includeAttachments
+
+    bool includes(ContentClass contentClass) const noexcept
+    {
+        switch (contentClass) {
+        case ContentClass::PageText: return true;
+        case ContentClass::Comments: return comments;
+        case ContentClass::Bookmarks: return bookmarks;
+        case ContentClass::Fields: return fields;
+        case ContentClass::Attachments: return attachments;
+        }
+        return false;
+    }
+    bool any() const noexcept { return comments || bookmarks || fields || attachments; }
 };
 
 // Where to look (D5-14): the whole document, a page range, or inside the current selection.
@@ -74,6 +98,7 @@ struct SearchQuery {
     QString pattern;
     SearchFlags flags;
     SearchScope scope;
+    SearchClasses classes;
 
     // How many hits the list may hold; 0 is no bound. The product passes `search/maxResults`, and a search
     // that reaches it SAYS so (`SearchEngine::Outcome::limitReached`, guide A-61) -- a list cut short in
@@ -90,6 +115,10 @@ struct SearchQuery {
         query.flags.caseSensitive = settings.get(keys::search::caseSensitive);
         query.flags.ignoreDiacritics = settings.get(keys::search::ignoreDiacritics);
         query.flags.useRegex = settings.get(keys::search::useRegex);
+        query.classes.comments = settings.get(keys::search::includeComments);
+        query.classes.bookmarks = settings.get(keys::search::includeBookmarks);
+        query.classes.fields = settings.get(keys::search::includeFields);
+        query.classes.attachments = settings.get(keys::search::includeAttachments);
         query.maxResults = settings.get(keys::search::maxResults);
         return query;
     }

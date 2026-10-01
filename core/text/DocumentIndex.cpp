@@ -37,6 +37,14 @@ std::size_t readingBytes(const PageReading& reading)
     return bytes;
 }
 
+std::size_t unitPartBytes(const SearchUnitPart& part)
+{
+    std::size_t bytes = sizeof(SearchUnitPart) + part.units.capacity() * sizeof(SearchUnit);
+    for (const SearchUnit& unit : part.units)
+        bytes += static_cast<std::size_t>(unit.text.capacity() + unit.locator.capacity()) * sizeof(QChar);
+    return bytes;
+}
+
 } // namespace
 
 // =====================================================================================================
@@ -163,11 +171,13 @@ DocumentIndex::DocumentIndex(render::RenderScheduler& scheduler) : scheduler_(sc
     // Removed by TOKEN in the destructor -- convention 10's threaded form, as every scheduler client does.
     schedulerToken_ = scheduler_.subscribeText(
         [this](const render::TextRequest& request, const render::TextResult& result) { onText(request, result); });
+    taskToken_ = scheduler_.subscribeTasks([this](render::RenderTicket ticket) { onTask(ticket); });
 }
 
 DocumentIndex::~DocumentIndex()
 {
     scheduler_.unsubscribeText(schedulerToken_);
+    scheduler_.unsubscribeTasks(taskToken_);
     for (auto& [id, entry] : entries_) {
         (void)id;
         for (auto& [page, pending] : entry.pending) {
@@ -241,11 +251,12 @@ void DocumentIndex::detach(DocumentHandle handle)
 
     // RE-SENT THROUGH THE HANDLE THAT STAYS, before the closing window cancels its handle's jobs -- or a
     // selection in the companion would wait for a page the scheduler has just thrown away.
-    for (auto& [page, pending] : entry->pending) {
+    // A page's text and a unit part alike: `send` sends the kind of job its key names.
+    for (auto& [key, pending] : entry->pending) {
         if (pending.sentThrough != handle) continue;
-        if (pending.ticket.isValid()) scheduler_.cancel(pending.ticket);
+        if (pending.ticket.isValid()) cancelTicket(pending.ticket);
         pending.ticket = {};
-        send(*entry, page, pending, pending.lane);
+        send(*entry, key, pending, pending.lane);
     }
 }
 
@@ -287,20 +298,144 @@ int DocumentIndex::pagesHeld(EntryId entry) const
                                           [](const auto& page) { return page != nullptr; }));
 }
 
-void DocumentIndex::send(Entry& entry, int page, Pending& pending, render::RenderPriority lane)
+void DocumentIndex::send(Entry& entry, int key, Pending& pending, render::RenderPriority lane)
 {
     if (entry.handles.empty()) return;
     const DocumentHandle through = entry.handles.front();
-    const render::RenderTicket ticket = scheduler_.enqueueText({through, page}, lane);
+
+    if (isUnitKey(key)) {
+        // A SEARCH-UNIT PART, as an engine task (the header). The task holds a COPY of the reader and the
+        // result it fills, never `this`: it runs on the worker, and the index may be gone by then.
+        const int part = partOfKey(key);
+        auto result = std::make_shared<SearchUnitPart>();
+        result->part = part;
+        const render::RenderTicket ticket = scheduler_.enqueueTask(
+            through, lane, [reader = unitReader_, through, part, result] {
+                if (!reader) {
+                    result->failed = true;
+                    return;
+                }
+                std::vector<SearchUnit> units;
+                if (reader(through, part, units)) {
+                    result->units = std::move(units);
+                } else {
+                    result->failed = true;
+                }
+            });
+        if (!ticket.isValid()) return;
+        // Not coalesced by the scheduler, so a raise is a new task and the old one is cancelled -- after
+        // the new one is queued, as for a page.
+        if (pending.ticket.isValid()) cancelTicket(pending.ticket);
+        unitReads_[ticket.id] = UnitRead{entry.id, part, std::move(result)};
+        pending.ticket = ticket;
+        pending.lane = lane;
+        pending.sentThrough = through;
+        ++stats_.unitsRequested;
+        ++entry.unitsRequested;
+        return;
+    }
+
+    const render::RenderTicket ticket = scheduler_.enqueueText({through, key}, lane);
     if (!ticket.isValid()) return;
     // The new ticket FIRST, then the old one cancelled: the scheduler raised the queued job to the new
     // lane, and cancelling first could remove the job before the raise reached it.
-    if (pending.ticket.isValid()) scheduler_.cancel(pending.ticket);
+    if (pending.ticket.isValid()) cancelTicket(pending.ticket);
     pending.ticket = ticket;
     pending.lane = lane;
     pending.sentThrough = through;
     ++stats_.requested;
     ++entry.requested;
+}
+
+void DocumentIndex::cancelTicket(render::RenderTicket ticket)
+{
+    if (!ticket.isValid()) return;
+    scheduler_.cancel(ticket);
+    // A task cancelled before it ran is never reported, so its record goes here or never.
+    unitReads_.erase(ticket.id);
+}
+
+void DocumentIndex::setUnitReader(UnitReader reader)
+{
+    unitReader_ = std::move(reader);
+}
+
+std::shared_ptr<const SearchUnitPart> DocumentIndex::units(EntryId entryId, int part) const
+{
+    const Entry* entry = find(entryId);
+    if (entry == nullptr) return nullptr;
+    const auto found = entry->units.find(part);
+    return found == entry->units.end() ? nullptr : found->second;
+}
+
+bool DocumentIndex::requestUnits(Owner owner, EntryId entryId, int part, render::RenderPriority lane)
+{
+    Entry* entry = find(entryId);
+    if (entry == nullptr || owner == 0) return false;
+    if (part != kOutlinePart && part != kAttachmentsPart && (part < 0 || part >= entry->pageCount)) return false;
+    if (entry->units.count(part) != 0) return true;
+
+    const int key = unitKey(part);
+    Pending& pending = entry->pending[key];
+    pending.owners.insert(owner);
+    owners_[owner].insert({entryId, key});
+    if (!pending.ticket.isValid() || static_cast<int>(lane) < static_cast<int>(pending.lane))
+        send(*entry, key, pending, lane);
+    return false;
+}
+
+long long DocumentIndex::unitsRequestedFor(EntryId entryId) const
+{
+    const Entry* entry = find(entryId);
+    return entry == nullptr ? 0 : entry->unitsRequested;
+}
+
+void DocumentIndex::settle(Entry& entry, int key)
+{
+    const auto pending = entry.pending.find(key);
+    if (pending == entry.pending.end()) return;
+    for (const Owner owner : pending->second.owners) {
+        const auto asked = owners_.find(owner);
+        if (asked == owners_.end()) continue;
+        asked->second.erase({entry.id, key});
+        if (asked->second.empty()) owners_.erase(asked);
+    }
+    if (pending->second.ticket.isValid()) cancelTicket(pending->second.ticket);
+    entry.pending.erase(pending);
+}
+
+void DocumentIndex::onTask(render::RenderTicket ticket)
+{
+    const auto found = unitReads_.find(ticket.id);
+    if (found == unitReads_.end()) return;   // not ours, or cancelled
+    const UnitRead read = std::move(found->second);
+    unitReads_.erase(found);
+
+    Entry* entry = find(read.entry);
+    if (entry == nullptr) return;
+    settle(*entry, unitKey(read.part));
+    if (entry->units.count(read.part) != 0) return;   // a raise delivered it twice; the first stays
+
+    std::shared_ptr<const SearchUnitPart> part = read.result;
+    if (!part) {
+        auto failed = std::make_shared<SearchUnitPart>();
+        failed->part = read.part;
+        failed->failed = true;
+        part = std::move(failed);
+    }
+    if (part->failed) {
+        ++stats_.unitsFailed;
+        RAWPAGE_LOG_WARNING(LogSubsystem::Render) << "index: search-unit part" << read.part << "could not be read";
+    }
+    entry->units[read.part] = part;
+    ++stats_.unitsStored;
+
+    Event arrived;
+    arrived.kind = Event::Kind::UnitsArrived;
+    arrived.entry = read.entry;
+    arrived.page = read.part;
+    notify(arrived);
+    enforceBudget(read.entry);
 }
 
 bool DocumentIndex::request(Owner owner, EntryId entryId, int page, render::RenderPriority lane)
@@ -334,7 +469,7 @@ void DocumentIndex::release(Owner owner)
         // A PAGE SOMEBODY ELSE STILL WANTS KEEPS ITS TICKET (the header): a cancelled search must not
         // take a selection's page with it.
         if (!pending->second.owners.empty()) continue;
-        if (pending->second.ticket.isValid()) scheduler_.cancel(pending->second.ticket);
+        if (pending->second.ticket.isValid()) cancelTicket(pending->second.ticket);
         entry->pending.erase(pending);
     }
 }
@@ -354,16 +489,7 @@ void DocumentIndex::onText(const render::TextRequest& request, const render::Tex
     const EntryId id = entry->id;
 
     // WHOEVER WAS WAITING HAS IT NOW -- whichever handle it came through.
-    if (const auto pending = entry->pending.find(page); pending != entry->pending.end()) {
-        for (const Owner owner : pending->second.owners) {
-            const auto asked = owners_.find(owner);
-            if (asked == owners_.end()) continue;
-            asked->second.erase({id, page});
-            if (asked->second.empty()) owners_.erase(asked);
-        }
-        if (pending->second.ticket.isValid()) scheduler_.cancel(pending->second.ticket);
-        entry->pending.erase(pending);
-    }
+    settle(*entry, page);
     if (entry->pages[static_cast<std::size_t>(page)]) return;   // two handles delivered it; the first stays
 
     std::shared_ptr<const PageTextModel> model;
@@ -397,13 +523,18 @@ void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
     dropped.kind = Event::Kind::PagesInvalidated;
     dropped.entry = entryId;
     for (int page = 0; page < entry->pageCount; ++page) {
+        if (!scope.touchesPage(page)) continue;
         auto& held = entry->pages[static_cast<std::size_t>(page)];
-        if (!held || !scope.touchesPage(page)) continue;
-        held.reset();
+        // A PAGE'S UNITS GO WITH ITS TEXT (T8): a command that changes a page may change its annotations.
+        const bool hadUnits = entry->units.erase(page) != 0;
+        if (!held && !hadUnits) continue;
+        if (held) {
+            held.reset();
+            ++stats_.pagesDropped;
+        }
         dropped.pages.push_back(page);
     }
     if (dropped.pages.empty()) return;
-    stats_.pagesDropped += static_cast<long long>(dropped.pages.size());
     notify(dropped);
 }
 
@@ -425,6 +556,10 @@ std::size_t DocumentIndex::bytesHeld(EntryId entryId) const
     std::size_t bytes = 0;
     for (const auto& page : entry->pages)
         if (page) bytes += page->approxBytes();
+    for (const auto& [part, units] : entry->units) {
+        (void)part;
+        if (units) bytes += unitPartBytes(*units);
+    }
     return bytes;
 }
 
@@ -449,8 +584,13 @@ void DocumentIndex::evict(Entry& entry)
         held.reset();
         dropped.pages.push_back(page);
     }
-    if (dropped.pages.empty()) return;
+    // The units go with the document: WHOLE documents (the header). A part is small, but an entry holding
+    // only parts would otherwise count against the budget for ever and evict nothing.
+    const bool hadUnits = !entry.units.empty();
+    entry.units.clear();
+    if (dropped.pages.empty() && !hadUnits) return;
     ++stats_.documentsEvicted;
+    // Said even when only parts went: a search waiting on this document must learn that what it held is gone.
     notify(dropped);
 }
 
@@ -500,7 +640,7 @@ void DocumentIndex::dropEntry(EntryId entryId)
     Entry* entry = find(entryId);
     if (entry == nullptr) return;
     for (auto& [page, pending] : entry->pending) {
-        if (pending.ticket.isValid()) scheduler_.cancel(pending.ticket);
+        if (pending.ticket.isValid()) cancelTicket(pending.ticket);
         for (const Owner owner : pending.owners) {
             const auto asked = owners_.find(owner);
             if (asked == owners_.end()) continue;

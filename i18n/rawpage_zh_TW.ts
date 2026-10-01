@@ -3448,5 +3448,21 @@
         <source>search.bar.rangePlaceholder</source>
         <translation>例如 3-5</translation>
     </message>
+    <message>
+        <source>search.bar.inComment</source>
+        <translation>位於註解中</translation>
+    </message>
+    <message>
+        <source>search.bar.inField</source>
+        <translation>位於表單欄位 %1 中</translation>
+    </message>
+    <message>
+        <source>search.bar.inBookmark</source>
+        <translation>位於書籤中</translation>
+    </message>
+    <message>
+        <source>search.bar.inAttachment</source>
+        <translation>位於附件 %1 中（不會開啟）</translation>
+    </message>
 </context>
 </TS>

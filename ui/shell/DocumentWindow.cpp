@@ -192,6 +192,10 @@ void DocumentWindow::build(const Recovery* recovery)
     connect(findBar_, &FindReplaceBar::hitActivated, this, [this](int page, core::PdfRect rect) {
         if (PageView* pane = view()) pane->revealPageRect(page, rect);
     });
+    // A BOOKMARK HIT (S5 T8, D5-12) goes where the bookmark goes -- the Bookmarks pane's own path.
+    connect(findBar_, &FindReplaceBar::destinationActivated, this, [this](const core::Destination& destination) {
+        if (PageView* pane = view()) pane->goToDestination(destination);
+    });
     connect(findBar_, &FindReplaceBar::closed, this, [this] {
         if (PageView* pane = view()) pane->setFocus(Qt::OtherFocusReason);
     });

@@ -385,7 +385,18 @@ void FindReplaceBar::showCurrent(bool reveal)
     if (overlay_) overlay_->setCurrentSearchHit(current_);
     if (reveal && overlay_ && current_ >= 0 && current_ < static_cast<int>(hits_.size())) {
         const SearchHit& hit = hits_[static_cast<std::size_t>(current_)];
-        if (const std::optional<core::PdfRect> rect = overlay_->searchHitRect(hit)) emit hitActivated(hit.page, *rect);
+        switch (hit.contentClass()) {
+        case core::text::ContentClass::Bookmarks:
+            // TO ITS DESTINATION (D5-12), through the path the Bookmarks pane takes.
+            if (hit.unit->destination.pageIndex >= 0) emit destinationActivated(hit.unit->destination);
+            break;
+        case core::text::ContentClass::Attachments:
+            // SELECTED, AND NOTHING OPENS (D5-12): the status line names the file; opening it is Stage 6's.            break;
+        default:
+            // Page text, a comment, a field: the page and the rectangle.
+            if (const std::optional<core::PdfRect> rect = overlay_->searchHitRect(hit)) emit hitActivated(hit.page, *rect);
+            break;
+        }
     }
     refreshButtons();
     updateStatus();
@@ -449,6 +460,27 @@ void FindReplaceBar::updateStatus()
             parts << catalog::translate(catalog::key::SearchBarCount)
                          .arg(current_ + 1)
                          .arg(static_cast<int>(hits_.size()));
+        // WHERE THE CURRENT HIT IS, when it is not page text (T8): a highlight on a field's box does not say
+        // whether the name or the value matched, and an attachment hit shows nothing on any page.
+        if (current_ >= 0 && current_ < static_cast<int>(hits_.size())) {
+            const SearchHit& hit = hits_[static_cast<std::size_t>(current_)];
+            switch (hit.contentClass()) {
+            case core::text::ContentClass::PageText:
+                break;
+            case core::text::ContentClass::Comments:
+                parts << catalog::translate(catalog::key::SearchBarInComment);
+                break;
+            case core::text::ContentClass::Fields:
+                parts << catalog::translate(catalog::key::SearchBarInField).arg(hit.unit->locator);
+                break;
+            case core::text::ContentClass::Bookmarks:
+                parts << catalog::translate(catalog::key::SearchBarInBookmark);
+                break;
+            case core::text::ContentClass::Attachments:
+                parts << catalog::translate(catalog::key::SearchBarInAttachment).arg(hit.unit->locator);
+                break;
+            }
+        }
         if (!note_.isEmpty()) parts << note_;
         if (limitReached_)
             parts << catalog::translate(catalog::key::SearchBarLimitReached).arg(static_cast<int>(hits_.size()));

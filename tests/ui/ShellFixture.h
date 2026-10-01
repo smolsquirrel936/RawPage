@@ -308,6 +308,13 @@ struct ShellFixture {
     // S5 T6 (D5-4): where extracted text lives, as `app/CompositionRoot` builds it. DECLARED AFTER the
     // scheduler, so it is destroyed BEFORE it: it holds the scheduler's text subscription and tickets.
     core::text::DocumentIndex documentIndex{renderScheduler};
+    // S5 T8 (D5-12): the search units through the fake backend, as `app/CompositionRoot` wires the real one.
+    bool unitReaderWired = [this] {
+        documentIndex.setUnitReader([this](core::DocumentHandle handle, int part, std::vector<core::text::SearchUnit>& into) {
+            return backend.searchUnits(handle, part, into);
+        });
+        return true;
+    }();
 
     // S5 T7: the search, as `app/CompositionRoot` builds it -- after the index, so destroyed before it. No
     // wake handler: `pumpTiles` below pumps it, as it pumps the scheduler.

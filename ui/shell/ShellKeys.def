@@ -339,5 +339,10 @@ RAWPAGE_SHELL_STRING(SearchBarScopeDocument,    "search.bar.scope.document")
 RAWPAGE_SHELL_STRING(SearchBarScopeSelection,   "search.bar.scope.selection")
 RAWPAGE_SHELL_STRING(SearchBarScopePages,       "search.bar.scope.pages")
 RAWPAGE_SHELL_STRING(SearchBarRangePlaceholder, "search.bar.rangePlaceholder")
+// S5 T8 (D5-12): which of the four other content classes the current hit is in.
+RAWPAGE_SHELL_STRING(SearchBarInComment,        "search.bar.inComment")
+RAWPAGE_SHELL_STRING(SearchBarInField,          "search.bar.inField")
+RAWPAGE_SHELL_STRING(SearchBarInBookmark,       "search.bar.inBookmark")
+RAWPAGE_SHELL_STRING(SearchBarInAttachment,     "search.bar.inAttachment")
 
 #undef RAWPAGE_SHELL_STRING

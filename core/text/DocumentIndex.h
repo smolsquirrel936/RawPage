@@ -73,6 +73,18 @@
 // selection's own pages are its own, and bounded by what a person selected.
 //
 // ---------------------------------------------------------------------------------------------
+// THE OTHER FOUR CONTENT CLASSES (Stage 5 T8, D5-12)
+// ---------------------------------------------------------------------------------------------
+// A document's SEARCH UNITS -- comments, fields, bookmarks, attachments -- are kept here beside its pages,
+// for the pages' reasons: one entry per identity, so a second window reads nothing twice; memory only;
+// gone with the entry and evicted with it. They are read in PARTS (`core/text/SearchUnit.h`) through
+// `requestUnits()`, which mirrors `request()` -- one outstanding read per part, owners, release -- and runs
+// the reader `setUnitReader()` was given as an ENGINE TASK on the render thread (`RenderScheduler`'s third
+// kind of job). Each part is read ONCE: a second search including the same class asks the engine for
+// nothing (guide A-79). A page's part goes stale with its page (`invalidate()`); the outline's and the
+// attachments' are kept, because nothing a Stage 5 command does can change them.
+//
+// ---------------------------------------------------------------------------------------------
 // THREADS
 // ---------------------------------------------------------------------------------------------
 // Every member function is called on the PUMPING thread -- the one that calls
@@ -87,6 +99,7 @@
 #include "core/doc/Scope.h"
 #include "core/render/RenderScheduler.h"
 #include "core/text/PageTextModel.h"
+#include "core/text/SearchUnit.h"
 #include "core/text/TextNormalizer.h"
 #include "core/text/TextSelection.h"
 
@@ -192,6 +205,7 @@ public:
             PagesEvicted,       // the budget dropped `pages`: their text is what it was, and is gone
                                 //   from here only -- a selection holding them keeps them
             EntryDropped,       // the last handle detached; every page and every request went with it
+            UnitsArrived,       // search-unit part `page` is in the index now (possibly failed, empty)
         };
         Kind kind = Kind::PageArrived;
         EntryId entry = 0;
@@ -236,8 +250,22 @@ public:
     bool request(Owner owner, EntryId entry, int page, render::RenderPriority lane);
     // Everything `owner` asked for and has not received. A page nobody else wants is cancelled.
     void release(Owner owner);
-    // Pages `owner` is still waiting for.
+    // Pages and unit parts `owner` is still waiting for.
     std::size_t outstanding(Owner owner) const;
+
+    // ---- The search units (Stage 5 T8, D5-12) ----------------------------------------------------
+    // What reads one part, ON THE ENGINE THREAD: `app/` wires `IDocumentBackend::searchUnits`. With none
+    // set, a part is delivered FAILED -- said, not dropped (the scheduler's rule for a missing extractor).
+    using UnitReader = std::function<Status(DocumentHandle, int part, std::vector<SearchUnit>&)>;
+    void setUnitReader(UnitReader reader);
+
+    // A part the index holds, or null. `part` is a page index, `kOutlinePart` or `kAttachmentsPart`.
+    std::shared_ptr<const SearchUnitPart> units(EntryId entry, int part) const;
+    // `request()`'s contract for a part: true when it is already here, else `owner` waits for it and the
+    // engine thread is asked -- once per part, raised by a more urgent ask.
+    bool requestUnits(Owner owner, EntryId entry, int part, render::RenderPriority lane);
+    // How many times THIS entry's unit parts were asked of the engine -- A-79 reads it.
+    long long unitsRequestedFor(EntryId entry) const;
 
     // ---- Staleness and memory -------------------------------------------------------------------
     // Drops every stored page `scope` touches (`Scope::touchesPage`'s rule, rounded outwards).
@@ -264,6 +292,9 @@ public:
         long long pagesDropped = 0;        // by `invalidate`
         long long documentsEvicted = 0;    // by the budget
         long long overBudgetKept = 0;      // times the kept document alone was over the budget
+        long long unitsRequested = 0;      // search-unit parts asked of the engine (T8)
+        long long unitsStored = 0;         // ... that arrived and were kept
+        long long unitsFailed = 0;         // ... of which the reader failed
     };
     Stats stats() const noexcept { return stats_; }
     // How many times THIS entry's pages were asked of the engine -- A-64 and A-66 read it.
@@ -277,15 +308,31 @@ private:
         std::set<Owner> owners;
     };
 
+    // A KEY FOR WHAT IS WAITED FOR: a page's text is its index (>= 0); a unit part is mapped below zero,
+    // so one map of pending reads and one owner ledger serve both and `release()` has one path.
+    static int unitKey(int part) noexcept { return -3 - part; }
+    static bool isUnitKey(int key) noexcept { return key < 0; }
+    static int partOfKey(int key) noexcept { return -3 - key; }
+
+    // An engine task's result, written on the worker and read on the pumping thread once the scheduler
+    // says the task ran -- the scheduler's own lock orders the two.
+    struct UnitRead {
+        EntryId entry = 0;
+        int part = 0;
+        std::shared_ptr<SearchUnitPart> result;
+    };
+
     struct Entry {
         EntryId id = 0;
         DocumentId identity;          // invalid when the backend could not state one
         std::vector<DocumentHandle> handles;   // requests go through the first
         int pageCount = 0;
         std::vector<std::shared_ptr<const IndexedPage>> pages;
-        std::map<int, Pending> pending;
+        std::map<int, std::shared_ptr<const SearchUnitPart>> units;   // by part
+        std::map<int, Pending> pending;        // by key: a page, or `unitKey(part)`
         std::uint64_t lastSearched = 0;        // 0: never searched
         long long requested = 0;
+        long long unitsRequested = 0;
     };
 
     Entry* find(EntryId entry);
@@ -293,13 +340,20 @@ private:
     Entry* entryForHandle(DocumentHandle handle);
 
     void onText(const render::TextRequest& request, const render::TextResult& result);
-    void send(Entry& entry, int page, Pending& pending, render::RenderPriority lane);
+    void onTask(render::RenderTicket ticket);
+    // `key` is a page or a unit key; the right kind of job is sent for it.
+    void send(Entry& entry, int key, Pending& pending, render::RenderPriority lane);
+    void settle(Entry& entry, int key);   // whoever waited for `key` has it now
+    void cancelTicket(render::RenderTicket ticket);
     void dropEntry(EntryId entry);
     void evict(Entry& entry);
     void notify(const Event& event);
 
     render::RenderScheduler& scheduler_;
     render::RenderScheduler::SubscriptionToken schedulerToken_ = 0;
+    render::RenderScheduler::SubscriptionToken taskToken_ = 0;
+    UnitReader unitReader_;
+    std::map<std::uint64_t, UnitRead> unitReads_;   // by ticket id: the tasks in flight
 
     std::map<EntryId, Entry> entries_;
     std::map<std::uint64_t, EntryId> byHandle_;          // DocumentHandle::id -> entry

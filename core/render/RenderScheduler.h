@@ -69,6 +69,20 @@
 // What a text job is NOT: it is never looked up in or written to `RenderCache` (text is not tiles,
 // and D5-4 keeps it out of the tile budget), it is never SUPERSEDED by `documentChanged()` (see
 // `TextRequest`), and it is never reported to the latency probe, whose subject is the tile.
+//
+// ===========================================================================================
+// STAGE 5 T8: A THIRD KIND -- THE ENGINE TASK (D5-12)
+// ===========================================================================================
+// Work for the engine thread that is neither a tile nor a page's text: the first is a document's
+// SEARCH UNITS (`core/text/SearchUnit.h`), read part by part. Its caller hands over a callable that
+// runs ON THE WORKER and keeps its own result -- the scheduler knows nothing of what the task reads --
+// and is told on the pumping thread, by ticket, that it ran (`subscribeTasks`). Everything else is the
+// text job's: the same queue and strict priority, the same tickets and cancellation, `cancelDocument()`
+// reaching it in all three states, never cached, never superseded, never probed. **Not coalesced**: a
+// task has no key to be equal by, so a caller that must not ask twice keeps its own record
+// (`core/text/DocumentIndex` does). The task must take the engine lock itself, as every facade reader
+// does, and **must be no longer than one page's work** -- strict priority is not preemption, so a long
+// task is a visible tile's wait (`Tech-Stack-Plan.md` §3.3, *A2 at Stage 5*).
 
 #ifndef RAWPAGE_CORE_RENDER_RENDERSCHEDULER_H
 #define RAWPAGE_CORE_RENDER_RENDERSCHEDULER_H
@@ -192,6 +206,12 @@ public:
     // Called from `deliverReady()`, on the pumping thread, never from a worker.
     using ReadyHandler = std::function<void(const RenderRequest&, const RasterImage&)>;
 
+    // Stage 5 T8 (the header). The task runs ON THE WORKER; the handler, on the pumping thread, is told
+    // which ticket's task has run. A task cancelled before it started never runs; one cancelled while
+    // running is not reported.
+    using EngineTask = std::function<void()>;
+    using TaskDoneHandler = std::function<void(RenderTicket)>;
+
     // Called FROM A WORKER, carrying nothing: "there is something to deliver". It must be safe to
     // call from another thread and must not touch the scheduler -- post an event and return.
     using WakeHandler = std::function<void()>;
@@ -265,6 +285,10 @@ public:
     // page the index build had not reached yet must not wait behind the other 899.
     RenderTicket enqueueText(const TextRequest& request, RenderPriority priority);
 
+    // AN ENGINE TASK for `document` (Stage 5 T8, the header), reported through `subscribeTasks()`'s
+    // handlers. Refused with an invalid ticket for an invalid handle or an empty task.
+    RenderTicket enqueueTask(DocumentHandle document, RenderPriority priority, EngineTask task);
+
     // Drops this caller's interest. The job goes only when NO ticket is left on it -- two viewports
     // over one tile must not have one of them cancel the other's pixels.
     //
@@ -296,6 +320,8 @@ public:
     void unsubscribeReady(SubscriptionToken token);
     SubscriptionToken subscribeText(TextReadyHandler handler);
     void unsubscribeText(SubscriptionToken token);
+    SubscriptionToken subscribeTasks(TaskDoneHandler handler);
+    void unsubscribeTasks(SubscriptionToken token);
     void setWakeHandler(WakeHandler handler);
     void setLatencyProbe(LatencyProbe probe);
 
@@ -361,16 +387,23 @@ public:
         long long textCompleted = 0;      // the extractor returned, success or not
         long long textFailed = 0;         // ... and it was a failure, which is still DELIVERED
         long long textDelivered = 0;
+
+        // Stage 5 T8 -- the engine-task subset, likewise.
+        long long taskEnqueued = 0;
+        long long taskCompleted = 0;
+        long long taskDelivered = 0;
     };
     Stats stats() const;
 
 private:
-    enum class JobKind { Raster, Text };
+    enum class JobKind { Raster, Text, Task };
 
     struct Job {
         JobKind kind = JobKind::Raster;
         RenderRequest request;   // meaningful for a Raster job
         TextRequest text;        // meaningful for a Text job
+        DocumentHandle taskDocument;   // meaningful for a Task job
+        EngineTask task;               // ... and what it runs
         RenderPriority priority = RenderPriority::Visible;
         std::uint64_t sequence = 0;
 
@@ -393,6 +426,9 @@ private:
         // -- a failure is delivered (see `TextResult`).
         TextRequest text;
         std::shared_ptr<TextResult> textResult;
+        // A Task completion: whose task ran, for which document.
+        RenderTicket taskTicket;
+        DocumentHandle taskDocument;
         bool usable = false;
         // A hit is delivered through the same path as a render so that no subscriber has to know
         // where a tile came from -- but it must not be written BACK into the cache, or the
@@ -447,6 +483,7 @@ private:
 
     std::vector<std::pair<SubscriptionToken, ReadyHandler>> subscribers_;
     std::vector<std::pair<SubscriptionToken, TextReadyHandler>> textSubscribers_;
+    std::vector<std::pair<SubscriptionToken, TaskDoneHandler>> taskSubscribers_;
     WakeHandler wake_;
     LatencyProbe latencyProbe_;
 

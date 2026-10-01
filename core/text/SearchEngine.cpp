@@ -3,7 +3,9 @@
 #include <QChar>
 
 #include <algorithm>
+#include <iterator>
 #include <set>
+#include <tuple>
 
 namespace rawpage::core::text {
 namespace {
@@ -87,6 +89,37 @@ QString stripMarks(const QString& text)
     return stripped.normalized(QString::NormalizationForm_C);
 }
 
+// What a candidate match came to.
+enum class Verdict { Refused, Kept, Enough };
+
+// EVERY CANDIDATE MATCH IN ONE NORMALIZED TEXT, in order -- the loop a page's block and a search unit share,
+// so the two cannot come to differ. `judge(begin, end)` decides each; `Enough` stops the loop.
+template <typename Judge>
+void forEachMatch(const CompiledQuery& query, const QString& text, Judge&& judge)
+{
+    if (query.isRegex()) {
+        QRegularExpressionMatchIterator it = query.expression().globalMatch(text);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch match = it.next();
+            const qsizetype begin = match.capturedStart();
+            const qsizetype end = match.capturedEnd();
+            if (end <= begin) continue;   // a match of nothing is never a hit
+            if (judge(begin, end) == Verdict::Enough) return;
+        }
+        return;
+    }
+    const QString& needle = query.literal();
+    qsizetype at = 0;
+    while ((at = text.indexOf(needle, at, Qt::CaseSensitive)) >= 0) {
+        const qsizetype end = at + needle.size();
+        const Verdict verdict = judge(at, end);
+        if (verdict == Verdict::Enough) return;
+        // NON-OVERLAPPING when kept; one unit on when refused, so a whole-word refusal of `lorem` at
+        // `xlorem` still finds a `lorem` that starts inside it.
+        at = verdict == Verdict::Kept ? end : at + 1;
+    }
+}
+
 } // namespace
 
 // =====================================================================================================
@@ -138,47 +171,50 @@ std::vector<SearchHit> SearchEngine::findOnPage(const CompiledQuery& query, cons
         if (inside.empty()) return hits;
     }
 
-    // True when the hit was kept and the page's bound is reached.
-    const auto accept = [&](const SearchableBlock& block, qsizetype begin, qsizetype end) -> bool {
+    bool enough = false;
+    const auto judge = [&](const SearchableBlock& block, qsizetype begin, qsizetype end) -> Verdict {
         if (q.flags.wholeWords && !(isWordBoundary(block.text, begin) && isWordBoundary(block.text, end)))
-            return false;
+            return Verdict::Refused;
         int from = -1;
         for (qsizetype u = begin; u < end && from < 0; ++u) from = block.firstPos[static_cast<std::size_t>(u)];
         int to = -1;
         for (qsizetype u = end - 1; u >= begin && to < 0; --u) to = block.lastPos[static_cast<std::size_t>(u)];
-        if (from < 0 || to < from) return false;
+        if (from < 0 || to < from) return Verdict::Refused;
         const Span span{from, to + 1};
         if (bySelection
             && std::none_of(inside.begin(), inside.end(),
                             [&](const Span& s) { return s.begin <= span.begin && span.end <= s.end; }))
-            return false;
-        hits.push_back(SearchHit{page.pageIndex(), span});
-        return limit > 0 && static_cast<int>(hits.size()) >= limit;
+            return Verdict::Refused;
+        hits.push_back(SearchHit{page.pageIndex(), span, nullptr, Span{}});
+        enough = limit > 0 && static_cast<int>(hits.size()) >= limit;
+        return enough ? Verdict::Enough : Verdict::Kept;
     };
 
     for (const SearchableBlock& block : page.blocks()) {
-        if (query.isRegex()) {
-            QRegularExpressionMatchIterator it = query.expression().globalMatch(block.text);
-            while (it.hasNext()) {
-                const QRegularExpressionMatch match = it.next();
-                const qsizetype begin = match.capturedStart();
-                const qsizetype end = match.capturedEnd();
-                if (end <= begin) continue;   // a match of nothing is never a hit
-                if (accept(block, begin, end)) return hits;
-            }
-            continue;
-        }
-        const QString& needle = query.literal();
-        qsizetype at = 0;
-        while ((at = block.text.indexOf(needle, at, Qt::CaseSensitive)) >= 0) {
-            const qsizetype end = at + needle.size();
-            const std::size_t before = hits.size();
-            if (accept(block, at, end)) return hits;
-            // NON-OVERLAPPING when kept; one unit on when refused, so a whole-word refusal of `lorem` at
-            // `xlorem` still finds a `lorem` that starts inside it.
-            at = hits.size() > before ? end : at + 1;
-        }
+        forEachMatch(query, block.text, [&](qsizetype begin, qsizetype end) { return judge(block, begin, end); });
+        if (enough) break;
     }
+    return hits;
+}
+
+std::vector<SearchHit> SearchEngine::findInUnit(const CompiledQuery& query, std::shared_ptr<const SearchUnit> unit,
+                                                int limit)
+{
+    std::vector<SearchHit> hits;
+    if (!unit || unit->text.isEmpty()) return hits;
+
+    // THE PAGE'S PIPELINE, over the unit's string (`TextNormalizer::normalizeString`): a comment that says
+    // `café` is found by `cafe` with diacritics ignored exactly as a page that says it is (D5-5).
+    const NormalizedText normalized = TextNormalizer(query.options()).normalizeString(unit->text);
+    const bool wholeWords = query.query().flags.wholeWords;
+    forEachMatch(query, normalized.text, [&](qsizetype begin, qsizetype end) -> Verdict {
+        if (wholeWords && !(isWordBoundary(normalized.text, begin) && isWordBoundary(normalized.text, end)))
+            return Verdict::Refused;
+        const auto [from, to] = normalized.sourceRange(begin, end);
+        if (from < 0 || to < from) return Verdict::Refused;
+        hits.push_back(SearchHit{unit->page, Span{}, unit, Span{from, to + 1}});
+        return limit > 0 && static_cast<int>(hits.size()) >= limit ? Verdict::Enough : Verdict::Kept;
+    });
     return hits;
 }
 
@@ -262,7 +298,18 @@ Result<SearchEngine::SearchId> SearchEngine::start(DocumentIndex::EntryId entry,
     run.handlers = std::move(handlers);
     run.firstPage = first;
     run.pagesInScope = std::max(0, last - first + 1);
-    run.state.assign(static_cast<std::size_t>(run.pagesInScope), Run::Untouched);
+
+    // WHICH UNIT PARTS THIS QUERY NEEDS (SearchQuery's rule): a page's comments and fields for a page range
+    // or the whole document; the outline's and the attachments' for the whole document only; none for a
+    // selection. A class switched off is never read.
+    const SearchClasses& classes = query.classes;
+    const bool selection = query.scope.kind == SearchScope::Kind::Selection;
+    const bool wholeDocument = query.scope.kind == SearchScope::Kind::WholeDocument;
+    run.pageUnits = !selection && (classes.comments || classes.fields);
+    if (wholeDocument && classes.bookmarks) run.docParts.push_back(kOutlinePart);
+    if (wholeDocument && classes.attachments) run.docParts.push_back(kAttachmentsPart);
+    run.docSlots = run.docParts.empty() ? 0 : 1;
+    run.state.assign(static_cast<std::size_t>(run.slotCount()), Run::Untouched);
     const SearchId id = run.id;
 
     index_.markSearched(entry);
@@ -270,7 +317,7 @@ Result<SearchEngine::SearchId> SearchEngine::start(DocumentIndex::EntryId entry,
     Run& stored = runs_.emplace(id, std::move(run)).first->second;
     advance(stored);
 
-    if (stored.pagesInScope == 0) {
+    if (stored.slotCount() == 0) {
         // NOTHING TO SEARCH STILL FINISHES, and from the pump like everything else: a caller must not
         // have two paths to handle depending on whether its range was empty.
         WakeHandler wake;
@@ -284,32 +331,58 @@ Result<SearchEngine::SearchId> SearchEngine::start(DocumentIndex::EntryId entry,
     return id;
 }
 
+std::optional<SearchEngine::Piece> SearchEngine::collect(Run& run, int slot, bool ask)
+{
+    Piece piece;
+    piece.slot = slot;
+    bool complete = true;
+    const auto needPart = [&](int part) {
+        if (std::shared_ptr<const SearchUnitPart> held = index_.units(run.entry, part)) {
+            piece.units.push_back(std::move(held));
+            return;
+        }
+        complete = false;
+        if (ask) (void)index_.requestUnits(run.owner, run.entry, part, render::RenderPriority::Background);
+    };
+
+    const int page = run.pageOfSlot(slot);
+    if (page >= 0) {
+        piece.page = index_.page(run.entry, page);
+        if (!piece.page) {
+            complete = false;
+            // NOT HELD: asked at `Background`, for this run (D5-3).
+            if (ask) (void)index_.request(run.owner, run.entry, page, render::RenderPriority::Background);
+        }
+        if (run.pageUnits) needPart(page);
+    } else {
+        for (const int part : run.docParts) needPart(part);
+    }
+    if (!complete) return std::nullopt;
+    return piece;
+}
+
 void SearchEngine::advance(Run& run)
 {
-    std::vector<std::shared_ptr<const IndexedPage>> ready;
-    while (run.nextToAsk < run.pagesInScope && run.waiting < kExtractionWindow) {
-        const int offset = run.nextToAsk++;
-        const int page = run.firstPage + offset;
-        if (std::shared_ptr<const IndexedPage> held = index_.page(run.entry, page)) {
-            run.state[static_cast<std::size_t>(offset)] = Run::Submitted;
-            ready.push_back(std::move(held));
+    std::vector<Piece> ready;
+    while (run.nextToAsk < run.slotCount() && run.waiting < kExtractionWindow) {
+        const int slot = run.nextToAsk++;
+        if (std::optional<Piece> piece = collect(run, slot, true)) {
+            run.state[static_cast<std::size_t>(slot)] = Run::Submitted;
+            ready.push_back(std::move(*piece));
             continue;
         }
-        // NOT HELD: asked at `Background`, for this run (D5-3). The index answers `true` only for a page it
-        // holds, which the line above has just ruled out.
-        run.state[static_cast<std::size_t>(offset)] = Run::Waiting;
+        run.state[static_cast<std::size_t>(slot)] = Run::Waiting;
         ++run.waiting;
-        (void)index_.request(run.owner, run.entry, page, render::RenderPriority::Background);
     }
     if (!ready.empty()) submit(run, std::move(ready));
 }
 
-void SearchEngine::submit(Run& run, std::vector<std::shared_ptr<const IndexedPage>> pages)
+void SearchEngine::submit(Run& run, std::vector<Piece> pieces)
 {
     const int maxResults = run.query->query().maxResults;
     {
         const std::lock_guard<std::mutex> lock(mutex_);
-        for (std::size_t at = 0; at < pages.size(); at += kPagesPerJob) {
+        for (std::size_t at = 0; at < pieces.size(); at += kPagesPerJob) {
             Job job;
             job.run = run.id;
             job.cancelled = run.cancelled;
@@ -317,9 +390,9 @@ void SearchEngine::submit(Run& run, std::vector<std::shared_ptr<const IndexedPag
             // One more than the bound, per page: a page cannot put more than that into the first N+1 hits,
             // and N+1 is what says there were more than N.
             job.limitPerPage = maxResults > 0 ? maxResults + 1 : 0;
-            const std::size_t end = std::min(pages.size(), at + kPagesPerJob);
-            job.pages.assign(pages.begin() + static_cast<std::ptrdiff_t>(at),
-                             pages.begin() + static_cast<std::ptrdiff_t>(end));
+            const std::size_t end = std::min(pieces.size(), at + kPagesPerJob);
+            job.pieces.assign(std::make_move_iterator(pieces.begin() + static_cast<std::ptrdiff_t>(at)),
+                              std::make_move_iterator(pieces.begin() + static_cast<std::ptrdiff_t>(end)));
             queue_.push_back(std::move(job));
         }
     }
@@ -336,28 +409,61 @@ void SearchEngine::onIndexEvent(const DocumentIndex::Event& event)
         const auto found = runs_.find(id);
         if (found == runs_.end()) continue;
         Run& run = found->second;
+
+        // The slot an arrival completes, if it is one of this run's and is waiting.
+        int slot = -1;
         switch (event.kind) {
-        case DocumentIndex::Event::Kind::PageArrived: {
-            const int offset = event.page - run.firstPage;
-            if (offset < 0 || offset >= run.pagesInScope) break;
-            if (run.state[static_cast<std::size_t>(offset)] != Run::Waiting) break;
-            std::shared_ptr<const IndexedPage> held = index_.page(run.entry, event.page);
-            if (!held) break;
-            run.state[static_cast<std::size_t>(offset)] = Run::Submitted;
-            --run.waiting;
-            submit(run, {std::move(held)});
-            advance(run);
+        case DocumentIndex::Event::Kind::PageArrived:
+            if (event.page >= run.firstPage && event.page < run.firstPage + run.pagesInScope)
+                slot = run.slotOfPage(event.page);
             break;
-        }
+        case DocumentIndex::Event::Kind::UnitsArrived:
+            if (event.page >= 0) {
+                if (run.pageUnits && event.page >= run.firstPage && event.page < run.firstPage + run.pagesInScope)
+                    slot = run.slotOfPage(event.page);
+            } else if (run.docSlots > 0
+                       && std::find(run.docParts.begin(), run.docParts.end(), event.page) != run.docParts.end()) {
+                slot = 0;
+            }
+            break;
         case DocumentIndex::Event::Kind::EntryDropped:
             // THE DOCUMENT CLOSED UNDER THE SEARCH: nobody is there to be answered.
             ++stats_.cancelled;
             retire(id);
-            break;
+            continue;
         case DocumentIndex::Event::Kind::PagesInvalidated:
         case DocumentIndex::Event::Kind::PagesEvicted:
-            break;   // a submitted page is held by its job; a waited-for page is still asked for
+            // A SUBMITTED slot is held by its job. A WAITING one may have had one of its pieces taken while
+            // it waited for another -- a page's text evicted before its unit part arrived -- and would then
+            // wait for ever: each is asked again for whatever it now lacks (asking for a held piece is a
+            // no-op, so the slots that lost nothing cost a lookup). One found complete is submitted here
+            // rather than left for an arrival that has already happened.
+            {
+                std::vector<Piece> ready;
+                for (int s = 0; s < run.nextToAsk; ++s) {
+                    if (run.state[static_cast<std::size_t>(s)] != Run::Waiting) continue;
+                    if (std::optional<Piece> piece = collect(run, s, true)) {
+                        run.state[static_cast<std::size_t>(s)] = Run::Submitted;
+                        --run.waiting;
+                        ready.push_back(std::move(*piece));
+                    }
+                }
+                if (!ready.empty()) {
+                    submit(run, std::move(ready));
+                    advance(run);
+                }
+            }
+            continue;
         }
+        if (slot < 0 || run.state[static_cast<std::size_t>(slot)] != Run::Waiting) continue;
+        std::optional<Piece> piece = collect(run, slot, false);
+        if (!piece) continue;   // its other piece is still coming
+        run.state[static_cast<std::size_t>(slot)] = Run::Submitted;
+        --run.waiting;
+        std::vector<Piece> one;
+        one.push_back(std::move(*piece));
+        submit(run, std::move(one));
+        advance(run);
     }
 }
 
@@ -384,17 +490,41 @@ void SearchEngine::workerLoop()
 
         Completion done;
         done.run = job.run;
-        for (const std::shared_ptr<const IndexedPage>& page : job.pages) {
+        const SearchClasses& classes = local.query().classes;
+        for (const Piece& piece : job.pieces) {
             if (job.cancelled->load()) break;
-            if (observer) observer(page->pageIndex());
+            if (observer) observer(piece.page ? piece.page->pageIndex() : -1);
             PageResult result;
-            result.page = page->pageIndex();
-            result.failed = page->failed();
-            result.unmapped = static_cast<int>(page->model().unmappedCount());
-            if (!result.failed) {
-                const std::shared_ptr<const PageReading> reading = page->reading();
-                const std::shared_ptr<const SearchablePage> searchable = page->searchable(local.options());
-                result.hits = findOnPage(local, *searchable, *reading, job.limitPerPage);
+            result.slot = piece.slot;
+            if (const std::shared_ptr<const IndexedPage>& page = piece.page) {
+                result.page = page->pageIndex();
+                result.failed = page->failed();
+                result.unmapped = static_cast<int>(page->model().unmappedCount());
+                if (!result.failed) {
+                    const std::shared_ptr<const PageReading> reading = page->reading();
+                    const std::shared_ptr<const SearchablePage> searchable = page->searchable(local.options());
+                    result.hits = findOnPage(local, *searchable, *reading, job.limitPerPage);
+                }
+            }
+            // THE SLOT'S UNITS (T8), after its text, in the order the reader gave them -- only the classes
+            // the query includes: a page's part holds its comments AND its fields, and either may be off.
+            for (const std::shared_ptr<const SearchUnitPart>& part : piece.units) {
+                if (part->failed) {
+                    ++result.failedUnitParts;
+                    continue;
+                }
+                for (std::size_t i = 0; i < part->units.size(); ++i) {
+                    if (!classes.includes(part->units[i].contentClass)) continue;
+                    const int room = job.limitPerPage > 0
+                                         ? job.limitPerPage - static_cast<int>(result.hits.size())
+                                         : 0;
+                    if (job.limitPerPage > 0 && room <= 0) break;
+                    // An ALIAS of the part: the hit keeps the part alive, and the part is never copied.
+                    std::shared_ptr<const SearchUnit> unit(part, &part->units[i]);
+                    std::vector<SearchHit> found = findInUnit(local, std::move(unit), room);
+                    result.hits.insert(result.hits.end(), std::make_move_iterator(found.begin()),
+                                       std::make_move_iterator(found.end()));
+                }
             }
             done.pages.push_back(std::move(result));
         }
@@ -430,14 +560,17 @@ int SearchEngine::deliverReady()
         if (found == runs_.end()) continue;   // cancelled: it delivers nothing
         Run& run = found->second;
         for (PageResult& result : completion.pages) {
-            const int offset = result.page - run.firstPage;
-            if (offset < 0 || offset >= run.pagesInScope) continue;
-            char& state = run.state[static_cast<std::size_t>(offset)];
+            const int slot = result.slot;
+            if (slot < 0 || slot >= run.slotCount()) continue;
+            char& state = run.state[static_cast<std::size_t>(slot)];
             if (state == Run::Done) continue;
             state = Run::Done;
             ++run.doneCount;
-            ++stats_.pagesMatched;
-            run.results[result.page] = std::move(result);
+            if (slot >= run.docSlots) {
+                ++run.pagesDone;
+                ++stats_.pagesMatched;
+            }
+            run.results[slot] = std::move(result);
         }
         if (std::find(touched.begin(), touched.end(), completion.run) == touched.end())
             touched.push_back(completion.run);
@@ -450,7 +583,7 @@ int SearchEngine::deliverReady()
         if (found == runs_.end() || !found->second.handlers.progress) continue;
         const Run& run = found->second;
         Progress progress;
-        progress.pagesSearched = run.doneCount;
+        progress.pagesSearched = run.pagesDone;
         progress.pagesInScope = run.pagesInScope;
         for (const auto& [page, result] : run.results) {
             (void)page;
@@ -468,10 +601,10 @@ bool SearchEngine::maybeFinish(SearchId id)
     if (found == runs_.end()) return false;
     Run& run = found->second;
 
-    if (run.doneCount == run.pagesInScope) {
+    if (run.doneCount == run.slotCount()) {
         std::size_t total = 0;
-        for (const auto& [page, result] : run.results) {
-            (void)page;
+        for (const auto& [slot, result] : run.results) {
+            (void)slot;
             total += result.hits.size();
         }
         const int maxResults = run.query->query().maxResults;
@@ -479,13 +612,13 @@ bool SearchEngine::maybeFinish(SearchId id)
         return true;
     }
 
-    // THE BOUND SETTLED EARLY: once the pages done from the start of the scope hold more than N hits, no
-    // later page can enter the first N, so the rest is neither extracted nor matched.
+    // THE BOUND SETTLED EARLY: once the slots done from the start of the scope hold more than N hits, no
+    // later slot can enter the first N, so the rest is neither extracted nor matched.
     const int maxResults = run.query->query().maxResults;
     if (maxResults <= 0) return false;
     std::size_t prefix = 0;
-    for (int offset = 0; offset < run.pagesInScope && run.state[static_cast<std::size_t>(offset)] == Run::Done; ++offset) {
-        const auto result = run.results.find(run.firstPage + offset);
+    for (int slot = 0; slot < run.slotCount() && run.state[static_cast<std::size_t>(slot)] == Run::Done; ++slot) {
+        const auto result = run.results.find(slot);
         if (result != run.results.end()) prefix += result->second.hits.size();
         if (prefix > static_cast<std::size_t>(maxResults)) {
             finish(run, true);
@@ -499,24 +632,33 @@ void SearchEngine::finish(Run& run, bool limitReached)
 {
     Outcome outcome;
     outcome.limitReached = limitReached;
-    outcome.pagesSearched = run.doneCount;
+    outcome.pagesSearched = run.pagesDone;
     outcome.pagesInScope = run.pagesInScope;
     const int maxResults = run.query->query().maxResults;
-    for (int offset = 0; offset < run.pagesInScope; ++offset) {
-        const auto result = run.results.find(run.firstPage + offset);
+    // A FIELD IS ONE FIELD HOWEVER MANY WIDGETS SHOW IT (the header): its name and value, at one place in
+    // the text, are kept at the first widget in document order.
+    std::set<std::tuple<QString, int, int>> fieldsSeen;
+    for (int slot = 0; slot < run.slotCount(); ++slot) {
+        const auto result = run.results.find(slot);
         if (result == run.results.end()) {
             // Not done: only an early finish leaves one, and nothing after it may enter the list.
             if (limitReached) break;
             continue;
         }
         const PageResult& page = result->second;
-        if (page.failed) outcome.failedPages.push_back(page.page);
-        if (page.unmapped > 0) {
-            outcome.unmappedPages.push_back(page.page);
-            outcome.unmappedGlyphs += page.unmapped;
+        if (page.page >= 0) {
+            if (page.failed) outcome.failedPages.push_back(page.page);
+            if (page.unmapped > 0) {
+                outcome.unmappedPages.push_back(page.page);
+                outcome.unmappedGlyphs += page.unmapped;
+            }
         }
+        outcome.failedUnitParts += page.failedUnitParts;
         for (const SearchHit& hit : page.hits) {
             if (maxResults > 0 && static_cast<int>(outcome.hits.size()) >= maxResults) break;
+            if (hit.unit && hit.unit->contentClass == ContentClass::Fields
+                && !fieldsSeen.emplace(hit.unit->locator, static_cast<int>(hit.unit->field), hit.within.begin).second)
+                continue;
             outcome.hits.push_back(hit);
         }
     }

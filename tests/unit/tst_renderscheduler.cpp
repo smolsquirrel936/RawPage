@@ -1046,3 +1046,103 @@ TEST_CASE("render scheduler delivers a bypassing tile without looking it up or k
         CHECK(cache.stats().insertions == 1);
     }
 }
+
+// =============================================================================================
+// Stage 5 T8 (D5-12) -- the third kind of job, an ENGINE TASK: a document's search units, read part by part
+// =============================================================================================
+
+TEST_CASE("render scheduler runs an engine task on its worker and reports it on the pumping thread",
+          "[core][render][task]")
+{
+    // A-79's engine-thread half: the task is entered on the worker and never on this thread, and its
+    // ticket comes back on this thread through `deliverReady()` -- the text job's rule, for a task.
+    OrderLog log;
+    RenderScheduler scheduler(loggingFactory(log), nullptr, RenderScheduler::Config{});
+    scheduler.pause();
+
+    std::mutex mutex;
+    std::set<std::thread::id> runningThreads;
+    const auto task = [&](int part) {
+        return [&, part] {
+            {
+                const std::lock_guard<std::mutex> lock(mutex);
+                runningThreads.insert(std::this_thread::get_id());
+            }
+            log.add("task:" + std::to_string(part));
+        };
+    };
+    const RenderTicket first = scheduler.enqueueTask(kDocA, RenderPriority::Background, task(0));
+    const RenderTicket second = scheduler.enqueueTask(kDocA, RenderPriority::Background, task(1));
+    REQUIRE(first.isValid());
+    REQUIRE(second.isValid());
+    // STRICT PRIORITY ACROSS THE THREE KINDS: a visible tile queued after the tasks still goes first.
+    scheduler.enqueue(requestFor(9), RenderPriority::Visible);
+
+    std::vector<std::uint64_t> reported;
+    std::set<std::thread::id> reportingThreads;
+    scheduler.subscribeTasks([&](RenderTicket ticket) {
+        reportingThreads.insert(std::this_thread::get_id());
+        reported.push_back(ticket.id);
+    });
+    scheduler.resume();
+    REQUIRE(scheduler.waitForIdle(3000));
+    CHECK(scheduler.deliverReady() == 3);
+
+    CHECK(reported == std::vector<std::uint64_t>{first.id, second.id});
+    REQUIRE(runningThreads.size() == 1);
+    CHECK(*runningThreads.begin() != std::this_thread::get_id());
+    REQUIRE(reportingThreads.size() == 1);
+    CHECK(*reportingThreads.begin() == std::this_thread::get_id());
+    {
+        std::lock_guard<std::mutex> lock(log.mutex);
+        REQUIRE(log.entries.size() == 3);
+        CHECK(log.entries[0] == "tile:9");
+        CHECK(log.entries[1] == "task:0");
+        CHECK(log.entries[2] == "task:1");
+    }
+    const auto stats = scheduler.stats();
+    CHECK(stats.taskEnqueued == 2);
+    CHECK(stats.taskCompleted == 2);
+    CHECK(stats.taskDelivered == 2);
+    CHECK(stats.enqueuedBackground == 2);
+
+    // AN INVALID ASK IS REFUSED BY TICKET, as a text request is.
+    CHECK_FALSE(scheduler.enqueueTask(DocumentHandle{}, RenderPriority::Background, task(2)).isValid());
+    CHECK_FALSE(scheduler.enqueueTask(kDocA, RenderPriority::Background, {}).isValid());
+}
+
+TEST_CASE("render scheduler never runs a cancelled engine task and forgets a closed document's", "[core][render][task]")
+{
+    // A-36's rule, for a task: not "nothing was reported" but "the task never ran". And `cancelDocument()`
+    // reaches a task in all three states, which is what lets `close()`'s cancel-drain-close hold for the
+    // search-units reader too.
+    RasterizerProbe rasters;
+    RenderScheduler scheduler(factoryFor(rasters), nullptr, RenderScheduler::Config{});
+    std::atomic<int> ran{0};
+    const auto count = [&ran] { ++ran; };
+    std::vector<std::uint64_t> reported;
+    scheduler.subscribeTasks([&](RenderTicket ticket) { reported.push_back(ticket.id); });
+
+    scheduler.pause();
+    const RenderTicket kept = scheduler.enqueueTask(kDocA, RenderPriority::Background, count);
+    const RenderTicket dropped = scheduler.enqueueTask(kDocA, RenderPriority::Background, count);
+    scheduler.enqueueTask(kDocB, RenderPriority::Background, count);
+    scheduler.cancel(dropped);
+    scheduler.cancelDocument(kDocB);
+    CHECK(scheduler.pendingCount() == 1);
+    scheduler.resume();
+    REQUIRE(scheduler.waitForIdle(3000));
+    CHECK(scheduler.deliverReady() == 1);
+    CHECK(ran.load() == 1);
+    CHECK(reported == std::vector<std::uint64_t>{kept.id});
+
+    SECTION("a task that FINISHED and was not yet reported goes with its document")
+    {
+        scheduler.enqueueTask(kDocB, RenderPriority::Background, count);
+        REQUIRE(scheduler.waitForIdle(3000));
+        CHECK(ran.load() == 2);              // it ran
+        scheduler.cancelDocument(kDocB);     // ... and its document closed before the pump
+        CHECK(scheduler.deliverReady() == 0);
+        CHECK(reported.size() == 1);
+    }
+}

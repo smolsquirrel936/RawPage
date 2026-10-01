@@ -159,6 +159,8 @@ void SelectionOverlay::onIndexEvent(const core::text::DocumentIndex::Event& even
     case core::text::DocumentIndex::Event::Kind::EntryDropped:
         requested_.clear();
         return;
+    case core::text::DocumentIndex::Event::Kind::UnitsArrived:
+        return;   // a search's comments and fields (S5 T8) -- nothing a selection reads
     }
 }
 
@@ -457,6 +459,12 @@ void SelectionOverlay::clearSearchHits()
 
 std::optional<core::PdfRect> SelectionOverlay::searchHitRect(const core::text::SearchHit& hit)
 {
+    // A COMMENT OR A FIELD (S5 T8, D5-12): its annotation's rectangle, which needs no page text. A bookmark
+    // or an attachment is on no page and has none.
+    if (hit.unit) {
+        if (hit.page < 0 || !hit.unit->hasRect) return std::nullopt;
+        return hit.unit->rect;
+    }
     if (!ensurePage(hit.page, core::render::RenderPriority::Visible)) return std::nullopt;
     const PageReading* reading = text_.page(hit.page);
     if (reading == nullptr) return std::nullopt;
@@ -479,13 +487,22 @@ std::vector<core::DeviceRect> SelectionOverlay::searchHighlightRects(const core:
                                                                      bool currentOnly) const
 {
     std::vector<core::DeviceRect> out;
+    if (hits_.empty()) return out;
     const PageReading* reading = text_.page(page);
-    if (reading == nullptr || hits_.empty()) return out;
     const auto [first, last] = hitsOnPage(hits_, page);
     for (std::size_t i = first; i < last; ++i) {
         const bool current = static_cast<int>(i) == currentHit_;
         if (currentOnly ? !current : (!highlightAll_ && !current)) continue;
-        for (const core::PdfRect& rect : hitRects(*reading, hits_[i]))
+        const core::text::SearchHit& hit = hits_[i];
+        if (hit.unit) {
+            // A comment's or a field's hit is its annotation's rectangle (S5 T8): no page text needed.
+            if (hit.unit->hasRect)
+                if (const std::optional<core::DeviceRect> device = toContent(layout, page, hit.unit->rect))
+                    out.push_back(*device);
+            continue;
+        }
+        if (reading == nullptr) continue;
+        for (const core::PdfRect& rect : hitRects(*reading, hit))
             if (const std::optional<core::DeviceRect> device = toContent(layout, page, rect)) out.push_back(*device);
     }
     return out;
@@ -508,8 +525,9 @@ void SelectionOverlay::paintSearchHits(QPainter& painter, const core::render::Pa
         const auto [first, last] = hitsOnPage(hits_, slot.pageIndex);
         if (first == last) continue;
         // A page with hits was read by the search, so the index holds it and this takes it at once; one the
-        // budget has evicted since is asked for at `Visible` -- it is on screen -- and painted when it comes.
-        if (!ensurePage(slot.pageIndex, core::render::RenderPriority::Visible)) continue;
+        // budget has evicted since is asked for at `Visible` -- it is on screen -- and its text hits are
+        // painted when it comes. Its comment and field hits need no text and are painted now (S5 T8).
+        (void)ensurePage(slot.pageIndex, core::render::RenderPriority::Visible);
         if (highlightAll_)
             for (const core::DeviceRect& rect : searchHighlightRects(layout, slot.pageIndex)) fill(rect, hitColour);
         for (const core::DeviceRect& rect : searchHighlightRects(layout, slot.pageIndex, true)) fill(rect, currentColour);

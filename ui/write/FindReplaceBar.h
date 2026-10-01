@@ -44,15 +44,22 @@
 // scope have no Unicode text and so could not be searched (A-21's find half). **An invalid regular
 // expression is the error itself, and nothing is searched** (A-57): an empty list would read as *not found*.
 //
+// THE OTHER FOUR CONTENT CLASSES (T8, D5-12) are searched when their `search/include*` settings say so --
+// Preferences' Search page, which the bar follows like the three toggles. A hit in one of them is stepped
+// to like any other and navigates as D5-12 says: a comment or a field to its page and rectangle, a bookmark
+// to its destination (`destinationActivated`), and **an attachment hit is selected and opens nothing** --
+// the status line names the file, and opening it is Stage 6's Attachments pane. The status line says which
+// class the current hit is in, because a highlight on a field's box does not say it matched the field's NAME.
+//
 // WHAT IT DOES NOT DO: stream hits while the index builds -- a first search shows its progress and its hits
-// arrive when it finishes (1.7 s for 900 dense pages, guide A-63) -- and it does not search the four other
-// content classes, which are T8's.
+// arrive when it finishes (1.7 s for 900 dense pages, guide A-63).
 
 #ifndef RAWPAGE_UI_WRITE_FINDREPLACEBAR_H
 #define RAWPAGE_UI_WRITE_FINDREPLACEBAR_H
 
 #include "app/Services.h"
 #include "core/Geometry.h"
+#include "core/doc/Destinations.h"
 #include "core/text/DocumentIndex.h"
 #include "core/text/SearchEngine.h"
 
@@ -120,6 +127,8 @@ public:
 signals:
     // The document window reveals it in the pane a person is in.
     void hitActivated(int page, core::PdfRect rect);
+    // A bookmark hit (T8): the document window goes to the bookmark's destination, as the Bookmarks pane does.
+    void destinationActivated(const core::Destination& destination);
     // Closed by `Esc` or its button: the window gives the focus back to the page.
     void closed();
 

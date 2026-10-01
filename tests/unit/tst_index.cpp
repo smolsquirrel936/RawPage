@@ -29,6 +29,7 @@
 #include <QString>
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <map>
 #include <memory>
@@ -721,4 +722,303 @@ TEST_CASE("a search of a document that closes under it is dropped silently", "[i
     rig.scheduler.resume();
     rig.pumpIdle();
     CHECK_FALSE(delivered);
+}
+
+// =============================================================================================
+// Stage 5 T8 (D5-12) -- the other four content classes: A-76's run half and A-79
+// =============================================================================================
+
+namespace {
+
+using core::text::ContentClass;
+using core::text::SearchUnit;
+
+// A FAKE READER of search units, standing where `IDocumentBackend::searchUnits` stands in the product: every
+// call recorded with its thread. Three pages: a comment on page 1, the field `marmot` = `walrus` shown by
+// TWO widgets (pages 1 and 2), a bookmark and an attachment; `failing` parts are refused.
+struct UnitProbe {
+    std::mutex mutex;
+    std::map<int, int> calls;   // part -> reads
+    std::set<std::thread::id> threads;
+    std::set<int> failing;
+
+    int callsFor(int part)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        const auto found = calls.find(part);
+        return found == calls.end() ? 0 : found->second;
+    }
+    int total()
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        int sum = 0;
+        for (const auto& [part, n] : calls) {
+            (void)part;
+            sum += n;
+        }
+        return sum;
+    }
+};
+
+SearchUnit makeUnit(ContentClass contentClass, SearchUnit::Field field, const QString& text, int page,
+                    const QString& locator)
+{
+    SearchUnit unit;
+    unit.contentClass = contentClass;
+    unit.field = field;
+    unit.text = text;
+    unit.page = page;
+    unit.locator = locator;
+    if (page >= 0) {
+        unit.rect = core::PdfRect{core::PdfPoint{100.0, 600.0}, core::PdfSize{50.0, 20.0}};
+        unit.hasRect = true;
+    }
+    return unit;
+}
+
+void wireUnits(Rig& rig, UnitProbe& probe)
+{
+    rig.index.setUnitReader([&probe](DocumentHandle, int part, std::vector<SearchUnit>& into) -> core::Status {
+        {
+            const std::lock_guard<std::mutex> lock(probe.mutex);
+            ++probe.calls[part];
+            probe.threads.insert(std::this_thread::get_id());
+            if (probe.failing.count(part) != 0)
+                return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.text.extractFailed")};
+        }
+        std::vector<SearchUnit> units;
+        switch (part) {
+        case 1:
+            units.push_back(makeUnit(ContentClass::Comments, SearchUnit::Field::CommentContents,
+                                     QStringLiteral("quokka lorem"), 1, QStringLiteral("0")));
+            units.push_back(makeUnit(ContentClass::Fields, SearchUnit::Field::FieldName, QStringLiteral("marmot"), 1,
+                                     QStringLiteral("marmot")));
+            units.push_back(makeUnit(ContentClass::Fields, SearchUnit::Field::FieldValue, QStringLiteral("walrus lorem"),
+                                     1, QStringLiteral("marmot")));
+            break;
+        case 2:
+            // THE SAME FIELD, shown by a second widget: one field, one answer (the engine's dedupe).
+            units.push_back(makeUnit(ContentClass::Fields, SearchUnit::Field::FieldName, QStringLiteral("marmot"), 2,
+                                     QStringLiteral("marmot")));
+            units.push_back(makeUnit(ContentClass::Fields, SearchUnit::Field::FieldValue, QStringLiteral("walrus lorem"),
+                                     2, QStringLiteral("marmot")));
+            break;
+        case core::text::kOutlinePart:
+            units.push_back(makeUnit(ContentClass::Bookmarks, SearchUnit::Field::BookmarkTitle,
+                                     QStringLiteral("zeppelin lorem"), -1, QStringLiteral("0")));
+            break;
+        case core::text::kAttachmentsPart:
+            units.push_back(makeUnit(ContentClass::Attachments, SearchUnit::Field::AttachmentName,
+                                     QStringLiteral("lemur lorem.pdf"), -1, QStringLiteral("lemur lorem.pdf")));
+            break;
+        default:
+            break;
+        }
+        into = std::move(units);
+        return {};
+    });
+}
+
+SearchQuery withClasses(const QString& pattern, bool comments, bool bookmarks, bool fields, bool attachments)
+{
+    SearchQuery q = literal(pattern);
+    q.classes.comments = comments;
+    q.classes.bookmarks = bookmarks;
+    q.classes.fields = fields;
+    q.classes.attachments = attachments;
+    return q;
+}
+
+std::vector<ContentClass> classesOf(const SearchEngine::Outcome& outcome)
+{
+    std::vector<ContentClass> out;
+    for (const auto& hit : outcome.hits) out.push_back(hit.contentClass());
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("search units are read once per part on the engine thread and only for the classes asked",
+          "[index][A-79]")
+{
+    Rig rig;
+    UnitProbe units;
+    wireUnits(rig, units);
+    const DocumentHandle handle{171};
+    const auto id = identity(QStringLiteral("units.pdf"));
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 3);
+
+    // NO CLASS ON: page text only, and the reader is never asked -- THE CONTROL for everything below.
+    (void)rig.search(entry, literal(QStringLiteral("lorem")));
+    CHECK(units.total() == 0);
+    CHECK(rig.index.unitsRequestedFor(entry) == 0);
+
+    // COMMENTS ON: every page's part, once each, and neither the outline's nor the attachments'.
+    (void)rig.search(entry, withClasses(QStringLiteral("quokka"), true, false, false, false));
+    for (int page = 0; page < 3; ++page) CHECK(units.callsFor(page) == 1);
+    CHECK(units.callsFor(core::text::kOutlinePart) == 0);
+    CHECK(units.callsFor(core::text::kAttachmentsPart) == 0);
+    // ON THE ENGINE THREAD: the thread the page text was extracted on, and not this one.
+    {
+        const std::lock_guard<std::mutex> lockUnits(units.mutex);
+        const std::lock_guard<std::mutex> lockText(rig.probe.mutex);
+        REQUIRE(units.threads.size() == 1);
+        CHECK(*units.threads.begin() != std::this_thread::get_id());
+        CHECK(rig.probe.threads.count(*units.threads.begin()) == 1);
+    }
+    CHECK(rig.scheduler.stats().taskEnqueued == 3);
+
+    // THE SAME SEARCH AGAIN, AND FIELDS (the same parts): nothing is read twice.
+    (void)rig.search(entry, withClasses(QStringLiteral("quokka"), true, false, true, false));
+    CHECK(units.total() == 3);
+
+    // BOOKMARKS AND ATTACHMENTS: their two parts, once each -- and again, never again.
+    (void)rig.search(entry, withClasses(QStringLiteral("lorem"), true, true, true, true));
+    (void)rig.search(entry, withClasses(QStringLiteral("lorem"), true, true, true, true));
+    CHECK(units.callsFor(core::text::kOutlinePart) == 1);
+    CHECK(units.callsFor(core::text::kAttachmentsPart) == 1);
+    CHECK(units.total() == 5);
+    CHECK(rig.index.unitsRequestedFor(entry) == 5);
+}
+
+TEST_CASE("each content class is found only with its switch on and in document order", "[index][A-76]")
+{
+    Rig rig;
+    UnitProbe units;
+    wireUnits(rig, units);
+    const DocumentHandle handle{181};
+    const auto id = identity(QStringLiteral("classes.pdf"));
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 3);
+
+    // EACH WORD ONLY WITH ITS OWN SWITCH -- and THE CONTROL, every switch off, finds none of them.
+    struct Row {
+        QString word;
+        ContentClass contentClass;
+    };
+    const std::vector<Row> rows{{QStringLiteral("quokka"), ContentClass::Comments},
+                                {QStringLiteral("zeppelin"), ContentClass::Bookmarks},
+                                {QStringLiteral("walrus"), ContentClass::Fields},
+                                {QStringLiteral("lemur"), ContentClass::Attachments}};
+    for (const Row& row : rows) {
+        for (int on = 0; on < 5; ++on) {   // 0..3: one switch on; 4: all off
+            const SearchQuery q = withClasses(row.word, on == 0, on == 1, on == 2, on == 3);
+            const SearchEngine::Outcome outcome = rig.search(entry, q);
+            const bool expected = on < 4 && q.classes.includes(row.contentClass);
+            INFO(row.word.toStdString() << " with switch " << on);
+            CHECK(outcome.hits.empty() == !expected);
+            for (const auto& hit : outcome.hits) CHECK(hit.contentClass() == row.contentClass);
+        }
+    }
+
+    // DOCUMENT ORDER, every switch on: the document's own units first, then page by page -- each page's
+    // text before its comments and fields -- and the field shown by two widgets is ONE hit, at the first.
+    const SearchEngine::Outcome all = rig.search(entry, withClasses(QStringLiteral("lorem"), true, true, true, true));
+    CHECK(classesOf(all) == std::vector<ContentClass>{ContentClass::Bookmarks, ContentClass::Attachments,
+                                                      ContentClass::PageText, ContentClass::PageText,
+                                                      ContentClass::Comments, ContentClass::Fields,
+                                                      ContentClass::PageText});
+    std::vector<int> pages;
+    for (const auto& hit : all.hits) pages.push_back(hit.page);
+    CHECK(pages == std::vector<int>{-1, -1, 0, 1, 1, 1, 2});
+    // THE DEDUPE'S CONTROL: the second widget's part WAS read, and its hit is the one dropped.
+    CHECK(units.callsFor(2) == 1);
+
+    // A PAGE RANGE searches what is ON its pages -- the comment and the field there -- and not the document's
+    // bookmark or attachment.
+    SearchQuery ranged = withClasses(QStringLiteral("lorem"), true, true, true, true);
+    ranged.scope = SearchScope::pages(1, 2);
+    CHECK(classesOf(rig.search(entry, ranged))
+          == std::vector<ContentClass>{ContentClass::PageText, ContentClass::Comments, ContentClass::Fields,
+                                       ContentClass::PageText});
+    // A SELECTION is page text and nothing else.
+    SearchQuery selected = withClasses(QStringLiteral("lorem"), true, true, true, true);
+    // All of page 1: from its first position to the first of page 2.
+    selected.scope = SearchScope::within(core::text::TextSelection::flow(core::text::TextPosition{1, 0},
+                                                                         core::text::TextPosition{2, 0}));
+    CHECK(classesOf(rig.search(entry, selected)) == std::vector<ContentClass>{ContentClass::PageText});
+}
+
+TEST_CASE("a search waiting for a page's units asks again for its text when the text is dropped meanwhile",
+          "[index][A-79]")
+{
+    // A SLOT NEEDS TWO PIECES when comments are included -- the page's text and its unit part -- and the
+    // index may drop the first while the second is still coming (a command's `Scope`, or the budget). The
+    // run must ask for the dropped piece again; one that did not would wait for ever.
+    Rig rig;
+    std::mutex gate;
+    std::condition_variable opened;
+    bool open = false;
+    std::atomic<int> reads{0};
+    rig.index.setUnitReader([&](DocumentHandle, int, std::vector<SearchUnit>& into) -> core::Status {
+        // HELD on the engine thread until the case says, so the text arrives FIRST and alone.
+        std::unique_lock<std::mutex> lock(gate);
+        opened.wait(lock, [&] { return open; });
+        ++reads;
+        into = {makeUnit(ContentClass::Comments, SearchUnit::Field::CommentContents, QStringLiteral("quokka"), 0,
+                         QStringLiteral("0"))};
+        return {};
+    });
+    const DocumentHandle handle{201};
+    const auto id = identity(QStringLiteral("dropped.pdf"));
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 1);
+
+    std::optional<SearchEngine::Outcome> outcome;
+    SearchEngine::Handlers handlers;
+    handlers.finished = [&](const SearchEngine::Outcome& o) { outcome = o; };
+    REQUIRE(rig.engine.start(entry, withClasses(QStringLiteral("lorem"), true, false, false, false), handlers));
+
+    // The text arrives; the units are held. The slot waits for its second piece.
+    rig.pumpUntil([&] { return rig.index.has(entry, 0); }, 5000);
+    REQUIRE(rig.index.has(entry, 0));
+    CHECK_FALSE(outcome.has_value());
+
+    // THE TEXT IS DROPPED WHILE THE SLOT WAITS -- and only then do the units arrive.
+    rig.index.invalidate(entry, core::Scope::page(0));
+    REQUIRE_FALSE(rig.index.has(entry, 0));
+    {
+        const std::lock_guard<std::mutex> lock(gate);
+        open = true;
+    }
+    opened.notify_all();
+    rig.pumpUntil([&] { return outcome.has_value(); }, 5000);
+    REQUIRE(outcome.has_value());
+    CHECK(outcome->hits.size() == 1);            // the page's `lorem`; the comment says `quokka`
+    CHECK(rig.probe.callsFor(handle, 0) == 2);   // the text, asked again after it was dropped
+    CHECK(reads.load() == 1);
+}
+
+TEST_CASE("a search unit part the reader cannot read is reported and the rest are searched", "[index][A-79]")
+{
+    Rig rig;
+    UnitProbe units;
+    {
+        const std::lock_guard<std::mutex> lock(units.mutex);
+        units.failing.insert(1);
+    }
+    wireUnits(rig, units);
+    const DocumentHandle handle{191};
+    const auto id = identity(QStringLiteral("unitfail.pdf"));
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 3);
+
+    const SearchEngine::Outcome outcome = rig.search(entry, withClasses(QStringLiteral("walrus"), false, false, true, false));
+    CHECK(outcome.failedUnitParts == 1);
+    // Page 1's part failed; page 2's widget still answers -- the field is found where it still can be.
+    REQUIRE(outcome.hits.size() == 1);
+    CHECK(outcome.hits.front().page == 2);
+    CHECK(rig.index.stats().unitsFailed == 1);
+    // Stored as failed, not retried.
+    (void)rig.search(entry, withClasses(QStringLiteral("walrus"), false, false, true, false));
+    CHECK(units.callsFor(1) == 1);
+
+    SECTION("and an index with NO reader delivers every part failed rather than waiting for ever")
+    {
+        Rig bare;
+        const DocumentHandle other{192};
+        const auto otherId = identity(QStringLiteral("noreader.pdf"));
+        const DocumentIndex::EntryId otherEntry = bare.index.attach(&otherId, other, 2);
+        const SearchEngine::Outcome none =
+            bare.search(otherEntry, withClasses(QStringLiteral("lorem"), true, true, true, true));
+        CHECK(none.failedUnitParts == 4);
+        CHECK(none.hits.size() == 2);   // the page text is still searched
+    }
 }

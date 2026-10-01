@@ -82,6 +82,14 @@ public:
     // What a person typed: the same steps, whitespace collapsed and trimmed, no offsets.
     QString normalizeQuery(const QString& query) const;
 
+    // A STRING THAT IS NOT A PAGE -- a comment, a field's value, a bookmark title (Stage 5 T8, D5-12) --
+    // through the page's own steps, so the four other content classes match exactly as page text does.
+    // The offsets are UTF-16 positions in `text`, not model indices. A line break is a page's line break
+    // (D5-5's hyphen join included) and any other whitespace a word gap. U+FFFD is the model's own mark
+    // for a glyph with no Unicode (`LayoutAnalyzer::readingText`), so it is UNMAPPED here and matches
+    // nothing: an attached PDF's text arrives in that form.
+    NormalizedText normalizeString(const QString& text) const;
+
 private:
     QString normalizeCluster(const QString& cluster) const;
 

@@ -3,6 +3,8 @@
 #include "core/Log.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/Permissions.h"
+#include "core/text/SearchUnit.h"
+#include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/TransitionReader.h"
 #include "pdf/ops/RevisionWriter.h"
@@ -38,6 +40,10 @@ struct DocumentBackendImpl::Open {
     // S4 T10 (D4-12). Read from the FIRST-PARTY walk below, because PDFium exposes `/Trans`
     // nowhere -- see `pdf/ops/TransitionReader.h`. Empty for almost every document.
     core::PageTransitions transitions;
+    // S5 T8 (D5-12). Each embedded file's name and /Desc, likewise first-party and for the same reason:
+    // the engine reads attachments' names and bytes and never their descriptions
+    // (`pdf/ops/EmbeddedFileReader.h`). Empty for almost every document, and for an encrypted one.
+    std::vector<std::pair<QString, QString>> attachmentDescriptions;
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
@@ -128,10 +134,10 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
             facts.push_back(fact);
         }
 
-        // S4 T10 (D4-12): `/Trans`, `/Dur` and `/PageMode`, off the walk that just ran. **This is
-        // the only read in the product that does not go through PDFium**, and it is here rather
-        // than in `pdf/render/` because the engine's C API exposes page transitions nowhere at
-        // all. It re-reads dictionaries this walk already fetched, so it costs no second parse --
+        // S4 T10 (D4-12): `/Trans`, `/Dur` and `/PageMode`, off the walk that just ran. **This was
+        // the first read in the product that does not go through PDFium** (S5 T8's attachment
+        // descriptions, below, are the second), and it is here rather than in `pdf/render/` because
+        // the engine's C API exposes page transitions nowhere at all. It re-reads dictionaries this walk already fetched, so it costs no second parse --
         // which is why it is worth doing for every document when almost none carries one.
         ops::TransitionReader::read(sink.value()->table(), sink.value()->pages(), entry->transitions);
         if (const int unsupported = entry->transitions.unsupportedCount(); unsupported > 0) {
@@ -139,6 +145,11 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path
                 << "backend:" << unsupported
                 << "page transition(s) name a style this build does not draw; they will cut";
         }
+
+        // S5 T8 (D5-12): the embedded files' descriptions, off the same walk -- one dictionary lookup for
+        // a document that has none.
+        for (ops::EmbeddedFileEntry& file : ops::EmbeddedFileReader::read(sink.value()->table()))
+            entry->attachmentDescriptions.emplace_back(std::move(file.name), std::move(file.description));
     }
     entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
     if (sink && entry->permissions.canEditPages())
@@ -341,6 +352,28 @@ core::Result<core::PdfRect> DocumentBackendImpl::contentBox(core::DocumentHandle
         found = entry->document.get();
     }
     return found->contentBox(pageIndex);
+}
+
+// `contentBox()`'s arrangement: the map's lock only to find the entry, the engine asked outside it. The
+// descriptions are read at open and never written again, so the reference handed on is stable while the
+// entry lives -- which `close()`'s protocol guarantees across this call.
+core::Status DocumentBackendImpl::searchUnits(core::DocumentHandle document, int part,
+                                              std::vector<core::text::SearchUnit>& into)
+{
+    render::PdfiumDocument* found = nullptr;
+    const std::vector<std::pair<QString, QString>>* descriptions = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        Open* entry = find(document);
+        if (entry == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument,
+                               QLatin1String("error.backend.unknownDocument"),
+                               QString::number(static_cast<qulonglong>(document.id))};
+        }
+        found = entry->document.get();
+        descriptions = &entry->attachmentDescriptions;
+    }
+    return found->searchUnits(part, *descriptions, into);
 }
 
 } // namespace rawpage::pdf

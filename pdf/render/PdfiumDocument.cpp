@@ -1,12 +1,18 @@
 #include "pdf/render/PdfiumDocument.h"
 
 #include "core/Log.h"
+#include "core/text/LayoutAnalyzer.h"
+#include "core/text/PageTextModel.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/render/PdfiumInit.h"
+#include "pdf/render/PdfiumTextExtractor.h"
 
 // fpdfview.h alone is not enough, and the split is not where you would guess: the page BOXES are
 // in fpdf_transformpage.h (they share a header with the functions that MOVE a page, not with the
 // ones that describe it), the ROTATION is in fpdf_edit.h, and the page LABEL in fpdf_doc.h.
+// Stage 5 T8's search units add the annotations (fpdf_annot.h) and the attachments (fpdf_attachment.h).
+#include <fpdf_annot.h>
+#include <fpdf_attachment.h>
 #include <fpdf_doc.h>
 #include <fpdf_edit.h>
 #include <fpdf_formfill.h>
@@ -17,6 +23,8 @@
 #include <QFileInfo>
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <mutex>
 #include <vector>
 
@@ -438,6 +446,249 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
                            QString::number(pageIndex)};
     }
     return *computed;
+}
+
+// =============================================================================================
+// THE SEARCH UNITS -- Stage 5 T8, D5-12 (the header's declaration says what each part holds)
+// =============================================================================================
+
+namespace {
+
+using core::text::SearchUnit;
+
+// ISO 32000-1 12.5.6.2: the MARKUP annotations, which are what a reader calls comments. A link, a popup
+// (whose text is its parent's), a widget (a field's), and the multimedia and printer's marks are not.
+bool isComment(int subtype)
+{
+    switch (subtype) {
+    case FPDF_ANNOT_TEXT:
+    case FPDF_ANNOT_FREETEXT:
+    case FPDF_ANNOT_LINE:
+    case FPDF_ANNOT_SQUARE:
+    case FPDF_ANNOT_CIRCLE:
+    case FPDF_ANNOT_POLYGON:
+    case FPDF_ANNOT_POLYLINE:
+    case FPDF_ANNOT_HIGHLIGHT:
+    case FPDF_ANNOT_UNDERLINE:
+    case FPDF_ANNOT_SQUIGGLY:
+    case FPDF_ANNOT_STRIKEOUT:
+    case FPDF_ANNOT_STAMP:
+    case FPDF_ANNOT_CARET:
+    case FPDF_ANNOT_INK:
+    case FPDF_ANNOT_FILEATTACHMENT:
+    case FPDF_ANNOT_SOUND:
+    case FPDF_ANNOT_REDACT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void outlineUnits(const std::vector<core::OutlineItem>& items, const QString& path, int depth,
+                  std::vector<SearchUnit>& into)
+{
+    // The reader's own depth bound (`kMaxOutlineDepth`) already holds; this one only keeps the recursion
+    // from trusting that.
+    if (depth >= kMaxOutlineDepth) return;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        const core::OutlineItem& item = items[i];
+        const QString here = path.isEmpty() ? QString::number(i) : path + QLatin1Char('/') + QString::number(i);
+        if (!item.title.isEmpty()) {
+            SearchUnit unit;
+            unit.contentClass = core::text::ContentClass::Bookmarks;
+            unit.field = SearchUnit::Field::BookmarkTitle;
+            unit.text = item.title;
+            unit.locator = here;
+            unit.destination = item.destination;
+            into.push_back(std::move(unit));
+        }
+        outlineUnits(item.children, here, depth + 1, into);
+    }
+}
+
+} // namespace
+
+core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<QString, QString>>& descriptions,
+                                         std::vector<core::text::SearchUnit>& into) const
+{
+    using core::text::ContentClass;
+
+    // BUILT ASIDE AND SWAPPED IN AT THE END, for the extractor's reason: a failure leaves `into` untouched.
+    std::vector<SearchUnit> units;
+
+    if (part == core::text::kOutlinePart) {
+        outlineUnits(outline_.roots(), QString(), 0, units);
+        into = std::move(units);
+        return {};
+    }
+
+    if (part == core::text::kAttachmentsPart) {
+        // A BOUND ON THE COUNT, for the name tree's reason: a hostile file can claim a great many.
+        constexpr int kMaxAttachments = 10000;
+        int count = 0;
+        {
+            const std::lock_guard<EngineMutex> guard(engineLock());
+            if (engine_->document == nullptr)
+                return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+            count = std::min(FPDFDoc_GetAttachmentCount(engine_->document), kMaxAttachments);
+        }
+        for (int index = 0; index < count; ++index) {
+            QString name;
+            QByteArray bytes;
+            {
+                // ONE ATTACHMENT PER LOCK: its name and its bytes, and nothing else held.
+                const std::lock_guard<EngineMutex> guard(engineLock());
+                FPDF_ATTACHMENT attachment = FPDFDoc_GetAttachment(engine_->document, index);
+                if (attachment == nullptr) continue;
+                name = wideStringFrom([attachment](void* buffer, unsigned long size) {
+                    return FPDFAttachment_GetName(attachment, static_cast<FPDF_WCHAR*>(buffer), size);
+                });
+                unsigned long length = 0;
+                if (FPDFAttachment_GetFile(attachment, nullptr, 0, &length) && length > 0
+                    && length < static_cast<unsigned long>(std::numeric_limits<int>::max())) {
+                    bytes.resize(static_cast<qsizetype>(length));
+                    unsigned long written = 0;
+                    if (!FPDFAttachment_GetFile(attachment, bytes.data(), length, &written) || written != length)
+                        bytes.clear();
+                }
+            }
+
+            const QString locator = name;
+            if (!name.isEmpty()) {
+                SearchUnit unit;
+                unit.contentClass = ContentClass::Attachments;
+                unit.field = SearchUnit::Field::AttachmentName;
+                unit.text = name;
+                unit.locator = locator;
+                units.push_back(std::move(unit));
+            }
+            // THE DESCRIPTION, JOINED BY POSITION AND CONFIRMED BY NAME (`EmbeddedFileReader`): one that
+            // names another file is dropped rather than attached to this one.
+            if (index < static_cast<int>(descriptions.size())) {
+                const auto& [describedName, description] = descriptions[static_cast<std::size_t>(index)];
+                if (describedName == name && !description.isEmpty()) {
+                    SearchUnit unit;
+                    unit.contentClass = ContentClass::Attachments;
+                    unit.field = SearchUnit::Field::AttachmentDescription;
+                    unit.text = description;
+                    unit.locator = locator;
+                    units.push_back(std::move(unit));
+                } else if (describedName != name) {
+                    RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+                        << "search units: attachment" << index << "is" << name << "to the engine and"
+                        << describedName << "to the first-party reader -- its description is not searched";
+                }
+            }
+
+            // AN ATTACHED PDF'S TEXT, ONE LEVEL DEEP, FROM MEMORY. `openBytes` takes the engine lock in its
+            // own pieces; no password callback, so an encrypted attachment is refused, never prompted for.
+            // Its attachments are never asked for -- this function is not called on it.
+            if (!looksLikePdf(bytes)) continue;
+            auto attached = openBytes(bytes, name, core::PasswordCallback{});
+            if (!attached) {
+                RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
+                    << "search units: attachment" << name << "is a PDF that does not open --"
+                    << QString(attached.error().messageKey) << "-- searched by name only";
+                continue;
+            }
+            // A HANDLE NO BACKEND ISSUED: the extractor refuses any other, so it can answer only for this one.
+            const core::DocumentHandle self{std::numeric_limits<std::uint64_t>::max()};
+            PdfiumTextExtractor extractor(*attached.value(), self);
+            const int pages = attached.value()->pageCount();
+            for (int page = 0; page < pages; ++page) {
+                core::text::PageTextModel model(page);
+                if (!extractor.extractPage(self, page, model)) continue;
+                // In READING order, as the page's own search reads it, with an unmapped glyph as U+FFFD --
+                // which `TextNormalizer::normalizeString` matches to nothing.
+                const QString text = core::text::LayoutAnalyzer::readingText(
+                    model, core::text::LayoutAnalyzer::analyze(model, nullptr));
+                if (text.trimmed().isEmpty()) continue;
+                SearchUnit unit;
+                unit.contentClass = ContentClass::Attachments;
+                unit.field = SearchUnit::Field::AttachedText;
+                unit.text = text;
+                unit.locator = locator;
+                unit.attachedPage = page;
+                units.push_back(std::move(unit));
+            }        }
+        into = std::move(units);
+        return {};
+    }
+
+    if (pages_.at(part) == nullptr) {
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"),
+                           QString::number(part)};
+    }
+
+    {
+        // ONE PAGE, AND THE WHOLE OF IT UNDER THE LOCK -- the page load, each annotation and both closes.
+        const std::lock_guard<EngineMutex> guard(engineLock());
+        FPDF_DOCUMENT document = engine_->document;
+        if (document == nullptr)
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+        FPDF_PAGE page = FPDF_LoadPage(document, part);
+        if (page == nullptr) {
+            return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.text.extractFailed"),
+                               QString::number(part)};
+        }
+        FPDF_FORMHANDLE form = engine_->form;
+
+        const int count = FPDFPage_GetAnnotCount(page);
+        for (int index = 0; index < count; ++index) {
+            FPDF_ANNOTATION annotation = FPDFPage_GetAnnot(page, index);
+            if (annotation == nullptr) continue;
+            const int subtype = FPDFAnnot_GetSubtype(annotation);
+
+            SearchUnit base;
+            base.page = part;
+            FS_RECTF rect{};
+            if (FPDFAnnot_GetRect(annotation, &rect)) {
+                base.rect = rectFrom(rect.left, rect.bottom, rect.right, rect.top);
+                base.hasRect = true;
+            }
+            const auto add = [&](ContentClass contentClass, SearchUnit::Field field, QString text, QString locator) {
+                if (text.isEmpty()) return;
+                SearchUnit unit = base;
+                unit.contentClass = contentClass;
+                unit.field = field;
+                unit.text = std::move(text);
+                unit.locator = std::move(locator);
+                units.push_back(std::move(unit));
+            };
+
+            if (subtype == FPDF_ANNOT_WIDGET) {
+                // A FIELD, through the form-fill environment open() made. Without one there are no field
+                // names to read, and the page's fields are not searched (logged at open).
+                if (form != nullptr) {
+                    const QString fieldName = wideStringFrom([form, annotation](void* buffer, unsigned long size) {
+                        return FPDFAnnot_GetFormFieldName(form, annotation, static_cast<FPDF_WCHAR*>(buffer), size);
+                    });
+                    const QString value = wideStringFrom([form, annotation](void* buffer, unsigned long size) {
+                        return FPDFAnnot_GetFormFieldValue(form, annotation, static_cast<FPDF_WCHAR*>(buffer), size);
+                    });
+                    add(ContentClass::Fields, SearchUnit::Field::FieldName, fieldName, fieldName);
+                    add(ContentClass::Fields, SearchUnit::Field::FieldValue, value, fieldName);
+                }
+            } else if (isComment(subtype)) {
+                const QString locator = QString::number(index);
+                add(ContentClass::Comments, SearchUnit::Field::CommentContents,
+                    wideStringFrom([annotation](void* buffer, unsigned long size) {
+                        return FPDFAnnot_GetStringValue(annotation, "Contents", static_cast<FPDF_WCHAR*>(buffer), size);
+                    }),
+                    locator);
+                add(ContentClass::Comments, SearchUnit::Field::CommentSubject,
+                    wideStringFrom([annotation](void* buffer, unsigned long size) {
+                        return FPDFAnnot_GetStringValue(annotation, "Subj", static_cast<FPDF_WCHAR*>(buffer), size);
+                    }),
+                    locator);
+            }
+            FPDFPage_CloseAnnot(annotation);
+        }
+        FPDF_ClosePage(page);
+    }
+
+    into = std::move(units);
+    return {};
 }
 
 core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::open(
