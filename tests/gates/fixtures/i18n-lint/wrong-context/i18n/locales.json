@@ -1,0 +1,6 @@
+{
+  "sourceLocale": "en",
+  "locales": [
+    { "code": "en", "catalog": "i18n/en.ts", "shipped": true }
+  ]
+}

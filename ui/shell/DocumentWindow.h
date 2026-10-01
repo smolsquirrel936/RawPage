@@ -99,6 +99,7 @@ namespace rawpage::ui {
 
 class PageView;
 class RulerWidget;
+class FindReplaceBar;
 class SelectionOverlay;
 class SplitViewContainer;
 
@@ -255,6 +256,10 @@ public:
     // this tab searches (the find bar, T7).
     std::uint64_t indexEntry() const noexcept { return indexEntry_; }
 
+    // THE FIND BAR (S5 T7, D5-14): one per tab, hidden until `Ctrl+F`. The `find.*` commands reach it
+    // through this. Never null after `build()`.
+    FindReplaceBar* findBar() const noexcept { return findBar_; }
+
     // ---- THE SPLIT AS ONE OPAQUE STRING (S4 T13, D4-9) ---------------------------------------
     // What `core::SessionDocument::splitState` holds. Encoded here for the reason
     // `MainWindow::paneLayoutState()` is encoded there: `SplitViewContainer::Mode` is a widget's
@@ -407,6 +412,9 @@ private:
 
     // S5 T6. `core::text::DocumentIndex::EntryId`, attached in `build()` and detached in the destructor.
     std::uint64_t indexEntry_ = 0;
+
+    // S5 T7. A child, deleted EXPLICITLY in the destructor before the selection overlay it paints through.
+    FindReplaceBar* findBar_ = nullptr;
 
     // The pane the rulers and the cursor readout are connected to. A raw pointer to a child, kept
     // only so the connections can be undone -- which is the whole of convention 10.

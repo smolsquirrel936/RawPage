@@ -127,11 +127,20 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `Ctrl+A`, declared since Stage 1 with their chords and registered by nothing until the text
     // selection existed to copy and to select (D5-9). No id is minted: one copy writes every flavour.
     //
+    // **Eight more at Stage 5 T7**: the whole of `Features.md` §8's Find / Search table -- `find.find`
+    // (also §8's Common `Ctrl+F`), `find.next`, `find.previous`, `find.jumpToResult`, `find.close` and the
+    // three toggles -- every one declared at Stage 1 with its chord and registered by nothing until the
+    // find bar existed (D5-14). No id is minted. `find.advancedSearch` is NOT among them: its pane is T9's.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 96);
+    CHECK(fixture.actions.registeredCount() == 104);
     CHECK(fixture.actions.isRegistered(core::ActionId::EditCopy));        // S5 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::FindFind));        // S5 T7
+    CHECK(fixture.actions.isRegistered(core::ActionId::FindClose));       // S5 T7
+    CHECK(fixture.actions.isRegistered(core::ActionId::FindToggleRegex)); // S5 T7
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::FindAdvancedSearch));   // T9's
     CHECK(fixture.actions.isRegistered(core::ActionId::EditSelectAll));   // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));
@@ -625,6 +634,29 @@ TEST_CASE("the string dump covers every shell key and every action label", "[she
 
     CHECK(shellKeyCount > 0);
     CHECK(keys.size() == expected.size());
+}
+
+TEST_CASE("every key the shell can put on screen resolves to text and not to itself", "[shell]")
+{
+    // THE CASE ABOVE PROVES EVERY KEY IS LISTED, and that is not the same as every key RESOLVING: a
+    // catalog entry written into the wrong `<context>` -- the context is the key's family, the part
+    // before the first dot -- is in the .qm and is found by nothing, so the product shows the KEY. Stage
+    // 5 T7 put the find bar's sixteen `search.*` entries inside the `prefs` context, and both locales,
+    // `i18n-lint` and the case above all stayed green while the bar read `search.bar.count` (S5 guide
+    // I-05). So: every line of the dump, through the source catalog main.cpp installs, must be TEXT.
+    const QStringList lines = ui::catalog::dumpStrings();
+    REQUIRE(lines.size() > 100);
+    int unresolved = 0;
+    for (const QString& line : lines) {
+        if (line.startsWith(QLatin1Char('#'))) continue;
+        const QString key = line.section(QLatin1Char('\t'), 0, 0);
+        const QString text = line.section(QLatin1Char('\t'), 1);
+        INFO("key " << key.toStdString());
+        if (text == key || text.isEmpty()) ++unresolved;
+        CHECK(text != key);
+        CHECK_FALSE(text.isEmpty());
+    }
+    CHECK(unresolved == 0);
 }
 
 TEST_CASE("a well-formed key resolves through the catalog and a bare word does not", "[shell]")

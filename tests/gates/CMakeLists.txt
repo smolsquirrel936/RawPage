@@ -483,6 +483,16 @@ rawpage_add_gate_test(NAME gates.i18n_lint.action_label
     COMMAND ${IL} --root ${IL_FIX}/action-label --rules ${IL_RULES}
     EXPECT_EXIT 1 EXPECT_MATCH "action-label: no catalog entry for action.file.unnamed")
 
+# S5 T7 -- guide issue I-05's rule, BLOCKING. One misplaced entry and two in their own contexts: the
+# fixture reports the one and NOT the two, so a rule that fired on every entry fails it as surely as one
+# that fired on none.
+rawpage_add_gate_test(NAME gates.i18n_lint.wrong_context
+    COMMAND ${IL} --root ${IL_FIX}/wrong-context --rules ${IL_RULES}
+    EXPECT_EXIT 1
+    EXPECT_MATCH "wrong-context: search.bar.count is in context prefs, not search"
+    EXPECT_NOT_MATCH "wrong-context: prefs.setting"
+    EXPECT_NOT_MATCH "wrong-context: search.bar.noMatches")
+
 # orphan-key is S3: REPORTED and never blocking. The exit code is the whole assertion -- a key that
 # leads its use by a commit must not fail a build.
 rawpage_add_gate_test(NAME gates.i18n_lint.orphan_key_is_a_note_not_a_failure

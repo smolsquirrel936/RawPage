@@ -368,10 +368,6 @@
         <translation>Presentation</translation>
     </message>
     <message>
-        <source>shell.tooltip.needsPresentation</source>
-        <translation>Available while presenting</translation>
-    </message>
-    <message>
         <source>action.present.exit</source>
         <translation>Exit</translation>
     </message>
@@ -1502,6 +1498,10 @@
 </context>
 <context>
     <name>shell</name>
+    <message>
+        <source>shell.tooltip.needsPresentation</source>
+        <translation>Available while presenting</translation>
+    </message>
     <message>
         <source>shell.window.title</source>
         <translation>RawPage</translation>
@@ -3380,6 +3380,73 @@
     <message>
         <source>panes.destinations.unresolved</source>
         <translation>Goes nowhere — its page is not in this document</translation>
+    </message>
+</context>
+<context>
+    <name>search</name>
+    <message>
+        <source>search.bar.count</source>
+        <translation>%1 of %2</translation>
+    </message>
+    <message>
+        <source>search.bar.placeholder</source>
+        <translation>Find in this document</translation>
+    </message>
+    <message>
+        <source>search.bar.noMatches</source>
+        <translation>No matches</translation>
+    </message>
+    <message>
+        <source>search.bar.searching</source>
+        <translation>Searching… %1 of %2 pages</translation>
+    </message>
+    <message>
+        <source>search.bar.wrappedToFirst</source>
+        <translation>Reached the end; continued from the first match</translation>
+    </message>
+    <message>
+        <source>search.bar.wrappedToLast</source>
+        <translation>Reached the beginning; continued from the last match</translation>
+    </message>
+    <message>
+        <source>search.bar.limitReached</source>
+        <translation>Only the first %1 matches are listed</translation>
+    </message>
+    <message>
+        <source>search.bar.unmapped</source>
+        <translation>%1 glyphs on %2 pages have no Unicode text and cannot be searched</translation>
+    </message>
+    <message>
+        <source>search.bar.failedPages</source>
+        <translation>%1 pages could not be read</translation>
+    </message>
+    <message>
+        <source>search.bar.badRange</source>
+        <translation>Type a page range such as 3-5</translation>
+    </message>
+    <message>
+        <source>search.bar.noSelection</source>
+        <translation>Select some text to search within it</translation>
+    </message>
+    <message>
+        <source>search.bar.highlightAll</source>
+        <translation>Highlight all</translation>
+    </message>
+    <message>
+        <source>search.bar.scope.document</source>
+        <translation>Whole document</translation>
+    </message>
+    <message>
+        <source>search.bar.scope.selection</source>
+        <translation>Selection</translation>
+    </message>
+    <message>
+        <source>search.bar.scope.pages</source>
+        <translation>Pages</translation>
+    </message>
+    <message>
+        <source>search.bar.rangePlaceholder</source>
+        <translation>e.g. 3-5</translation>
     </message>
 </context>
 </TS>

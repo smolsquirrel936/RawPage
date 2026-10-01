@@ -320,4 +320,24 @@ RAWPAGE_SHELL_STRING(PropertiesRepairedNo,       "shell.properties.repairedNo")
 // a status bar showing only "1" cannot say which of them the reader is on.
 RAWPAGE_SHELL_STRING(StatusPageTotalLabelled,    "shell.status.pageTotalLabelled")
 
+// --- The find bar (S5 T7, D5-14) ----------------------------------------------------------------
+// `search.` is its own family (`tools/i18n-lint/rules.json`), one per namespace as Stage 3's I-16 asks.
+// The bar's commands are labelled by their `action.find.*` rows; these are its own words.
+RAWPAGE_SHELL_STRING(SearchBarPlaceholder,      "search.bar.placeholder")
+RAWPAGE_SHELL_STRING(SearchBarCount,            "search.bar.count")
+RAWPAGE_SHELL_STRING(SearchBarNoMatches,        "search.bar.noMatches")
+RAWPAGE_SHELL_STRING(SearchBarSearching,        "search.bar.searching")
+RAWPAGE_SHELL_STRING(SearchBarWrappedToFirst,   "search.bar.wrappedToFirst")
+RAWPAGE_SHELL_STRING(SearchBarWrappedToLast,    "search.bar.wrappedToLast")
+RAWPAGE_SHELL_STRING(SearchBarLimitReached,     "search.bar.limitReached")
+RAWPAGE_SHELL_STRING(SearchBarUnmapped,         "search.bar.unmapped")
+RAWPAGE_SHELL_STRING(SearchBarFailedPages,      "search.bar.failedPages")
+RAWPAGE_SHELL_STRING(SearchBarBadRange,         "search.bar.badRange")
+RAWPAGE_SHELL_STRING(SearchBarNoSelection,      "search.bar.noSelection")
+RAWPAGE_SHELL_STRING(SearchBarHighlightAll,     "search.bar.highlightAll")
+RAWPAGE_SHELL_STRING(SearchBarScopeDocument,    "search.bar.scope.document")
+RAWPAGE_SHELL_STRING(SearchBarScopeSelection,   "search.bar.scope.selection")
+RAWPAGE_SHELL_STRING(SearchBarScopePages,       "search.bar.scope.pages")
+RAWPAGE_SHELL_STRING(SearchBarRangePlaceholder, "search.bar.rangePlaceholder")
+
 #undef RAWPAGE_SHELL_STRING

@@ -1310,11 +1310,71 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
     // THE SELECTION, OVER THE INVERSION AND UNDER THE GUIDES (S5 T5). Painted, never rasterized (D4-11);
     // over the inversion so its colour is the theme's highlight on either page, and under the guides so a
     // guide stays readable through it.
-    if (selection_ != nullptr) selection_->paint(painter, engine_.layout(), visible, dpr, selectionColour());
+    //
+    // SEARCH HITS UNDER THE SELECTION (S5 T7): the find bar's highlights are painted the same way and for
+    // the same reason, and under the selection so a selection made over a hit still reads as one.
+    if (selection_ != nullptr) {
+        selection_->paintSearchHits(painter, engine_.layout(), visible, dpr, searchHitColour(),
+                                    currentSearchHitColour());
+        selection_->paint(painter, engine_.layout(), visible, dpr, selectionColour());
+    }
 
     // The grid and the guides go OVER the inversion, so a guide keeps its colour on an inverted
     // page rather than becoming its complement.
     guides_->paint(painter, engine_.layout(), visible, dpr);
+}
+
+// THE PAGE'S COLOURS, NOT THE THEME'S -- and that is the argument for constants here where the selection
+// takes the palette. A hit is drawn on the DOCUMENT, whose paper is the document's colour in both themes
+// (convention 20 judges the chrome; the page is not chrome), so a translucent amber reads on white paper
+// in either theme, and on an inverted page, where it is drawn over the inversion like the selection. The
+// current hit is a deeper orange, so it stands out from the others when all are highlighted.
+QColor PageView::searchHitColour()
+{
+    return QColor(255, 200, 0, 110);
+}
+
+QColor PageView::currentSearchHitColour()
+{
+    return QColor(255, 120, 0, 150);
+}
+
+void PageView::revealPageRect(int pageIndex, const core::PdfRect& rect)
+{
+    // ALL FOUR CORNERS through the layout's own mapping: under a quarter turn the PDF bottom-left is not
+    // the device top-left (`SelectionOverlay`'s `toContent` makes the same argument).
+    double left = 0.0, top = 0.0, right = 0.0, bottom = 0.0;
+    bool first = true;
+    for (const core::PdfPoint corner : {core::PdfPoint{rect.left(), rect.bottom()}, core::PdfPoint{rect.right(), rect.top()},
+                                        core::PdfPoint{rect.left(), rect.top()}, core::PdfPoint{rect.right(), rect.bottom()}}) {
+        const std::optional<core::DevicePoint> device = engine_.layout().toContent(pageIndex, corner);
+        if (!device) return;
+        if (first) {
+            left = right = device->x;
+            top = bottom = device->y;
+            first = false;
+        } else {
+            left = std::min(left, device->x);
+            right = std::max(right, device->x);
+            top = std::min(top, device->y);
+            bottom = std::max(bottom, device->y);
+        }
+    }
+
+    const core::DeviceRect visible = controller_->visibleRect();
+    const core::DevicePoint now = controller_->scroll();
+    const double margin = engine_.options().margin;
+    double x = now.x;
+    double y = now.y;
+    if (left < visible.left() || right > visible.right()) {
+        // The least horizontal move that shows it, its left edge kept in view when it is wider than the view.
+        x = (right - left + 2 * margin > visible.size.width || left < visible.left()) ? left - margin
+                                                                                       : right + margin - visible.size.width;
+    }
+    if (top < visible.top() || bottom > visible.bottom()) y = top - visible.size.height / 3.0;
+    if (x == now.x && y == now.y) return;
+    controller_->setScroll(core::DevicePoint{x, y});
+    refresh();
 }
 
 QColor PageView::selectionColour() const
@@ -1432,10 +1492,14 @@ bool PageView::paintSharpLens(QPainter& painter, const QRect& lens, const QRectF
         painter.fillRect(region.widget, Qt::white);
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     }
-    // And the selection, as `paintContent` lays it -- the lens shows the page the view shows (S5 T5).
-    if (selection_ != nullptr)
+    // And the selection and the search hits, as `paintContent` lays them -- the lens shows the page the view
+    // shows (S5 T5, T7).
+    if (selection_ != nullptr) {
+        selection_->paintSearchHits(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF(),
+                                    searchHitColour(), currentSearchHitColour());
         selection_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF(),
                           selectionColour());
+    }
     guides_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF());
     painter.restore();
     return true;

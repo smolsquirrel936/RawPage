@@ -228,6 +228,22 @@ CompositionRoot::CompositionRoot(Options options)
     documentIndex_ = std::make_unique<core::text::DocumentIndex>(*renderScheduler_);
     applySearchSettings();
 
+    // THE SEARCH (Stage 5 T7), with ITS OWN pump: its workers finish off the UI thread and say so through a
+    // wake handler that only posts, exactly as the scheduler's does -- and the same life flag makes a post
+    // still in Qt's queue after teardown harmless.
+    searchEngine_ = std::make_unique<core::text::SearchEngine>(*documentIndex_);
+    searchEngine_->setWakeHandler(
+        [engine = searchEngine_.get(), alive = std::weak_ptr<bool>(pumpAlive_)] {
+            if (QCoreApplication::instance() == nullptr) return;
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(),
+                [engine, alive] {
+                    if (alive.expired()) return;
+                    engine->deliverReady();
+                },
+                Qt::QueuedConnection);
+        });
+
     if (options_.createPlatform) {
         // THE ONLY createPlatform() CALL IN THE PROGRAM. It logs its own interface census.
         platform_ = platform::createPlatform();
@@ -289,8 +305,13 @@ CompositionRoot::~CompositionRoot()
     // no-op; destroying the scheduler joins its worker, which is what guarantees no thread is
     // inside `BackendRasterizer` or `BackendTextExtractor` -- and therefore inside the backend -- when the backend is
     // destroyed further down.
-    // THE TEXT INDEX GOES FIRST: it holds a subscription to the scheduler and tickets on its queue, and
-    // every window that attached to it is gone by now.
+    // THE SEARCH, THEN THE TEXT INDEX, FIRST: the engine joins its workers and lets go of the index's
+    // events; the index holds a subscription to the scheduler and tickets on its queue. Every window that
+    // used either is gone by now.
+    if (searchEngine_) {
+        searchEngine_->setWakeHandler(nullptr);
+        searchEngine_.reset();
+    }
     documentIndex_.reset();
 
     if (renderScheduler_) {
@@ -335,9 +356,9 @@ CompositionRoot::~CompositionRoot()
 
 Services CompositionRoot::services()
 {
-    return Services{*settings_,  *recentFiles_,     *actions_,       *keyBindings_,
-                    *logBuffer_, *backend_,         *renderScheduler_, *renderCache_,
-                    *documentIndex_, *platform_,    options_.recoveryRoot};
+    return Services{*settings_,      *recentFiles_,  *actions_,         *keyBindings_,
+                    *logBuffer_,     *backend_,      *renderScheduler_, *renderCache_,
+                    *documentIndex_, *searchEngine_, *platform_,        options_.recoveryRoot};
 }
 
 void CompositionRoot::applySearchSettings()

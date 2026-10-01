@@ -34,6 +34,14 @@ const char* kWhyUnknownKey =
     "catalog entry is referenced, missing-key compares the catalogs against each other, and "
     "action-label covers only the action.* family. Issue I-04.";
 
+const char* kWhyWrongContext =
+    "A catalog entry is looked up in the context named by its key's first segment -- ui/'s "
+    "catalog::translate asks QCoreApplication::translate(\"search\", \"search.bar.count\") -- so an entry "
+    "written inside another <context> is compiled into the .qm and found by nothing, and the surface "
+    "shows the key. Every other rule passes it: the key exists (unknown-key), every locale has it "
+    "(missing-key), and something references it (orphan-key). Stage 5 T7 put sixteen search.* entries "
+    "in the prefs context and the find bar read search.bar.count; S5 guide I-05.";
+
 const char* kWhyActionLabel =
     "An ActionId with no action.* catalog entry renders as a button with no label. ActionId.def "
     "carries the catalog key as its own column precisely so this can be checked without a compiler.";
@@ -118,6 +126,21 @@ std::vector<Finding> check(const Inputs& inputs)
                                            "locale " + locale.code + " declares " + key
                                                + " more than once",
                                            kWhyMissingKey, true});
+            }
+        }
+
+        // --- wrong-context (BLOCKING) ----------------------------------------------------------
+        // Every catalog, shipped or not: an entry in the wrong context is a defect in any of them, and
+        // an unshipped locale is the one a translator is filling in today.
+        for (const auto& [locale, catalog] : inputs.catalogs) {
+            for (const CatalogEntry& entry : catalog.entries()) {
+                const std::size_t dot = entry.key.find('.');
+                if (dot == std::string::npos) continue;   // no family: unknown-key's and translate's concern
+                const std::string family = entry.key.substr(0, dot);
+                if (family == entry.context) continue;
+                findings.push_back(Finding{catalog.path().generic_string(), entry.line, "wrong-context",
+                                           entry.key + " is in context " + entry.context + ", not " + family,
+                                           kWhyWrongContext, true});
             }
         }
 

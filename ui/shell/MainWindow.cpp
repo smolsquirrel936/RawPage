@@ -26,6 +26,7 @@
 #include "ui/viewer/FullScreenController.h"
 #include "ui/viewer/PresentationSurface.h"
 #include "ui/viewer/SelectionOverlay.h"
+#include "ui/write/FindReplaceBar.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -1541,6 +1542,76 @@ void MainWindow::registerViewerActions()
             selectAll.unavailableKey = "shell.tooltip.needsDocument";
             services_.actions.register_(ActionId::EditSelectAll, std::move(selectAll));
         }
+    }
+
+    // --- The find bar: the whole Find / Search table (S5 · T7, D5-14) -------------------------------
+    //
+    // `find.find` is reached by §8's COMMON `Ctrl+F` from the page and every pane, and by the FindSearch
+    // row inside the bar (where it re-focuses the field). The other seven are FindSearch rows: they apply
+    // with the focus in the bar, and each acts on the bar of the TAB IN FRONT -- found through
+    // `activeShell()` at the moment of dispatch, never captured (convention 14). A command whose bar is
+    // closed is refused as unavailable, which consumes its key: a closed bar cannot hold the focus, so that
+    // only happens to a dispatch from somewhere other than a key.
+    //
+    // **THE THREE TOGGLES WRITE A SETTING AND NOTHING ELSE** -- `search/useRegex`, `search/wholeWords`,
+    // `search/caseSensitive` -- which is what makes them the bar's buttons, Preferences' editors and every
+    // search's flags at once (D5-14, D4-5). Every bar subscribes to the Search group and re-runs its search;
+    // `checked` reads the setting, the place that owns the fact (the `units/*` toggles' rule below).
+    {
+        const auto barInFront = []() -> FindReplaceBar* {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            return document ? document->findBar() : nullptr;
+        };
+        const auto barOpen = [barInFront] {
+            const FindReplaceBar* bar = barInFront();
+            return bar != nullptr && bar->isOpen();
+        };
+        const auto registerBar = [this, barOpen](ActionId id, void (FindReplaceBar::*behaviour)(),
+                                                 const auto& inFront) {
+            if (services_.actions.isRegistered(id)) return;
+            core::ActionRegistry::Registration registration;
+            registration.handler = [inFront, behaviour](KeyContext) {
+                if (FindReplaceBar* bar = inFront()) (bar->*behaviour)();
+            };
+            registration.enable = barOpen;
+            registration.unavailableKey = "shell.tooltip.needsDocument";
+            services_.actions.register_(id, std::move(registration));
+        };
+
+        if (!services_.actions.isRegistered(ActionId::FindFind)) {
+            core::ActionRegistry::Registration find;
+            find.handler = [barInFront](KeyContext) {
+                if (FindReplaceBar* bar = barInFront()) bar->open();
+            };
+            find.enable = hasView;
+            find.unavailableKey = "shell.tooltip.needsDocument";
+            services_.actions.register_(ActionId::FindFind, std::move(find));
+        }
+        registerBar(ActionId::FindNext, &FindReplaceBar::findNext, barInFront);
+        registerBar(ActionId::FindPrevious, &FindReplaceBar::findPrevious, barInFront);
+        registerBar(ActionId::FindJumpToResult, &FindReplaceBar::jumpToCurrent, barInFront);
+        registerBar(ActionId::FindClose, &FindReplaceBar::close, barInFront);
+
+        const auto settingsOfFront = []() -> core::Settings* {
+            MainWindow* window = activeShell();
+            return window ? &window->services_.settings : nullptr;
+        };
+        const auto registerFlag = [this, settingsOfFront](ActionId id, core::Key<bool> key) {
+            if (services_.actions.isRegistered(id)) return;
+            core::ActionRegistry::Registration registration;
+            registration.handler = [settingsOfFront, key](KeyContext) {
+                if (core::Settings* settings = settingsOfFront()) settings->set(key, !settings->get(key));
+            };
+            registration.checked = [settingsOfFront, key] {
+                const core::Settings* settings = settingsOfFront();
+                return settings != nullptr && settings->get(key);
+            };
+            services_.actions.register_(id, std::move(registration));
+        };
+        registerFlag(ActionId::FindToggleRegex, core::keys::search::useRegex);
+        registerFlag(ActionId::FindToggleWholeWords, core::keys::search::wholeWords);
+        registerFlag(ActionId::FindToggleCaseSensitive, core::keys::search::caseSensitive);
     }
 
     // --- `view.autoScroll` (S4 · T7) --------------------------------------------------------------

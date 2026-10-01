@@ -151,6 +151,11 @@ add_library(rawpage_ui STATIC
     viewer/SelectionOverlay.h
     viewer/SelectionOverlay.cpp
 
+    # write/ -- S5 T7. The find half of the find-and-replace bar (D5-14), at the path the FileMap gives it
+    # although the rest of write/ is Stage 13's: Write mode's find is this bar with replace switched on.
+    write/FindReplaceBar.h
+    write/FindReplaceBar.cpp
+
     viewer/PageView.h
     viewer/PageView.cpp
 

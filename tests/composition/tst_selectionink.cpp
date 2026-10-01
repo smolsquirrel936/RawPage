@@ -34,6 +34,8 @@
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/ViewportController.h"
 #include "ui/viewer/tools/SelectTool.h"
+#include "ui/shell/Catalog.h"
+#include "ui/write/FindReplaceBar.h"
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -47,6 +49,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QLayout>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPixmap>
 #include <QTemporaryDir>
@@ -755,4 +758,148 @@ TEST_CASE("Ctrl+A and Ctrl+C on a 900-page document copy every page after readin
     std::printf("A-51: Ctrl+A, Ctrl+C over text-900.pdf -- %zu pages read at Background and %lld characters on "
                 "the clipboard in %lld ms\n",
                 missing, static_cast<long long>(copied.size()), static_cast<long long>(elapsed));
+}
+
+// =============================================================================================
+// A-74's ink half and A-21's bar half -- the find bar over the real engine (S5 T7)
+// =============================================================================================
+
+namespace {
+
+// The find bar's hit rectangles for one page, in widget pixels -- `highlightsOf`'s twin for the search.
+std::vector<QRectF> searchHighlightsOf(const ui::SelectionOverlay& overlay, const ui::PageView& view, int page,
+                                       double shiftPoints = 0.0)
+{
+    std::vector<QRectF> out;
+    const core::DeviceRect visible = view.controller().visibleRect();
+    const double dpr = view.devicePixelRatioF();
+    const core::render::PageLayout& layout = view.layoutEngine().layout();
+    const double shift = shiftPoints * layout.presentedScale();
+    for (const core::DeviceRect& r : overlay.searchHighlightRects(layout, page))
+        out.emplace_back((r.left() + shift - visible.left()) / dpr, (r.top() - visible.top()) / dpr,
+                         r.size.width / dpr, r.size.height / dpr);
+    return out;
+}
+
+void sendKey(Product& product, Qt::Key key, Qt::KeyboardModifiers modifiers, const QString& text)
+{
+    QWidget* focus = product.window->focusWidget();
+    REQUIRE(focus != nullptr);
+    QKeyEvent press(QEvent::KeyPress, key, modifiers, text);
+    QCoreApplication::sendEvent(focus, &press);
+    QKeyEvent release(QEvent::KeyRelease, key, modifiers, text);
+    QCoreApplication::sendEvent(focus, &release);
+    QCoreApplication::processEvents();
+}
+
+// `Ctrl+F` from the page: the bar opens above the panes, and the view, a bar's height shorter, settles.
+ui::FindReplaceBar& openTheBar(Product& product)
+{
+    product.view->setFocus(Qt::OtherFocusReason);
+    sendKey(product, Qt::Key_F, Qt::ControlModifier, QString());
+    ui::FindReplaceBar& bar = *product.window->currentDocument()->findBar();
+    REQUIRE(bar.isOpen());
+    product.settle();
+    return bar;
+}
+
+// The query typed key by key into the open bar, and the search waited for -- the product's path.
+ui::FindReplaceBar& findFromThePage(Product& product, const QString& query)
+{
+    ui::FindReplaceBar& bar = *product.window->currentDocument()->findBar();
+    if (!bar.isOpen()) openTheBar(product);
+    REQUIRE(product.window->focusWidget() == bar.field());
+    for (const QChar ch : query) sendKey(product, Qt::Key_unknown, Qt::NoModifier, QString(ch));
+    QElapsedTimer timer;
+    timer.start();
+    while ((bar.isSearchPending() || bar.isSearching() || bar.searchesFinished() == 0) && timer.elapsed() < 30000)
+        product.settle();
+    REQUIRE(bar.searchesFinished() >= 1);
+    product.settle();
+    return bar;
+}
+
+} // namespace
+
+TEST_CASE("a search's highlights are on the ink of exactly the words it found", "[selectionink][A-74]")
+{
+    Product product;
+    ui::PageView* view = product.open("ordinary/columns-two.pdf");
+    const LabelPage page = labelPage("columns-two", 0);
+    const QString word = QStringLiteral("viewport");   // six times on page 1, in both columns
+
+    // THE GENERATOR'S OCCURRENCES of the word, per line -- the oracle, read from the label (rule 7).
+    std::vector<std::vector<std::pair<int, int>>> occurrences(page.lines.size());
+    int expected = 0;
+    for (std::size_t id = 0; id < page.lines.size(); ++id) {
+        const QString lower = page.lines[id].text.toLower();
+        for (qsizetype at = lower.indexOf(word); at >= 0; at = lower.indexOf(word, at + word.size())) {
+            occurrences[id].emplace_back(static_cast<int>(at), static_cast<int>(at + word.size()));
+            ++expected;
+        }
+    }
+    REQUIRE(expected == 6);
+
+    // THE BAR OPENS FIRST and the view, shorter by its height, re-tiles -- that is opening a toolbar, not a
+    // search, so the counters are read after it.
+    openTheBar(product);
+    // THE FIRST OCCURRENCE ON SCREEN, so the bar's reveal of the current hit has nothing to scroll.
+    std::size_t firstLine = 0;
+    while (firstLine < occurrences.size() && occurrences[firstLine].empty()) ++firstLine;
+    REQUIRE(firstLine < occurrences.size());
+    product.scrollTo(0, page.lines[firstLine].baseline, 0.3);
+    const core::DevicePoint scrolledTo = view->controller().scroll();
+    const core::render::RenderScheduler::Stats before = product.root->services().renderScheduler.stats();
+    ui::FindReplaceBar& bar = findFromThePage(product, word);
+    int onPageOne = 0;
+    for (const auto& hit : bar.hits()) onPageOne += hit.page == 0 ? 1 : 0;
+    CHECK(onPageOne == expected);
+
+    // THE PRODUCT'S RECTANGLES, every hit, then the page grabbed WITHOUT them: the raster the ink is in.
+    ui::SelectionOverlay& overlay = product.selection();
+    const PageMap map = mapOf(*view, 0);
+    const std::vector<QRectF> highlights = searchHighlightsOf(overlay, *view, 0);
+    const std::vector<QRectF> moved = searchHighlightsOf(overlay, *view, 0, 2.0);
+    REQUIRE_FALSE(highlights.empty());
+    const std::vector<core::text::SearchHit> hits = overlay.searchHits();
+    overlay.clearSearchHits();
+    product.settle();
+    const QImage raster = view->viewport()->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    overlay.setSearchHits(hits, 0);
+
+    InkTally tally, control;
+    for (std::size_t id = 0; id < page.lines.size(); ++id) {
+        const auto& ranges = occurrences[id];
+        const auto found = [&ranges](int c) {
+            return std::any_of(ranges.begin(), ranges.end(), [c](const auto& r) { return c >= r.first && c < r.second; });
+        };
+        judgeLine(raster, map, page.lines[id], found, highlights, tally);
+        judgeLine(raster, map, page.lines[id], found, moved, control);
+    }
+    report("A-74", tally, control);
+    CHECK(tally.selected > 20);
+    CHECK(tally.outside == 0);
+    CHECK(tally.intruding == 0);
+    CHECK(control.outside + control.intruding > 0);
+
+    // AND NO TILE WAS RASTERIZED TO SHOW THEM: the search asked the engine for text and nothing else, and
+    // the highlights are paint (D4-11). The reveal could have scrolled -- this page's first hit is on
+    // screen, so it did not.
+    const core::render::RenderScheduler::Stats after = product.root->services().renderScheduler.stats();
+    REQUIRE(view->controller().scroll().x == scrolledTo.x);
+    REQUIRE(view->controller().scroll().y == scrolledTo.y);
+    CHECK(after.completed - after.textCompleted == before.completed - before.textCompleted);
+}
+
+TEST_CASE("the find bar says cjk-embedded's glyphs cannot be searched and finds none of them", "[selectionink][A-21]")
+{
+    Product product;
+    product.open("ordinary/cjk-embedded.pdf");
+    ui::FindReplaceBar& bar = findFromThePage(product, QStringLiteral("\u4E2D"));
+    CHECK(bar.hits().empty());
+    const QString status = bar.statusText();
+    INFO("status: " << status.toStdString());
+    CHECK(status.contains(ui::catalog::translate(ui::catalog::key::SearchBarNoMatches)));
+    // THE REPORT, in words a person reads: the 90 glyphs T2 measured, and that they cannot be searched.
+    CHECK(status.contains(ui::catalog::translate(ui::catalog::key::SearchBarUnmapped).arg(90).arg(1)));
 }

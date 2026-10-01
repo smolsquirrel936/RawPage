@@ -30,6 +30,7 @@
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
+#include "ui/write/FindReplaceBar.h"
 
 #include <QAbstractSpinBox>
 #include <QClipboard>
@@ -339,6 +340,17 @@ TEST_CASE("every text widget keeps its own Ctrl+C and Ctrl+A", "[selecttool][A-5
     QLineEdit* pageBox = viewer.window->statusBar()->pageBox();
     pageBox->setText(QStringLiteral("7"));
     check(pageBox, QStringLiteral("7"), "the page box");
+
+    // The find bar's field (S5 T7) -- the first widget the guide's Expect names. `Ctrl+F` from the page
+    // opens it through section 8's Common row; inside it the context is FindSearch, which binds neither key,
+    // so both would fall through to Common -- and the field must keep them.
+    REQUIRE(viewer.key(Qt::Key_F, Qt::ControlModifier));
+    ui::FindReplaceBar* bar = viewer.document()->findBar();
+    REQUIRE(bar != nullptr);
+    REQUIRE(bar->isOpen());
+    bar->field()->setText(QStringLiteral("lorem"));
+    check(bar->field(), QStringLiteral("lorem"), "the find bar");
+    bar->close();
 
     // The log pane, a READ-ONLY text view -- the one Qt does not claim `Ctrl+C` for by itself.
     ui::LogPane* log = viewer.window->logPane();

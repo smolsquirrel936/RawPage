@@ -14,6 +14,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/SelectionOverlay.h"
+#include "ui/write/FindReplaceBar.h"
 #include "core/text/DocumentIndex.h"
 #include "ui/viewer/SplitViewContainer.h"
 
@@ -182,6 +183,19 @@ void DocumentWindow::build(const Recovery* recovery)
     grid->setColumnStretch(1, 1);
     column->addWidget(surface);
 
+    // THE FIND BAR (S5 T7, D5-14), above the surface and hidden until `Ctrl+F`. One per tab: it searches
+    // this tab's document and paints through this tab's selection overlay, which every pane of a split
+    // shares -- so its hits show in every pane. The current hit is revealed in the pane a person is in.
+    findBar_ = new FindReplaceBar(services_, this);
+    column->insertWidget(0, findBar_);
+    findBar_->setCurrentPageProvider([this] { return view() != nullptr ? view()->controller().currentPage() : 0; });
+    connect(findBar_, &FindReplaceBar::hitActivated, this, [this](int page, core::PdfRect rect) {
+        if (PageView* pane = view()) pane->revealPageRect(page, rect);
+    });
+    connect(findBar_, &FindReplaceBar::closed, this, [this] {
+        if (PageView* pane = view()) pane->setFocus(Qt::OtherFocusReason);
+    });
+
     // THE THREE THINGS A SPLIT CHANGES ABOUT THIS CLASS (S4 T9). A pane the container adds is
     // adopted here and nowhere else; a pane it retires stops being the bound one; and the rulers
     // follow whichever pane has focus.
@@ -318,6 +332,7 @@ void DocumentWindow::build(const Recovery* recovery)
     if (handle_.isValid())
         indexEntry_ = services_.documentIndex.attach(services_.backend.documentId(handle_), handle_, pageCount());
     selection_->setDocument(indexEntry_, pageCount());
+    findBar_->setDocument(indexEntry_, pageCount(), selection_);
     for (PageView* pane : split_->views()) handDocumentTo(pane);
 
     // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
@@ -718,6 +733,15 @@ DocumentWindow::~DocumentWindow()
     }
     if (horizontalRuler_) disconnect(horizontalRuler_, nullptr, this, nullptr);
     if (verticalRuler_) disconnect(verticalRuler_, nullptr, this, nullptr);
+
+    // THE FIND BAR FIRST (S5 T7): its search runs over this document's index entry and paints through the
+    // selection overlay below, so it cancels and lets go before either does -- and its two signals are
+    // lambdas holding `this` (convention 10).
+    if (findBar_ != nullptr) {
+        disconnect(findBar_, nullptr, this, nullptr);
+        delete findBar_;
+        findBar_ = nullptr;
+    }
 
     // THE SELECTION GOES BEFORE THE HANDLE CLOSES (S5 T5): it holds text tickets on this document and a
     // subscription to the scheduler, and every pane lets go of it first so none paints through a

@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",

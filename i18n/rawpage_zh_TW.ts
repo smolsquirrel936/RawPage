@@ -368,10 +368,6 @@
         <translation>簡報模式</translation>
     </message>
     <message>
-        <source>shell.tooltip.needsPresentation</source>
-        <translation>放映時才可使用</translation>
-    </message>
-    <message>
         <source>action.present.exit</source>
         <translation>結束放映</translation>
     </message>
@@ -1502,6 +1498,10 @@
 </context>
 <context>
     <name>shell</name>
+    <message>
+        <source>shell.tooltip.needsPresentation</source>
+        <translation>放映時才可使用</translation>
+    </message>
     <message>
         <source>shell.window.title</source>
         <translation>RawPage</translation>
@@ -3380,6 +3380,73 @@
     <message>
         <source>panes.destinations.unresolved</source>
         <translation>無法到達 — 其頁面不在本文件中</translation>
+    </message>
+</context>
+<context>
+    <name>search</name>
+    <message>
+        <source>search.bar.placeholder</source>
+        <translation>在此文件中尋找</translation>
+    </message>
+    <message>
+        <source>search.bar.count</source>
+        <translation>第 %1 個，共 %2 個</translation>
+    </message>
+    <message>
+        <source>search.bar.noMatches</source>
+        <translation>找不到相符項目</translation>
+    </message>
+    <message>
+        <source>search.bar.searching</source>
+        <translation>搜尋中… 第 %1 頁，共 %2 頁</translation>
+    </message>
+    <message>
+        <source>search.bar.wrappedToFirst</source>
+        <translation>已到結尾，從第一個相符項目繼續</translation>
+    </message>
+    <message>
+        <source>search.bar.wrappedToLast</source>
+        <translation>已到開頭，從最後一個相符項目繼續</translation>
+    </message>
+    <message>
+        <source>search.bar.limitReached</source>
+        <translation>僅列出前 %1 個相符項目</translation>
+    </message>
+    <message>
+        <source>search.bar.unmapped</source>
+        <translation>%2 頁上有 %1 個字形沒有 Unicode 文字，無法搜尋</translation>
+    </message>
+    <message>
+        <source>search.bar.failedPages</source>
+        <translation>有 %1 頁無法讀取</translation>
+    </message>
+    <message>
+        <source>search.bar.badRange</source>
+        <translation>請輸入頁面範圍，例如 3-5</translation>
+    </message>
+    <message>
+        <source>search.bar.noSelection</source>
+        <translation>請先選取要在其中搜尋的文字</translation>
+    </message>
+    <message>
+        <source>search.bar.highlightAll</source>
+        <translation>全部標示</translation>
+    </message>
+    <message>
+        <source>search.bar.scope.document</source>
+        <translation>整份文件</translation>
+    </message>
+    <message>
+        <source>search.bar.scope.selection</source>
+        <translation>選取範圍</translation>
+    </message>
+    <message>
+        <source>search.bar.scope.pages</source>
+        <translation>頁面</translation>
+    </message>
+    <message>
+        <source>search.bar.rangePlaceholder</source>
+        <translation>例如 3-5</translation>
     </message>
 </context>
 </TS>

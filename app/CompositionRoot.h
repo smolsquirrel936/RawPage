@@ -36,6 +36,7 @@
 #include "core/settings/SessionState.h"
 #include "core/settings/Settings.h"
 #include "core/text/DocumentIndex.h"
+#include "core/text/SearchEngine.h"
 #include "platform/platform.h"
 
 #include <QString>
@@ -128,6 +129,10 @@ public:
     // its budget `search/indexCacheMB`. Destroyed BEFORE the scheduler, whose text subscription it holds.
     core::text::DocumentIndex&     documentIndex() { return *documentIndex_; }
 
+    // THE SEARCH (Stage 5 T7): one per process over the index, its matching workers its own, its results
+    // pumped onto the UI thread by a wake handler of its own. Destroyed BEFORE the index it subscribes to.
+    core::text::SearchEngine&      searchEngine() { return *searchEngine_; }
+
     // How many per-user shortcut overrides were read out of settings.ini and accepted. A key naming
     // an ActionId that no longer exists is dropped with a log line rather than retained silently --
     // `core::Settings::droppedShortcutKeyCount()` counts those, and the two numbers together are
@@ -173,6 +178,7 @@ private:
     std::unique_ptr<core::render::RenderCache>     renderCache_;
     std::unique_ptr<core::render::RenderScheduler> renderScheduler_;
     std::unique_ptr<core::text::DocumentIndex>     documentIndex_;
+    std::unique_ptr<core::text::SearchEngine>      searchEngine_;
 
     // THE WAKE PUMP'S LIFE FLAG. `RenderScheduler`'s wake handler is called FROM A WORKER and
     // posts `deliverReady()` onto the UI thread; a post already in Qt's event queue when this

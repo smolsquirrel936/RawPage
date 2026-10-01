@@ -44,6 +44,7 @@ class RenderScheduler;
 }
 namespace text {
 class DocumentIndex;
+class SearchEngine;
 }
 }
 
@@ -94,9 +95,13 @@ struct Services {
     // `DocumentWindow` attaches its handle and hands a mutation's `Scope` to it, and the window's
     // `SelectionOverlay` reads its pages from it rather than keeping its own. ONE per process, keyed
     // by document identity, so a `window.new` companion reads the pages its leader already extracted.
-    // `core/text/SearchEngine` is NOT here yet, by this file's own rule: its first widget is Stage 5
-    // T7's find bar, and it arrives with it.
     core::text::DocumentIndex&     documentIndex;
+
+    // THE SEARCH OVER IT (Stage 5 T7), arriving with its first widget as this file's rule asks: each
+    // document window's find bar (`ui/write/FindReplaceBar`) runs its searches here. ONE per process --
+    // its workers match for every window -- and its results are delivered on the UI thread by the pump
+    // `app/CompositionRoot` installs, as the scheduler's are.
+    core::text::SearchEngine&      searchEngine;
 
     // The OS bundle, whose own members are null wherever an interface is not implemented yet.
     // `unimplementedInterfaces()` names them, so a Stage 1 window can print what it cannot do

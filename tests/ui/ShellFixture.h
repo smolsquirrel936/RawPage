@@ -52,6 +52,7 @@
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
 #include "core/text/DocumentIndex.h"
+#include "core/text/SearchEngine.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "core/text/PageTextModel.h"
@@ -308,11 +309,15 @@ struct ShellFixture {
     // scheduler, so it is destroyed BEFORE it: it holds the scheduler's text subscription and tickets.
     core::text::DocumentIndex documentIndex{renderScheduler};
 
+    // S5 T7: the search, as `app/CompositionRoot` builds it -- after the index, so destroyed before it. No
+    // wake handler: `pumpTiles` below pumps it, as it pumps the scheduler.
+    core::text::SearchEngine searchEngine{documentIndex, core::text::SearchEngine::Config{2}};
+
     app::Services services()
     {
         return app::Services{settings,    recentFiles,     actions,     keyBindings,   logBuffer,
-                             backend,     renderScheduler, renderCache, documentIndex, platform,
-                             recoveryRoot};
+                             backend,     renderScheduler, renderCache, documentIndex, searchEngine,
+                             platform,    recoveryRoot};
     }
 
     // Runs queued work until every tile has been rasterized and delivered. Returns how many results
@@ -327,6 +332,10 @@ struct ShellFixture {
             QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
             renderScheduler.waitForIdle(budgetMs);
             delivered += renderScheduler.deliverReady();
+            // S5 T7: a page that arrived may have been the last a search waited for, and its matching runs
+            // on the engine's workers -- pumped here too, so a case's search finishes inside one pump.
+            searchEngine.waitForIdle(budgetMs);
+            delivered += searchEngine.deliverReady();
             QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
         } while (renderScheduler.pendingCount() > 0 && timer.elapsed() < budgetMs);
 

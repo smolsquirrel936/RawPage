@@ -90,6 +90,8 @@ void SelectionOverlay::setDocument(core::text::DocumentIndex::EntryId entry, int
     focus_ = Point{};
     anchorUnit_.reset();
     pendingCopy_ = false;
+    hits_.clear();
+    currentHit_ = -1;
     notifyChanged();
 }
 
@@ -393,6 +395,124 @@ void SelectionOverlay::paint(QPainter& painter, const core::render::PageLayout& 
                                     rect.size.width / dpr, rect.size.height / dpr),
                              colour);
         }
+    }
+    painter.restore();
+}
+
+// =====================================================================================================
+// Search hits (S5 T7)
+// =====================================================================================================
+
+namespace {
+
+// The hits on one page, by bisection: they are in document order.
+std::pair<std::size_t, std::size_t> hitsOnPage(const std::vector<core::text::SearchHit>& hits, int page)
+{
+    const auto first = std::lower_bound(hits.begin(), hits.end(), page,
+                                        [](const core::text::SearchHit& hit, int p) { return hit.page < p; });
+    const auto last = std::upper_bound(first, hits.end(), page,
+                                       [](int p, const core::text::SearchHit& hit) { return p < hit.page; });
+    return {static_cast<std::size_t>(first - hits.begin()), static_cast<std::size_t>(last - hits.begin())};
+}
+
+// A hit's rectangles in page space: its span as a flow selection on its page -- one rectangle per line it
+// covers, the height of the line, exactly as a selection of the same characters is drawn.
+std::vector<core::PdfRect> hitRects(const PageReading& reading, const core::text::SearchHit& hit)
+{
+    return TextSelection::flow(TextPosition{hit.page, hit.reading.begin}, TextPosition{hit.page, hit.reading.end})
+        .highlightOn(reading);
+}
+
+} // namespace
+
+void SelectionOverlay::setSearchHits(std::vector<core::text::SearchHit> hits, int current)
+{
+    hits_ = std::move(hits);
+    currentHit_ = (current >= 0 && current < static_cast<int>(hits_.size())) ? current : -1;
+    emit changed();
+}
+
+void SelectionOverlay::setCurrentSearchHit(int current)
+{
+    const int next = (current >= 0 && current < static_cast<int>(hits_.size())) ? current : -1;
+    if (next == currentHit_) return;
+    currentHit_ = next;
+    emit changed();
+}
+
+void SelectionOverlay::setHighlightAllHits(bool all)
+{
+    if (all == highlightAll_) return;
+    highlightAll_ = all;
+    emit changed();
+}
+
+void SelectionOverlay::clearSearchHits()
+{
+    if (hits_.empty() && currentHit_ < 0) return;
+    hits_.clear();
+    currentHit_ = -1;
+    emit changed();
+}
+
+std::optional<core::PdfRect> SelectionOverlay::searchHitRect(const core::text::SearchHit& hit)
+{
+    if (!ensurePage(hit.page, core::render::RenderPriority::Visible)) return std::nullopt;
+    const PageReading* reading = text_.page(hit.page);
+    if (reading == nullptr) return std::nullopt;
+    std::optional<core::PdfRect> united;
+    for (const core::PdfRect& r : hitRects(*reading, hit)) {
+        if (!united) {
+            united = r;
+            continue;
+        }
+        const double left = std::min(united->left(), r.left());
+        const double bottom = std::min(united->bottom(), r.bottom());
+        const double right = std::max(united->right(), r.right());
+        const double top = std::max(united->top(), r.top());
+        united = core::PdfRect{core::PdfPoint{left, bottom}, core::PdfSize{right - left, top - bottom}};
+    }
+    return united;
+}
+
+std::vector<core::DeviceRect> SelectionOverlay::searchHighlightRects(const core::render::PageLayout& layout, int page,
+                                                                     bool currentOnly) const
+{
+    std::vector<core::DeviceRect> out;
+    const PageReading* reading = text_.page(page);
+    if (reading == nullptr || hits_.empty()) return out;
+    const auto [first, last] = hitsOnPage(hits_, page);
+    for (std::size_t i = first; i < last; ++i) {
+        const bool current = static_cast<int>(i) == currentHit_;
+        if (currentOnly ? !current : (!highlightAll_ && !current)) continue;
+        for (const core::PdfRect& rect : hitRects(*reading, hits_[i]))
+            if (const std::optional<core::DeviceRect> device = toContent(layout, page, rect)) out.push_back(*device);
+    }
+    return out;
+}
+
+void SelectionOverlay::paintSearchHits(QPainter& painter, const core::render::PageLayout& layout,
+                                       const core::DeviceRect& visible, double devicePixelRatio,
+                                       const QColor& hitColour, const QColor& currentColour)
+{
+    if (hits_.empty()) return;
+    const double dpr = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
+    const auto fill = [&](const core::DeviceRect& rect, const QColor& colour) {
+        painter.fillRect(QRectF((rect.left() - visible.left()) / dpr, (rect.top() - visible.top()) / dpr,
+                                rect.size.width / dpr, rect.size.height / dpr),
+                         colour);
+    };
+
+    painter.save();
+    for (const core::render::PageSlot& slot : layout.slotsIntersecting(visible)) {
+        const auto [first, last] = hitsOnPage(hits_, slot.pageIndex);
+        if (first == last) continue;
+        // A page with hits was read by the search, so the index holds it and this takes it at once; one the
+        // budget has evicted since is asked for at `Visible` -- it is on screen -- and painted when it comes.
+        if (!ensurePage(slot.pageIndex, core::render::RenderPriority::Visible)) continue;
+        if (highlightAll_)
+            for (const core::DeviceRect& rect : searchHighlightRects(layout, slot.pageIndex)) fill(rect, hitColour);
+        for (const core::DeviceRect& rect : searchHighlightRects(layout, slot.pageIndex, true)) fill(rect, currentColour);
     }
     painter.restore();
 }

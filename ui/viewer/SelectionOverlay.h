@@ -57,6 +57,7 @@
 #include "core/render/PagePresentation.h"
 #include "core/render/RenderScheduler.h"
 #include "core/text/DocumentIndex.h"
+#include "core/text/SearchEngine.h"
 #include "core/text/TextSelection.h"
 
 #include <QColor>
@@ -137,6 +138,31 @@ public:
     // The same rectangles in CONTENT device pixels, for a case to compare with the ink (rule 6).
     std::vector<core::DeviceRect> highlightRects(const core::render::PageLayout& layout, int page) const;
 
+    // ---- Search hits (S5 T7, D5-14) -------------------------------------------------------------------
+    // The find bar's hits, painted over the tiles beside the selection and, like it, never rasterized
+    // (D4-11, guide A-74): every hit when `highlightAll`, or only the current one. Hits are in document
+    // order (`SearchEngine::Outcome`'s), which is what lets a page's hits be found by bisection on a paint.
+    void setSearchHits(std::vector<core::text::SearchHit> hits, int current);
+    void setCurrentSearchHit(int current);
+    void setHighlightAllHits(bool all);
+    void clearSearchHits();
+    const std::vector<core::text::SearchHit>& searchHits() const noexcept { return hits_; }
+    int currentSearchHit() const noexcept { return currentHit_; }
+    bool highlightsAllHits() const noexcept { return highlightAll_; }
+    bool hasSearchHits() const noexcept { return !hits_.empty(); }
+
+    // Where a hit is, in PAGE space -- the union of its lines' highlight rectangles -- so the find bar can
+    // ask a pane to reveal it. Takes the page's reading from the index when this object has not read it;
+    // empty when the index has not got it either.
+    std::optional<core::PdfRect> searchHitRect(const core::text::SearchHit& hit);
+
+    // The rectangles a paint draws for one page's hits, in CONTENT device pixels -- for a case to compare
+    // with the ink (rule 6). `currentOnly` gives only the current hit's.
+    std::vector<core::DeviceRect> searchHighlightRects(const core::render::PageLayout& layout, int page,
+                                                       bool currentOnly = false) const;
+    void paintSearchHits(QPainter& painter, const core::render::PageLayout& layout, const core::DeviceRect& visible,
+                         double devicePixelRatio, const QColor& hitColour, const QColor& currentColour);
+
     // ---- The text ------------------------------------------------------------------------------------
     const core::text::DocumentText& text() const noexcept { return text_; }
     // Takes a page's reading from the index when the index holds it -- true -- and otherwise asks the
@@ -203,6 +229,11 @@ private:
     bool pendingCopy_ = false;
     int pendingTotal_ = 0;
     bool hadSelection_ = false;
+
+    // S5 T7 -- the find bar's hits, document order.
+    std::vector<core::text::SearchHit> hits_;
+    int currentHit_ = -1;
+    bool highlightAll_ = true;
 };
 
 } // namespace rawpage::ui

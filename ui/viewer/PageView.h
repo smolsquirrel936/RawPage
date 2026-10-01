@@ -203,6 +203,13 @@ public:
     // the document meant something it did not say.
     void goToDestination(const core::Destination& destination);
 
+    // REVEAL A RECTANGLE OF A PAGE -- S5 T7, the find bar's current hit. Nothing moves when it is already
+    // wholly on screen (stepping through three hits on one visible page must not jump the page under the
+    // reader); otherwise the view scrolls the least it can on each axis, with the rectangle a third of the
+    // way down when it has to move vertically, so the hit is not left on the bottom edge. Records no
+    // history entry: stepping through hits is not navigating.
+    void revealPageRect(int pageIndex, const core::PdfRect& rect);
+
     // ---- The §8 Viewer operations (T14) -------------------------------------------------------
     // Each is the BEHAVIOUR behind one registered command, and each is a public method rather than
     // a lambda inside the registration for the reason D1-7 gives about everything else: a
@@ -532,6 +539,9 @@ private:
     bool                            invertColors_ = false;
 
     QColor selectionColour() const;
+    // S5 T7: the find bar's hits -- every hit, and the current one over it.
+    static QColor searchHitColour();
+    static QColor currentSearchHitColour();
 
     // S5 T5: the window's selection (not owned), and the click counter.
     SelectionOverlay* selection_ = nullptr;

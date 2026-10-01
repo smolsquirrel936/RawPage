@@ -8,10 +8,10 @@
 // no text at all, and that a rotation run through the journal reaches the index. Those are these cases.
 //
 // WHAT IT CANNOT CLAIM (convention 19): the text is `ShellFixture`'s fake -- five lines a page -- so nothing
-// here is about the corpus, and the search below is driven through a `SearchEngine` THIS FILE owns over the
-// fixture's index: the product composes the engine with its first widget, Stage 5 T7's find bar
-// (`app/Services.h` says why it is not composed before), so "a search in the second window" here is a search
-// of the second window's ENTRY, which is the claim A-66 makes about the index.
+// here is about the corpus, and the search below is the fixture's `SearchEngine` -- the one the product
+// composes since Stage 5 T7 -- started on each window's ENTRY directly rather than through a find bar, so
+// "a search in the second window" is a search of the second window's entry, which is the claim A-66 makes
+// about the index. The find bar's own cases are `tst_findbar.cpp`'s.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -74,20 +74,16 @@ void driveLayout(QWidget* root)
 struct Desk {
     Fixture                         fixture;
     std::unique_ptr<ui::MainWindow> first;
-    // Declared AFTER the fixture, so destroyed BEFORE its index -- `CompositionRoot`'s order.
-    std::unique_ptr<SearchEngine>   engine;
 
     explicit Desk(int pages = 8)
     {
         fixture.backend.pagesPerDocument = pages;
         first = std::make_unique<ui::MainWindow>(fixture.services());
         first->resize(900, 700);
-        engine = std::make_unique<SearchEngine>(fixture.documentIndex, SearchEngine::Config{2});
     }
 
     ~Desk()
     {
-        engine.reset();
         for (ui::MainWindow* window : ui::MainWindow::shellWindows())
             if (window != first.get() && window->testAttribute(Qt::WA_DeleteOnClose)) window->close();
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -113,14 +109,10 @@ struct Desk {
         handlers.finished = [&](const SearchEngine::Outcome& o) { outcome = o; };
         core::text::SearchQuery query;
         query.pattern = pattern;
-        REQUIRE(engine->start(entry, query, handlers));
+        REQUIRE(fixture.searchEngine.start(entry, query, handlers));
         QElapsedTimer timer;
         timer.start();
-        while (!outcome && timer.elapsed() < 10000) {
-            fixture.pumpTiles(200);
-            engine->waitForIdle(50);
-            engine->deliverReady();
-        }
+        while (!outcome && timer.elapsed() < 10000) fixture.pumpTiles(200);
         REQUIRE(outcome.has_value());
         return *outcome;
     }
