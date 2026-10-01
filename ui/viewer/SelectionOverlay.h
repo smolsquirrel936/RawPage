@@ -14,16 +14,24 @@
 // ---------------------------------------------------------------------------------------------
 // WHERE THE TEXT COMES FROM (D5-3)
 // ---------------------------------------------------------------------------------------------
-// From the engine thread, through `RenderScheduler::enqueueText`, and never from the UI thread. A page a
+// From the engine thread, through `RenderScheduler::enqueueText` -- which since T6 the index calls on this
+// object's behalf -- and never from the UI thread. A page a
 // person is selecting on is asked for at `Visible` -- someone is waiting for it -- and the gesture is
 // kept as the POINTS it was made at until the text arrives, so a drag that starts on a page never
 // extracted completes when the page does (§5.3's "the drag resumes", guide A-55). A copy of pages not yet
 // extracted -- `Ctrl+A` then `Ctrl+C` on a 900-page file -- asks for the rest at `Background`, with
 // progress, and `Esc` cancels it and leaves the clipboard as it was (D5-9, guide A-51).
 //
-// The pages it has read are kept in a `core::text::DocumentText` for as long as the window lives. That is
-// the selection's own store, keyed by this window's handle; D5-4's shared, budgeted, `DocumentId`-keyed
-// `core/text/DocumentIndex` is T6's and does not exist yet.
+// **The text itself lives in `core/text/DocumentIndex`** (Stage 5 T6, D5-4), which is shared by every
+// window over the document: this object ASKS the index for a page (the index asks the engine, once per
+// page, on behalf of every owner that wants it) and takes the page's reading from there. So a
+// `window.new` companion selects on pages its leader already extracted without extracting them again, and
+// a page a search has indexed is selectable at once. What this object keeps is a
+// `core::text::DocumentText` of the READINGS it has used -- a view onto the index, filled on demand, never
+// with every page the index holds -- which it holds for as long as the window lives: a selection's own
+// pages survive the index's budget evicting them, and are dropped only when a mutation's `Scope` says
+// their text may have changed. *(At T5 this object asked the scheduler itself and kept its own store,
+// keyed by this window's handle; T6 moved the store to the index, which is the relation T5 left open.)*
 //
 // ---------------------------------------------------------------------------------------------
 // PAINTED, NEVER RASTERIZED (D4-11, applied to a fourth overlay)
@@ -48,13 +56,14 @@
 #include "core/backend.h"
 #include "core/render/PagePresentation.h"
 #include "core/render/RenderScheduler.h"
+#include "core/text/DocumentIndex.h"
 #include "core/text/TextSelection.h"
 
 #include <QColor>
 #include <QObject>
 
-#include <map>
 #include <optional>
+#include <set>
 
 class QMimeData;
 class QPainter;
@@ -65,12 +74,13 @@ class SelectionOverlay : public QObject {
     Q_OBJECT
 
 public:
-    explicit SelectionOverlay(core::render::RenderScheduler& scheduler, QObject* parent = nullptr);
+    explicit SelectionOverlay(core::text::DocumentIndex& index, QObject* parent = nullptr);
     ~SelectionOverlay() override;
 
-    // The document, or none. Forgets the selection and every page read, and cancels what was asked for.
-    void setDocument(core::DocumentHandle document, int pageCount);
-    core::DocumentHandle document() const noexcept { return document_; }
+    // The document -- its entry in the index -- or none (0). Forgets the selection and every page read,
+    // and lets go of what was asked for.
+    void setDocument(core::text::DocumentIndex::EntryId entry, int pageCount);
+    core::text::DocumentIndex::EntryId entry() const noexcept { return entry_; }
 
     // ---- The gesture -- `ui/viewer/tools/SelectTool`'s calls, in PAGE space -------------------------
     struct PressOptions {
@@ -129,10 +139,12 @@ public:
 
     // ---- The text ------------------------------------------------------------------------------------
     const core::text::DocumentText& text() const noexcept { return text_; }
-    // Asks for a page's text if it has not been read or asked for; true when it is already here.
+    // Takes a page's reading from the index when the index holds it -- true -- and otherwise asks the
+    // index for it at `priority` and answers false; the page arrives through the index's event.
     bool ensurePage(int page, core::render::RenderPriority priority);
-    // How many text requests this object has made -- A-24's "a selection asks at `Visible`" is read
-    // from the scheduler's own counters, and this is the case's check that the asks were ours.
+    // How many requests to the ENGINE this object caused -- A-24's "a selection asks at `Visible`" is read
+    // from the scheduler's own counters, and this is the case's check that the asks were ours. A page the
+    // index already held, or had already asked for, costs none (S5 T6).
     int requestsMade() const noexcept { return requestsMade_; }
 
 signals:
@@ -147,21 +159,25 @@ signals:
     void copyCancelled();
 
 private:
-    void onText(const core::render::TextRequest& request, const core::render::TextResult& result);
+    void onIndexEvent(const core::text::DocumentIndex::Event& event);
+    // A page that arrived, or was already in the index: its reading into `text_`, and whatever was waiting
+    // for it -- a gesture, a pending copy -- moved on.
+    void takePage(int page);
     void notifyChanged();
     void recompute();
     void finishCopy();
     void cancelRequests();
 
-    core::render::RenderScheduler& scheduler_;
-    core::render::RenderScheduler::SubscriptionToken subscription_ = 0;
+    core::text::DocumentIndex& index_;
+    core::text::DocumentIndex::SubscriptionToken subscription_ = 0;
+    const core::text::DocumentIndex::Owner owner_;
 
-    core::DocumentHandle document_;
+    core::text::DocumentIndex::EntryId entry_ = 0;
     core::text::DocumentText text_;
     core::text::TextSelection selection_;
 
-    // Tickets for pages asked for and not yet delivered, by page.
-    std::map<int, core::render::RenderTicket> requested_;
+    // Pages asked of the index and not yet arrived.
+    std::set<int> requested_;
     int requestsMade_ = 0;
 
     // THE GESTURE, as the points it was made at -- resolved into `selection_` whenever the pages it

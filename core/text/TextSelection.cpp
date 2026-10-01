@@ -461,6 +461,13 @@ bool DocumentText::insert(std::shared_ptr<const PageReading> reading)
     return true;
 }
 
+bool DocumentText::erase(int page)
+{
+    if (!has(page)) return false;
+    pages_[static_cast<std::size_t>(page)].reset();
+    return true;
+}
+
 std::vector<int> DocumentText::missing(int first, int last) const
 {
     std::vector<int> out;

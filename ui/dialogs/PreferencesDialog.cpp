@@ -33,7 +33,7 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
 {
     // THE ONE PLACE A PAGE IS ADDED. Everything else -- the list entry, the stacked widget, the
     // rows on the page -- follows from this list and from `SettingsKeys.def`. See the header for
-    // why these six and not the other 20.
+    // why these nine and not the other 17.
     static const std::vector<SettingsGroup> pages{
         SettingsGroup::General,
 
@@ -59,6 +59,11 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
         // the same reason: `SettingsGroup` and `Features.md` §9.1 both put it with the other
         // page-appearance pages rather than at the end.
         SettingsGroup::FullScreen,
+
+        // S5 T6. The `Search` group, empty in `SettingsGroup` since Stage 1, filled by the ten
+        // `search/*` rows (D5-20). **Nine of 26 groups ship.** After the page-appearance pages and
+        // before Performance & Cache, which is where `Features.md` §9.1 puts it relative to both.
+        SettingsGroup::Search,
 
         SettingsGroup::PerformanceAndCache,
 

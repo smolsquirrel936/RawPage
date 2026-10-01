@@ -89,6 +89,14 @@ add_executable(rawpage_tests
     tst_selection.cpp             # Stage 5 T5 -- core/text/TextSelection (D5-8, D5-9) on synthetic
                                   #   geometry: the arithmetic halves of guide A-43 ... A-47, A-49, A-21's
                                   #   copy and A-41's selection clause; the INK is tst_selecttool's
+    tst_search.cpp                # Stage 5 T6 -- core/text/SearchEngine's MATCH (D5-5) on synthetic pages:
+                                  #   every flag with its control, invalid patterns, line vs block, CJK,
+                                  #   unmapped glyphs -- guide A-56 ... A-60, A-21's find half, A-41
+    tst_index.cpp                 # Stage 5 T6 -- core/text/DocumentIndex (D5-4) and the asynchronous run
+                                  #   over the shipped scheduler with a fake extractor: laziness, the
+                                  #   Scope, the budget, sharing, the bound, cancellation, the threads --
+                                  #   guide A-61 ... A-67
+    tst_stage5settings.cpp        # Stage 5 T6 -- the ten search/* rows (D5-20) and A-68's restart probes
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH
                                   #   face substitutes, asserted with no engine and no Windows
     tst_objectallocator.cpp       # Stage 3 T2  -- guide case A-23
@@ -214,6 +222,18 @@ endif()
 #
 # Four fixtures, three spellings of the mistake plus a positive control, because I-15's finding was
 # that a rule tested against one spelling catches one spelling.
+# Stage 5 T6 -- guide case A-68: the ten search/* values survive a RESTART, as two processes (Stage 4's
+# I-15 survived every in-process reload). The scratch file is in the BUILD tree.
+add_test(NAME unit.search_settings.restart
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_tests>"
+            "-DINI=${CMAKE_BINARY_DIR}/settings-restart/settings.ini"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunSettingsRestart.cmake")
+if(WIN32)
+    set_tests_properties(unit.search_settings.restart PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin")
+endif()
+
 set(COMPILE_RUNNER "${CMAKE_CURRENT_SOURCE_DIR}/RunCompileCase.cmake")
 set(COMPILE_FIXTURES "${CMAKE_CURRENT_SOURCE_DIR}/compile")
 

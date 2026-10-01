@@ -51,6 +51,7 @@
 #include "core/render/RenderCache.h"
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
+#include "core/text/DocumentIndex.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "core/text/PageTextModel.h"
@@ -303,10 +304,15 @@ struct ShellFixture {
         [] { return std::unique_ptr<core::ITextExtractor>(new FakeTextExtractor); }, &renderCache,
         core::render::RenderScheduler::Config{}};
 
+    // S5 T6 (D5-4): where extracted text lives, as `app/CompositionRoot` builds it. DECLARED AFTER the
+    // scheduler, so it is destroyed BEFORE it: it holds the scheduler's text subscription and tickets.
+    core::text::DocumentIndex documentIndex{renderScheduler};
+
     app::Services services()
     {
-        return app::Services{settings,    recentFiles,     actions,     keyBindings, logBuffer,
-                             backend,     renderScheduler, renderCache, platform,    recoveryRoot};
+        return app::Services{settings,    recentFiles,     actions,     keyBindings,   logBuffer,
+                             backend,     renderScheduler, renderCache, documentIndex, platform,
+                             recoveryRoot};
     }
 
     // Runs queued work until every tile has been rasterized and delivered. Returns how many results

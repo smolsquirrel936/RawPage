@@ -121,6 +121,11 @@ add_executable(rawpage_ui_tests
     # S5 T5 -- guide A-50: the copy's HTML read back through Win32 as CF_HTML. SKIPS under ctest
     # (offscreen has no system clipboard) and is run by hand on the windows platform, "[D5-10]".
     tst_clipboard.cpp
+
+    # S5 T6 -- the text index as the product's windows use it (guide A-62, A-64 and A-66's widget halves):
+    # window.new's companion on its leader's entry, no text asked for by opening and scrolling, a rotation
+    # through the journal reaching the index.
+    tst_documentindex.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

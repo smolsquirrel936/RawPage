@@ -2486,6 +2486,18 @@
         <translation>The text of page %1 could not be read.</translation>
     </message>
     <message>
+        <source>error.search.invalidPattern</source>
+        <translation>The regular expression %1 is not valid, so nothing was searched.</translation>
+    </message>
+    <message>
+        <source>error.search.emptyPattern</source>
+        <translation>There is nothing to search for.</translation>
+    </message>
+    <message>
+        <source>error.search.noDocument</source>
+        <translation>There is no document to search.</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>This PDF opened without repair.</translation>
     </message>
@@ -2910,6 +2922,50 @@
     <message>
         <source>prefs.setting.fullScreen.showCursor</source>
         <translation>Show the pointer while presenting</translation>
+    </message>
+    <message>
+        <source>prefs.group.search</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.wholeWords</source>
+        <translation>Whole words only</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.caseSensitive</source>
+        <translation>Match case</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.ignoreDiacritics</source>
+        <translation>Ignore diacritics and accents</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.useRegex</source>
+        <translation>Use regular expressions</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeComments</source>
+        <translation>Include comments</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeBookmarks</source>
+        <translation>Include bookmarks</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeFields</source>
+        <translation>Include form fields</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeAttachments</source>
+        <translation>Include attachments</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.maxResults</source>
+        <translation>Maximum number of results</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.indexCacheMB</source>
+        <translation>Search index memory (MB)</translation>
     </message>
     <message>
         <source>prefs.choice.transition.none</source>

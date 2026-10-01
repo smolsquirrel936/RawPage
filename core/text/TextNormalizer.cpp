@@ -77,19 +77,36 @@ NormalizedText TextNormalizer::normalize(const PageTextModel& model,
 
     const auto flush = [&] {
         if (clusterFirst < 0) return;
-        const QString normalized = normalizeCluster(cluster);
         lastClusterStart = result.text.size();
         lastClusterWasHyphen = clusterIsHyphen;
-        for (const QChar c : normalized) {
+        if (cluster.size() == 1 && cluster.at(0).unicode() < 0x80) {
+            // ONE ASCII CHARACTER -- by far the commonest cluster -- needs none of the pipeline: NFKC
+            // leaves ASCII alone, it has no mark to strip, and simple case folding of ASCII is lower-
+            // casing. The same output as `normalizeCluster`, without its three strings per character,
+            // which Stage 5 T6 measured as most of the first search of a 900-page file.
+            QChar c = cluster.at(0);
+            if (options_.foldCase && c.unicode() >= u'A' && c.unicode() <= u'Z')
+                c = QChar(static_cast<char16_t>(c.unicode() + (u'a' - u'A')));
             if (c.isSpace()) {
                 emitSpace();
-                continue;
+            } else {
+                result.text.append(c);
+                result.first.push_back(clusterFirst);
+                result.last.push_back(clusterLast);
             }
-            result.text.append(c);
-            result.first.push_back(clusterFirst);
-            result.last.push_back(clusterLast);
+        } else {
+            const QString normalized = normalizeCluster(cluster);
+            for (const QChar c : normalized) {
+                if (c.isSpace()) {
+                    emitSpace();
+                    continue;
+                }
+                result.text.append(c);
+                result.first.push_back(clusterFirst);
+                result.last.push_back(clusterLast);
+            }
         }
-        cluster.clear();
+        cluster.truncate(0);   // keeps its buffer for the next cluster
         clusterFirst = clusterLast = -1;
         clusterIsHyphen = false;
     };
@@ -148,7 +165,12 @@ NormalizedText TextNormalizer::normalize(const PageTextModel& model,
         }
         flush();
         const char32_t scalar = c.codepoint;
-        cluster = QString::fromUcs4(&scalar, 1);
+        if (scalar < 0x80) {
+            cluster.truncate(0);
+            cluster.append(QChar(static_cast<char16_t>(scalar)));
+        } else {
+            cluster = QString::fromUcs4(&scalar, 1);
+        }
         clusterFirst = clusterLast = item.charIndex;
         clusterIsHyphen = c.isHyphen();
     }

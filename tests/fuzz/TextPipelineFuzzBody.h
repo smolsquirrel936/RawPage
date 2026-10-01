@@ -13,9 +13,11 @@
 // through `LayoutAnalyzer` and `TextNormalizer` with their invariants checked.
 //
 // `TextSelection` joined this body at T5 -- the page's reading, hit-tests at hostile points, word, line
-// and block expansion, and a flow and a column copy -- and `SearchEngine` joins it when T6 builds it (the
-// plan's pipeline is bytes -> model -> analyzer -> selection -> normalizer -> search); until then the
-// "search" is the normalized query found in the normalized page, which is what T6's literal match will be.
+// and block expansion, and a flow and a column copy -- and `SearchEngine`'s MATCH at T6: the page made
+// searchable under every normalization, then a literal, a whole-word and a regular-expression query found
+// in it, every hit a non-empty span inside the page (the plan's pipeline is bytes -> model -> analyzer ->
+// selection -> normalizer -> search). The engine's asynchronous run is not here: it adds threads and a
+// scheduler, not geometry, and `tests/unit/tst_index.cpp` owns it.
 //
 // THE DECODING. Each 12-byte record is one character or, when its first byte says so, one rule:
 //   byte 0      kind: & 0x0F picks the codepoint's range, & 0x30 the flags, 0xF0 == 0xF0 a rule
@@ -28,8 +30,11 @@
 #ifndef RAWPAGE_TESTS_FUZZ_TEXTPIPELINEFUZZBODY_H
 #define RAWPAGE_TESTS_FUZZ_TEXTPIPELINEFUZZBODY_H
 
+#include "core/text/DocumentIndex.h"
 #include "core/text/LayoutAnalyzer.h"
 #include "core/text/PageTextModel.h"
+#include "core/text/SearchEngine.h"
+#include "core/text/SearchQuery.h"
 #include "core/text/TextNormalizer.h"
 #include "core/text/TextSelection.h"
 
@@ -233,6 +238,45 @@ inline TextPipelineVerdict textPipelineFuzzOnce(const std::uint8_t* data, std::s
         for (const PdfRect& r : selection.highlightOn(*page0))
             if (!std::isfinite(r.origin.x) || !std::isfinite(r.origin.y) || !std::isfinite(r.size.width) || !std::isfinite(r.size.height))
                 return fail("a highlight that is not finite");
+    }
+
+    // 5. SEARCH (Stage 5 T6, D5-5): every normalization makes a searchable page whose offsets stay inside
+    //    the reading, and a literal, a whole-word and a regular-expression query each find only non-empty
+    //    spans inside it -- a query taken from the page's own normalized text, so the match has something
+    //    to find.
+    for (const bool fold : {true, false}) {
+        for (const bool strip : {false, true}) {
+            NormalizeOptions options;
+            options.foldCase = fold;
+            options.stripDiacritics = strip;
+            const std::shared_ptr<const SearchablePage> searchable = SearchablePage::build(*page0, options);
+            QString sample;
+            for (const SearchableBlock& block : searchable->blocks()) {
+                if (static_cast<std::size_t>(block.text.size()) != block.firstPos.size()
+                    || block.firstPos.size() != block.lastPos.size())
+                    return fail("a searchable block's offsets are not one per unit");
+                for (std::size_t u = 0; u < block.firstPos.size(); ++u)
+                    if (block.firstPos[u] < -1 || block.firstPos[u] >= page0->size() || block.lastPos[u] < -1
+                        || block.lastPos[u] >= page0->size())
+                        return fail("a searchable offset outside the reading");
+                if (sample.isEmpty() && block.text.size() >= 2) sample = block.text.left(2);
+            }
+            if (sample.trimmed().isEmpty()) sample = QStringLiteral("a");
+            SearchQuery query;
+            query.pattern = sample;
+            query.flags.caseSensitive = !fold;
+            query.flags.ignoreDiacritics = strip;
+            for (const int variant : {0, 1, 2}) {
+                query.flags.wholeWords = variant == 1;
+                query.flags.useRegex = variant == 2;
+                if (variant == 2) query.pattern = QStringLiteral(".\\w?");
+                const Result<CompiledQuery> compiled = SearchEngine::compile(query);
+                if (!compiled) continue;   // a sample of only marks normalizes to nothing: refused, not a defect
+                for (const SearchHit& hit : SearchEngine::findOnPage(compiled.value(), *searchable, *page0, 64))
+                    if (hit.reading.begin < 0 || hit.reading.end > page0->size() || hit.reading.begin >= hit.reading.end)
+                        return fail("a search hit outside the page or of nothing");
+            }
+        }
     }
     return verdict;
 }

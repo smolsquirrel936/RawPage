@@ -250,6 +250,11 @@ public:
     // reach it through this. Never null after `build()`.
     SelectionOverlay* selection() const noexcept { return selection_; }
 
+    // THIS DOCUMENT'S ENTRY IN THE TEXT INDEX (S5 T6, D5-4) -- the leader's and every companion's are the
+    // same entry when the backend states the file's identity. 0 for an invalid handle. What a search of
+    // this tab searches (the find bar, T7).
+    std::uint64_t indexEntry() const noexcept { return indexEntry_; }
+
     // ---- THE SPLIT AS ONE OPAQUE STRING (S4 T13, D4-9) ---------------------------------------
     // What `core::SessionDocument::splitState` holds. Encoded here for the reason
     // `MainWindow::paneLayoutState()` is encoded there: `SplitViewContainer::Mode` is a widget's
@@ -399,6 +404,9 @@ private:
     // S5 T5. A child, but deleted EXPLICITLY in the destructor -- after every pane has let go of it and
     // before the handle closes, because it holds text tickets on this document's handle.
     SelectionOverlay* selection_ = nullptr;
+
+    // S5 T6. `core::text::DocumentIndex::EntryId`, attached in `build()` and detached in the destructor.
+    std::uint64_t indexEntry_ = 0;
 
     // The pane the rulers and the cursor readout are connected to. A raw pointer to a child, kept
     // only so the connections can be undone -- which is the whole of convention 10.

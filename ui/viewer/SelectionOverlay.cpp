@@ -48,14 +48,11 @@ std::optional<core::DeviceRect> toContent(const core::render::PageLayout& layout
 
 } // namespace
 
-SelectionOverlay::SelectionOverlay(core::render::RenderScheduler& scheduler, QObject* parent)
-    : QObject(parent), scheduler_(scheduler)
+SelectionOverlay::SelectionOverlay(core::text::DocumentIndex& index, QObject* parent)
+    : QObject(parent), index_(index), owner_(index.newOwner())
 {
-    // Removed by TOKEN in the destructor -- convention 10's threaded form, as `TilePresenter` does it.
-    subscription_ = scheduler_.subscribeText(
-        [this](const core::render::TextRequest& request, const core::render::TextResult& result) {
-            onText(request, result);
-        });
+    // Removed by TOKEN in the destructor -- convention 10's form for a subscription list.
+    subscription_ = index_.subscribe([this](const core::text::DocumentIndex::Event& event) { onIndexEvent(event); });
 }
 
 void SelectionOverlay::notifyChanged()
@@ -69,24 +66,22 @@ void SelectionOverlay::notifyChanged()
 
 SelectionOverlay::~SelectionOverlay()
 {
-    scheduler_.unsubscribeText(subscription_);
+    index_.unsubscribe(subscription_);
     cancelRequests();
 }
 
 void SelectionOverlay::cancelRequests()
 {
-    for (const auto& [page, ticket] : requested_) {
-        (void)page;
-        scheduler_.cancel(ticket);
-    }
+    // Only THIS object's interest: a page a search still wants keeps its ticket (`DocumentIndex::release`).
+    index_.release(owner_);
     requested_.clear();
 }
 
-void SelectionOverlay::setDocument(core::DocumentHandle document, int pageCount)
+void SelectionOverlay::setDocument(core::text::DocumentIndex::EntryId entry, int pageCount)
 {
     cancelRequests();
-    document_ = document;
-    text_.reset(document.isValid() ? pageCount : 0);
+    entry_ = entry;
+    text_.reset(entry != 0 ? pageCount : 0);
     selection_ = TextSelection{};
     beforeGesture_ = TextSelection{};
     gestureActive_ = false;
@@ -100,49 +95,33 @@ void SelectionOverlay::setDocument(core::DocumentHandle document, int pageCount)
 
 bool SelectionOverlay::ensurePage(int page, core::render::RenderPriority priority)
 {
-    if (!document_.isValid() || page < 0 || page >= text_.pageCount()) return false;
+    if (entry_ == 0 || page < 0 || page >= text_.pageCount()) return false;
     if (text_.has(page)) return true;
 
-    // ALREADY ASKED: raised if the new ask is more urgent -- a page the index build queued at `Background`
-    // is the page a person just started selecting on (D5-3) -- and otherwise left alone.
-    if (const auto found = requested_.find(page); found != requested_.end()) {
-        if (priority != core::render::RenderPriority::Visible) return false;
-        const core::render::RenderTicket raised = scheduler_.enqueueText({document_, page}, priority);
-        if (raised.isValid()) {
-            scheduler_.cancel(found->second);
-            found->second = raised;
-            ++requestsMade_;
-        }
-        return false;
+    // THE INDEX HOLDS IT -- extracted for another window over this file, for a search, or for this window
+    // earlier -- so its reading is taken, and nothing is asked of the engine (S5 T6, guide A-66).
+    if (const std::shared_ptr<const core::text::IndexedPage> held = index_.page(entry_, page)) {
+        text_.insert(held->reading());
+        return true;
     }
 
-    const core::render::RenderTicket ticket = scheduler_.enqueueText({document_, page}, priority);
-    if (!ticket.isValid()) return false;
-    requested_[page] = ticket;
-    ++requestsMade_;
+    // ASKED OF THE INDEX, which asks the engine once per page for every owner and raises a queued ask when
+    // this one is more urgent -- a page the index build queued at `Background` is the page a person just
+    // started selecting on (D5-3).
+    const long long before = index_.stats().requested;
+    (void)index_.request(owner_, entry_, page, priority);
+    requestsMade_ += static_cast<int>(index_.stats().requested - before);
+    requested_.insert(page);
     return false;
 }
 
-void SelectionOverlay::onText(const core::render::TextRequest& request, const core::render::TextResult& result)
+void SelectionOverlay::takePage(int page)
 {
-    if (request.document != document_) return;
-    requested_.erase(request.pageIndex);
-    if (text_.has(request.pageIndex)) return;
-
-    std::shared_ptr<const core::text::PageTextModel> model;
-    if (result) {
-        model = result.value();
-    } else {
-        // A FAILED PAGE IS READ AS EMPTY, and said so in the log: asked for again it would fail again,
-        // and a selection or a copy waiting on it would wait for ever. It contributes no text, which is
-        // the truth about it -- nothing is invented in its place (guide A-26's "fails alone").
-        RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
-            << "selection: page" << request.pageIndex << "has no text --" << result.error().messageKey;
-        model = std::make_shared<const core::text::PageTextModel>(request.pageIndex);
-    }
-    if (model == nullptr || model->pageIndex() != request.pageIndex) return;
-
-    text_.insert(PageReading::build(std::move(model)));
+    const std::shared_ptr<const core::text::IndexedPage> held = index_.page(entry_, page);
+    if (held == nullptr || text_.has(page)) return;
+    // A FAILED PAGE IS READ AS EMPTY (the index stored it so, and logged why): it contributes no text, which
+    // is the truth about it -- nothing is invented in its place (guide A-26's "fails alone").
+    text_.insert(held->reading());
 
     if (!gestureResolved_) recompute();
 
@@ -154,13 +133,40 @@ void SelectionOverlay::onText(const core::render::TextRequest& request, const co
     notifyChanged();
 }
 
+void SelectionOverlay::onIndexEvent(const core::text::DocumentIndex::Event& event)
+{
+    if (event.entry != entry_ || entry_ == 0) return;
+    switch (event.kind) {
+    case core::text::DocumentIndex::Event::Kind::PageArrived:
+        // ONLY A PAGE THIS OBJECT ASKED FOR: a search building the index delivers every page of the
+        // document, and laying 900 of them out here, on the UI thread, for a selection nobody made would be
+        // work nobody sees. Pages are taken when a gesture, a paint or a copy needs them.
+        if (requested_.erase(event.page) == 0) return;
+        takePage(event.page);
+        return;
+    case core::text::DocumentIndex::Event::Kind::PagesInvalidated: {
+        // THE TEXT MAY HAVE CHANGED (a mutation's `Scope`): forgotten here too, and read again when the page
+        // is next shown or copied. The selection's carets stay.
+        bool any = false;
+        for (const int page : event.pages) any = text_.erase(page) || any;
+        if (any) notifyChanged();
+        return;
+    }
+    case core::text::DocumentIndex::Event::Kind::PagesEvicted:
+        return;   // the index's budget, not this selection's: the pages read here are still true
+    case core::text::DocumentIndex::Event::Kind::EntryDropped:
+        requested_.clear();
+        return;
+    }
+}
+
 // =====================================================================================================
 // The gesture
 // =====================================================================================================
 
 void SelectionOverlay::press(int page, core::PdfPoint point, const PressOptions& options)
 {
-    if (!document_.isValid() || page < 0 || page >= text_.pageCount()) return;
+    if (entry_ == 0 || page < 0 || page >= text_.pageCount()) return;
     beforeGesture_ = selection_;
     beforeAnchor_ = anchor_;
     beforeAnchorUnit_ = anchorUnit_;
@@ -270,7 +276,7 @@ bool SelectionOverlay::clear()
 
 void SelectionOverlay::selectAll()
 {
-    if (!document_.isValid() || text_.pageCount() <= 0) return;
+    if (entry_ == 0 || text_.pageCount() <= 0) return;
     gestureActive_ = false;
     gestureResolved_ = true;
     selection_ = TextSelection::wholeDocument(text_.pageCount());
@@ -306,11 +312,17 @@ SelectionOverlay::CopyOutcome SelectionOverlay::copy()
     // (D5-9). Nothing reaches the clipboard until then, so `Esc` in the meantime leaves it as it was.
     const std::vector<int> missing = selection_.missingPages(text_);
     if (!missing.empty()) {
-        pendingCopy_ = true;
-        pendingTotal_ = selection_.lastPage() - selection_.firstPage() + 1;
+        // A PAGE THE INDEX ALREADY HOLDS IS TAKEN HERE (S5 T6) -- a search may have read every one of them
+        // -- so the copy waits only for what is really still to come, and waits for nothing when that is
+        // nothing: no page would ever arrive to finish it.
         for (const int page : missing) ensurePage(page, core::render::RenderPriority::Background);
-        emit copyProgress(pendingTotal_ - static_cast<int>(missing.size()), pendingTotal_);
-        return CopyOutcome::Pending;
+        const std::size_t left = selection_.missingPages(text_).size();
+        if (left > 0) {
+            pendingCopy_ = true;
+            pendingTotal_ = selection_.lastPage() - selection_.firstPage() + 1;
+            emit copyProgress(pendingTotal_ - static_cast<int>(left), pendingTotal_);
+            return CopyOutcome::Pending;
+        }
     }
 
     pendingCopy_ = false;

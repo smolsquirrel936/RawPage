@@ -36,8 +36,9 @@
 // ---------------------------------------------------------------------------------------------
 // It names no widget, no clipboard and no engine: it is pure and headless (`tst_selection`), and the
 // fuzz target reaches it over hostile geometry (D5-21). Painting a selection is
-// `ui/viewer/SelectionOverlay`'s, and a page's text reaches `DocumentText` from the engine thread
-// through that class (D5-3) -- this file only reads what it is given, and a page it is not given is
+// `ui/viewer/SelectionOverlay`'s, and a page's text reaches `DocumentText` from the engine thread (D5-3)
+// through `core/text/DocumentIndex` and that class (Stage 5 T6) -- this file only reads what it is given,
+// and a page it is not given is
 // REPORTED (`CopiedText::missingPages`), never guessed.
 
 #ifndef RAWPAGE_CORE_TEXT_TEXTSELECTION_H
@@ -125,8 +126,9 @@ private:
     std::vector<Span> blockSpans_;
 };
 
-// A document's pages as selection reads them: each page's reading, or nothing yet. Filled by whoever
-// asked the engine (`ui/viewer/SelectionOverlay`, D5-3); read by `TextSelection`.
+// A document's pages as selection reads them: each page's reading, or nothing yet. Filled by
+// `ui/viewer/SelectionOverlay` from `core/text/DocumentIndex` (Stage 5 T6), where extracted text lives;
+// read by `TextSelection`.
 class DocumentText {
 public:
     explicit DocumentText(int pageCount = 0);
@@ -138,6 +140,9 @@ public:
     const PageReading* page(int page) const noexcept;
     // Keyed by the reading's own page index; one outside the document is refused.
     bool insert(std::shared_ptr<const PageReading> reading);
+    // Forgets a page whose text went stale (Stage 5 T6: `DocumentIndex`'s `Scope` invalidation). The
+    // selection stays; the page is read again when it is next shown or copied.
+    bool erase(int page);
 
     // Pages in [first, last] with no reading yet, in order.
     std::vector<int> missing(int first, int last) const;

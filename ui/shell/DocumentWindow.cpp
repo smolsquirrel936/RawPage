@@ -14,6 +14,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/SelectionOverlay.h"
+#include "core/text/DocumentIndex.h"
 #include "ui/viewer/SplitViewContainer.h"
 
 #include <QDir>
@@ -156,7 +157,7 @@ void DocumentWindow::build(const Recovery* recovery)
 
     // THE SELECTION BEFORE ANY PANE IS HANDED A DOCUMENT (S5 T5): `handDocumentTo` gives it to each pane,
     // and the primary pane exists already. Its reports are forwarded as this tab's own signals.
-    selection_ = new SelectionOverlay(services_.renderScheduler, this);
+    selection_ = new SelectionOverlay(services_.documentIndex, this);
     connect(selection_, &SelectionOverlay::copyProgress, this, &DocumentWindow::selectionCopyProgress);
     connect(selection_, &SelectionOverlay::copied, this, &DocumentWindow::selectionCopied);
     connect(selection_, &SelectionOverlay::copyNotExtractable, this, &DocumentWindow::selectionNotExtractable);
@@ -296,6 +297,10 @@ void DocumentWindow::build(const Recovery* recovery)
             }
             journal_->subscribeMutated([this](const core::Scope& scope) {
                 services_.renderScheduler.documentChanged(handle_, scope, journal_->revision());
+                // THE TEXT GOES STALE WHERE IT IS KEPT (S5 T6, D5-4): the index drops the pages the scope
+                // names, for this window and every companion reading the same entry, and the next search
+                // re-extracts exactly those (guide A-64).
+                services_.documentIndex.invalidate(indexEntry_, scope);
                 afterMutation();
             });
             journal_->subscribeDirty([this](bool dirty) { emit dirtyChanged(dirty); });
@@ -306,9 +311,13 @@ void DocumentWindow::build(const Recovery* recovery)
     // pane, because `adoptView` routes a pane a split adds back through the same two lines and a
     // second spelling of them here is a second reading of D3-15 to keep in agreement.
     //
-    // The selection reads THIS TAB'S handle: text is in unrotated page space (D5-2), so a companion's
-    // own handle extracts the same text its leader's would, and needs no model tree to do it.
-    selection_->setDocument(handle_, pageCount());
+    // THE TEXT INDEX (S5 T6, D5-4): this tab's handle is attached under the document's IDENTITY, so a
+    // companion over the same file joins its leader's entry and extracts nothing the leader already has.
+    // Text is in unrotated page space (D5-2), so whichever handle the index asks through extracts the same
+    // text, and no model tree is needed to do it. The selection reads its pages from that entry.
+    if (handle_.isValid())
+        indexEntry_ = services_.documentIndex.attach(services_.backend.documentId(handle_), handle_, pageCount());
+    selection_->setDocument(indexEntry_, pageCount());
     for (PageView* pane : split_->views()) handDocumentTo(pane);
 
     // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
@@ -719,6 +728,13 @@ DocumentWindow::~DocumentWindow()
         delete selection_;
         selection_ = nullptr;
     }
+
+    // AND THE HANDLE LEAVES THE TEXT INDEX (S5 T6) -- after the selection has let go of its asks, BEFORE the
+    // scheduler's jobs on this handle are cancelled below: a request a companion's selection or a search is
+    // waiting on is re-sent through the companion's handle here, where it would otherwise be thrown away
+    // with this handle's jobs. The entry goes with its last handle.
+    if (handle_.isValid()) services_.documentIndex.detach(handle_);
+    indexEntry_ = 0;
 
     // NOTHING UNSAVED, NOTHING TO RECOVER. A document closed clean takes its recovery directory with it;
     // one closed dirty -- which only a Discard or a process ending reaches -- keeps it for the next

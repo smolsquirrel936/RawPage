@@ -2486,6 +2486,18 @@
         <translation>無法讀取第 %1 頁的文字。</translation>
     </message>
     <message>
+        <source>error.search.invalidPattern</source>
+        <translation>規則運算式 %1 無效，因此未進行搜尋。</translation>
+    </message>
+    <message>
+        <source>error.search.emptyPattern</source>
+        <translation>沒有可搜尋的內容。</translation>
+    </message>
+    <message>
+        <source>error.search.noDocument</source>
+        <translation>沒有可搜尋的文件。</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>此 PDF 無須修復即可開啟。</translation>
     </message>
@@ -2910,6 +2922,50 @@
     <message>
         <source>prefs.setting.fullScreen.showCursor</source>
         <translation>放映時顯示滑鼠指標</translation>
+    </message>
+    <message>
+        <source>prefs.group.search</source>
+        <translation>搜尋</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.wholeWords</source>
+        <translation>僅限完整字詞</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.caseSensitive</source>
+        <translation>區分大小寫</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.ignoreDiacritics</source>
+        <translation>忽略變音符號與重音</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.useRegex</source>
+        <translation>使用規則運算式</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeComments</source>
+        <translation>包含註解</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeBookmarks</source>
+        <translation>包含書籤</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeFields</source>
+        <translation>包含表單欄位</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.includeAttachments</source>
+        <translation>包含附件</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.maxResults</source>
+        <translation>結果數量上限</translation>
+    </message>
+    <message>
+        <source>prefs.setting.search.indexCacheMB</source>
+        <translation>搜尋索引記憶體 (MB)</translation>
     </message>
     <message>
         <source>prefs.choice.transition.none</source>

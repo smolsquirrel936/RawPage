@@ -42,6 +42,9 @@ namespace render {
 class RenderCache;
 class RenderScheduler;
 }
+namespace text {
+class DocumentIndex;
+}
 }
 
 namespace rawpage::platform {
@@ -86,6 +89,14 @@ struct Services {
     // files (convention 9).
     core::render::RenderScheduler& renderScheduler;
     core::render::RenderCache&     renderCache;
+
+    // WHERE EXTRACTED TEXT LIVES (Stage 5 T6, D5-4), and it arrived with its consumers: every
+    // `DocumentWindow` attaches its handle and hands a mutation's `Scope` to it, and the window's
+    // `SelectionOverlay` reads its pages from it rather than keeping its own. ONE per process, keyed
+    // by document identity, so a `window.new` companion reads the pages its leader already extracted.
+    // `core/text/SearchEngine` is NOT here yet, by this file's own rule: its first widget is Stage 5
+    // T7's find bar, and it arrives with it.
+    core::text::DocumentIndex&     documentIndex;
 
     // The OS bundle, whose own members are null wherever an interface is not implemented yet.
     // `unimplementedInterfaces()` names them, so a Stage 1 window can print what it cannot do

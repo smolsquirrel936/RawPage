@@ -423,6 +423,68 @@ RAWPAGE_SETTING(fullScreen, showCursor, bool,
                 "fullScreen/showCursor", true, FullScreen, true)
 
 // =============================================================================================
+// The ten Stage 5 `search/` rows -- S5 T6, `Implementation-Plan.md` § Stage 5 and
+// `Stage5-TextSearch-Plan.md` D5-20. They fill the `Search` group, declared in `SettingsGroup` since
+// Stage 1 with no keys, and one line in `PreferencesDialog::shippedPages()` is the rest of the page
+// (convention 17). **Nine of 26 groups ship.**
+//
+// THE FOUR MATCHING FLAGS ARE THE FIND BAR'S TOGGLES (D5-14): `Alt+R`, `Alt+W` and `Alt+C` write the
+// first three of these and nothing else, so the bar and this page cannot disagree -- D4-5's rule, one
+// truth per fact. `core/text/SearchQuery::fromSettings` is the one reader.
+// =============================================================================================
+
+// --- Search ------------------------------------------------------------------------------------
+// OFF, all four: a search finds what was typed, anywhere, as typed -- except for CASE, which is folded
+// unless `caseSensitive` says otherwise, because every reader folds it by default and a person typing
+// `lorem` expects `Lorem`. Diacritics are MATCHED by default: `café` and `cafe` are different words in
+// the languages that write them, and ignoring the difference is the choice a person makes, not one made
+// for them.
+RAWPAGE_SETTING(search, wholeWords, bool,
+                "search/wholeWords", false, Search, true)
+RAWPAGE_SETTING(search, caseSensitive, bool,
+                "search/caseSensitive", false, Search, true)
+RAWPAGE_SETTING(search, ignoreDiacritics, bool,
+                "search/ignoreDiacritics", false, Search, true)
+RAWPAGE_SETTING(search, useRegex, bool,
+                "search/useRegex", false, Search, true)
+
+// THE FOUR CONTENT CLASSES BEYOND PAGE TEXT (`Features.md` §1.8, D5-12), which page text always joins.
+// OFF by default, as the readers that offer them have them: a search of a document is a search of its
+// words unless a person asks for its comments too. **Declared at T6 and read by nothing until T8**,
+// which builds the one read-only reader these switch (`IDocumentBackend::searchUnits`); until then a
+// search is over page text whatever they say, and `Stage5-TextSearch-Testing-Guide.md` A-76 is where
+// that changes.
+RAWPAGE_SETTING(search, includeComments, bool,
+                "search/includeComments", false, Search, true)
+RAWPAGE_SETTING(search, includeBookmarks, bool,
+                "search/includeBookmarks", false, Search, true)
+RAWPAGE_SETTING(search, includeFields, bool,
+                "search/includeFields", false, Search, true)
+RAWPAGE_SETTING(search, includeAttachments, bool,
+                "search/includeAttachments", false, Search, true)
+
+// HOW MANY HITS A LIST HOLDS -- the first N in document order, and a search that reaches it SAYS so
+// (guide A-61): a list cut short in silence reads as every hit there is. 10,000 is more than anyone
+// steps through with `F3` and few enough that a one-letter query over a 900-page file does not build a
+// list of a million entries; the floor of 1 is legal because a limit is a person's choice, and the
+// ceiling is where a list stops being a list.
+RAWPAGE_SETTING_RANGED(search, maxResults, int,
+                       "search/maxResults", 10000, Search, true, 1, 1000000)
+
+// THE TEXT INDEX'S OWN BUDGET, in MB -- D5-4: extracted text is kept outside the tile cache, keyed by
+// document, and whole documents are evicted least recently searched first when this is exceeded. The
+// default is sized to what it must hold: `corpus/ordinary/text-900.pdf`'s complete index -- 900 dense
+// pages, 7.2 million characters, their models, readings and one normalized form -- MEASURED at T6 as
+// **835 MB** (guide A-63, `tests/render/tst_searchcorpus.cpp`, which also asserts it fits this default),
+// so the guide's *"the second search of a 900-page file is instant"* holds at the default. Most of it is
+// the engine's per-character geometry (`PageTextModel`), which selection and highlighting need; a page
+// of ordinary prose holds a third of that file's characters. The document being searched is never
+// evicted for itself (`DocumentIndex.h`). `core::text::DocumentIndex::kDefaultBudgetBytes` equals this
+// row, and `tst_index` says so.
+RAWPAGE_SETTING_RANGED(search, indexCacheMB, int,
+                       "search/indexCacheMB", 1024, Search, true, 16, 16384)
+
+// =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================
 

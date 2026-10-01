@@ -93,6 +93,7 @@ CompositionRoot::CompositionRoot(Options options)
             applyPerformanceSettings();
             applyPowerThrottle();
         }
+        if (change.group == core::SettingsGroup::Search) applySearchSettings();
     });
 
     // D1-16 in both directions, said out loud at startup. "Your preferences did not take effect"
@@ -222,6 +223,11 @@ CompositionRoot::CompositionRoot(Options options)
                 Qt::QueuedConnection);
         });
 
+    // WHERE EXTRACTED TEXT LIVES (Stage 5 T6, D5-4): after the scheduler, whose text jobs feed it, and
+    // destroyed before it (the destructor). Its budget is `search/indexCacheMB`.
+    documentIndex_ = std::make_unique<core::text::DocumentIndex>(*renderScheduler_);
+    applySearchSettings();
+
     if (options_.createPlatform) {
         // THE ONLY createPlatform() CALL IN THE PROGRAM. It logs its own interface census.
         platform_ = platform::createPlatform();
@@ -283,6 +289,10 @@ CompositionRoot::~CompositionRoot()
     // no-op; destroying the scheduler joins its worker, which is what guarantees no thread is
     // inside `BackendRasterizer` or `BackendTextExtractor` -- and therefore inside the backend -- when the backend is
     // destroyed further down.
+    // THE TEXT INDEX GOES FIRST: it holds a subscription to the scheduler and tickets on its queue, and
+    // every window that attached to it is gone by now.
+    documentIndex_.reset();
+
     if (renderScheduler_) {
         renderScheduler_->setWakeHandler(nullptr);
         pumpAlive_.reset();
@@ -325,9 +335,15 @@ CompositionRoot::~CompositionRoot()
 
 Services CompositionRoot::services()
 {
-    return Services{*settings_,  *recentFiles_,     *actions_, *keyBindings_,
+    return Services{*settings_,  *recentFiles_,     *actions_,       *keyBindings_,
                     *logBuffer_, *backend_,         *renderScheduler_, *renderCache_,
-                    *platform_,  options_.recoveryRoot};
+                    *documentIndex_, *platform_,    options_.recoveryRoot};
+}
+
+void CompositionRoot::applySearchSettings()
+{
+    if (!documentIndex_ || !settings_) return;
+    documentIndex_->setBudgetBytes(megabytes(settings_->get(core::keys::search::indexCacheMB)));
 }
 
 void CompositionRoot::applyPerformanceSettings()

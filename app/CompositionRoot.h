@@ -35,6 +35,7 @@
 #include "core/settings/RecentFiles.h"
 #include "core/settings/SessionState.h"
 #include "core/settings/Settings.h"
+#include "core/text/DocumentIndex.h"
 #include "platform/platform.h"
 
 #include <QString>
@@ -123,6 +124,10 @@ public:
     core::render::RenderCache&     renderCache() { return *renderCache_; }
     core::render::RenderScheduler& renderScheduler() { return *renderScheduler_; }
 
+    // WHERE EXTRACTED TEXT LIVES (Stage 5 T6, D5-4): one per process, fed by the scheduler's text jobs,
+    // its budget `search/indexCacheMB`. Destroyed BEFORE the scheduler, whose text subscription it holds.
+    core::text::DocumentIndex&     documentIndex() { return *documentIndex_; }
+
     // How many per-user shortcut overrides were read out of settings.ini and accepted. A key naming
     // an ActionId that no longer exists is dropped with a log line rather than retained silently --
     // `core::Settings::droppedShortcutKeyCount()` counts those, and the two numbers together are
@@ -140,6 +145,10 @@ private:
     // next scroll to obey. `renderWorkers` is not: the pool's threads are created once, so that row
     // says "takes effect at next launch" and this function does not pretend otherwise.
     void applyPerformanceSettings();
+
+    // `search/indexCacheMB` (Stage 5 T6), re-read whenever the Search group changes -- the index
+    // evicts at once when the budget shrinks, as the tile cache does.
+    void applySearchSettings();
 
     // The battery throttle (`performance/throttleOnBattery`), driven by
     // `platform::IPowerSession`. Computes the worker limit and hands it to the scheduler.
@@ -163,6 +172,7 @@ private:
 
     std::unique_ptr<core::render::RenderCache>     renderCache_;
     std::unique_ptr<core::render::RenderScheduler> renderScheduler_;
+    std::unique_ptr<core::text::DocumentIndex>     documentIndex_;
 
     // THE WAKE PUMP'S LIFE FLAG. `RenderScheduler`'s wake handler is called FROM A WORKER and
     // posts `deliverReady()` onto the UI thread; a post already in Qt's event queue when this

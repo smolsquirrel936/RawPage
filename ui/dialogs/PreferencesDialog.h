@@ -26,7 +26,8 @@
 // ---------------------------------------------------------------------------------------------
 // WHICH PAGES SHIP. Three at Stage 1, the argument below; Page Display and Performance at Stage 2 T15;
 // Documents at Stage 3 T12, when its two keys arrived beside the two Stage 1 had declared there with no
-// page. Six of 26. The rule each addition followed is the last paragraph: a page arrives with keys.
+// page; Units & Guides at Stage 4 T8 and Full Screen at T10; Search at Stage 5 T6, with its ten keys.
+// **Nine of 26.** The rule each addition followed is the last paragraph: a page arrives with keys.
 //
 // `Features.md` §9.1 lists 26 preference groups and `Stage1-AppShell-Plan.md` §11 says three ship
 // in Stage 1. The plan's T14 row names two of them -- General and Shortcuts -- and Logging is the

@@ -61,6 +61,9 @@ add_executable(rawpage_render_tests
     tst_layoutcorpus.cpp          # Stage 5 T4 -- guide A-38 (D5-7): LayoutAnalyzer against the
                                   #   generator's labels, graded on the guide's section 3.2 targets;
                                   #   and the corpus halves of A-23, A-32, A-34, A-36 and A-39
+    tst_searchcorpus.cpp          # Stage 5 T6 -- guide A-63 (the guide's 3.3, over text-900.pdf), A-58,
+                                  #   A-59's and A-21's corpus halves, A-24's search lane: the real engine
+                                  #   on the shipped scheduler, DocumentIndex and SearchEngine
     tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it
