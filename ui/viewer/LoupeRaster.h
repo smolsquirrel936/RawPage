@@ -24,6 +24,15 @@
 // THE LANE IS `Visible`. The lens is what a person is looking at, and it asks only while the page
 // under it is already drawn. D4-20's Revisit is the lane if guide case A-100's measurement ever
 // says the viewport pays for it.
+//
+// ---------------------------------------------------------------------------------------------
+// A SECOND INSTANCE SERVES THE SNAPSHOT (S5 T10, D5-11): one region of one page at a scale, the same
+// request builder, the same lane -- the shape D5-11 names -- but asked for with `CachePolicy::Bypass`.
+// A snapshot is CONSUMED once, onto the clipboard, and up to 200 MB of it inserted into the tile
+// budget would evict the page a person is reading for pixels nobody will look at again (D5-4's
+// argument for a comparison's rasters, met by a second consumer). A failed raster is DELIVERED as
+// `failed()` -- a lens that never sharpens shows its enlarged frame, but a snapshot that silently
+// never arrives is a copy the person believes they made.
 
 #ifndef RAWPAGE_UI_VIEWER_LOUPERASTER_H
 #define RAWPAGE_UI_VIEWER_LOUPERASTER_H
@@ -41,7 +50,8 @@ class LoupeRaster : public QObject {
     Q_OBJECT
 
 public:
-    explicit LoupeRaster(core::render::RenderScheduler& scheduler, QObject* parent = nullptr);
+    explicit LoupeRaster(core::render::RenderScheduler& scheduler, QObject* parent = nullptr,
+                         core::render::CachePolicy cachePolicy = core::render::CachePolicy::Use);
     ~LoupeRaster() override;
 
     LoupeRaster(const LoupeRaster&) = delete;
@@ -72,10 +82,14 @@ signals:
     // The aimed raster arrived. `PageView` connects it to a repaint; a signal so this names no widget.
     void arrived();
 
+    // The aimed raster came back invalid. Nothing is held; the request is no longer pending.
+    void failed();
+
 private:
     void cancelPending();
 
     core::render::RenderScheduler&                   scheduler_;
+    core::render::CachePolicy                        cachePolicy_ = core::render::CachePolicy::Use;
     core::render::RenderScheduler::SubscriptionToken subscription_ = 0;
     core::render::RenderRequest                      aimed_;
     core::render::RenderTicket                       ticket_;

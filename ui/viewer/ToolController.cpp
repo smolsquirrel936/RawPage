@@ -25,6 +25,7 @@ const char* toolKindName(ToolKind kind) noexcept
     case ToolKind::Hand:        return "Hand";
     case ToolKind::MarqueeZoom: return "MarqueeZoom";
     case ToolKind::Loupe:       return "Loupe";
+    case ToolKind::Snapshot:    return "Snapshot";
     }
     return "?";
 }
@@ -46,6 +47,7 @@ Tool& ToolController::toolFor(ToolKind kind)
     case ToolKind::Hand:        return hand_;
     case ToolKind::MarqueeZoom: return marquee_;
     case ToolKind::Loupe:       return loupe_;
+    case ToolKind::Snapshot:    return snapshot_;
     case ToolKind::Select:      break;
     }
     return select_;

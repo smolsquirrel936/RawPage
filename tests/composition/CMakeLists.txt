@@ -42,6 +42,11 @@ add_executable(rawpage_composition_tests
     # not in rawpage_ui_tests because the ink needs the engine, which that target links none of.
     tst_selectionink.cpp
 
+    # Stage 5 T10 -- guide cases A-90 and A-114's pixel halves: a snapshot against a FRESH RENDER of the page
+    # this file asks for itself, within golden/manifest.json's thresholds; the overlays absent, the rotation
+    # present, and 300 dpi a re-rasterization rather than an enlargement. Here for tst_selectionink's reason.
+    tst_snapshotink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp
@@ -53,6 +58,7 @@ target_include_directories(rawpage_composition_tests PRIVATE "${CMAKE_SOURCE_DIR
 
 target_compile_definitions(rawpage_composition_tests PRIVATE
     RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
+    RAWPAGE_GOLDEN_MANIFEST="${CMAKE_SOURCE_DIR}/golden/manifest.json"
     RAWPAGE_KILLPROBE_PATH="$<TARGET_FILE:rawpage_killprobe>"
     RAWPAGE_VERSION="${PROJECT_VERSION}")
 

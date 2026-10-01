@@ -72,7 +72,8 @@ TEST_CASE("the sixteen Stage 2 keys are declared, in the two groups the plan nam
     // **`PageDisplay` IS TWELVE FROM STAGE 4 T7**, and the twelfth is named below rather than
     // absorbed into a looser bound: `pageDisplay/autoScrollSpeed` is the first of D4-5's fifteen
     // Stage 4 keys. Stage 2's eleven are still asserted by name, which is what this case is for.
-    CHECK(pageDisplay == 12);
+    // **THIRTEEN FROM STAGE 5 T10**: `pageDisplay/snapshotDpi` (D5-11), named for the same reason.
+    CHECK(pageDisplay == 13);
     CHECK(performance == 5);
 
     for (const char* path : {"pageDisplay/layoutMode", "pageDisplay/defaultZoom",

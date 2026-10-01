@@ -1,5 +1,6 @@
 # Stage 5 T6 -- guide case A-68's restart (claude-plan/Stage5-TextSearch-Testing-Guide.md §5.8): the ten
-# `search/*` values written by ONE process and read back by ANOTHER.
+# `search/*` values written by ONE process and read back by ANOTHER -- and since T10, A-114's
+# `pageDisplay/snapshotDpi` beside them (§5.12).
 #
 # Why two processes and not a reload: Stage 4's I-15 was a preference that survived every in-process reload
 # and no real restart, because QSettings answers a reload from the cache of what the same process wrote. So

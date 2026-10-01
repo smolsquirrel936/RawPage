@@ -8,8 +8,9 @@ using core::LogSubsystem;
 using core::render::RenderPriority;
 using core::render::RenderRequest;
 
-LoupeRaster::LoupeRaster(core::render::RenderScheduler& scheduler, QObject* parent)
-    : QObject(parent), scheduler_(scheduler)
+LoupeRaster::LoupeRaster(core::render::RenderScheduler& scheduler, QObject* parent,
+                         core::render::CachePolicy cachePolicy)
+    : QObject(parent), scheduler_(scheduler), cachePolicy_(cachePolicy)
 {
     subscription_ = scheduler_.subscribeReady(
         [this](const RenderRequest& request, const core::RasterImage& image) {
@@ -22,6 +23,7 @@ LoupeRaster::LoupeRaster(core::render::RenderScheduler& scheduler, QObject* pare
             if (!image.isValid()) {
                 RAWPAGE_LOG_WARNING(LogSubsystem::Render)
                     << "loupe: invalid raster for page" << request.pageIndex;
+                emit failed();
                 return;
             }
             held_ = holdRaster(image);
@@ -49,7 +51,7 @@ void LoupeRaster::aim(const RenderRequest& request)
     aimed_ = request;
     aiming_ = true;
 
-    const core::render::RenderTicket ticket = scheduler_.enqueue(request, RenderPriority::Visible);
+    const core::render::RenderTicket ticket = scheduler_.enqueue(request, RenderPriority::Visible, cachePolicy_);
     if (ticket.isValid()) {
         ticket_ = ticket;
         ++enqueued_;

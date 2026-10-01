@@ -9,7 +9,9 @@
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/tools/LoupeTool.h"
+#include "ui/viewer/tools/MarqueeZoomTool.h"
 
+#include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDateTime>
 #include <QGuiApplication>
@@ -105,6 +107,15 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
         if (shown) loupeRaster_->aim(pendingLoupe_);
     });
 
+    // THE SNAPSHOT'S CLIENT (S5 T10, D5-11): the loupe's shape, its request builder, its lane -- and the
+    // tile cache BYPASSED, because a snapshot is consumed once and may be 200 MB (`LoupeRaster.h`).
+    snapshotRaster_ = std::make_unique<LoupeRaster>(scheduler_, this, core::render::CachePolicy::Bypass);
+    connect(snapshotRaster_.get(), &LoupeRaster::arrived, this, [this] { deliverSnapshot(); });
+    connect(snapshotRaster_.get(), &LoupeRaster::failed, this, [this] {
+        snapshotRaster_->clear();
+        emit snapshotFailed();
+    });
+
     connect(tools_.get(), &ToolController::armedChanged, this, [this](ToolKind kind) {
         // MOUSE TRACKING FOLLOWS THE TOOL. Only the loupe wants moves with no button down, and
         // leaving tracking on for every tool would deliver a move event per pixel to tools that
@@ -137,6 +148,7 @@ PageView::~PageView()
     // flight*, and the ordering is the thing that case is about. The lens's client goes with it,
     // for the same reason: it too holds a subscription and may hold a ticket (D4-20).
     loupeRaster_.reset();
+    snapshotRaster_.reset();
     presenter_.reset();
 }
 
@@ -147,6 +159,10 @@ void PageView::setDocument(core::DocumentHandle document, core::Revision revisio
     revision_ = revision;
     pages_ = pages;
     enginePages_ = enginePages;
+
+    // A SNAPSHOT STILL ON ITS WAY IS THE OLD DOCUMENT'S, and is dropped rather than delivered into a
+    // view that now shows another (S5 T10).
+    if (snapshotRaster_) snapshotRaster_->clear();
 
     engine_.setDocument(pages);
     presenter_->setDocument(document, revision, pages);
@@ -1444,6 +1460,112 @@ PageView::LoupeRegion PageView::loupeRegionFor(const QRectF& source) const
                            (sheet.top() + y0 / magnification - visible.top()) / dpr,
                            (tile.width / magnification) / dpr, (tile.height / magnification) / dpr);
     return region;
+}
+
+PageView::SnapshotRegion PageView::snapshotRegionFor(const QRect& band) const
+{
+    SnapshotRegion region;
+    if (!document_.isValid() || pages_ == nullptr || pages_->isEmpty() || band.isEmpty()) return region;
+
+    const core::render::PageLayout& layout = engine_.layout();
+    const core::DeviceRect visible = controller_->visibleRect();
+    const double dpr = devicePixelRatioF();
+    const double presented = layout.presentedScale();
+    if (presented <= 0.0) return region;
+
+    // THE BAND IN CONTENT SPACE, and THE PAGE IT IS OVER -- the one it overlaps most, clipped to it: the
+    // loupe's rule (`loupeRegionFor`), so a band straddling two pages copies the one it is mostly over and
+    // a band over the desk copies nothing. A raster is of ONE page; the desk and the gap are not the
+    // document's appearance.
+    const QRectF content(visible.left() + band.x() * dpr, visible.top() + band.y() * dpr, band.width() * dpr,
+                         band.height() * dpr);
+    const core::DeviceRect bandRect{core::DevicePoint{content.left(), content.top()},
+                                    core::DeviceSize{content.width(), content.height()}};
+    const core::render::PageSlot* best = nullptr;
+    double bestArea = 0.0;
+    const std::vector<core::render::PageSlot> candidates = layout.slotsIntersecting(bandRect);
+    for (const core::render::PageSlot& slot : candidates) {
+        const QRectF sheet(slot.rect.left(), slot.rect.top(), slot.rect.size.width, slot.rect.size.height);
+        const QRectF part = sheet.intersected(content);
+        const double area = part.width() * part.height();
+        if (area > bestArea) {
+            bestArea = area;
+            best = &slot;
+        }
+    }
+    if (best == nullptr || bestArea <= 0.0) return region;
+
+    const QRectF sheet(best->rect.left(), best->rect.top(), best->rect.size.width, best->rect.size.height);
+    const QRectF part = sheet.intersected(content);
+
+    // A SLIVER OF A PAGE IS NOT A SNAPSHOT, by the rule that makes a click not one: a band dragged over the desk
+    // that clips a page's edge by two pixels would otherwise copy a two-pixel image. The tool refuses a band
+    // under the marquee's threshold; the PART of it on the page is held to the same one here, in the same
+    // logical pixels, because only the view knows where the page is.
+    const double minDevice = MarqueeZoomTool::kMinDragPixels * dpr;
+    if (part.width() < minDevice || part.height() < minDevice) return region;
+
+    // THE RESOLUTION, from the region's size in POINTS -- the view's presented pixels divided out -- and
+    // `pageDisplay/snapshotDpi`, 0 meaning this view's own device scale (D5-11).
+    region.widthPoints = part.width() / presented;
+    region.heightPoints = part.height() / presented;
+    region.resolution = SnapshotTool::resolve(region.widthPoints, region.heightPoints, settings_.snapshotDpi,
+                                              presented);
+    const double factor = region.resolution.deviceScale / presented;
+
+    // THE REGION IN THE PAGE'S RASTER AT THAT SCALE: sheet-relative, scaled, rounded OUTWARD and clamped to
+    // the page, exactly as the loupe's -- the rasterizer refuses a rectangle that starts beyond the page.
+    // The sheet is already in the view's rotation, and so is the raster `requestAt` asks for.
+    const int pageWidth = static_cast<int>(std::ceil(sheet.width() * factor));
+    const int pageHeight = static_cast<int>(std::ceil(sheet.height() * factor));
+    const int x0 = std::clamp(static_cast<int>(std::floor((part.left() - sheet.left()) * factor)), 0, pageWidth);
+    const int y0 = std::clamp(static_cast<int>(std::floor((part.top() - sheet.top()) * factor)), 0, pageHeight);
+    const int x1 = std::clamp(static_cast<int>(std::ceil((part.right() - sheet.left()) * factor)), 0, pageWidth);
+    const int y1 = std::clamp(static_cast<int>(std::ceil((part.bottom() - sheet.top()) * factor)), 0, pageHeight);
+    if (x1 <= x0 || y1 <= y0 || x0 >= pageWidth || y0 >= pageHeight) return region;
+
+    const core::render::TileRect tile{x0, y0, x1 - x0, y1 - y0};
+    region.request = presenter_->requestAt(best->pageIndex, tile, region.resolution.deviceScale,
+                                           controller_->viewRotation());
+    region.widget = QRectF((sheet.left() + x0 / factor - visible.left()) / dpr,
+                           (sheet.top() + y0 / factor - visible.top()) / dpr, (tile.width / factor) / dpr,
+                           (tile.height / factor) / dpr);
+    return region;
+}
+
+bool PageView::takeSnapshot(const QRect& band)
+{
+    const SnapshotRegion region = snapshotRegionFor(band);
+    if (!region.request.isValid()) return false;
+
+    // ONE SNAPSHOT AT A TIME: a second band before the first arrived replaces it, and the first is
+    // cancelled rather than delivered over the second (`LoupeRaster::aim`).
+    snapshotResolution_ = region.resolution;
+    snapshotRaster_->clear();
+    snapshotRaster_->aim(region.request);
+    return true;
+}
+
+void PageView::deliverSnapshot()
+{
+    const QImage* held = snapshotRaster_->imageFor(snapshotRaster_->aimed());
+    if (held == nullptr) return;
+
+    // A COPY, because the held image BORROWS the raster's bytes (`HeldRaster`) and the clipboard outlives
+    // this view -- and ONTO WHITE, because `pageDisplay/transparencyGrid` asks the engine for a transparent
+    // page, and a snapshot pasted with an alpha channel shows black in most editors. The checkerboard is how
+    // the reader chose to look at the page; the sheet the document is drawn on is white (D5-11).
+    QImage image(held->size(), QImage::Format_RGB32);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        painter.drawImage(0, 0, *held);
+    }
+    snapshotRaster_->clear();
+
+    if (QClipboard* clipboard = QGuiApplication::clipboard()) clipboard->setImage(image);
+    emit snapshotCopied(image.width(), image.height(), snapshotResolution_.dpi(), snapshotResolution_.reduced,
+                        snapshotResolution_.askedDpi());
 }
 
 bool PageView::paintSharpLens(QPainter& painter, const QRect& lens, const QRectF& source) const

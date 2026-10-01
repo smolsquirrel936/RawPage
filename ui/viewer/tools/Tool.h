@@ -67,7 +67,7 @@ struct PressContext {
     int clicks = 1;
 };
 
-// The four Stage 4 tools, as a value. Named rather than numbered, and with an ASCII name beside
+// The four Stage 4 tools and Stage 5's Snapshot (T10, D5-11), as a value. Named rather than numbered, and with an ASCII name beside
 // them, for the reason `layoutModeName` and `destinationFitName` carry theirs: a surface, a log
 // line and a settings file all need to say which tool without inventing a second spelling.
 enum class ToolKind {
@@ -75,9 +75,10 @@ enum class ToolKind {
     Hand,
     MarqueeZoom,
     Loupe,
+    Snapshot,
 };
 
-inline constexpr int kToolKindCount = 4;
+inline constexpr int kToolKindCount = 5;
 
 const char* toolKindName(ToolKind kind) noexcept;
 
@@ -144,6 +145,17 @@ public:
         (void)page;
         (void)pos;
         return {};
+    }
+
+    // ---- The Snapshot tool's one (S5 T10, D5-11) --------------------------------------------------
+    // Copy `band` -- a region of the viewport, in logical widget pixels -- as the document draws it. The
+    // host re-rasterizes it (it owns the scheduler and the request builder; the tool owns neither) and
+    // the result reaches the clipboard when it arrives. Returns whether anything was asked for: false
+    // over no page, and in a host that has no document.
+    virtual bool takeSnapshot(const QRect& band)
+    {
+        (void)band;
+        return false;
     }
 };
 

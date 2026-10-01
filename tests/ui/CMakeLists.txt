@@ -135,6 +135,11 @@ add_executable(rawpage_ui_tests
     # S5 T9 -- Advanced Search as a widget driven by key events over a scratch folder (guide A-89, A-87, and
     # the pane's halves of A-80, A-84, A-85, A-86, A-88). The engine-backed folder search is tests/render's.
     tst_searchpane.cpp
+
+    # S5 T10 -- the Snapshot tool (D5-11; guide A-91, A-114 and A-90's widget half): `S` as a key event,
+    # Esc and a click, every size at every pageDisplay/snapshotDpi, the 50-megapixel bound, the overlays
+    # and the inversion absent, the tile cache bypassed. Ink is tests/composition/tst_snapshotink.cpp.
+    tst_snapshot.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

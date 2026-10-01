@@ -111,6 +111,11 @@ struct ViewSettings {
     // `DocumentWindow` re-reads that whole group on every change, so the speed follows a
     // Preferences edit into a running auto-scroll without a second subscription.
     int autoScrollSpeed = 60;
+
+    // S5 T10, D5-11: `pageDisplay/snapshotDpi`. 0 is AS DISPLAYED -- the view's device scale -- and 72 to
+    // 600 a resolution in dots per inch; `SnapshotTool::resolve` is the one reading of it. Read when a
+    // snapshot is taken, so a Preferences change reaches the next one without a re-layout.
+    int snapshotDpi = 0;
 };
 
 class PageView : public QAbstractScrollArea, public ToolHost {
@@ -347,6 +352,12 @@ signals:
     // markers are cleared rather than frozen at the last place it was seen.
     void cursorMoved(QPoint viewportPosition, bool onSurface);
 
+    // S5 T10 (D5-11): a snapshot reached the clipboard -- its size in pixels, the resolution it was taken
+    // at, and, when the 50-megapixel bound lowered it, that it did and from what. The words are the
+    // shell's (`ui/viewer/` holds no catalog key); `snapshotFailed` is the raster coming back invalid.
+    void snapshotCopied(int width, int height, int dpi, bool reduced, int askedDpi);
+    void snapshotFailed();
+
     // A right-click that landed ON a guide. The menu itself is the shell's -- it is words, and
     // `ui/viewer/` holds no catalog key (the same split `RulerWidget::contextMenuRequested`
     // makes). A right-click anywhere else is left alone rather than swallowed.
@@ -490,6 +501,8 @@ private:
         SelectionOverlay* selection() const override { return view_.selection(); }
         PagePoint pagePointAt(QPoint pos) const override { return view_.pagePointAt(pos); }
         PagePoint pagePointOn(int page, QPoint pos) const override { return view_.pagePointOn(page, pos); }
+        // A FROZEN PANE SNAPSHOTS WHAT IT SHOWS (S5 T10): the band is in this pane's coordinates.
+        bool takeSnapshot(const QRect& band) override { return view_.takeSnapshot(band); }
 
     private:
         PageView& view_;
@@ -514,6 +527,12 @@ private:
     // S4 D4-22: `Alt`+wheel's delta not yet a whole notch -- a precise wheel reports fractions.
     double loupeWheel_ = 0.0;
 
+    // S5 T10: the snapshot's client -- a second `LoupeRaster`, bypassing the tile cache -- and the
+    // resolution the pending one was asked at, which the status bar is told when it arrives.
+    std::unique_ptr<LoupeRaster> snapshotRaster_;
+    SnapshotTool::Resolution     snapshotResolution_;
+    void deliverSnapshot();
+
 public:
     // The lens region's request, and the part of the viewport it covers in widget pixels -- or an
     // invalid request when the region is over no page. Public for the cases (A-99), which assert
@@ -529,6 +548,27 @@ public:
 
     // D4-20's settle interval: how long the lens's region must be still before it is asked for.
     static constexpr int kLoupeSettleMs = 100;
+
+    // ---- The Snapshot (S5 T10, D5-11) ----------------------------------------------------------------
+    // What a band copies: ONE page -- the one the band overlaps most, the loupe's rule -- clipped to it,
+    // at `SnapshotTool::resolve`'s scale, with the request `TilePresenter::requestAt` builds. `widget` is
+    // the part of the viewport that page region covers; `points` its size in PDF points. Public for the
+    // cases (A-90, A-114), which assert WHAT was asked for against this rather than re-deriving it.
+    struct SnapshotRegion {
+        core::render::RenderRequest request;
+        QRectF                      widget;
+        double                      widthPoints = 0.0;
+        double                      heightPoints = 0.0;
+        SnapshotTool::Resolution    resolution;
+    };
+    SnapshotRegion snapshotRegionFor(const QRect& band) const;
+
+    // `ToolHost`'s: asks for `band`'s region and returns whether it did. The image reaches the clipboard
+    // when the raster arrives, and `snapshotCopied` says so.
+    bool takeSnapshot(const QRect& band) override;
+
+    // The snapshot's scheduler client, read-only, for the cases.
+    const LoupeRaster& snapshotRaster() const noexcept { return *snapshotRaster_; }
 
 private:
     bool paintSharpLens(QPainter& painter, const QRect& lens, const QRectF& source) const override;

@@ -697,6 +697,26 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         status_->clearTaskProgress();
         status_->setMessage(catalog::translate(catalog::key::StatusSelectionCopyCancelled));
     });
+    // THE SNAPSHOT, WORDED (S5 T10, D5-11): its size and resolution -- and, when the 50-megapixel bound
+    // lowered it, that it did and from what, because a reduced snapshot that said nothing is a print that
+    // comes out softer than the setting promised. Only for the tab in front, as the copy above.
+    connect(document, &DocumentWindow::snapshotCopied, this,
+            [this, document](int width, int height, int dpi, bool reduced, int askedDpi) {
+                if (document != currentDocument() || !status_) return;
+                status_->setMessage(reduced ? catalog::translate(catalog::key::StatusSnapshotReduced)
+                                                  .arg(width)
+                                                  .arg(height)
+                                                  .arg(dpi)
+                                                  .arg(askedDpi)
+                                            : catalog::translate(catalog::key::StatusSnapshotCopied)
+                                                  .arg(width)
+                                                  .arg(height)
+                                                  .arg(dpi));
+            });
+    connect(document, &DocumentWindow::snapshotFailed, this, [this, document] {
+        if (document != currentDocument() || !status_) return;
+        status_->setMessage(catalog::translate(catalog::key::StatusSnapshotFailed));
+    });
     connect(document, &DocumentWindow::selectionPresenceChanged, this, [this](bool) {
         if (actionFactory_) actionFactory_->refresh();
     });
@@ -1515,6 +1535,12 @@ void MainWindow::registerViewerActions()
     // note at its `ActionId.def` row — and it has no §8 chord, so it is reached from the ribbon,
     // the tool finder and the batch runner. `Features.md` §8 is untouched by this stage.
     registerTool(ActionId::ToolLoupe, ToolKind::Loupe);
+
+    // S5 · T10's SNAPSHOT (D5-11). Declared since Stage 1 with §8's Viewer `S` and registered by nothing
+    // until the tool existed -- the absence `tst_shell` asserted from Stage 4 (D4-15) until today. No id is
+    // minted. It is a TOOL, armed stickily like the other four, rather than a one-shot command: a person
+    // taking three regions of one page should not press `S` three times.
+    registerTool(ActionId::ToolSnapshot, ToolKind::Snapshot);
 
     // --- `edit.copy` and `edit.selectAll` (S5 · T5, D5-9) ----------------------------------------
     //

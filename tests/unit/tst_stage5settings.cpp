@@ -9,6 +9,9 @@
 // restart here is two runs of this binary (`unit.search_settings.restart`, `RunSettingsRestart.cmake`), the
 // first writing through the hidden case below and the second reading through the other.
 //
+// **AND SINCE T10, `pageDisplay/snapshotDpi`** (D5-11; guide case A-114's restart clause): its row, its
+// sentinel default and its clamp, and the same restart -- the probe writes and reads it beside the ten.
+//
 // WHAT IT DOES NOT COVER (convention 19): that anything OBEYS the keys. `search/indexCacheMB` reaching the
 // index is `app/CompositionRoot::applySearchSettings`, read by `tst_index`'s default case and not driven
 // here; the four matching flags reach a search through `SearchQuery::fromSettings` (asserted below) and the
@@ -50,6 +53,7 @@ void writeNonDefaults(core::Settings& settings)
     settings.set(keys::search::includeAttachments, true);
     settings.set(keys::search::maxResults, 10);
     settings.set(keys::search::indexCacheMB, 64);
+    settings.set(keys::pageDisplay::snapshotDpi, 300);   // S5 T10 (A-114)
 }
 
 // Every key, with a message naming the first that does not read back -- a restart probe that says only
@@ -66,6 +70,7 @@ std::string checkNonDefaults(const core::Settings& settings)
     if (!settings.get(keys::search::includeAttachments)) return "search/includeAttachments";
     if (settings.get(keys::search::maxResults) != 10) return "search/maxResults";
     if (settings.get(keys::search::indexCacheMB) != 64) return "search/indexCacheMB";
+    if (settings.get(keys::pageDisplay::snapshotDpi) != 300) return "pageDisplay/snapshotDpi";
     return {};
 }
 
@@ -105,6 +110,32 @@ TEST_CASE("the search keys default to finding what was typed", "[settings][stage
     CHECK(settings.get(keys::search::maxResults) == 1);
     settings.set(keys::search::indexCacheMB, 1);
     CHECK(settings.get(keys::search::indexCacheMB) == 16);
+}
+
+TEST_CASE("pageDisplay/snapshotDpi is one sentinel and a clamped resolution", "[settings][stage5][A-114]")
+{
+    // THE ROW: in Page Display, so the page ships its editor (convention 17), and nowhere else.
+    int rows = 0;
+    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {
+        if (std::string(info.path) != "pageDisplay/snapshotDpi") continue;
+        ++rows;
+        CHECK(info.group == SettingsGroup::PageDisplay);
+    }
+    CHECK(rows == 1);
+
+    QTemporaryDir directory;
+    core::Settings settings(QDir(directory.path()).filePath(QStringLiteral("settings.ini")));
+    // 0, AS DISPLAYED -- the default D5-11 names.
+    CHECK(settings.get(keys::pageDisplay::snapshotDpi) == 0);
+
+    // THE TABLE CLAMPS TO 0 ... 600 (rule 3). A value from 1 to 71 is NOT the table's to refuse -- its floor
+    // is the sentinel -- and reads back as written; `SnapshotTool::resolve` takes it as 72 (`tst_snapshot`).
+    settings.set(keys::pageDisplay::snapshotDpi, 1200);
+    CHECK(settings.get(keys::pageDisplay::snapshotDpi) == 600);
+    settings.set(keys::pageDisplay::snapshotDpi, -5);
+    CHECK(settings.get(keys::pageDisplay::snapshotDpi) == 0);
+    settings.set(keys::pageDisplay::snapshotDpi, 40);
+    CHECK(settings.get(keys::pageDisplay::snapshotDpi) == 40);
 }
 
 TEST_CASE("a query takes its flags and its bound from the settings", "[settings][stage5][A-68]")
@@ -168,5 +199,6 @@ TEST_CASE("search settings restart probe reads", "[.][restart]")
     const std::string missing = checkNonDefaults(settings);
     INFO("the key that did not survive the restart: " << missing);
     CHECK(missing.empty());
-    std::printf("search settings restart: all ten keys read back by a second process\n");
+    std::printf("search settings restart: all ten search keys and pageDisplay/snapshotDpi read back by a "
+                "second process\n");
 }

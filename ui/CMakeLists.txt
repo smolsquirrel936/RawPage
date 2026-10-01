@@ -132,6 +132,9 @@ add_library(rawpage_ui STATIC
     viewer/tools/MarqueeZoomTool.cpp
     viewer/tools/LoupeTool.h
     viewer/tools/LoupeTool.cpp
+    # S5 T10 -- the Snapshot (D5-11): the marquee's band, the loupe's request, the clipboard.
+    viewer/tools/SnapshotTool.h
+    viewer/tools/SnapshotTool.cpp
     viewer/ToolController.h
     viewer/ToolController.cpp
 

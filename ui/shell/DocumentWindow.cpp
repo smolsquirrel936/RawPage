@@ -449,6 +449,13 @@ void DocumentWindow::handDocumentTo(PageView* pane)
     // ONE SELECTION FOR EVERY PANE (S5 T5, D5-8).
     pane->setSelectionOverlay(selection_);
 
+    // EVERY PANE'S SNAPSHOT IS THIS TAB'S (S5 T10, D5-11), forwarded as the selection's copy is, so the one
+    // `disconnect(document, ...)` `MainWindow` makes when a tab leaves it covers these too. Unique, because
+    // a pane is handed the document again whenever the document is re-read; a member-to-signal connection,
+    // never a lambda, which is where `Qt::UniqueConnection` is a debug-only fail-fast (S4 guide I-09).
+    connect(pane, &PageView::snapshotCopied, this, &DocumentWindow::snapshotCopied, Qt::UniqueConnection);
+    connect(pane, &PageView::snapshotFailed, this, &DocumentWindow::snapshotFailed, Qt::UniqueConnection);
+
     core::IDocumentBackend& backend = services_.backend;
     const core::DocumentHandle handle = handle_;
     pane->setContentBoxSource([&backend, handle](int pageIndex) -> std::optional<core::PdfRect> {
@@ -593,6 +600,7 @@ void DocumentWindow::applyViewSettings()
     view.maxRenderDpi      = settings.get(core::keys::pageDisplay::maxRenderResolution);
     view.wheelZooms        = settings.get(core::keys::pageDisplay::wheelZooms);
     view.autoScrollSpeed   = settings.get(core::keys::pageDisplay::autoScrollSpeed);
+    view.snapshotDpi       = settings.get(core::keys::pageDisplay::snapshotDpi);
     view.prefetchPages     = settings.get(core::keys::performance::prefetchPages);
 
     // EVERY PANE OF THE SPLIT (S4 T9). The eleven `pageDisplay/` keys are the document's, not one

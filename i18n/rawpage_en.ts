@@ -1599,6 +1599,18 @@
         <translation>Copy cancelled. The clipboard is unchanged.</translation>
     </message>
     <message>
+        <source>shell.status.snapshotCopied</source>
+        <translation>Snapshot copied to the clipboard: %1 × %2 pixels at %3 dpi.</translation>
+    </message>
+    <message>
+        <source>shell.status.snapshotReduced</source>
+        <translation>Snapshot copied to the clipboard: %1 × %2 pixels at %3 dpi, reduced from %4 dpi to stay within 50 megapixels.</translation>
+    </message>
+    <message>
+        <source>shell.status.snapshotFailed</source>
+        <translation>The snapshot could not be rendered. The clipboard is unchanged.</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>Light</translation>
     </message>
@@ -2814,6 +2826,10 @@
     <message>
         <source>prefs.setting.pageDisplay.autoScrollSpeed</source>
         <translation>Auto-scroll speed (pixels per second; negative scrolls backwards)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.snapshotDpi</source>
+        <translation>Snapshot resolution (dpi; 0 takes it as displayed)</translation>
     </message>
     <message>
         <source>prefs.window.title</source>

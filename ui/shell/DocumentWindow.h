@@ -334,6 +334,11 @@ signals:
     void selectionCopyCancelled();
     void selectionPresenceChanged(bool hasSelection);
 
+    // S5 T10 -- a snapshot from any pane of this tab reached the clipboard, or its raster failed;
+    // forwarded from `PageView` for the same reason as the five above.
+    void snapshotCopied(int width, int height, int dpi, bool reduced, int askedDpi);
+    void snapshotFailed();
+
 private:
     void build(const Recovery* recovery);
     void afterMutation();

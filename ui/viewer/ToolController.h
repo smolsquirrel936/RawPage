@@ -57,6 +57,7 @@
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 #include "ui/viewer/tools/SelectTool.h"
+#include "ui/viewer/tools/SnapshotTool.h"
 #include "ui/viewer/tools/Tool.h"
 
 #include <QObject>
@@ -110,6 +111,9 @@ public:
     // how it answers a click and a drag (S4 guide I-26). Read-only: the loupe is driven by events.
     const LoupeTool& loupe() const noexcept { return loupe_; }
 
+    // The Snapshot tool's band, for the cases that assert what a drag would copy (S5 T10).
+    const SnapshotTool& snapshot() const noexcept { return snapshot_; }
+
     // Steps the lens's magnification `steps` rungs and repaints -- `Alt`+wheel (decision D4-22).
     // Returns whether it changed.
     bool stepLoupeMagnification(int steps);
@@ -160,6 +164,7 @@ private:
     HandTool        hand_;
     MarqueeZoomTool marquee_;
     LoupeTool       loupe_;
+    SnapshotTool    snapshot_;
 
     ToolKind armed_ = ToolKind::Select;
     bool     temporaryHand_ = false;

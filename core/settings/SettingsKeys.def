@@ -202,6 +202,16 @@ RAWPAGE_SETTING(pageDisplay, wheelZooms, bool,
 RAWPAGE_SETTING_RANGED(pageDisplay, autoScrollSpeed, int,
                        "pageDisplay/autoScrollSpeed", 60, PageDisplay, true, -2000, 2000)
 
+// S5 T10, decision D5-11 (`Stage5-TextSearch-Plan.md` §3; the §0 answer to Q3, option B): the
+// resolution a Snapshot (`S`) is taken at. **0, the default, is AS DISPLAYED** -- the view's own device
+// scale, which is what a person sees -- and otherwise dots per inch, 72 to 600. ONE SENTINEL RATHER THAN
+// TWO KEYS: a boolean *as displayed* beside a number would be two facts about one choice (D4-5), and
+// `fullScreen/monitor`'s empty value is the precedent. The floor is 0 for the sentinel, so a value from 1
+// to 71 cannot be refused by the table; `ui/viewer/tools/SnapshotTool::resolve` takes it as 72. 600 is
+// where print stops gaining and a page-sized snapshot starts meeting the 50-megapixel bound anyway.
+RAWPAGE_SETTING_RANGED(pageDisplay, snapshotDpi, int,
+                       "pageDisplay/snapshotDpi", 0, PageDisplay, true, 0, 600)
+
 // --- Performance and cache -----------------------------------------------------------------------
 // ONE, and it is I-05's answer rather than a placeholder: PDFium cannot be called from two threads
 // at once, so the shipped arrangement is one render thread with a queue. The range goes to 16 because

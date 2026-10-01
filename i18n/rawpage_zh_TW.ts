@@ -1599,6 +1599,18 @@
         <translation>已取消複製。剪貼簿內容未變更。</translation>
     </message>
     <message>
+        <source>shell.status.snapshotCopied</source>
+        <translation>快照已複製到剪貼簿：%1 × %2 像素，%3 dpi。</translation>
+    </message>
+    <message>
+        <source>shell.status.snapshotReduced</source>
+        <translation>快照已複製到剪貼簿：%1 × %2 像素，%3 dpi，已由 %4 dpi 降低以不超過 5000 萬像素。</translation>
+    </message>
+    <message>
+        <source>shell.status.snapshotFailed</source>
+        <translation>無法轉譯快照。剪貼簿內容未變更。</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>淺色</translation>
     </message>
@@ -2814,6 +2826,10 @@
     <message>
         <source>prefs.setting.pageDisplay.autoScrollSpeed</source>
         <translation>自動捲動速度（每秒像素；負值為反向）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.pageDisplay.snapshotDpi</source>
+        <translation>快照解析度（dpi；0 表示依顯示大小）</translation>
     </message>
     <message>
         <source>prefs.window.title</source>

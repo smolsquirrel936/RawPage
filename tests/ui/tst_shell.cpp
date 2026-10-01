@@ -135,10 +135,13 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **One more at Stage 5 T9**: `find.advancedSearch`, §8's Global `Ctrl+Shift+F` (D5-15), declared at Stage 1
     // and registered once the Advanced Search pane existed to show (D5-13). No id is minted.
     //
+    // **One more at Stage 5 T10**: `tool.snapshot`, §8's Viewer `S` (D5-11), declared at Stage 1 and asserted
+    // ABSENT below from Stage 4 (D4-15) until the tool existed. No id is minted.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 105);
+    CHECK(fixture.actions.registeredCount() == 106);
     CHECK(fixture.actions.isRegistered(core::ActionId::EditCopy));        // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::FindFind));        // S5 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FindClose));       // S5 T7
@@ -230,7 +233,7 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::EditRedo));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSave));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveAs));
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));      // S5 (D4-15)
+    CHECK(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));            // S5 T10 (D5-11)
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));    // S6
 
     // S4 T5's FOUR: the Thumbnails pane and the three §8 Page Thumbnails rows it services. The
@@ -269,7 +272,7 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewAutoScroll));
     CHECK(fixture.actions.isRegistered(core::ActionId::ToolHand));        // S2 T14, re-pointed
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::EditCancel));
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));   // S5 (D4-15)
+    CHECK(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));   // S5 T10 -- absent from S4 (D4-15) until here
 
     // The distinction A-22 pinned down at T3, seen from the shell: a command that has not arrived
     // yet is NotFound, not a silent no-op. `file.print` is one of the ~310 that are declared and

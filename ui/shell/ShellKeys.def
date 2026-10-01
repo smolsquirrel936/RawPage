@@ -91,6 +91,9 @@ RAWPAGE_SHELL_STRING(StatusSelectionCopiedSkipped,   "shell.status.selectionCopi
 RAWPAGE_SHELL_STRING(StatusSelectionNotExtractable,  "shell.status.selectionNotExtractable")
 RAWPAGE_SHELL_STRING(StatusSelectionPreparing,       "shell.status.selectionPreparing")
 RAWPAGE_SHELL_STRING(StatusSelectionCopyCancelled,   "shell.status.selectionCopyCancelled")
+RAWPAGE_SHELL_STRING(StatusSnapshotCopied,           "shell.status.snapshotCopied")
+RAWPAGE_SHELL_STRING(StatusSnapshotReduced,          "shell.status.snapshotReduced")
+RAWPAGE_SHELL_STRING(StatusSnapshotFailed,           "shell.status.snapshotFailed")
 
 // --- Theme names -------------------------------------------------------------------------------
 // Named here rather than in the Preferences pages (T14) because the status of the current theme is
