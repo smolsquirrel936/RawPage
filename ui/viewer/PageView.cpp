@@ -477,14 +477,28 @@ void PageView::scrollToPagePoint(int pageIndex, double pdfCoordinate, bool horiz
                    horizontal ? std::nullopt : std::optional<double>{pdfCoordinate});
 }
 
-void PageView::putPageHeightAtTop(int pageIndex, double pdfY)
+std::optional<double> PageView::depthBelowTop(int pageIndex, core::PdfPoint point) const
 {
-    const core::Page* page = pages_ ? pages_->at(pageIndex) : nullptr;
-    if (page == nullptr) return;
-    const auto content = engine_.layout().toContent(pageIndex, core::PdfPoint{page->cropBox().left(), pdfY});
-    if (!content.has_value()) return;
+    const auto content = engine_.layout().toContent(pageIndex, point);
+    if (!content.has_value()) return std::nullopt;
+    return content->y - controller_->visibleRect().top();
+}
+
+void PageView::putPageRectAtTop(int pageIndex, const core::PdfRect& rect)
+{
+    // THE CORNER HIGHEST ON SCREEN, whichever corner of the page's rectangle that is: the page's top only
+    // on an upright page. Converting one height at the crop box's left edge, as this did at T11, put the
+    // page's left edge at the top at 90 degrees and the rectangle's bottom at 180 (S5 guide I-06).
+    const core::render::PageLayout& layout = engine_.layout();
+    std::optional<double> highest;
+    for (const core::PdfPoint corner : {core::PdfPoint{rect.left(), rect.bottom()}, core::PdfPoint{rect.right(), rect.bottom()},
+                                        core::PdfPoint{rect.left(), rect.top()}, core::PdfPoint{rect.right(), rect.top()}}) {
+        const auto content = layout.toContent(pageIndex, corner);
+        if (!content.has_value()) return;
+        highest = highest ? std::min(*highest, content->y) : content->y;
+    }
     controller_->setCurrentPage(pageIndex);
-    controller_->setScroll(core::DevicePoint{controller_->scroll().x, content->y});
+    controller_->setScroll(core::DevicePoint{controller_->scroll().x, *highest});
     refresh();
 }
 

@@ -215,12 +215,16 @@ public:
     // history entry: stepping through hits is not navigating.
     void revealPageRect(int pageIndex, const core::PdfRect& rect);
 
-    // PUT A PAGE-SPACE HEIGHT AT THE VIEWPORT'S TOP EDGE -- S5 T11, Reflow view's way back (D5-16): the block
-    // the reader was at in the reflow becomes the block at the top of the page. EXACTLY at the edge, not a
-    // margin below it as a destination lands, because "the block at the top" is then read back from this
-    // same edge (`core/text/ReflowText`'s `blockAtTop`). The horizontal scroll is kept; no history entry --
-    // leaving reflow is not navigating.
-    void putPageHeightAtTop(int pageIndex, double pdfY);
+    // PUT A PAGE-SPACE RECTANGLE'S TOP, AS DRAWN, AT THE VIEWPORT'S TOP EDGE -- S5 T11, Reflow view's way
+    // back (D5-16): the block the reader was at in the reflow becomes the block at the top of the page.
+    // EXACTLY at the edge, not a margin below it as a destination lands, because "the block at the top" is
+    // then read back from this same edge (`core/text/ReflowText`'s `blockAtTop`). "Its top as drawn" is the
+    // corner highest on SCREEN, which is the page-space top only on an upright page (S5 guide I-06). The
+    // horizontal scroll is kept; no history entry -- leaving reflow is not navigating.
+    void putPageRectAtTop(int pageIndex, const core::PdfRect& rect);
+    // HOW FAR BELOW THE VIEWPORT'S TOP EDGE a point of a page is drawn, in device pixels, negative above it;
+    // empty for a page not laid out. Reflow view reads its place along the screen's down with it (I-06).
+    std::optional<double> depthBelowTop(int pageIndex, core::PdfPoint point) const;
 
     // ---- The §8 Viewer operations (T14) -------------------------------------------------------
     // Each is the BEHAVIOUR behind one registered command, and each is a public method rather than

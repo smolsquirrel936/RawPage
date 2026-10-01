@@ -67,9 +67,27 @@ ReflowPage reflowParagraphs(const PageReading& page);
 // The paragraphs' text, a blank line between them -- what a case compares against the analyzer's order.
 QString reflowText(const std::vector<ReflowParagraph>& paragraphs);
 
-// THE PLACE ON THE PAGE VIEW'S SIDE: the first block in reading order that is not wholly ABOVE `topY`, the
-// page-space y of the viewport's top edge on this page (PDF points, y up). A page whose top is on screen
-// answers its first block; a page scrolled past every block answers -1 -- the place is on a later page.
+// WHICH WAY IS DOWN ON THE PAGE VIEW'S SCREEN, said in page space (S5 guide I-06): a page point's distance
+// BELOW the viewport's top edge is `dx * x + dy * y + offset`, in any unit, negative above the edge. It is
+// linear because a page's presentation is a rotation, a scale and a translation -- and it has to be said
+// this way, because "down" is page-space -y only on an UPRIGHT page: shown at 90 degrees it is an x
+// direction, and at 180 it is +y. The caller reads the coefficients off its own layout (`DocumentWindow`);
+// nothing here knows which way any rotation turns.
+struct DepthBelowEdge {
+    double dx = 0.0;
+    double dy = -1.0;
+    double offset = 0.0;
+
+    double of(PdfPoint p) const noexcept { return dx * p.x + dy * p.y + offset; }
+    // An upright page whose viewport top edge is at page-space height `topY`.
+    static DepthBelowEdge upright(double topY) noexcept { return DepthBelowEdge{0.0, -1.0, topY}; }
+};
+
+// THE PLACE ON THE PAGE VIEW'S SIDE: the first block in reading order that is not wholly ABOVE the
+// viewport's top edge -- some corner of its box at or below it. A page whose top is on screen answers its
+// first block; a page scrolled past every block answers -1 -- the place is on a later page.
+int blockAtTop(const PageReading& page, const DepthBelowEdge& depth);
+// The same over an upright page whose edge is at page-space height `topY` (PDF points, y up).
 int blockAtTop(const PageReading& page, double topY);
 
 } // namespace rawpage::core::text

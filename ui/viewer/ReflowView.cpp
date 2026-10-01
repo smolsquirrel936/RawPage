@@ -1,7 +1,6 @@
 #include "ui/viewer/ReflowView.h"
 
 #include "core/cmd/KeyContext.h"
-#include "core/text/ReflowText.h"
 #include "ui/shell/ShortcutBinder.h"
 
 #include <QAbstractTextDocumentLayout>
@@ -117,12 +116,12 @@ double ReflowView::drawnSize(double modelSize) const
 // The window and the place
 // ---------------------------------------------------------------------------------------------------------
 
-void ReflowView::showAt(int page, double topY)
+void ReflowView::showAt(int page, const core::text::DepthBelowEdge& depth)
 {
     if (entry_ == 0 || pageCount_ <= 0) return;
     page = std::clamp(page, 0, pageCount_ - 1);
     pendingPlace_.reset();
-    pendingTop_ = PendingTop{page, topY};
+    pendingTop_ = PendingTop{page, depth};
 
     // A FRESH WINDOW ROUND THE PAGE, keeping whatever of the old one it still covers.
     const int first = std::max(0, page - kInitialBefore);
@@ -138,7 +137,7 @@ void ReflowView::showAt(int page, double topY)
 void ReflowView::showAtPlace(Place place)
 {
     if (!place.isValid() || entry_ == 0 || pageCount_ <= 0) return;
-    showAt(place.page, 0.0);
+    showAt(place.page, core::text::DepthBelowEdge{});
     pendingTop_.reset();
     pendingPlace_ = place;
     rebuild();
@@ -154,6 +153,15 @@ ReflowView::Place ReflowView::place() const
     for (QTextBlock block = cursor.block(); block.isValid(); block = block.next())
         if (const PlaceData* held = placeOf(block)) return Place{held->page, held->block};
     return Place{};
+}
+
+std::optional<core::PdfRect> ReflowView::blockBox(Place place) const
+{
+    const auto it = readings_.find(place.page);
+    if (it == readings_.end() || place.block < 0) return std::nullopt;
+    const std::vector<core::text::TextBlock>& blocks = it->second->layout().blocks;
+    if (static_cast<std::size_t>(place.block) >= blocks.size()) return std::nullopt;
+    return blocks[static_cast<std::size_t>(place.block)].box;
 }
 
 std::vector<ReflowView::Shown> ReflowView::shown() const
@@ -232,7 +240,7 @@ bool ReflowView::resolvePendingTop()
         const auto it = readings_.find(p);
         if (it == readings_.end()) return false;
         const core::text::PageReading& reading = *it->second;
-        const int block = p == top.page ? core::text::blockAtTop(reading, top.topY)
+        const int block = p == top.page ? core::text::blockAtTop(reading, top.depth)
                                         : (reading.layout().order.empty() ? -1 : reading.layout().order.front());
         if (block >= 0) {
             pendingTop_.reset();

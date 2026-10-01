@@ -137,6 +137,8 @@ struct LabelBlock {
     QString text;
     double  top = 0.0;
     double  bottom = 0.0;
+    double  left = 1e9;
+    double  right = -1e9;
 };
 
 std::vector<LabelBlock> labelBlocks(const char* name, int index)
@@ -164,11 +166,33 @@ std::vector<LabelBlock> labelBlocks(const char* name, int index)
                 block.text += l.text;
                 block.bottom = std::min(block.bottom, l.box[1]);
                 block.top = std::max(block.top, l.box[3]);
+                block.left = std::min(block.left, l.box[0]);
+                block.right = std::max(block.right, l.box[2]);
             }
             out.push_back(block);
         }
     }
     REQUIRE_FALSE(out.empty());
+    return out;
+}
+
+// A label block as DRAWN: the top-most and bottom-most content-space y of its box's four corners -- the
+// screen's own measure, whichever way the page is turned (I-06).
+struct Drawn {
+    double top = 1e18;
+    double bottom = -1e18;
+};
+
+Drawn drawn(const ui::PageView& view, int page, const LabelBlock& block)
+{
+    Drawn out;
+    for (const double x : {block.left, block.right})
+        for (const double y : {block.bottom, block.top}) {
+            const auto content = view.layoutEngine().layout().toContent(page, core::PdfPoint{x, y});
+            REQUIRE(content.has_value());
+            out.top = std::min(out.top, content->y);
+            out.bottom = std::max(out.bottom, content->y);
+        }
     return out;
 }
 
@@ -221,7 +245,7 @@ TEST_CASE("the reflow opens at the block at the top of the page and returns to t
 
     // THE TOP EDGE THROUGH THE MIDDLE OF COLUMN 1's SECOND BODY BLOCK (label block 3).
     const double cut = (blocks[3].top + blocks[3].bottom) / 2.0;
-    view->putPageHeightAtTop(0, cut);
+    view->putPageRectAtTop(0, core::PdfRect{core::PdfPoint{0.0, cut}, core::PdfSize{0.0, 0.0}});
     product.settle();
     const ui::PagePoint top = view->pagePointAt(QPoint(view->viewport()->width() / 2, 0));
     REQUIRE(top.page == 0);
@@ -263,4 +287,74 @@ TEST_CASE("the reflow opens at the block at the top of the page and returns to t
     // at 2.2 pt on its first run).
     CHECK(back.point.y >= blocks[8].top);
     CHECK(back.point.y - blocks[8].top < 3.0);
+}
+
+// S5 guide I-06: the place both ways ON A PAGE SHOWN TURNED. At T11 the way in read the page-space HEIGHT at
+// the edge and the way back put one at it, both of which mean "the screen's down" only on an upright page:
+// leaving at 90 degrees put the page's top edge at the viewport's, and at 180 and 270 the block was not on
+// screen at all (measured 321, 192 and 555 px from the edge). Each direction is asserted here in the
+// screen's own measure -- content-space y, from the layout -- at all four view rotations.
+TEST_CASE("the reflow's place survives a toggle both ways at every view rotation", "[reflowink][A-93][I-06]")
+{
+    for (int turns = 0; turns < 4; ++turns) {
+        DYNAMIC_SECTION("view turned " << turns * 90 << " degrees")
+        {
+            Product product;
+            ui::PageView* view = product.open("ordinary/columns-two.pdf");
+            for (int t = 0; t < turns; ++t) view->rotateViewClockwise();
+            product.settle();
+            const std::vector<LabelBlock> blocks = labelBlocks("columns-two", 0);
+
+            // Device pixels per point, so a tolerance in points means the same at any zoom.
+            const auto& layout = view->layoutEngine().layout();
+            const auto c0 = layout.toContent(0, core::PdfPoint{0.0, 0.0});
+            const auto c1 = layout.toContent(0, core::PdfPoint{1.0, 0.0});
+            REQUIRE((c0 && c1));
+            const double perPoint = std::hypot(c1->x - c0->x, c1->y - c0->y);
+            const double slack = 3.0 * perPoint;   // the label's boxes against the engine's glyph boxes
+
+            // IN: the top edge through the middle of column 1's second body block (label block 3), as drawn.
+            const double cx = (blocks[3].left + blocks[3].right) / 2.0;
+            const double cy = (blocks[3].top + blocks[3].bottom) / 2.0;
+            view->putPageRectAtTop(0, core::PdfRect{core::PdfPoint{cx, cy}, core::PdfSize{0.0, 0.0}});
+            product.settle();
+            const double edgeIn = view->controller().visibleRect().top();
+            // THIS FILE's expectation: the first label block, in reading order, not wholly above the edge as
+            // drawn -- with no block's drawn bottom so near the edge that label and engine could disagree.
+            std::size_t first = blocks.size();
+            for (std::size_t i = 0; i < blocks.size(); ++i) {
+                const Drawn d = drawn(*view, 0, blocks[i]);
+                INFO("block " << i << " drawn bottom " << d.bottom << ", edge " << edgeIn);
+                REQUIRE(std::abs(d.bottom - edgeIn) > slack);
+                if (first == blocks.size() && d.bottom > edgeIn) first = i;
+            }
+            REQUIRE(first < blocks.size());
+
+            product.toggle();
+            REQUIRE(product.document().isReflowing());
+            const QTextBlock atTop = product.reflow().cursorForPosition(QPoint(2, 1)).block();
+            INFO("expected label block " << first << "; the reflow's top paragraph: " << atTop.text().toStdString());
+            CHECK(collapsed(atTop.text()) == collapsed(blocks[first].text));
+
+            // BACK: scrolled in the reflow to column 2's first body block (label block 8), then Ctrl+4.
+            QTextBlock target;
+            for (QTextBlock block = product.reflow().document()->begin(); block.isValid(); block = block.next())
+                if (collapsed(block.text()) == collapsed(blocks[8].text)) target = block;
+            REQUIRE(target.isValid());
+            QScrollBar* bar = product.reflow().verticalScrollBar();
+            bar->triggerAction(QAbstractSlider::SliderMove);
+            bar->setValue(static_cast<int>(product.reflow().document()->documentLayout()->blockBoundingRect(target).top()));
+            QCoreApplication::processEvents();
+            REQUIRE(collapsed(product.reflow().cursorForPosition(QPoint(2, 1)).block().text()) == collapsed(blocks[8].text));
+
+            product.toggle();
+            REQUIRE_FALSE(product.document().isReflowing());
+            const double edgeOut = view->controller().visibleRect().top();
+            const Drawn d = drawn(*view, 0, blocks[8]);
+            INFO("edge " << edgeOut << ", label block 8 drawn " << d.top << " .. " << d.bottom << ", slack " << slack);
+            // ITS TOP AS DRAWN AT THE EDGE: on screen, and nothing above it but the glyph boxes' difference.
+            CHECK(d.top >= edgeOut - 0.5);
+            CHECK(d.top - edgeOut < slack);
+        }
+    }
 }

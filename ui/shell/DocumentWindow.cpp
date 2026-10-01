@@ -393,12 +393,21 @@ void DocumentWindow::setReflowing(bool on)
 
     if (on) {
         if (pane == nullptr || pageCount() <= 0 || indexEntry_ == 0) return;
-        // THE BLOCK AT THE TOP OF THE ACTIVE PANE: the page and the page-space height at its top edge, read
-        // where the pointer would read it (`pagePointAt`) -- in the middle of the edge, so a two-up spread
-        // answers the page a reader is in rather than the gutter.
+        // THE BLOCK AT THE TOP OF THE ACTIVE PANE: the page at its top edge, read where the pointer would read
+        // it (`pagePointAt`) -- in the middle of the edge, so a two-up spread answers the page a reader is in
+        // rather than the gutter -- and how far below that edge each point of the page is drawn. That is
+        // linear in page space, so three points say it all, and it is said along the SCREEN's down: on a page
+        // shown turned, the page-space height at the edge names no block at all (S5 guide I-06).
         const PagePoint top = pane->pagePointAt(QPoint(pane->viewport()->width() / 2, 0));
-        reflow_->showAt(top.isValid() ? top.page : pane->controller().currentPage(),
-                        top.isValid() ? top.point.y : 1.0e9);
+        const int page = top.isValid() ? top.page : pane->controller().currentPage();
+        const std::optional<double> origin = pane->depthBelowTop(page, core::PdfPoint{0.0, 0.0});
+        const std::optional<double> alongX = pane->depthBelowTop(page, core::PdfPoint{1.0, 0.0});
+        const std::optional<double> alongY = pane->depthBelowTop(page, core::PdfPoint{0.0, 1.0});
+        // A page not laid out has no edge to read: its first block.
+        const core::text::DepthBelowEdge depth = origin && alongX && alongY
+            ? core::text::DepthBelowEdge{*alongX - *origin, *alongY - *origin, *origin}
+            : core::text::DepthBelowEdge::upright(1.0e9);
+        reflow_->showAt(page, depth);
         surface_->hide();
         reflow_->show();
         reflow_->setFocus(Qt::OtherFocusReason);
@@ -415,12 +424,9 @@ void DocumentWindow::setReflowing(bool on)
     reflow_->hide();
     surface_->show();
     if (pane != nullptr && place.page >= 0) {
-        const std::shared_ptr<const core::text::IndexedPage> held = services_.documentIndex.page(indexEntry_, place.page);
-        const std::shared_ptr<const core::text::PageReading> reading = held ? held->reading() : nullptr;
-        if (reading && place.block >= 0
-            && static_cast<std::size_t>(place.block) < reading->layout().blocks.size()) {
-            const core::PdfRect& box = reading->layout().blocks[static_cast<std::size_t>(place.block)].box;
-            pane->putPageHeightAtTop(place.page, std::max(box.top(), box.bottom()));
+        // THE BOX FROM THE REFLOW'S OWN TEXT: it holds its pages, and the index may have evicted this one.
+        if (const std::optional<core::PdfRect> box = reflow_->blockBox(place)) {
+            pane->putPageRectAtTop(place.page, *box);
         } else {
             pane->goToPage(place.page);
         }

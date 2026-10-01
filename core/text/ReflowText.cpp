@@ -150,17 +150,26 @@ QString reflowText(const std::vector<ReflowParagraph>& paragraphs)
     return out;
 }
 
-int blockAtTop(const PageReading& page, double topY)
+int blockAtTop(const PageReading& page, const DepthBelowEdge& depth)
 {
     const PageLayout& layout = page.layout();
     for (const int block : layout.order) {
         if (block < 0 || static_cast<std::size_t>(block) >= layout.blocks.size()) continue;
         const PdfRect& box = layout.blocks[static_cast<std::size_t>(block)].box;
-        const double bottom = std::min(box.bottom(), box.top());
-        // NOT WHOLLY ABOVE the top edge: some of it is at or below where the reader's eye starts.
-        if (bottom < topY) return block;
+        // NOT WHOLLY ABOVE the top edge: some corner of it is below where the reader's eye starts. The
+        // corner that is lowest on SCREEN, which is the page's bottom-most only on an upright page (I-06).
+        const double lowest = std::max({depth.of(PdfPoint{box.left(), box.bottom()}),
+                                        depth.of(PdfPoint{box.right(), box.bottom()}),
+                                        depth.of(PdfPoint{box.left(), box.top()}),
+                                        depth.of(PdfPoint{box.right(), box.top()})});
+        if (lowest > 0.0) return block;
     }
     return -1;
+}
+
+int blockAtTop(const PageReading& page, double topY)
+{
+    return blockAtTop(page, DepthBelowEdge::upright(topY));
 }
 
 } // namespace rawpage::core::text

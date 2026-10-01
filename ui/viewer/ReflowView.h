@@ -22,11 +22,13 @@
 // ===========================================================================================
 // THE READER'S PLACE IS A BLOCK, BOTH WAYS.
 // ===========================================================================================
-// `Place` is (page, block). Entering, `showAt(page, topY)` is told the page and the page-space height at
-// the page view's top edge, and resolves the block there with `blockAtTop` once that page's text has
-// arrived. Leaving, `place()` is the paragraph at the top of this view, and the shell puts that block's
-// top at the top of the page view (`PageView::putPageHeightAtTop`). Each paragraph carries its place as
-// block user data, so neither direction searches text.
+// `Place` is (page, block). Entering, `showAt(page, depth)` is told the page and how far below the page
+// view's top edge each of its points is drawn (`core::text::DepthBelowEdge` -- the screen's down, which is
+// page-space -y only on an upright page, S5 guide I-06), and resolves the block there with `blockAtTop`
+// once that page's text has arrived. Leaving, `place()` is the paragraph at the top of this view, and the
+// shell puts that block's box, as drawn, at the top of the page view (`blockBox`, then
+// `PageView::putPageRectAtTop`). Each paragraph carries its place as block user data, so neither direction
+// searches text.
 //
 // ===========================================================================================
 // THE KEYS IT KEEPS, AND THE ONES IT LEAVES.
@@ -44,6 +46,7 @@
 #define RAWPAGE_UI_VIEWER_REFLOWVIEW_H
 
 #include "core/text/DocumentIndex.h"
+#include "core/text/ReflowText.h"
 #include "core/text/TextSelection.h"
 
 #include <QTextBrowser>
@@ -93,14 +96,17 @@ public:
     // Not `setDocument`, which is `QTextEdit`'s and takes the text document this class builds.
     void attach(core::text::DocumentIndex::EntryId entry, int pageCount);
 
-    // Shows the reflow at the block at the top of a page view: `page`, and the page-space height at that
-    // view's top edge. The block is resolved once the page's text is here.
-    void showAt(int page, double topY);
+    // Shows the reflow at the block at the top of a page view: `page`, and how far below that view's top edge
+    // each point of it is drawn. The block is resolved once the page's text is here.
+    void showAt(int page, const core::text::DepthBelowEdge& depth);
     // Shows the reflow at a known block (a case; the session).
     void showAtPlace(Place place);
 
     // The paragraph at the top of this view, or the place it is still on its way to.
     Place place() const;
+    // A place's block box, in page space, from the text THIS view holds -- not the index's, which may have
+    // evicted the page while the reflow kept it. Empty for a place whose page's text is not here.
+    std::optional<core::PdfRect> blockBox(Place place) const;
 
     void zoomIn();
     void zoomOut();
@@ -152,7 +158,7 @@ private:
     std::optional<Place> pendingPlace_;
     struct PendingTop {
         int page = -1;
-        double topY = 0.0;
+        core::text::DepthBelowEdge depth;
     };
     std::optional<PendingTop> pendingTop_;
 

@@ -163,3 +163,36 @@ TEST_CASE("the block at the top of a page view is the first not wholly above it"
     // Past everything: the place is on a later page.
     CHECK(blockAtTop(*page, 100.0) == -1);
 }
+
+TEST_CASE("the block at the top of a page view is read along the screen's down, not the page's",
+          "[core][text][reflow][A-93][I-06]")
+{
+    PageTextModel model(0);
+    run(model, U"A Heading", 50, 740.0, 18.0);           // x 50 .. 139.1
+    run(model, U"first line of body", 50, 700.0);        // x 50 .. 149
+    run(model, U"second line of body", 50, 688.0);       // x 50 .. 154.5
+    run(model, U"a later paragraph", 50, 640.0);         // x 50 .. 143.5
+    const auto page = read(std::move(model));
+    const std::vector<int>& order = page->layout().order;
+    REQUIRE(order.size() == 3);
+
+    // THE CONTROL, upright: an edge at y 700 has passed the heading and cuts the body.
+    CHECK(blockAtTop(*page, DepthBelowEdge::upright(700.0)) == order[1]);
+
+    // SHOWN AT 180 DEGREES the screen's down is the page's +y: at the same height the heading, higher on the
+    // page, is BELOW the edge -- the first block of all. Read as upright it would answer the body (I-06).
+    const DepthBelowEdge turned180{0.0, 1.0, -700.0};
+    CHECK(blockAtTop(*page, turned180) == order[0]);
+    CHECK(blockAtTop(*page, DepthBelowEdge{0.0, 1.0, -800.0}) == -1);
+
+    // SHOWN TURNED A QUARTER the screen's down is a page-space x: an edge at x 150 is past the heading's and
+    // the first line's right ends and cuts only the body's second line -- which is the body block's.
+    const DepthBelowEdge quarter150{1.0, 0.0, -150.0};
+    CHECK(blockAtTop(*page, quarter150) == order[1]);
+    // Past every right end: on a later page.
+    CHECK(blockAtTop(*page, DepthBelowEdge{1.0, 0.0, -160.0}) == -1);
+    // The other quarter: down is -x, so what lies right of the edge is ABOVE it -- at x 40, every block,
+    // scrolled past; at x 60, the first block's left ends are still below it.
+    CHECK(blockAtTop(*page, DepthBelowEdge{-1.0, 0.0, 40.0}) == -1);
+    CHECK(blockAtTop(*page, DepthBelowEdge{-1.0, 0.0, 60.0}) == order[0]);
+}
