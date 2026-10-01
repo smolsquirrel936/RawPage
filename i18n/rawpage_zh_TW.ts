@@ -2498,6 +2498,18 @@
         <translation>沒有可搜尋的文件。</translation>
     </message>
     <message>
+        <source>error.search.noFolder</source>
+        <translation>沒有可搜尋的資料夾 %1。</translation>
+    </message>
+    <message>
+        <source>error.search.exportFailed</source>
+        <translation>無法將結果清單寫入 %1。</translation>
+    </message>
+    <message>
+        <source>error.search.nothingToRefine</source>
+        <translation>沒有可縮小範圍的結果。</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>此 PDF 無須修復即可開啟。</translation>
     </message>
@@ -3463,6 +3475,118 @@
     <message>
         <source>search.bar.inAttachment</source>
         <translation>位於附件 %1 中（不會開啟）</translation>
+    </message>
+    <message>
+        <source>search.pane.title</source>
+        <translation>進階搜尋</translation>
+    </message>
+    <message>
+        <source>search.pane.queryPlaceholder</source>
+        <translation>搜尋</translation>
+    </message>
+    <message>
+        <source>search.pane.folderPlaceholder</source>
+        <translation>要搜尋的資料夾</translation>
+    </message>
+    <message>
+        <source>search.pane.browse</source>
+        <translation>瀏覽...</translation>
+    </message>
+    <message>
+        <source>search.pane.chooseFolder</source>
+        <translation>選擇要搜尋的資料夾</translation>
+    </message>
+    <message>
+        <source>search.pane.recursive</source>
+        <translation>包含子資料夾</translation>
+    </message>
+    <message>
+        <source>search.pane.search</source>
+        <translation>搜尋</translation>
+    </message>
+    <message>
+        <source>search.pane.stop</source>
+        <translation>停止</translation>
+    </message>
+    <message>
+        <source>search.pane.sort.relevance</source>
+        <translation>依相關性</translation>
+    </message>
+    <message>
+        <source>search.pane.sort.page</source>
+        <translation>依頁碼</translation>
+    </message>
+    <message>
+        <source>search.pane.sort.file</source>
+        <translation>依檔案</translation>
+    </message>
+    <message>
+        <source>search.pane.author</source>
+        <translation>作者</translation>
+    </message>
+    <message>
+        <source>search.pane.subject</source>
+        <translation>主旨</translation>
+    </message>
+    <message>
+        <source>search.pane.from</source>
+        <translation>起始日期 (yyyy-mm-dd)</translation>
+    </message>
+    <message>
+        <source>search.pane.to</source>
+        <translation>結束日期 (yyyy-mm-dd)</translation>
+    </message>
+    <message>
+        <source>search.pane.badDate</source>
+        <translation>日期格式為 yyyy-mm-dd；此日期未套用</translation>
+    </message>
+    <message>
+        <source>search.pane.refine</source>
+        <translation>縮小範圍</translation>
+    </message>
+    <message>
+        <source>search.pane.export</source>
+        <translation>匯出...</translation>
+    </message>
+    <message>
+        <source>search.pane.exportTitle</source>
+        <translation>匯出結果清單</translation>
+    </message>
+    <message>
+        <source>search.pane.exported</source>
+        <translation>已將 %1 筆結果匯出至 %2</translation>
+    </message>
+    <message>
+        <source>search.pane.column.file</source>
+        <translation>檔案</translation>
+    </message>
+    <message>
+        <source>search.pane.column.page</source>
+        <translation>頁碼</translation>
+    </message>
+    <message>
+        <source>search.pane.column.snippet</source>
+        <translation>文字</translation>
+    </message>
+    <message>
+        <source>search.pane.searching</source>
+        <translation>正在搜尋第 %1 個檔案，共 %2 個</translation>
+    </message>
+    <message>
+        <source>search.pane.count</source>
+        <translation>%2 個檔案中有 %1 筆結果</translation>
+    </message>
+    <message>
+        <source>search.pane.notSearched</source>
+        <translation>%1 個檔案未搜尋</translation>
+    </message>
+    <message>
+        <source>search.pane.skippedEncrypted</source>
+        <translation>已略過：已加密，資料夾搜尋不會詢問密碼</translation>
+    </message>
+    <message>
+        <source>search.pane.limitReached</source>
+        <translation>清單在 %1 筆結果處停止 (search/maxResults)</translation>
     </message>
 </context>
 </TS>

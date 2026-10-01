@@ -54,6 +54,7 @@
 #include <QByteArray>
 #include <QString>
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -87,6 +88,49 @@ public:
     // reopen a document from a buffer without touching the filesystem again.
     static core::Result<std::unique_ptr<PdfiumDocument>> openBytes(
         QByteArray bytes, const QString& displayPath, const core::PasswordCallback& password);
+
+    // THE SAME OPEN, IN PIECES -- Stage 5 T9 (D5-13 as amended at T3). `openBytes` IS this, run to the
+    // end in one call, so there is one open and not two to keep in agreement. Each `step()` is one piece:
+    //
+    //   1. LOAD -- `FPDF_LoadMemDocument64`, with the password loop (engine);
+    //   2. the form-fill environment (engine);
+    //   3. the page count (engine);
+    //   4. the page walk, pages until `kPieceBudget` has passed (at least one), each page under its own
+    //      lock (engine) -- the piece T3 measured at ~145 ms for 900 pages when it was one;
+    //   5. the outline, the named destinations and the Info dictionary (engine);
+    //   6. the first-party reading of the same bytes, for the repair report (NO engine).
+    //
+    // `nextNeedsEngine()` says which kind the next piece is, so a folder search can run 1-5 as tasks on
+    // the render thread and 6 off it. Not thread-safe: one opening's pieces run one at a time.
+    class Opening {
+    public:
+        // How long one piece of the page walk may run before it stops at the next page. A page's
+        // extraction measured p50 1.43, p95 1.70-1.73, max 2.50-2.65 ms at T3; a piece that stops once
+        // past a millisecond is under that by the cost of its last page (0.2-0.44 ms measured at T9).
+        static constexpr std::chrono::microseconds kPieceBudget{1000};
+
+        Opening(QByteArray bytes, QString displayPath, core::PasswordCallback password);
+        ~Opening();
+        Opening(const Opening&) = delete;
+        Opening& operator=(const Opening&) = delete;
+
+        bool done() const noexcept;
+        bool nextNeedsEngine() const noexcept;
+        // One piece. A refusal ends the opening: `step()` again returns it again.
+        core::Status step();
+        // After `done()`: the document. Null if called before, or twice.
+        std::unique_ptr<PdfiumDocument> take();
+
+    private:
+        enum class Stage { Load, FormEnvironment, Count, Pages, Readers, FirstParty, Done, Failed };
+        Stage stage_ = Stage::Load;
+        std::unique_ptr<PdfiumDocument> document_;
+        core::PasswordCallback password_;
+        int count_ = 0;
+        int nextPage_ = 0;
+        std::vector<core::Page> pages_;
+        std::optional<core::Error> failure_;
+    };
 
     int pageCount() const noexcept;
     const core::PageTree& pages() const noexcept { return pages_; }

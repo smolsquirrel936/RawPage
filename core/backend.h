@@ -164,6 +164,20 @@ struct OcrPageResult {
     double  confidence = 0.0;   // 0..1 over the page as a whole
 };
 
+// AN OPEN IN PIECES -- Stage 5 T9 (D5-13 as amended at T3). Where one has got to: the opening it is,
+// whether it is DONE (and then the handle, registered exactly as `open()` registers one), and whether
+// the NEXT piece needs the engine -- which is what tells a caller where to run it: an engine piece as a
+// task on the render thread, every other piece (reading the file, the first-party reading) anywhere but
+// the UI thread.
+using OpeningId = std::uint64_t;
+
+struct OpenProgress {
+    OpeningId      opening = 0;
+    bool           done = false;
+    bool           nextNeedsEngine = false;
+    DocumentHandle handle;           // valid once `done`
+};
+
 // One hit from the cross-file index (Stage 16; risk R2 -- Xapian is GPL, so the index is ours).
 struct IndexHit {
     QString path;
@@ -336,6 +350,22 @@ public:
     // PDF IS THIS METHOD'S QUESTION, not the caller's: Stage 1 decided a file by its suffix and
     // said so at the time (case A-58), and Stage 2 T9 is where that stops.
     virtual Result<DocumentHandle> open(const QString& path, const PasswordCallback& password) = 0;
+
+    // THE SAME OPEN, IN PIECES -- Stage 5 T9, for a folder search (D5-13 as amended at T3). `open()`
+    // runs on the UI thread and holds the engine for a whole document's page walk -- ~145 ms for 900
+    // pages, measured at T3 -- and a folder search may open a hundred files while a person reads. So it
+    // asks for the open one PIECE at a time, each no longer than one page's extraction where it needs
+    // the engine: the engine pieces run as tasks on the render thread, behind every visible tile, and
+    // the others (reading the file, the first-party reading) off the UI thread altogether.
+    //
+    // `beginOpen` does no work; each `continueOpen` does one piece and says what the next one needs;
+    // the last one registers the document and returns its handle, which is then a handle like any other
+    // `open()` returns -- `close()` it the same way. A refusal is `open()`'s refusal, with its key.
+    // `abandonOpen` drops an opening at any point between pieces; never call it, or `continueOpen`,
+    // while another piece of the same opening is running -- the caller serializes one opening's pieces.
+    virtual Result<OpenProgress> beginOpen(const QString& path, const PasswordCallback& password) = 0;
+    virtual Result<OpenProgress> continueOpen(OpeningId opening) = 0;
+    virtual void abandonOpen(OpeningId opening) = 0;
 
     virtual Status close(DocumentHandle document) = 0;
 

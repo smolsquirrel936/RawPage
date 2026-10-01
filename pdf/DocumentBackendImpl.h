@@ -60,8 +60,18 @@ public:
 
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override;
 
+    // S5 T9: `open()` IS the staged open below, run to its end in one call -- one open, not two.
     core::Result<core::DocumentHandle> open(const QString& path,
                                             const core::PasswordCallback& password) override;
+    // S5 T9 (D5-13 amended): the pieces, in order -- READ the file (no engine); the engine's pieces
+    // (`PdfiumDocument::Opening`: load, form environment, count, the page walk a few pages a piece, the
+    // readers) and its first-party repair reading (no engine); and ASSEMBLE (no engine): the identity,
+    // the first-party walk with its sink, transitions and attachment descriptions, the permissions, and
+    // the handle.
+    core::Result<core::OpenProgress> beginOpen(const QString& path,
+                                               const core::PasswordCallback& password) override;
+    core::Result<core::OpenProgress> continueOpen(core::OpeningId opening) override;
+    void abandonOpen(core::OpeningId opening) override;
     core::Status close(core::DocumentHandle document) override;
 
     // Overrides as of Stage 2 T13 -- `pages()` moved onto `core::IDocumentBackend` because `ui/`
@@ -106,9 +116,12 @@ public:
 
 private:
     struct Open;
+    struct Opening;
 
     Open* find(core::DocumentHandle document);
     const Open* find(core::DocumentHandle document) const;
+    // The last piece: everything `open()` did after the engine opened the bytes, and the registration.
+    core::Result<core::DocumentHandle> assemble(Opening& opening);
 
     // GUARDS `open_` AND `nextHandle_`, and it is not defensive tidiness (Stage 2 T13).
     // `rasterizer()` is called from the RENDER THREAD -- `RenderScheduler`'s worker asks the
@@ -124,6 +137,10 @@ private:
     mutable std::mutex mutex_;
 
     std::map<std::uint64_t, std::unique_ptr<Open>> open_;
+    // S5 T9: the opens in progress, by `OpeningId` -- under `mutex_` like `open_`, and a piece runs with
+    // the lock released, as `contentBox` does.
+    std::map<core::OpeningId, std::unique_ptr<Opening>> openings_;
+    core::OpeningId nextOpening_ = 1;
 
     // Monotonic and never reused, so a handle held across a close misses rather than aliasing a
     // different document. Starts at 1 because 0 is `DocumentHandle`'s invalid value.

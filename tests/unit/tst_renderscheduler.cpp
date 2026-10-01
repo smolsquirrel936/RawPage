@@ -1106,9 +1106,61 @@ TEST_CASE("render scheduler runs an engine task on its worker and reports it on 
     CHECK(stats.taskDelivered == 2);
     CHECK(stats.enqueuedBackground == 2);
 
-    // AN INVALID ASK IS REFUSED BY TICKET, as a text request is.
-    CHECK_FALSE(scheduler.enqueueTask(DocumentHandle{}, RenderPriority::Background, task(2)).isValid());
+    // AN EMPTY TASK IS REFUSED BY TICKET, as an invalid text request is -- and so is an EXCLUSIVE task of no
+    // document, which has nothing to be exclusive against. A task of no document is not refused (S5 T9):
+    // it is a folder search's open, which has no handle yet.
     CHECK_FALSE(scheduler.enqueueTask(kDocA, RenderPriority::Background, {}).isValid());
+    CHECK_FALSE(scheduler.enqueueTask(DocumentHandle{}, RenderPriority::Background, task(2), true).isValid());
+    CHECK(scheduler.enqueueTask(DocumentHandle{}, RenderPriority::Background, task(2)).isValid());
+    REQUIRE(scheduler.waitForIdle(3000));
+    scheduler.deliverReady();
+}
+
+TEST_CASE("render scheduler starts an exclusive task only when nothing of its document runs", "[core][render][task]")
+{
+    // S5 T9: a folder search CLOSES a document as an exclusive task after `cancelDocument()` -- and the job
+    // already inside the engine for it must finish first, with any number of workers. Two workers here, so
+    // without the rule the close would start beside the running job.
+    RenderScheduler::Config config;
+    config.workerCount = 2;
+    RasterizerProbe rasters;
+    RenderScheduler scheduler(factoryFor(rasters), nullptr, config);
+
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool release = false;
+    bool longStarted = false;
+    std::vector<std::string> order;
+    const auto record = [&](const std::string& what) {
+        const std::lock_guard<std::mutex> lock(mutex);
+        order.push_back(what);
+    };
+    // A job of document A that holds its worker until the case lets it go.
+    scheduler.enqueueTask(kDocA, RenderPriority::Background, [&] {
+        std::unique_lock<std::mutex> lock(mutex);
+        longStarted = true;
+        changed.notify_all();
+        changed.wait(lock, [&] { return release; });
+        order.push_back("A-long");
+    });
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        REQUIRE(changed.wait_for(lock, std::chrono::seconds(3), [&] { return longStarted; }));
+    }
+    scheduler.enqueueTask(kDocA, RenderPriority::Background, [&] { record("A-close"); }, true);
+    // ANOTHER DOCUMENT'S work runs on the free worker meanwhile -- the rule is per document.
+    scheduler.enqueueTask(kDocB, RenderPriority::Background, [&] { record("B"); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        CHECK(order == std::vector<std::string>{"B"});   // the close has NOT started beside A's job
+        release = true;
+    }
+    changed.notify_all();
+    REQUIRE(scheduler.waitForIdle(3000));
+    scheduler.deliverReady();
+    const std::lock_guard<std::mutex> lock(mutex);
+    CHECK(order == std::vector<std::string>{"B", "A-long", "A-close"});
 }
 
 TEST_CASE("render scheduler never runs a cancelled engine task and forgets a closed document's", "[core][render][task]")

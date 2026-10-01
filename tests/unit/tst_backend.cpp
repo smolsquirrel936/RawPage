@@ -105,6 +105,15 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "searchUnits");
     }
+    core::Result<core::OpenProgress> beginOpen(const QString&, const core::PasswordCallback&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "beginOpen");
+    }
+    core::Result<core::OpenProgress> continueOpen(core::OpeningId) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "continueOpen");
+    }
+    void abandonOpen(core::OpeningId) override {}
 
     core::Outline outline_;
     core::Destinations destinations_;

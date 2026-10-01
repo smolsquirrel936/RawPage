@@ -80,10 +80,12 @@
 #include "core/cmd/RecoveryJournal.h"
 #include "core/doc/Revision.h"
 #include "core/doc/SaveCoordinator.h"
+#include "core/text/SearchEngine.h"
 
 #include <map>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <QList>
 #include <QString>
@@ -259,6 +261,11 @@ public:
     // THE FIND BAR (S5 T7, D5-14): one per tab, hidden until `Ctrl+F`. The `find.*` commands reach it
     // through this. Never null after `build()`.
     FindReplaceBar* findBar() const noexcept { return findBar_; }
+    // AN ADVANCED SEARCH RESULT SHOWN HERE (S5 T9): the hits a folder search found in this file, in this
+    // tab's find bar under `pattern`, `current` revealed and highlighted -- the find bar's own presentation,
+    // so `F3` steps on from it. Spans are reading positions, which one file's text gives alike to every
+    // handle over it.
+    void presentSearchHits(const QString& pattern, const std::vector<core::text::SearchHit>& hits, int current);
 
     // ---- THE SPLIT AS ONE OPAQUE STRING (S4 T13, D4-9) ---------------------------------------
     // What `core::SessionDocument::splitState` holds. Encoded here for the reason

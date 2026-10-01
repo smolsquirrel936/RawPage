@@ -219,6 +219,12 @@ add_library(rawpage_core STATIC
     text/SearchEngine.cpp
     # T8 (D5-12): the four other content classes as plain search units, read by one facade reader.
     text/SearchUnit.h
+    # T9 (D5-13): Advanced Search -- the results (sort, filter, refine, snippets, the CSV's bytes) and the
+    # folder run, each file opened in pieces on the render thread and its helper, never the UI thread.
+    text/SearchResults.h
+    text/SearchResults.cpp
+    text/FolderSearch.h
+    text/FolderSearch.cpp
 )
 
 # The .def files are header-shaped includes, not translation units. Without this the generator

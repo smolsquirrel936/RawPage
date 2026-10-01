@@ -64,6 +64,9 @@ add_executable(rawpage_render_tests
     tst_searchcorpus.cpp          # Stage 5 T6 -- guide A-63 (the guide's 3.3, over text-900.pdf), A-58,
                                   #   A-59's and A-21's corpus halves, A-24's search lane: the real engine
                                   #   on the shipped scheduler, DocumentIndex and SearchEngine
+    tst_foldersearch.cpp          # Stage 5 T9 -- guide A-80, A-81, A-82, A-88 (D5-13): core/text/FolderSearch
+                                  #   over a scratch copy of the corpus through the shipped backend's staged
+                                  #   open, and the 900-page open's longest engine piece
     tst_searchclasses.cpp         # Stage 5 T8 -- guide A-76, A-78, A-79 (D5-12): search-classes.pdf's four
                                   #   other content classes through the shipped backend's searchUnits,
                                   #   graded against the generator's label

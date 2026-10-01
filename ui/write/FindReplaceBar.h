@@ -103,6 +103,10 @@ public:
     void findNext();         // `find.next`, wrapping past the last hit and saying so
     void findPrevious();     // `find.previous`, wrapping past the first
     void jumpToCurrent();    // `find.jumpToResult`: a pending search now, then the current hit revealed
+    // S5 T9: hits found ELSEWHERE -- an Advanced Search result opened in this tab -- shown as this bar's own:
+    // the bar open with `pattern` in its field, every hit highlighted, `current` revealed, and `F3` stepping
+    // on from it. Nothing is searched again; a later edit of the field searches as usual.
+    void presentHits(const QString& pattern, const std::vector<core::text::SearchHit>& hits, int current);
 
     bool isOpen() const noexcept { return isVisible(); }
 

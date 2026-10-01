@@ -71,6 +71,12 @@ DocumentWindow::DocumentWindow(app::Services services, QString path, core::Docum
     build(nullptr);
 }
 
+void DocumentWindow::presentSearchHits(const QString& pattern, const std::vector<core::text::SearchHit>& hits,
+                                       int current)
+{
+    if (findBar_ != nullptr) findBar_->presentHits(pattern, hits, current);
+}
+
 void DocumentWindow::attachCompanion(DocumentWindow* companion)
 {
     if (companion == nullptr || companions_.contains(companion)) return;

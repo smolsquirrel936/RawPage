@@ -257,6 +257,21 @@ void FindReplaceBar::jumpToCurrent()
     showCurrent(true);
 }
 
+void FindReplaceBar::presentHits(const QString& pattern, const std::vector<SearchHit>& hits, int current)
+{
+    debounce_.stop();
+    session_.cancel();
+    clearResults();
+    // `setText` emits no `textEdited`, so this starts no search of its own.
+    field_->setText(pattern);
+    hits_ = hits;
+    searched_ = true;
+    current_ = hits_.empty() ? -1 : std::clamp(current, 0, static_cast<int>(hits_.size()) - 1);
+    setVisible(true);
+    if (overlay_) overlay_->setSearchHits(hits_, current_);
+    showCurrent(current_ >= 0);
+}
+
 // =====================================================================================================
 // The search
 // =====================================================================================================

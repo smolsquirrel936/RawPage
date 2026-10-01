@@ -519,6 +519,28 @@ brings it inside is named, and it is T9's**: a folder search opens each file on 
 `Background` **in pieces no longer than one page's extraction**, so strict priority keeps the viewport
 ahead of it as it does for text (D5-13, amended the same day). The folder column is re-graded at T14.
 
+**THE NAMED WORK, BUILT AT T9 AND MEASURED 2026-10-01 -- AND WHAT IT DID NOT SETTLE.** The folder column now
+drives the shipped `core/text/FolderSearch`: each file opened in pieces (`IDocumentBackend::beginOpen` /
+`continueOpen`), each ENGINE piece a task at `Background` -- the page walk stopping once 1 ms has passed --
+and the rest off the render thread. Measured the same hour on the same machine, the T8 commit's bench
+against T9's (`bench_pipeline --stage5`, viewport p95 at 256 MiB): **viewer 15.09 / 15.53 ms; index build
+18.73-18.89 / 19.31-19.90 ms; folder search 21.05 / 19.41 ms** (at 24 MiB 22.26 / 19.24 ms); the folder
+column's worst tile **32.7-33.5 / 24.4-25.5 ms**; the longest the engine was held by an open **884-949 ms**
+(the whole of `text-900.pdf`'s, then as one job off the pump) / **8.9-9.9 ms** (one piece); inversions 0.
+**So the folder search is no longer the outlier**: it costs what an index build costs, +3.9 ms over the
+viewer where the T8 binary gave +6.0. **But it is not inside §3.1's 16.667 ms, and neither is any column
+with work behind it**: on this machine on 2026-10-01 the viewer ALONE reads 15.1-15.9 ms and the index
+build 18.7-19.9 ms on both binaries -- T3 measured 13.02-13.07 and 14.05-14.26 on 2026-09-30 -- so the
+whole scale has moved by ~2.5-5 ms with the code that ran at T3 included, which this measurement does not
+explain. **The longest engine piece is one page's LOAD**, which PDFium cannot split: a page drawn with a
+non-embedded font resolves it through the OS's font path on its first load -- `cjk-readable.pdf` 9.7-15.6 ms,
+`font-not-embedded.pdf` 8.2-8.9 ms, `malformed/bad-name-hex-escape.pdf` 30.0 ms cold and 4.3 ms warm,
+`encrypted/aes-256.pdf`'s load 3.8 ms -- per document, and the same cost a tab's open pays today on the UI
+thread. `text-900.pdf` and `pages-900.pdf`'s open, T9's named subject, holds the engine at most 2.76-2.92 ms
+against a longest page extraction of 3.31-3.59 ms in the same runs (`tests/render/tst_foldersearch.cpp`).
+**Not graded here**: whether the budget is missed because of the machine or something else is open, and is
+the user's to decide with T14's re-reading through the shipped surfaces.
+
 **Found on the way, and fixed: Stage 5 guide I-01.** The same open had read the outline, the named
 destinations and the Info dictionary through PDFium **without the engine lock** since Stage 4 T4 — on
 the UI thread, beside a render worker inside the engine, which I-05 measured corrupting the heap. The

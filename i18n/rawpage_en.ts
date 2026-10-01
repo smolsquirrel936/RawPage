@@ -2498,6 +2498,18 @@
         <translation>There is no document to search.</translation>
     </message>
     <message>
+        <source>error.search.noFolder</source>
+        <translation>There is no folder %1 to search.</translation>
+    </message>
+    <message>
+        <source>error.search.exportFailed</source>
+        <translation>The result list could not be written to %1.</translation>
+    </message>
+    <message>
+        <source>error.search.nothingToRefine</source>
+        <translation>There are no results to refine.</translation>
+    </message>
+    <message>
         <source>error.repair.none</source>
         <translation>This PDF opened without repair.</translation>
     </message>
@@ -3463,6 +3475,118 @@
     <message>
         <source>search.bar.inAttachment</source>
         <translation>in the attachment %1, which is not opened</translation>
+    </message>
+    <message>
+        <source>search.pane.title</source>
+        <translation>Advanced Search</translation>
+    </message>
+    <message>
+        <source>search.pane.queryPlaceholder</source>
+        <translation>Search for</translation>
+    </message>
+    <message>
+        <source>search.pane.folderPlaceholder</source>
+        <translation>Folder to search</translation>
+    </message>
+    <message>
+        <source>search.pane.browse</source>
+        <translation>Browse...</translation>
+    </message>
+    <message>
+        <source>search.pane.chooseFolder</source>
+        <translation>Choose a folder to search</translation>
+    </message>
+    <message>
+        <source>search.pane.recursive</source>
+        <translation>Include subfolders</translation>
+    </message>
+    <message>
+        <source>search.pane.search</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <source>search.pane.stop</source>
+        <translation>Stop</translation>
+    </message>
+    <message>
+        <source>search.pane.sort.relevance</source>
+        <translation>By relevance</translation>
+    </message>
+    <message>
+        <source>search.pane.sort.page</source>
+        <translation>By page</translation>
+    </message>
+    <message>
+        <source>search.pane.sort.file</source>
+        <translation>By file</translation>
+    </message>
+    <message>
+        <source>search.pane.author</source>
+        <translation>Author</translation>
+    </message>
+    <message>
+        <source>search.pane.subject</source>
+        <translation>Subject</translation>
+    </message>
+    <message>
+        <source>search.pane.from</source>
+        <translation>From (yyyy-mm-dd)</translation>
+    </message>
+    <message>
+        <source>search.pane.to</source>
+        <translation>To (yyyy-mm-dd)</translation>
+    </message>
+    <message>
+        <source>search.pane.badDate</source>
+        <translation>A date is written yyyy-mm-dd; this one was not used</translation>
+    </message>
+    <message>
+        <source>search.pane.refine</source>
+        <translation>Refine</translation>
+    </message>
+    <message>
+        <source>search.pane.export</source>
+        <translation>Export...</translation>
+    </message>
+    <message>
+        <source>search.pane.exportTitle</source>
+        <translation>Export the result list</translation>
+    </message>
+    <message>
+        <source>search.pane.exported</source>
+        <translation>%1 results exported to %2</translation>
+    </message>
+    <message>
+        <source>search.pane.column.file</source>
+        <translation>File</translation>
+    </message>
+    <message>
+        <source>search.pane.column.page</source>
+        <translation>Page</translation>
+    </message>
+    <message>
+        <source>search.pane.column.snippet</source>
+        <translation>Text</translation>
+    </message>
+    <message>
+        <source>search.pane.searching</source>
+        <translation>Searching file %1 of %2</translation>
+    </message>
+    <message>
+        <source>search.pane.count</source>
+        <translation>%1 results in %2 files</translation>
+    </message>
+    <message>
+        <source>search.pane.notSearched</source>
+        <translation>%1 files not searched</translation>
+    </message>
+    <message>
+        <source>search.pane.skippedEncrypted</source>
+        <translation>Skipped: encrypted -- a folder search does not ask for passwords</translation>
+    </message>
+    <message>
+        <source>search.pane.limitReached</source>
+        <translation>The list stops at %1 results (search/maxResults)</translation>
     </message>
 </context>
 </TS>

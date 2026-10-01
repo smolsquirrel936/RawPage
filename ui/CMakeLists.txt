@@ -195,6 +195,11 @@ add_library(rawpage_ui STATIC
     panes/BookmarksPane.cpp
     panes/DestinationsPane.h
     panes/DestinationsPane.cpp
+    # S5 T9 (D5-13) -- Advanced Search, a dock of its own like the log pane: core/text/FolderSearch does the
+    # work off the UI thread and core/text/SearchResults owns the list's rules. Holds the stage's one planned
+    # filesystem-write waiver, the CSV export.
+    panes/SearchPane.h
+    panes/SearchPane.cpp
     dialogs/SettingsPage.h
     dialogs/SettingsPage.cpp
     dialogs/ShortcutsPage.h

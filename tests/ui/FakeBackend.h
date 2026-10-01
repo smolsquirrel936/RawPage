@@ -36,6 +36,8 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace rawpage::uitest {
@@ -110,6 +112,7 @@ public:
     core::Result<core::DocumentHandle> open(const QString& path,
                                             const core::PasswordCallback&) override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         asked << path;
         if (onOpen) onOpen(path);
         if (!accepts(path)) {
@@ -133,6 +136,7 @@ public:
             if (labelled != pageLabels.end()) built.back().setLabel(labelled->second);
         }
         trees[handle.id] = std::make_unique<core::PageTree>(std::move(built));
+        pathOf[handle.id] = path;
         if (editable) {
             auto entry = std::make_unique<EditState>();
             std::vector<core::CosPageFacts> facts;
@@ -149,6 +153,7 @@ public:
 
     core::Status close(core::DocumentHandle handle) override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         ++closes;
         trees.erase(handle.id);
         edits.erase(handle.id);
@@ -160,6 +165,7 @@ public:
     // is what `corpus/ordinary/` is generated at.
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         const auto found = trees.find(handle.id);
         return found == trees.end() ? nullptr : found->second.get();
     }
@@ -169,6 +175,7 @@ public:
     // fills `repairs` in, and one that wants a backend with no report at all clears it.
     const core::RepairReport* repairReport(core::DocumentHandle handle) const override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         return trees.count(handle.id) != 0 ? &repairs : nullptr;
     }
 
@@ -178,11 +185,13 @@ public:
     // which refuses editing -- the safe reading for a fake whose pages come from nowhere.
     const core::Permissions* permissions(core::DocumentHandle handle) const override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         const auto found = edits.find(handle.id);
         return found == edits.end() ? nullptr : &found->second->permissions;
     }
     const core::DocumentId* documentId(core::DocumentHandle handle) const override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         const auto found = edits.find(handle.id);
         return found == edits.end() ? nullptr : &found->second->id;
     }
@@ -199,7 +208,23 @@ public:
         ++destinationReads;
         return &destinations_;
     }
-    const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
+    // S5 T9: a file NAME may carry its own Info (`metadataByName`) -- the folder search's filter cases need
+    // documents that differ; every other file answers `metadata_`, as before.
+    const core::Metadata* metadata(core::DocumentHandle handle) const override
+    {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
+        const auto path = pathOf.find(handle.id);
+        if (path != pathOf.end()) {
+            const auto named = metadataByName.find(QFileInfo(path->second).fileName());
+            if (named != metadataByName.end()) return &named->second;
+        }
+        return &metadata_;
+    }
+    std::map<QString, core::Metadata> metadataByName;
+    std::map<std::uint64_t, QString> pathOf;
+    // S5 T9: `open()` runs on the render worker for a folder search's staged open while the widget thread
+    // reads `pages()` and the rest -- so the maps they share are read and written under this.
+    mutable std::recursive_mutex stateMutex;
 
     // S4 T10 (D4-12). PUBLIC and settable, unlike the three above, because the presentation
     // cases drive a document that asks for a per-page transition and this fake is where that
@@ -220,6 +245,7 @@ public:
     // reachable from here as well, which is what makes its control a case rather than a claim.
     core::Result<core::PdfRect> contentBox(core::DocumentHandle handle, int pageIndex) override
     {
+        const std::lock_guard<std::recursive_mutex> state(stateMutex);
         ++contentBoxReads;
         if (trees.find(handle.id) == trees.end()) {
             return core::Error{core::ErrorCode::InvalidArgument,
@@ -231,6 +257,56 @@ public:
                                QLatin1String("error.backend.noPageContent")};
         }
         return found->second;
+    }
+
+    // S5 T9. THE STAGED OPEN, in one ENGINE piece: `beginOpen` remembers, the one `continueOpen` is
+    // `open()` -- so a folder search over this fake runs an engine task per file, and `openThreads`
+    // says which thread it ran on (the render worker, never the UI thread, guide A-88).
+    struct PendingOpen {
+        QString path;
+        core::PasswordCallback password;
+    };
+    std::map<core::OpeningId, PendingOpen> openings;
+    core::OpeningId nextOpening = 1;
+    std::mutex openMutex;
+    std::vector<std::thread::id> openThreads;
+    int abandoned = 0;
+
+    core::Result<core::OpenProgress> beginOpen(const QString& path, const core::PasswordCallback& password) override
+    {
+        const std::lock_guard<std::mutex> lock(openMutex);
+        const core::OpeningId id = nextOpening++;
+        openings[id] = PendingOpen{path, password};
+        core::OpenProgress progress;
+        progress.opening = id;
+        progress.nextNeedsEngine = true;
+        return progress;
+    }
+    core::Result<core::OpenProgress> continueOpen(core::OpeningId id) override
+    {
+        PendingOpen pending;
+        {
+            const std::lock_guard<std::mutex> lock(openMutex);
+            const auto found = openings.find(id);
+            if (found == openings.end())
+                return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.badHandle")};
+            pending = found->second;
+            openings.erase(found);
+            openThreads.push_back(std::this_thread::get_id());
+        }
+        // ON THE RENDER WORKER: `open()` takes `stateMutex`, as every accessor the widget thread calls does.
+        const core::Result<core::DocumentHandle> opened = open(pending.path, pending.password);
+        if (!opened) return opened.error();
+        core::OpenProgress progress;
+        progress.opening = id;
+        progress.done = true;
+        progress.handle = opened.value();
+        return progress;
+    }
+    void abandonOpen(core::OpeningId id) override
+    {
+        const std::lock_guard<std::mutex> lock(openMutex);
+        if (openings.erase(id) != 0) ++abandoned;
     }
 
     // S5 T8 (D5-12). The search units every document of this fake answers, by part -- a page index,

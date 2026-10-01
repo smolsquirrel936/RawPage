@@ -12,6 +12,7 @@
 #include "platform/platform.h"
 #include "ui/dialogs/PreferencesDialog.h"
 #include "ui/panes/LogPane.h"
+#include "ui/panes/SearchPane.h"
 #include "ui/panes/BookmarksPane.h"
 #include "ui/panes/DestinationsPane.h"
 #include "ui/panes/ThumbnailsPane.h"
@@ -264,6 +265,18 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     logPane_ = new LogPane(services_.logBuffer, this);
     addDockWidget(Qt::BottomDockWidgetArea, logPane_);
     logPane_->hide();
+
+    // ADVANCED SEARCH -- S5 T9 (D5-13). Its own dock along the right, for the log pane's reason: its subject
+    // is a folder of files, not the document in front. Hidden until `Ctrl+Shift+F`.
+    searchPane_ = new SearchPane(services_, this);
+    addDockWidget(Qt::RightDockWidgetArea, searchPane_);
+    searchPane_->hide();
+    connect(searchPane_, &SearchPane::resultActivated, this,
+            [this](const QString& path, const QString& pattern, const std::vector<core::text::SearchHit>& hits,
+                   int current) { openSearchResult(path, pattern, hits, current); });
+    connect(searchPane_, &SearchPane::closed, this, [this] {
+        if (PageView* view = currentView()) view->setFocus(Qt::OtherFocusReason);
+    });
 
     // ORDER MATTERS, and not for a cosmetic reason. `ActionFactory` reads each action's
     // registration state at the moment it builds the button, so anything this window registers has
@@ -1567,14 +1580,26 @@ void MainWindow::registerViewerActions()
             const FindReplaceBar* bar = barInFront();
             return bar != nullptr && bar->isOpen();
         };
-        const auto registerBar = [this, barOpen](ActionId id, void (FindReplaceBar::*behaviour)(),
-                                                 const auto& inFront) {
+        // S5 T9: THE SEARCH PANE IS THE OTHER FIND / SEARCH SURFACE (§8: "the find bar or the search pane has
+        // focus"). With the focus in it these four act on IT -- `Enter` searches or opens the current result,
+        // `F3`/`Shift+F3` step through the list, `Esc` hides it -- and only otherwise on the bar in front.
+        const auto paneWithFocus = []() -> SearchPane* {
+            MainWindow* window = activeShell();
+            SearchPane* pane = window ? window->searchPane() : nullptr;
+            return pane != nullptr && pane->isVisible() && pane->hasFocusWithin() ? pane : nullptr;
+        };
+        const auto registerBar = [this, barOpen, paneWithFocus](ActionId id, void (FindReplaceBar::*behaviour)(),
+                                                                const auto& inFront, void (SearchPane::*inPane)()) {
             if (services_.actions.isRegistered(id)) return;
             core::ActionRegistry::Registration registration;
-            registration.handler = [inFront, behaviour](KeyContext) {
+            registration.handler = [inFront, behaviour, paneWithFocus, inPane](KeyContext) {
+                if (SearchPane* pane = paneWithFocus()) {
+                    (pane->*inPane)();
+                    return;
+                }
                 if (FindReplaceBar* bar = inFront()) (bar->*behaviour)();
             };
-            registration.enable = barOpen;
+            registration.enable = [barOpen, paneWithFocus] { return paneWithFocus() != nullptr || barOpen(); };
             registration.unavailableKey = "shell.tooltip.needsDocument";
             services_.actions.register_(id, std::move(registration));
         };
@@ -1588,10 +1613,22 @@ void MainWindow::registerViewerActions()
             find.unavailableKey = "shell.tooltip.needsDocument";
             services_.actions.register_(ActionId::FindFind, std::move(find));
         }
-        registerBar(ActionId::FindNext, &FindReplaceBar::findNext, barInFront);
-        registerBar(ActionId::FindPrevious, &FindReplaceBar::findPrevious, barInFront);
-        registerBar(ActionId::FindJumpToResult, &FindReplaceBar::jumpToCurrent, barInFront);
-        registerBar(ActionId::FindClose, &FindReplaceBar::close, barInFront);
+        registerBar(ActionId::FindNext, &FindReplaceBar::findNext, barInFront, &SearchPane::selectNext);
+        registerBar(ActionId::FindPrevious, &FindReplaceBar::findPrevious, barInFront, &SearchPane::selectPrevious);
+        registerBar(ActionId::FindJumpToResult, &FindReplaceBar::jumpToCurrent, barInFront, &SearchPane::jumpToCurrent);
+        registerBar(ActionId::FindClose, &FindReplaceBar::close, barInFront, &SearchPane::closePane);
+
+        // `find.advancedSearch` -- §8's GLOBAL `Ctrl+Shift+F` since D5-15, so it reaches the pane from the page,
+        // from a pane and from the find bar alike (guide A-89). It needs no document: a folder search is not
+        // about the tab in front.
+        if (!services_.actions.isRegistered(ActionId::FindAdvancedSearch)) {
+            core::ActionRegistry::Registration advanced;
+            advanced.handler = [](KeyContext) {
+                if (MainWindow* window = activeShell())
+                    if (SearchPane* pane = window->searchPane()) pane->showAndFocus();
+            };
+            services_.actions.register_(ActionId::FindAdvancedSearch, std::move(advanced));
+        }
 
         const auto settingsOfFront = []() -> core::Settings* {
             MainWindow* window = activeShell();
@@ -3394,6 +3431,20 @@ void MainWindow::raiseToForeground()
     // reason above: offscreen there is no activation event, so a suite that raised a window would
     // leave every window queueing at `Prefetch` and could not judge A2's named work at all.
     refreshWindowFocusState();
+}
+
+void MainWindow::openSearchResult(const QString& path, const QString& pattern,
+                                  const std::vector<core::text::SearchHit>& hits, int current)
+{
+    // THROUGH `openFiles` (S5 T9, guide A-87): a file already open in this window is brought forward and not
+    // opened twice, and one that is not is opened exactly as a double-click opens it -- with a password
+    // prompt, which a folder search never raises, where the file needs one.
+    const QString absolute = QFileInfo(path).absoluteFilePath();
+    openFiles({absolute});
+    const int index = indexOfPath(absolute);
+    if (index < 0) return;   // refused, and `openFiles` said why
+    activateDocument(index);
+    if (DocumentWindow* document = documentAt(index)) document->presentSearchHits(pattern, hits, current);
 }
 
 } // namespace rawpage::ui

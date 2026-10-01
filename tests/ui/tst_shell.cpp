@@ -130,17 +130,20 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **Eight more at Stage 5 T7**: the whole of `Features.md` §8's Find / Search table -- `find.find`
     // (also §8's Common `Ctrl+F`), `find.next`, `find.previous`, `find.jumpToResult`, `find.close` and the
     // three toggles -- every one declared at Stage 1 with its chord and registered by nothing until the
-    // find bar existed (D5-14). No id is minted. `find.advancedSearch` is NOT among them: its pane is T9's.
+    // find bar existed (D5-14). No id is minted. `find.advancedSearch` was NOT among them: its pane is T9's.
+    //
+    // **One more at Stage 5 T9**: `find.advancedSearch`, §8's Global `Ctrl+Shift+F` (D5-15), declared at Stage 1
+    // and registered once the Advanced Search pane existed to show (D5-13). No id is minted.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 104);
+    CHECK(fixture.actions.registeredCount() == 105);
     CHECK(fixture.actions.isRegistered(core::ActionId::EditCopy));        // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::FindFind));        // S5 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FindClose));       // S5 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FindToggleRegex)); // S5 T7
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::FindAdvancedSearch));   // T9's
+    CHECK(fixture.actions.isRegistered(core::ActionId::FindAdvancedSearch));   // S5 T9
     CHECK(fixture.actions.isRegistered(core::ActionId::EditSelectAll));   // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewToggleSidebar));
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewFullScreen));

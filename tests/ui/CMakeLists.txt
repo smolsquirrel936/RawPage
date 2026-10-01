@@ -131,6 +131,10 @@ add_executable(rawpage_ui_tests
     # every Find / Search chord asserted on its effect, the debounce, wrap, Esc, the toggles as the
     # settings, scope, panes and tabs. Ink is tests/composition's.
     tst_findbar.cpp
+
+    # S5 T9 -- Advanced Search as a widget driven by key events over a scratch folder (guide A-89, A-87, and
+    # the pane's halves of A-80, A-84, A-85, A-86, A-88). The engine-backed folder search is tests/render's.
+    tst_searchpane.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

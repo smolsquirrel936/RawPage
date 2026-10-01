@@ -286,8 +286,16 @@ public:
     RenderTicket enqueueText(const TextRequest& request, RenderPriority priority);
 
     // AN ENGINE TASK for `document` (Stage 5 T8, the header), reported through `subscribeTasks()`'s
-    // handlers. Refused with an invalid ticket for an invalid handle or an empty task.
-    RenderTicket enqueueTask(DocumentHandle document, RenderPriority priority, EngineTask task);
+    // handlers. Refused with an invalid ticket for an empty task.
+    //
+    // Since Stage 5 T9 `document` may be INVALID -- a task of no open document: a folder search's open,
+    // which has no handle until its last piece -- and `cancelDocument()` then never reaches it. And a task
+    // may be EXCLUSIVE: it does not start while any job of its document is running, and no job of its
+    // document starts while it runs. That is how a folder search CLOSES a document on the render thread
+    // without blocking the UI thread on a drain: `cancelDocument()`, then an exclusive close, which waits
+    // out whatever was already inside the engine for that document, with any number of workers.
+    RenderTicket enqueueTask(DocumentHandle document, RenderPriority priority, EngineTask task,
+                             bool exclusive = false);
 
     // Drops this caller's interest. The job goes only when NO ticket is left on it -- two viewports
     // over one tile must not have one of them cancel the other's pixels.
@@ -402,8 +410,9 @@ private:
         JobKind kind = JobKind::Raster;
         RenderRequest request;   // meaningful for a Raster job
         TextRequest text;        // meaningful for a Text job
-        DocumentHandle taskDocument;   // meaningful for a Task job
+        DocumentHandle taskDocument;   // meaningful for a Task job; invalid for a task of no document
         EngineTask task;               // ... and what it runs
+        bool exclusive = false;        // ... alone against its document's other jobs (Stage 5 T9)
         RenderPriority priority = RenderPriority::Visible;
         std::uint64_t sequence = 0;
 

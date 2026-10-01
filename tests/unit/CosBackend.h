@@ -143,6 +143,16 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "contentBox");
     }
+    // S5 T9: no staged open -- this fake opens in one call, and nothing that drives pieces uses it.
+    core::Result<core::OpenProgress> beginOpen(const QString&, const core::PasswordCallback&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "beginOpen");
+    }
+    core::Result<core::OpenProgress> continueOpen(core::OpeningId) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "continueOpen");
+    }
+    void abandonOpen(core::OpeningId) override {}
     // S5 T8 (D5-12): no engine, so no annotations or attachments to read -- said, never an empty list.
     core::Status searchUnits(core::DocumentHandle, int, std::vector<core::text::SearchUnit>&) override
     {

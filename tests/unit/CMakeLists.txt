@@ -97,6 +97,8 @@ add_executable(rawpage_tests
                                   #   Scope, the budget, sharing, the bound, cancellation, the threads --
                                   #   guide A-61 ... A-67
     tst_stage5settings.cpp        # Stage 5 T6 -- the ten search/* rows (D5-20) and A-68's restart probes
+    tst_searchresults.cpp         # Stage 5 T9 -- core/text/SearchResults (D5-13): snippets, the three sorts
+                                  #   with relevance defined, the metadata filter, refine, the CSV's bytes
     tst_embeddedfiles.cpp         # Stage 5 T8 -- pdf/ops/EmbeddedFileReader (D5-12): each embedded file's
                                   #   /Desc, which PDFium's attachment API does not read; A-76's headless half
     tst_fontsubstitution.cpp      # Stage 2 T16 -- the headless half of guide case A-66: WHICH

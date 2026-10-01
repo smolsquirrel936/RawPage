@@ -117,7 +117,10 @@
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
 #include "core/render/TileGrid.h"
+#include "core/text/DocumentIndex.h"
+#include "core/text/FolderSearch.h"
 #include "core/text/PageTextModel.h"
+#include "core/text/SearchEngine.h"
 #include "pdf/BackendFactory.h"
 #include "pdf/render/PdfiumInit.h"
 
@@ -931,11 +934,14 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
             }
         }
 
-        // --- the folder search's opener: files are opened OFF the pump -----------------------
-        // Plan D5-13 opens each file on the engine thread (Stage 5 T9). Until that job exists, a
-        // helper thread stands in for it: an open takes the process-wide engine lock exactly as it
-        // would there, so its cost lands on the render worker the same way, and the pump -- the
-        // UI thread's stand-in -- never blocks on a file.
+        // --- the folder search: THE SHIPPED `core/text/FolderSearch` (Stage 5 T9) ---------------
+        // Until T9 a helper thread stood in for it here, opening each file whole off the pump -- the
+        // arrangement T3 measured at 17.68-17.93 ms p95 with a worst tile of 23.5-24.8 ms. Since T9 the column
+        // IS the product's folder search: every file opened in pieces, each engine piece a task on this
+        // scheduler's worker at `Background`, the rest on the folder search's helper, every page's text asked
+        // through `DocumentIndex` and matched by `SearchEngine` -- the assembly `ui/panes/SearchPane` runs.
+        // Its open pieces are stamped on the thread that ran them and logged as background work, so the
+        // inversion count sees them as it sees a page's text.
         std::mutex openedMutex;
         std::deque<OpenDocument> opened;
         std::atomic<bool> openerDone{load != Stage5Load::Folder};
@@ -944,32 +950,31 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
         std::map<std::uint64_t, QString> names;
         names[reading.handle.id] = reading.name;
         for (const OpenDocument& document : compared) names[document.handle.id] = document.name;
+        std::unique_ptr<core::text::DocumentIndex> folderIndex;
+        std::unique_ptr<core::text::SearchEngine> folderEngine;
+        std::unique_ptr<core::text::FolderSearch> folderSearch;
         if (load == Stage5Load::Folder) {
-            opener = std::thread([&] {
-                QDirIterator walk(folder, QStringList{QStringLiteral("*.pdf")}, QDir::Files,
-                                  QDirIterator::Subdirectories);
-                std::vector<QString> files;
-                while (walk.hasNext()) files.push_back(walk.next());
-                std::sort(files.begin(), files.end());
-                for (const QString& file : files) {
-                    const Clock::time_point start = Clock::now();
-                    // No password: a folder search never prompts (D5-13), so the encrypted files
-                    // are refused here as they will be there.
-                    const core::Result<core::DocumentHandle> handle = backend.open(file, {});
-                    const double ms = millisSince(start);
-                    if (!handle) continue;
-                    const core::PageTree* pages = backend.pages(handle.value());
-                    const std::lock_guard<std::mutex> lock(openedMutex);
-                    openMs.push_back(ms);
-                    names[handle.value().id] = QDir(folder).relativeFilePath(file);
-                    if (ms > outcome.openMaxMs) {
-                        outcome.openMaxMs = ms;
-                        outcome.slowestOpen = names[handle.value().id];
-                    }
-                    opened.push_back(OpenDocument{handle.value(), pages, file});
-                }
-                openerDone.store(true);
+            folderIndex = std::make_unique<core::text::DocumentIndex>(scheduler);
+            folderEngine = std::make_unique<core::text::SearchEngine>(*folderIndex);
+            folderSearch = std::make_unique<core::text::FolderSearch>(backend, scheduler, *folderIndex, *folderEngine);
+            folderSearch->setPieceObserver([&](bool engine, double ms) {
+                const Clock::time_point end = Clock::now();
+                const Clock::time_point began =
+                    end - std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>(ms));
+                if (!engine) return;
+                log.add({began, ms, false, "open-piece"});
+                const std::lock_guard<std::mutex> lock(openedMutex);
+                openMs.push_back(ms);
+                if (ms > outcome.openMaxMs) outcome.openMaxMs = ms;
             });
+            core::text::FolderSearch::Request request;
+            request.folder = folder;
+            request.recursive = true;
+            request.query.pattern = QStringLiteral("RawPage");
+            core::text::FolderSearch::Handlers handlers;
+            handlers.file = [&](core::text::FileResult) { ++outcome.filesOpened; };
+            handlers.finished = [&](const core::text::FolderSearch::Summary&) { openerDone.store(true); };
+            if (!folderSearch->start(request, handlers)) openerDone.store(true);
         }
 
         const auto feed = [&] {
@@ -1020,6 +1025,10 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
 
         const auto pumpOnce = [&] {
             scheduler.deliverReady();
+            if (folderSearch) {
+                folderEngine->deliverReady();
+                folderSearch->deliverReady();
+            }
             feed();
             std::this_thread::yield();
         };
@@ -1070,6 +1079,16 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
         }
         outcome.wallMs = millisSince(start);
 
+        // THE FOLDER SEARCH'S LAST CLOSES run before anything is abandoned: each file is closed by an
+        // exclusive task, and `cancelAll` below would drop the ones still queued.
+        if (folderSearch) {
+            for (int i = 0; i < 200 && scheduler.pendingCount() + scheduler.runningCount() > 0; ++i) pumpOnce();
+            // The index's text jobs went through the subscription below, which counts the bench's own work:
+            // what the folder search planned is what it did.
+            outcome.backgroundPlanned = outcome.backgroundDone;
+            outstanding = 0;
+        }
+
         // Whatever the background did not reach is reported, then abandoned.
         outcome.backgroundUndone = static_cast<long long>(backlog.size()) + std::max(0LL, outstanding);
         scheduler.cancelAll();
@@ -1088,7 +1107,10 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
         outcome.schedulerStats = scheduler.stats();
         outcome.evictions = cache.memoryTier().evictionCount();
         outcome.crossDocumentEvictions = cache.crossDocumentEvictions();
-        outcome.filesOpened = static_cast<long long>(openMs.size());
+        if (!folderSearch) outcome.filesOpened = static_cast<long long>(openMs.size());
+        folderSearch.reset();   // before the scheduler: it holds a task subscription and a helper thread
+        folderEngine.reset();
+        folderIndex.reset();
 
         // --- what the worker did ------------------------------------------------------------
         std::vector<Clock::time_point> backgroundStarts;
@@ -1169,8 +1191,8 @@ void reportStage5(const char* label, const Stage5Outcome& outcome)
                 outcome.backgroundDone, outcome.backgroundPlanned, outcome.backgroundFailed,
                 outcome.backgroundUndone, outcome.rounds, outcome.wallMs / 1000.0);
     if (outcome.filesOpened > 0)
-        std::printf("; %lld files opened, the slowest open %.1f ms (%s)", outcome.filesOpened,
-                    outcome.openMaxMs, qPrintable(outcome.slowestOpen));
+        std::printf("; %lld files searched, the longest engine piece of an open %.2f ms", outcome.filesOpened,
+                    outcome.openMaxMs);
     std::printf("\n");
     std::printf("      priority   %lld inversion(s) against a bound of 0 -- background jobs STARTED"
                 " while a viewport tile waited\n", outcome.inversions);
@@ -1251,8 +1273,8 @@ int runStage5Workload(core::IDocumentBackend& backend, const OpenFn& open, const
             if (QFile::copy(source, target)) ++copied;
         }
     }
-    std::printf("    folder        a scratch copy of the corpus tree, %d PDFs, nested; opened one by one"
-                " off the pump, every page's text at Background\n", copied);
+    std::printf("    folder        a scratch copy of the corpus tree, %d PDFs, nested; searched by the shipped"
+                " FolderSearch -- each file opened in pieces at Background, every page's text\n", copied);
 
     // A-28's second subject: the dense A2 page, extracted twenty times -- one page, so its
     // distribution is the engine's variance on it.

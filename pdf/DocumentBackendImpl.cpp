@@ -13,6 +13,7 @@
 #include "pdf/render/PdfiumTextExtractor.h"
 
 #include <QDateTime>
+#include <QFile>
 #include <QFileInfo>
 
 #include <optional>
@@ -87,19 +88,139 @@ const DocumentBackendImpl::Open* DocumentBackendImpl::find(core::DocumentHandle 
     return found == open_.end() ? nullptr : found->second.get();
 }
 
+// AN OPEN IN PROGRESS (S5 T9). Its pieces in order: READ the file, the engine's opening -- whose
+// pieces `PdfiumDocument::Opening` defines, the last of them first-party -- and ASSEMBLE. The engine's
+// opening exists from the read on, because it owns the bytes.
+struct DocumentBackendImpl::Opening {
+    enum class Stage { Read, Engine, Assemble };
+    QString path;
+    core::PasswordCallback password;
+    Stage stage = Stage::Read;
+    std::unique_ptr<render::PdfiumDocument::Opening> engine;
+    std::unique_ptr<render::PdfiumDocument> document;   // taken from `engine` when it is done
+};
+
 core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path,
                                                              const core::PasswordCallback& password)
 {
-    // WHETHER THE BYTES ARE A PDF IS ANSWERED HERE, and this is the whole point of guide case
-    // A-47. Stage 1 decided a file by its suffix and said so at the time (its case A-58, which
-    // asserted the opposite and was correct then under D1-2). A `.dat` that is a PDF opens; a
-    // `.pdf` that is not is refused with a named reason.
-    auto document = render::PdfiumDocument::open(path, password);
-    if (!document)
-        return document.error();
+    // THE PIECES BELOW, RUN TO THE END IN ONE CALL (S5 T9): a window's open and a folder search's are
+    // the same open, and the cases that cover one cover the other.
+    const core::Result<core::OpenProgress> begun = beginOpen(path, password);
+    if (!begun) return begun.error();
+    core::OpenProgress progress = begun.value();
+    while (!progress.done) {
+        const core::Result<core::OpenProgress> next = continueOpen(progress.opening);
+        if (!next) return next.error();
+        progress = next.value();
+    }
+    return progress.handle;
+}
 
+core::Result<core::OpenProgress> DocumentBackendImpl::beginOpen(const QString& path,
+                                                                const core::PasswordCallback& password)
+{
+    auto opening = std::make_unique<Opening>();
+    opening->path = path;
+    opening->password = password;
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const core::OpeningId id = nextOpening_++;
+    openings_.emplace(id, std::move(opening));
+    core::OpenProgress progress;
+    progress.opening = id;
+    progress.nextNeedsEngine = false;   // the read
+    return progress;
+}
+
+void DocumentBackendImpl::abandonOpen(core::OpeningId opening)
+{
+    std::unique_ptr<Opening> dropped;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        const auto found = openings_.find(opening);
+        if (found == openings_.end()) return;
+        dropped = std::move(found->second);
+        openings_.erase(found);
+    }
+    // DESTROYED OUTSIDE THE MAP'S LOCK: a half-opened engine document closes under the ENGINE lock, and
+    // the map's must never be held inside that one (`contentBox`'s rule).
+}
+
+core::Result<core::OpenProgress> DocumentBackendImpl::continueOpen(core::OpeningId id)
+{
+    Opening* opening = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        const auto found = openings_.find(id);
+        if (found == openings_.end()) {
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                               QString::number(static_cast<qulonglong>(id))};
+        }
+        opening = found->second.get();
+    }
+
+    // A refusal ends the opening: it is dropped here, so a caller holds no opening it cannot use.
+    const auto refuse = [this, id](core::Error error) -> core::Result<core::OpenProgress> {
+        abandonOpen(id);
+        return error;
+    };
+
+    core::OpenProgress progress;
+    progress.opening = id;
+
+    switch (opening->stage) {
+    case Opening::Stage::Read: {
+        const QFileInfo info(opening->path);
+        if (!info.exists() || !info.isFile())
+            return refuse(core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), opening->path});
+        // Read through QFile, which takes a QString and gets the Windows encoding right by
+        // construction. Handing PDFium a `const char*` path is convention 1's trap one layer over --
+        // this machine's code page 950 turned an emoji filename into `report-?????.pdf`.
+        QFile file(opening->path);
+        if (!file.open(QIODevice::ReadOnly))
+            return refuse(core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), info.fileName()});
+        QByteArray bytes = file.readAll();
+        file.close();
+        opening->engine = std::make_unique<render::PdfiumDocument::Opening>(std::move(bytes), opening->path,
+                                                                            opening->password);
+        opening->stage = Opening::Stage::Engine;
+        progress.nextNeedsEngine = opening->engine->nextNeedsEngine();
+        return progress;
+    }
+
+    case Opening::Stage::Engine: {
+        // WHETHER THE BYTES ARE A PDF IS ANSWERED HERE, and this is the whole point of guide case
+        // A-47. Stage 1 decided a file by its suffix and said so at the time (its case A-58, which
+        // asserted the opposite and was correct then under D1-2). A `.dat` that is a PDF opens; a
+        // `.pdf` that is not is refused with a named reason.
+        if (const core::Status piece = opening->engine->step(); !piece) return refuse(piece.error());
+        if (!opening->engine->done()) {
+            progress.nextNeedsEngine = opening->engine->nextNeedsEngine();
+            return progress;
+        }
+        opening->document = opening->engine->take();
+        opening->engine.reset();
+        opening->stage = Opening::Stage::Assemble;
+        progress.nextNeedsEngine = false;
+        return progress;
+    }
+
+    case Opening::Stage::Assemble: {
+        const core::Result<core::DocumentHandle> handle = assemble(*opening);
+        if (!handle) return refuse(handle.error());
+        abandonOpen(id);   // done with: the document now belongs to its entry
+        progress.done = true;
+        progress.handle = handle.value();
+        return progress;
+    }
+    }
+    return refuse(core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument")});
+}
+
+core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& opening)
+{
+    const QString& path = opening.path;
     auto entry = std::make_unique<Open>();
-    entry->document = std::move(document).value();
+    entry->document = std::move(opening.document);
     entry->rasterizer = std::make_unique<render::PdfiumRasterizer>(*entry->document);
 
     // --- Stage 3 T4: identity, the second reading, and the pre-flight (D3-7, D3-16) -----------------

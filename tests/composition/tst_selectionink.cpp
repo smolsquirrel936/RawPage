@@ -35,7 +35,9 @@
 #include "ui/viewer/ViewportController.h"
 #include "ui/viewer/tools/SelectTool.h"
 #include "ui/shell/Catalog.h"
+#include "ui/panes/SearchPane.h"
 #include "ui/write/FindReplaceBar.h"
+#include <QTreeWidget>
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -58,6 +60,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -1003,4 +1006,71 @@ TEST_CASE("each class's hit in search-classes navigates as D5-12 says and an att
     CHECK(view->controller().scroll().y == scrollBefore.y);
     CHECK(view->controller().zoom() == zoomBefore);
     statusSays(ui::catalog::translate(ui::catalog::key::SearchBarInAttachment).arg(QStringLiteral("lemur.pdf")));
+}
+
+// =============================================================================================
+// A-80 (the product's half) and A-87 -- Advanced Search through the composition (Stage 5 T9)
+// =============================================================================================
+
+TEST_CASE("Advanced Search through the product finds every level of a folder and opens a result at its hit",
+          "[selectionink][A-80][A-87]")
+{
+    Product product;
+    // A SCRATCH TREE of corpus copies (plan section 5.6), three levels deep -- never the tester's own files.
+    const QDir root(product.scratch.path());
+    const auto place = [&](const char* relative, const QString& into) {
+        REQUIRE(root.mkpath(QStringLiteral("tree/") + into));
+        const QString source = test_oracle::corpusPath(relative);
+        const QString target = root.filePath(QStringLiteral("tree/") + into + QLatin1Char('/') + QFileInfo(source).fileName());
+        REQUIRE(QFile::copy(source, target));
+        QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner);
+    };
+    place("ordinary/search-classes.pdf", QStringLiteral("."));
+    place("ordinary/hyphenated.pdf", QStringLiteral("nested"));
+    place("ordinary/columns-three.pdf", QStringLiteral("nested/deeper"));
+    const QString folder = root.filePath(QStringLiteral("tree"));
+
+    // `Ctrl+Shift+F` from the window, as a key event: the pane, the focus in its query.
+    product.window->activateWindow();
+    QWidget* focus = product.window->focusWidget() != nullptr ? product.window->focusWidget() : product.window.get();
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_F, Qt::ControlModifier | Qt::ShiftModifier);
+    QCoreApplication::sendEvent(focus, &press);
+    QCoreApplication::processEvents();
+    ui::SearchPane& pane = *product.window->searchPane();
+    REQUIRE(pane.isVisible());
+
+    pane.setFolder(folder);
+    pane.setRecursive(true);
+    pane.setQuery(QStringLiteral("RawPage"));
+    REQUIRE(pane.search());
+    QElapsedTimer timer;
+    timer.start();
+    while (pane.isSearching() && timer.elapsed() < 60000) QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    REQUIRE_FALSE(pane.isSearching());
+
+    // EVERY LEVEL, every hit naming its file and a page that file has -- and not one file shown in a tab.
+    std::set<QString> levels;
+    for (const auto& row : pane.listedRows()) {
+        levels.insert(QFileInfo(QDir(folder).relativeFilePath(row.file->path)).path());
+        CHECK(row.hit->hit.page >= 0);
+        CHECK(row.hit->hit.page < row.file->pageCount);
+    }
+    CHECK(levels == std::set<QString>{QStringLiteral("."), QStringLiteral("nested"), QStringLiteral("nested/deeper")});
+    CHECK(product.window->documentCount() == 0);
+
+    // A RESULT OPENED: its file in a tab, its hit current in that tab's find bar -- and not opened twice.
+    pane.list()->setFocus(Qt::OtherFocusReason);
+    pane.list()->setCurrentItem(pane.list()->topLevelItem(0));
+    pane.jumpToCurrent();
+    REQUIRE(product.window->documentCount() == 1);
+    product.view = product.window->currentView();   // `settle()` refreshes it; this case opened no file itself
+    REQUIRE(product.view != nullptr);
+    product.settle();
+    ui::FindReplaceBar& bar = *product.window->currentDocument()->findBar();
+    CHECK(bar.isOpen());
+    CHECK_FALSE(bar.hits().empty());
+    CHECK(bar.field()->text() == QStringLiteral("RawPage"));
+    pane.jumpToCurrent();
+    product.settle();
+    CHECK(product.window->documentCount() == 1);
 }

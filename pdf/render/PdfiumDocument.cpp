@@ -23,6 +23,7 @@
 #include <QFileInfo>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <mutex>
@@ -715,74 +716,135 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::open(
 core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
     QByteArray bytes, const QString& displayPath, const core::PasswordCallback& password)
 {
-    const QFileInfo info(displayPath);
+    // THE STAGED OPEN, RUN TO ITS END (S5 T9): one open, whether a window asks for it in one call or a
+    // folder search asks for it a piece at a time.
+    Opening opening(std::move(bytes), displayPath, password);
+    while (!opening.done()) {
+        if (const core::Status piece = opening.step(); !piece) return piece.error();
+    }
+    return opening.take();
+}
 
-    if (bytes.isEmpty())
-        return openError(core::ErrorCode::ParseFailure, "error.open.notPdf", info.fileName());
+// =============================================================================================
+// The open in pieces -- S5 T9 (the header's `Opening`)
+// =============================================================================================
 
-    if (const core::Status ready = ensure(); !ready)
-        return ready.error();
+PdfiumDocument::Opening::Opening(QByteArray bytes, QString displayPath, core::PasswordCallback password)
+    : document_(new PdfiumDocument()), password_(std::move(password))
+{
+    document_->bytes_ = std::move(bytes);
+    document_->path_ = std::move(displayPath);
+}
 
-    auto self = std::unique_ptr<PdfiumDocument>(new PdfiumDocument());
-    self->bytes_ = std::move(bytes);
-    self->path_ = displayPath;
+PdfiumDocument::Opening::~Opening() = default;
 
-    // THE PASSWORD LOOP. PDFium tells us a file is encrypted by failing with FPDF_ERR_PASSWORD, so
-    // the first attempt is always made without one -- which is also what makes
-    // `corpus/encrypted/owner-empty-user.pdf` open with no prompt at all, as it must: an empty user
-    // password is the case a reader mistakes for an unencrypted file.
-    QByteArray attemptPassword;
-    int attempt = 0;
-    for (;;) {
-        unsigned long error = 0;
-        {
-            // THE ERROR IS READ UNDER THE SAME LOCK AS THE LOAD (Stage 5 guide I-01): PDFium's last
-            // error is process-global, and another thread's call between the two would answer for
-            // a different document.
-            const std::lock_guard<EngineMutex> guard(engineLock());
-            self->engine_->document = FPDF_LoadMemDocument64(
-                self->bytes_.constData(), static_cast<size_t>(self->bytes_.size()),
-                attempt == 0 ? nullptr : attemptPassword.constData());
-            if (self->engine_->document == nullptr) error = FPDF_GetLastError();
+bool PdfiumDocument::Opening::done() const noexcept
+{
+    return stage_ == Stage::Done;
+}
+
+bool PdfiumDocument::Opening::nextNeedsEngine() const noexcept
+{
+    switch (stage_) {
+    case Stage::Load:
+    case Stage::FormEnvironment:
+    case Stage::Count:
+    case Stage::Pages:
+    case Stage::Readers:
+        return true;
+    case Stage::FirstParty:
+    case Stage::Done:
+    case Stage::Failed:
+        return false;
+    }
+    return false;
+}
+
+std::unique_ptr<PdfiumDocument> PdfiumDocument::Opening::take()
+{
+    if (stage_ != Stage::Done) return nullptr;
+    return std::move(document_);
+}
+
+core::Status PdfiumDocument::Opening::step()
+{
+    if (stage_ == Stage::Failed) return *failure_;
+    if (stage_ == Stage::Done) return {};
+
+    PdfiumDocument* self = document_.get();
+    const QFileInfo info(self->path_);
+    const auto fail = [this](core::Error error) -> core::Status {
+        stage_ = Stage::Failed;
+        failure_ = error;
+        return error;
+    };
+
+    switch (stage_) {
+    case Stage::Load: {
+        if (self->bytes_.isEmpty())
+            return fail(openError(core::ErrorCode::ParseFailure, "error.open.notPdf", info.fileName()));
+
+        if (const core::Status ready = ensure(); !ready) return fail(ready.error());
+
+        // THE PASSWORD LOOP. PDFium tells us a file is encrypted by failing with FPDF_ERR_PASSWORD, so
+        // the first attempt is always made without one -- which is also what makes
+        // `corpus/encrypted/owner-empty-user.pdf` open with no prompt at all, as it must: an empty user
+        // password is the case a reader mistakes for an unencrypted file.
+        QByteArray attemptPassword;
+        int attempt = 0;
+        for (;;) {
+            unsigned long error = 0;
+            {
+                // THE ERROR IS READ UNDER THE SAME LOCK AS THE LOAD (Stage 5 guide I-01): PDFium's last
+                // error is process-global, and another thread's call between the two would answer for
+                // a different document.
+                const std::lock_guard<EngineMutex> guard(engineLock());
+                self->engine_->document = FPDF_LoadMemDocument64(
+                    self->bytes_.constData(), static_cast<size_t>(self->bytes_.size()),
+                    attempt == 0 ? nullptr : attemptPassword.constData());
+                if (self->engine_->document == nullptr) error = FPDF_GetLastError();
+            }
+            if (self->engine_->document != nullptr)
+                break;
+
+            if (error != FPDF_ERR_PASSWORD) {
+                // Not an encryption problem: the bytes are not a PDF, or are damaged past what even
+                // PDFium's own silent repair can do -- and PDFium does not say which, so the header
+                // does (I-32).
+                return fail(openError(core::ErrorCode::ParseFailure,
+                                      looksLikePdf(self->bytes_) ? "error.open.damaged" : "error.open.notPdf",
+                                      info.fileName()));
+            }
+            if (!password_) {
+                // No one to ask. A batch run, a test and a FOLDER SEARCH (D5-13) all land here, and it
+                // is a REFUSAL rather than a failure to parse -- the file is fine and we have no key.
+                return fail(openError(core::ErrorCode::PermissionDenied, "error.open.badPassword",
+                                      info.fileName()));
+            }
+
+            ++attempt;
+            const std::optional<QString> supplied = password_(attempt);
+            if (!supplied) {
+                // The user gave up. `Cancelled`, NOT a failure to open: a cancelled prompt is not a
+                // damaged file, and a message bar that said so would be lying.
+                return fail(openError(core::ErrorCode::Cancelled, "error.open.cancelled", info.fileName()));
+            }
+            attemptPassword = supplied->toUtf8();
+            attemptPassword.append('\0');
+
+            // A bound, because `password` is supplied by a caller and a callback that always returns
+            // the same wrong string would otherwise spin forever inside an open.
+            if (attempt >= 16) {
+                return fail(openError(core::ErrorCode::PermissionDenied, "error.open.badPassword",
+                                      info.fileName()));
+            }
         }
-        if (self->engine_->document != nullptr)
-            break;
-
-        if (error != FPDF_ERR_PASSWORD) {
-            // Not an encryption problem: the bytes are not a PDF, or are damaged past what even
-            // PDFium's own silent repair can do -- and PDFium does not say which, so the header
-            // does (I-32).
-            return openError(core::ErrorCode::ParseFailure,
-                             looksLikePdf(self->bytes_) ? "error.open.damaged" : "error.open.notPdf",
-                             info.fileName());
-        }
-        if (!password) {
-            // No one to ask. A batch run and a test both land here, and it is a REFUSAL rather
-            // than a failure to parse -- the file is fine and we have no key.
-            return openError(core::ErrorCode::PermissionDenied, "error.open.badPassword",
-                             info.fileName());
-        }
-
-        ++attempt;
-        const std::optional<QString> supplied = password(attempt);
-        if (!supplied) {
-            // The user gave up. `Cancelled`, NOT a failure to open: a cancelled prompt is not a
-            // damaged file, and a message bar that said so would be lying.
-            return openError(core::ErrorCode::Cancelled, "error.open.cancelled", info.fileName());
-        }
-        attemptPassword = supplied->toUtf8();
-        attemptPassword.append('\0');
-
-        // A bound, because `password` is supplied by a caller and a callback that always returns
-        // the same wrong string would otherwise spin forever inside an open.
-        if (attempt >= 16) {
-            return openError(core::ErrorCode::PermissionDenied, "error.open.badPassword",
-                             info.fileName());
-        }
+        stage_ = Stage::FormEnvironment;
+        return {};
     }
 
-    // --- The form-fill environment, for widget appearance streams only (I-21) ------------
-    {
+    case Stage::FormEnvironment: {
+        // --- The form-fill environment, for widget appearance streams only (I-21) ------------
         const std::lock_guard<EngineMutex> guard(engineLock());
 
         // VERSION 2 is what a document with no XFA wants; `FPDF_FORMFILLINFO` is otherwise all
@@ -791,8 +853,7 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
         // rasterizer answers none of them. Leaving them null is supported and is what makes this
         // an appearance-stream renderer rather than an interactive form layer.
         self->engine_->info.version = 2;
-        self->engine_->form =
-            FPDFDOC_InitFormFillEnvironment(self->engine_->document, &self->engine_->info);
+        self->engine_->form = FPDFDOC_InitFormFillEnvironment(self->engine_->document, &self->engine_->info);
 
         // A DOCUMENT WITH NO `/AcroForm` STILL GETS A HANDLE, and that is correct rather than
         // wasteful: PDFium returns one regardless, `FPDF_FFLDraw` on a page with no widgets draws
@@ -806,25 +867,37 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
                 << "form: no form-fill environment for" << info.fileName()
                 << "-- widget appearance streams will not be drawn";
         }
+        stage_ = Stage::Count;
+        return {};
     }
 
-    // --- The page tree ------------------------------------------------------------------
-    // A LOCK PER PAGE, NOT ONE ACROSS THE WALK (Stage 5 T3). Held across all 900 pages of
-    // `text-900.pdf`, the walk kept the engine for ~150 ms -- measured by `bench_pipeline --stage5`,
-    // where a folder search's open made a viewport tile wait 141-260 ms. Taken per page, the render
-    // worker gets the engine between two pages; nothing else can see this document yet, so the walk
-    // loses nothing by being interleaved.
-    std::vector<core::Page> pages;
-    {
-        FPDF_DOCUMENT document = self->engine_->document;
-        int count = 0;
+    case Stage::Count: {
         {
             const std::lock_guard<EngineMutex> guard(engineLock());
-            count = FPDF_GetPageCount(document);
+            count_ = FPDF_GetPageCount(self->engine_->document);
         }
-        pages.reserve(static_cast<std::size_t>(std::max(0, count)));
+        pages_.reserve(static_cast<std::size_t>(std::max(0, count_)));
+        stage_ = Stage::Pages;
+        return {};
+    }
 
-        for (int index = 0; index < count; ++index) {
+    case Stage::Pages: {
+        // --- The page tree, `kPagesPerPiece` pages a piece ---------------------------------------
+        // A LOCK PER PAGE, NOT ONE ACROSS THE WALK (Stage 5 T3). Held across all 900 pages of
+        // `text-900.pdf`, the walk kept the engine for ~150 ms -- measured by `bench_pipeline --stage5`,
+        // where a folder search's open made a viewport tile wait 141-260 ms. Taken per page, the render
+        // worker gets the engine between two pages; nothing else can see this document yet, so the walk
+        // loses nothing by being interleaved. And since S5 T9 the walk is also cut into PIECES, so a
+        // folder search running it on the render thread puts a visible tile behind at most one piece.
+        FPDF_DOCUMENT document = self->engine_->document;
+        // BOUNDED BY TIME, NOT BY A COUNT: pages until `kPieceBudget` has passed, at least one. A count was
+        // tried first -- eight pages -- and measured at up to 3.5 ms a piece on `text-900.pdf`, a page's walk
+        // costing 0.2 to 0.44 ms on this machine where T3 had measured 0.16; a count is one machine's
+        // arithmetic, and a budget holds on any.
+        const auto began = std::chrono::steady_clock::now();
+        int index = nextPage_;
+        for (; index < count_; ++index) {
+            if (index > nextPage_ && std::chrono::steady_clock::now() - began >= kPieceBudget) break;
             const std::lock_guard<EngineMutex> guard(engineLock());
             // Boxes are read WITHOUT loading the page where PDFium allows it, because loading
             // every page of a 900-page document to learn its size is the difference between an
@@ -836,7 +909,7 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
                 // pages are still readable, and A-21's argument about damaged files applies here
                 // too. It gets a zero-sized entry so indices stay aligned with the engine's, and
                 // the TRAILING run of these is dropped below.
-                pages.emplace_back(index, core::PdfRect{});
+                pages_.emplace_back(index, core::PdfRect{});
                 continue;
             }
 
@@ -851,8 +924,7 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
             } else {
                 // No /MediaBox anywhere up the inheritance chain. US Letter is what every reader
                 // substitutes, and a page of zero size would divide by zero in layout.
-                built.setMediaBox(core::PdfRect{core::PdfPoint{0.0, 0.0},
-                                                core::PdfSize{612.0, 792.0}});
+                built.setMediaBox(core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}});
             }
             if (FPDFPage_GetCropBox(page, &left, &bottom, &right, &top))
                 built.setCropBox(rectFrom(left, bottom, right, top));
@@ -870,84 +942,97 @@ core::Result<std::unique_ptr<PdfiumDocument>> PdfiumDocument::openBytes(
             built.setLabel(pageLabel(document, index));
 
             FPDF_ClosePage(page);
-            pages.push_back(std::move(built));
+            pages_.push_back(std::move(built));
         }
+        nextPage_ = index;
+        if (nextPage_ < count_) return {};
+
+        // **THE TREE IS AUTHORITATIVE, NOT `/Count`** -- and this is a correction to what the engine
+        // reports, not a defensive flourish. `FPDF_GetPageCount` returns the `/Pages` dictionary's
+        // `/Count` field verbatim, so `corpus/malformed/pages-count-wrong.pdf` -- which declares
+        // `/Count 97` over three real kids -- opens through PDFium claiming **97 pages**. Measured at
+        // T9; that file exists precisely to decide which of the two wins, and `PROVENANCE.md` says in
+        // as many words that the answer has to be the tree.
+        //
+        // The page count reaches the status bar and the scrollbar before anything walks the document,
+        // so believing it would give a three-page file a scrollbar 97 pages long and 94 blank pages to
+        // scroll through. Only the TRAILING run of unloadable pages is dropped: a page that fails in
+        // the MIDDLE keeps its placeholder, because removing it would renumber every page after it and
+        // a link or an outline entry pointing at page 40 would land on page 39.
+        while (!pages_.empty() && pages_.back().mediaBox().size.width <= 0.0
+               && pages_.back().mediaBox().size.height <= 0.0) {
+            pages_.pop_back();
+        }
+
+        // **A DOCUMENT WITH NO READABLE PAGE IS REFUSED, not opened** (Stage 2 issue I-31). There is
+        // nothing to show, nothing to navigate and nothing to edit, and opening it anyway produced a
+        // tab with an empty desk and no word of explanation -- the silent empty window M-07 forbids.
+        // `corpus/malformed/objstm-corrupt.pdf` reaches here: PDFium opens it, and with every object in
+        // the corrupt object stream unreadable its page tree has no page. Refusing HERE rather than in
+        // the shell means the batch path and the CLI get the same answer as a double-click.
+        if (pages_.empty()) {
+            RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+                << "open: refusing" << info.fileName() << "-- the engine opened it and found no page";
+            return fail(openError(core::ErrorCode::ParseFailure, "error.open.noPages", info.fileName()));
+        }
+
+        self->pages_ = core::PageTree(std::move(pages_));
+        pages_.clear();
+        stage_ = Stage::Readers;
+        return {};
     }
 
-    // **THE TREE IS AUTHORITATIVE, NOT `/Count`** -- and this is a correction to what the engine
-    // reports, not a defensive flourish. `FPDF_GetPageCount` returns the `/Pages` dictionary's
-    // `/Count` field verbatim, so `corpus/malformed/pages-count-wrong.pdf` -- which declares
-    // `/Count 97` over three real kids -- opens through PDFium claiming **97 pages**. Measured at
-    // T9; that file exists precisely to decide which of the two wins, and `PROVENANCE.md` says in
-    // as many words that the answer has to be the tree.
-    //
-    // The page count reaches the status bar and the scrollbar before anything walks the document,
-    // so believing it would give a three-page file a scrollbar 97 pages long and 94 blank pages to
-    // scroll through. Only the TRAILING run of unloadable pages is dropped: a page that fails in
-    // the MIDDLE keeps its placeholder, because removing it would renumber every page after it and
-    // a link or an outline entry pointing at page 40 would land on page 39.
-    while (!pages.empty() && pages.back().mediaBox().size.width <= 0.0
-           && pages.back().mediaBox().size.height <= 0.0) {
-        pages.pop_back();
-    }
-
-    // **A DOCUMENT WITH NO READABLE PAGE IS REFUSED, not opened** (Stage 2 issue I-31). There is
-    // nothing to show, nothing to navigate and nothing to edit, and opening it anyway produced a
-    // tab with an empty desk and no word of explanation -- the silent empty window M-07 forbids.
-    // `corpus/malformed/objstm-corrupt.pdf` reaches here: PDFium opens it, and with every object in
-    // the corrupt object stream unreadable its page tree has no page. Refusing HERE rather than in
-    // the shell means the batch path and the CLI get the same answer as a double-click.
-    if (pages.empty()) {
-        RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
-            << "open: refusing" << info.fileName() << "-- the engine opened it and found no page";
-        return openError(core::ErrorCode::ParseFailure, "error.open.noPages", info.fileName());
-    }
-
-    self->pages_ = core::PageTree(std::move(pages));
-
-    // --- What the document says about itself (S4 T4) ---------------------------------------
-    // Once, here. A pane that re-read these every time it was shown would be a cost nobody
-    // measured (guide case A-30), and a lazy reader would have to keep the engine handle reachable
-    // from `core/`, which is the layering this facade exists to prevent.
-    //
-    // **UNDER THE ENGINE LOCK, which they were not from Stage 4 T4 to Stage 5 T3** (Stage 5 guide
-    // issue **I-01**): every call below enters PDFium, the product opens documents on the UI thread
-    // while the render worker is inside the engine, and I-05 measured two threads in PDFium
-    // corrupting the heap. Each reader now counts an entry made without the lock
-    // (`requireEngineLock()`), and `tst_pdfiumdoc` asserts that count is zero.
-    {
+    case Stage::Readers: {
+        // --- What the document says about itself (S4 T4) ---------------------------------------
+        // Once, here. A pane that re-read these every time it was shown would be a cost nobody
+        // measured (guide case A-30), and a lazy reader would have to keep the engine handle reachable
+        // from `core/`, which is the layering this facade exists to prevent.
+        //
+        // **UNDER THE ENGINE LOCK, which they were not from Stage 4 T4 to Stage 5 T3** (Stage 5 guide
+        // issue **I-01**): every call below enters PDFium, the product opens documents on the UI thread
+        // while the render worker is inside the engine, and I-05 measured two threads in PDFium
+        // corrupting the heap. Each reader now counts an entry made without the lock
+        // (`requireEngineLock()`), and `tst_pdfiumdoc` asserts that count is zero.
         const std::lock_guard<EngineMutex> guard(engineLock());
         self->outline_ = readOutline(self->engine_->document);
         self->destinations_ = readDestinations(self->engine_->document);
         self->metadata_ = readMetadata(self->engine_->document);
+        stage_ = Stage::FirstParty;
+        return {};
     }
 
-    // --- What the first-party reader thinks of the same bytes ------------------------------
-    // **PDFium repairs silently and reports nothing.** A document it opened may have had its
-    // cross-reference table reconstructed entirely, and the user would never know -- which is
-    // exactly the risk `Stage2-Rendering-Plan.md` §5.4 says Stage 3 has to act on before allowing
-    // a plain Save. So the COS reader is run over the same buffer for its report alone; its table
-    // is discarded, because rendering goes through the engine.
-    //
-    // A failure here is NOT a failure to open: an encrypted file is declined by `pdf/cos/` on
-    // purpose (D2-6) while PDFium has just opened it successfully, and that disagreement is the
-    // arrangement rather than a defect.
-    {
-        const std::string_view view(self->bytes_.constData(),
-                                    static_cast<std::size_t>(self->bytes_.size()));
+    case Stage::FirstParty: {
+        // --- What the first-party reader thinks of the same bytes ------------------------------
+        // **PDFium repairs silently and reports nothing.** A document it opened may have had its
+        // cross-reference table reconstructed entirely, and the user would never know -- which is
+        // exactly the risk `Stage2-Rendering-Plan.md` §5.4 says Stage 3 has to act on before allowing
+        // a plain Save. So the COS reader is run over the same buffer for its report alone; its table
+        // is discarded, because rendering goes through the engine. NO ENGINE, which is why a folder
+        // search runs this piece off the render thread (S5 T9).
+        //
+        // A failure here is NOT a failure to open: an encrypted file is declined by `pdf/cos/` on
+        // purpose (D2-6) while PDFium has just opened it successfully, and that disagreement is the
+        // arrangement rather than a defect.
+        const std::string_view view(self->bytes_.constData(), static_cast<std::size_t>(self->bytes_.size()));
         auto inspected = cos::openWithRepair(view);
         if (inspected)
             self->repair_ = inspected.value().report;
+
+        if (self->wasRepaired()) {
+            RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
+                << "open: repaired" << info.fileName() << "-- reconstructed"
+                << static_cast<int>(self->repair_.objectsReconstructed()) << "of"
+                << static_cast<int>(self->repair_.objectsTotal()) << "objects";
+        }
+        stage_ = Stage::Done;
+        return {};
     }
 
-    if (self->wasRepaired()) {
-        RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
-            << "open: repaired" << info.fileName() << "-- reconstructed"
-            << static_cast<int>(self->repair_.objectsReconstructed()) << "of"
-            << static_cast<int>(self->repair_.objectsTotal()) << "objects";
+    case Stage::Done:
+    case Stage::Failed:
+        break;
     }
-
-    return self;
+    return {};
 }
 
 } // namespace rawpage::pdf::render

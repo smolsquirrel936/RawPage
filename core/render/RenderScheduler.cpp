@@ -217,9 +217,12 @@ RenderTicket RenderScheduler::enqueueText(const TextRequest& request, RenderPrio
     return RenderTicket{ticket};
 }
 
-RenderTicket RenderScheduler::enqueueTask(DocumentHandle document, RenderPriority priority, EngineTask task)
+RenderTicket RenderScheduler::enqueueTask(DocumentHandle document, RenderPriority priority, EngineTask task,
+                                          bool exclusive)
 {
-    if (!document.isValid() || !task) return RenderTicket{};
+    // An INVALID document is a task of no document (S5 T9, the header); an exclusive one needs a document
+    // to be exclusive against.
+    if (!task || (exclusive && !document.isValid())) return RenderTicket{};
 
     std::unique_lock<std::mutex> lock(mutex_);
     ++stats_.enqueued;
@@ -236,6 +239,7 @@ RenderTicket RenderScheduler::enqueueTask(DocumentHandle document, RenderPriorit
     job.kind = JobKind::Task;
     job.taskDocument = document;
     job.task = std::move(task);
+    job.exclusive = exclusive;
     job.priority = priority;
     job.sequence = nextSequence_++;
     job.enqueuedAt = std::chrono::steady_clock::now();
@@ -658,6 +662,21 @@ std::uint64_t RenderScheduler::selectNextLocked(int workerIndex) const
     if (workerIndex >= activeWorkerLimit_) return 0;
     if (pending_.empty()) return 0;
 
+    // EXCLUSIVE TASKS (S5 T9): which documents have a job running, and which have an exclusive one. A
+    // job is running from `started` until its result is handed off, which is when it leaves `jobs_`.
+    std::vector<DocumentHandle> runningFor;
+    std::vector<DocumentHandle> exclusiveFor;
+    for (const auto& [id, job] : jobs_) {
+        (void)id;
+        if (!job.started) continue;
+        const DocumentHandle document = documentOf(job, job.kind == JobKind::Text, job.kind == JobKind::Task);
+        runningFor.push_back(document);
+        if (job.exclusive) exclusiveFor.push_back(document);
+    }
+    const auto among = [](const std::vector<DocumentHandle>& set, DocumentHandle document) {
+        return std::find(set.begin(), set.end(), document) != set.end();
+    };
+
     // Strict priority, FIFO within a priority. A linear scan rather than a heap: the queue holds a
     // viewport's worth of tiles -- tens, not thousands -- and a heap whose keys change when a
     // prefetch is raised to visible is a data structure with a second, subtler correctness problem.
@@ -667,6 +686,13 @@ std::uint64_t RenderScheduler::selectNextLocked(int workerIndex) const
         const auto found = jobs_.find(id);
         if (found == jobs_.end()) continue;
         const Job& job = found->second;
+        if (!exclusiveFor.empty() || job.exclusive) {
+            const DocumentHandle document = documentOf(job, job.kind == JobKind::Text, job.kind == JobKind::Task);
+            // Nothing of a document starts while its exclusive task runs, and an exclusive task does not
+            // start while anything of its document runs.
+            if (document.isValid() && among(exclusiveFor, document)) continue;
+            if (job.exclusive && among(runningFor, document)) continue;
+        }
         if (bestJob == nullptr || static_cast<int>(job.priority) < static_cast<int>(bestJob->priority)
             || (job.priority == bestJob->priority && job.sequence < bestJob->sequence)) {
             best = id;

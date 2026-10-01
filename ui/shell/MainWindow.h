@@ -44,6 +44,7 @@
 #include "app/Services.h"
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
+#include "core/text/SearchEngine.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
@@ -54,6 +55,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 class QCloseEvent;
 class QStackedWidget;
@@ -69,6 +71,7 @@ class FullScreenController;
 class BookmarksPane;
 class DestinationsPane;
 class LogPane;
+class SearchPane;
 class ThumbnailsPane;
 class MessageBar;
 class PageView;
@@ -251,6 +254,13 @@ public:
     // The log pane -- T14. Built with the window and HIDDEN, because a shell that opens with a
     // log pane showing is a shell that looks like it is in trouble. `pane.log` toggles it.
     LogPane*            logPane() const { return logPane_; }
+    // S5 T9 (D5-13): Advanced Search, its own dock along the right; `Ctrl+Shift+F` shows it.
+    SearchPane*         searchPane() const { return searchPane_; }
+    // An Advanced Search result, shown: its file opened through `openFiles` -- or its tab brought forward,
+    // so a file already open is not opened twice (guide A-87) -- and its hits shown in that tab's find bar,
+    // this one current and revealed.
+    void openSearchResult(const QString& path, const QString& pattern,
+                          const std::vector<core::text::SearchHit>& hits, int current);
 
     // The document panes the sidebar hosts -- Stage 4 T5. ONE PER WINDOW, re-pointed at the tab in
     // front by `updateDocumentPanes()`; see the construction comment for why it is not one per
@@ -476,6 +486,7 @@ private:
     BookmarksPane*    bookmarks_ = nullptr;
     DestinationsPane* destinations_ = nullptr;
     LogPane*          logPane_ = nullptr;
+    SearchPane*       searchPane_ = nullptr;
     StatusBar*   status_ = nullptr;
     MessageBar*  messageBar_ = nullptr;
 

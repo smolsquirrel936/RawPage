@@ -399,10 +399,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // synchronized-scrolling switch) and by 8 at T10 (the whole section 8 Full Screen table, plus
     // `present.start` which enters it) and by 5 at T11 (the two tilings, the cascade, the merge and
     // the window list) and by 2 at T12 (reading mode and Document Properties) and by 2 at Stage 5
-    // T5 (`edit.copy` and `edit.selectAll`) and by 8 at T7 (the whole Find / Search table), and the
+    // T5 (`edit.copy` and `edit.selectAll`) and by 8 at T7 (the whole Find / Search table) and by 1 at T9
+    // (`find.advancedSearch`), and the
     // point of asserting it here is unchanged: this case is about registration happening once per
     // REGISTRY rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 104);
+    CHECK(fixture.actions.registeredCount() == 105);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);
