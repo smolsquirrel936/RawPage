@@ -743,6 +743,47 @@ skill for the shape. One file per stage, holding **both** of these:
 - The guide is written from the plan and corrected in the same change as any later design shift, like
   every other live document here.
 
+## Commit messages
+
+**Adopted 2026-10-01**, from [joelparkerhenderson/git-commit-message](https://github.com/joelparkerhenderson/git-commit-message/).
+Until then every commit here put its whole message on the summary line, so `git log --oneline`
+printed a paragraph per commit (`33152c4` is the last of them). Earlier commits are not rewritten.
+
+- **The summary line: at most 50 characters, capitalized, starting with an imperative present-tense
+  verb, and with no closing period.** Write `Add the text index and search`, not
+  `added text index.` and not `Stage 5 T6, 2026-10-01: SearchQuery, SearchEngine and …`.
+- **The verb says what kind of change it is.** Use one of these:
+  - **Add** / **Drop**: create or delete a capability (a feature, a test, a dependency).
+  - **Fix**: fix an issue (a bug, a typo, a misstatement).
+  - **Bump**: raise a version.
+  - **Make**: change the build, the tools or the infrastructure.
+  - **Start** / **Stop**: begin or end doing something (a toggle, a flag).
+  - The **pure** verbs are a promise that the commit does nothing else:
+    - **Optimize**: performance only.
+    - **Document**: documentation only.
+    - **Refactor**, **Reformat**, **Rearrange**, **Redraw**, **Reword**, **Revise**: only that kind of change.
+    - **Refresh**: test data, keys and the like.
+
+  A commit that touches behaviour is not `Document` however much of it is prose.
+- **No tags in the summary.** No `docs:`, no `[bug]`, no issue or task label. The stage task, its
+  date and its home go on the **first line of the body**, for example
+  `Stage 5 T6 (Stage5-TextSearch-Plan.md §6), 2026-10-01.`, so `git log --grep "Stage 5 T6"` still finds it.
+- **A blank line, then the body, wrapped at 72 columns.** Atypical text is left unbroken and may run
+  longer: a test name, a path, a command, measured output, a URL.
+- **The body says what changed and why**, and carries what this project's commits always have:
+  - what was measured, with its figures;
+  - the test counts, as a figure from a named run (rule 3 above);
+  - the planted controls, and any that stayed green;
+  - the deviations;
+  - which documents were updated.
+
+  It summarizes and points. The facts stay with the documents that own them (the routing table),
+  and every label cites its home (*Citing a label*).
+- **No trailers unless the user asks for them**: no `Co-authored-by`, no attribution lines. A reference
+  to anything outside the repository is a fully qualified URL in the body (`See: https://…`).
+- **Check the summary's length before committing:** `git log -1 --format=%s` after
+  the commit, or count it before. Amend only a commit that has not been pushed.
+
 ## Definition of Done for any stage
 
 Code complete · `checks` clean · `ctest` green including all prior stages · golden and round-trip
