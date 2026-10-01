@@ -67,12 +67,18 @@ add_executable(rawpage_render_tests
     tst_foldersearch.cpp          # Stage 5 T9 -- guide A-80, A-81, A-82, A-88 (D5-13): core/text/FolderSearch
                                   #   over a scratch copy of the corpus through the shipped backend's staged
                                   #   open, and the 900-page open's longest engine piece
+    tst_comparecorpus.cpp         # Stage 5 T12 -- guide A-95 ... A-102 (D5-17): core/text/DocumentComparer
+                                  #   over corpus/compare/, graded against each pair's expected.json, on
+                                  #   the shipped backend's extracted text and 72-dpi rasters
     tst_searchclasses.cpp         # Stage 5 T8 -- guide A-76, A-78, A-79 (D5-12): search-classes.pdf's four
                                   #   other content classes through the shipped backend's searchUnits,
                                   #   graded against the generator's label
     tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it
+    # Stage 5 T12: A-97's bound is LIVE heap (Stage 2 I-35), and this walk of the heaps is the bench's
+    # measure of it -- one source, so the case and the benches cannot measure two different things.
+    ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 )
 
 # The corpus, by absolute source path -- the same mechanism tests/unit uses and for the same

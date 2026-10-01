@@ -108,6 +108,49 @@ TEST_CASE("layout separates two columns at a 12 pt gutter and not at a 2 pt gap"
     }
 }
 
+TEST_CASE("layout reads a column longer than its neighbour whole before the next column", "[core][text][A-37][I-07]")
+{
+    // S5 guide I-07: the RIGHT column ends above a paragraph break of the LEFT one, so a full-width gap
+    // exists there -- and horizontal-first XY-cut read the left column's top, the right column, then the rest
+    // of the left. Lines 13 pt apart, paragraphs 26; the right column is one paragraph of four lines.
+    const double right = 50 + 36 * 5.5 + 12;   // the left lines are 36 glyphs wide, then a 12 pt gutter
+    const auto paragraph = [](PageTextModel& model, const std::u32string& tag, double x, double top, int lines) {
+        for (int line = 0; line < lines; ++line)
+            run(model, U"words of prose in paragraph " + tag + U" " + std::u32string(1, static_cast<char32_t>(U'a' + line)), x,
+                top - line * 13.0);
+    };
+    PageTextModel model;
+    paragraph(model, U"pone", 50, 700.0, 3);     // baselines 700 .. 674
+    paragraph(model, U"ptwo", 50, 648.0, 3);     // 648 .. 622, reaching below the right column's end
+    paragraph(model, U"pthree", 50, 596.0, 3);   // after a 15 pt gap no right-column text crosses
+    paragraph(model, U"qone", right, 700.0, 4);  // 700 .. 661
+    const PageLayout layout = LayoutAnalyzer::analyze(model, nullptr);
+    const QString reading = text(model, layout);
+    INFO(reading.toStdString());
+    CHECK(reading.indexOf(QStringLiteral("pone")) < reading.indexOf(QStringLiteral("ptwo")));
+    CHECK(reading.indexOf(QStringLiteral("ptwo")) < reading.indexOf(QStringLiteral("pthree")));
+    // THE LEFT COLUMN WHOLE, then the right.
+    CHECK(reading.indexOf(QStringLiteral("pthree")) < reading.indexOf(QStringLiteral("qone")));
+
+    SECTION("THE CONTROL: a line set well below the columns, and a spanning one, still end them")
+    {
+        PageTextModel apart = model;
+        run(apart, U"spanning line across both columns of the page body", 50, 545.0);   // a paragraph gap below
+        run(apart, U"footer", 50, 470.0);                                                // far below
+        const PageLayout ended = LayoutAnalyzer::analyze(apart, nullptr);
+        const QString read = text(apart, ended);
+        INFO(read.toStdString());
+        CHECK(read.indexOf(QStringLiteral("qone")) < read.indexOf(QStringLiteral("spanning")));
+        CHECK(read.indexOf(QStringLiteral("spanning")) < read.indexOf(QStringLiteral("footer")));
+        // ... and under the left column alone, but far below it, a footer is read after BOTH columns.
+        PageTextModel footed = model;
+        run(footed, U"footer", 50, 520.0);   // 39 pt below the left column
+        const QString last = text(footed, LayoutAnalyzer::analyze(footed, nullptr));
+        INFO(last.toStdString());
+        CHECK(last.indexOf(QStringLiteral("qone")) < last.indexOf(QStringLiteral("footer")));
+    }
+}
+
 TEST_CASE("layout finds a ruled table and an aligned one and not aligned prose", "[core][text][A-37]")
 {
     SECTION("ruled cells form a grid")

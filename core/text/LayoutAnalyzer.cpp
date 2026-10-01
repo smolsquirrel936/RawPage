@@ -267,7 +267,53 @@ void orderBlocks(const std::vector<int>& items, const PageLayout& layout, double
     }
     const std::vector<std::vector<int>> bands = cutGroups(items, layout.blocks, true, threshold);
     if (bands.size() > 1) {
-        for (const auto& band : bands) orderBlocks(band, layout, threshold, depth + 1, out);
+        // A COLUMN LONGER THAN ITS NEIGHBOUR IS STILL ONE COLUMN (S5 guide I-07). Horizontal-first XY-cut
+        // finds a full-width gap at every paragraph break of the longer column BELOW the end of the shorter
+        // one, and read band by band the page became: the left column's top, the right column, then the
+        // rest of the left -- so a revision that re-flowed text across the column break moved words in the
+        // reading order that never moved on the page (found at T12 by the comparison of `report-v1.pdf`
+        // and `report-v2.pdf`). So a band that splits into columns takes the bands directly below it
+        // whose blocks lie wholly inside ONE of its columns, while the gap stays a paragraph's -- at most
+        // two cut thresholds -- and each column is then read whole. A spanning block, or a line set apart
+        // by more than a paragraph gap (a footer), still ends the columns.
+        for (std::size_t b = 0; b < bands.size();) {
+            std::vector<std::vector<int>> columns = cutGroups(bands[b], layout.blocks, false, threshold);
+            const bool vertical = std::all_of(bands[b].begin(), bands[b].end(), [&](int item) {
+                const TextBlock& block = layout.blocks[static_cast<std::size_t>(item)];
+                return !block.lines.empty()
+                       && !isHorizontal(layout.lines[static_cast<std::size_t>(block.lines.front())]);
+            });
+            if (columns.size() < 2 || vertical) {
+                orderBlocks(bands[b], layout, threshold, depth + 1, out);
+                ++b;
+                continue;
+            }
+            const auto extentOf = [&](const std::vector<int>& group) {
+                PdfRect box = layout.blocks[static_cast<std::size_t>(group.front())].box;
+                for (const int item : group) box = unite(box, layout.blocks[static_cast<std::size_t>(item)].box);
+                return box;
+            };
+            std::vector<PdfRect> extents;
+            for (const auto& column : columns) extents.push_back(extentOf(column));
+            double bottom = extentOf(bands[b]).bottom();
+            std::size_t next = b + 1;
+            for (; next < bands.size(); ++next) {
+                const PdfRect below = extentOf(bands[next]);
+                if (bottom - below.top() > 2.0 * threshold) break;
+                // UNDER ONE COLUMN: overlapping it and no other. Not "inside its extent": a ragged-right
+                // paragraph below can be a point wider than every line the column held above it.
+                int inside = -1;
+                for (std::size_t c = 0; c < extents.size(); ++c) {
+                    if (horizontalOverlap(below, extents[c]) > 0.0) inside = inside == -1 ? static_cast<int>(c) : -2;
+                }
+                if (inside < 0) break;
+                columns[static_cast<std::size_t>(inside)].insert(columns[static_cast<std::size_t>(inside)].end(),
+                                                                 bands[next].begin(), bands[next].end());
+                bottom = below.bottom();
+            }
+            for (const auto& column : columns) orderBlocks(column, layout, threshold, depth + 1, out);
+            b = next;
+        }
         return;
     }
     std::vector<std::vector<int>> columns = cutGroups(items, layout.blocks, false, threshold);

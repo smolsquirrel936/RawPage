@@ -89,6 +89,10 @@ add_executable(rawpage_tests
     tst_selection.cpp             # Stage 5 T5 -- core/text/TextSelection (D5-8, D5-9) on synthetic
                                   #   geometry: the arithmetic halves of guide A-43 ... A-47, A-49, A-21's
                                   #   copy and A-41's selection clause; the INK is tst_selecttool's
+    tst_compare.cpp               # Stage 5 T12 -- core/text/DocumentComparer (D5-17) on synthetic pages:
+                                  #   Myers minimal and capped, a move and its control, an inserted page,
+                                  #   the band over both documents, the run's threads -- the headless
+                                  #   halves of A-97, A-98, A-100 ... A-102; the corpus is tst_comparecorpus
     tst_reflowtext.cpp            # Stage 5 T11 -- core/text/ReflowText (D5-16): blocks as paragraphs in
                                   #   reading order, the hyphen rule, unmapped glyphs, the block at the top
                                   #   of a page view -- A-92's and A-93's headless halves

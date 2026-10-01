@@ -214,6 +214,10 @@ add_library(rawpage_core STATIC
     # page and block, and the block at the top of a page view. Pure; the surface is ui/viewer/ReflowView.
     text/ReflowText.h
     text/ReflowText.cpp
+    # T12 (D5-17): two documents compared in three layers -- pages aligned, words diffed (Myers, linear
+    # space, under a cap), pixels compared outside what the words claimed. Pure; its thread is its own.
+    text/DocumentComparer.h
+    text/DocumentComparer.cpp
     # T6 (D5-4, D5-5): where extracted text LIVES -- one entry per document identity, shared by every
     # window over it, with its own budget -- and the search over it, matched on a worker of its own.
     text/DocumentIndex.h
