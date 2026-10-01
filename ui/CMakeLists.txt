@@ -135,6 +135,9 @@ add_library(rawpage_ui STATIC
     # S5 T10 -- the Snapshot (D5-11): the marquee's band, the loupe's request, the clipboard.
     viewer/tools/SnapshotTool.h
     viewer/tools/SnapshotTool.cpp
+    # S5 T11 -- Reflow view (D5-16): the analyzer's blocks as a read-only, re-wrapped text surface.
+    viewer/ReflowView.h
+    viewer/ReflowView.cpp
     viewer/ToolController.h
     viewer/ToolController.cpp
 

@@ -47,6 +47,10 @@ add_executable(rawpage_composition_tests
     # present, and 300 dpi a re-rasterization rather than an enlargement. Here for tst_selectionink's reason.
     tst_snapshotink.cpp
 
+    # Stage 5 T11 -- guide cases A-92 and A-93 over a REAL page: Reflow view over columns-two.pdf against the
+    # generator's labelled blocks, and the place both ways at a block mid-page. Here for tst_selectionink's reason.
+    tst_reflowink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

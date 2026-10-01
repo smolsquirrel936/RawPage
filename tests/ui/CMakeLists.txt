@@ -140,6 +140,11 @@ add_executable(rawpage_ui_tests
     # Esc and a click, every size at every pageDisplay/snapshotDpi, the 50-megapixel bound, the overlays
     # and the inversion absent, the tile cache bypassed. Ink is tests/composition/tst_snapshotink.cpp.
     tst_snapshot.cpp
+
+    # S5 T11 -- Reflow view (D5-16; guide A-92 ... A-94 as a widget): Ctrl+4 both ways as key events, the
+    # place both ways, the zoom chords as the text size, nothing rasterized while it shows, the reading keys
+    # its own, a find hit leaving it, the window growing. A real page's order is tests/composition's.
+    tst_reflow.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

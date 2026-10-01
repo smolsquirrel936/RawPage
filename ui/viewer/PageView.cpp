@@ -477,6 +477,17 @@ void PageView::scrollToPagePoint(int pageIndex, double pdfCoordinate, bool horiz
                    horizontal ? std::nullopt : std::optional<double>{pdfCoordinate});
 }
 
+void PageView::putPageHeightAtTop(int pageIndex, double pdfY)
+{
+    const core::Page* page = pages_ ? pages_->at(pageIndex) : nullptr;
+    if (page == nullptr) return;
+    const auto content = engine_.layout().toContent(pageIndex, core::PdfPoint{page->cropBox().left(), pdfY});
+    if (!content.has_value()) return;
+    controller_->setCurrentPage(pageIndex);
+    controller_->setScroll(core::DevicePoint{controller_->scroll().x, content->y});
+    refresh();
+}
+
 void PageView::scrollToPageXY(int pageIndex, std::optional<double> pdfX, std::optional<double> pdfY)
 {
     const core::Page* page = pages_ ? pages_->at(pageIndex) : nullptr;

@@ -138,10 +138,13 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **One more at Stage 5 T10**: `tool.snapshot`, §8's Viewer `S` (D5-11), declared at Stage 1 and asserted
     // ABSENT below from Stage 4 (D4-15) until the tool existed. No id is minted.
     //
+    // **One more at Stage 5 T11**: `view.reflow`, §8's Viewer `Ctrl+4` (D5-16), declared at Stage 1 and asserted
+    // ABSENT below -- as Stage 13's, until D4-15 moved it to Stage 5 -- until the reflow existed. No id is minted.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 106);
+    CHECK(fixture.actions.registeredCount() == 107);
     CHECK(fixture.actions.isRegistered(core::ActionId::EditCopy));        // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::FindFind));        // S5 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FindClose));       // S5 T7
@@ -227,7 +230,7 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // subset honest. `Stage2-Rendering-Plan.md` §10 names these as Stages 3 to 13's, and a stage
     // that implements MOST of a context's table invites someone to complete it -- so the absence is
     // an assertion rather than a note.
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::ViewReflow));        // S13
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewReflow));              // S5 T11 (D5-16), once S13's
     CHECK(fixture.actions.isRegistered(core::ActionId::PageRotate));              // S3 T10 -- see below
     CHECK(fixture.actions.isRegistered(core::ActionId::EditUndo));
     CHECK(fixture.actions.isRegistered(core::ActionId::EditRedo));

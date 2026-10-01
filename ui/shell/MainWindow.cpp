@@ -26,6 +26,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/FullScreenController.h"
 #include "ui/viewer/PresentationSurface.h"
+#include "ui/viewer/ReflowView.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/write/FindReplaceBar.h"
 #include "ui/viewer/SplitViewContainer.h"
@@ -717,6 +718,9 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (document != currentDocument() || !status_) return;
         status_->setMessage(catalog::translate(catalog::key::StatusSnapshotFailed));
     });
+    connect(document, &DocumentWindow::reflowChanged, this, [this](bool) {
+        if (actionFactory_) actionFactory_->refresh();
+    });
     connect(document, &DocumentWindow::selectionPresenceChanged, this, [this](bool) {
         if (actionFactory_) actionFactory_->refresh();
     });
@@ -1284,10 +1288,29 @@ void MainWindow::registerViewerActions()
     };
 
     // --- Zoom -----------------------------------------------------------------------------------
-    registerView(ActionId::ViewZoomIn, &PageView::zoomIn, hasView,
-                 "shell.tooltip.needsDocument");
-    registerView(ActionId::ViewZoomOut, &PageView::zoomOut, hasView,
-                 "shell.tooltip.needsDocument");
+    // IN REFLOW VIEW THE ZOOM IS THE TEXT SIZE (S5 T11, D5-16): the same three commands, asked of whichever
+    // surface the tab is showing -- one chord meaning one thing to the reader, *larger* or *smaller*.
+    const auto registerZoom = [this, hasView](ActionId id, void (PageView::*pageMethod)(),
+                                              void (ReflowView::*reflowMethod)()) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [pageMethod, reflowMethod](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            DocumentWindow* document = window->currentDocument();
+            if (document != nullptr && document->isReflowing()) {
+                (document->reflow()->*reflowMethod)();
+            } else if (PageView* view = window->currentView()) {
+                (view->*pageMethod)();
+            }
+            window->updateViewChrome();
+        };
+        registration.enable = hasView;
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    };
+    registerZoom(ActionId::ViewZoomIn, &PageView::zoomIn, &ReflowView::zoomIn);
+    registerZoom(ActionId::ViewZoomOut, &PageView::zoomOut, &ReflowView::zoomOut);
 
     const auto registerFit = [this, hasView](ActionId id, FitMode fit) {
         if (services_.actions.isRegistered(id)) return;
@@ -1295,6 +1318,13 @@ void MainWindow::registerViewerActions()
         registration.handler = [fit](KeyContext) {
             MainWindow* window = activeShell();
             if (!window) return;
+            // IN REFLOW VIEW THERE IS NO PAGE TO FIT (S5 T11, D5-16 clarified): a fit returns the text to its
+            // natural size, as Actual Size does, rather than changing a hidden page the reader returns to.
+            if (DocumentWindow* document = window->currentDocument(); document != nullptr && document->isReflowing()) {
+                document->reflow()->resetZoom();
+                window->updateViewChrome();
+                return;
+            }
             if (PageView* view = window->currentView()) {
                 view->setFitMode(fit);
                 view->refresh();
@@ -1318,6 +1348,12 @@ void MainWindow::registerViewerActions()
         actualSize.handler = [](KeyContext) {
             MainWindow* window = activeShell();
             if (!window) return;
+            // In Reflow view, the text at its own size (S5 T11).
+            if (DocumentWindow* document = window->currentDocument(); document != nullptr && document->isReflowing()) {
+                document->reflow()->resetZoom();
+                window->updateViewChrome();
+                return;
+            }
             if (PageView* view = window->currentView()) {
                 view->setZoom(core::render::Zoom::actualSize());
                 window->updateViewChrome();
@@ -1535,6 +1571,30 @@ void MainWindow::registerViewerActions()
     // note at its `ActionId.def` row — and it has no §8 chord, so it is reached from the ribbon,
     // the tool finder and the batch runner. `Features.md` §8 is untouched by this stage.
     registerTool(ActionId::ToolLoupe, ToolKind::Loupe);
+
+    // --- `view.reflow` (S5 · T11, D5-16) -----------------------------------------------------------------
+    // §8's Viewer `Ctrl+4`, declared at Stage 1 with its chord and asserted ABSENT by `tst_shell` until the
+    // analyzer it reads existed (D4-15 moved it to this stage). A TOGGLE, per document window, reporting its
+    // state; no id is minted. The reflow declares the Viewer context itself, so the chord comes back to it.
+    if (!services_.actions.isRegistered(ActionId::ViewReflow)) {
+        core::ActionRegistry::Registration reflow;
+        reflow.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            if (DocumentWindow* document = window->currentDocument()) {
+                document->setReflowing(!document->isReflowing());
+                window->updateViewChrome();
+            }
+        };
+        reflow.checked = [] {
+            MainWindow* window = activeShell();
+            const DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            return document != nullptr && document->isReflowing();
+        };
+        reflow.enable = hasView;
+        reflow.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewReflow, std::move(reflow));
+    }
 
     // S5 · T10's SNAPSHOT (D5-11). Declared since Stage 1 with §8's Viewer `S` and registered by nothing
     // until the tool existed -- the absence `tst_shell` asserted from Stage 4 (D4-15) until today. No id is

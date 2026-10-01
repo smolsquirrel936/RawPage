@@ -500,15 +500,16 @@ TEST_CASE("a disabled control says WHICH kind of disabled it is", "[chrome]")
     window.raiseToForeground();
 
     const QString zoomIn = ui::catalog::translateAction(core::ActionId::ViewZoomIn);
-    const QString reflow = ui::catalog::translateAction(core::ActionId::ViewReflow);
+    // `nav.nextComment` (Stage 6's) since Stage 5 T11 registered `view.reflow`, this case's example until then.
+    const QString notYet = ui::catalog::translateAction(core::ActionId::NavNextComment);
 
     // 1. DECLARED AND NOT REGISTERED -- about this BUILD. The only one of the three Stage 1 ever
     //    produced, and it is unchanged.
-    REQUIRE_FALSE(fixture.actions.isRegistered(core::ActionId::ViewReflow));
+    REQUIRE_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));
     const QString notBuilt =
-        ui::ActionFactory::tooltipFor(fixture.actions, core::ActionId::ViewReflow, reflow);
+        ui::ActionFactory::tooltipFor(fixture.actions, core::ActionId::NavNextComment, notYet);
     CHECK(notBuilt
-          == ui::catalog::translate(ui::catalog::key::RibbonTooltipUnregistered).arg(reflow));
+          == ui::catalog::translate(ui::catalog::key::RibbonTooltipUnregistered).arg(notYet));
 
     // 2. REGISTERED AND REFUSED RIGHT NOW -- about this DOCUMENT, and this is I-53's missing half.
     //    With no document open, `view.zoomIn` is registered and its enablement predicate is false.

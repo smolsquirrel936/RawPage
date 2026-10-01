@@ -12,6 +12,7 @@
 #include "ui/shell/Catalog.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/ReflowView.h"
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/write/FindReplaceBar.h"
@@ -188,6 +189,13 @@ void DocumentWindow::build(const Recovery* recovery)
     grid->setRowStretch(1, 1);
     grid->setColumnStretch(1, 1);
     column->addWidget(surface);
+    surface_ = surface;
+
+    // REFLOW VIEW (S5 T11, D5-16), beside the surface and hidden until `Ctrl+4`: the find bar stays above
+    // both, so a search started in the reflow is the same search, and its hit takes the tab back to the page.
+    reflow_ = new ReflowView(services_.documentIndex, this);
+    reflow_->hide();
+    column->addWidget(reflow_);
 
     // THE FIND BAR (S5 T7, D5-14), above the surface and hidden until `Ctrl+F`. One per tab: it searches
     // this tab's document and paints through this tab's selection overlay, which every pane of a split
@@ -195,11 +203,14 @@ void DocumentWindow::build(const Recovery* recovery)
     findBar_ = new FindReplaceBar(services_, this);
     column->insertWidget(0, findBar_);
     findBar_->setCurrentPageProvider([this] { return view() != nullptr ? view()->controller().currentPage() : 0; });
+    // A HIT LEAVES REFLOW FIRST (S5 T11, D5-16): find does not run inside it, and a hit is a place ON A PAGE.
     connect(findBar_, &FindReplaceBar::hitActivated, this, [this](int page, core::PdfRect rect) {
+        setReflowing(false);
         if (PageView* pane = view()) pane->revealPageRect(page, rect);
     });
     // A BOOKMARK HIT (S5 T8, D5-12) goes where the bookmark goes -- the Bookmarks pane's own path.
     connect(findBar_, &FindReplaceBar::destinationActivated, this, [this](const core::Destination& destination) {
+        setReflowing(false);
         if (PageView* pane = view()) pane->goToDestination(destination);
     });
     connect(findBar_, &FindReplaceBar::closed, this, [this] {
@@ -343,6 +354,7 @@ void DocumentWindow::build(const Recovery* recovery)
         indexEntry_ = services_.documentIndex.attach(services_.backend.documentId(handle_), handle_, pageCount());
     selection_->setDocument(indexEntry_, pageCount());
     findBar_->setDocument(indexEntry_, pageCount(), selection_);
+    reflow_->attach(indexEntry_, pageCount());
     for (PageView* pane : split_->views()) handDocumentTo(pane);
 
     // S2 T15. A `pageDisplay/` change reaches every open tab, not only the one in front: a person
@@ -363,6 +375,58 @@ void DocumentWindow::build(const Recovery* recovery)
 PageView* DocumentWindow::view() const noexcept
 {
     return split_ ? split_->activeView() : nullptr;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reflow view (S5 T11, D5-16)
+// ---------------------------------------------------------------------------------------------
+
+bool DocumentWindow::isReflowing() const noexcept
+{
+    return reflow_ != nullptr && !reflow_->isHidden();
+}
+
+void DocumentWindow::setReflowing(bool on)
+{
+    if (reflow_ == nullptr || surface_ == nullptr || on == isReflowing()) return;
+    PageView* pane = view();
+
+    if (on) {
+        if (pane == nullptr || pageCount() <= 0 || indexEntry_ == 0) return;
+        // THE BLOCK AT THE TOP OF THE ACTIVE PANE: the page and the page-space height at its top edge, read
+        // where the pointer would read it (`pagePointAt`) -- in the middle of the edge, so a two-up spread
+        // answers the page a reader is in rather than the gutter.
+        const PagePoint top = pane->pagePointAt(QPoint(pane->viewport()->width() / 2, 0));
+        reflow_->showAt(top.isValid() ? top.page : pane->controller().currentPage(),
+                        top.isValid() ? top.point.y : 1.0e9);
+        surface_->hide();
+        reflow_->show();
+        reflow_->setFocus(Qt::OtherFocusReason);
+        emit reflowChanged(true);
+        return;
+    }
+
+    // BACK TO THE PAGE, AT THE REFLOW'S PLACE: the top of the block at the top of the reflow at the top of
+    // the pane. A place still on its way -- the page's text not here yet -- goes to its page.
+    const ReflowView::Place place = reflow_->place();
+    // THE FOCUS FOLLOWS ONLY IF THE REFLOW HAD IT: a find hit leaves reflow while the person is still typing
+    // in the find bar, and taking the focus from the field would send their next key to the page.
+    const bool hadFocus = reflow_->hasFocus();
+    reflow_->hide();
+    surface_->show();
+    if (pane != nullptr && place.page >= 0) {
+        const std::shared_ptr<const core::text::IndexedPage> held = services_.documentIndex.page(indexEntry_, place.page);
+        const std::shared_ptr<const core::text::PageReading> reading = held ? held->reading() : nullptr;
+        if (reading && place.block >= 0
+            && static_cast<std::size_t>(place.block) < reading->layout().blocks.size()) {
+            const core::PdfRect& box = reading->layout().blocks[static_cast<std::size_t>(place.block)].box;
+            pane->putPageHeightAtTop(place.page, std::max(box.top(), box.bottom()));
+        } else {
+            pane->goToPage(place.page);
+        }
+    }
+    if (pane != nullptr && hadFocus) pane->setFocus(Qt::OtherFocusReason);
+    emit reflowChanged(false);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -759,6 +823,12 @@ DocumentWindow::~DocumentWindow()
         disconnect(findBar_, nullptr, this, nullptr);
         delete findBar_;
         findBar_ = nullptr;
+    }
+
+    // THE REFLOW TOO (S5 T11): it holds text requests on this document's index entry.
+    if (reflow_ != nullptr) {
+        delete reflow_;
+        reflow_ = nullptr;
     }
 
     // THE SELECTION GOES BEFORE THE HANDLE CLOSES (S5 T5): it holds text tickets on this document and a

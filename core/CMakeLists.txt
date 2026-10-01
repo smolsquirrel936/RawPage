@@ -210,6 +210,10 @@ add_library(rawpage_core STATIC
     # its copy as plain text, HTML and a table. Pure -- the clipboard is ui/viewer/SelectionOverlay's.
     text/TextSelection.h
     text/TextSelection.cpp
+    # T11 (D5-16): a page as Reflow view shows it -- the analyzer's blocks as paragraphs, each knowing its
+    # page and block, and the block at the top of a page view. Pure; the surface is ui/viewer/ReflowView.
+    text/ReflowText.h
+    text/ReflowText.cpp
     # T6 (D5-4, D5-5): where extracted text LIVES -- one entry per document identity, shared by every
     # window over it, with its own budget -- and the search over it, matched on a worker of its own.
     text/DocumentIndex.h

@@ -100,6 +100,7 @@ class CommandJournal;
 namespace rawpage::ui {
 
 class PageView;
+class ReflowView;
 class RulerWidget;
 class FindReplaceBar;
 class SelectionOverlay;
@@ -258,6 +259,15 @@ public:
     // this tab searches (the find bar, T7).
     std::uint64_t indexEntry() const noexcept { return indexEntry_; }
 
+    // ---- REFLOW VIEW (S5 T11, D5-16) -----------------------------------------------------------------------
+    // `Ctrl+4`, per document window: the page surface (the split and its rulers) gives way to a read-only
+    // text surface of the analyzer's blocks, and back. ENTERING reads the block at the top of the active
+    // pane and shows the reflow there; LEAVING puts the block at the top of the reflow at the top of that
+    // pane. A find hit, or a bookmark hit, leaves reflow first (D5-16: find does not run inside it).
+    bool isReflowing() const noexcept;
+    void setReflowing(bool on);
+    ReflowView* reflow() const noexcept { return reflow_; }
+
     // THE FIND BAR (S5 T7, D5-14): one per tab, hidden until `Ctrl+F`. The `find.*` commands reach it
     // through this. Never null after `build()`.
     FindReplaceBar* findBar() const noexcept { return findBar_; }
@@ -333,6 +343,9 @@ signals:
     void selectionNotExtractable(int unmappedSkipped);
     void selectionCopyCancelled();
     void selectionPresenceChanged(bool hasSelection);
+
+    // S5 T11 -- Reflow view shown or left, so the chrome re-asks `view.reflow`'s checked state.
+    void reflowChanged(bool reflowing);
 
     // S5 T10 -- a snapshot from any pane of this tab reached the clipboard, or its raster failed;
     // forwarded from `PageView` for the same reason as the five above.
@@ -427,6 +440,12 @@ private:
 
     // S5 T7. A child, deleted EXPLICITLY in the destructor before the selection overlay it paints through.
     FindReplaceBar* findBar_ = nullptr;
+
+    // S5 T11. The page surface -- the split and its rulers -- and the reflow that takes its place. The reflow
+    // is a child, deleted EXPLICITLY in the destructor before the handle leaves the index: it holds text
+    // requests on this document's entry.
+    QWidget*    surface_ = nullptr;
+    ReflowView* reflow_ = nullptr;
 
     // The pane the rulers and the cursor readout are connected to. A raw pointer to a child, kept
     // only so the connections can be undone -- which is the whole of convention 10.

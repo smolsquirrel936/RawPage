@@ -89,6 +89,9 @@ add_executable(rawpage_tests
     tst_selection.cpp             # Stage 5 T5 -- core/text/TextSelection (D5-8, D5-9) on synthetic
                                   #   geometry: the arithmetic halves of guide A-43 ... A-47, A-49, A-21's
                                   #   copy and A-41's selection clause; the INK is tst_selecttool's
+    tst_reflowtext.cpp            # Stage 5 T11 -- core/text/ReflowText (D5-16): blocks as paragraphs in
+                                  #   reading order, the hyphen rule, unmapped glyphs, the block at the top
+                                  #   of a page view -- A-92's and A-93's headless halves
     tst_search.cpp                # Stage 5 T6 -- core/text/SearchEngine's MATCH (D5-5) on synthetic pages:
                                   #   every flag with its control, invalid patterns, line vs block, CJK,
                                   #   unmapped glyphs -- guide A-56 ... A-60, A-21's find half, A-41
