@@ -479,7 +479,8 @@ not a measurement; it is the half of the verdict no percentile could give.
 **A2 AT STAGE 5 — STAGE 5's WORKLOAD: text extraction on the one engine thread. Measured 2026-09-30,
 Stage 5 task T3, `rawpage_bench_pipeline --stage5`, two full runs. VERDICT: `go, with named custom
 work`** — graded on `Stage5-TextSearch-Testing-Guide.md` §3.1, the scale fixed before the run, and the
-verdict the user chose on 2026-09-30.
+verdict the user chose on 2026-09-30. **Re-graded `go` by the user on 2026-10-02, from T14's
+measurement below**; this block stays T3's record.
 
 D5-3 (`Stage5-TextSearch-Plan.md` §3) puts extracting a page's text on the render thread as a job of
 its own, in a fourth lane, `Background`; strict priority is not preemption, so a text job inside
@@ -570,9 +571,11 @@ because a column's p95 depends on how many rounds it covers. Two full runs:
 **Every column is inside 16.667 ms, and what the work adds over the viewer alone is −0.06 to +2.33 ms.**
 **Cross-document evictions 0** in every Stage 5 column, and the comparison's 1,800 rasters bypass the cache
 (the Stage 4 columns' two windows still show their 1,356, the finding recorded above). On §3.1's scale **each
-column grades `go`**. **The verdict recorded for A2 at Stage 5 stays T3's, `go, with named custom work`, the
-user's choice**, until the user re-grades it: its named work — a folder search opening each file in pieces on
-the engine thread — was built at T9 and is inside the budget here.
+column grades `go`**. **A2 AT STAGE 5 IS `go` — re-graded by the user on 2026-10-02 from this measurement**,
+over T3's `go, with named custom work`: its named work — a folder search opening each file in pieces on the
+engine thread — was built at T9 and is inside the budget here and in T3's own bench below. **Recorded with
+two caveats the verdict does not resolve:** that bench's two priority inversions a run, where T3 counted
+none, are not explained; and its worst single tiles reach 14.7–23.8 ms, where the scale grades the p95.
 
 **The bench took the wrong measurement four times before the right one, and each is recorded in the bench's
 header rather than smoothed.** *(1)* It had no catalog loaded, so every widget label was its KEY, and the find
