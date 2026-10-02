@@ -467,11 +467,15 @@ void ComparisonView::buildBar()
     row->addWidget(ignoreHeaderFooter_);
     row->addWidget(ignorePageNumbers_);
     row->addWidget(ignoreWhitespace_);
-    row->addStretch(1);
 
+    // THE STATUS TAKES THE SLACK AND NO WIDTH FROM ITS TEXT (Stage 5 guide I-11, the find bar's I-10 in this
+    // window): a progress line that asked for its width would make the window's minimum a function of it.
+    // It clips when the bar is narrow, and its tooltip holds the whole line.
     status_ = new QLabel(bar);
     status_->setObjectName(QStringLiteral("comparisonStatus"));
-    row->addWidget(status_);
+    status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    status_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    row->addWidget(status_, 1);
     cancelButton_ = new QPushButton(catalog::translate(catalog::key::CompareViewCancel), bar);
     cancelButton_->setObjectName(QStringLiteral("comparisonCancel"));
     connect(cancelButton_, &QPushButton::clicked, this, &ComparisonView::cancel);
@@ -525,6 +529,7 @@ int ComparisonView::partnerOf(CompareSide side, int page) const
 void ComparisonView::setStatus(const QString& text)
 {
     status_->setText(text);
+    status_->setToolTip(text);
     emit statusChanged(text);
 }
 

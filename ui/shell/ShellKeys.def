@@ -345,6 +345,8 @@ RAWPAGE_SHELL_STRING(SearchBarScopeDocument,    "search.bar.scope.document")
 RAWPAGE_SHELL_STRING(SearchBarScopeSelection,   "search.bar.scope.selection")
 RAWPAGE_SHELL_STRING(SearchBarScopePages,       "search.bar.scope.pages")
 RAWPAGE_SHELL_STRING(SearchBarRangePlaceholder, "search.bar.rangePlaceholder")
+// S5 T14 (guide I-10): the button the options collapse behind when the bar is narrow.
+RAWPAGE_SHELL_STRING(SearchBarMore,             "search.bar.more")
 // S5 T8 (D5-12): which of the four other content classes the current hit is in.
 RAWPAGE_SHELL_STRING(SearchBarInComment,        "search.bar.inComment")
 RAWPAGE_SHELL_STRING(SearchBarInField,          "search.bar.inField")

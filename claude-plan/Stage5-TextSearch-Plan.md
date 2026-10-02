@@ -445,11 +445,12 @@ that is yours:
   `Background` lane, which the flow does not show. **Flow C** gains the text job at T2. Stage 4 paid
   two flow updates a task late and wrote down that the list is what noticed.
 - `Tech-Stack-Plan.md` §3.3's A2 entry, at T3 and T14, kept in two blocks as Stage 4's were; §10's
-  **R1** row at T4.
+  **R1** row at T4. ✅ **The T14 block paid 2026-10-02**, beside T3's and not instead of it.
 - `Implementation-Plan.md` §8's **O7** row at T3.
 - **`CLAUDE.md`'s *What works today* and *deliberately absent* paragraphs**, re-derived at T14 from
   the product: `Select` selects, the unregistered count, the backend census **4 of 7**, the waiver
-  census **15**, and the fuzz target count **4** — each re-measured, none predicted here.
+  census **15**, and the fuzz target count **4** — each re-measured, none predicted here. ✅ **Paid at T14,
+  2026-10-02**, each figure re-measured that day (the status block's T14 row names the commands).
 
 ---
 

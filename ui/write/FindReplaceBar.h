@@ -53,6 +53,26 @@
 //
 // WHAT IT DOES NOT DO: stream hits while the index builds -- a first search shows its progress and its hits
 // arrive when it finishes (1.7 s for 900 dense pages, guide A-63).
+//
+// ---------------------------------------------------------------------------------------------
+// IT NEVER WIDENS THE WINDOW (Stage 5 guide I-10, T14)
+// ---------------------------------------------------------------------------------------------
+// Until T14 every control sat in one row that could not shrink -- three toggles labelled as their settings
+// are, *Highlight all*, the scope box, the buttons -- so the bar's minimum width was its whole row: 1,079
+// logical pixels on Windows, and opening it raised the main window's minimum from 468 to 1,102. Qt then
+// WIDENED the window to fit: measured on the `windows` platform, a 900-pixel window became 1,102 at
+// `Ctrl+F`, which cannot be snapped to half of a 1920 screen and, at 175 % on 1920x1080, is wider than the
+// screen. T14's bench found it, because its offscreen window could not be made A2's size with the bar open.
+//
+// **The options COLLAPSE, the way a ribbon group does** (`ui/shell/Ribbon.h`'s `RibbonGroup`): the three
+// toggles, *Highlight all*, the scope and the page range live in one container that sits in the row when
+// the bar has room and is RE-PARENTED into a popup behind a *More* button when it does not -- the same
+// widgets, never a second copy, so the toggles stay the settings either way. **The bar's minimum width is
+// therefore its essentials** -- the field, Previous, Next, More, Close -- and `minimumSizeHint` says so in
+// both states; a hysteresis band keeps it from flapping at the boundary. In the popup the options stack
+// vertically; `Alt+R`, `Alt+W` and `Alt+C` reach them there as anywhere in the bar, and `Esc` closes the
+// popup before a second `Esc` closes the bar. The status line may clip when narrow, and its tooltip holds
+// the whole of it.
 
 #ifndef RAWPAGE_UI_WRITE_FINDREPLACEBAR_H
 #define RAWPAGE_UI_WRITE_FINDREPLACEBAR_H
@@ -72,10 +92,13 @@
 #include <optional>
 #include <vector>
 
+class QBoxLayout;
 class QCheckBox;
 class QComboBox;
+class QHBoxLayout;
 class QLabel;
 class QLineEdit;
+class QResizeEvent;
 class QToolButton;
 
 namespace rawpage::ui {
@@ -128,6 +151,19 @@ public:
 
     QLineEdit* field() const noexcept { return field_; }
 
+    // ---- The collapse (guide I-10) ----------------------------------------------------------------
+    // Whether the options are behind *More* rather than in the row; the popup that holds them then; the
+    // button; and the width at which they come back into the row.
+    bool isCollapsed() const noexcept { return collapsed_; }
+    QWidget* optionsPopup() const noexcept { return popup_; }
+    QToolButton* moreButton() const noexcept { return more_; }
+    int expandedWidth() const;
+    // The band, in logical pixels, a collapsed bar must clear before the options come back -- the ribbon's.
+    static constexpr int kHysteresis = 16;
+
+    // THE ESSENTIALS, in either state -- which is what keeps the bar from setting the window's minimum.
+    QSize minimumSizeHint() const override;
+
 signals:
     // The document window reveals it in the pane a person is in.
     void hitActivated(int page, core::PdfRect rect);
@@ -136,7 +172,20 @@ signals:
     // Closed by `Esc` or its button: the window gives the focus back to the page.
     void closed();
 
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+
 private:
+    // The width of the row without the options: margins, the field's minimum, Previous, Next, the status
+    // line's `statusRoom` and Close, and the gaps between them.
+    int essentialsWidth(int statusRoom) const;
+    // The options' width laid out in a ROW, whichever way they are laid out now.
+    int optionsRowWidth() const;
+    void updateCollapse();
+    void setCollapsed(bool collapsed);
+    void showOptions();
+    void restoreTabOrder();
+
     void startSearch();
     void onProgress(const core::text::SearchEngine::Progress& progress);
     void onFinished(const core::text::SearchEngine::Outcome& outcome);
@@ -157,6 +206,13 @@ private:
     int pageCount_ = 0;
     QPointer<SelectionOverlay> overlay_;
     std::function<int()> currentPage_;
+
+    QHBoxLayout* row_ = nullptr;
+    QWidget* options_ = nullptr;          // the toggles, Highlight all, the scope and the range
+    QBoxLayout* optionsLayout_ = nullptr; // a row in the bar, a column in the popup
+    QWidget* popup_ = nullptr;            // holds `options_` while collapsed
+    QToolButton* more_ = nullptr;         // shown while collapsed; opens `popup_`
+    bool collapsed_ = false;
 
     QLineEdit* field_ = nullptr;
     QToolButton* previous_ = nullptr;

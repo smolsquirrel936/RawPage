@@ -3509,6 +3509,10 @@
         <translation>例如 3-5</translation>
     </message>
     <message>
+        <source>search.bar.more</source>
+        <translation>更多</translation>
+    </message>
+    <message>
         <source>search.bar.inComment</source>
         <translation>位於註解中</translation>
     </message>

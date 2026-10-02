@@ -231,8 +231,14 @@ rawpage_common_flags(rawpage_bench_openclose_ui)
 # synthetic request pattern issued before any pane existed, and it is quoted as such. A flag that
 # could print either number under one name would make available again the exact confusion D2-1's
 # two measurements exist to prevent.
+#
+# Stage 5 T14 (D5-22, guide A-112) added A2 AT STAGE 5's columns -- the find bar, the search pane and a
+# comparison, each started through the shipped surface over text-900.pdf -- and `app/Application.cpp`,
+# whose `loadTranslators` gives the widgets their English labels: with catalog KEYS for labels the find
+# bar was 2,966 px wide at its minimum and the viewport it left was not A2's.
 add_executable(rawpage_bench_surface
     bench_surface.cpp
+    ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/LogFile.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

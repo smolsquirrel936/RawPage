@@ -3509,6 +3509,10 @@
         <translation>e.g. 3-5</translation>
     </message>
     <message>
+        <source>search.bar.more</source>
+        <translation>More</translation>
+    </message>
+    <message>
         <source>search.bar.inComment</source>
         <translation>in a comment</translation>
     </message>

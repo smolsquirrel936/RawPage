@@ -9,13 +9,21 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QRegularExpression>
+#include <QResizeEvent>
+#include <QScreen>
 #include <QToolButton>
+#include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
+#include <utility>
 
 namespace rawpage::ui {
 namespace {
@@ -50,6 +58,47 @@ std::optional<std::pair<int, int>> parseRange(const QString& text, int pageCount
     return std::make_pair(first - 1, std::min(last, pageCount) - 1);
 }
 
+// THE POPUP THE OPTIONS MOVE INTO when the bar is narrow (guide I-10). A `Qt::Popup`, so a click outside
+// closes it -- and `Esc` closes it TOO, before the bar: the binder offers a key to the focused widget first
+// (`ShortcutBinder::resolveKey`'s `ShortcutOverride` probe, which propagates up to this window), so
+// accepting the probe for `Esc` leaves the key to the widget, and the key press the button ignores reaches
+// this window, which closes and hands the focus back (`onEscape`). Every other key is the binder's as
+// anywhere in the bar -- `Alt+R`, `Alt+W` and `Alt+C` included. The focus is handed back AFTER the close,
+// because closing a popup restores the focus Qt remembered from before it opened.
+class OptionsPopup : public QFrame {
+public:
+    explicit OptionsPopup(QWidget* parent) : QFrame(parent, Qt::Popup)
+    {
+        setFrameShape(QFrame::StyledPanel);
+    }
+
+    std::function<void()> onEscape;
+
+protected:
+    bool event(QEvent* event) override
+    {
+        if (event->type() == QEvent::ShortcutOverride && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape) {
+            event->accept();
+            return true;
+        }
+        return QFrame::event(event);
+    }
+
+    void keyPressEvent(QKeyEvent* event) override
+    {
+        if (event->key() != Qt::Key_Escape) {
+            QFrame::keyPressEvent(event);
+            return;
+        }
+        event->accept();
+        close();
+        if (onEscape) onEscape();
+    }
+};
+
+// The status line's room when the options are in the row -- what its minimum was before I-10.
+constexpr int kStatusRoom = 120;
+
 } // namespace
 
 FindReplaceBar::FindReplaceBar(app::Services services, QWidget* parent)
@@ -59,58 +108,90 @@ FindReplaceBar::FindReplaceBar(app::Services services, QWidget* parent)
     // §8's FIND / SEARCH TABLE APPLIES ANYWHERE INSIDE IT -- the field, the scope, the range, the buttons.
     ShortcutBinder::declareContext(this, core::KeyContext::FindSearch);
 
-    auto* row = new QHBoxLayout(this);
-    row->setContentsMargins(6, 3, 6, 3);
-    row->setSpacing(4);
+    row_ = new QHBoxLayout(this);
+    row_->setContentsMargins(6, 3, 6, 3);
+    row_->setSpacing(4);
 
     field_ = new QLineEdit(this);
     field_->setObjectName(QStringLiteral("findField"));
     field_->setPlaceholderText(catalog::translate(catalog::key::SearchBarPlaceholder));
     field_->setClearButtonEnabled(false);
     field_->setMinimumWidth(200);
-    row->addWidget(field_, 2);
+    row_->addWidget(field_, 2);
 
     previous_ = commandButton(this, ActionId::FindPrevious, catalog::translateAction(ActionId::FindPrevious));
     next_ = commandButton(this, ActionId::FindNext, catalog::translateAction(ActionId::FindNext));
-    row->addWidget(previous_);
-    row->addWidget(next_);
+    row_->addWidget(previous_);
+    row_->addWidget(next_);
+
+    // THE OPTIONS, ONE CONTAINER -- in the row when there is room, in the popup when there is not (I-10).
+    options_ = new QWidget(this);
+    options_->setObjectName(QStringLiteral("findOptions"));
+    optionsLayout_ = new QBoxLayout(QBoxLayout::LeftToRight, options_);
+    optionsLayout_->setContentsMargins(0, 0, 0, 0);
+    optionsLayout_->setSpacing(4);
 
     // THE TOGGLES, labelled as their settings are on the Search page -- they ARE those settings.
-    regex_ = commandButton(this, ActionId::FindToggleRegex,
+    regex_ = commandButton(options_, ActionId::FindToggleRegex,
                            catalog::translate(QStringLiteral("prefs.setting.search.useRegex")));
-    wholeWords_ = commandButton(this, ActionId::FindToggleWholeWords,
+    wholeWords_ = commandButton(options_, ActionId::FindToggleWholeWords,
                                 catalog::translate(QStringLiteral("prefs.setting.search.wholeWords")));
-    caseSensitive_ = commandButton(this, ActionId::FindToggleCaseSensitive,
+    caseSensitive_ = commandButton(options_, ActionId::FindToggleCaseSensitive,
                                    catalog::translate(QStringLiteral("prefs.setting.search.caseSensitive")));
     for (QToolButton* toggle : {regex_, wholeWords_, caseSensitive_}) {
         toggle->setCheckable(true);
-        row->addWidget(toggle);
+        optionsLayout_->addWidget(toggle);
     }
 
-    highlightAll_ = new QCheckBox(catalog::translate(catalog::key::SearchBarHighlightAll), this);
+    highlightAll_ = new QCheckBox(catalog::translate(catalog::key::SearchBarHighlightAll), options_);
     highlightAll_->setChecked(true);
-    row->addWidget(highlightAll_);
+    optionsLayout_->addWidget(highlightAll_);
 
-    scope_ = new QComboBox(this);
+    scope_ = new QComboBox(options_);
     scope_->addItem(catalog::translate(catalog::key::SearchBarScopeDocument));
     scope_->addItem(catalog::translate(catalog::key::SearchBarScopeSelection));
     scope_->addItem(catalog::translate(catalog::key::SearchBarScopePages));
-    row->addWidget(scope_);
+    optionsLayout_->addWidget(scope_);
 
-    range_ = new QLineEdit(this);
+    range_ = new QLineEdit(options_);
     range_->setObjectName(QStringLiteral("findRange"));
     range_->setPlaceholderText(catalog::translate(catalog::key::SearchBarRangePlaceholder));
     range_->setMaximumWidth(90);
     range_->setVisible(false);
-    row->addWidget(range_);
+    optionsLayout_->addWidget(range_);
+    row_->addWidget(options_);
+
+    // *MORE*, shown only while the options are behind it. A plain button rather than a command: it opens
+    // part of this bar, as a ribbon group's button opens its group.
+    more_ = new QToolButton(this);
+    more_->setObjectName(QStringLiteral("findMore"));
+    more_->setText(catalog::translate(catalog::key::SearchBarMore));
+    more_->setAutoRaise(true);
+    more_->setFocusPolicy(Qt::TabFocus);
+    more_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    more_->setVisible(false);
+    row_->addWidget(more_);
+
+    auto* popup = new OptionsPopup(this);
+    popup->setObjectName(QStringLiteral("findOptionsPopup"));
+    auto* popupLayout = new QVBoxLayout(popup);
+    popupLayout->setContentsMargins(6, 6, 6, 6);
+    // `Esc` gives the focus back to *More*; a click elsewhere leaves it where the click put it.
+    popup->onEscape = [this] {
+        if (collapsed_ && more_->isVisible()) more_->setFocus(Qt::PopupFocusReason);
+    };
+    popup_ = popup;
 
     status_ = new QLabel(this);
     status_->setObjectName(QStringLiteral("findStatus"));
-    status_->setMinimumWidth(120);
-    row->addWidget(status_, 1);
+    // NO MINIMUM (I-10): the room it is given in the row is `kStatusRoom`, counted in `expandedWidth`, and a
+    // narrow bar clips it rather than widening the window -- its tooltip holds the whole of it.
+    status_->setMinimumWidth(0);
+    row_->addWidget(status_, 1);
 
     close_ = commandButton(this, ActionId::FindClose, catalog::translateAction(ActionId::FindClose));
-    row->addWidget(close_);
+    row_->addWidget(close_);
+    connect(more_, &QToolButton::clicked, this, [this] { showOptions(); });
 
     // EVERY BUTTON DISPATCHES ITS COMMAND -- the same path `F3`, `Alt+R` and `Esc` take.
     connect(previous_, &QToolButton::clicked, this, [this] { dispatch(ActionId::FindPrevious); });
@@ -142,6 +223,9 @@ FindReplaceBar::FindReplaceBar(app::Services services, QWidget* parent)
     });
     connect(scope_, &QComboBox::currentIndexChanged, this, [this](int index) {
         range_->setVisible(index == static_cast<int>(Scope::Pages));
+        // The range widens the options, so the row may no longer hold them (I-10); in the popup it resizes.
+        updateCollapse();
+        if (collapsed_ && popup_->isVisible()) popup_->adjustSize();
         if (!field_->text().trimmed().isEmpty()) startSearch();
     });
     connect(range_, &QLineEdit::editingFinished, this, [this] {
@@ -158,6 +242,7 @@ FindReplaceBar::FindReplaceBar(app::Services services, QWidget* parent)
     refreshToggles();
     refreshButtons();
     updateStatus();
+    restoreTabOrder();
     setVisible(false);
 }
 
@@ -202,6 +287,8 @@ void FindReplaceBar::close()
 {
     debounce_.stop();
     session_.cancel();
+    // The popup is a window of its own: hiding the bar does not hide it.
+    popup_->hide();
     // EVERY HIGHLIGHT GOES (§8's `Esc`, guide A-72). The query and its results stay, so `Ctrl+F` again
     // shows them; the overlay is what the page paints, and it is empty.
     if (overlay_) overlay_->clearSearchHits();
@@ -406,7 +493,10 @@ void FindReplaceBar::showCurrent(bool reveal)
             if (hit.unit->destination.pageIndex >= 0) emit destinationActivated(hit.unit->destination);
             break;
         case core::text::ContentClass::Attachments:
-            // SELECTED, AND NOTHING OPENS (D5-12): the status line names the file; opening it is Stage 6's.            break;
+            // SELECTED, AND NOTHING OPENS (D5-12): the status line names the file; opening it is Stage 6's.
+            // (Until T14 this `break` sat at the end of the comment line above, so the case fell through to
+            // `default:` -- harmless only because an attachment hit has no rectangle on any page.)
+            break;
         default:
             // Page text, a comment, a field: the page and the rectangle.
             if (const std::optional<core::PdfRect> rect = overlay_->searchHitRect(hit)) emit hitActivated(hit.page, *rect);
@@ -506,6 +596,125 @@ void FindReplaceBar::updateStatus()
         if (failedPages_ > 0) parts << catalog::translate(catalog::key::SearchBarFailedPages).arg(failedPages_);
     }
     status_->setText(parts.join(QStringLiteral(" · ")));
+    // A narrow bar clips the line rather than widening the window (I-10); the tooltip holds all of it.
+    status_->setToolTip(status_->text());
+}
+
+// =====================================================================================================
+// The collapse (guide I-10)
+// =====================================================================================================
+
+int FindReplaceBar::essentialsWidth(int statusRoom) const
+{
+    const QMargins margins = row_->contentsMargins();
+    int width = margins.left() + margins.right() + field_->minimumWidth() + statusRoom;
+    for (const QWidget* button : {static_cast<const QWidget*>(previous_), static_cast<const QWidget*>(next_),
+                                  static_cast<const QWidget*>(close_)})
+        width += button->sizeHint().width();
+    // field | previous | next | status | close
+    return width + 4 * row_->spacing();
+}
+
+int FindReplaceBar::optionsRowWidth() const
+{
+    // From the widgets themselves, not from `options_->sizeHint()`: in the popup the options are a COLUMN,
+    // and the question is how wide they would be as a row.
+    int width = 0;
+    int shown = 0;
+    for (const QWidget* option : {static_cast<const QWidget*>(regex_), static_cast<const QWidget*>(wholeWords_),
+                                  static_cast<const QWidget*>(caseSensitive_), static_cast<const QWidget*>(highlightAll_),
+                                  static_cast<const QWidget*>(scope_), static_cast<const QWidget*>(range_)}) {
+        if (option->isHidden()) continue;
+        width += option->sizeHint().width();
+        ++shown;
+    }
+    return width + std::max(0, shown - 1) * optionsLayout_->spacing();
+}
+
+int FindReplaceBar::expandedWidth() const
+{
+    return essentialsWidth(kStatusRoom) + row_->spacing() + optionsRowWidth();
+}
+
+QSize FindReplaceBar::minimumSizeHint() const
+{
+    // In BOTH states: in the row, the options' own minimum would otherwise become the window's again.
+    const int width = essentialsWidth(0) + row_->spacing() + more_->sizeHint().width();
+    return {width, QWidget::minimumSizeHint().height()};
+}
+
+void FindReplaceBar::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+    updateCollapse();
+}
+
+void FindReplaceBar::updateCollapse()
+{
+    const int available = width();
+    if (!collapsed_ && available < expandedWidth()) {
+        setCollapsed(true);
+    } else if (collapsed_ && available >= expandedWidth() + kHysteresis) {
+        setCollapsed(false);
+    }
+}
+
+void FindReplaceBar::setCollapsed(bool collapsed)
+{
+    if (collapsed == collapsed_) return;
+    collapsed_ = collapsed;
+    // THE SAME WIDGETS MOVE, never a copy -- so the toggles stay the settings in either place.
+    if (collapsed) {
+        row_->removeWidget(options_);
+        optionsLayout_->setDirection(QBoxLayout::TopToBottom);
+        options_->setParent(popup_);
+        popup_->layout()->addWidget(options_);
+        options_->show();
+        more_->show();
+    } else {
+        popup_->hide();
+        popup_->layout()->removeWidget(options_);
+        optionsLayout_->setDirection(QBoxLayout::LeftToRight);
+        options_->setParent(this);
+        row_->insertWidget(row_->indexOf(more_), options_);
+        options_->show();
+        more_->hide();
+    }
+    restoreTabOrder();
+    updateGeometry();
+}
+
+void FindReplaceBar::showOptions()
+{
+    if (!collapsed_) return;
+    popup_->adjustSize();
+    // Below *More*, right-aligned to it, and kept on the screen it is on.
+    QPoint at = more_->mapToGlobal(QPoint(more_->width() - popup_->width(), more_->height()));
+    if (const QScreen* screen = more_->screen()) {
+        const QRect area = screen->availableGeometry();
+        at.setX(std::clamp(at.x(), area.left(), std::max(area.left(), area.right() - popup_->width())));
+        at.setY(std::clamp(at.y(), area.top(), std::max(area.top(), area.bottom() - popup_->height())));
+    }
+    popup_->move(at);
+    popup_->show();
+    regex_->setFocus(Qt::PopupFocusReason);
+}
+
+void FindReplaceBar::restoreTabOrder()
+{
+    // RE-PARENTING APPENDS A WIDGET TO THE END OF THE CHAIN (the ribbon's I-05), so the chain is set in
+    // VISUAL order after every move: the options in the row when they are there; *More* when they are not,
+    // and they chain among themselves inside the popup.
+    std::vector<QWidget*> chain{field_, previous_, next_};
+    const std::vector<QWidget*> options{regex_, wholeWords_, caseSensitive_, highlightAll_, scope_, range_};
+    if (collapsed_) {
+        chain.push_back(more_);
+        for (std::size_t at = 1; at < options.size(); ++at) QWidget::setTabOrder(options[at - 1], options[at]);
+    } else {
+        chain.insert(chain.end(), options.begin(), options.end());
+    }
+    chain.push_back(close_);
+    for (std::size_t at = 1; at < chain.size(); ++at) QWidget::setTabOrder(chain[at - 1], chain[at]);
 }
 
 } // namespace rawpage::ui

@@ -26,6 +26,9 @@
 #include "ui/viewer/ViewportController.h"
 #include "ui/write/FindReplaceBar.h"
 
+#include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -36,6 +39,7 @@
 #include <QToolButton>
 
 #include <memory>
+#include <vector>
 
 using namespace rawpage;
 using core::ActionId;
@@ -524,4 +528,194 @@ TEST_CASE("each tab keeps its own find bar and search", "[findbar][A-75]")
     CHECK_FALSE(second->findBar()->isOpen());
     CHECK(first->findBar()->hits().size() == 12);
     CHECK(second->selection()->searchHits().empty());
+}
+
+// =============================================================================================
+// Guide I-10 -- the bar never widens the window, and its options collapse behind More
+// =============================================================================================
+//
+// Until Stage 5 T14 the bar's minimum width was its whole row, so `Ctrl+F` raised the main window's minimum
+// and Qt WIDENED the window to it -- 900 to 1,102 logical pixels on the `windows` platform. Asserted on the
+// EFFECT (rule 1): the window's width after the bar opened from a key event, not the bar's size hint alone.
+//
+// WHAT IT CANNOT CLAIM (convention 19): it runs offscreen, whose font metrics are about twice the
+// `windows` platform's (measured at T14: an average character 12 px against 6), so the widths here are
+// not Windows' widths -- the property is relative (the bar does not raise the window's minimum), and it
+// holds in both. The popup's placement on a real screen is not asserted.
+
+namespace {
+
+// The widgets `Tab` visits from `start`, by key events to whatever has the focus.
+std::vector<QWidget*> tabOrderFrom(QWidget* start, int steps)
+{
+    std::vector<QWidget*> order;
+    start->setFocus(Qt::TabFocusReason);
+    QCoreApplication::processEvents();
+    order.push_back(QApplication::focusWidget());
+    for (int step = 0; step < steps; ++step) {
+        QWidget* focus = QApplication::focusWidget();
+        REQUIRE(focus != nullptr);
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+        QCoreApplication::sendEvent(focus, &press);
+        QKeyEvent release(QEvent::KeyRelease, Qt::Key_Tab, Qt::NoModifier);
+        QCoreApplication::sendEvent(focus, &release);
+        QCoreApplication::processEvents();
+        order.push_back(QApplication::focusWidget());
+    }
+    return order;
+}
+
+// `Esc` to whatever has the focus, as the keyboard sends it.
+void escapeFromFocus()
+{
+    QWidget* focus = QApplication::focusWidget();
+    REQUIRE(focus != nullptr);
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    press.ignore();
+    QCoreApplication::sendEvent(focus, &press);
+    QKeyEvent release(QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(focus, &release);
+    QCoreApplication::processEvents();
+}
+
+} // namespace
+
+TEST_CASE("opening the find bar never widens the window and its options collapse behind More", "[findbar][I-10]")
+{
+    Finder finder;
+    finder.find(QStringLiteral("line"));   // hits, so Previous and Next are enabled and take Tab
+    REQUIRE(finder.bar().hits().size() == 60);
+    REQUIRE(finder.key(Qt::Key_Escape));
+    REQUIRE_FALSE(finder.bar().isOpen());
+
+    // THE WINDOW AT ITS NARROWEST WITH THE BAR CLOSED.
+    const int closedMinimum = finder.window->minimumSizeHint().width();
+    finder.window->resize(closedMinimum, 850);
+    driveLayout(finder.window.get());
+    const int narrow = finder.window->width();
+    REQUIRE(narrow <= closedMinimum + 1);
+    INFO("the window at its narrowest " << narrow << " px; the bar's whole row would be "
+                                        << finder.bar().expandedWidth() << " px");
+
+    // `Ctrl+F` FROM THE PAGE, as a person opens it.
+    finder.view->setFocus(Qt::OtherFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(finder.key(Qt::Key_F, Qt::ControlModifier));
+    REQUIRE(finder.bar().isOpen());
+    driveLayout(finder.window.get());
+
+    // THE EFFECT: the window kept its width, and its minimum did not rise.
+    CHECK(finder.window->width() == narrow);
+    CHECK(finder.window->minimumSizeHint().width() <= closedMinimum);
+    CHECK(finder.bar().width() < finder.bar().expandedWidth());
+
+    // THE OPTIONS ARE BEHIND MORE -- the same buttons, in the popup.
+    REQUIRE(finder.bar().isCollapsed());
+    QToolButton* more = finder.bar().moreButton();
+    REQUIRE(more != nullptr);
+    CHECK(more->isVisible());
+    const auto buttonFor = [&finder](ActionId id) -> QToolButton* {
+        for (QToolButton* button : finder.bar().findChildren<QToolButton*>())
+            if (button->toolTip() == ui::catalog::translateAction(id)) return button;
+        return nullptr;
+    };
+    QToolButton* regex = buttonFor(ActionId::FindToggleRegex);
+    QToolButton* wholeWords = buttonFor(ActionId::FindToggleWholeWords);
+    QToolButton* caseSensitive = buttonFor(ActionId::FindToggleCaseSensitive);
+    REQUIRE(regex != nullptr);
+    REQUIRE(wholeWords != nullptr);
+    REQUIRE(caseSensitive != nullptr);
+    QWidget* popup = finder.bar().optionsPopup();
+    REQUIRE(popup != nullptr);
+    CHECK(popup->isAncestorOf(regex));
+    CHECK_FALSE(regex->isVisible());
+
+    // *MORE* OPENS THEM, and the toggles there are still the settings: a click writes one, and `Alt+W` with
+    // the focus in the popup writes another -- the binder reaches it as anywhere in the bar.
+    more->click();
+    QCoreApplication::processEvents();
+    REQUIRE(popup->isVisible());
+    CHECK(regex->isVisible());
+    // A COLUMN, not the row again -- which could be wider than the screen a narrow window is on.
+    CHECK(wholeWords->geometry().left() == regex->geometry().left());
+    CHECK(wholeWords->geometry().top() > regex->geometry().bottom());
+    CHECK(caseSensitive->geometry().top() > wholeWords->geometry().bottom());
+    regex->click();
+    CHECK(finder.fixture.settings.get(core::keys::search::useRegex));
+    CHECK(regex->isChecked());
+    finder.fixture.settings.set(core::keys::search::useRegex, false);
+    CHECK_FALSE(regex->isChecked());
+
+    REQUIRE(QApplication::focusWidget() != nullptr);
+    REQUIRE(popup->isAncestorOf(QApplication::focusWidget()));
+    {
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_W, Qt::AltModifier);
+        press.ignore();
+        QCoreApplication::sendEvent(QApplication::focusWidget(), &press);
+        QKeyEvent release(QEvent::KeyRelease, Qt::Key_W, Qt::AltModifier);
+        QCoreApplication::sendEvent(QApplication::focusWidget(), &release);
+        QCoreApplication::processEvents();
+        CHECK(press.isAccepted());
+    }
+    CHECK(finder.fixture.settings.get(core::keys::search::wholeWords));
+    CHECK(wholeWords->isChecked());
+    finder.fixture.settings.set(core::keys::search::wholeWords, false);
+    finder.settle();   // each toggle ran the search again; closing the bar mid-search would cancel it
+
+    // `ESC` CLOSES THE POPUP FIRST, AND THE BAR ONLY ON THE SECOND -- with the focus back on More between.
+    escapeFromFocus();
+    CHECK_FALSE(popup->isVisible());
+    CHECK(finder.bar().isOpen());
+    CHECK(QApplication::focusWidget() == more);
+    escapeFromFocus();
+    CHECK_FALSE(finder.bar().isOpen());
+
+    // `TAB`, COLLAPSED: the field, Previous, Next, More, Close -- the options are not in the row's chain.
+    finder.view->setFocus(Qt::OtherFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(finder.key(Qt::Key_F, Qt::ControlModifier));
+    driveLayout(finder.window.get());
+    REQUIRE(finder.bar().hits().size() == 60);
+    REQUIRE(finder.bar().isCollapsed());
+    QToolButton* previous = buttonFor(ActionId::FindPrevious);
+    QToolButton* next = buttonFor(ActionId::FindNext);
+    QToolButton* close = buttonFor(ActionId::FindClose);
+    REQUIRE(previous != nullptr);
+    REQUIRE(next != nullptr);
+    REQUIRE(close != nullptr);
+    REQUIRE(previous->isEnabled());
+    const std::vector<QWidget*> collapsedOrder = tabOrderFrom(finder.bar().field(), 4);
+    CHECK(collapsedOrder == std::vector<QWidget*>{finder.bar().field(), previous, next, more, close});
+
+    // WIDER: the options come back to the row only past the hysteresis band, and not inside it.
+    const int chrome = finder.window->width() - finder.bar().width();
+    const auto barWidth = [&](int width) {
+        finder.window->resize(width + chrome, 850);
+        driveLayout(finder.window.get());
+        REQUIRE(finder.bar().width() == width);
+    };
+    const int expanded = finder.bar().expandedWidth();
+    barWidth(expanded + ui::FindReplaceBar::kHysteresis - 1);
+    CHECK(finder.bar().isCollapsed());
+    barWidth(expanded + ui::FindReplaceBar::kHysteresis);
+    CHECK_FALSE(finder.bar().isCollapsed());
+    CHECK_FALSE(more->isVisible());
+    CHECK(regex->isVisible());
+    CHECK(finder.bar().isAncestorOf(regex));
+    CHECK_FALSE(popup->isAncestorOf(regex));
+    barWidth(expanded);
+    CHECK_FALSE(finder.bar().isCollapsed());   // inside the band: no flap
+    barWidth(expanded - 1);
+    CHECK(finder.bar().isCollapsed());
+    barWidth(expanded + ui::FindReplaceBar::kHysteresis);
+    REQUIRE_FALSE(finder.bar().isCollapsed());
+
+    // `TAB`, IN THE ROW: the options in visual order between Next and Close.
+    QCheckBox* highlightAll = finder.bar().findChild<QCheckBox*>();
+    QComboBox* scope = finder.bar().findChild<QComboBox*>();
+    REQUIRE(highlightAll != nullptr);
+    REQUIRE(scope != nullptr);
+    const std::vector<QWidget*> expandedOrder = tabOrderFrom(finder.bar().field(), 8);
+    CHECK(expandedOrder == std::vector<QWidget*>{finder.bar().field(), previous, next, regex, wholeWords,
+                                                 caseSensitive, highlightAll, scope, close});
 }

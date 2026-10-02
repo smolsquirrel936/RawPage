@@ -49,7 +49,46 @@
 //     of the same name was two 1920x1080 viewports in a harness; this one is `window.new`, a real
 //     second `MainWindow` with its own handle (D4-17), raised so the first is in front.
 //   * It never fails on speed. Its exit code is about whether the measurement was POSSIBLE.
+//
+// ---------------------------------------------------------------------------------------------
+// A2 AT STAGE 5, RE-READ THROUGH THE SHIPPED SURFACES -- Stage 5 T14, decision D5-22; guide case
+// A-112 (`Stage5-TextSearch-Testing-Guide.md` §5.16)
+// ---------------------------------------------------------------------------------------------
+// T3 measured Stage 5's workload with `bench_pipeline --stage5` BEFORE any surface queued text, and
+// it issued that work itself: a whole viewport at `Visible` each round, 32 text jobs at a time
+// behind it. This is the second reading D5-22 asked for, the same way the Stage 4 columns above are
+// T2's: the work behind the viewport is started through the SHIPPED surface -- the find bar's field
+// typed into key by key (`ui/write/FindReplaceBar`), the Advanced Search pane's own `search()` over
+// a folder (`ui/panes/SearchPane`), `MainWindow::compareDocuments` as the Compare dialog's OK calls
+// it (`ui/viewer/ComparisonView`) -- and every text job, open piece and raster behind it is the
+// product's own, at the lane and the pace the product chose.
+//
+// **The graded samples are the tiles delivered WHILE THE WORK RAN**, and only those: a column
+// whose search finished in its second round and then scrolled ten more over an idle engine would
+// otherwise be graded mostly on the idle part. A Stage 5 column keeps scrolling until its work is
+// done (and at least the column's rounds), and repeats from a fresh composition, so the graded
+// figure pools every repetition's busy samples; the whole column is printed beside it.
+//
+// Its own bounds, beside the ones above:
+//   * **The comparison column waits for its window's FIRST FILL before it scrolls.** The comparison
+//     opens a window of its own whose two panes ask for their first page at `Visible`, ahead of the main
+//     viewport's tiles. That is a document opening, which every column keeps out of its figure (the
+//     settle), so it is waited for with the main window still and reported on a line of its own. Its
+//     first readings at T14 were ~25 ms, and two things were behind them: that fill inside the grade,
+//     and guide I-11 -- the comparison's window WIDENING under its growing progress line, so both panes
+//     re-fitted and re-rasterized five times. After the fill, the main window goes on scrolling, which a
+//     person looking at the comparison would not be doing, so the graded figure is an upper bound on what
+//     that person sees.
+//   * **Each work column is printed beside the viewer ALONE over the same rounds.** A column's p95
+//     depends on how many rounds it is taken over -- the first rounds after the settle carry the slowest
+//     tiles -- and the work columns run for different lengths, so the text viewer runs
+//     `kStage5BaselineRounds` and is cut to each column's length to be its control.
+//   * **The folder is a scratch copy of the corpus**, as T3's was, so the search does not depend on
+//     whose machine runs it.
+//   * T3 also counted priority inversions and the longest piece; those need the job stamps only the
+//     pipeline bench owns, and are T3's and T9's figures, not re-measured here.
 
+#include "app/Application.h"
 #include "app/CompositionRoot.h"
 
 #include "core/Log.h"
@@ -59,22 +98,33 @@
 #include "core/render/RenderScheduler.h"
 #include "core/settings/Settings.h"
 #include "core/settings/SettingsSchema.h"
+#include "core/text/CompareSensitivity.h"
+#include "core/text/DocumentComparer.h"
 
+#include "ui/dialogs/CompareDialog.h"
+#include "ui/panes/SearchPane.h"
 #include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/SidebarDock.h"
+#include "ui/viewer/ComparisonView.h"
 #include "ui/viewer/LoupeRaster.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/SplitViewContainer.h"
+#include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/ViewportController.h"
+#include "ui/write/FindReplaceBar.h"
 
 #include <QApplication>
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
+#include <QDirIterator>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
+#include <QKeyEvent>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QString>
 #include <QStringList>
@@ -84,7 +134,10 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <memory>
+#include <string>
 #include <vector>
 
 using namespace rawpage;
@@ -147,12 +200,17 @@ double percentile(std::vector<double> samples, double fraction)
 // Run the event loop for `milliseconds`, which is how a tile gets from a worker to a subscriber in
 // this product: the worker wakes, `CompositionRoot` posts `deliverReady()`, and the queued call
 // runs here. A `processEvents` without a deadline returns before the worker has finished.
-void pump(int milliseconds)
+//
+// `everySlice` runs after each slice (Stage 5 T14): a Stage 5 column re-reads there whether its
+// work is still running, so a tile delivered in the next slice is filed on the right side of the
+// moment the work finished, to within one slice.
+void pump(int milliseconds, const std::function<void()>& everySlice = {})
 {
     QElapsedTimer timer;
     timer.start();
     do {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        if (everySlice) everySlice();
     } while (timer.elapsed() < milliseconds);
 }
 
@@ -160,18 +218,34 @@ struct Samples {
     std::vector<double> visible;
     std::vector<double> prefetch;
     std::vector<double> speculative;
+    // Stage 5 T14: the VISIBLE tiles delivered while the column's text work was running -- the
+    // graded subset of `visible` for a Stage 5 column.
+    std::vector<double> visibleWhileBusy;
+    bool busy = false;
+    // THE ROUND each visible tile arrived in, so a Stage 5 work column can be set beside the viewer ALONE
+    // over the same rounds: a column's p95 depends on how many rounds it is taken over (the first rounds
+    // after the settle carry the slowest tiles), and the work columns run for different lengths.
+    int round = 0;
+    std::vector<std::pair<int, double>> visibleByRound;
 
     void clear()
     {
         visible.clear();
         prefetch.clear();
         speculative.clear();
+        visibleWhileBusy.clear();
+        visibleByRound.clear();
+        round = 0;
     }
 
     void add(RenderPriority lane, double ms)
     {
         switch (lane) {
-        case RenderPriority::Visible:     visible.push_back(ms); break;
+        case RenderPriority::Visible:
+            visible.push_back(ms);
+            if (busy) visibleWhileBusy.push_back(ms);
+            visibleByRound.emplace_back(round, ms);
+            break;
         case RenderPriority::Prefetch:    prefetch.push_back(ms); break;
         case RenderPriority::Speculative: speculative.push_back(ms); break;
         // Stage 5 T2 (D5-3): the lane below Speculative. The probe reports TILES only, and no
@@ -179,6 +253,14 @@ struct Samples {
         case RenderPriority::Background:  break;
         }
     }
+};
+
+// Stage 5 T14 (D5-22, guide A-112): the text work a Stage 5 column starts through a shipped surface.
+enum class TextWork {
+    None,
+    Find,      // the find bar's FIRST search of `text-900.pdf`, which builds its index at `Background`
+    Folder,    // the Advanced Search pane over a scratch copy of the corpus
+    Compare,   // a comparison of `text-900.pdf` with itself at *appearance*: every page's text and raster
 };
 
 struct Column {
@@ -190,6 +272,36 @@ struct Column {
     // re-rasterizations are enqueued in the Visible lane beside the viewport's and are INSIDE the
     // graded figure rather than beside it.
     bool loupe = false;
+    // Stage 5 T14: the document scrolled (`pages-900.pdf` for Stage 4's columns, `text-900.pdf` --
+    // T3's -- for Stage 5's) and the work behind it.
+    const char* document = "ordinary/pages-900.pdf";
+    TextWork work = TextWork::None;
+    bool stage5 = false;
+};
+
+// The longest a Stage 5 column scrolls waiting for its work to finish, in rounds: two minutes at
+// the default pace. A column that reaches it says so rather than grading a truncated run.
+constexpr int kMaxBusyRounds = 300;
+
+// A query with ONE hit, on the last page (`corpus/make-text.py`'s marker): the find bar takes the
+// view to its current hit, and a hit found early would move the scroll before the index was built.
+const QString kFindQuery = QStringLiteral("unique-page-0900");
+// The folder search's query, T3's and T9's.
+const QString kFolderQuery = QStringLiteral("RawPage");
+
+// The text viewer's rounds -- long enough that every work column has the viewer ALONE over as many rounds
+// as its work ran (the comparison's ran 26 at T14), which is the control it is printed beside.
+constexpr int kStage5BaselineRounds = 40;
+
+// One graded figure, pooled over a column's repetitions.
+struct Pooled {
+    std::vector<double> graded;
+    std::vector<double> all;
+    std::vector<double> perRunP95;
+    std::vector<double> workMs;
+    std::vector<int> busyRoundsPerRun;
+    int busyRounds = 0;
+    std::vector<std::pair<int, double>> byRound;   // the text viewer's: its control for the others
 };
 
 } // namespace
@@ -207,288 +319,618 @@ int main(int argc, char** argv)
     if (qEnvironmentVariableIsEmpty("QT_SCALE_FACTOR"))
         qputenv("QT_SCALE_FACTOR", QByteArray::number(kA2MonitorScale));
 
-    QApplication application(argc, argv);
+    // THE PRODUCT'S APPLICATION, AND ITS ENGLISH CATALOG -- Stage 5 T14. Until then this bench ran a
+    // bare `QApplication` with no catalog, so every label was its catalog KEY, and the find bar's
+    // keys (`prefs.setting.search.caseSensitive` and five like it) made its minimum width 2,966
+    // logical pixels: the window could not be narrower, and the `+ find` column reached a 4428x1080
+    // viewport -- a different workload, measured and caught on its first run. The shipped labels are
+    // a word each. Loaded as `app/main.cpp` loads them, and the run refused without it.
+    app::Application application(argc, argv);
+    application.loadTranslators(QStringLiteral("en"), QString());
+    if (application.loadedCatalogs().isEmpty()) {
+        std::fprintf(stderr, "surface: no catalog under %s -- every label would be its key\n",
+                     app::Application::catalogDirectory().toStdString().c_str());
+        return 1;
+    }
+    // NOTE what the catalog does NOT fix offscreen: that platform's font metrics are about TWICE the
+    // `windows` platform's (measured at T14: an average character 12 px against 6, with Segoe UI 9 pt
+    // set or not), so chrome laid out here is wider than on Windows. It is why a find bar whose minimum
+    // was its whole row (guide I-10) could not leave A2's viewport offscreen at all -- and the line
+    // printed when the bar opens says what the bar and the window ask for now.
 
     int rounds = 12;
     int pumpMs = 400;
+    int repeats = 3;   // Stage 5 columns only; Stage 4's run once each, as they did at its T14
     QString only;
+    bool stage4Only = false;
+    bool stage5Only = false;
+    // An ATTRIBUTION switch, not a workload: the comparison at *text only*, which asks for no raster,
+    // so its difference from the shipped column is what the 72-dpi rasters cost the viewport.
+    bool comparisonTextOnly = false;
     const QStringList arguments = QCoreApplication::arguments();
     for (int at = 1; at < arguments.size(); ++at) {
         const QString& argument = arguments.at(at);
         const bool hasValue = at + 1 < arguments.size();
         if (argument == QLatin1String("--native")) continue;
+        if (argument == QLatin1String("--stage4")) { stage4Only = true; continue; }
+        if (argument == QLatin1String("--stage5")) { stage5Only = true; continue; }
+        if (argument == QLatin1String("--comparison-text-only")) { comparisonTextOnly = true; continue; }
         if (argument == QLatin1String("--pump") && hasValue) { pumpMs = arguments.at(++at).toInt(); continue; }
+        if (argument == QLatin1String("--repeat") && hasValue) { repeats = std::max(1, arguments.at(++at).toInt()); continue; }
         if (argument == QLatin1String("--only") && hasValue) { only = arguments.at(++at); continue; }
         bool numeric = false;
         const int value = argument.toInt(&numeric);
         if (numeric && value > 0) rounds = value;
     }
 
-    const QString document = corpusFile("ordinary/pages-900.pdf");
-    if (!QFileInfo::exists(document)) {
-        std::fprintf(stderr, "surface: %s is not there\n", document.toStdString().c_str());
-        return 1;
+    for (const char* relative : {"ordinary/pages-900.pdf", "ordinary/text-900.pdf"}) {
+        if (!QFileInfo::exists(corpusFile(relative))) {
+            std::fprintf(stderr, "surface: %s is not there\n", corpusFile(relative).toStdString().c_str());
+            return 1;
+        }
     }
 
-    std::printf("\nA2 AT STAGE 4, RE-READ THROUGH THE SHIPPED PANES -- T14, D4-16 (guide A-72)\n");
-    std::printf("    %s, %d round(s), %d ms of event loop a round, platform %s\n",
-                QFileInfo(document).fileName().toStdString().c_str(), rounds, pumpMs,
-                QGuiApplication::platformName().toStdString().c_str());
+    std::printf("\nA2 THROUGH THE SHIPPED SURFACES -- Stage 4 T14 (D4-16, its guide A-72) and Stage 5 T14"
+                " (D5-22, its guide A-112)\n");
+    std::printf("    %d round(s), %d ms of event loop a round, Stage 5 columns %d time(s) each, platform %s\n",
+                rounds, pumpMs, repeats, QGuiApplication::platformName().toStdString().c_str());
     std::printf("    A2's configuration, ASKED FOR: %.0f dpi over a %dx%d device-pixel viewport."
                 " What each column REACHED is printed with it.\n",
                 kA2Dpi, kDeviceViewportWidth, kDeviceViewportHeight);
+    std::printf("    font: %s %.1f pt\n", QApplication::font().family().toStdString().c_str(),
+                QApplication::font().pointSizeF());
     std::printf("    The graded quantity is the VISIBLE lane's p95 queued latency -- the window a\n"
                 "    person is looking at. Speculative (thumbnails) and Prefetch (a background\n"
-                "    window, T11's named work) are reported beside it and are NOT graded.\n");
+                "    window, T11's named work) are reported beside it and are NOT graded. A Stage 5\n"
+                "    column grades only the tiles delivered WHILE ITS TEXT WORK RAN.\n");
 
-    const Column columns[] = {
+    Column columns[9] = {
         {"viewer",       false, false, false},
         {"+ split",      true,  false, false},
         {"+ pane",       true,  true,  false},
         {"two windows",  true,  true,  true },
         {"+ loupe",      false, false, false, true},
+        {"text viewer"},
+        {"+ find"},
+        {"+ folder search"},
+        {"+ comparison"},
     };
+    const TextWork stage5Work[] = {TextWork::None, TextWork::Find, TextWork::Folder, TextWork::Compare};
+    for (int at = 0; at < 4; ++at) {
+        columns[5 + at].document = "ordinary/text-900.pdf";
+        columns[5 + at].work = stage5Work[at];
+        columns[5 + at].stage5 = true;
+    }
+
+    // THE FOLDER, ONCE: a scratch copy of the corpus tree, as T3's and T9's folder column searched,
+    // because a search over the tester's own files would depend on them (`Stage5-TextSearch-Plan.md`
+    // §5.6). Copied only when the folder column will run.
+    QTemporaryDir folderScratch;
+    int folderFiles = 0;
+    if (!stage4Only && (only.isEmpty() || only == QLatin1String("+ folder search"))) {
+        if (!folderScratch.isValid()) {
+            std::fprintf(stderr, "surface: no scratch directory for the folder\n");
+            return 1;
+        }
+        const QDir corpus(QStringLiteral(RAWPAGE_CORPUS_DIR));
+        QDirIterator walk(corpus.absolutePath(), QStringList{QStringLiteral("*.pdf")}, QDir::Files,
+                          QDirIterator::Subdirectories);
+        while (walk.hasNext()) {
+            const QString source = walk.next();
+            const QString target = folderScratch.filePath(corpus.relativeFilePath(source));
+            QDir().mkpath(QFileInfo(target).absolutePath());
+            if (QFile::copy(source, target)) ++folderFiles;
+        }
+        std::printf("    folder: a scratch copy of the corpus tree, %d PDFs, nested\n", folderFiles);
+    }
 
     double viewerP95 = 0.0;
     double splitP95 = 0.0;
     double paneP95 = 0.0;
     double twoWindowP95 = 0.0;
     double loupeP95 = 0.0;
+    std::map<std::string, Pooled> pooled;
     bool measuredAll = true;
 
     for (const Column& column : columns) {
         if (!only.isEmpty() && only != QLatin1String(column.label)) continue;
+        if (stage4Only && column.stage5) continue;
+        if (stage5Only && !column.stage5) continue;
+        const QString document = corpusFile(column.document);
+        const int runs = column.stage5 ? repeats : 1;
+        for (int run = 0; run < runs; ++run) {
 
-        // A COMPOSITION PER COLUMN, torn down between them. One cache and one scheduler carried
-        // across the four would make every column after the first a measurement of how warm the
-        // cache was left by the one before it -- which is a real property of the product and is
-        // not the property being compared here.
-        QTemporaryDir scratch;
-        if (!scratch.isValid()) {
-            std::fprintf(stderr, "surface: no scratch directory\n");
-            return 1;
-        }
-        app::CompositionRoot::Options options;
-        options.settingsPath = QDir(scratch.path()).filePath(QStringLiteral("settings.ini"));
-        options.sessionPath  = QDir(scratch.path()).filePath(QStringLiteral("session.json"));
-        options.recoveryRoot = QDir(scratch.path()).filePath(QStringLiteral("recovery"));
-        app::CompositionRoot root(std::move(options));
-        root.settings().set(core::keys::logging::level, core::LogLevel::Error);
-
-        Samples samples;
-        root.renderScheduler().setLatencyProbe(
-            [&samples](RenderPriority lane, double ms) { samples.add(lane, ms); });
-
-        auto window = std::make_unique<ui::MainWindow>(root.services());
-        window->resize(static_cast<int>(kDeviceViewportWidth / kA2MonitorScale),
-                       static_cast<int>(kDeviceViewportHeight / kA2MonitorScale));
-        window->show();
-        window->openFiles({document});
-        if (window->documentCount() != 1) {
-            std::fprintf(stderr, "surface: %s did not open\n", document.toStdString().c_str());
-            return 1;
-        }
-        ui::DocumentWindow* tab = window->currentDocument();
-
-        if (column.split && tab->split() != nullptr)
-            tab->split()->setMode(ui::SplitViewContainer::Mode::Horizontal);
-
-        // THE PANE IS THERE UNLESS THIS COLUMN HIDES IT, and that is a correction rather than a
-        // refinement. A `MainWindow` is built with the sidebar OPEN and `SidebarDock::addPane`
-        // shows the first pane registered -- which is Thumbnails (T5). So the first two columns of
-        // this bench had a live thumbnails pane in them, the `+ pane` column added nothing, and the
-        // three figures were three measurements of the same workload. Hiding it is what makes the
-        // column mean what its label says.
-        if (window->sidebar() != nullptr) {
-            if (column.pane) {
-                window->sidebar()->show();
-                window->sidebar()->showPane(core::ActionId::PaneThumbnails);
-            } else {
-                window->sidebar()->hide();
-            }
-        }
-
-        // A2'S RESOLUTION, ON EVERY PANE OF EVERY WINDOW. The zoom is solved from what this rig's
-        // screen actually reports (see the constants above), and set after the split exists so both
-        // panes get it. `setZoom` is the product's own path -- the same call `Ctrl+=` makes.
-        double a2Zoom = 1.0;
-        if (const ui::PageView* pane = tab->view()) {
-            const double dpiAtCurrentZoom = pane->layoutEngine().resolution().dpi;
-            const double zoomNow = pane->controller().zoom().factor;
-            if (dpiAtCurrentZoom > 0.0 && zoomNow > 0.0)
-                a2Zoom = kA2Dpi * zoomNow / dpiAtCurrentZoom;
-        }
-        const auto zoomAll = [a2Zoom](ui::MainWindow* shell) {
-            if (shell == nullptr) return;
-            ui::DocumentWindow* current = shell->currentDocument();
-            if (current == nullptr || current->split() == nullptr) return;
-            for (ui::PageView* pane : current->split()->views())
-                pane->setZoom(core::render::Zoom{a2Zoom}.clamped());
-        };
-        zoomAll(window.get());
-
-        // AND GROW THE WINDOW UNTIL THE VIEWPORT IS A2's, or until the platform stops giving. Two
-        // passes, because the ribbon and the status bar take their height from the first layout.
-        for (int attempt = 0; attempt < 2; ++attempt) {
-            const ui::PageView* pane = tab->view();
-            if (pane == nullptr) break;
-            const double haveWidth = pane->controller().visibleRect().size.width;
-            const double haveHeight = pane->controller().visibleRect().size.height;
-            if (haveWidth >= kDeviceViewportWidth && haveHeight >= kDeviceViewportHeight) break;
-            const int growX = static_cast<int>((kDeviceViewportWidth - haveWidth) / kA2MonitorScale);
-            const int growY = static_cast<int>((kDeviceViewportHeight - haveHeight) / kA2MonitorScale);
-            window->resize(window->width() + std::max(0, growX),
-                           window->height() + std::max(0, growY));
-            pump(60);
-        }
-
-        ui::MainWindow* second = nullptr;
-        if (column.secondWindow) {
-            const core::Result<ui::MainWindow*> opened = window->openSecondView();
-            if (!opened) {
-                std::fprintf(stderr, "surface: window.new refused -- %s\n",
-                             opened.error().messageKey.data());
+            // A COMPOSITION PER COLUMN, torn down between them. One cache and one scheduler carried
+            // across the four would make every column after the first a measurement of how warm the
+            // cache was left by the one before it -- which is a real property of the product and is
+            // not the property being compared here.
+            QTemporaryDir scratch;
+            if (!scratch.isValid()) {
+                std::fprintf(stderr, "surface: no scratch directory\n");
                 return 1;
             }
-            second = opened.value();
-            // THE SAME SIZE THE FIRST WINDOW ENDED UP AT, not the size it was asked for: the first
-            // was grown above until its viewport reached A2's, and a second window a third smaller
-            // would make "two windows" mean two different workloads.
-            second->resize(window->size());
-            second->show();
+            app::CompositionRoot::Options options;
+            options.settingsPath = QDir(scratch.path()).filePath(QStringLiteral("settings.ini"));
+            options.sessionPath  = QDir(scratch.path()).filePath(QStringLiteral("session.json"));
+            options.recoveryRoot = QDir(scratch.path()).filePath(QStringLiteral("recovery"));
+            app::CompositionRoot root(std::move(options));
+            root.settings().set(core::keys::logging::level, core::LogLevel::Error);
 
-            // AND THE FIRST IS RAISED, which is what makes the first window the one in front and
-            // the second a BACKGROUND window whose viewport queues at `Prefetch` (T11's named
-            // work). `raiseToForeground()` sets the active shell directly and refreshes the lanes,
-            // because offscreen no activation event ever arrives -- `MainWindow.cpp` says so at
-            // the call it makes for the same reason.
-            zoomAll(second);
-            window->raiseToForeground();
-        }
+            Samples samples;
+            root.renderScheduler().setLatencyProbe(
+                [&samples](RenderPriority lane, double ms) { samples.add(lane, ms); });
 
-        // THE RESOLUTION ACTUALLY REACHED, printed rather than assumed. If the scale factor did
-        // not take -- a platform that ignores it, a `QT_SCALE_FACTOR` already in the environment --
-        // this line is what says so, instead of a comparison quietly being made against a
-        // different workload. It is the mistake this bench made on its first run.
-        if (const ui::PageView* pane = tab->view()) {
-            std::printf("    resolution: %.1f dpi at zoom %.0f %% (device scale %.2f), viewport"
-                        " %.0fx%.0f device px -- A2's is 288.0 dpi over 1920x1080\n",
-                        pane->layoutEngine().resolution().dpi,
-                        pane->controller().zoom().factor * 100.0,
-                        pane->layoutEngine().resolution().devicePixelRatio,
-                        pane->controller().visibleRect().size.width,
-                        pane->controller().visibleRect().size.height);
-        }
+            auto window = std::make_unique<ui::MainWindow>(root.services());
+            window->resize(static_cast<int>(kDeviceViewportWidth / kA2MonitorScale),
+                           static_cast<int>(kDeviceViewportHeight / kA2MonitorScale));
+            window->show();
+            window->openFiles({document});
+            if (window->documentCount() != 1) {
+                std::fprintf(stderr, "surface: %s did not open\n", document.toStdString().c_str());
+                return 1;
+            }
+            ui::DocumentWindow* tab = window->currentDocument();
 
-        // THE LOUPE, ARMED THROUGH THE PRODUCT'S OWN PATH -- `PageView::setTool`, which `tool.loupe`
-        // dispatches to -- so the lens is the shipped one, fed by the shipped scheduler.
-        ui::PageView* lensView = column.loupe ? tab->view() : nullptr;
-        if (lensView != nullptr) lensView->setTool(ui::ToolKind::Loupe);
-        const auto lensTo = [lensView](QPoint at) {
-            if (lensView == nullptr) return;
-            QMouseEvent move(QEvent::MouseMove, QPointF(at),
-                             QPointF(lensView->viewport()->mapToGlobal(at)), Qt::NoButton,
-                             Qt::NoButton, Qt::NoModifier);
-            QCoreApplication::sendEvent(lensView->viewport(), &move);
-        };
+            if (column.split && tab->split() != nullptr)
+                tab->split()->setMode(ui::SplitViewContainer::Mode::Horizontal);
 
-        // Settle: the first paint, the first tiles, the pane's first stream. Everything measured
-        // below is steady-state scrolling, and counting the open would measure a document opening.
-        pump(pumpMs * 2);
-        samples.clear();
-        root.renderCache().resetStats();
-        const core::render::RenderScheduler::Stats before = root.renderScheduler().stats();
+            // THE PANE IS THERE UNLESS THIS COLUMN HIDES IT, and that is a correction rather than a
+            // refinement. A `MainWindow` is built with the sidebar OPEN and `SidebarDock::addPane`
+            // shows the first pane registered -- which is Thumbnails (T5). So the first two columns of
+            // this bench had a live thumbnails pane in them, the `+ pane` column added nothing, and the
+            // three figures were three measurements of the same workload. Hiding it is what makes the
+            // column mean what its label says.
+            if (window->sidebar() != nullptr) {
+                if (column.pane) {
+                    window->sidebar()->show();
+                    window->sidebar()->showPane(core::ActionId::PaneThumbnails);
+                } else {
+                    window->sidebar()->hide();
+                }
+            }
 
-        // THE WORKLOAD: a page-sized scroll a round, in every pane of every window, exactly as a
-        // person reading would produce it. Nothing here enqueues a tile.
-        for (int round = 0; round < rounds; ++round) {
-            const auto scrollAll = [](ui::MainWindow* shell) {
+            // STAGE 5: THE SURFACE IS SHOWN BEFORE THE WINDOW IS GROWN, because the find bar sits above
+            // the page and the search pane docks beside it, and either takes space from the viewport --
+            // which the grow below must give back for the column to be A2's workload. Shown EMPTY: the
+            // work starts after the settle, where the measurement begins.
+            ui::FindReplaceBar* findBar = nullptr;
+            ui::SearchPane* searchPane = nullptr;
+            if (column.work == TextWork::Find) {
+                findBar = tab->findBar();
+                if (findBar == nullptr) {
+                    std::fprintf(stderr, "surface: the tab has no find bar\n");
+                    return 1;
+                }
+                const int closedMinimum = window->minimumSizeHint().width();
+                findBar->open();
+                pump(60);
+                // GUIDE I-10, PRINTED: the bar must not raise the window's minimum, or this column's
+                // viewport cannot be A2's -- which is how this bench found it.
+                std::printf("    find bar open: its minimum %d px, the window's minimum %d px (%d with it closed)\n",
+                            findBar->minimumSizeHint().width(), window->minimumSizeHint().width(), closedMinimum);
+            } else if (column.work == TextWork::Folder) {
+                searchPane = window->searchPane();
+                if (searchPane == nullptr) {
+                    std::fprintf(stderr, "surface: the window has no search pane\n");
+                    return 1;
+                }
+                searchPane->showAndFocus();
+            }
+            pump(60);
+
+            // A2'S RESOLUTION, ON EVERY PANE OF EVERY WINDOW. The zoom is solved from what this rig's
+            // screen actually reports (see the constants above), and set after the split exists so both
+            // panes get it. `setZoom` is the product's own path -- the same call `Ctrl+=` makes.
+            double a2Zoom = 1.0;
+            if (const ui::PageView* pane = tab->view()) {
+                const double dpiAtCurrentZoom = pane->layoutEngine().resolution().dpi;
+                const double zoomNow = pane->controller().zoom().factor;
+                if (dpiAtCurrentZoom > 0.0 && zoomNow > 0.0)
+                    a2Zoom = kA2Dpi * zoomNow / dpiAtCurrentZoom;
+            }
+            const auto zoomAll = [a2Zoom](ui::MainWindow* shell) {
                 if (shell == nullptr) return;
                 ui::DocumentWindow* current = shell->currentDocument();
                 if (current == nullptr || current->split() == nullptr) return;
                 for (ui::PageView* pane : current->split()->views())
-                    pane->nextScreen();
+                    pane->setZoom(core::render::Zoom{a2Zoom}.clamped());
             };
-            scrollAll(window.get());
-            scrollAll(second);
+            zoomAll(window.get());
 
-            // AND THE THUMBNAILS PANE MOVES TOO, which the first version of this bench did not do
-            // -- so the pane streamed once at open and then sat still, and its column measured a
-            // pane that was not working. T2's workload says it in as many words: *each round moves
-            // both viewports AND THE PANE onto pages they have not rendered*, because a workload
-            // that asks for the same tiles twice measures the cache and calls it the pipeline.
-            if (column.pane && window->thumbnailsPane() != nullptr)
-                window->thumbnailsPane()->setCurrentPage((round + 1) * 30);
-
-            // AND THE LENS, TWICE A ROUND: swept across the page onto a spot, still long enough to
-            // settle (`PageView::kLoupeSettleMs`), then onto a second spot and still again -- two
-            // sharp requests a round, each over a page the viewport has only just asked for.
-            if (lensView != nullptr) {
-                const QSize area = lensView->viewport()->size();
-                const int x = area.width() / 3 + (round % 4) * 40;
-                for (int step = 0; step < 6; ++step) {
-                    lensTo(QPoint(x + step * 12, area.height() / 3));
-                    pump(8);
-                }
-                pump(ui::PageView::kLoupeSettleMs + 60);
-                lensTo(QPoint(x + 200, area.height() * 2 / 3));
-                pump(std::max(0, pumpMs - ui::PageView::kLoupeSettleMs - 60 - 48));
-            } else {
-                pump(pumpMs);
+            // AND GROW THE WINDOW UNTIL THE VIEWPORT IS A2's, or until the platform stops giving. Two
+            // passes, because the ribbon and the status bar take their height from the first layout.
+            for (int attempt = 0; attempt < 2; ++attempt) {
+                const ui::PageView* pane = tab->view();
+                if (pane == nullptr) break;
+                const double haveWidth = pane->controller().visibleRect().size.width;
+                const double haveHeight = pane->controller().visibleRect().size.height;
+                if (haveWidth >= kDeviceViewportWidth && haveHeight >= kDeviceViewportHeight) break;
+                const int growX = static_cast<int>((kDeviceViewportWidth - haveWidth) / kA2MonitorScale);
+                const int growY = static_cast<int>((kDeviceViewportHeight - haveHeight) / kA2MonitorScale);
+                window->resize(window->width() + std::max(0, growX),
+                               window->height() + std::max(0, growY));
+                pump(60);
             }
-        }
 
-        const core::render::RenderScheduler::Stats after = root.renderScheduler().stats();
-        const core::render::CacheStats cache = root.renderCache().stats();
+            ui::MainWindow* second = nullptr;
+            if (column.secondWindow) {
+                const core::Result<ui::MainWindow*> opened = window->openSecondView();
+                if (!opened) {
+                    std::fprintf(stderr, "surface: window.new refused -- %s\n",
+                                 opened.error().messageKey.data());
+                    return 1;
+                }
+                second = opened.value();
+                // THE SAME SIZE THE FIRST WINDOW ENDED UP AT, not the size it was asked for: the first
+                // was grown above until its viewport reached A2's, and a second window a third smaller
+                // would make "two windows" mean two different workloads.
+                second->resize(window->size());
+                second->show();
 
-        const double p95 = percentile(samples.visible, 0.95);
-        std::printf("\n    %-14s VISIBLE  p95 %7.3f ms   median %7.3f   n %zu\n", column.label, p95,
-                    percentile(samples.visible, 0.50), samples.visible.size());
-        if (!samples.speculative.empty())
-            std::printf("                   speculative (thumbnails, not graded)  p95 %7.3f ms   n %zu\n",
-                        percentile(samples.speculative, 0.95), samples.speculative.size());
-        if (!samples.prefetch.empty())
-            std::printf("                   prefetch (the background window, not graded)  p95 %7.3f ms   n %zu\n",
-                        percentile(samples.prefetch, 0.95), samples.prefetch.size());
-        std::printf("                   lanes enqueued: visible %lld   prefetch %lld   speculative %lld\n",
-                    after.enqueuedVisible - before.enqueuedVisible,
-                    after.enqueuedPrefetch - before.enqueuedPrefetch,
-                    after.enqueuedSpeculative - before.enqueuedSpeculative);
-        if (lensView != nullptr) {
-            std::printf("                   lens requests %lld (the Loupe's sharp regions, in the VISIBLE lane)\n",
-                        lensView->loupeRaster().enqueuedCount());
-            if (lensView->loupeRaster().enqueuedCount() == 0) {
-                std::fprintf(stderr, "surface: %s made no lens request -- it measured nothing\n",
+                // AND THE FIRST IS RAISED, which is what makes the first window the one in front and
+                // the second a BACKGROUND window whose viewport queues at `Prefetch` (T11's named
+                // work). `raiseToForeground()` sets the active shell directly and refreshes the lanes,
+                // because offscreen no activation event ever arrives -- `MainWindow.cpp` says so at
+                // the call it makes for the same reason.
+                zoomAll(second);
+                window->raiseToForeground();
+            }
+
+            // THE RESOLUTION ACTUALLY REACHED, printed rather than assumed. If the scale factor did
+            // not take -- a platform that ignores it, a `QT_SCALE_FACTOR` already in the environment --
+            // this line is what says so, instead of a comparison quietly being made against a
+            // different workload. It is the mistake this bench made on its first run.
+            if (const ui::PageView* pane = tab->view()) {
+                std::printf("    resolution: %.1f dpi at zoom %.0f %% (device scale %.2f), viewport"
+                            " %.0fx%.0f device px -- A2's is 288.0 dpi over 1920x1080\n",
+                            pane->layoutEngine().resolution().dpi,
+                            pane->controller().zoom().factor * 100.0,
+                            pane->layoutEngine().resolution().devicePixelRatio,
+                            pane->controller().visibleRect().size.width,
+                            pane->controller().visibleRect().size.height);
+            }
+
+            // THE LOUPE, ARMED THROUGH THE PRODUCT'S OWN PATH -- `PageView::setTool`, which `tool.loupe`
+            // dispatches to -- so the lens is the shipped one, fed by the shipped scheduler.
+            ui::PageView* lensView = column.loupe ? tab->view() : nullptr;
+            if (lensView != nullptr) lensView->setTool(ui::ToolKind::Loupe);
+            const auto lensTo = [lensView](QPoint at) {
+                if (lensView == nullptr) return;
+                QMouseEvent move(QEvent::MouseMove, QPointF(at),
+                                 QPointF(lensView->viewport()->mapToGlobal(at)), Qt::NoButton,
+                                 Qt::NoButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(lensView->viewport(), &move);
+            };
+
+            // Settle: the first paint, the first tiles, the pane's first stream. Everything measured
+            // below is steady-state scrolling, and counting the open would measure a document opening.
+            pump(pumpMs * 2);
+            // THE WORK'S OWN COUNTERS from here, before it starts -- the lanes and the cache from where the
+            // grading starts, below.
+            const core::render::RenderScheduler::Stats beforeWork = root.renderScheduler().stats();
+            QElapsedTimer workTimer;
+            workTimer.start();
+
+            // STAGE 5: THE WORK STARTS HERE, through the surface, and nothing below queues any of it.
+            //   * Find: the query TYPED into the bar's field, a key event a character, so the bar's own
+            //     `textEdited` handler and its 200 ms pause start the search as a person's typing would.
+            //   * Folder: the pane's folder, subfolders and query set, then its own `search()` -- what
+            //     its Search button calls.
+            //   * Compare: `MainWindow::compareDocuments`, what the Compare dialog's OK calls, over the
+            //     file in the tab against itself at *appearance*, T3's column -- and the main window is
+            //     raised after it, so it stays the window in front and its viewport keeps `Visible`.
+            QPointer<ui::ComparisonView> comparison;
+            int comparisonRefits = 0;
+            double fillMs = -1.0;
+            std::size_t fillTiles = 0;
+            double fillP95 = 0.0;
+            double fillWorst = 0.0;
+            if (findBar != nullptr) {
+                for (const QChar character : kFindQuery) {
+                    QKeyEvent press(QEvent::KeyPress, 0, Qt::NoModifier, QString(character));
+                    QCoreApplication::sendEvent(findBar->field(), &press);
+                    QKeyEvent release(QEvent::KeyRelease, 0, Qt::NoModifier, QString(character));
+                    QCoreApplication::sendEvent(findBar->field(), &release);
+                }
+                if (findBar->field()->text() != kFindQuery) {
+                    std::fprintf(stderr, "surface: the find bar's field holds '%s' after typing -- no search\n",
+                                 findBar->field()->text().toStdString().c_str());
+                    return 1;
+                }
+            } else if (searchPane != nullptr) {
+                searchPane->setFolder(folderScratch.path());
+                searchPane->setRecursive(true);
+                searchPane->setQuery(kFolderQuery);
+                const core::Status started = searchPane->search();
+                if (!started) {
+                    std::fprintf(stderr, "surface: the folder search refused -- %s\n",
+                                 started.error().messageKey.data());
+                    return 1;
+                }
+            } else if (column.work == TextWork::Compare) {
+                ui::CompareDialog::Choice choice;
+                choice.olderPath = document;
+                choice.newerPath = document;
+                choice.options = core::text::CompareOptions::fromSettings(root.settings());
+                choice.options.sensitivity = comparisonTextOnly ? core::text::CompareSensitivity::TextOnly
+                                                                : core::text::CompareSensitivity::Appearance;
+                const core::Result<ui::ComparisonView*> opened = window->compareDocuments(choice);
+                if (!opened) {
+                    std::fprintf(stderr, "surface: the comparison refused -- %s\n",
+                                 opened.error().messageKey.data());
+                    return 1;
+                }
+                comparison = opened.value();
+                window->raiseToForeground();
+
+                // THE COMPARISON WINDOW'S FIRST FILL, WAITED FOR WITH THE MAIN WINDOW STILL. Its two panes
+                // are a document opened in a new window, and they ask for their first page at `Visible`
+                // (measured at T14: 60-84 tiles a pane at ~125-157 dpi), every tile ahead of the main
+                // viewport's. Every column keeps a document's first paint out of its figure -- the settle
+                // above -- so this one waits for it before the scroll and the grading start. FILTERING the
+                // fill's tiles out of a running scroll was tried first and is wrong: the probe cannot tell
+                // the panes' tiles from the main window's, so the main window's first-round tiles -- the
+                // slowest of any column -- went out with them and the column graded below the viewer
+                // ALONE. Hiding the window does not stop the panes asking either (65 tiles a pane, hidden).
+                // The text work runs from the open, so its first tens of milliseconds are before the grade.
+                const auto filled = [&]() -> bool {
+                    if (comparison == nullptr) return false;
+                    for (const core::text::CompareSide side : {core::text::CompareSide::Base, core::text::CompareSide::Revised}) {
+                        const ui::PageView* pane = comparison->view(side);
+                        if (pane == nullptr) continue;
+                        if (pane->tiles().heldTileCount() == 0 || pane->tiles().pendingTicketCount() > 0) return false;
+                    }
+                    return true;
+                };
+                QElapsedTimer fillTimer;
+                fillTimer.start();
+                while (!filled() && fillTimer.elapsed() < 10000) pump(10);
+                if (!filled()) {
+                    std::fprintf(stderr, "surface: the comparison's window did not fill in 10 s -- no measurement\n");
+                    return 1;
+                }
+                fillMs = static_cast<double>(fillTimer.elapsed());
+                fillTiles = samples.visible.size();
+                fillP95 = percentile(samples.visible, 0.95);
+                fillWorst = percentile(samples.visible, 1.0);
+
+                // EVERY RE-FIT OF THE COMPARISON'S PAGES from here -- a zoom change is both pages re-rasterized
+                // at `Visible`. Guide I-11: the window widened under its growing progress line, five re-fits
+                // in one comparison until T14; it is printed so the bench says whether that is still so.
+                for (const core::text::CompareSide side : {core::text::CompareSide::Base, core::text::CompareSide::Revised})
+                    if (ui::PageView* pane = comparison->view(side))
+                        QObject::connect(pane, &ui::PageView::viewChanged, pane,
+                                         [&comparisonRefits, zoom = pane->controller().zoom().factor](int, int, double now) mutable {
+                                             if (now != zoom) ++comparisonRefits;
+                                             zoom = now;
+                                         });
+            }
+
+            // THE GRADING STARTS HERE.
+            samples.clear();
+            root.renderCache().resetStats();
+            const core::render::RenderScheduler::Stats before = root.renderScheduler().stats();
+
+            // WHETHER THE WORK IS STILL RUNNING, asked of the surface itself. The find bar counts its
+            // 200 ms pause as running: the search has been asked for and the index is about to build.
+            const auto workRunning = [&]() -> bool {
+                switch (column.work) {
+                case TextWork::None:    return false;
+                case TextWork::Find:    return findBar->isSearchPending() || findBar->isSearching();
+                case TextWork::Folder:  return searchPane->isSearching();
+                case TextWork::Compare:
+                    return comparison != nullptr && comparison->state() != ui::ComparisonView::State::Finished
+                           && comparison->state() != ui::ComparisonView::State::Cancelled;
+                }
+                return false;
+            };
+            double workMs = -1.0;
+            int busyRounds = 0;
+            // THE UI THREAD'S LONGEST STALL while the work ran: the gap between two slices of the event
+            // loop. `processEvents` returns within its 10 ms unless one handler runs longer, so a gap
+            // well past that is the UI thread busy with something -- and a tile is stamped when it is
+            // DELIVERED on this thread, so a stall here is latency the engine did not cause.
+            QElapsedTimer sliceTimer;
+            sliceTimer.start();
+            double longestSliceMs = 0.0;
+            int slicesOverBudget = 0;
+            const auto noteWork = [&] {
+                const double slice = static_cast<double>(sliceTimer.nsecsElapsed()) / 1.0e6;
+                sliceTimer.restart();
+                if (samples.busy) {
+                    longestSliceMs = std::max(longestSliceMs, slice);
+                    if (slice > kFrameBudgetMs) ++slicesOverBudget;
+                }
+                const bool running = workRunning();
+                if (samples.busy && !running && workMs < 0.0) workMs = static_cast<double>(workTimer.elapsed());
+                samples.busy = running;
+            };
+            samples.busy = column.work != TextWork::None;
+            noteWork();
+
+            // THE WORKLOAD: a page-sized scroll a round, in every pane of every window, exactly as a
+            // person reading would produce it. Nothing here enqueues a tile. A Stage 5 column goes on
+            // past its rounds while its work runs, to `kMaxBusyRounds`; the text viewer runs
+            // `kStage5BaselineRounds`, so it is the control for every one of them.
+            const int columnRounds =
+                column.stage5 && column.work == TextWork::None ? std::max(rounds, kStage5BaselineRounds) : rounds;
+            for (int round = 0; round < columnRounds || (samples.busy && round < kMaxBusyRounds); ++round) {
+                samples.round = round;
+                if (samples.busy) ++busyRounds;
+                const auto scrollAll = [](ui::MainWindow* shell) {
+                    if (shell == nullptr) return;
+                    ui::DocumentWindow* current = shell->currentDocument();
+                    if (current == nullptr || current->split() == nullptr) return;
+                    for (ui::PageView* pane : current->split()->views())
+                        pane->nextScreen();
+                };
+                scrollAll(window.get());
+                scrollAll(second);
+
+                // AND THE THUMBNAILS PANE MOVES TOO, which the first version of this bench did not do
+                // -- so the pane streamed once at open and then sat still, and its column measured a
+                // pane that was not working. T2's workload says it in as many words: *each round moves
+                // both viewports AND THE PANE onto pages they have not rendered*, because a workload
+                // that asks for the same tiles twice measures the cache and calls it the pipeline.
+                if (column.pane && window->thumbnailsPane() != nullptr)
+                    window->thumbnailsPane()->setCurrentPage((round + 1) * 30);
+
+                // AND THE LENS, TWICE A ROUND: swept across the page onto a spot, still long enough to
+                // settle (`PageView::kLoupeSettleMs`), then onto a second spot and still again -- two
+                // sharp requests a round, each over a page the viewport has only just asked for.
+                if (lensView != nullptr) {
+                    const QSize area = lensView->viewport()->size();
+                    const int x = area.width() / 3 + (round % 4) * 40;
+                    for (int step = 0; step < 6; ++step) {
+                        lensTo(QPoint(x + step * 12, area.height() / 3));
+                        pump(8);
+                    }
+                    pump(ui::PageView::kLoupeSettleMs + 60);
+                    lensTo(QPoint(x + 200, area.height() * 2 / 3));
+                    pump(std::max(0, pumpMs - ui::PageView::kLoupeSettleMs - 60 - 48));
+                } else {
+                    pump(pumpMs, noteWork);
+                }
+            }
+            const bool workFinished = !samples.busy;
+
+            const core::render::RenderScheduler::Stats after = root.renderScheduler().stats();
+            const core::render::CacheStats cache = root.renderCache().stats();
+
+            const double p95 = percentile(samples.visible, 0.95);
+            if (column.stage5 && column.work != TextWork::None) {
+                std::printf("\n    %-16s run %d  WHILE THE WORK RAN  VISIBLE p95 %7.3f ms   median %7.3f   n %zu"
+                            "   (whole column p95 %.3f, n %zu)\n",
+                            column.label, run + 1, percentile(samples.visibleWhileBusy, 0.95),
+                            percentile(samples.visibleWhileBusy, 0.50), samples.visibleWhileBusy.size(), p95,
+                            samples.visible.size());
+            } else if (column.stage5) {
+                std::printf("\n    %-16s run %d  VISIBLE p95 %7.3f ms   median %7.3f   n %zu\n", column.label,
+                            run + 1, p95, percentile(samples.visible, 0.50), samples.visible.size());
+            } else {
+                std::printf("\n    %-14s VISIBLE  p95 %7.3f ms   median %7.3f   n %zu\n", column.label, p95,
+                            percentile(samples.visible, 0.50), samples.visible.size());
+            }
+            if (!samples.speculative.empty())
+                std::printf("                   speculative (thumbnails, not graded)  p95 %7.3f ms   n %zu\n",
+                            percentile(samples.speculative, 0.95), samples.speculative.size());
+            if (!samples.prefetch.empty())
+                std::printf("                   prefetch (the background window, not graded)  p95 %7.3f ms   n %zu\n",
+                            percentile(samples.prefetch, 0.95), samples.prefetch.size());
+            std::printf("                   lanes enqueued: visible %lld   prefetch %lld   speculative %lld\n",
+                        after.enqueuedVisible - before.enqueuedVisible,
+                        after.enqueuedPrefetch - before.enqueuedPrefetch,
+                        after.enqueuedSpeculative - before.enqueuedSpeculative);
+            if (lensView != nullptr) {
+                std::printf("                   lens requests %lld (the Loupe's sharp regions, in the VISIBLE lane)\n",
+                            lensView->loupeRaster().enqueuedCount());
+                if (lensView->loupeRaster().enqueuedCount() == 0) {
+                    std::fprintf(stderr, "surface: %s made no lens request -- it measured nothing\n",
+                                 column.label);
+                    measuredAll = false;
+                }
+            }
+            std::printf("                   cache lookups %lld   hits %lld (%.1f %%)   CROSS-DOCUMENT evictions %zu\n",
+                        cache.lookups, cache.hits(), cache.hitRate() * 100.0,
+                        root.renderCache().crossDocumentEvictions());
+
+            if (samples.visible.empty()) {
+                std::fprintf(stderr, "surface: %s delivered no visible tile -- no measurement\n",
                              column.label);
                 measuredAll = false;
             }
+
+            // STAGE 5: WHAT THE WORK DID, and the proof that it did it. A column whose index was already
+            // built, whose folder search opened nothing or whose comparison read no page measured a
+            // viewport with nothing behind it and would be graded as if it had -- so each says what it
+            // asked of the engine, and a column that asked nothing fails the run (convention 7).
+            if (column.stage5 && column.work != TextWork::None) {
+                // From before the work started -- a comparison asks for its text the moment it opens.
+                const long long text = after.textEnqueued - beforeWork.textEnqueued;
+                const long long tasks = after.taskEnqueued - beforeWork.taskEnqueued;
+                const long long bypass = after.enqueuedBypassingCache - beforeWork.enqueuedBypassingCache;
+                std::printf("                   the work: %s in %.0f ms, over %d round(s) of scrolling%s\n",
+                            workFinished ? "FINISHED" : "STILL RUNNING", workFinished ? workMs : static_cast<double>(workTimer.elapsed()),
+                            busyRounds, workFinished ? "" : " -- the cap was reached, so this run is truncated");
+                if (column.work == TextWork::Compare)
+                    std::printf("                   the comparison window's FIRST FILL, before the scroll (not graded): %.0f ms,"
+                                " %zu visible tile(s), p95 %.1f ms, worst %.1f ms\n",
+                                fillMs, fillTiles, fillP95, fillWorst);
+                if (column.work == TextWork::Compare)
+                    std::printf("                   the comparison's pages re-fitted %d time(s) after their first fill (guide I-11)\n",
+                                comparisonRefits);
+                std::printf("                   while it ran: worst visible tile %.1f ms; the UI thread's longest stall %.1f ms,"
+                            " %d stall(s) over the frame budget\n",
+                            samples.visibleWhileBusy.empty() ? 0.0
+                                : *std::max_element(samples.visibleWhileBusy.begin(), samples.visibleWhileBusy.end()),
+                            longestSliceMs, slicesOverBudget);
+                std::printf("                   background: text jobs %lld   engine tasks %lld   rasters bypassing the cache %lld"
+                            "   (lane total %lld)\n",
+                            text, tasks, bypass, after.enqueuedBackground - beforeWork.enqueuedBackground);
+                std::printf("                   cache insertions %lld against %lld foreground tiles delivered\n",
+                            cache.insertions,
+                            static_cast<long long>(samples.visible.size() + samples.prefetch.size() + samples.speculative.size()));
+                bool did = false;
+                switch (column.work) {
+                case TextWork::Find:
+                    std::printf("                   find bar: %zu hit(s), %d search(es) finished -- %s\n",
+                                findBar->hits().size(), findBar->searchesFinished(),
+                                findBar->statusText().toStdString().c_str());
+                    did = text > 0 && findBar->searchesFinished() > 0 && findBar->hits().size() == 1;
+                    break;
+                case TextWork::Folder:
+                    std::printf("                   search pane: %zu row(s) listed -- %s\n", searchPane->listedRows().size(),
+                                searchPane->statusText().toStdString().c_str());
+                    did = tasks > 0 && text > 0 && !searchPane->listedRows().empty();
+                    break;
+                case TextWork::Compare:
+                    std::printf("                   comparison: %s, %zu difference(s) -- %s\n",
+                                comparison != nullptr && comparison->isFinished() ? "finished" : "not finished",
+                                comparison != nullptr ? comparison->differences().size() : std::size_t{0},
+                                comparison != nullptr ? comparison->statusText().toStdString().c_str() : "(closed)");
+                    did = text > 0 && (bypass > 0 || comparisonTextOnly) && comparison != nullptr
+                          && comparison->isFinished();
+                    break;
+                case TextWork::None:
+                    break;
+                }
+                if (!did || samples.visibleWhileBusy.empty()) {
+                    std::fprintf(stderr, "surface: %s run %d -- the work did not happen as asked, or no visible"
+                                 " tile arrived while it ran: no measurement\n", column.label, run + 1);
+                    measuredAll = false;
+                }
+            }
+            if (column.stage5) {
+                Pooled& into = pooled[column.label];
+                const std::vector<double>& graded =
+                    column.work == TextWork::None ? samples.visible : samples.visibleWhileBusy;
+                into.graded.insert(into.graded.end(), graded.begin(), graded.end());
+                into.all.insert(into.all.end(), samples.visible.begin(), samples.visible.end());
+                into.perRunP95.push_back(percentile(graded, 0.95));
+                if (column.work != TextWork::None) into.workMs.push_back(workFinished ? workMs : -1.0);
+                into.busyRounds += busyRounds;
+                if (column.work != TextWork::None) into.busyRoundsPerRun.push_back(busyRounds);
+                else into.byRound.insert(into.byRound.end(), samples.visibleByRound.begin(), samples.visibleByRound.end());
+            }
+
+            if (std::strcmp(column.label, "viewer") == 0)            viewerP95 = p95;
+            else if (std::strcmp(column.label, "+ split") == 0)      splitP95 = p95;
+            else if (std::strcmp(column.label, "+ pane") == 0)       paneP95 = p95;
+            else if (std::strcmp(column.label, "two windows") == 0)  twoWindowP95 = p95;
+            else if (std::strcmp(column.label, "+ loupe") == 0)      loupeP95 = p95;
+
+            // The probe outlives nothing: the scheduler is destroyed with the root below, but the
+            // lambda holds a reference to a `Samples` on this stack frame, so it is removed first.
+            root.renderScheduler().setLatencyProbe({});
+            if (comparison != nullptr) comparison->close();
+            if (second != nullptr) second->close();
+            window.reset();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            pump(50);
         }
-        std::printf("                   cache lookups %lld   hits %lld (%.1f %%)   CROSS-DOCUMENT evictions %zu\n",
-                    cache.lookups, cache.hits(), cache.hitRate() * 100.0,
-                    root.renderCache().crossDocumentEvictions());
-
-        if (samples.visible.empty()) {
-            std::fprintf(stderr, "surface: %s delivered no visible tile -- no measurement\n",
-                         column.label);
-            measuredAll = false;
-        }
-
-        if (std::strcmp(column.label, "viewer") == 0)            viewerP95 = p95;
-        else if (std::strcmp(column.label, "+ split") == 0)      splitP95 = p95;
-        else if (std::strcmp(column.label, "+ pane") == 0)       paneP95 = p95;
-        else if (std::strcmp(column.label, "two windows") == 0)  twoWindowP95 = p95;
-        else if (std::strcmp(column.label, "+ loupe") == 0)      loupeP95 = p95;
-
-        // The probe outlives nothing: the scheduler is destroyed with the root below, but the
-        // lambda holds a reference to a `Samples` on this stack frame, so it is removed first.
-        root.renderScheduler().setLatencyProbe({});
-        if (second != nullptr) second->close();
-        window.reset();
-        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-        pump(50);
     }
 
-    if (only.isEmpty()) {
+    if (only.isEmpty() && !stage5Only) {
         std::printf("\n    THE PRODUCT'S OWN FIGURE, beside T2's bench figure (Tech-Stack-Plan.md 3.3):\n");
         std::printf("      one viewport ........................................ %7.3f ms"
                     "   (T2's bench: 9.78-9.82)\n", viewerP95);
@@ -507,6 +949,63 @@ int main(int argc, char** argv)
         std::printf("\n    Record this in Tech-Stack-Plan.md 3.3 as THE PRODUCT'S, beside T2's bench"
                     " figure and\n    never instead of it (D2-1's lesson). This bench never fails on"
                     " speed.\n\n");
+    }
+
+    // A2 AT STAGE 5, THE PRODUCT'S FIGURE: each column's busy samples pooled over its repetitions,
+    // beside T3's bench figure for the same workload -- and never instead of it.
+    if (!pooled.empty()) {
+        struct Row {
+            const char* label;
+            const char* text;
+            const char* t3;
+        };
+        const Row rows[] = {
+            {"text viewer",     "text-900.pdf, nothing behind it .....................", "T3's bench: 13.02-13.07"},
+            {"+ find",          "+ the find bar's FIRST search, the index built ......", "T3's index build: 14.05-14.26"},
+            {"+ folder search", "+ the search pane over the corpus copy ..............", "T3: 17.68-17.93, T9: 19.24-19.41"},
+            {"+ comparison",    "+ a comparison at appearance, after its first fill ..", "T3: 13.67-13.76"},
+        };
+        std::printf("\n    A2 AT STAGE 5, THE PRODUCT'S FIGURE (guide A-112), pooled over each column's runs --"
+                    " a work column\n    graded on the tiles delivered WHILE ITS WORK RAN:\n");
+        for (const Row& row : rows) {
+            const auto found = pooled.find(row.label);
+            if (found == pooled.end()) continue;
+            const Pooled& p = found->second;
+            std::string runs;
+            for (const double each : p.perRunP95) {
+                char buffer[32];
+                std::snprintf(buffer, sizeof buffer, "%s%.2f", runs.empty() ? "" : " / ", each);
+                runs += buffer;
+            }
+            std::printf("      %s %7.3f ms  n %5zu   runs %s   (%s)\n", row.text, percentile(p.graded, 0.95),
+                        p.graded.size(), runs.c_str(), row.t3);
+            if (!p.workMs.empty()) {
+                std::string took;
+                for (const double each : p.workMs) {
+                    char buffer[32];
+                    std::snprintf(buffer, sizeof buffer, "%s%s", took.empty() ? "" : " / ",
+                                  each < 0.0 ? "unfinished" : QByteArray::number(each / 1000.0, 'f', 1).append(" s").constData());
+                    took += buffer;
+                }
+                std::printf("        the work took %s; %d round(s) scrolled while it ran; whole column p95 %.3f ms\n",
+                            took.c_str(), p.busyRounds, percentile(p.all, 0.95));
+                // THE CONTROL: the viewer alone over the SAME first rounds as each run's work, pooled the same
+                // way -- so the difference is the work's, not the window's length.
+                const auto baseline = pooled.find("text viewer");
+                if (baseline != pooled.end() && !baseline->second.byRound.empty()) {
+                    std::vector<double> matched;
+                    for (const int k : p.busyRoundsPerRun)
+                        for (const auto& [round, ms] : baseline->second.byRound)
+                            if (round < k) matched.push_back(ms);
+                    std::printf("        the viewer ALONE over the same rounds ............ %7.3f ms  n %5zu   -> the work adds %+.3f ms\n",
+                                percentile(matched, 0.95), matched.size(),
+                                percentile(p.graded, 0.95) - percentile(matched, 0.95));
+                }
+            }
+        }
+        std::printf("      frame budget ......................................... %7.3f ms\n", kFrameBudgetMs);
+        std::printf("\n    Graded on Stage5-TextSearch-Testing-Guide.md 3.1 and recorded in Tech-Stack-Plan.md 3.3"
+                    " beside T3's\n    figure, never instead of it. This bench never fails on speed.\n\n");
     }
 
     return measuredAll ? 0 : 1;

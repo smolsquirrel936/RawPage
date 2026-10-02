@@ -550,6 +550,69 @@ lock now records its owner and a test asserts no reader enters the engine withou
 round), not the shipped surfaces', which T14 re-reads; one rig; our own generated corpus (D2-11,
 D5-23). The folder search's opener is a helper thread standing in for T9's engine-thread open.
 
+**A2 AT STAGE 5, RE-READ THROUGH THE SHIPPED SURFACES — Stage 5 T14, 2026-10-02, guide case A-112.**
+`rawpage_bench_surface`'s Stage 5 columns compose `CompositionRoot` and `MainWindow` as `app/main.cpp` does,
+open `ordinary/text-900.pdf` at A2's **288 dpi over a 1920×1080 viewport (reached and printed in every
+column)**, scroll a page-sized step every 400 ms, and start the work **through the surface**: the find bar's
+field typed into key by key, the Advanced Search pane's own `search()` over a scratch copy of the corpus (97
+PDFs), and `MainWindow::compareDocuments` over the file against itself at *appearance*. Nothing in the bench
+queues a tile or a text job. **A work column is graded on the visible tiles delivered while its work ran**,
+three repetitions pooled, and is printed beside **the viewer alone over the same rounds** — the control,
+because a column's p95 depends on how many rounds it covers. Two full runs:
+
+| Column (shipped 256 MiB cap) | product p95, T14 | the viewer alone, same rounds | the work took | bench, T3 |
+|---|---|---|---|---|
+| `text viewer` — nothing behind it | **1.92–2.18 ms** | — | — | 13.02–13.07 |
+| `+ find` — the find bar's FIRST search, the index built | **9.16–9.21 ms** | 8.78–8.96 | 1.6 s | index build 14.05–14.26 |
+| `+ folder search` — the search pane | **7.86–10.33 ms** | 7.76–7.99 | 3.1–3.5 s | 17.68–17.93 (T9: 19.24–19.41) |
+| `+ comparison` — at *appearance*, after its window's first fill | **4.24–4.72 ms** | 4.10–4.30 | 8.5–8.6 s | 13.67–13.76 |
+
+**Every column is inside 16.667 ms, and what the work adds over the viewer alone is −0.06 to +2.33 ms.**
+**Cross-document evictions 0** in every Stage 5 column, and the comparison's 1,800 rasters bypass the cache
+(the Stage 4 columns' two windows still show their 1,356, the finding recorded above). On §3.1's scale **each
+column grades `go`**. **The verdict recorded for A2 at Stage 5 stays T3's, `go, with named custom work`, the
+user's choice**, until the user re-grades it: its named work — a folder search opening each file in pieces on
+the engine thread — was built at T9 and is inside the budget here.
+
+**The bench took the wrong measurement four times before the right one, and each is recorded in the bench's
+header rather than smoothed.** *(1)* It had no catalog loaded, so every widget label was its KEY, and the find
+bar's keys made its minimum width 2,966 logical pixels: the `+ find` viewport reached 4,428 device pixels, not
+A2's 1,920. *(2)* With the catalog loaded it still reached 2,574 — and that was the PRODUCT: the find bar's
+minimum was its whole row, so `Ctrl+F` widened the window (Stage 5 guide **I-10**, fixed in T14; offscreen
+font metrics, about twice the `windows` platform's, made it visible here first). *(3)* The comparison read
+~23–26 ms: its window was WIDENING under its own growing progress line, re-fitting and re-rasterizing both
+pages five times (guide **I-11**, fixed in T14), and its first fill was inside the grade; filtering the fill
+out of a running scroll then dropped the main window's first-round tiles with it, and the column graded below
+the viewer alone — so the bench now waits for the fill with the main window still. *(4)* Columns of different
+lengths were compared directly until the same-rounds control was added.
+
+**Recorded, not graded.** The comparison window's first fill, before the scroll: 51–54 ms, 91–92 tiles of
+its own two panes, p95 21–22 ms, worst 23–25 ms. **During the folder search the UI thread stalled 45–48 ms
+twice in every run** (the gap between two slices of the event loop), where the other columns' longest stall
+was 11–12 ms — latency the engine did not cause, and nothing in A2's quantity sees it; whether it is felt is
+M-07's to say. `+ find`'s whole column reads 12.4–15.6 ms, beside its graded 9.2 ms: the rounds after its 1.6 s
+search follow the find bar taking the view to its one hit, on page 900, and are not part of the grade; the
+difference is not attributed here.
+
+**AND T3's OWN BENCH, RE-READ THE SAME DAY ON THE T14 BINARY** (`bench_pipeline --stage5`, two runs, nothing else
+running) — the item T9 left open, *the folder column NOT inside §3.1's budget on a day the viewer alone read
+15.1–15.9 ms*: **the viewer alone 13.20–13.25 ms** at 256 MiB (13.03–13.25 at 24 MiB), back in T3's own range;
+**index build 14.04–14.41** (13.08–13.16); **folder search 13.99–14.38** (13.60–13.72), **inside the budget**;
+**comparison 13.65–13.72** (13.51–13.68). One page's extraction p95 1.71 ms, max 2.29–2.63; the longest engine
+piece of an open 9.40–10.60 ms; cross-document evictions 0 in every column; worst single tiles 14.7–23.8 ms.
+**Priority inversions 2 in each run, where T3 recorded 0 in every column** — run 1's two in the 24 MiB index
+build, run 2's in the 256 MiB index build and folder search; not investigated at T14. The count is a
+background job whose start the worker stamped after a viewport tile's `enqueue()` returned; whether these are
+work the worker chose over a waiting tile or a pick made just before the tile arrived and stamped just after
+is not established. **So on this day the whole T3 scale reads where T3 put it, with no change since T9's
+commit to `core/render/`, `pdf/render/`, `core/text/FolderSearch`, `DocumentIndex` or the bench itself**
+(`git log eb7540f..HEAD` over those paths is empty) — consistent with T9's note that the scale had moved with the
+machine, which this measurement does not prove either.
+
+**What the T14 figure does NOT claim.** It is offscreen, one rig, our own generated corpus (D2-11, D5-23),
+and the main window goes on scrolling while a comparison runs, which a person looking at the comparison would
+not be doing. Whether scrolling *feels* smooth while a first search indexes 900 pages is **M-06**'s, not walked.
+
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
 `chromium/8009`, SHA-256 `c78a8cd51b48ab…`, acquired by `scripts/fetch-pdfium.ps1`.

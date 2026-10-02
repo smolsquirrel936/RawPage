@@ -38,6 +38,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLayout>
 #include <QPushButton>
 #include <QTreeWidget>
@@ -403,4 +404,70 @@ TEST_CASE("closing the comparison closes its two handles and nothing else", "[co
     CHECK(comparer.window->comparison() == kept.value());
     CHECK(comparer.fixture.settings.get(keys::compareSensitivity) == CompareSensitivity::TextOnly);
     CHECK(comparer.fixture.backend.closes == closes + 1);
+}
+
+// =============================================================================================
+// Guide I-11 -- the pages keep their width while the comparison reports its progress
+// =============================================================================================
+//
+// Until Stage 5 T14 the bar's status label -- where the run writes its progress -- took its width from its
+// text, so a longer progress line raised the comparison window's minimum and Qt WIDENED the window to it
+// (the find bar's I-10, in this window): both pages, fitted to their width, re-fitted and re-rasterized every
+// tile at `Visible`. T14's bench saw it five times in one comparison of `text-900.pdf`, the pages 874 to 895
+// pixels wide, monotonically, as the line grew. The Differences pane's summary is written the same lines and
+// is driven here too, as the CONTROL that the pane is not the cause: it wraps, and reverting the two changes
+// first made to it for this issue left this case green, so they were taken out again.
+//
+// WHAT IT DOES NOT COVER (convention 19): the progress lines here are WRITTEN to the two labels through the
+// pane's `setStatus` and the bar label's `setText` -- the calls the run's progress makes, but with lines of
+// chosen lengths, because the fake's three and four pages produce progress lines whose width barely moves.
+// That the run's OWN progress no longer re-fits a page is T14's bench, over `text-900.pdf`.
+
+TEST_CASE("the pages keep their width and zoom while the comparison reports its progress", "[comparison][I-11]")
+{
+    Comparer comparer;
+    const core::Result<ui::ComparisonView*> opened = comparer.window->compareDocuments(comparer.choice());
+    REQUIRE(opened);
+    ui::ComparisonView& comparison = *opened.value();
+    comparer.settle(comparison);
+
+    ui::PageView* older = comparison.view(CompareSide::Base);
+    ui::PageView* newer = comparison.view(CompareSide::Revised);
+    REQUIRE(older != nullptr);
+    REQUIRE(newer != nullptr);
+    REQUIRE(older->width() > 200);   // rule 4: the geometry first
+    const int olderWidth = older->width();
+    const int newerWidth = newer->width();
+    const double olderZoom = older->controller().zoom().factor;
+    const int windowMinimum = comparison.minimumSizeHint().width();
+    const int windowWidth = comparison.width();
+
+    // EVERY ZOOM CHANGE OF EITHER PAGE, from here on -- a re-fit is a re-rasterization of the whole page.
+    int refits = 0;
+    for (ui::PageView* view : {older, newer})
+        QObject::connect(view, &ui::PageView::viewChanged, &comparison,
+                         [&refits, view, zoom = view->controller().zoom().factor](int, int, double now) mutable {
+                             (void)view;
+                             if (now != zoom) ++refits;
+                             zoom = now;
+                         });
+
+    // PROGRESS LINES OF VERY DIFFERENT WIDTHS, into the pane's summary and the bar's status.
+    auto* status = comparison.findChild<QLabel*>(QStringLiteral("comparisonStatus"));
+    REQUIRE(status != nullptr);
+    const QString longLine = QStringLiteral("Comparing 1 of 900 pages -- reading the older and the newer document's text "
+                                            "and their 72 dpi rasters, page after page after page");
+    for (const QString& line : {QStringLiteral("x"), longLine, QStringLiteral("Reading 12 of 1800"), longLine + longLine,
+                                QString()}) {
+        INFO("the line: " << line.toStdString());
+        comparison.differencesPane()->setStatus(line);
+        status->setText(line);
+        Comparer::drive(&comparison);
+        CHECK(comparison.width() == windowWidth);
+        CHECK(older->width() == olderWidth);
+        CHECK(newer->width() == newerWidth);
+        CHECK(older->controller().zoom().factor == olderZoom);
+        CHECK(comparison.minimumSizeHint().width() == windowMinimum);
+    }
+    CHECK(refits == 0);
 }
