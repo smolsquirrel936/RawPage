@@ -68,6 +68,28 @@ TEST_CASE("parsing refuses garbage rather than guessing", "[tst_units]")
     CHECK_FALSE(parseLength(QStringLiteral("mm"), Unit::Points, out));
 }
 
+TEST_CASE("the next unit walks all five in order and wraps", "[tst_units]")
+{
+    // The rulers' corner box (`view.cycleRulerUnit`): the order Features.md 1.3 names them in.
+    CHECK(nextUnit(Unit::Points) == Unit::Inches);
+    CHECK(nextUnit(Unit::Inches) == Unit::Millimetres);
+    CHECK(nextUnit(Unit::Millimetres) == Unit::Centimetres);
+    CHECK(nextUnit(Unit::Centimetres) == Unit::Picas);
+    CHECK(nextUnit(Unit::Picas) == Unit::Points);
+
+    // Five presses from any unit come back to it, and visit no unit twice on the way.
+    for (Unit start : {Unit::Points, Unit::Inches, Unit::Millimetres, Unit::Centimetres, Unit::Picas}) {
+        Unit unit = start;
+        int seen = 0;
+        for (int i = 0; i < kUnitCount; ++i) {
+            seen |= 1 << static_cast<int>(unit);
+            unit = nextUnit(unit);
+        }
+        CHECK(unit == start);
+        CHECK(seen == (1 << kUnitCount) - 1);
+    }
+}
+
 TEST_CASE("formatting carries the unit symbol", "[tst_units]")
 {
     CHECK(formatLength(Length::fromInches(1.0), Unit::Points, 0) == QStringLiteral("72pt"));

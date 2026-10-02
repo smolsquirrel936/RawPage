@@ -284,6 +284,10 @@
         <translation>Toggle Guides</translation>
     </message>
     <message>
+        <source>action.view.cycleRulerUnit</source>
+        <translation>Next Ruler Unit</translation>
+    </message>
+    <message>
         <source>action.view.lockGuide</source>
         <translation>Lock Guide</translation>
     </message>

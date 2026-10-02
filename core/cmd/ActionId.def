@@ -144,6 +144,11 @@ RAWPAGE_ACTION(ViewToggleRulers,       "view.toggleRulers",       Viewer, "actio
 RAWPAGE_ACTION(ViewToggleGrid,         "view.toggleGrid",         Viewer, "action.view.toggleGrid")
 RAWPAGE_ACTION(ViewToggleSnapToGrid,   "view.toggleSnapToGrid",   Viewer, "action.view.toggleSnapToGrid")
 RAWPAGE_ACTION(ViewToggleGuides,       "view.toggleGuides",       Viewer, "action.view.toggleGuides")
+// Added on the user's request 2026-10-03: a press on the rulers' corner box steps `units/rulerUnit`
+// to the next unit, wrapping (`core::nextUnit`). An id rather than a click handler for the reason
+// the three below give -- a control that is a lambda is one the tool finder and the batch runner
+// cannot reach. No chord, so `Features.md` §8 is not touched.
+RAWPAGE_ACTION(ViewCycleRulerUnit,     "view.cycleRulerUnit",     Viewer, "action.view.cycleRulerUnit")
 
 // THREE IDS DECLARED AT STAGE 4 T8, on the rule T7's note above states: a feature reachable only
 // from a widget is unfinished (D1-7(a)), and `Features.md` §1.3 asks to *"move, lock, and delete

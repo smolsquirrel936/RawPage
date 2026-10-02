@@ -91,7 +91,7 @@
 #include <QString>
 #include <QWidget>
 
-class QLabel;
+class QAbstractButton;
 
 namespace rawpage::core {
 class CommandJournal;
@@ -308,6 +308,7 @@ public:
 
     RulerWidget* horizontalRuler() const noexcept { return horizontalRuler_; }
     RulerWidget* verticalRuler() const noexcept { return verticalRuler_; }
+    QAbstractButton* rulerUnitButton() const noexcept { return rulerCorner_; }
 
     // The tab's text and the window title's `%1`: the file's name, derived rather than stored, so
     // there is no second copy to disagree with the path after a rename.
@@ -460,7 +461,7 @@ private:
     // first thing a person saw after `Ctrl+U` would be two blank strips.
     RulerWidget* horizontalRuler_ = nullptr;
     RulerWidget* verticalRuler_ = nullptr;
-    QLabel*      rulerCorner_ = nullptr;
+    QAbstractButton* rulerCorner_ = nullptr;
 
     // The `Settings` subscription, released in the destructor. Convention 10: a subscriber that
     // outlives the object it was installed for is a call into freed memory, and `Settings` outlives

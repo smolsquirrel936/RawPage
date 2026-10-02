@@ -40,6 +40,7 @@
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/ViewportController.h"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -560,6 +561,143 @@ TEST_CASE("the three section 8 chords toggle their setting from a key event", "[
         REQUIRE(document != nullptr);
         CHECK(document->horizontalRuler()->isVisible());
     }
+}
+
+// =============================================================================================
+// The rulers' corner box is a BUTTON (on the user's request 2026-10-03): a press dispatches
+// `view.cycleRulerUnit`, which steps `units/rulerUnit` to the next unit and wraps.
+//
+// What it does NOT cover (convention 19): the press is `QAbstractButton::click()`, not a mouse event
+// at a screen position, so whether the 22-pixel box is easy to hit -- and whether "mm" fits inside
+// it on a 150 % panel -- is for a person on the `windows` platform; the text is asserted as a string,
+// never as glyphs.
+// =============================================================================================
+
+TEST_CASE("a press on the rulers' corner box steps every tab to the next unit and wraps", "[rulers]")
+{
+    Viewer viewer;
+    viewer.fixture.settings.set(core::keys::units::rulerUnit, core::Unit::Points);
+    viewer.fixture.pumpTiles();
+    ui::DocumentWindow* first = viewer.document;
+
+    // A SECOND TAB, whose box is the one pressed: the first tab's rulers following is what says the
+    // press wrote the SETTING rather than the widget it was made on.
+    viewer.window->openFiles({viewer.fixture.writeFile(QStringLiteral("second.pdf"))});
+    driveLayout(viewer.window.get());
+    ui::DocumentWindow* second = viewer.window->currentDocument();
+    REQUIRE(second != nullptr);
+    REQUIRE(second != first);
+
+    QAbstractButton* corner = second->rulerUnitButton();
+    REQUIRE(corner != nullptr);
+    REQUIRE(corner->isVisible());
+    REQUIRE(viewer.fixture.actions.isRegistered(ActionId::ViewCycleRulerUnit));
+    // Out of the Tab order, by the user's choice: the keyboard reaches the command through the tool finder.
+    CHECK(corner->focusPolicy() == Qt::NoFocus);
+    CHECK(corner->text() == QStringLiteral("pt"));
+
+    const auto everyTabReads = [&](core::Unit unit) {
+        INFO("expected " << core::unitSuffix(unit));
+        CHECK(viewer.fixture.settings.get(core::keys::units::rulerUnit) == unit);
+        for (ui::DocumentWindow* document : {first, second}) {
+            CHECK(document->horizontalRuler()->unit() == unit);
+            CHECK(document->verticalRuler()->unit() == unit);
+            CHECK(document->rulerUnitButton()->text() == QString::fromUtf8(core::unitSuffix(unit)));
+        }
+    };
+
+    // FIVE PRESSES, and the fifth is the wrap back to where it started.
+    for (const core::Unit unit : {core::Unit::Inches, core::Unit::Millimetres, core::Unit::Centimetres,
+                                  core::Unit::Picas, core::Unit::Points}) {
+        corner->click();
+        QCoreApplication::processEvents();
+        everyTabReads(unit);
+    }
+
+    SECTION("the box holds no unit of its own -- a press steps on from the SETTING")
+    {
+        // THE CONTROL: the unit changed elsewhere (the Units & Guides page writes this row), then a
+        // press. A box that counted its own presses would step from "pt" to "in" here.
+        viewer.fixture.settings.set(core::keys::units::rulerUnit, core::Unit::Centimetres);
+        QCoreApplication::processEvents();
+        everyTabReads(core::Unit::Centimetres);
+
+        corner->click();
+        QCoreApplication::processEvents();
+        everyTabReads(core::Unit::Picas);
+    }
+
+    SECTION("the command steps the unit with no box pressed -- the tool finder's path")
+    {
+        REQUIRE(viewer.fixture.actions.dispatch(ActionId::ViewCycleRulerUnit, core::KeyContext::Viewer));
+        QCoreApplication::processEvents();
+        everyTabReads(core::Unit::Inches);
+    }
+}
+
+// The widest unit is drawn WHOLE in the 22-pixel box, never elided. Found by measuring the first build
+// on the `windows` platform: a stock `QToolButton` there padded the text 8 pixels a side -- a size hint
+// 37 pixels wide for "mm" -- and drew "mm" as "...".
+//
+// TWO HALVES, because neither platform can see both. **Offscreen** (`ctest`) the size hint is asserted:
+// a stock tool button asks for 34 pixels there, and the elision itself does not happen, because Fusion
+// pads less. **On the `windows` platform** the painted ink is asserted too -- run it there by its tag,
+// `[corner-fit]`: the stock button inked 3 columns for "mm" (the ellipsis) and this box inks about 16.
+// The ink half is not run offscreen, where glyphs are boxes; loading a font file for it instead left
+// the ribbon's Tab-order case red when `rawpage_ui_tests.exe` ran whole, cause not established.
+// What it does NOT cover (convention 19): a larger `general/uiFontScale`, where any 22-pixel box
+// stops fitting "mm" -- the label this button replaced had the same bound.
+TEST_CASE("the rulers' corner box draws its widest unit whole", "[rulers][corner-fit]")
+{
+    Viewer viewer;
+    QAbstractButton* corner = viewer.document->rulerUnitButton();
+    REQUIRE(corner != nullptr);
+
+    // THE BOX ASKS FOR NO MORE ROOM THAN IT HAS, in "mm": a styled button whose size hint is wider
+    // than its fixed box is one its style pads, and on Windows elides.
+    viewer.fixture.settings.set(core::keys::units::rulerUnit, core::Unit::Millimetres);
+    QCoreApplication::processEvents();
+    REQUIRE(corner->text() == QStringLiteral("mm"));
+    INFO("size hint " << corner->sizeHint().width() << "x" << corner->sizeHint().height());
+    CHECK(corner->sizeHint().width() <= corner->width());
+    CHECK(corner->sizeHint().height() <= corner->height());
+
+    if (QGuiApplication::platformName() != QStringLiteral("windows")) {
+        SUCCEED("the ink half runs on QT_QPA_PLATFORM=windows only");
+        return;
+    }
+
+    QPalette palette = corner->palette();
+    palette.setColor(QPalette::Window, Qt::white);
+    palette.setColor(QPalette::WindowText, Qt::black);
+    palette.setColor(QPalette::ButtonText, Qt::black);
+    corner->setPalette(palette);
+
+    // Columns of the box holding any dark pixel, for one unit.
+    const auto inkColumns = [&](core::Unit unit) {
+        viewer.fixture.settings.set(core::keys::units::rulerUnit, unit);
+        QCoreApplication::processEvents();
+        QImage image(corner->size(), QImage::Format_RGB32);
+        image.fill(Qt::white);
+        corner->render(&image);
+        int columns = 0;
+        for (int x = 0; x < image.width(); ++x) {
+            bool ink = false;
+            for (int y = 0; y < image.height() && !ink; ++y) ink = image.pixelColor(x, y).lightness() < 128;
+            if (ink) ++columns;
+        }
+        return columns;
+    };
+
+    const int millimetres = inkColumns(core::Unit::Millimetres);
+    const int inches = inkColumns(core::Unit::Inches);
+    INFO("mm ink columns " << millimetres << ", in ink columns " << inches << ", box " << corner->width());
+    // THE CONTROL is "in", which fits either way: "mm" must be WIDER than it, which an ellipsis is not.
+    CHECK(inches > 0);
+    CHECK(millimetres >= 12);
+    CHECK(millimetres > inches);
+
+    corner->setPalette(QPalette());
 }
 
 TEST_CASE("the guide commands act on the guide the menu was raised over", "[rulers]")

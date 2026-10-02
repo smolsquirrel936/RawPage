@@ -1,6 +1,7 @@
 #include "ui/shell/DocumentWindow.h"
 
 #include "core/Log.h"
+#include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
 #include "core/cmd/RecoveryJournal.h"
 #include "core/doc/Document.h"
@@ -19,10 +20,12 @@
 #include "core/text/DocumentIndex.h"
 #include "ui/viewer/SplitViewContainer.h"
 
+#include <QAbstractButton>
 #include <QDir>
 #include <QFileInfo>
 #include <QGridLayout>
-#include <QLabel>
+#include <QPainter>
+#include <QPaintEvent>
 #include <QVBoxLayout>
 
 #include <optional>
@@ -37,6 +40,38 @@ using core::LogSubsystem;
 // bound rather than an expectation -- a closing tab that hung on a wedged worker would be a
 // product that cannot be quit.
 constexpr int kDrainBudgetMs = 2000;
+
+// The rulers' corner box: a button that DRAWS LIKE THE LABEL IT REPLACED (2026-10-03). Not a
+// `QToolButton`, measured: on the `windows` platform its style pads the text 8 pixels a side --
+// sizeHint 37 pixels wide for "mm" against a 22-pixel box -- and a text that does not fit is ELIDED,
+// so "mm" read "..." while "in" fitted. The text here is centred over the whole box with no margin,
+// which is what the label did ("mm" is 21 pixels in the default font at 100 %). Pressed and hovered
+// tint the box with the palette's highlight, so it follows the live theme like the rulers beside it
+// (conventions 20 and 21); the text stays `WindowText`, the rulers' own numbers' colour.
+class RulerCornerButton final : public QAbstractButton {
+public:
+    explicit RulerCornerButton(QWidget* parent) : QAbstractButton(parent)
+    {
+        setAttribute(Qt::WA_Hover);   // repaint on enter and leave, for the hover tint
+        setCursor(Qt::PointingHandCursor);
+    }
+
+    QSize sizeHint() const override { return {RulerWidget::kThickness, RulerWidget::kThickness}; }
+
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+        const QPalette& colours = palette();
+        if (isDown() || underMouse()) {
+            QColor tint = colours.color(QPalette::Highlight);
+            tint.setAlpha(isDown() ? 110 : 55);
+            painter.fillRect(rect(), tint);
+        }
+        painter.setPen(colours.color(QPalette::WindowText));
+        painter.drawText(rect(), Qt::AlignCenter, text());
+    }
+};
 
 } // namespace
 
@@ -175,12 +210,24 @@ void DocumentWindow::build(const Recovery* recovery)
     verticalRuler_ = new RulerWidget(Qt::Vertical, surface);
 
     // The corner box names the unit ONCE, so the ticks carry numbers rather than five characters
-    // of "mm" apiece. A label and not a button: the unit is `units/rulerUnit` and its surface is
-    // the Units & Guides Preferences page, which convention 17 generates from the row -- a second
-    // control for it here would be a second place to keep in agreement.
-    rulerCorner_ = new QLabel(surface);
-    rulerCorner_->setAlignment(Qt::AlignCenter);
+    // of "mm" apiece. **A BUTTON since 2026-10-03, on the user's request**: a press dispatches
+    // `view.cycleRulerUnit`, which writes `units/rulerUnit` and nothing else. It was a label until
+    // then so that it would not be a second place to keep in agreement with the Units & Guides
+    // page; it still is not one, because it holds no state -- `applyGuideSettings` sets its text
+    // from the row, whoever changed it. Through the registry rather than straight to the setting,
+    // for `SidebarDock`'s close button's reason: the tool finder and the batch runner reach the
+    // command, and a button with its own handler would be a behaviour they could never share.
+    // NOT a default action (convention 23): the button shows the UNIT, not the command's label.
+    // NO FOCUS, by the user's choice: a mouse convenience that adds no Tab stop to every tab; the
+    // keyboard reaches the same command through the tool finder, and the unit through Preferences.
+    rulerCorner_ = new RulerCornerButton(surface);
+    rulerCorner_->setObjectName(QStringLiteral("rulerUnitButton"));
+    rulerCorner_->setFocusPolicy(Qt::NoFocus);
+    rulerCorner_->setToolTip(catalog::translateAction(core::ActionId::ViewCycleRulerUnit));
     rulerCorner_->setFixedSize(RulerWidget::kThickness, RulerWidget::kThickness);
+    connect(rulerCorner_, &QAbstractButton::clicked, this, [this] {
+        (void)services_.actions.dispatch(core::ActionId::ViewCycleRulerUnit, core::KeyContext::Viewer);
+    });
 
     grid->addWidget(rulerCorner_, 0, 0);
     grid->addWidget(horizontalRuler_, 0, 1);

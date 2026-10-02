@@ -284,6 +284,10 @@
         <translation>切換輔助線</translation>
     </message>
     <message>
+        <source>action.view.cycleRulerUnit</source>
+        <translation>下一個尺規單位</translation>
+    </message>
+    <message>
         <source>action.view.lockGuide</source>
         <translation>鎖定參考線</translation>
     </message>

@@ -100,6 +100,13 @@ constexpr const char* unitSuffix(Unit unit) {
 
 inline constexpr int kUnitCount = 5;
 
+// The unit after `unit`, wrapping from the last to the first -- what a press on the rulers' corner
+// box steps to (`view.cycleRulerUnit`, added on the user's request 2026-10-03). In the ENUM's order,
+// which is `Features.md` §1.3's list, so the box walks the five in the order they are named there.
+constexpr Unit nextUnit(Unit unit) {
+    return static_cast<Unit>((static_cast<int>(unit) + 1) % kUnitCount);
+}
+
 // The suffix is also the PERSISTED TOKEN -- `SettingsCodec<Unit>` writes `units/rulerUnit=mm`
 // (S4 T8). One spelling rather than two: a settings file, a ruler label and a parsed "12mm" all
 // mean the same five strings, and a second table of enum names would be the list that disagrees.

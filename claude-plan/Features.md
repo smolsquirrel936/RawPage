@@ -215,6 +215,10 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 
 - Show/hide horizontal and vertical rulers.
 - Choose the measurement unit: points, inches, millimetres, centimetres, picas.
+- Step to the next unit by pressing the corner box where the two rulers meet, which names the
+  current one — in the order above, wrapping from picas to points, for every open document. *(Added on the
+  user's request 2026-10-03, as the command `view.cycleRulerUnit`, which has no chord;
+  `Stage5-TextSearch-Testing-Guide.md` A-115.)*
 - Show/hide a layout grid.
 - Configure grid spacing, subdivisions, colour, and origin offset.
 - Snap dragged objects to the grid.

@@ -147,10 +147,15 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // existed to open and step through. No id is minted; `compare.showReport` stays unregistered -- a report is
     // Stage 8's (D5-17, Q4).
     //
+    // **One more on 2026-10-03, on the user's request**: `view.cycleRulerUnit`, the rulers' corner box
+    // pressed. MINTED, chordless -- the id exists so the tool finder and the batch runner reach what the
+    // box does (D1-7(a)); 374 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 110);
+    CHECK(fixture.actions.registeredCount() == 111);
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewCycleRulerUnit));  // 2026-10-03
     CHECK(fixture.actions.isRegistered(core::ActionId::CompareDocuments));    // S5 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::NavNextDifference));   // S5 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::NavPrevDifference));   // S5 T13

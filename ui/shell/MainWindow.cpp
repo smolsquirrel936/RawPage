@@ -1,6 +1,7 @@
 #include "ui/shell/MainWindow.h"
 
 #include "core/Log.h"
+#include "core/Units.h"
 // T9: `openFiles()` asks the backend whether a file is a PDF (guide case A-47). It is a `core/`
 // header, so it widens nothing -- convention 9's list of what `ui/` looks OUTWARD to is unchanged.
 #include "core/backend.h"
@@ -1878,6 +1879,22 @@ void MainWindow::registerViewerActions()
     registerSettingToggle(ActionId::ViewToggleGrid, core::keys::units::showGrid);
     registerSettingToggle(ActionId::ViewToggleSnapToGrid, core::keys::units::snapToGrid);
     registerSettingToggle(ActionId::ViewToggleGuides, core::keys::units::showGuides);
+
+    // `view.cycleRulerUnit` -- the rulers' corner box, pressed (on the user's request 2026-10-03). The
+    // toggles' rule with five values instead of two: the handler writes `units/rulerUnit` and nothing
+    // else, so every tab's rulers follow, the Units & Guides page shows the new unit, and it survives
+    // a restart. The box itself holds no state -- it reads the row back like every other surface does.
+    if (!services_.actions.isRegistered(ActionId::ViewCycleRulerUnit)) {
+        core::ActionRegistry::Registration cycle;
+        cycle.handler = [settingsInFront](KeyContext) {
+            if (core::Settings* settings = settingsInFront())
+                settings->set(core::keys::units::rulerUnit,
+                              core::nextUnit(settings->get(core::keys::units::rulerUnit)));
+        };
+        cycle.enable = hasView;
+        cycle.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::ViewCycleRulerUnit, std::move(cycle));
+    }
 
     // `view.invertColors` has no chord and no settings row: it is a per-VIEW reading convenience,
     // like the view rotation beside it, and a person reading one scanned document inverted does
