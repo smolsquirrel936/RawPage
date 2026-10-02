@@ -725,6 +725,16 @@ void RenderScheduler::workerLoop(int index)
         auto jobIt = jobs_.find(id);
         if (jobIt == jobs_.end()) continue;
         jobIt->second.started = true;
+        // PRIORITY INVERSION, decided here and nowhere else (Stats, I-12): a more urgent job still pending.
+        for (const std::uint64_t other : pending_) {
+            if (other == id) continue;
+            const auto waiting = jobs_.find(other);
+            if (waiting != jobs_.end()
+                && static_cast<int>(waiting->second.priority) < static_cast<int>(jobIt->second.priority)) {
+                ++stats_.startedWhileMoreUrgentWaited;
+                break;
+            }
+        }
         pending_.erase(std::remove(pending_.begin(), pending_.end(), id), pending_.end());
         ++running_;
         ++stats_.started;

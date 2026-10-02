@@ -574,8 +574,9 @@ because a column's p95 depends on how many rounds it covers. Two full runs:
 column grades `go`**. **A2 AT STAGE 5 IS `go` — re-graded by the user on 2026-10-02 from this measurement**,
 over T3's `go, with named custom work`: its named work — a folder search opening each file in pieces on the
 engine thread — was built at T9 and is inside the budget here and in T3's own bench below. **Recorded with
-two caveats the verdict does not resolve:** that bench's two priority inversions a run, where T3 counted
-none, are not explained; and its worst single tiles reach 14.7–23.8 ms, where the scale grades the p95.
+two caveats:** that bench's two priority inversions a run, where T3 counted none -- **since explained and
+corrected, Stage 5 guide I-12: none was a priority inversion**, and the scheduler's own count reads 0 -- and its
+worst single tiles reach 14.7–23.8 ms, where the scale grades the p95.
 
 **The bench took the wrong measurement four times before the right one, and each is recorded in the bench's
 header rather than smoothed.** *(1)* It had no catalog loaded, so every widget label was its KEY, and the find
@@ -604,10 +605,12 @@ running) — the item T9 left open, *the folder column NOT inside §3.1's budget
 **comparison 13.65–13.72** (13.51–13.68). One page's extraction p95 1.71 ms, max 2.29–2.63; the longest engine
 piece of an open 9.40–10.60 ms; cross-document evictions 0 in every column; worst single tiles 14.7–23.8 ms.
 **Priority inversions 2 in each run, where T3 recorded 0 in every column** — run 1's two in the 24 MiB index
-build, run 2's in the 256 MiB index build and folder search; not investigated at T14. The count is a
-background job whose start the worker stamped after a viewport tile's `enqueue()` returned; whether these are
-work the worker chose over a waiting tile or a pick made just before the tile arrived and stamped just after
-is not established. **So on this day the whole T3 scale reads where T3 put it, with no change since T9's
+build, run 2's in the 256 MiB index build and folder search. **Explained the same day (Stage 5 guide I-12): none
+was an inversion.** The count was inferred from start stamps the timing wrappers take AFTER the pick, and a
+throwaway probe of pick ordinals showed every counted one, over four runs, to be a column's FIRST job, picked
+before the first tile was queued and stamped 0.2–0.5 µs after its `enqueue()` returned. The count is now the
+scheduler's own (`Stats::startedWhileMoreUrgentWaited`, taken at the pick): **0 in every column at both caps,
+two runs**, with the viewport figures unchanged (viewer 13.24–13.40 ms, folder search 14.24–14.28). **So on this day the whole T3 scale reads where T3 put it, with no change since T9's
 commit to `core/render/`, `pdf/render/`, `core/text/FolderSearch`, `DocumentIndex` or the bench itself**
 (`git log eb7540f..HEAD` over those paths is empty) — consistent with T9's note that the scale had moved with the
 machine, which this measurement does not prove either.

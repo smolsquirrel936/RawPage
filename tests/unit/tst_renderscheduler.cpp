@@ -1163,6 +1163,74 @@ TEST_CASE("render scheduler starts an exclusive task only when nothing of its do
     CHECK(order == std::vector<std::string>{"B", "A-long", "A-close"});
 }
 
+TEST_CASE("render scheduler counts a job started while a more urgent one waited and only then", "[core][render][I-12]")
+{
+    // S5 guide I-12: the inversion count is the scheduler's own, taken at the pick. Strict priority makes it
+    // zero -- the control half -- and an exclusive task holding a document's VISIBLE tile back while another
+    // document's background work starts is the one way it is not.
+    SECTION("strict priority: every visible tile before any background job, and nothing counted")
+    {
+        RasterizerProbe rasters;
+        RenderScheduler scheduler(factoryFor(rasters), nullptr, RenderScheduler::Config{});
+        std::atomic<int> ran{0};
+        scheduler.pause();
+        scheduler.enqueueTask(kDocB, RenderPriority::Background, [&ran] { ++ran; });
+        scheduler.enqueueTask(kDocB, RenderPriority::Background, [&ran] { ++ran; });
+        scheduler.enqueue(requestFor(0), RenderPriority::Visible);
+        scheduler.enqueue(requestFor(1), RenderPriority::Prefetch);
+        scheduler.resume();
+        REQUIRE(scheduler.waitForIdle(3000));
+        scheduler.deliverReady();
+        CHECK(ran.load() == 2);
+        CHECK(rasters.calls.load() == 2);
+        CHECK(scheduler.stats().started == 4);
+        CHECK(scheduler.stats().startedWhileMoreUrgentWaited == 0);
+    }
+
+    SECTION("an exclusive task holds a visible tile back and another document's background job starts")
+    {
+        RenderScheduler::Config config;
+        config.workerCount = 2;
+        RasterizerProbe rasters;
+        RenderScheduler scheduler(factoryFor(rasters), nullptr, config);
+        std::mutex mutex;
+        std::condition_variable changed;
+        bool release = false;
+        bool holding = false;
+        bool backgroundRan = false;
+        // AN EXCLUSIVE TASK OF A, held on its worker: nothing of A may start beside it.
+        scheduler.enqueueTask(kDocA, RenderPriority::Background, [&] {
+            std::unique_lock<std::mutex> lock(mutex);
+            holding = true;
+            changed.notify_all();
+            changed.wait(lock, [&] { return release; });
+        }, true);
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            REQUIRE(changed.wait_for(lock, std::chrono::seconds(3), [&] { return holding; }));
+        }
+        // A's VISIBLE tile waits on the exclusive task; B's background job takes the free worker.
+        scheduler.enqueue(requestFor(0), RenderPriority::Visible);
+        scheduler.enqueueTask(kDocB, RenderPriority::Background, [&] {
+            const std::lock_guard<std::mutex> lock(mutex);
+            backgroundRan = true;
+            changed.notify_all();
+        });
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            REQUIRE(changed.wait_for(lock, std::chrono::seconds(3), [&] { return backgroundRan; }));
+            CHECK(rasters.calls.load() == 0);   // the visible tile has NOT started
+            release = true;
+        }
+        changed.notify_all();
+        REQUIRE(scheduler.waitForIdle(3000));
+        scheduler.deliverReady();
+        CHECK(rasters.calls.load() == 1);
+        // ONE: B's job. The exclusive task started with nothing waiting, and A's tile when nothing was.
+        CHECK(scheduler.stats().startedWhileMoreUrgentWaited == 1);
+    }
+}
+
 TEST_CASE("render scheduler never runs a cancelled engine task and forgets a closed document's", "[core][render][task]")
 {
     // A-36's rule, for a task: not "nothing was reported" but "the task never ran". And `cancelDocument()`

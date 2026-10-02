@@ -867,6 +867,10 @@ int main(int argc, char** argv)
                 std::printf("                   background: text jobs %lld   engine tasks %lld   rasters bypassing the cache %lld"
                             "   (lane total %lld)\n",
                             text, tasks, bypass, after.enqueuedBackground - beforeWork.enqueuedBackground);
+                // THE SCHEDULER'S OWN INVERSION COUNT (S5 guide I-12): a job picked while a more urgent one
+                // was pending. Strict priority makes it zero unless an exclusive task held a document back.
+                std::printf("                   jobs started while a more urgent one waited: %lld\n",
+                            after.startedWhileMoreUrgentWaited - beforeWork.startedWhileMoreUrgentWaited);
                 std::printf("                   cache insertions %lld against %lld foreground tiles delivered\n",
                             cache.insertions,
                             static_cast<long long>(samples.visible.size() + samples.prefetch.size() + samples.speculative.size()));

@@ -390,6 +390,15 @@ public:
         long long failed = 0;
         long long priorityRaised = 0;     // a prefetch job that a visible request joined
 
+        // A JOB STARTED WHILE A MORE URGENT ONE WAITED -- counted at the pick, under the lock that
+        // decides it, so it is exact (Stage 5 guide I-12). Strict priority makes it zero except where
+        // an exclusive task holds a document's work back (S5 T9). A job already running when a more
+        // urgent one arrives is not counted: it was picked before the other existed, and the wait it
+        // causes is the bounded one D5-3 accepts. `bench_pipeline --stage5` reads its inversions here;
+        // until I-12 it inferred them from start stamps taken after the pick, and counted a column's
+        // first job, picked before the first tile was queued, whenever its stamp landed after it.
+        long long startedWhileMoreUrgentWaited = 0;
+
         // Stage 5 T2 -- the text subset of the counters above.
         long long textEnqueued = 0;
         long long textCompleted = 0;      // the extractor returned, success or not

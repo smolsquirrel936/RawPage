@@ -757,11 +757,13 @@ int runStage4Workload(core::IDocumentBackend& backend, const OpenFn& open,
 // how long the engine took. That is what A-28's per-page extraction distribution is read from, and
 // what the inversion count below is computed from -- not from the pump, which only sees deliveries.
 //
-// THE INVERSION COUNT (guide A-29): a background job that STARTED after a viewport tile was
-// enqueued and before that tile started is the page waiting on work nobody is watching. The one
-// background job already inside the engine when the tile arrives started BEFORE it, so it is not
-// counted -- it is the bounded wait D5-3 accepts, and the per-page maximum is its size. The bound on
-// the count is therefore ZERO.
+// THE INVERSION COUNT (guide A-29): a background job that was PICKED while a viewport tile waited
+// is the page waiting on work nobody is watching. The one background job already inside the engine
+// when the tile arrives was picked BEFORE it, so it is not counted -- it is the bounded wait D5-3
+// accepts, and the per-page maximum is its size. The bound on the count is therefore ZERO. It is the
+// scheduler's own `Stats::startedWhileMoreUrgentWaited`, taken at the pick under the lock that makes
+// it (S5 guide I-12): a count inferred from start stamps taken after the pick counted a column's
+// first job whenever the first tile was queued between its pick and its stamp.
 
 constexpr int kStage5GapMs = 50;
 constexpr int kStage5ViewerRounds = 60;
@@ -1063,10 +1065,10 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
                 const Clock::time_point sent = Clock::now();
                 awaitingViewport[key] = sent;
                 scheduler.enqueue(request, RenderPriority::Visible);
-                // The inversion count's reference is when the tile was IN THE QUEUE -- after
-                // `enqueue()` returned. `sent`, taken before the call, is right for the latency and
-                // wrong for this: a background job the worker picked while the tile was still on its
-                // way in counted as an inversion on the first run (1, in the comparison column).
+                // When the tile was IN THE QUEUE -- after `enqueue()` returned -- for the slowest tile's
+                // account of what the worker did before it. It was also the inversion count's reference
+                // until S5 guide I-12, and moving it here from `sent` at T3 narrowed the same race that
+                // I-12 then closed by counting at the pick, in the scheduler.
                 viewportSent[key] = Clock::now();
                 ++outcome.viewportTiles;
                 if (scheduler.stats().servedFromCache == servedBefore) ++outcome.viewportTilesRendered;
@@ -1113,14 +1115,12 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
         folderIndex.reset();
 
         // --- what the worker did ------------------------------------------------------------
-        std::vector<Clock::time_point> backgroundStarts;
         std::map<std::string, Clock::time_point> viewportStarted;
         {
             const std::lock_guard<std::mutex> lock(log.mutex);
             for (const ServiceLog::Entry& entry : log.entries) {
                 if (entry.text) {
                     outcome.extractionMs.push_back(entry.ms);
-                    backgroundStarts.push_back(entry.start);
                     if (entry.ms > outcome.slowestExtractionMs) {
                         // "text:<handle>/<page>" back to a file name and a 1-based page number.
                         const std::size_t colon = entry.key.find(':');
@@ -1148,12 +1148,9 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
                             outcome.slowestTileKey = entry.key;
                         }
                     }
-                } else {
-                    backgroundStarts.push_back(entry.start);
                 }
             }
         }
-        std::sort(backgroundStarts.begin(), backgroundStarts.end());
         if (!outcome.slowestTileKey.empty()) {
             const std::lock_guard<std::mutex> lock(log.mutex);
             const Clock::time_point queued = viewportSent[outcome.slowestTileKey];
@@ -1171,12 +1168,12 @@ Stage5Outcome runStage5Column(core::IDocumentBackend& backend, const OpenDocumen
                 outcome.workerBefore = text;
             }
         }
-        for (const auto& [key, started] : viewportStarted) {
-            const Clock::time_point sent = viewportSent[key];
-            const auto first = std::upper_bound(backgroundStarts.begin(), backgroundStarts.end(), sent);
-            const auto last = std::lower_bound(backgroundStarts.begin(), backgroundStarts.end(), started);
-            if (last > first) outcome.inversions += last - first;
-        }
+        // THE INVERSIONS ARE THE SCHEDULER'S OWN COUNT, taken at the pick (S5 guide I-12). Until I-12 they were
+        // inferred here from the workers' START STAMPS -- a background job stamped between a tile's enqueue and
+        // its start -- and the stamp is taken in the timing wrapper, after the pick: a column's first job,
+        // picked before the first tile was queued and stamped 0.2-0.5 us after it, was counted 0-2 times a
+        // run (probed: pick ordinal 1, every one).
+        outcome.inversions = outcome.schedulerStats.startedWhileMoreUrgentWaited;
     }   // the scheduler is idle and gone before any document it served is closed
 
     for (const core::DocumentHandle handle : folderDocuments) backend.close(handle);
