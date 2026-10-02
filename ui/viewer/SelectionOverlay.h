@@ -62,6 +62,7 @@
 
 #include <QColor>
 #include <QObject>
+#include <QPainter>
 
 #include <optional>
 #include <set>
@@ -130,10 +131,12 @@ public:
     static QMimeData* mimeDataFor(const core::text::CopiedText& copied);
 
     // ---- Painting ------------------------------------------------------------------------------------
-    // Every selected run on every page `layout` shows inside `visible`, in widget pixels. A page covered
-    // by the selection whose text has not been read is asked for at `Visible` -- it is on screen.
+    // Every selected run on every page `layout` shows inside `visible`, in widget pixels, in `colour`
+    // composed onto the page by `mode` (the page view's choice, S5 guide I-15). A page's runs are filled
+    // as ONE path, so where two runs' boxes overlap the page is tinted once, not twice. A page covered by
+    // the selection whose text has not been read is asked for at `Visible` -- it is on screen.
     void paint(QPainter& painter, const core::render::PageLayout& layout, const core::DeviceRect& visible,
-               double devicePixelRatio, const QColor& colour);
+               double devicePixelRatio, const QColor& colour, QPainter::CompositionMode mode);
 
     // The same rectangles in CONTENT device pixels, for a case to compare with the ink (rule 6).
     std::vector<core::DeviceRect> highlightRects(const core::render::PageLayout& layout, int page) const;

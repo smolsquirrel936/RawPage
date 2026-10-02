@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QPainter>
+#include <QPainterPath>
 
 #include <algorithm>
 #include <cmath>
@@ -378,12 +379,14 @@ std::vector<core::DeviceRect> SelectionOverlay::highlightRects(const core::rende
 }
 
 void SelectionOverlay::paint(QPainter& painter, const core::render::PageLayout& layout,
-                             const core::DeviceRect& visible, double devicePixelRatio, const QColor& colour)
+                             const core::DeviceRect& visible, double devicePixelRatio, const QColor& colour,
+                             QPainter::CompositionMode mode)
 {
     if (selection_.isEmpty()) return;
     const double dpr = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
 
     painter.save();
+    painter.setCompositionMode(mode);
     for (const core::render::PageSlot& slot : layout.slotsIntersecting(visible)) {
         if (!selection_.covers(slot.pageIndex)) continue;
         if (!text_.has(slot.pageIndex)) {
@@ -392,11 +395,12 @@ void SelectionOverlay::paint(QPainter& painter, const core::render::PageLayout& 
             ensurePage(slot.pageIndex, core::render::RenderPriority::Visible);
             continue;
         }
-        for (const core::DeviceRect& rect : highlightRects(layout, slot.pageIndex)) {
-            painter.fillRect(QRectF((rect.left() - visible.left()) / dpr, (rect.top() - visible.top()) / dpr,
-                                    rect.size.width / dpr, rect.size.height / dpr),
-                             colour);
-        }
+        QPainterPath runs;
+        runs.setFillRule(Qt::WindingFill);
+        for (const core::DeviceRect& rect : highlightRects(layout, slot.pageIndex))
+            runs.addRect(QRectF((rect.left() - visible.left()) / dpr, (rect.top() - visible.top()) / dpr,
+                                rect.size.width / dpr, rect.size.height / dpr));
+        painter.fillPath(runs, colour);
     }
     painter.restore();
 }

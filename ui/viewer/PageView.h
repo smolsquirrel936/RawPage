@@ -51,6 +51,7 @@
 
 #include <QAbstractScrollArea>
 #include <QColor>
+#include <QPainter>
 #include <QPixmap>
 #include <QPoint>
 #include <QRectF>
@@ -611,6 +612,7 @@ private:
     bool                            invertColors_ = false;
 
     QColor selectionColour() const;
+    QPainter::CompositionMode selectionCompositionMode() const;
     // S5 T7: the find bar's hits -- every hit, and the current one over it.
     static QColor searchHitColour();
     static QColor currentSearchHitColour();

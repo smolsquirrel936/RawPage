@@ -57,6 +57,7 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -442,6 +443,112 @@ TEST_CASE("a drag selects the generator's text and the highlight is on its ink",
     CHECK(tally.intruding == 0);
     // THE CONTROL: the same rectangles moved 2 pt put selected ink outside them, or other ink inside.
     CHECK(control.outside + control.intruding > 0);
+}
+
+// =============================================================================================
+// I-15 -- the highlight is SEEN: the paper under it tinted, its glyphs at full contrast
+// =============================================================================================
+
+namespace {
+
+// WCAG 2's relative luminance and contrast ratio -- a published measure, so the thresholds below are a
+// standard's numbers and not ones fitted to whatever the product paints.
+double luminance(double r, double g, double b)
+{
+    const auto linear = [](double v) {
+        const double s = v / 255.0;
+        return s <= 0.04045 ? s / 12.92 : std::pow((s + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+double contrast(double a, double b)
+{
+    return (std::max(a, b) + 0.05) / (std::min(a, b) + 0.05);
+}
+
+struct Tint {
+    double cleanPaper = 0.0, paper = 0.0, ink = 0.0;   // luminances
+    double paperRed = 0.0, paperBlue = 0.0;
+    int paperPixels = 0, inkPixels = 0;
+};
+
+// Inside the highlights (shrunk a pixel, off their edges), the pixels that were PAPER in the clean raster
+// and those that were the far end of the INK -- averaged in each raster.
+Tint measureTint(const QImage& clean, const QImage& selected, const std::vector<QRectF>& highlights, bool paperIsLight)
+{
+    double cr = 0, cg = 0, cb = 0, pr = 0, pg = 0, pb = 0, ir = 0, ig = 0, ib = 0;
+    Tint tint;
+    for (const QRectF& rect : highlights) {
+        const QRect pixels = rect.adjusted(1, 1, -1, -1).toAlignedRect().intersected(clean.rect());
+        for (int y = pixels.top(); y <= pixels.bottom(); ++y)
+            for (int x = pixels.left(); x <= pixels.right(); ++x) {
+                const int gray = qGray(clean.pixel(x, y));
+                const QRgb now = selected.pixel(x, y);
+                if (paperIsLight ? gray >= 250 : gray <= 5) {
+                    const QRgb before = clean.pixel(x, y);
+                    cr += qRed(before), cg += qGreen(before), cb += qBlue(before);
+                    pr += qRed(now), pg += qGreen(now), pb += qBlue(now);
+                    ++tint.paperPixels;
+                } else if (paperIsLight ? gray <= 40 : gray >= 215) {
+                    ir += qRed(now), ig += qGreen(now), ib += qBlue(now);
+                    ++tint.inkPixels;
+                }
+            }
+    }
+    if (tint.paperPixels > 0) {
+        const double n = tint.paperPixels;
+        tint.cleanPaper = luminance(cr / n, cg / n, cb / n);
+        tint.paper = luminance(pr / n, pg / n, pb / n);
+        tint.paperRed = pr / n;
+        tint.paperBlue = pb / n;
+    }
+    if (tint.inkPixels > 0) {
+        const double n = tint.inkPixels;
+        tint.ink = luminance(ir / n, ig / n, ib / n);
+    }
+    return tint;
+}
+
+} // namespace
+
+TEST_CASE("a selection tints the paper clearly and keeps its glyphs at full contrast on either page colour",
+          "[selectionink][I-15]")
+{
+    // THE THRESHOLDS: the selected paper at least 1.6:1 from the paper beside it -- a band seen at a glance,
+    // where the light theme's translucent token gave 1.07:1 (`#ECF3FB` on white) -- and the glyphs at least
+    // 7:1 from the paper under them, WCAG's enhanced contrast for text, so reading through a selection costs
+    // nothing. And the band is BLUE, so it is a selection and not a shadow.
+    for (const bool inverted : {false, true}) {
+        CAPTURE(inverted);
+        Product product;
+        ui::PageView* view = product.open("ordinary/columns-two.pdf");
+        view->setInvertColors(inverted);
+        const LabelPage page = labelPage("columns-two", 0);
+        const Line& first = page.lines[3];
+        const Line& third = page.lines[5];
+        product.scrollTo(0, first.baseline, 0.3);
+        const PageMap map = mapOf(*view, 0);
+        const QImage clean = product.cleanRaster();
+
+        product.drag(map.toWidget(pointOn(first, 0, false).x, pointOn(first, 0, false).y),
+                     map.toWidget(pointOn(third, static_cast<int>(third.text.size()) - 1, true).x,
+                                  pointOn(third, static_cast<int>(third.text.size()) - 1, true).y));
+        const std::vector<QRectF> highlights = highlightsOf(product.selection(), *view, 0);
+        REQUIRE_FALSE(highlights.empty());
+        const QImage selected = view->viewport()->grab().toImage().convertToFormat(QImage::Format_RGB32);
+
+        const Tint tint = measureTint(clean, selected, highlights, !inverted);
+        std::printf("I-15 (%s page): paper %.3f -> %.3f under the selection (%.2f:1), glyphs %.2f:1 from it; "
+                    "%d paper and %d ink pixels\n",
+                    inverted ? "inverted" : "plain", tint.cleanPaper, tint.paper, contrast(tint.paper, tint.cleanPaper),
+                    contrast(tint.ink, tint.paper), tint.paperPixels, tint.inkPixels);
+        REQUIRE(tint.paperPixels > 500);
+        REQUIRE(tint.inkPixels > 100);
+        CHECK(contrast(tint.paper, tint.cleanPaper) >= 1.6);
+        CHECK(contrast(tint.ink, tint.paper) >= 7.0);
+        CHECK(tint.paperBlue > tint.paperRed + 40.0);
+    }
 }
 
 // =============================================================================================

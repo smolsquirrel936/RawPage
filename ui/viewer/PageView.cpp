@@ -1387,7 +1387,7 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
     if (selection_ != nullptr) {
         selection_->paintSearchHits(painter, engine_.layout(), visible, dpr, searchHitColour(),
                                     currentSearchHitColour());
-        selection_->paint(painter, engine_.layout(), visible, dpr, selectionColour());
+        selection_->paint(painter, engine_.layout(), visible, dpr, selectionColour(), selectionCompositionMode());
     }
 
     // The grid and the guides go OVER the inversion, so a guide keeps its colour on an inverted
@@ -1481,14 +1481,22 @@ std::optional<QRectF> PageView::widgetRectOf(int pageIndex, const core::PdfRect&
                   (bottom - top) / dpr);
 }
 
+// THE SELECTION TINTS THE PAPER (S5 guide I-15) -- the page's colours, not the theme's, on
+// `searchHitColour`'s argument. Until I-15 this was the palette's `Highlight` at alpha 96, and in the light
+// theme that token is a pale tint meant to be drawn OPAQUE behind list text: over white paper it came out
+// `#ECF3FB`, 1.12:1 from the page, and it greyed the glyphs to 5.1:1. Now the colour is MULTIPLIED onto
+// the page (`selectionCompositionMode`): white paper becomes exactly this blue and black ink stays black.
+// On an inverted page the paper is black, which a multiply leaves black, so there the colour is SCREENED
+// on: the black paper becomes a dark blue and the white glyphs stay white. Each is measured by
+// `tst_selectionink`'s `[I-15]` case against WCAG's ratios.
 QColor PageView::selectionColour() const
 {
-    // THE THEME'S HIGHLIGHT, translucent -- from the palette, so it is judged in both themes by the same
-    // token every other selection in the product uses (convention 20), and translucent so the glyphs stay
-    // readable through it.
-    QColor colour = palette().color(QPalette::Highlight);
-    colour.setAlpha(96);
-    return colour;
+    return invertColors_ ? QColor(0x1a, 0x44, 0x7a) : QColor(0x99, 0xc4, 0xf0);
+}
+
+QPainter::CompositionMode PageView::selectionCompositionMode() const
+{
+    return invertColors_ ? QPainter::CompositionMode_Screen : QPainter::CompositionMode_Multiply;
 }
 
 PageView::LoupeRegion PageView::loupeRegionFor(const QRectF& source) const
@@ -1708,7 +1716,7 @@ bool PageView::paintSharpLens(QPainter& painter, const QRect& lens, const QRectF
         selection_->paintSearchHits(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF(),
                                     searchHitColour(), currentSearchHitColour());
         selection_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF(),
-                          selectionColour());
+                          selectionColour(), selectionCompositionMode());
     }
     guides_->paint(painter, engine_.layout(), controller_->visibleRect(), devicePixelRatioF());
     painter.restore();
