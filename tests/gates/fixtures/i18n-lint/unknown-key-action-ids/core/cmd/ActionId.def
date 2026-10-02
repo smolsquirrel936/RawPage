@@ -1,0 +1,9 @@
+#ifndef RAWPAGE_ACTION
+#define RAWPAGE_ACTION(Enumerator, StringId, DefaultContext, LabelKey)
+#endif
+
+// A fixture, not product code: S5 guide I-08. The STRING ID below is in the `compare` namespace, which is
+// also a catalog family -- and the id is not a catalog key. Only the LABEL column is one.
+RAWPAGE_ACTION(CompareDocuments, "compare.documents", Global, "action.compare.documents")
+
+#undef RAWPAGE_ACTION

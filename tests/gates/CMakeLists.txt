@@ -12,6 +12,24 @@ set(RUNNER "${CMAKE_CURRENT_SOURCE_DIR}/RunGateCase.cmake")
 
 function(rawpage_add_gate_test)
     cmake_parse_arguments(ARG "" "NAME;EXPECT_EXIT;EXPECT_MATCH;EXPECT_NOT_MATCH;EXPECT_FILE;EXPECT_ABSENT" "COMMAND;EXPECT_FILE_MATCH" ${ARGN})
+    # EVERY EXPECT_MATCH AND EVERY EXPECT_NOT_MATCH, not the last (S5 guide I-09). They are one-value keywords
+    # to `cmake_parse_arguments`, which keeps only the LAST of a repeated keyword -- so a case that named two
+    # diagnostics asserted one, and nothing said so. Each value is read here from `ARGV<n>`, which holds the
+    # argument whole (a pattern may contain `;`, which a list would split), and joined by @@ for the runner.
+    set(match_str "")
+    set(not_match_str "")
+    math(EXPR last_index "${ARGC} - 1")
+    foreach(i RANGE 0 ${last_index})
+        math(EXPR value_index "${i} + 1")
+        if(value_index GREATER last_index)
+            break()
+        endif()
+        if("${ARGV${i}}" STREQUAL "EXPECT_MATCH")
+            string(APPEND match_str "${ARGV${value_index}}@@")
+        elseif("${ARGV${i}}" STREQUAL "EXPECT_NOT_MATCH")
+            string(APPEND not_match_str "${ARGV${value_index}}@@")
+        endif()
+    endforeach()
     # Patterns travel joined by @@, because | is already the argument separator below.
     string(REPLACE ";" "@@" file_match_str "${ARG_EXPECT_FILE_MATCH}")
     # '|' rather than ' ' as the separator: a toolchain case passes an argument that itself
@@ -21,8 +39,8 @@ function(rawpage_add_gate_test)
         COMMAND ${CMAKE_COMMAND}
                 "-DCOMMAND_STR=${command_str}"
                 "-DEXPECT_EXIT=${ARG_EXPECT_EXIT}"
-                "-DEXPECT_MATCH=${ARG_EXPECT_MATCH}"
-                "-DEXPECT_NOT_MATCH=${ARG_EXPECT_NOT_MATCH}"
+                "-DEXPECT_MATCH=${match_str}"
+                "-DEXPECT_NOT_MATCH=${not_match_str}"
                 "-DEXPECT_FILE=${ARG_EXPECT_FILE}"
                 "-DEXPECT_ABSENT=${ARG_EXPECT_ABSENT}"
                 "-DEXPECT_FILE_MATCH=${file_match_str}"
@@ -520,6 +538,19 @@ rawpage_add_gate_test(NAME gates.i18n_lint.unknown_key
     EXPECT_EXIT 1
     EXPECT_MATCH "unknown-key: error.font.missingFace"
     EXPECT_NOT_MATCH "unknown-key: error.font.noSubstitute")
+
+# S5 T13 -- guide issue I-08 (`Stage5-TextSearch-Testing-Guide.md` §8). An action table row names ONE catalog
+# key, its label, and a ribbon control's "action" names none; an action id is a permanent name in a namespace
+# that may also be a family (`compare.` since D5-20). Neither id is reported -- and the family is still
+# enforced elsewhere, which the fixture's undefined key is: a rule that stopped reading the family would
+# pass the first half.
+rawpage_add_gate_test(NAME gates.i18n_lint.action_ids_are_not_catalog_keys
+    COMMAND ${IL} --root ${IL_FIX}/unknown-key-action-ids --rules ${IL_RULES}
+    EXPECT_EXIT 1
+    EXPECT_MATCH "unknown-key: compare.view.missing"
+    EXPECT_NOT_MATCH "unknown-key: compare.documents"
+    EXPECT_NOT_MATCH "unknown-key: compare.showReport"
+    EXPECT_NOT_MATCH "unknown-key: compare.view.title")
 
 rawpage_add_gate_test(NAME gates.i18n_lint.unknown_key_ignores_namespaces_and_filenames
     COMMAND ${IL} --root ${IL_FIX}/unknown-key --rules ${IL_RULES}

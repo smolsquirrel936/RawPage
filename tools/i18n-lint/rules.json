@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -63,7 +63,10 @@
     "",
     "Adding a family here is how a new catalog namespace becomes enforced. Leaving one out is a",
     "silent gap, which is why the list is short and why it lives beside scannedPaths rather than in",
-    "the tool."
+    "the tool.",
+    "",
+    "`compare` JOINED AT Stage 5 T13 (`Stage5-TextSearch-Plan.md` D5-20), with its first keys: the",
+    "comparison's dialog, view and Differences pane. A new namespace, as `search` was at T7."
   ],
 
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],

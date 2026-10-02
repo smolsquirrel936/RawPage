@@ -145,6 +145,12 @@ add_executable(rawpage_ui_tests
     # place both ways, the zoom chords as the text size, nothing rasterized while it shows, the reading keys
     # its own, a find hit leaving it, the window growing. A real page's order is tests/composition's.
     tst_reflow.cpp
+
+    # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
+    # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the
+    # dialog's widgets, the steps disabled and then stepping, the claimed keys, the bar as the settings, the
+    # handles closed. Real pages are tests/composition/tst_comparisonink.cpp's.
+    tst_comparison.cpp
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")

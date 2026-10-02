@@ -10,8 +10,10 @@
 # so a tool that printed the right words and then returned 0 would pass.
 #
 # Required: -DCOMMAND_STR=... -DEXPECT_EXIT=...
-# Optional: -DEXPECT_MATCH=<regex>   the diagnostic must mention this
-#           -DEXPECT_NOT_MATCH=<regex>  the diagnostic must NOT mention this. The negative half
+# Optional: -DEXPECT_MATCH=<regexes>   the diagnostic must mention EACH of these, several joined by @@
+#           -DEXPECT_NOT_MATCH=<regexes>  the diagnostic must NOT mention ANY of these, likewise. Until
+#                                    S5 guide I-09 each was one pattern, and a case that repeated the
+#                                    keyword asserted only its last. The negative half
 #                                    of a rule that SUPPRESSES a finding: a suppression asserted
 #                                    only by the absence of a failure is equally satisfied by a
 #                                    gate that stopped reporting everything.
@@ -58,24 +60,53 @@ if(NOT actual_exit EQUAL EXPECT_EXIT)
         "--- output ---\n${combined}")
 endif()
 
-if(DEFINED EXPECT_MATCH AND NOT EXPECT_MATCH STREQUAL "")
-    if(NOT combined MATCHES "${EXPECT_MATCH}")
+# THE PATTERNS, split on @@ by SUBSTRING, never by turning the string into a list: a pattern may contain `;`
+# (the mutation-lint cases' "RotatePageCommand;") or a bracket, and a CMake list would split or join on them.
+function(rawpage_split_patterns joined out)
+    set(rest "${joined}")
+    set(count 0)
+    while(NOT rest STREQUAL "")
+        string(FIND "${rest}" "@@" at)
+        if(at EQUAL -1)
+            set(pattern "${rest}")
+            set(rest "")
+        else()
+            string(SUBSTRING "${rest}" 0 ${at} pattern)
+            math(EXPR next "${at} + 2")
+            string(SUBSTRING "${rest}" ${next} -1 rest)
+        endif()
+        if(NOT pattern STREQUAL "")
+            set(rawpage_pattern_${count} "${pattern}" PARENT_SCOPE)
+            math(EXPR count "${count} + 1")
+        endif()
+    endwhile()
+    set(${out} ${count} PARENT_SCOPE)
+endfunction()
+
+rawpage_split_patterns("${EXPECT_MATCH}" match_count)
+set(index 0)
+while(index LESS match_count)
+    set(pattern "${rawpage_pattern_${index}}")
+    if(NOT combined MATCHES "${pattern}")
         message(FATAL_ERROR
-            "exit code ${actual_exit} was correct, but the diagnostic did not mention: ${EXPECT_MATCH}\n"
+            "exit code ${actual_exit} was correct, but the diagnostic did not mention: ${pattern}\n"
             "A gate that fails for the wrong reason has not been tested.\n"
             "--- output ---\n${combined}")
     endif()
-endif()
+    math(EXPR index "${index} + 1")
+endwhile()
 
-if(DEFINED EXPECT_NOT_MATCH AND NOT EXPECT_NOT_MATCH STREQUAL "")
-    if(combined MATCHES "${EXPECT_NOT_MATCH}")
+rawpage_split_patterns("${EXPECT_NOT_MATCH}" not_match_count)
+set(index 0)
+while(index LESS not_match_count)
+    set(pattern "${rawpage_pattern_${index}}")
+    if(combined MATCHES "${pattern}")
         message(FATAL_ERROR
-            "exit code ${actual_exit} was correct, but the diagnostic mentioned what it must not: ${EXPECT_NOT_MATCH}
-"
-            "--- output ---
-${combined}")
+            "exit code ${actual_exit} was correct, but the diagnostic mentioned what it must not: ${pattern}\n"
+            "--- output ---\n${combined}")
     endif()
-endif()
+    math(EXPR index "${index} + 1")
+endwhile()
 
 if(DEFINED EXPECT_ABSENT AND NOT EXPECT_ABSENT STREQUAL "")
     if(EXISTS "${EXPECT_ABSENT}")

@@ -1,0 +1,5 @@
+{
+  "$comment": "A fixture: S5 guide I-08. The value of an action member is an action id, not a catalog key.",
+  "tabs": [ { "id": "home", "title": "compare.view.title",
+              "groups": [ { "controls": [ { "action": "compare.showReport", "size": "small" } ] } ] } ]
+}

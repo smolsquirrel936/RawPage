@@ -53,8 +53,11 @@
 #include <QColor>
 #include <QPixmap>
 #include <QPoint>
+#include <QRectF>
 
 #include <memory>
+#include <optional>
+#include <vector>
 
 namespace rawpage::core {
 class PageTree;
@@ -285,6 +288,23 @@ public:
     // never rasterized (D4-11).
     void setSelectionOverlay(SelectionOverlay* selection);
     SelectionOverlay* selection() const override { return selection_; }
+
+    // ---- Marks (S5 T13, D5-18) -----------------------------------------------------------------
+    // Rectangles in PAGE SPACE painted over the tiles, under the selection -- a comparison's differences on
+    // this side. Painted and never rasterized, for D4-11's reason: changing which difference is current
+    // re-renders nothing. Each corner goes through the layout's own mapping, so a mark sits on its glyphs
+    // under any view rotation. An `outlined` mark is the current one, drawn with an edge as well.
+    struct PageMark {
+        int           page = -1;
+        core::PdfRect rect;
+        QColor        colour;
+        bool          outlined = false;
+    };
+    void setPageMarks(std::vector<PageMark> marks);
+    const std::vector<PageMark>& pageMarks() const noexcept { return marks_; }
+    // Where a page-space rectangle is drawn, in viewport (widget) pixels; empty for a page not laid out.
+    // What the marks paint, and what a case compares with the ink.
+    std::optional<QRectF> widgetRectOf(int pageIndex, const core::PdfRect& rect) const;
 
     // S5 T5's two page mappings for the Selection tool (`ToolHost`).
     PagePoint pagePointAt(QPoint pos) const override;
@@ -596,6 +616,9 @@ private:
 
     // S5 T5: the window's selection (not owned), and the click counter.
     SelectionOverlay* selection_ = nullptr;
+
+    // S5 T13: a comparison's marks on this side (`setPageMarks`).
+    std::vector<PageMark> marks_;
     int               clicks_ = 0;
     qint64            lastPressMs_ = 0;
     QPoint            lastPressPos_;

@@ -1647,6 +1647,10 @@
         <translation>%1 需要先選取文字。</translation>
     </message>
     <message>
+        <source>shell.tooltip.needsComparison</source>
+        <translation>%1 需要開啟一個有差異的比較。</translation>
+    </message>
+    <message>
         <source>shell.tooltip.atFirstPage</source>
         <translation>%1：已經是第一頁。</translation>
     </message>
@@ -3012,6 +3016,18 @@
         <translation>溶解</translation>
     </message>
     <message>
+        <source>prefs.choice.compareSensitivity.textOnly</source>
+        <translation>僅文字</translation>
+    </message>
+    <message>
+        <source>prefs.choice.compareSensitivity.textAndLayout</source>
+        <translation>文字與版面</translation>
+    </message>
+    <message>
+        <source>prefs.choice.compareSensitivity.appearance</source>
+        <translation>外觀</translation>
+    </message>
+    <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>
         <translation>頁面配置</translation>
     </message>
@@ -3178,6 +3194,22 @@
     <message>
         <source>prefs.setting.documents.warnOnRepairedSave</source>
         <translation>說明修復過的文件為何要另存為新檔</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareSensitivity</source>
+        <translation>比較的範圍</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareIgnoreHeaderFooter</source>
+        <translation>比較時忽略頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareIgnorePageNumbers</source>
+        <translation>比較時忽略頁碼</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareIgnoreWhitespace</source>
+        <translation>比較時忽略僅空白的變更</translation>
     </message>
     <message>
         <source>prefs.choice.logLevel.error</source>
@@ -3603,6 +3635,213 @@
     <message>
         <source>search.pane.limitReached</source>
         <translation>清單在 %1 筆結果處停止 (search/maxResults)</translation>
+    </message>
+</context>
+<context>
+    <name>compare</name>
+    <message>
+        <source>compare.dialog.title</source>
+        <translation>比較文件</translation>
+    </message>
+    <message>
+        <source>compare.dialog.older</source>
+        <translation>較舊的文件：</translation>
+    </message>
+    <message>
+        <source>compare.dialog.newer</source>
+        <translation>較新的文件：</translation>
+    </message>
+    <message>
+        <source>compare.dialog.browse</source>
+        <translation>瀏覽…</translation>
+    </message>
+    <message>
+        <source>compare.dialog.chooseFile</source>
+        <translation>選擇要比較的 PDF</translation>
+    </message>
+    <message>
+        <source>compare.dialog.fileFilter</source>
+        <translation>PDF 文件 (*.pdf);;所有檔案 (*)</translation>
+    </message>
+    <message>
+        <source>compare.dialog.sensitivity</source>
+        <translation>比較範圍：</translation>
+    </message>
+    <message>
+        <source>compare.dialog.ignore</source>
+        <translation>忽略清單</translation>
+    </message>
+    <message>
+        <source>compare.sensitivity.textOnly</source>
+        <translation>僅文字</translation>
+    </message>
+    <message>
+        <source>compare.sensitivity.textAndLayout</source>
+        <translation>文字與版面</translation>
+    </message>
+    <message>
+        <source>compare.sensitivity.appearance</source>
+        <translation>外觀</translation>
+    </message>
+    <message>
+        <source>compare.ignore.headerFooter</source>
+        <translation>忽略頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>compare.ignore.pageNumbers</source>
+        <translation>忽略頁碼</translation>
+    </message>
+    <message>
+        <source>compare.ignore.whitespace</source>
+        <translation>忽略僅空白的變更</translation>
+    </message>
+    <message>
+        <source>compare.view.title</source>
+        <translation>比較：%1 與 %2</translation>
+    </message>
+    <message>
+        <source>compare.view.sideBySide</source>
+        <translation>並排</translation>
+    </message>
+    <message>
+        <source>compare.view.overlay</source>
+        <translation>重疊</translation>
+    </message>
+    <message>
+        <source>compare.view.cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>compare.view.overlayLegend</source>
+        <translation>紅色：僅較舊的文件有 · 藍色：僅較新的文件有 · 灰色：兩者皆有</translation>
+    </message>
+    <message>
+        <source>compare.view.noPage</source>
+        <translation>—</translation>
+    </message>
+    <message>
+        <source>compare.status.reading</source>
+        <translation>正在讀取文字：%1／%2 頁</translation>
+    </message>
+    <message>
+        <source>compare.status.comparing</source>
+        <translation>正在比較：%1／%2 組頁面</translation>
+    </message>
+    <message>
+        <source>compare.status.cancelled</source>
+        <translation>已取消比較。</translation>
+    </message>
+    <message>
+        <source>compare.status.none</source>
+        <translation>未找到差異。</translation>
+    </message>
+    <message>
+        <source>compare.status.count</source>
+        <translation>%1 處差異</translation>
+    </message>
+    <message>
+        <source>compare.status.rastersMissing</source>
+        <translation>有 %1 組頁面無法繪製，僅比較了文字。</translation>
+    </message>
+    <message>
+        <source>compare.status.wrappedToFirst</source>
+        <translation>已到最後一處差異，從第一處繼續。</translation>
+    </message>
+    <message>
+        <source>compare.status.wrappedToLast</source>
+        <translation>已到第一處差異，從最後一處繼續。</translation>
+    </message>
+    <message>
+        <source>compare.status.current</source>
+        <translation>第 %1 處差異，共 %2 處：%3</translation>
+    </message>
+    <message>
+        <source>compare.pane.title</source>
+        <translation>差異</translation>
+    </message>
+    <message>
+        <source>compare.pane.column.change</source>
+        <translation>變更</translation>
+    </message>
+    <message>
+        <source>compare.pane.column.pages</source>
+        <translation>頁面</translation>
+    </message>
+    <message>
+        <source>compare.pane.column.text</source>
+        <translation>文字</translation>
+    </message>
+    <message>
+        <source>compare.pane.pagePair</source>
+        <translation>%1 → %2</translation>
+    </message>
+    <message>
+        <source>compare.pane.textChange</source>
+        <translation>「%1」→「%2」</translation>
+    </message>
+    <message>
+        <source>compare.pane.kindCount</source>
+        <translation>%1：%2</translation>
+    </message>
+    <message>
+        <source>compare.pane.listSeparator</source>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>compare.pane.inRegion</source>
+        <translation>%1（%2）</translation>
+    </message>
+    <message>
+        <source>compare.region.header</source>
+        <translation>頁首</translation>
+    </message>
+    <message>
+        <source>compare.region.footer</source>
+        <translation>頁尾</translation>
+    </message>
+    <message>
+        <source>compare.kind.insert</source>
+        <translation>插入</translation>
+    </message>
+    <message>
+        <source>compare.kind.delete</source>
+        <translation>刪除</translation>
+    </message>
+    <message>
+        <source>compare.kind.replace</source>
+        <translation>取代</translation>
+    </message>
+    <message>
+        <source>compare.kind.move</source>
+        <translation>移動</translation>
+    </message>
+    <message>
+        <source>compare.kind.whitespace</source>
+        <translation>空白</translation>
+    </message>
+    <message>
+        <source>compare.kind.layout</source>
+        <translation>版面位移</translation>
+    </message>
+    <message>
+        <source>compare.kind.appearance</source>
+        <translation>外觀</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageInserted</source>
+        <translation>插入頁面</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageDeleted</source>
+        <translation>刪除頁面</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageMoved</source>
+        <translation>移動頁面</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageReplaced</source>
+        <translation>取代頁面</translation>
     </message>
 </context>
 </TS>

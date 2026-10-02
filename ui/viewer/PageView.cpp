@@ -20,6 +20,7 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPen>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QScrollBar>
@@ -1354,6 +1355,26 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
     //
     // SEARCH HITS UNDER THE SELECTION (S5 T7): the find bar's highlights are painted the same way and for
     // the same reason, and under the selection so a selection made over a hit still reads as one.
+    // A COMPARISON'S MARKS (S5 T13, D5-18), over the inversion and under the selection and the hits, for the
+    // hits' reasons: painted, never rasterized, and a selection made over one still reads as a selection.
+    if (!marks_.empty()) {
+        painter.save();
+        for (const PageMark& mark : marks_) {
+            if (engine_.layout().slotForPage(mark.page) == nullptr) continue;
+            const std::optional<QRectF> at = widgetRectOf(mark.page, mark.rect);
+            if (!at || !at->intersects(QRectF(area))) continue;
+            painter.fillRect(*at, mark.colour);
+            if (mark.outlined) {
+                QColor edge = mark.colour;
+                edge.setAlpha(255);
+                painter.setPen(QPen(edge, 2.0));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawRect(at->adjusted(-1.0, -1.0, 1.0, 1.0));
+            }
+        }
+        painter.restore();
+    }
+
     if (selection_ != nullptr) {
         selection_->paintSearchHits(painter, engine_.layout(), visible, dpr, searchHitColour(),
                                     currentSearchHitColour());
@@ -1416,6 +1437,39 @@ void PageView::revealPageRect(int pageIndex, const core::PdfRect& rect)
     if (x == now.x && y == now.y) return;
     controller_->setScroll(core::DevicePoint{x, y});
     refresh();
+}
+
+void PageView::setPageMarks(std::vector<PageMark> marks)
+{
+    marks_ = std::move(marks);
+    viewport()->update();
+}
+
+std::optional<QRectF> PageView::widgetRectOf(int pageIndex, const core::PdfRect& rect) const
+{
+    // ALL FOUR CORNERS through the layout's own mapping (`revealPageRect`'s argument): under a quarter turn
+    // the PDF bottom-left is not the device top-left.
+    double left = 0.0, top = 0.0, right = 0.0, bottom = 0.0;
+    bool first = true;
+    for (const core::PdfPoint corner : {core::PdfPoint{rect.left(), rect.bottom()}, core::PdfPoint{rect.right(), rect.top()},
+                                        core::PdfPoint{rect.left(), rect.top()}, core::PdfPoint{rect.right(), rect.bottom()}}) {
+        const std::optional<core::DevicePoint> device = engine_.layout().toContent(pageIndex, corner);
+        if (!device) return std::nullopt;
+        if (first) {
+            left = right = device->x;
+            top = bottom = device->y;
+            first = false;
+        } else {
+            left = std::min(left, device->x);
+            right = std::max(right, device->x);
+            top = std::min(top, device->y);
+            bottom = std::max(bottom, device->y);
+        }
+    }
+    const core::DeviceRect visible = controller_->visibleRect();
+    const double dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
+    return QRectF((left - visible.left()) / dpr, (top - visible.top()) / dpr, (right - left) / dpr,
+                  (bottom - top) / dpr);
 }
 
 QColor PageView::selectionColour() const

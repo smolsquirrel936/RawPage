@@ -69,6 +69,7 @@
 
 #include "core/Geometry.h"
 #include "core/backend.h"
+#include "core/text/CompareSensitivity.h"
 #include "core/text/TextSelection.h"
 
 #include <QString>
@@ -84,9 +85,11 @@
 #include <thread>
 #include <vector>
 
-namespace rawpage::core::text {
+namespace rawpage::core {
+class Settings;
+}
 
-enum class CompareSensitivity { TextOnly, TextAndLayout, Appearance };
+namespace rawpage::core::text {
 
 struct CompareOptions {
     CompareSensitivity sensitivity = CompareSensitivity::TextOnly;
@@ -111,6 +114,12 @@ struct CompareOptions {
     int pixelTolerance = 24;
     int minClusterPixels = 12;
     int maskMargin = 2;
+
+    // THE FOUR THAT ARE PREFERENCES (S5 T13, D5-20): the sensitivity and the three ignore-lists, from
+    // `documents/compareSensitivity`, `compareIgnoreHeaderFooter`, `compareIgnorePageNumbers` and
+    // `compareIgnoreWhitespace`. The one reader of those keys, as `SearchQuery::fromSettings` is of the
+    // search flags; every other field keeps the default above, which T12 measured the corpus at.
+    static CompareOptions fromSettings(const Settings& settings);
 };
 
 enum class CompareSide { Base, Revised };
@@ -212,6 +221,14 @@ public:
     ComparisonRun(const ComparisonRun&) = delete;
     ComparisonRun& operator=(const ComparisonRun&) = delete;
 
+    // THE PAGES' READINGS, RESOLVED ON THE RUN'S THREAD (S5 T13). A page handed in with a null `reading` is
+    // asked for here before the comparison begins -- `PageReading::build` is the layout analysis, milliseconds
+    // a dense page, and the product's caller holds each page's extracted text and must not analyze 2 x 900
+    // pages on the UI thread to start a comparison (D5-3). Called on the worker, once per such page; a null
+    // answer is a page with no words, as an unreadable page always was. Set before `start()`.
+    using ReadingSource = std::function<std::shared_ptr<const PageReading>(CompareSide side, int page)>;
+    void setReadingSource(ReadingSource source) { readings_ = std::move(source); }
+
     void setProgressHandler(ProgressHandler handler) { onProgress_ = std::move(handler); }
     void setFinishedHandler(FinishedHandler handler) { onFinished_ = std::move(handler); }
     void setWakeHandler(WakeHandler handler);
@@ -241,6 +258,7 @@ private:
     CompareDocument revised_;
     CompareOptions options_;
     RasterProvider rasters_;
+    ReadingSource readings_;
     ProgressHandler onProgress_;
     FinishedHandler onFinished_;
 

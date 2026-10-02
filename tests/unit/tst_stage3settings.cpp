@@ -27,16 +27,19 @@ using namespace rawpage;
 using core::SettingsGroup;
 namespace keys = core::keys;
 
-TEST_CASE("the two Stage 3 keys are declared in the Documents group and nothing else joined it", "[settings][stage3]")
+TEST_CASE("the two Stage 3 keys are declared in the Documents group and only Stage 5's four joined it", "[settings][stage3]")
 {
     std::vector<std::string> documents;
     for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys())
         if (info.group == SettingsGroup::Documents) documents.emplace_back(info.path);
 
-    // THE WHOLE GROUP, in table order -- Stage 1's two rows, then D3-9's two. A count alone would stay green if
-    // `documents/saveMode` (Stage 8's) arrived early in place of one of them.
+    // THE WHOLE GROUP, in table order -- Stage 1's two rows, then D3-9's two, then since Stage 5 T13 the four
+    // comparison rows (D5-20). A count alone would stay green if `documents/saveMode` (Stage 8's) arrived early
+    // in place of one of them.
     CHECK(documents == std::vector<std::string>{"documents/recentCount", "documents/recentPinned",
-                                                "documents/recoveryDir", "documents/warnOnRepairedSave"});
+                                                "documents/recoveryDir", "documents/warnOnRepairedSave",
+                                                "documents/compareSensitivity", "documents/compareIgnoreHeaderFooter",
+                                                "documents/compareIgnorePageNumbers", "documents/compareIgnoreWhitespace"});
 
     // D3-9 MOVED TWO KEYS AWAY; they must not be declared anywhere.
     for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {

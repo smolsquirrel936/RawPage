@@ -495,6 +495,35 @@ RAWPAGE_SETTING_RANGED(search, indexCacheMB, int,
                        "search/indexCacheMB", 1024, Search, true, 16, 16384)
 
 // =============================================================================================
+// The four Stage 5 `documents/compare*` rows -- S5 T13, `Implementation-Plan.md` § Stage 5 and
+// `Stage5-TextSearch-Plan.md` D5-20 (the fourth, `compareIgnorePageNumbers`, is Q7's). They join the
+// Documents group, whose page already ships (convention 17), so the page grows by four rows and no page
+// is added. `core/text/CompareOptions::fromSettings` is their one reader.
+//
+// THE COMPARISON'S OWN BAR WRITES THESE (D5-18, clarified at T13): its sensitivity and its three ignore
+// switches ARE the keys, as the find bar's toggles are the search flags (D5-14) -- so the bar, the dialog
+// and this page cannot disagree, and changing one re-runs the comparison on screen.
+// =============================================================================================
+
+// --- Documents: comparison ---------------------------------------------------------------------------
+// TEXT ONLY BY DEFAULT: the layers that read words and nothing else -- pages aligned, words diffed -- which is
+// the cheapest and the one that reports no pixel a person did not change. *Text and layout* and *appearance*
+// are one click away on the comparison's bar; *appearance* rasterizes every aligned pair of both documents at
+// 72 dpi (D5-17), which on a 900-page pair is 1,800 rasters a person should ask for.
+RAWPAGE_SETTING(documents, compareSensitivity, text::CompareSensitivity,
+                "documents/compareSensitivity", text::CompareSensitivity::TextOnly, Documents, true)
+
+// ALL THREE IGNORE-LISTS OFF: a comparison reports every change until a person says which kind they do not
+// care about -- the search keys' argument for diacritics, met again. Page numbers apart from the band (Q7): a
+// renumbered document changes every page number and no header, and one may matter where the other does not.
+RAWPAGE_SETTING(documents, compareIgnoreHeaderFooter, bool,
+                "documents/compareIgnoreHeaderFooter", false, Documents, true)
+RAWPAGE_SETTING(documents, compareIgnorePageNumbers, bool,
+                "documents/compareIgnorePageNumbers", false, Documents, true)
+RAWPAGE_SETTING(documents, compareIgnoreWhitespace, bool,
+                "documents/compareIgnoreWhitespace", false, Documents, true)
+
+// =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================
 

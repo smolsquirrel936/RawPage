@@ -653,8 +653,13 @@ TEST_CASE("the Documents page's recovery folder redirects the next journal and t
     preferences->showPage(core::SettingsGroup::Documents);
     ui::SettingsPage* page = preferences->settingsPage(core::SettingsGroup::Documents);
     REQUIRE(page != nullptr);
+    // ... and since Stage 5 T13 the four comparison rows (D5-20), which join this page rather than make one.
     CHECK(page->rowPaths() == QStringList{QStringLiteral("documents/recentCount"), QStringLiteral("documents/recentPinned"),
-                                          QStringLiteral("documents/recoveryDir"), QStringLiteral("documents/warnOnRepairedSave")});
+                                          QStringLiteral("documents/recoveryDir"), QStringLiteral("documents/warnOnRepairedSave"),
+                                          QStringLiteral("documents/compareSensitivity"),
+                                          QStringLiteral("documents/compareIgnoreHeaderFooter"),
+                                          QStringLiteral("documents/compareIgnorePageNumbers"),
+                                          QStringLiteral("documents/compareIgnoreWhitespace")});
     auto* folder = qobject_cast<QLineEdit*>(page->editorFor(QStringLiteral("documents/recoveryDir")));
     REQUIRE(folder != nullptr);
     CHECK(qobject_cast<QCheckBox*>(page->editorFor(QStringLiteral("documents/warnOnRepairedSave"))) != nullptr);

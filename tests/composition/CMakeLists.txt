@@ -51,6 +51,11 @@ add_executable(rawpage_composition_tests
     # generator's labelled blocks, and the place both ways at a block mid-page. Here for tst_selectionink's reason.
     tst_reflowink.cpp
 
+    # Stage 5 T13 -- guide cases A-104 ... A-107 over REAL pages: side by side by aligned page over
+    # corpus/compare/'s inserted pages, the overlay judged on its raster, Ctrl+] and Ctrl+[ through the report
+    # pair, and both files byte-identical after a comparison at appearance. Here for tst_selectionink's reason.
+    tst_comparisonink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

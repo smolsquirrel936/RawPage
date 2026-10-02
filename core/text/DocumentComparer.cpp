@@ -1,5 +1,7 @@
 #include "core/text/DocumentComparer.h"
 
+#include "core/settings/Settings.h"
+#include "core/settings/SettingsSchema.h"
 #include "core/text/LayoutAnalyzer.h"
 #include "core/text/TextNormalizer.h"
 
@@ -1371,11 +1373,34 @@ void ComparisonRun::start()
             const std::lock_guard<std::mutex> lock(mutex_);
             workerId_ = std::this_thread::get_id();
         }
+        // THE READINGS FIRST, HERE (`setReadingSource`): each page handed in without one, between which the
+        // cancel is honoured as it is between pairs -- a comparison cancelled while 900 pages are analyzed
+        // stops within one page.
+        if (readings_) {
+            const auto resolve = [this](CompareDocument& pages, CompareSide side) {
+                for (std::size_t i = 0; i < pages.size(); ++i) {
+                    if (cancelled_.load()) return;
+                    if (!pages[i].reading) pages[i].reading = readings_(side, static_cast<int>(i));
+                }
+            };
+            resolve(base_, CompareSide::Base);
+            resolve(revised_, CompareSide::Revised);
+        }
         ComparisonResult result = DocumentComparer::compare(
             base_, revised_, options_, rasters_, &cancelled_,
             [this](int done, int total) { post(Posted{false, done, total, nullptr}); });
         post(Posted{true, 0, 0, std::make_shared<const ComparisonResult>(std::move(result))});
     });
+}
+
+CompareOptions CompareOptions::fromSettings(const Settings& settings)
+{
+    CompareOptions options;
+    options.sensitivity = settings.get(keys::documents::compareSensitivity);
+    options.ignoreHeaderFooter = settings.get(keys::documents::compareIgnoreHeaderFooter);
+    options.ignorePageNumbers = settings.get(keys::documents::compareIgnorePageNumbers);
+    options.ignoreWhitespace = settings.get(keys::documents::compareIgnoreWhitespace);
+    return options;
 }
 
 void ComparisonRun::post(Posted item)

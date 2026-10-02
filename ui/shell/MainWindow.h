@@ -45,11 +45,13 @@
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
 #include "core/text/SearchEngine.h"
+#include "ui/dialogs/CompareDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 
 #include <QMainWindow>
+#include <QPointer>
 #include <QStringList>
 
 #include <functional>
@@ -69,6 +71,7 @@ class DocumentTabBar;
 class DocumentWindow;
 class FullScreenController;
 class BookmarksPane;
+class ComparisonView;
 class DestinationsPane;
 class LogPane;
 class SearchPane;
@@ -261,6 +264,18 @@ public:
     // this one current and revealed.
     void openSearchResult(const QString& path, const QString& pattern,
                           const std::vector<core::text::SearchHit>& hits, int current);
+
+    // ---------------------------------------------------------------------------------------
+    // THE COMPARISON -- S5 T13, D5-18. `compare.documents` asks `CompareDialog` and lands here.
+    // ---------------------------------------------------------------------------------------
+    // Writes the choice's four options to their settings -- the keys ARE the options (D5-14's rule) -- then
+    // opens BOTH files through the backend, each a handle of the comparison's own (a file open in a tab is
+    // opened again, as `window.new` does, so its journal is never reached), and shows a `ComparisonView`
+    // owned by this window, replacing any comparison already open. A file the backend refuses opens nothing
+    // and is said, with the engine's reason, on the status bar and the message bar.
+    core::Result<ComparisonView*> compareDocuments(const CompareDialog::Choice& choice);
+    // The open comparison, or null. One per window; it closes itself, and with this window.
+    ComparisonView* comparison() const;
 
     // The document panes the sidebar hosts -- Stage 4 T5. ONE PER WINDOW, re-pointed at the tab in
     // front by `updateDocumentPanes()`; see the construction comment for why it is not one per
@@ -487,6 +502,8 @@ private:
     DestinationsPane* destinations_ = nullptr;
     LogPane*          logPane_ = nullptr;
     SearchPane*       searchPane_ = nullptr;
+    // S5 T13: an owned window, deleted on close -- so a guarded pointer, never a raw one.
+    QPointer<ComparisonView> comparison_;
     StatusBar*   status_ = nullptr;
     MessageBar*  messageBar_ = nullptr;
 

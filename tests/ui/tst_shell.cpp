@@ -141,10 +141,19 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **One more at Stage 5 T11**: `view.reflow`, §8's Viewer `Ctrl+4` (D5-16), declared at Stage 1 and asserted
     // ABSENT below -- as Stage 13's, until D4-15 moved it to Stage 5 -- until the reflow existed. No id is minted.
     //
+    // **Three more at Stage 5 T13**: `compare.documents`, `nav.nextDifference` and `nav.prevDifference`, §8's
+    // Viewer `Ctrl+Alt+C`, `Ctrl+]` and `Ctrl+[` (D5-18), declared at Stage 1 and registered once the comparison
+    // existed to open and step through. No id is minted; `compare.showReport` stays unregistered -- a report is
+    // Stage 8's (D5-17, Q4).
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 107);
+    CHECK(fixture.actions.registeredCount() == 110);
+    CHECK(fixture.actions.isRegistered(core::ActionId::CompareDocuments));    // S5 T13
+    CHECK(fixture.actions.isRegistered(core::ActionId::NavNextDifference));   // S5 T13
+    CHECK(fixture.actions.isRegistered(core::ActionId::NavPrevDifference));   // S5 T13
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::CompareShowReport));
     CHECK(fixture.actions.isRegistered(core::ActionId::EditCopy));        // S5 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::FindFind));        // S5 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FindClose));       // S5 T7

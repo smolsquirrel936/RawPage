@@ -32,6 +32,7 @@
 #include "core/Units.h"
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
+#include "core/text/CompareSensitivity.h"
 
 // THE SETTINGS TABLE NAMES `core/render/` VOCABULARY as of Stage 2 T15 -- `pageDisplay/layoutMode`
 // is a `render::LayoutMode` and `pageDisplay/defaultZoom` is a `render::FitMode`. Both are `core/`,
@@ -381,6 +382,21 @@ template <> struct SettingsCodec<TransitionStyle> {
     static TransitionStyle fromDefault(TransitionStyle value) { return value; }
 };
 
+// The S5 T13 enum -- `documents/compareSensitivity`. The token is `core/text/CompareSensitivity.h`'s name, the
+// one table of those three words.
+template <> struct SettingsCodec<text::CompareSensitivity> {
+    static QVariant toVariant(text::CompareSensitivity value)
+    {
+        const std::string_view name = text::compareSensitivityName(value);
+        return QVariant(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+    }
+    static std::optional<text::CompareSensitivity> fromVariant(const QVariant& variant)
+    {
+        return text::compareSensitivityFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static text::CompareSensitivity fromDefault(text::CompareSensitivity value) { return value; }
+};
+
 template <> struct SettingsCodec<LogLevel> {
     static QVariant toVariant(LogLevel value) { return QVariant(QString::fromUtf8(logLevelName(value))); }
     static std::optional<LogLevel> fromVariant(const QVariant& variant)
@@ -589,6 +605,21 @@ template <> struct SettingsEditorTraits<TransitionStyle> {
                                             TransitionStyle::Wipe, TransitionStyle::Dissolve}) {
             const std::string token(transitionStyleName(style));
             out.push_back(SettingsChoice{token, "prefs.choice.transition." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<text::CompareSensitivity> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const text::CompareSensitivity sensitivity :
+             {text::CompareSensitivity::TextOnly, text::CompareSensitivity::TextAndLayout,
+              text::CompareSensitivity::Appearance}) {
+            const std::string token(text::compareSensitivityName(sensitivity));
+            out.push_back(SettingsChoice{token, "prefs.choice.compareSensitivity." + token});
         }
         return out;
     }

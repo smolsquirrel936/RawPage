@@ -13,7 +13,10 @@
 
 #include <QString>
 
+#include <algorithm>
 #include <atomic>
+#include <mutex>
+#include <optional>
 #include <random>
 #include <set>
 #include <string>
@@ -368,4 +371,59 @@ TEST_CASE("the run works on its own thread and delivers on the pump", "[core][te
     CHECK(outcome->count(DifferenceKind::Replace) == 6);
     for (std::size_t i = 1; i < progress.size(); ++i) CHECK(progress[i].first >= progress[i - 1].first);
     CHECK(progress.back().first == progress.back().second);
+}
+
+TEST_CASE("the run makes the pages' readings on its own thread, before it compares", "[core][text][compare][A-102]")
+{
+    // S5 T13: the product hands the run each page's EXTRACTED TEXT and no reading, and the layout analysis
+    // that makes one runs here -- never on the UI thread (`ComparisonRun::setReadingSource`).
+    CompareDocument base, revised, baseRead, revisedRead;
+    for (int i = 0; i < 4; ++i) {
+        baseRead.push_back(page(i, Sheet{"", {words(i, 30)}, ""}));
+        std::vector<std::string> changed = words(i, 30);
+        changed[5] = "altered";
+        revisedRead.push_back(page(i, Sheet{"", {changed}, ""}));
+    }
+    base = baseRead;
+    revised = revisedRead;
+    for (ComparePage& unread : base) unread.reading = nullptr;
+    for (ComparePage& unread : revised) unread.reading = nullptr;
+    revised[2].reading = revisedRead[2].reading;   // one page already read: the source is not asked for it
+
+    std::mutex mutex;
+    std::set<std::thread::id> threads;
+    std::vector<std::pair<int, int>> asked;
+    ComparisonRun run(base, revised, CompareOptions{});
+    run.setReadingSource([&](CompareSide side, int index) {
+        const std::lock_guard<std::mutex> lock(mutex);
+        threads.insert(std::this_thread::get_id());
+        asked.emplace_back(side == CompareSide::Base ? 0 : 1, index);
+        return (side == CompareSide::Base ? baseRead : revisedRead)[static_cast<std::size_t>(index)].reading;
+    });
+    std::optional<ComparisonResult> outcome;
+    run.setFinishedHandler([&](const ComparisonResult& result) { outcome = result; });
+    run.start();
+    REQUIRE(run.waitForFinished(10000));
+    run.deliverReady();
+    REQUIRE(outcome.has_value());
+
+    CHECK(threads == std::set<std::thread::id>{run.workerThread()});
+    CHECK(run.workerThread() != std::this_thread::get_id());
+    CHECK(asked.size() == 7);
+    CHECK(std::find(asked.begin(), asked.end(), std::make_pair(1, 2)) == asked.end());
+    // THE SAME ANSWER as the readings handed in.
+    const ComparisonResult direct = DocumentComparer::compare(baseRead, revisedRead, CompareOptions{});
+    CHECK(outcome->differences.size() == direct.differences.size());
+    CHECK(outcome->count(DifferenceKind::Replace) == 4);
+
+    // THE CONTROL: no source, the pages are compared as pages with no words -- every word of the newer
+    // document on its one read page is inserted, and the four replacements are not found.
+    ComparisonRun unsourced(base, revised, CompareOptions{});
+    std::optional<ComparisonResult> blind;
+    unsourced.setFinishedHandler([&](const ComparisonResult& result) { blind = result; });
+    unsourced.start();
+    REQUIRE(unsourced.waitForFinished(10000));
+    unsourced.deliverReady();
+    REQUIRE(blind.has_value());
+    CHECK(blind->count(DifferenceKind::Replace) == 0);
 }

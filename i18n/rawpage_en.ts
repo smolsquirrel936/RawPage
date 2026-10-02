@@ -1647,6 +1647,10 @@
         <translation>%1 needs some text to be selected.</translation>
     </message>
     <message>
+        <source>shell.tooltip.needsComparison</source>
+        <translation>%1 needs an open comparison with differences.</translation>
+    </message>
+    <message>
         <source>shell.tooltip.atFirstPage</source>
         <translation>%1: this is already the first page.</translation>
     </message>
@@ -3012,6 +3016,18 @@
         <translation>Dissolve</translation>
     </message>
     <message>
+        <source>prefs.choice.compareSensitivity.textOnly</source>
+        <translation>Text only</translation>
+    </message>
+    <message>
+        <source>prefs.choice.compareSensitivity.textAndLayout</source>
+        <translation>Text and layout</translation>
+    </message>
+    <message>
+        <source>prefs.choice.compareSensitivity.appearance</source>
+        <translation>Appearance</translation>
+    </message>
+    <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>
         <translation>Page layout</translation>
     </message>
@@ -3178,6 +3194,22 @@
     <message>
         <source>prefs.setting.documents.warnOnRepairedSave</source>
         <translation>Explain why a repaired document is saved as a new file</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareSensitivity</source>
+        <translation>Comparison sensitivity</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareIgnoreHeaderFooter</source>
+        <translation>Comparisons ignore headers and footers</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareIgnorePageNumbers</source>
+        <translation>Comparisons ignore page numbers</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.compareIgnoreWhitespace</source>
+        <translation>Comparisons ignore whitespace-only changes</translation>
     </message>
     <message>
         <source>prefs.choice.logLevel.error</source>
@@ -3603,6 +3635,213 @@
     <message>
         <source>search.pane.limitReached</source>
         <translation>The list stops at %1 results (search/maxResults)</translation>
+    </message>
+</context>
+<context>
+    <name>compare</name>
+    <message>
+        <source>compare.dialog.title</source>
+        <translation>Compare Documents</translation>
+    </message>
+    <message>
+        <source>compare.dialog.older</source>
+        <translation>Older document:</translation>
+    </message>
+    <message>
+        <source>compare.dialog.newer</source>
+        <translation>Newer document:</translation>
+    </message>
+    <message>
+        <source>compare.dialog.browse</source>
+        <translation>Browse…</translation>
+    </message>
+    <message>
+        <source>compare.dialog.chooseFile</source>
+        <translation>Choose a PDF to compare</translation>
+    </message>
+    <message>
+        <source>compare.dialog.fileFilter</source>
+        <translation>PDF documents (*.pdf);;All files (*)</translation>
+    </message>
+    <message>
+        <source>compare.dialog.sensitivity</source>
+        <translation>Compare:</translation>
+    </message>
+    <message>
+        <source>compare.dialog.ignore</source>
+        <translation>Ignore-lists</translation>
+    </message>
+    <message>
+        <source>compare.sensitivity.textOnly</source>
+        <translation>Text only</translation>
+    </message>
+    <message>
+        <source>compare.sensitivity.textAndLayout</source>
+        <translation>Text and layout</translation>
+    </message>
+    <message>
+        <source>compare.sensitivity.appearance</source>
+        <translation>Appearance</translation>
+    </message>
+    <message>
+        <source>compare.ignore.headerFooter</source>
+        <translation>Ignore headers and footers</translation>
+    </message>
+    <message>
+        <source>compare.ignore.pageNumbers</source>
+        <translation>Ignore page numbers</translation>
+    </message>
+    <message>
+        <source>compare.ignore.whitespace</source>
+        <translation>Ignore whitespace-only changes</translation>
+    </message>
+    <message>
+        <source>compare.view.title</source>
+        <translation>Compare: %1 and %2</translation>
+    </message>
+    <message>
+        <source>compare.view.sideBySide</source>
+        <translation>Side by side</translation>
+    </message>
+    <message>
+        <source>compare.view.overlay</source>
+        <translation>Overlay</translation>
+    </message>
+    <message>
+        <source>compare.view.cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>compare.view.overlayLegend</source>
+        <translation>Red: only in the older document · Blue: only in the newer document · Grey: in both</translation>
+    </message>
+    <message>
+        <source>compare.view.noPage</source>
+        <translation>—</translation>
+    </message>
+    <message>
+        <source>compare.status.reading</source>
+        <translation>Reading text: %1 of %2 pages</translation>
+    </message>
+    <message>
+        <source>compare.status.comparing</source>
+        <translation>Comparing: %1 of %2 page pairs</translation>
+    </message>
+    <message>
+        <source>compare.status.cancelled</source>
+        <translation>Comparison cancelled.</translation>
+    </message>
+    <message>
+        <source>compare.status.none</source>
+        <translation>No differences found.</translation>
+    </message>
+    <message>
+        <source>compare.status.count</source>
+        <translation>%1 differences</translation>
+    </message>
+    <message>
+        <source>compare.status.rastersMissing</source>
+        <translation>%1 page pairs could not be drawn and were compared by text alone.</translation>
+    </message>
+    <message>
+        <source>compare.status.wrappedToFirst</source>
+        <translation>Reached the last difference; continued from the first.</translation>
+    </message>
+    <message>
+        <source>compare.status.wrappedToLast</source>
+        <translation>Reached the first difference; continued from the last.</translation>
+    </message>
+    <message>
+        <source>compare.status.current</source>
+        <translation>Difference %1 of %2: %3</translation>
+    </message>
+    <message>
+        <source>compare.pane.title</source>
+        <translation>Differences</translation>
+    </message>
+    <message>
+        <source>compare.pane.column.change</source>
+        <translation>Change</translation>
+    </message>
+    <message>
+        <source>compare.pane.column.pages</source>
+        <translation>Pages</translation>
+    </message>
+    <message>
+        <source>compare.pane.column.text</source>
+        <translation>Text</translation>
+    </message>
+    <message>
+        <source>compare.pane.pagePair</source>
+        <translation>%1 → %2</translation>
+    </message>
+    <message>
+        <source>compare.pane.textChange</source>
+        <translation>“%1” → “%2”</translation>
+    </message>
+    <message>
+        <source>compare.pane.kindCount</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>compare.pane.listSeparator</source>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>compare.pane.inRegion</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>compare.region.header</source>
+        <translation>header</translation>
+    </message>
+    <message>
+        <source>compare.region.footer</source>
+        <translation>footer</translation>
+    </message>
+    <message>
+        <source>compare.kind.insert</source>
+        <translation>Inserted</translation>
+    </message>
+    <message>
+        <source>compare.kind.delete</source>
+        <translation>Deleted</translation>
+    </message>
+    <message>
+        <source>compare.kind.replace</source>
+        <translation>Replaced</translation>
+    </message>
+    <message>
+        <source>compare.kind.move</source>
+        <translation>Moved</translation>
+    </message>
+    <message>
+        <source>compare.kind.whitespace</source>
+        <translation>Whitespace</translation>
+    </message>
+    <message>
+        <source>compare.kind.layout</source>
+        <translation>Layout shift</translation>
+    </message>
+    <message>
+        <source>compare.kind.appearance</source>
+        <translation>Appearance</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageInserted</source>
+        <translation>Page inserted</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageDeleted</source>
+        <translation>Page deleted</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageMoved</source>
+        <translation>Page moved</translation>
+    </message>
+    <message>
+        <source>compare.kind.pageReplaced</source>
+        <translation>Page replaced</translation>
     </message>
 </context>
 </TS>

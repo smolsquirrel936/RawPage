@@ -12,6 +12,10 @@
 // **AND SINCE T10, `pageDisplay/snapshotDpi`** (D5-11; guide case A-114's restart clause): its row, its
 // sentinel default and its clamp, and the same restart -- the probe writes and reads it beside the ten.
 //
+// **AND SINCE T13, the four `documents/compare*` keys** (D5-20; guide case A-103's "the four keys exist"): their
+// rows in the Documents group, their defaults, the sensitivity's token in the file, `CompareOptions::fromSettings`
+// as their one reader, and the same restart.
+//
 // WHAT IT DOES NOT COVER (convention 19): that anything OBEYS the keys. `search/indexCacheMB` reaching the
 // index is `app/CompositionRoot::applySearchSettings`, read by `tst_index`'s default case and not driven
 // here; the four matching flags reach a search through `SearchQuery::fromSettings` (asserted below) and the
@@ -22,6 +26,7 @@
 
 #include "core/settings/Settings.h"
 #include "core/settings/SettingsSchema.h"
+#include "core/text/DocumentComparer.h"
 #include "core/text/SearchQuery.h"
 
 #include <QDir>
@@ -54,6 +59,11 @@ void writeNonDefaults(core::Settings& settings)
     settings.set(keys::search::maxResults, 10);
     settings.set(keys::search::indexCacheMB, 64);
     settings.set(keys::pageDisplay::snapshotDpi, 300);   // S5 T10 (A-114)
+    // S5 T13 (A-103): the four comparison keys.
+    settings.set(keys::documents::compareSensitivity, core::text::CompareSensitivity::Appearance);
+    settings.set(keys::documents::compareIgnoreHeaderFooter, true);
+    settings.set(keys::documents::compareIgnorePageNumbers, true);
+    settings.set(keys::documents::compareIgnoreWhitespace, true);
 }
 
 // Every key, with a message naming the first that does not read back -- a restart probe that says only
@@ -71,6 +81,11 @@ std::string checkNonDefaults(const core::Settings& settings)
     if (settings.get(keys::search::maxResults) != 10) return "search/maxResults";
     if (settings.get(keys::search::indexCacheMB) != 64) return "search/indexCacheMB";
     if (settings.get(keys::pageDisplay::snapshotDpi) != 300) return "pageDisplay/snapshotDpi";
+    if (settings.get(keys::documents::compareSensitivity) != core::text::CompareSensitivity::Appearance)
+        return "documents/compareSensitivity";
+    if (!settings.get(keys::documents::compareIgnoreHeaderFooter)) return "documents/compareIgnoreHeaderFooter";
+    if (!settings.get(keys::documents::compareIgnorePageNumbers)) return "documents/compareIgnorePageNumbers";
+    if (!settings.get(keys::documents::compareIgnoreWhitespace)) return "documents/compareIgnoreWhitespace";
     return {};
 }
 
@@ -136,6 +151,54 @@ TEST_CASE("pageDisplay/snapshotDpi is one sentinel and a clamped resolution", "[
     CHECK(settings.get(keys::pageDisplay::snapshotDpi) == 0);
     settings.set(keys::pageDisplay::snapshotDpi, 40);
     CHECK(settings.get(keys::pageDisplay::snapshotDpi) == 40);
+}
+
+TEST_CASE("the four comparison keys are Documents rows that report every change by default", "[settings][stage5][A-103]")
+{
+    // THE ROWS, in the Documents group -- whose page already ships, so it grows by four (convention 17).
+    std::vector<std::string> compare;
+    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {
+        const std::string path(info.path);
+        if (path.rfind("documents/compare", 0) != 0) continue;
+        CHECK(info.group == SettingsGroup::Documents);
+        compare.push_back(path);
+    }
+    CHECK(compare == std::vector<std::string>{"documents/compareSensitivity", "documents/compareIgnoreHeaderFooter",
+                                              "documents/compareIgnorePageNumbers", "documents/compareIgnoreWhitespace"});
+
+    QTemporaryDir directory;
+    const QString path = QDir(directory.path()).filePath(QStringLiteral("settings.ini"));
+    {
+        core::Settings settings(path);
+        CHECK(settings.get(keys::documents::compareSensitivity) == core::text::CompareSensitivity::TextOnly);
+        CHECK_FALSE(settings.get(keys::documents::compareIgnoreHeaderFooter));
+        CHECK_FALSE(settings.get(keys::documents::compareIgnorePageNumbers));
+        CHECK_FALSE(settings.get(keys::documents::compareIgnoreWhitespace));
+        const core::text::CompareOptions defaults = core::text::CompareOptions::fromSettings(settings);
+        CHECK(defaults.sensitivity == core::text::CompareSensitivity::TextOnly);
+        CHECK_FALSE(defaults.ignoreHeaderFooter);
+
+        // THE ONE READER takes each of the four -- and nothing else of the options moves.
+        settings.set(keys::documents::compareSensitivity, core::text::CompareSensitivity::TextAndLayout);
+        settings.set(keys::documents::compareIgnorePageNumbers, true);
+        const core::text::CompareOptions read = core::text::CompareOptions::fromSettings(settings);
+        CHECK(read.sensitivity == core::text::CompareSensitivity::TextAndLayout);
+        CHECK(read.ignorePageNumbers);
+        CHECK_FALSE(read.ignoreHeaderFooter);
+        CHECK_FALSE(read.ignoreWhitespace);
+        CHECK(read.minMoveTokens == core::text::CompareOptions{}.minMoveTokens);
+    }
+
+    // THE TOKEN IN THE FILE IS THE NAME, and a word the table does not know reads as the default.
+    QFile file(path);
+    REQUIRE(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    CHECK(QString::fromUtf8(file.readAll()).contains(QStringLiteral("compareSensitivity=textAndLayout")));
+    file.close();
+    REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text));
+    file.write("[documents]\ncompareSensitivity=everything\n");
+    file.close();
+    core::Settings reread(path);
+    CHECK(reread.get(keys::documents::compareSensitivity) == core::text::CompareSensitivity::TextOnly);
 }
 
 TEST_CASE("a query takes its flags and its bound from the settings", "[settings][stage5][A-68]")

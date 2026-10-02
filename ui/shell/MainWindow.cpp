@@ -22,6 +22,7 @@
 #include "ui/dialogs/PasswordDialog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MessageBar.h"
+#include "ui/viewer/ComparisonView.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/FullScreenController.h"
@@ -45,6 +46,7 @@
 
 #include <QCloseEvent>
 #include <QCursor>
+#include <QDir>
 #include <QEvent>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -61,6 +63,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <string_view>
 
@@ -852,6 +855,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
             return;
         }
     }
+    // THE COMPARISON GOES WITH ITS WINDOW (S5 T13): an owned window left open would keep the application
+    // running after the window that opened it had gone.
+    if (comparison_) comparison_->close();
     QMainWindow::closeEvent(event);
 }
 
@@ -1595,6 +1601,50 @@ void MainWindow::registerViewerActions()
         reflow.unavailableKey = "shell.tooltip.needsDocument";
         services_.actions.register_(ActionId::ViewReflow, std::move(reflow));
     }
+
+    // --- The comparison (S5 · T13, D5-18) -------------------------------------------------------------------
+    // §8's Viewer `Ctrl+Alt+C`, `Ctrl+]` and `Ctrl+[`, declared at Stage 1 with their chords and registered by
+    // nothing until now. No id is minted. `compare.documents` asks the dialog and is DISABLED where nobody can
+    // answer it (convention 16); the two steps need an open comparison with something in it -- and stay
+    // registered without one, so the chords are consumed rather than reaching anything else (§8 binds them).
+    if (!services_.actions.isRegistered(ActionId::CompareDocuments)) {
+        core::ActionRegistry::Registration compare;
+        compare.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (!window) return;
+            // THE TAB IN FRONT FIRST, then the others in tab order: the dialog's older and newer defaults.
+            QStringList open;
+            const DocumentWindow* front = window->currentDocument();
+            if (front != nullptr && !front->path().isEmpty()) open << QDir::toNativeSeparators(front->path());
+            for (int index = 0; index < window->documentCount(); ++index) {
+                const DocumentWindow* document = window->documentAt(index);
+                if (document == nullptr || document == front || document->path().isEmpty()) continue;
+                open << QDir::toNativeSeparators(document->path());
+            }
+            const std::optional<CompareDialog::Choice> choice = CompareDialog::ask(
+                window, open, core::text::CompareOptions::fromSettings(window->services_.settings));
+            if (choice) (void)window->compareDocuments(*choice);
+        };
+        compare.enable = [] { return CompareDialog::canAsk(); };
+        services_.actions.register_(ActionId::CompareDocuments, std::move(compare));
+    }
+    const auto registerStep = [this](ActionId id, void (ComparisonView::*step)()) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [step](KeyContext) {
+            MainWindow* window = activeShell();
+            if (ComparisonView* comparison = window ? window->comparison() : nullptr) (comparison->*step)();
+        };
+        registration.enable = [] {
+            MainWindow* window = activeShell();
+            const ComparisonView* comparison = window ? window->comparison() : nullptr;
+            return comparison != nullptr && comparison->hasDifferences();
+        };
+        registration.unavailableKey = "shell.tooltip.needsComparison";
+        services_.actions.register_(id, std::move(registration));
+    };
+    registerStep(ActionId::NavNextDifference, &ComparisonView::nextDifference);
+    registerStep(ActionId::NavPrevDifference, &ComparisonView::previousDifference);
 
     // S5 · T10's SNAPSHOT (D5-11). Declared since Stage 1 with §8's Viewer `S` and registered by nothing
     // until the tool existed -- the absence `tst_shell` asserted from Stage 4 (D4-15) until today. No id is
@@ -3483,6 +3533,72 @@ void MainWindow::openFiles(const QStringList& paths)
         failed.text = refusals.join(QLatin1Char('\n'));
         messageBar_->showMessage(std::move(failed));
     }
+}
+
+ComparisonView* MainWindow::comparison() const
+{
+    return comparison_.data();
+}
+
+core::Result<ComparisonView*> MainWindow::compareDocuments(const CompareDialog::Choice& choice)
+{
+    // BOTH FILES OPENED FOR THE COMPARISON, through the backend -- `openFiles`' path, minus the tab: a file
+    // open in a tab is opened again, a handle of the comparison's own, so nothing it does reaches the tab's
+    // journal (D5-18, guide A-107). A refusal closes what was already opened and is said.
+    const auto refuse = [this](const core::Error& error) {
+        const QString reason = catalog::translateError(error.messageKey, error.context);
+        status_->setMessage(reason);
+        if (error.code != core::ErrorCode::Cancelled && messageBar_) {
+            MessageBar::Message failed;
+            failed.kind = MessageBar::Kind::OpenFailed;
+            failed.text = reason;
+            messageBar_->showMessage(std::move(failed));
+        }
+        return error;
+    };
+    std::array<ComparisonView::Side, 2> sides;
+    const std::array<QString, 2> paths{choice.olderPath, choice.newerPath};
+    for (std::size_t i = 0; i < sides.size(); ++i) {
+        const QFileInfo info(paths[i]);
+        if (!info.exists() || !info.isFile()) {
+            for (std::size_t j = 0; j < i; ++j) (void)services_.backend.close(sides[j].handle);
+            RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "compare: no such file:" << paths[i];
+            return refuse(core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), paths[i]});
+        }
+        const core::Result<core::DocumentHandle> opened =
+            services_.backend.open(info.absoluteFilePath(), PasswordDialog::callbackFor(info.fileName(), this));
+        if (!opened) {
+            for (std::size_t j = 0; j < i; ++j) (void)services_.backend.close(sides[j].handle);
+            RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+                << "compare: backend refused" << info.absoluteFilePath() << "--" << opened.error().messageKey.data();
+            return refuse(opened.error());
+        }
+        sides[i] = ComparisonView::Side{info.absoluteFilePath(), opened.value()};
+    }
+
+    // ONE COMPARISON PER WINDOW: the one open is CLOSED, not deleted here -- this may be running inside a
+    // key event delivered to one of its own widgets (`Ctrl+Alt+C` pressed in it), and it deletes itself
+    // once that event has returned (`WA_DeleteOnClose`).
+    if (comparison_) comparison_->close();
+
+    // THE OPTIONS ARE THE SETTINGS (D5-14's rule): written once both files are open -- a refused file leaves
+    // the comparison that was open, and the keys, as they were -- and after that comparison is retired, so it
+    // does not re-run on them; the new one reads them, and the next dialog, its bar and Preferences show them.
+    namespace keys = core::keys::documents;
+    services_.settings.set(keys::compareSensitivity, choice.options.sensitivity);
+    services_.settings.set(keys::compareIgnoreHeaderFooter, choice.options.ignoreHeaderFooter);
+    services_.settings.set(keys::compareIgnorePageNumbers, choice.options.ignorePageNumbers);
+    services_.settings.set(keys::compareIgnoreWhitespace, choice.options.ignoreWhitespace);
+
+    auto* view = new ComparisonView(services_, sides[0], sides[1], this);
+    view->resize(std::max(900, width() * 9 / 10), std::max(640, height() * 9 / 10));
+    view->move(geometry().topLeft() + QPoint(24, 24));
+    view->show();
+    view->raise();
+    view->activateWindow();
+    comparison_ = view;
+    RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "compare:" << sides[0].path << "against" << sides[1].path;
+    return view;
 }
 
 void MainWindow::openHandoff(const QStringList& files)

@@ -138,6 +138,10 @@ add_library(rawpage_ui STATIC
     # S5 T11 -- Reflow view (D5-16): the analyzer's blocks as a read-only, re-wrapped text surface.
     viewer/ReflowView.h
     viewer/ReflowView.cpp
+    # S5 T13 -- the comparison (D5-18): a window of its own over TWO documents, its own two handles, two
+    # PageViews scrolled by aligned page, an overlay composited at presentation, and no journal.
+    viewer/ComparisonView.h
+    viewer/ComparisonView.cpp
     viewer/ToolController.h
     viewer/ToolController.cpp
 
@@ -206,6 +210,9 @@ add_library(rawpage_ui STATIC
     # filesystem-write waiver, the CSV export.
     panes/SearchPane.h
     panes/SearchPane.cpp
+    # S5 T13 -- a comparison's differences, listed and counted: the summary at Stage 5 (D5-17, Q4).
+    panes/DifferencesPane.h
+    panes/DifferencesPane.cpp
     dialogs/SettingsPage.h
     dialogs/SettingsPage.cpp
     dialogs/ShortcutsPage.h
@@ -225,6 +232,9 @@ add_library(rawpage_ui STATIC
     # parameterized twin a headless case answers through, and neither is raised where nobody can answer.
     dialogs/RotatePagesDialog.h
     dialogs/RotatePagesDialog.cpp
+    # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
+    dialogs/CompareDialog.h
+    dialogs/CompareDialog.cpp
     dialogs/UnsavedChangesDialog.h
     dialogs/UnsavedChangesDialog.cpp
 

@@ -183,7 +183,21 @@ SourceScanResult scanSources(const fs::path& root, const I18nRules& rules)
                 waived = true;
             }
 
-            for (const QuotedRun& run : runs) {
+            // AN ACTION'S STRING ID IS NOT A CATALOG KEY (S5 guide I-08). It is a permanent public name, never
+            // looked up in a catalog -- and `compare.documents` is an action while `compare.` has also been a
+            // catalog family since Stage 5 T13 (D5-20), so reading the id as a reference reported the action
+            // table and the ribbon as `unknown-key`s. Two spellings name one: a row of the action table, which
+            // names ONE key, its label (the last quoted run, the column `actionLabelKeys` reads), and a JSON
+            // value of an "action" member, which is how `res/ribbon.json` names a command.
+            const bool actionRow = trim(parts.code).rfind("RAWPAGE_ACTION(", 0) == 0;
+            const auto isActionValue = [&](std::size_t i) {
+                if (i == 0 || runs[i - 1].text != "action") return false;
+                return trim(parts.code.substr(runs[i - 1].end, runs[i].begin - runs[i - 1].end)) == ":";
+            };
+            for (std::size_t i = 0; i < runs.size(); ++i) {
+                if (actionRow && i + 1 != runs.size()) continue;
+                if (isActionValue(i)) continue;
+                const QuotedRun& run = runs[i];
                 if (looksLikeCatalogKey(run.text)) {
                     result.keyReferences.push_back(KeyReference{relative, lineNumber, run.text});
                 }
