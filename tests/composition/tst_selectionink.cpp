@@ -157,10 +157,11 @@ struct Product {
         settle();
     }
 
+    // As Qt delivers a multi-click to a widget: every second press a `MouseButtonDblClick` (S5 guide I-14).
     void click(QPointF at, int times)
     {
         for (int i = 0; i < times; ++i) {
-            mouse(QEvent::MouseButtonPress, at);
+            mouse(i % 2 == 1 ? QEvent::MouseButtonDblClick : QEvent::MouseButtonPress, at);
             mouse(QEvent::MouseButtonRelease, at);
         }
         settle();

@@ -861,8 +861,9 @@ void PageView::mousePressEvent(QMouseEvent* event)
     // THE CLICK COUNT (S5 T5, D5-8): a press within the platform's double-click interval and drag
     // distance of the last one is the next click of the same gesture, up to four -- word, line, block --
     // and a fifth starts again. Counted here rather than from Qt's double-click event, which stops at
-    // two. A double click also arrives as a press through `QWidget::mouseDoubleClickEvent`'s default, so
-    // this counts every press exactly once.
+    // two. Qt delivers the second press of each pair as a double click INSTEAD of a press, and
+    // `QAbstractScrollArea` ignores one, so `mouseDoubleClickEvent` below hands it here -- until it did, a
+    // double click selected nothing and a triple click a word (S5 guide I-14).
     if (event->button() == Qt::LeftButton) {
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
         const QStyleHints* hints = QGuiApplication::styleHints();
@@ -880,6 +881,14 @@ void PageView::mousePressEvent(QMouseEvent* event)
         return;
     }
     event->accept();
+}
+
+void PageView::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    // A double click is a PRESS -- the second of a gesture, which the counter above recognises by its
+    // time and place like any other. `QAbstractScrollArea`'s own handler ignores the event, not
+    // `QWidget`'s, which would have made it a press (S5 guide I-14).
+    mousePressEvent(event);
 }
 
 void PageView::mouseMoveEvent(QMouseEvent* event)

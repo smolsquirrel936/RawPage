@@ -11,7 +11,9 @@
 //     read back, and nothing outside the process can paste it. CF_HTML reaching Windows is guide A-50,
 //     `tst_clipboard.cpp`, on the `windows` platform; how Word renders it is M-02's.
 //   * **A REAL POINTER.** Clicks arrive as synthetic events in quick succession, which is what makes the
-//     multi-click count; the platform's own double-click timing is M-01's walk.
+//     multi-click count; the platform's own double-click timing is M-01's walk. The events are the ones
+//     Qt delivers to a widget -- every second click a `MouseButtonDblClick` (I-14) -- but whether the
+//     platform pairs them so is Qt's, and only a real pointer shows it.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -167,10 +169,13 @@ struct Viewer {
         mouse(QEvent::MouseButtonRelease, to, modifiers);
     }
 
+    // A MULTI-CLICK AS QT DELIVERS ONE TO A WIDGET (S5 guide I-14): the second press of each pair arrives
+    // as a `MouseButtonDblClick` and NOT as a press -- the third as a press again, the fourth as a double
+    // click. Sending presses only is how A-43 passed while a real double-click selected nothing.
     void click(QPoint at, int times = 1, Qt::KeyboardModifiers modifiers = Qt::NoModifier) const
     {
         for (int i = 0; i < times; ++i) {
-            mouse(QEvent::MouseButtonPress, at, modifiers);
+            mouse(i % 2 == 1 ? QEvent::MouseButtonDblClick : QEvent::MouseButtonPress, at, modifiers);
             mouse(QEvent::MouseButtonRelease, at, modifiers);
         }
     }
@@ -223,6 +228,46 @@ TEST_CASE("two three and four clicks select the word the line and the block", "[
     viewer.click(viewer.at(0, charCentre(4, 2)));
     viewer.click(onLine, 1);
     CHECK_FALSE(viewer.selection().hasSelection());
+}
+
+// =============================================================================================
+// I-14 -- a double click arrives as `MouseButtonDblClick`, and `QAbstractScrollArea` ignores it
+// =============================================================================================
+
+TEST_CASE("a double click event is the next click of the gesture and not a lost one", "[selecttool][I-14]")
+{
+    Viewer viewer;
+    const QPoint onLine = viewer.at(0, charCentre(1, 8));
+
+    // Event by event, as Qt hands a quadruple click to the viewport. Each count is read after the
+    // event that makes it, so a lost double click shows as the count it failed to reach; the tiles are
+    // pumped after each, because the page's text arrives from the engine thread.
+    viewer.mouse(QEvent::MouseButtonPress, onLine);
+    viewer.mouse(QEvent::MouseButtonRelease, onLine);
+    viewer.fixture.pumpTiles();
+    CHECK(viewer.view->lastClickCount() == 1);
+    CHECK_FALSE(viewer.selection().hasSelection());
+
+    viewer.mouse(QEvent::MouseButtonDblClick, onLine);
+    viewer.mouse(QEvent::MouseButtonRelease, onLine);
+    viewer.fixture.pumpTiles();
+    CHECK(viewer.view->lastClickCount() == 2);
+    CHECK(viewer.copied() == QStringLiteral("line"));
+
+    viewer.mouse(QEvent::MouseButtonPress, onLine);
+    viewer.mouse(QEvent::MouseButtonRelease, onLine);
+    viewer.fixture.pumpTiles();
+    CHECK(viewer.view->lastClickCount() == 3);
+    CHECK(viewer.copied() == uitest::fakeLineText(0, 1));
+
+    viewer.mouse(QEvent::MouseButtonDblClick, onLine);
+    viewer.mouse(QEvent::MouseButtonRelease, onLine);
+    viewer.fixture.pumpTiles();
+    CHECK(viewer.view->lastClickCount() == 4);
+    QString block;
+    for (int line = 0; line < uitest::kFakeTextLines; ++line)
+        block += (line > 0 ? QStringLiteral("\n") : QString()) + uitest::fakeLineText(0, line);
+    CHECK(viewer.copied() == block);
 }
 
 // =============================================================================================
