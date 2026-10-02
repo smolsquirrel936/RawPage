@@ -467,6 +467,79 @@ TEST_CASE("the entry goes with its last handle and a leaving handle's requests a
     CHECK(rig.index.bytesHeld() == 0);
 }
 
+// =============================================================================================
+// Guide I-13 -- what the index lets go of is freed OFF the calling thread
+// =============================================================================================
+//
+// Until Stage 5 guide I-13 a dropped document's pages were freed where it was dropped -- the UI thread --
+// and a 900-page document took 36-51 ms to free: twice in every folder search of the corpus, and again when a
+// searched tab closed. The pages now go to the index's own releaser. Asserted on the EFFECT on this thread: with
+// the releaser held, a page is still ALIVE right after the call that let it go returns -- so this thread did not
+// free it -- and gone once the releaser runs.
+//
+// WHAT IT DOES NOT COVER (convention 19): how long the UI thread now spends -- that is T14's bench
+// (`bench_surface`'s folder column, the UI thread's longest stall), over the real 900-page files.
+
+TEST_CASE("a dropped evicted or invalidated document's pages are freed off the calling thread", "[index][I-13]")
+{
+    Rig rig;
+    const auto id = identity(QStringLiteral("release.pdf"));
+    const DocumentHandle handle{91};
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 12);
+    (void)rig.search(entry, literal(QStringLiteral("lorem")));
+    REQUIRE(rig.index.pagesHeld(entry) == 12);
+
+    // A page the index holds alone, and one a selection still holds -- with its reading built.
+    std::weak_ptr<const core::text::IndexedPage> alone = rig.index.page(entry, 3);
+    std::shared_ptr<const core::text::IndexedPage> kept = rig.index.page(entry, 5);
+    REQUIRE(kept != nullptr);
+    REQUIRE(kept->reading() != nullptr);
+    REQUIRE_FALSE(alone.expired());
+
+    SECTION("the last handle detached drops the entry")
+    {
+        rig.index.holdReleasesForTesting(true);
+        rig.index.detach(handle);
+        CHECK_FALSE(rig.index.isAttached(entry));
+        CHECK(rig.index.bytesHeld() == 0);
+        // THE EFFECT: still alive after `detach` returned -- this thread did not free it.
+        CHECK_FALSE(alone.expired());
+        CHECK(rig.index.stats().releasedAway == 12);
+        rig.index.holdReleasesForTesting(false);
+        REQUIRE(rig.index.waitForReleases(3000));
+        CHECK(alone.expired());
+    }
+
+    SECTION("the budget evicts it")
+    {
+        const auto otherId = identity(QStringLiteral("other.pdf"));
+        const DocumentIndex::EntryId other = rig.index.attach(&otherId, DocumentHandle{92}, 12);
+        rig.index.setBudgetBytes(rig.index.bytesHeld(entry) * 3 / 2);
+        rig.index.holdReleasesForTesting(true);
+        (void)rig.search(other, literal(QStringLiteral("lorem")));   // the older document goes
+        CHECK(rig.index.pagesHeld(entry) == 0);
+        CHECK_FALSE(alone.expired());
+        rig.index.holdReleasesForTesting(false);
+        REQUIRE(rig.index.waitForReleases(3000));
+        CHECK(alone.expired());
+    }
+
+    SECTION("a whole-document scope invalidates it")
+    {
+        rig.index.holdReleasesForTesting(true);
+        rig.index.invalidate(entry, core::Scope::wholeDocument());
+        CHECK(rig.index.pagesHeld(entry) == 0);
+        CHECK_FALSE(alone.expired());
+        rig.index.holdReleasesForTesting(false);
+        REQUIRE(rig.index.waitForReleases(3000));
+        CHECK(alone.expired());
+    }
+
+    // WHAT ANOTHER HOLDER KEEPS LIVES ON: the releaser lets go of the index's reference, not of the page.
+    CHECK(kept->reading() != nullptr);
+    CHECK(kept->reading()->size() > 0);
+}
+
 TEST_CASE("a page another owner still wants keeps its request when one lets go", "[index][A-66]")
 {
     Rig rig;

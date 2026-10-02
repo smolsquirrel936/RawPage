@@ -295,8 +295,19 @@ public:
         long long unitsRequested = 0;      // search-unit parts asked of the engine (T8)
         long long unitsStored = 0;         // ... that arrived and were kept
         long long unitsFailed = 0;         // ... of which the reader failed
+        long long releasedAway = 0;        // pages and parts handed to the releaser (S5 guide I-13)
     };
     Stats stats() const noexcept { return stats_; }
+
+    // ---- The releaser (Stage 5 guide I-13) ------------------------------------------------------
+    // WHAT A DROPPED, EVICTED OR INVALIDATED DOCUMENT HELD IS FREED OFF THE CALLING THREAD, which is the UI
+    // thread: a 900-page document's models, readings and searchable forms took 36-51 ms to free -- twice in
+    // every folder search of the corpus, and again when a searched tab closed (measured at T14). They are
+    // handed, as shared pointers, to a thread of this index's own, started the first time one is needed;
+    // anything still held elsewhere (a selection's reading) lives on until its last holder lets go.
+    // For a case: hold the releaser so nothing is freed meanwhile, and wait until all it was given is gone.
+    void holdReleasesForTesting(bool hold);
+    bool waitForReleases(int milliseconds);
     // How many times THIS entry's pages were asked of the engine -- A-64 and A-66 read it.
     long long requestedFor(EntryId entry) const;
 
@@ -368,6 +379,11 @@ private:
     std::size_t budgetBytes_ = kDefaultBudgetBytes;
     bool overBudget_ = false;   // the kept document alone is over the budget -- said once per episode
     Stats stats_;
+
+    // LAST, so it is destroyed FIRST: it drains what it was given before the entries go.
+    class Releaser;
+    std::unique_ptr<Releaser> releaser_;
+    void release(std::vector<std::shared_ptr<const void>> held);
 };
 
 } // namespace rawpage::core::text

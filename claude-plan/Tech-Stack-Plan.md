@@ -593,8 +593,10 @@ lengths were compared directly until the same-rounds control was added.
 **Recorded, not graded.** The comparison window's first fill, before the scroll: 51–54 ms, 91–92 tiles of
 its own two panes, p95 21–22 ms, worst 23–25 ms. **During the folder search the UI thread stalled 45–48 ms
 twice in every run** (the gap between two slices of the event loop), where the other columns' longest stall
-was 11–12 ms — latency the engine did not cause, and nothing in A2's quantity sees it; whether it is felt is
-M-07's to say. `+ find`'s whole column reads 12.4–15.6 ms, beside its graded 9.2 ms: the rounds after its 1.6 s
+was 11–12 ms — latency the engine did not cause, and nothing in A2's quantity sees it. **Found and fixed the
+same day as Stage 5 guide I-13**: dropping a 900-page document's index entry freed its text on the UI thread
+(36–51 ms, once each for `pages-900.pdf` and `text-900.pdf`); the index now frees it on a thread of its own,
+and the longest stall during a folder search reads **10.8–11.8 ms**, with the viewport figures unchanged. `+ find`'s whole column reads 12.4–15.6 ms, beside its graded 9.2 ms: the rounds after its 1.6 s
 search follow the find bar taking the view to its one hit, on page 900, and are not part of the grade; the
 difference is not attributed here.
 

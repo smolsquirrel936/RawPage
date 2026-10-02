@@ -4,6 +4,10 @@
 #include "core/text/LayoutAnalyzer.h"
 
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <thread>
 
 namespace rawpage::core::text {
 namespace {
@@ -160,6 +164,104 @@ bool IndexedPage::hasSearchable(NormalizeOptions options) const
 {
     const std::lock_guard<std::mutex> lock(mutex_);
     return searchable_[slot(options)] != nullptr;
+}
+
+// =====================================================================================================
+// The releaser (Stage 5 guide I-13)
+// =====================================================================================================
+
+// ONE THREAD, A QUEUE OF BATCHES, AND NOTHING ELSE: it holds the last reference to what the index let go,
+// and lets go of it there. It shares nothing with the index but the batches it is handed, so it needs no
+// lock of the index's -- the shared pointers' own counts are what make a page outlive it when something
+// else still holds it.
+class DocumentIndex::Releaser {
+public:
+    Releaser() : thread_([this] { loop(); }) {}
+
+    ~Releaser()
+    {
+        {
+            const std::lock_guard<std::mutex> lock(mutex_);
+            stopping_ = true;
+        }
+        wake_.notify_all();
+        thread_.join();   // drains the queue first, held or not
+    }
+
+    void push(std::vector<std::shared_ptr<const void>> batch)
+    {
+        {
+            const std::lock_guard<std::mutex> lock(mutex_);
+            queue_.push_back(std::move(batch));
+        }
+        wake_.notify_all();
+    }
+
+    void hold(bool on)
+    {
+        {
+            const std::lock_guard<std::mutex> lock(mutex_);
+            held_ = on;
+        }
+        wake_.notify_all();
+    }
+
+    bool waitIdle(int milliseconds)
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return idle_.wait_for(lock, std::chrono::milliseconds(milliseconds),
+                              [this] { return queue_.empty() && !busy_; });
+    }
+
+private:
+    void loop()
+    {
+        for (;;) {
+            std::vector<std::shared_ptr<const void>> batch;
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                wake_.wait(lock, [this] { return stopping_ || (!held_ && !queue_.empty()); });
+                if (queue_.empty()) return;   // stopping, and drained
+                batch = std::move(queue_.front());
+                queue_.pop_front();
+                busy_ = true;
+            }
+            batch.clear();   // THE FREEING, here and not on the thread that dropped the document
+            {
+                const std::lock_guard<std::mutex> lock(mutex_);
+                busy_ = false;
+                if (queue_.empty()) idle_.notify_all();
+            }
+        }
+    }
+
+    std::mutex mutex_;
+    std::condition_variable wake_;
+    std::condition_variable idle_;
+    std::deque<std::vector<std::shared_ptr<const void>>> queue_;
+    bool stopping_ = false;
+    bool held_ = false;
+    bool busy_ = false;
+    std::thread thread_;   // LAST: it starts in the constructor and reads everything above
+};
+
+void DocumentIndex::release(std::vector<std::shared_ptr<const void>> held)
+{
+    if (held.empty()) return;
+    stats_.releasedAway += static_cast<long long>(held.size());
+    if (!releaser_) releaser_ = std::make_unique<Releaser>();
+    releaser_->push(std::move(held));
+}
+
+void DocumentIndex::holdReleasesForTesting(bool hold)
+{
+    if (!releaser_) releaser_ = std::make_unique<Releaser>();
+    releaser_->hold(hold);
+}
+
+bool DocumentIndex::waitForReleases(int milliseconds)
+{
+    return !releaser_ || releaser_->waitIdle(milliseconds);
 }
 
 // =====================================================================================================
@@ -522,18 +624,25 @@ void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
     Event dropped;
     dropped.kind = Event::Kind::PagesInvalidated;
     dropped.entry = entryId;
+    std::vector<std::shared_ptr<const void>> released;   // freed off this thread (I-13)
     for (int page = 0; page < entry->pageCount; ++page) {
         if (!scope.touchesPage(page)) continue;
         auto& held = entry->pages[static_cast<std::size_t>(page)];
         // A PAGE'S UNITS GO WITH ITS TEXT (T8): a command that changes a page may change its annotations.
-        const bool hadUnits = entry->units.erase(page) != 0;
+        bool hadUnits = false;
+        if (const auto unit = entry->units.find(page); unit != entry->units.end()) {
+            if (unit->second) released.push_back(std::move(unit->second));
+            entry->units.erase(unit);
+            hadUnits = true;
+        }
         if (!held && !hadUnits) continue;
         if (held) {
-            held.reset();
+            released.push_back(std::move(held));
             ++stats_.pagesDropped;
         }
         dropped.pages.push_back(page);
     }
+    release(std::move(released));
     if (dropped.pages.empty()) return;
     notify(dropped);
 }
@@ -578,16 +687,22 @@ void DocumentIndex::evict(Entry& entry)
     Event dropped;
     dropped.kind = Event::Kind::PagesEvicted;
     dropped.entry = entry.id;
+    std::vector<std::shared_ptr<const void>> released;   // freed off this thread (I-13)
     for (int page = 0; page < entry.pageCount; ++page) {
         auto& held = entry.pages[static_cast<std::size_t>(page)];
         if (!held) continue;
-        held.reset();
+        released.push_back(std::move(held));
         dropped.pages.push_back(page);
     }
     // The units go with the document: WHOLE documents (the header). A part is small, but an entry holding
     // only parts would otherwise count against the budget for ever and evict nothing.
     const bool hadUnits = !entry.units.empty();
+    for (auto& [part, unit] : entry.units) {
+        (void)part;
+        if (unit) released.push_back(std::move(unit));
+    }
     entry.units.clear();
+    release(std::move(released));
     if (dropped.pages.empty() && !hadUnits) return;
     ++stats_.documentsEvicted;
     // Said even when only parts went: a search waiting on this document must learn that what it held is gone.
@@ -649,7 +764,17 @@ void DocumentIndex::dropEntry(EntryId entryId)
         }
     }
     for (const DocumentHandle handle : entry->handles) byHandle_.erase(handle.id);
+    // ITS PAGES AND PARTS ARE FREED OFF THIS THREAD (I-13): moved out, then the entry -- now light -- erased.
+    std::vector<std::shared_ptr<const void>> released;
+    released.reserve(entry->pages.size() + entry->units.size());
+    for (auto& page : entry->pages)
+        if (page) released.push_back(std::move(page));
+    for (auto& [part, unit] : entry->units) {
+        (void)part;
+        if (unit) released.push_back(std::move(unit));
+    }
     entries_.erase(entryId);
+    release(std::move(released));
 
     Event dropped;
     dropped.kind = Event::Kind::EntryDropped;
