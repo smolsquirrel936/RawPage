@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QColor>
 #include <QContextMenuEvent>
+#include <QFocusEvent>
 #include <QFont>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -575,6 +576,7 @@ void Ribbon::showKeyTips()
     focusBeforeTips_ = QApplication::focusWidget();
     setFocusPolicy(Qt::StrongFocus);
     setFocus(Qt::OtherFocusReason);
+    qApp->installEventFilter(this);   // I-16: a mouse press anywhere dismisses them
 
     for (int i = 0; i < tabs_->count(); ++i) {
         if (!tabs_->isTabVisible(i)) continue;
@@ -603,15 +605,57 @@ void Ribbon::showKeyTips()
 
 void Ribbon::hideKeyTips()
 {
-    qDeleteAll(tips_);
-    tips_.clear();
+    dismissKeyTips(true);
+}
+
+void Ribbon::dismissKeyTips(bool restoreFocus)
+{
+    // The level first, so the focus change below -- which raises `focusOutEvent` -- finds nothing to do.
+    clearTips();
     tipLevel_ = 0;
+    qApp->removeEventFilter(this);
 
     // Focus goes back where it was, and the ribbon stops being focusable -- it is not a control and
     // must not join the tab order (I-05 is about exactly that order).
     setFocusPolicy(Qt::NoFocus);
-    if (focusBeforeTips_) focusBeforeTips_->setFocus(Qt::OtherFocusReason);
+    if (restoreFocus && focusBeforeTips_) focusBeforeTips_->setFocus(Qt::OtherFocusReason);
     focusBeforeTips_.clear();
+}
+
+void Ribbon::clearTips()
+{
+    // LATER, not now: a press on a tip reaches `eventFilter` with that tip as its receiver, and deleting
+    // the receiver inside its own delivery is a use after free. Hidden at once, so nothing shows them.
+    for (QWidget* tip : std::as_const(tips_)) {
+        tip->hide();
+        tip->deleteLater();
+    }
+    tips_.clear();
+}
+
+void Ribbon::focusOutEvent(QFocusEvent* event)
+{
+    if (tipLevel_ != 0) dismissKeyTips(false);
+    QWidget::focusOutEvent(event);
+}
+
+bool Ribbon::eventFilter(QObject* watched, QEvent* event)
+{
+    if (tipLevel_ != 0) {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::NonClientAreaMouseButtonPress:
+            // The focus goes back first, and the press then moves it on if what it lands on takes it --
+            // so a press on a widget that takes none leaves the person where they were, not on a ribbon
+            // nothing can type into.
+            dismissKeyTips(true);
+            break;
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 QString Ribbon::accessKeyOfPage(int index) const
@@ -646,8 +690,7 @@ bool Ribbon::handleKeyTip(int key)
         setCurrentPage(found.value());
 
         // Level two: tips over the groups of the tab just chosen.
-        qDeleteAll(tips_);
-        tips_.clear();
+        clearTips();
         tipLevel_ = 2;
         QWidget* page = stack_->currentWidget();
         if (!page) return true;

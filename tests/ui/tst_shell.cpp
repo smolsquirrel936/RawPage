@@ -28,6 +28,7 @@
 #include "ui/shell/SidebarDock.h"
 #include "ui/shell/StatusBar.h"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QEnterEvent>
@@ -510,6 +511,86 @@ TEST_CASE("Alt key tips are reachable through the registry", "[shell]")
     CHECK(ribbon->keyTipsVisible());
     REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
     CHECK_FALSE(ribbon->keyTipsVisible());
+}
+
+TEST_CASE("the key tips go when the focus leaves the ribbon or the mouse is pressed", "[shell][I-16]")
+{
+    // S5 guide I-16. The tips were dismissed only by `Esc`, a finished sequence or `Alt` again -- so after
+    // a click or a focus change they stayed on screen while the letters they show went to the widget
+    // that now had the focus, the page's own `H` among them, and the next `Alt` HID them and put the
+    // focus back where it was before they appeared.
+    Fixture fixture;
+    ui::MainWindow window(fixture.services());
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+
+    ui::Ribbon* ribbon = window.ribbon();
+    REQUIRE(ribbon != nullptr);
+    std::vector<QWidget*> focusable;
+    for (QWidget* widget : window.findChildren<QWidget*>())
+        if (widget->isVisible() && widget->isEnabled() && (widget->focusPolicy() & Qt::ClickFocus) &&
+            !ribbon->isAncestorOf(widget) && widget != ribbon)
+            focusable.push_back(widget);
+    REQUIRE(focusable.size() >= 2);
+    QWidget* before = focusable.front();
+    QWidget* elsewhere = focusable.back();
+    const auto showTips = [&] {
+        before->setFocus(Qt::OtherFocusReason);
+        QCoreApplication::processEvents();
+        REQUIRE(QApplication::focusWidget() == before);
+        REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
+        REQUIRE(ribbon->keyTipsVisible());
+        REQUIRE(QApplication::focusWidget() == ribbon);
+    };
+
+    // (1) THE FOCUS MOVED ELSEWHERE: the tips go, and the focus STAYS where it was put.
+    showTips();
+    elsewhere->setFocus(Qt::MouseFocusReason);
+    QCoreApplication::processEvents();
+    CHECK_FALSE(ribbon->keyTipsVisible());
+    CHECK(QApplication::focusWidget() == elsewhere);
+
+    // ... and `Alt` after that SHOWS them -- it is not left toggling off a set nobody could see act.
+    REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
+    CHECK(ribbon->keyTipsVisible());
+    REQUIRE(fixture.actions.dispatch(core::ActionId::AppRibbonKeyTips, core::KeyContext::Global));
+    REQUIRE_FALSE(ribbon->keyTipsVisible());
+
+    // (2) A MOUSE PRESS ON SOMETHING THAT TAKES NO FOCUS: the tips go, and the focus is given back to
+    // where it was before them -- not left on a ribbon nothing can type into.
+    showTips();
+    QWidget* status = window.statusBar();
+    REQUIRE(status != nullptr);
+    REQUIRE_FALSE(status->focusPolicy() & Qt::ClickFocus);
+    {
+        const QPointF at(4, 4);
+        QMouseEvent press(QEvent::MouseButtonPress, at, status->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(status, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, at, status->mapToGlobal(at), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(status, &release);
+        QCoreApplication::processEvents();
+    }
+    CHECK_FALSE(ribbon->keyTipsVisible());
+    CHECK(QApplication::focusWidget() == before);
+
+    // THE CONTROL (convention 22): what is part of the sequence keeps them -- a letter no tip shows, and
+    // the step from the tabs' tips to the groups'.
+    showTips();
+    CHECK_FALSE(ribbon->handleKeyTip(Qt::Key_F12));
+    CHECK(ribbon->keyTipsVisible());
+    const QString letter = ribbon->accessKeyOfPage(1);
+    REQUIRE(letter.size() == 1);
+    CHECK(ribbon->handleKeyTip(letter.at(0).unicode()));
+    QCoreApplication::processEvents();
+    CHECK(ribbon->keyTipsVisible());
+    CHECK(QApplication::focusWidget() == ribbon);
+    CHECK(ribbon->handleKeyTip(Qt::Key_Escape));
+    CHECK(ribbon->handleKeyTip(Qt::Key_Escape));
+    CHECK_FALSE(ribbon->keyTipsVisible());
+    CHECK(QApplication::focusWidget() == before);
 }
 
 TEST_CASE("the status bar says there is no document rather than showing a made-up one", "[shell]")

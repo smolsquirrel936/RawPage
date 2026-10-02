@@ -182,7 +182,9 @@ public:
     void setBodyCollapsed(bool collapsed);
     bool isBodyCollapsed() const { return bodyCollapsed_; }
 
-    // R-5: two levels of Alt key tips, dismissed with Esc.
+    // R-5: two levels of Alt key tips, dismissed with Esc -- and, since S5 guide I-16, by the focus
+    // leaving the ribbon or a mouse press anywhere in the application, so a tip is never on screen while
+    // its letter would go somewhere else.
     void showKeyTips();
     void hideKeyTips();
     bool keyTipsVisible() const { return !tips_.isEmpty(); }
@@ -250,7 +252,22 @@ protected:
     // `showKeyTips()` and given back to whatever had it in `hideKeyTips()`.
     void keyPressEvent(QKeyEvent* event) override;
 
+    // THE TIPS LAST WHILE THE RIBBON HAS THE FOCUS (S5 guide I-16). Losing it -- a click elsewhere, `Tab`,
+    // another window -- dismisses them and leaves the focus where it went; `hideKeyTips` restoring it
+    // would take it back from where the person just put it.
+    void focusOutEvent(QFocusEvent* event) override;
+
+    // A MOUSE PRESS ANYWHERE dismisses them, as in every ribbon -- watched through an application filter
+    // installed only while they are up, because a press on a widget that takes no focus moves no focus
+    // and `focusOutEvent` never hears it. The press itself goes on to its widget unchanged. Mouse only:
+    // the keys stay `ShortcutBinder`'s and this class's `keyPressEvent`'s (D1-7).
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
+    // `restoreFocus` false when the focus has already gone somewhere the person put it.
+    void dismissKeyTips(bool restoreFocus);
+    void clearTips();
+
     void relayoutTabs();
     void rebuildOverflowMenu();
 
