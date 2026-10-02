@@ -719,3 +719,49 @@ TEST_CASE("opening the find bar never widens the window and its options collapse
     CHECK(expandedOrder == std::vector<QWidget*>{finder.bar().field(), previous, next, regex, wholeWords,
                                                  caseSensitive, highlightAll, scope, close});
 }
+
+TEST_CASE("the find field takes a third of the room it shares with the status line", "[findbar][field-width]")
+{
+    // THE USER'S REQUEST (2026-10-03, guide A-116): the field at half the width it had. It shares the row's
+    // spare room with the status line beside it; at 2 : 1 it took two thirds -- 571 of 857 px in a 1,616 px
+    // bar on the `windows` platform, measured before the change -- so half of that is one third. Measured
+    // at bar widths from the narrowest (where its minimum holds it) to a wide monitor's, in the row and
+    // behind *More*, with the status line empty and with a count in it.
+    //
+    // WHAT IT DOES NOT CLAIM (convention 19): the widths are offscreen's, whose font metrics are about twice
+    // the `windows` platform's -- the PROPORTION is the layout's and holds on both, and was run on both.
+    Finder finder;
+    finder.view->setFocus(Qt::OtherFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(finder.key(Qt::Key_F, Qt::ControlModifier));
+    driveLayout(finder.window.get());
+    const int chrome = finder.window->width() - finder.bar().width();   // with the bar open: a hidden one has no width
+    QWidget* status = finder.bar().findChild<QWidget*>(QStringLiteral("findStatus"));
+    REQUIRE(status != nullptr);
+    QLineEdit* field = finder.bar().field();
+
+    const auto measure = [&](int width, const char* what) {
+        finder.window->resize(width + chrome, 850);
+        driveLayout(finder.window.get());
+        width = finder.bar().width();   // the window stops at its own minimum
+        const int shared = field->width() + status->width();
+        INFO(what << ": bar " << width << " px, field " << field->width() << " px, status " << status->width()
+                  << " px, collapsed " << finder.bar().isCollapsed());
+        CHECK(field->width() >= field->minimumWidth());
+        // ONE THIRD where the minimum does not hold it -- within a pixel each way for the layout's rounding.
+        if (shared / 3 > field->minimumWidth()) {
+            CHECK(field->width() >= shared / 3 - 1);
+            CHECK(field->width() <= shared / 3 + 1);
+        } else {
+            CHECK(field->width() == field->minimumWidth());
+        }
+    };
+
+    // FROM THE WINDOW'S NARROWEST, which the resize to 0 reaches -- wider than the bar's own minimum, and
+    // twice as wide offscreen, where an average character is 12 px against the `windows` platform's 6 (S5 T14).
+    const std::vector<int> widths{0, 900, 1200, 1600, 1900, 2400};
+    for (const int width : widths) measure(width, "empty");
+    finder.find(QStringLiteral("line"));
+    REQUIRE(finder.bar().hits().size() == 60);
+    for (const int width : widths) measure(width, "with a count");
+}

@@ -117,7 +117,9 @@ FindReplaceBar::FindReplaceBar(app::Services services, QWidget* parent)
     field_->setPlaceholderText(catalog::translate(catalog::key::SearchBarPlaceholder));
     field_->setClearButtonEnabled(false);
     field_->setMinimumWidth(200);
-    row_->addWidget(field_, 2);
+    // ONE THIRD OF THE ROOM IT SHARES WITH THE STATUS LINE -- half the two thirds it had at 2 : 1, on the
+    // user's request (2026-10-03, guide A-116). The minimum is unchanged, so a narrow window loses nothing.
+    row_->addWidget(field_, 1);
 
     previous_ = commandButton(this, ActionId::FindPrevious, catalog::translateAction(ActionId::FindPrevious));
     next_ = commandButton(this, ActionId::FindNext, catalog::translateAction(ActionId::FindNext));
@@ -187,7 +189,7 @@ FindReplaceBar::FindReplaceBar(app::Services services, QWidget* parent)
     // NO MINIMUM (I-10): the room it is given in the row is `kStatusRoom`, counted in `expandedWidth`, and a
     // narrow bar clips it rather than widening the window -- its tooltip holds the whole of it.
     status_->setMinimumWidth(0);
-    row_->addWidget(status_, 1);
+    row_->addWidget(status_, 2);
 
     close_ = commandButton(this, ActionId::FindClose, catalog::translateAction(ActionId::FindClose));
     row_->addWidget(close_);
