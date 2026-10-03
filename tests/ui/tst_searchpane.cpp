@@ -31,6 +31,7 @@
 #include <QLayout>
 #include <QLineEdit>
 #include <QProxyStyle>
+#include <QPushButton>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -467,4 +468,138 @@ TEST_CASE("the pane shows the search options and a changed one searches again", 
     CHECK(s.pane().listedRows().size() == 16);
     s.fixture.settings.set(core::keys::search::useRegex, false);
     s.settle();
+}
+
+// =============================================================================================
+// S5 guide I-21 and the user's design (2026-10-03) -- `Enter` narrows a list that exists, searches otherwise
+// =============================================================================================
+
+namespace {
+
+std::size_t opensSoFar(const Searcher& s)
+{
+    const std::lock_guard<std::mutex> lock(s.fixture.backend.openMutex);
+    return s.fixture.backend.openThreads.size();
+}
+
+// `Enter` with the focus on `widget`, as a key event -- the keyboard's path, through `ShortcutBinder`.
+void enterIn(const Searcher& s, QWidget* widget)
+{
+    widget->setFocus(Qt::OtherFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(s.window->focusWidget() == widget);
+    s.key(Qt::Key_Return);
+    s.settle();
+}
+
+} // namespace
+
+TEST_CASE("Enter in a filter field narrows the list and opens nothing", "[searchpane][I-21]")
+{
+    Searcher s;
+    core::Metadata levi;
+    levi.author = QStringLiteral("Noa Levi");
+    s.fixture.backend.metadataByName[QStringLiteral("beta.pdf")] = levi;
+    s.search(QStringLiteral("Page 2"), true);
+    REQUIRE(s.pane().listedRows().size() == 15);
+    REQUIRE(s.pane().hasList());
+    const std::size_t opens = opensSoFar(s);
+
+    // THE AUTHOR, AND `ENTER`: the list narrowed to beta.pdf -- with no search, and no file opened. Until the
+    // fix this `Enter` opened the FIRST RESULT in a tab.
+    QLineEdit* author = nullptr;
+    for (QLineEdit* field : s.pane().findChildren<QLineEdit*>())
+        if (field->placeholderText() == ui::catalog::translate(ui::catalog::key::SearchPaneAuthor)) author = field;
+    REQUIRE(author != nullptr);
+    author->setText(QStringLiteral("levi"));
+    enterIn(s, author);
+    CHECK(s.window->documentCount() == 0);
+    CHECK(s.filesListed() == std::set<QString>{"beta.pdf"});
+    CHECK(s.pane().listedRows().size() == 5);
+    CHECK(opensSoFar(s) == opens);
+    CHECK(s.pane().queryChain() == QStringList{QStringLiteral("Page 2")});
+
+    // `ENTER` ON A BUTTON opens nothing either, and changes nothing.
+    enterIn(s, s.pane().refineButton());
+    CHECK(s.window->documentCount() == 0);
+    CHECK(s.pane().listedRows().size() == 5);
+
+    // A NEW QUERY AND `ENTER` REFINES: beta.pdf's page 2 carries `line 1`, the filter still on -- one result,
+    // and the status line says what the list is.
+    s.pane().queryField()->setText(QStringLiteral("line 1"));
+    enterIn(s, s.pane().queryField());
+    CHECK(s.window->documentCount() == 0);
+    REQUIRE(s.pane().listedRows().size() == 1);
+    CHECK(s.pane().listedRows().front().hit->hit.page == 1);
+    CHECK(s.pane().queryChain() == (QStringList{QStringLiteral("Page 2"), QStringLiteral("line 1")}));
+    CHECK(s.pane().statusText().contains(
+        ui::catalog::translate(ui::catalog::key::SearchPaneRefinedBy).arg(QStringLiteral("Page 2 → line 1"))));
+
+    // THE SAME QUERY AGAIN searches nothing: the list is already its answer.
+    const std::size_t afterRefine = opensSoFar(s);
+    enterIn(s, s.pane().queryField());
+    CHECK(opensSoFar(s) == afterRefine);
+    CHECK(s.pane().listedRows().size() == 1);
+
+    // A CHANGED SCOPE IS A NEW SEARCH: subfolders off, `Enter` -- the chain starts again, over two files.
+    s.pane().setRecursive(false);
+    author->clear();
+    enterIn(s, s.pane().queryField());
+    CHECK(s.pane().queryChain() == QStringList{QStringLiteral("line 1")});
+    CHECK(s.filesListed() == std::set<QString>{"alpha.pdf", "beta.pdf"});
+    CHECK(s.pane().listedRows().size() == 8);
+}
+
+TEST_CASE("Clear empties the list and keeps the fields so the next Enter searches anew", "[searchpane][I-21]")
+{
+    Searcher s;
+    s.search(QStringLiteral("Page 2"), true);
+    REQUIRE(s.pane().listedRows().size() == 15);
+    REQUIRE(s.pane().refine(QStringLiteral("line 1")));
+    s.settle();
+    REQUIRE(s.pane().queryChain().size() == 2);
+    REQUIRE(s.pane().clearButton()->isEnabled());
+    const QString query = s.pane().queryField()->text();
+
+    s.pane().clearButton()->click();
+    CHECK(s.pane().listedRows().empty());
+    CHECK(s.pane().list()->topLevelItemCount() == 0);
+    CHECK(s.pane().queryChain().isEmpty());
+    CHECK_FALSE(s.pane().hasList());
+    CHECK_FALSE(s.pane().statusText().contains(ui::catalog::translate(ui::catalog::key::SearchPaneSearched).arg(3)));
+    CHECK_FALSE(s.pane().refineButton()->isEnabled());
+    CHECK_FALSE(s.pane().clearButton()->isEnabled());
+    // EVERY FIELD AS TYPED.
+    CHECK(s.pane().queryField()->text() == query);
+
+    // AND THE NEXT `ENTER` IS A NEW SEARCH of what the field says -- no refinement of a list that is gone.
+    s.pane().queryField()->setText(QStringLiteral("line 3"));
+    enterIn(s, s.pane().queryField());
+    CHECK(s.pane().queryChain() == QStringList{QStringLiteral("line 3")});
+    CHECK(s.pane().listedRows().size() == 12);
+}
+
+// =============================================================================================
+// S5 guide I-22 -- an opened result carries the query whose hits the list holds
+// =============================================================================================
+
+TEST_CASE("a refined result opens under the query the list was refined by", "[searchpane][I-22]")
+{
+    Searcher s;
+    s.search(QStringLiteral("Page 2"), false);
+    REQUIRE(s.pane().listedRows().size() == 10);
+    s.pane().queryField()->setText(QStringLiteral("line 1"));
+    enterIn(s, s.pane().queryField());
+    REQUIRE(s.pane().listedRows().size() == 2);
+    CHECK(s.pane().pattern() == QStringLiteral("line 1"));
+
+    // From the list, `Enter`: the file opens with ITS hits under ITS query -- `line 1` on page 2, not `Page 2`.
+    s.pane().setSort(SearchResults::Sort::File);
+    s.pane().list()->setCurrentItem(s.pane().list()->topLevelItem(0));
+    enterIn(s, s.pane().list());
+    REQUIRE(s.window->documentCount() == 1);
+    ui::FindReplaceBar* bar = s.window->currentDocument()->findBar();
+    CHECK(bar->field()->text() == QStringLiteral("line 1"));
+    REQUIRE(bar->hits().size() == 1);
+    CHECK(bar->hits()[0].page == 1);
 }

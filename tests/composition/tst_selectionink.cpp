@@ -1178,6 +1178,9 @@ TEST_CASE("Advanced Search through the product finds every level of a folder and
     CHECK(bar.isOpen());
     CHECK_FALSE(bar.hits().empty());
     CHECK(bar.field()->text() == QStringLiteral("RawPage"));
+    // AGAIN FROM THE LIST -- the opened tab took the focus, and `Enter` opens a result only from the list
+    // (S5 guide I-21) -- and the file is not opened twice.
+    pane.list()->setFocus(Qt::OtherFocusReason);
     pane.jumpToCurrent();
     product.settle();
     CHECK(product.window->documentCount() == 1);

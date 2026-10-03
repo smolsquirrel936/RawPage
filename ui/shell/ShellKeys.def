@@ -381,6 +381,9 @@ RAWPAGE_SHELL_STRING(SearchPaneSearching,        "search.pane.searching")
 RAWPAGE_SHELL_STRING(SearchPaneCount,            "search.pane.count")
 // S5 guide I-19: the files SEARCHED, said apart from the files the results are in.
 RAWPAGE_SHELL_STRING(SearchPaneSearched,         "search.pane.searched")
+// S5 guide I-21, I-22 (the user's design, 2026-10-03): *Clear*, and the chain a refined list was built from.
+RAWPAGE_SHELL_STRING(SearchPaneClear,            "search.pane.clear")
+RAWPAGE_SHELL_STRING(SearchPaneRefinedBy,        "search.pane.refinedBy")
 RAWPAGE_SHELL_STRING(SearchPaneNotSearched,      "search.pane.notSearched")
 RAWPAGE_SHELL_STRING(SearchPaneSkippedEncrypted, "search.pane.skippedEncrypted")
 RAWPAGE_SHELL_STRING(SearchPaneLimitReached,     "search.pane.limitReached")

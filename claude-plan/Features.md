@@ -316,6 +316,14 @@ still resolves. `platform::ISpeech`, `platform/win/WinSpeech` and `ui/shell/Read
 - Sort results by relevance, by page, or by file.
 - Filter results by date, author, or subject metadata.
 - Refine a completed search within its own results.
+  - `Enter` in the pane's query, author, subject or date field **narrows a list that exists**: the filters
+    apply, and a query that differs from the last one the list came from refines the list by it. With no
+    list, or once the folder or *Include subfolders* has changed, `Enter` starts a new search, as it always
+    does from the folder field. From the result list it opens the current result. *(Added 2026-10-03, the
+    user's design; `Stage5-TextSearch-Testing-Guide.md` I-21.)*
+  - A refined list names the queries it was built from (*"Refined: corpus → Hebrew"*), and a result opened
+    from it is shown under the last of them. *(2026-10-03, I-22.)*
+  - A *Clear* button empties the list and its refinements and keeps every field as typed.
 - Export the result list.
 
 **Indexing**

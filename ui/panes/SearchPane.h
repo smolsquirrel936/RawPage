@@ -23,6 +23,23 @@
 // the state I-20 was. A refine in progress is dropped by it: its first search no longer exists.
 //
 // ---------------------------------------------------------------------------------------------
+// WHAT `ENTER` MEANS, AND WHAT THE LIST SAYS IT IS (the user's design, 2026-10-03; S5 guide I-21, I-22)
+// ---------------------------------------------------------------------------------------------
+// `Enter` NARROWS A LIST THAT EXISTS and searches when there is none. In the query, author, subject or date
+// fields, with a finished list holding results: the filter fields are applied, and a query that differs
+// from the last one the list was built from REFINES the list by it -- only the pages both found. With no
+// list, or once the folder or *Include subfolders* has changed since the list was built, `Enter` searches
+// anew; from the folder field it always does. From the list it opens the current result. Anywhere else -- a
+// button, the sort box, a toggle -- it does nothing: until 2026-10-03 every `Enter` outside the query field
+// opened the FIRST RESULT, so `Enter` in the author field opened a file (I-21). *Clear* empties the list and
+// its refinements, and keeps every field, so the next `Enter` is a new search.
+//
+// THE LIST SAYS WHAT IT IS: a refined list names its chain of queries on the status line ("Refined:
+// corpus → Hebrew"), and an opened result carries the LAST query of the chain -- the one whose hits the list
+// holds. Until 2026-10-03 it carried the first, so the tab's find bar showed one query over another's
+// highlights (I-22).
+//
+// ---------------------------------------------------------------------------------------------
 // WHAT RUNS WHERE
 // ---------------------------------------------------------------------------------------------
 // The search itself is `core/text/FolderSearch` -- the UI thread opens nothing (guide A-88) -- and the
@@ -52,6 +69,7 @@
 
 #include <QDockWidget>
 #include <QString>
+#include <QStringList>
 
 #include <map>
 #include <memory>
@@ -91,7 +109,13 @@ public:
     // A second query over the files and pages the current results hold -- only pages carrying both.
     core::Status refine(const QString& query);
     void stop();
+    // *Clear*: the list, its count and its refinements go; every field stays as typed.
+    void clear();
     bool isSearching() const;
+    // A finished list holding at least one result -- what `Enter` and *Refine* narrow.
+    bool hasList() const;
+    // The queries the list was built from: the search's, then each refinement's.
+    QStringList queryChain() const { return chain_; }
 
     void setSort(core::text::SearchResults::Sort sort);
     void setFilter(const core::text::SearchResults::Filter& filter);
@@ -99,7 +123,7 @@ public:
     core::Status exportTo(const QString& path);
 
     // The commands' behaviour with the focus in the pane (`find.jumpToResult`, `find.next`,
-    // `find.previous`, `find.close`).
+    // `find.previous`, `find.close`). `jumpToCurrent` is `Enter`: see the header for what it means where.
     void jumpToCurrent();
     void selectNext();
     void selectPrevious();
@@ -116,8 +140,11 @@ public:
     QToolButton* regexToggle() const noexcept { return regex_; }
     QToolButton* wholeWordsToggle() const noexcept { return wholeWords_; }
     QToolButton* caseSensitiveToggle() const noexcept { return caseSensitive_; }
-    // The last search's pattern, which an opened result is shown under.
+    // The pattern whose hits the list holds -- the search's, or the last refinement's -- which an opened
+    // result is shown under (I-22).
     QString pattern() const noexcept { return pattern_; }
+    QPushButton* clearButton() const noexcept { return clearButton_; }
+    QPushButton* refineButton() const noexcept { return refineButton_; }
 
 signals:
     // A result to show: the window opens the file -- or goes to its tab -- and shows the hit, highlighted.
@@ -139,6 +166,11 @@ private:
     void activate(int row);
     void refreshToggles();
     void onSettingsChanged();
+    // `Enter` in a field with a list: the filters applied, and a changed query refined by.
+    void narrow();
+    // Whether the folder or the subfolders box differs from what the list was searched with.
+    bool scopeChanged() const;
+    void refreshButtons();
 
     app::Services services_;
     std::unique_ptr<core::text::FolderSearch> folder_;
@@ -159,6 +191,7 @@ private:
     QLineEdit* to_ = nullptr;
     QPushButton* refineButton_ = nullptr;
     QPushButton* exportButton_ = nullptr;
+    QPushButton* clearButton_ = nullptr;
     QTreeWidget* list_ = nullptr;
     QLabel* status_ = nullptr;
 
@@ -167,6 +200,13 @@ private:
     core::text::SearchResults incoming_;
     std::map<QString, std::set<int>> refineTo_;
     bool refining_ = false;
+    // The refinement running, joined to the chain when it finishes -- not before, so a stopped one is not
+    // claimed.
+    QString refiningBy_;
+    QStringList chain_;
+    // What the list was searched over: a change of either makes `Enter` a new search.
+    QString listFolder_;
+    bool listRecursive_ = true;
     std::vector<core::text::SearchResults::Row> rows_;
     core::text::SearchResults::Sort sortOrder_ = core::text::SearchResults::Sort::Relevance;
     core::text::SearchResults::Filter filter_;

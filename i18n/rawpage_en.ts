@@ -3637,6 +3637,14 @@
         <translation>%1 files searched</translation>
     </message>
     <message>
+        <source>search.pane.clear</source>
+        <translation>Clear</translation>
+    </message>
+    <message>
+        <source>search.pane.refinedBy</source>
+        <translation>Refined: %1</translation>
+    </message>
+    <message>
         <source>search.pane.notSearched</source>
         <translation>%1 files not searched</translation>
     </message>

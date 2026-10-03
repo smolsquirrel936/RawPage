@@ -3637,6 +3637,14 @@
         <translation>已搜尋 %1 個檔案</translation>
     </message>
     <message>
+        <source>search.pane.clear</source>
+        <translation>清除</translation>
+    </message>
+    <message>
+        <source>search.pane.refinedBy</source>
+        <translation>已縮小範圍：%1</translation>
+    </message>
+    <message>
         <source>search.pane.notSearched</source>
         <translation>%1 個檔案未搜尋</translation>
     </message>

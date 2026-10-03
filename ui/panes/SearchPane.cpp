@@ -160,9 +160,12 @@ SearchPane::SearchPane(app::Services services, QWidget* parent)
     searchButton_ = new QPushButton(catalog::translate(catalog::key::SearchPaneSearch), body);
     stopButton_ = new QPushButton(catalog::translate(catalog::key::SearchPaneStop), body);
     stopButton_->setEnabled(false);
+    clearButton_ = new QPushButton(catalog::translate(catalog::key::SearchPaneClear), body);
+    clearButton_->setObjectName(QStringLiteral("searchClear"));
     queryRow->addWidget(query_, 1);
     queryRow->addWidget(searchButton_);
     queryRow->addWidget(stopButton_);
+    queryRow->addWidget(clearButton_);
     column->addLayout(queryRow);
 
     // THE SEARCH OPTIONS, shown (I-20): labelled as their settings are on the Search page, as the find bar's are.
@@ -238,7 +241,11 @@ SearchPane::SearchPane(app::Services services, QWidget* parent)
     // action table names. `Enter` from the query and from the list goes through `find.jumpToResult`.
     connect(searchButton_, &QPushButton::clicked, this, [this] { (void)search(); });
     connect(stopButton_, &QPushButton::clicked, this, [this] { stop(); });
-    connect(refineButton_, &QPushButton::clicked, this, [this] { (void)refine(query_->text()); });
+    // *Refine* is `Enter` in a field: the filters applied and a changed query refined by (the header).
+    connect(refineButton_, &QPushButton::clicked, this, [this] {
+        if (hasList()) narrow();
+    });
+    connect(clearButton_, &QPushButton::clicked, this, [this] { clear(); });
     connect(exportButton_, &QPushButton::clicked, this, [this] {
         if (!canPromptTheUser()) return;
         const QString path = QFileDialog::getSaveFileName(this, catalog::translate(catalog::key::SearchPaneExportTitle),
@@ -352,7 +359,57 @@ core::Status SearchPane::search()
     refineTo_.clear();
     refining_ = false;
     searched_ = true;
-    return run(std::move(request), false);
+    // A NEW LIST, and what it is: this query alone, over this folder.
+    chain_.clear();
+    listFolder_ = request.folder;
+    listRecursive_ = request.recursive;
+    const QString query = query_->text();
+    const core::Status started = run(std::move(request), false);
+    if (started) chain_ << query;
+    updateStatus();
+    return started;
+}
+
+bool SearchPane::hasList() const
+{
+    return !folder_->isRunning() && !chain_.isEmpty() && results_.hitCount() > 0;
+}
+
+bool SearchPane::scopeChanged() const
+{
+    return QDir::fromNativeSeparators(folderField_->text().trimmed()) != listFolder_ || recursive_->isChecked() != listRecursive_;
+}
+
+void SearchPane::narrow()
+{
+    // THE FILTERS FIRST -- they narrow the list with no search at all -- then a CHANGED query refines it. The
+    // same query again would search the same pages for the same words and list what is already listed.
+    readFilter();
+    const QString query = query_->text();
+    if (!query.trimmed().isEmpty() && query != chain_.back()) (void)refine(query);
+}
+
+void SearchPane::clear()
+{
+    // THE LIST GOES, NOT WHAT WAS TYPED (the user's choice): the next `Enter` searches anew from the fields.
+    folder_->cancel();
+    results_.clear();
+    incoming_ = core::text::SearchResults{};
+    rows_.clear();
+    refineTo_.clear();
+    refining_ = false;
+    refiningBy_.clear();
+    chain_.clear();
+    pattern_.clear();
+    error_.clear();
+    note_.clear();
+    limitReached_ = false;
+    filesDone_ = filesTotal_ = 0;
+    // Nothing is listed, so a changed option has nothing to search again.
+    searched_ = false;
+    staleOptions_ = false;
+    rebuildList();
+    updateStatus();
 }
 
 void SearchPane::refreshToggles()
@@ -398,6 +455,7 @@ core::Status SearchPane::refine(const QString& query)
     refineTo_ = pages;
     incoming_.clear();
     refining_ = true;
+    refiningBy_ = query;
     return run(std::move(request), true);
 }
 
@@ -421,13 +479,13 @@ core::Status SearchPane::run(core::text::FolderSearch::Request request, bool ref
         // REFUSED AND SAID (the find bar's rule): an empty or invalid pattern, a folder that is not there.
         error_ = catalog::translateError(QString(started.error().messageKey), started.error().context);
         refining_ = false;
+        refiningBy_.clear();
         rebuildList();
         updateStatus();
         return started;
     }
     if (!refining) pattern_ = pattern;
     searchButton_->setEnabled(false);
-    refineButton_->setEnabled(false);
     stopButton_->setEnabled(true);
     rebuildList();
     updateStatus();
@@ -437,9 +495,10 @@ core::Status SearchPane::run(core::text::FolderSearch::Request request, bool ref
 void SearchPane::stop()
 {
     folder_->cancel();
+    // A STOPPED REFINEMENT IS NOT ONE: the list is still the chain's, and the chain is unchanged.
     refining_ = false;
+    refiningBy_.clear();
     searchButton_->setEnabled(true);
-    refineButton_->setEnabled(true);
     stopButton_->setEnabled(false);
     updateStatus();
 }
@@ -463,9 +522,12 @@ void SearchPane::onFinished(const core::text::FolderSearch::Summary& summary)
         results_ = std::move(incoming_);
         incoming_ = core::text::SearchResults{};
         refining_ = false;
+        // THE LIST NOW HOLDS THIS QUERY'S HITS (I-22): it joins the chain, and an opened result is shown under it.
+        chain_ << refiningBy_;
+        pattern_ = refiningBy_;
+        refiningBy_.clear();
     }
     searchButton_->setEnabled(true);
-    refineButton_->setEnabled(true);
     stopButton_->setEnabled(false);
     rebuildList();
     updateStatus();
@@ -565,12 +627,29 @@ void SearchPane::selectPrevious()
 
 void SearchPane::jumpToCurrent()
 {
-    // `Enter` (§8): from the query it searches; from the list it opens the current result.
-    if (query_->hasFocus() || rows_.empty()) {
+    // `Enter` (§8), by where the focus is (the header). The window's focus widget rather than the
+    // application's, so a call with the window inactive -- a composed case, a dispatch from elsewhere --
+    // still knows which field it came from.
+    QWidget* focus = window() != nullptr ? window()->focusWidget() : nullptr;
+    if (focus == nullptr) focus = QApplication::focusWidget();
+
+    // FROM THE LIST: the current result opens.
+    if (focus != nullptr && (focus == list_ || list_->isAncestorOf(focus))) {
+        if (!rows_.empty()) activate(currentRow() < 0 ? 0 : currentRow());
+        return;
+    }
+    // FROM A FIELD: a new search, or the list narrowed. From anything else -- a button, the sort box, a toggle --
+    // nothing: `Enter` there is not a request to open the first result (I-21).
+    const bool searchField = focus == query_ || focus == author_ || focus == subject_ || focus == from_ || focus == to_;
+    if (focus == folderField_ || (searchField && (!hasList() || scopeChanged()))) {
+        // THE FILTER FIELDS AS THEY READ NOW. A field applies itself on `editingFinished`, which `Enter` never
+        // raises -- `ShortcutBinder` takes the key -- so an author cleared and `Enter` pressed would otherwise
+        // search under the author it had (found by this change's own case).
+        readFilter();
         (void)search();
         return;
     }
-    activate(currentRow() < 0 ? 0 : currentRow());
+    if (searchField) narrow();
 }
 
 void SearchPane::activate(int row)
@@ -622,9 +701,20 @@ void SearchPane::updateStatus()
             parts << catalog::translate(catalog::key::SearchPaneNotSearched).arg(results_.refusedCount());
         if (limitReached_)
             parts << catalog::translate(catalog::key::SearchPaneLimitReached).arg(results_.hitCount());
+        // A REFINED LIST SAYS SO, and by what -- the search's query, then each refinement's (I-22).
+        if (chain_.size() > 1)
+            parts << catalog::translate(catalog::key::SearchPaneRefinedBy).arg(chain_.join(QStringLiteral(" → ")));
     }
     if (!note_.isEmpty()) parts << note_;
     status_->setText(parts.join(QStringLiteral(" · ")));
+    refreshButtons();
+}
+
+void SearchPane::refreshButtons()
+{
+    // *Refine* narrows a list, so it waits for one; *Clear* has something to clear while anything is shown.
+    refineButton_->setEnabled(hasList());
+    clearButton_->setEnabled(folder_->isRunning() || !chain_.isEmpty() || !results_.files().empty() || !error_.isEmpty());
 }
 
 core::Status SearchPane::exportTo(const QString& path)
