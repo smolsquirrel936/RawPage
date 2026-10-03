@@ -80,6 +80,7 @@ class QCheckBox;
 class QComboBox;
 class QLabel;
 class QLineEdit;
+class QPaintEvent;
 class QPushButton;
 class QShowEvent;
 class QToolButton;
@@ -155,6 +156,12 @@ signals:
 
 protected:
     void showEvent(QShowEvent* event) override;
+    // THE EDGE THAT FACES THE PAGE, drawn (the user's request, 2026-10-03). The main window's dock separator
+    // -- the strip a person drags to resize the pane -- is painted in the window's own colour by the native
+    // style, so nothing showed where the page ended and the pane began, or where to grab. A one-pixel line in
+    // the theme's `Border` colour on the side the pane is docked against: left when docked right, right when
+    // docked left, top when docked at the bottom. None when floating, where the window frame is the edge.
+    void paintEvent(QPaintEvent* event) override;
 
 private:
     core::Status run(core::text::FolderSearch::Request request, bool refining);

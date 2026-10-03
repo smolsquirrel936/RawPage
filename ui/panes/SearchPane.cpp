@@ -19,6 +19,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMainWindow>
 #include <QMetaObject>
 #include <QPainter>
 #include <QPushButton>
@@ -285,6 +286,10 @@ SearchPane::SearchPane(app::Services services, QWidget* parent)
         if (change.group == core::SettingsGroup::Search) onSettingsChanged();
     });
 
+    // Moved to another side or floated: the edge line moves with it, or goes.
+    connect(this, &QDockWidget::dockLocationChanged, this, [this] { update(); });
+    connect(this, &QDockWidget::topLevelChanged, this, [this] { update(); });
+
     refreshToggles();
     updateStatus();
 }
@@ -430,6 +435,43 @@ void SearchPane::onSettingsChanged()
         (void)search();
     } else {
         staleOptions_ = true;
+    }
+}
+
+void SearchPane::paintEvent(QPaintEvent* event)
+{
+    QDockWidget::paintEvent(event);
+    if (isFloating()) return;
+    const auto* window = qobject_cast<const QMainWindow*>(parentWidget());
+    if (window == nullptr) return;
+
+    // `QPalette::Mid` IS THE THEME'S `Border` TOKEN -- `ThemeManager::apply` sets it -- so the line follows a
+    // theme switch with the rest of the chrome, and is judged in both themes (convention 20, `tst_searchpane`).
+    //
+    // A FILLED STRIP ONE LOGICAL PIXEL WIDE, NOT A HAIRLINE ON THE EDGE. At a fractional scale the pane's edge
+    // can fall BETWEEN device pixels -- docked at logical x 793 at 150 %, it starts at device 1189.5 -- and a
+    // cosmetic line drawn on the edge rasterizes to device pixel 1189, which belongs to the window, and is
+    // clipped away. The first version drew exactly that: green in every grab of the pane alone and in every
+    // run at a whole scale, and absent on the user's 150 % monitors (measured 2026-10-03). A strip of one
+    // logical pixel always covers at least one device pixel the pane owns.
+    QPainter painter(this);
+    const QColor line = palette().color(QPalette::Mid);
+    const QRect area = rect();
+    switch (window->dockWidgetArea(this)) {
+    case Qt::RightDockWidgetArea:
+        painter.fillRect(QRect(area.left(), area.top(), 1, area.height()), line);
+        break;
+    case Qt::LeftDockWidgetArea:
+        painter.fillRect(QRect(area.right(), area.top(), 1, area.height()), line);
+        break;
+    case Qt::BottomDockWidgetArea:
+        painter.fillRect(QRect(area.left(), area.top(), area.width(), 1), line);
+        break;
+    case Qt::TopDockWidgetArea:
+        painter.fillRect(QRect(area.left(), area.bottom(), area.width(), 1), line);
+        break;
+    default:
+        break;
     }
 }
 

@@ -19,6 +19,7 @@
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/shell/ThemeManager.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/write/FindReplaceBar.h"
@@ -27,15 +28,19 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLayout>
 #include <QLineEdit>
+#include <QPainter>
 #include <QProxyStyle>
 #include <QPushButton>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
 #include <QTreeWidget>
 
+#include <algorithm>
+#include <cmath>
 #include <map>
 #include <memory>
 #include <set>
@@ -602,4 +607,101 @@ TEST_CASE("a refined result opens under the query the list was refined by", "[se
     CHECK(bar->field()->text() == QStringLiteral("line 1"));
     REQUIRE(bar->hits().size() == 1);
     CHECK(bar->hits()[0].page == 1);
+}
+
+// =============================================================================================
+// The user's request, 2026-10-03 -- the edge that faces the page is drawn
+// =============================================================================================
+
+namespace {
+
+// `tst_theme`'s luminance ratio (WCAG's), for the line against the window it is drawn beside.
+double luminance(const QColor& color)
+{
+    const auto channel = [](double value) {
+        return value <= 0.03928 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(color.redF()) + 0.7152 * channel(color.greenF()) + 0.0722 * channel(color.blueF());
+}
+
+double contrast(const QColor& a, const QColor& b)
+{
+    const double first = luminance(a);
+    const double second = luminance(b);
+    return (std::max(first, second) + 0.05) / (std::min(first, second) + 0.05);
+}
+
+// The pane as it paints itself, and the colour at a DEVICE pixel of it.
+QColor pixelOf(QWidget& pane, double x, double y)
+{
+    const QImage image = pane.grab().toImage();
+    const double ratio = image.devicePixelRatio();
+    return image.pixelColor(std::clamp(static_cast<int>(x * ratio), 0, image.width() - 1),
+                            std::clamp(static_cast<int>(y * ratio), 0, image.height() - 1));
+}
+
+} // namespace
+
+TEST_CASE("the pane draws its edge on the side that faces the page wherever it is docked", "[searchpane][edge-line]")
+{
+    Searcher s;
+    s.pane().showAndFocus();
+    driveLayout(s.window.get());
+    ui::SearchPane& pane = s.pane();
+    const QColor line = pane.palette().color(QPalette::Mid);
+    const double middleY = pane.height() / 2.0;
+
+    // DOCKED RIGHT, as the product docks it: the LEFT edge -- and one pixel in, the window's own colour, so
+    // it is a line and not the pane's background.
+    REQUIRE(s.window->dockWidgetArea(&pane) == Qt::RightDockWidgetArea);
+    CHECK(pixelOf(pane, 0, middleY) == line);
+    CHECK(pixelOf(pane, 2, middleY) != line);
+    CHECK(pixelOf(pane, pane.width() - 1, middleY) != line);
+
+    // AN EDGE BETWEEN DEVICE PIXELS. On the user's 150 % monitors the pane docked at logical x 793 starts at
+    // device 1189.5, and the first version's hairline on the edge rasterized to device 1189 -- the window's,
+    // clipped away -- so it showed in every grab above and on no screen (2026-10-03). Here the pane is
+    // rendered at 1.5 one logical pixel in, so its edge is at device 1.5 and its first own pixel is device 2.
+    {
+        const double scale = 1.5;
+        QImage target(QSize(static_cast<int>((pane.width() + 2) * scale), static_cast<int>((pane.height() + 2) * scale)),
+                      QImage::Format_ARGB32_Premultiplied);
+        target.setDevicePixelRatio(scale);
+        const QColor window = pane.palette().color(QPalette::Window);
+        target.fill(window);
+        {
+            QPainter painter(&target);
+            pane.render(&painter, QPoint(1, 0));
+        }
+        const int y = static_cast<int>(middleY * scale);
+        INFO("device columns 1..3: " << target.pixelColor(1, y).name().toStdString() << " "
+                                     << target.pixelColor(2, y).name().toStdString() << " "
+                                     << target.pixelColor(3, y).name().toStdString());
+        CHECK(target.pixelColor(2, y) == line);
+    }
+
+    // DOCKED LEFT: the RIGHT edge, and the left edge is not drawn.
+    s.window->addDockWidget(Qt::LeftDockWidgetArea, &pane);
+    driveLayout(s.window.get());
+    REQUIRE(s.window->dockWidgetArea(&pane) == Qt::LeftDockWidgetArea);
+    CHECK(pixelOf(pane, pane.width() - 1, pane.height() / 2.0) == line);
+    CHECK(pixelOf(pane, 0, pane.height() / 2.0) != line);
+
+    // DOCKED AT THE BOTTOM: the TOP edge.
+    s.window->addDockWidget(Qt::BottomDockWidgetArea, &pane);
+    driveLayout(s.window.get());
+    REQUIRE(s.window->dockWidgetArea(&pane) == Qt::BottomDockWidgetArea);
+    CHECK(pixelOf(pane, pane.width() / 2.0, 0) == line);
+
+    // JUDGED IN BOTH THEMES (convention 20): `QPalette::Mid` is the `Border` token, and against the window it
+    // is drawn beside it clears 1.3:1 in each -- a thin line, as visible as the borders of the pane's own
+    // fields, and no louder. 1.39 light, 1.52 dark when written.
+    using ui::ThemeManager;
+    using ui::ThemeToken;
+    for (const ThemeManager::Resolved theme : {ThemeManager::Resolved::Light, ThemeManager::Resolved::Dark}) {
+        const double ratio = contrast(ThemeManager::colorFor(ThemeToken::Border, theme),
+                                      ThemeManager::colorFor(ThemeToken::WindowBackground, theme));
+        INFO("theme " << (theme == ThemeManager::Resolved::Dark ? "dark" : "light") << ": " << ratio);
+        CHECK(ratio >= 1.3);
+    }
 }
