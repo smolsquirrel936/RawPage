@@ -30,8 +30,12 @@
 #include <QKeyEvent>
 #include <QLayout>
 #include <QLineEdit>
+#include <QProxyStyle>
+#include <QStyleOptionViewItem>
+#include <QToolButton>
 #include <QTreeWidget>
 
+#include <map>
 #include <memory>
 #include <set>
 #include <thread>
@@ -307,4 +311,160 @@ TEST_CASE("the pane filters by metadata refines and exports what it lists", "[se
     CHECK(bytes.count("\r\n") == 4);
     CHECK(QString::fromUtf8(bytes.mid(3)).startsWith(ui::catalog::translate(ui::catalog::key::SearchPaneColumnFile)));
     CHECK(s.pane().statusText().contains(QDir::toNativeSeparators(csv)));
+}
+
+// =============================================================================================
+// S5 guide I-18 -- a path too wide for its column keeps its head and its tail
+// =============================================================================================
+
+namespace {
+
+// THE STYLE IS ASKED, AND THIS LISTENS: every item the list paints reaches `CE_ItemViewItem` with the elide
+// mode the style will cut its text by -- `QCommonStyle`'s `viewItemDrawText` reads `textElideMode` and
+// nothing else. Recorded per column.
+class ElideRecorder final : public QProxyStyle {
+public:
+    using QProxyStyle::QProxyStyle;
+    std::map<int, std::set<int>> modesByColumn;
+
+    void drawControl(ControlElement element, const QStyleOption* option, QPainter* painter,
+                     const QWidget* widget) const override
+    {
+        if (element == CE_ItemViewItem)
+            if (const auto* item = qstyleoption_cast<const QStyleOptionViewItem*>(option))
+                const_cast<ElideRecorder*>(this)->modesByColumn[item->index.column()].insert(item->textElideMode);
+        QProxyStyle::drawControl(element, option, painter, widget);
+    }
+};
+
+} // namespace
+
+TEST_CASE("the file column cuts a long path in the middle and the other columns at the end", "[searchpane][I-18]")
+{
+    Searcher s;
+    s.search(QStringLiteral("line 2"), false);
+    REQUIRE(s.pane().listedRows().size() == 8);
+    QTreeWidget* list = s.pane().list();
+    const QString path = list->topLevelItem(0)->text(0);
+    // Two thirds of the path's width -- cut, with room at each end for more than the file's name. From the
+    // metrics, not a pixel count: offscreen's are about twice the `windows` platform's (S5 T14).
+    const int width = list->fontMetrics().horizontalAdvance(path) * 2 / 3;
+    REQUIRE(list->fontMetrics().horizontalAdvance(QStringLiteral("…alpha.pdf")) * 3 < width);
+    list->setColumnWidth(0, width);
+
+    ElideRecorder recorder;
+    list->setStyle(&recorder);
+    (void)list->viewport()->grab();
+    list->setStyle(nullptr);
+
+    // The file column: the middle goes, so the drive and the NAME stay.
+    CHECK(recorder.modesByColumn[0] == std::set<int>{Qt::ElideMiddle});
+    // THE CONTROL: the page column is the list's own, cut at the end -- the delegate is per column, and a
+    // skipped file's reason, a sentence, keeps its start.
+    CHECK(recorder.modesByColumn[1] == std::set<int>{Qt::ElideRight});
+    // And what that leaves on screen, by the metrics the style cuts with: the file's name, whole.
+    const QString shown = list->fontMetrics().elidedText(path, Qt::ElideMiddle, width);
+    CHECK(shown != path);
+    CHECK(shown.endsWith(QStringLiteral("alpha.pdf")));
+    CHECK(shown.startsWith(path.left(2)));
+    // The cell keeps the WHOLE path -- the cut is only what is painted -- and its tooltip says it.
+    CHECK(QDir::fromNativeSeparators(path).endsWith(QStringLiteral("tree/alpha.pdf")));
+    CHECK(list->topLevelItem(0)->toolTip(0) == path);
+}
+
+// =============================================================================================
+// S5 guide I-19 -- the files the results are in, and the files searched, said apart
+// =============================================================================================
+
+TEST_CASE("the count names the files the listed results are in and the files searched apart", "[searchpane][I-19]")
+{
+    Searcher s;
+    core::Metadata levi;
+    levi.author = QStringLiteral("Noa Levi");
+    s.fixture.backend.metadataByName[QStringLiteral("beta.pdf")] = levi;
+    s.search(QStringLiteral("Page 2"), true);
+    REQUIRE(s.pane().listedRows().size() == 15);
+    // Three files searched, three with results: the two figures agree, as they did in every case before I-19.
+    CHECK(s.pane().statusText().contains(ui::catalog::translate(ui::catalog::key::SearchPaneCount).arg(15).arg(3)));
+    CHECK(s.pane().statusText().contains(ui::catalog::translate(ui::catalog::key::SearchPaneSearched).arg(3)));
+
+    // THE CASE THAT TELLS THEM APART: filtered to beta.pdf, five results in ONE file of the three searched.
+    // Before the fix this read "5 results in 3 files".
+    SearchResults::Filter author;
+    author.author = QStringLiteral("levi");
+    s.pane().setFilter(author);
+    REQUIRE(s.pane().listedRows().size() == 5);
+    CHECK(s.pane().statusText().contains(ui::catalog::translate(ui::catalog::key::SearchPaneCount).arg(5).arg(1)));
+    CHECK(s.pane().statusText().contains(ui::catalog::translate(ui::catalog::key::SearchPaneSearched).arg(3)));
+    CHECK_FALSE(s.pane().statusText().contains(ui::catalog::translate(ui::catalog::key::SearchPaneCount).arg(5).arg(3)));
+}
+
+// =============================================================================================
+// S5 guide I-20 -- the pane shows the options it searches with, and a changed one re-runs the search
+// =============================================================================================
+
+TEST_CASE("the pane shows the search options and a changed one searches again", "[searchpane][I-20]")
+{
+    Searcher s;
+    s.search(QStringLiteral("line 2|line 3"), false);
+    // Regex off: the alternation is literal text, on no page.
+    REQUIRE(s.pane().listedRows().empty());
+    QToolButton* regex = s.pane().regexToggle();
+    QToolButton* whole = s.pane().wholeWordsToggle();
+    QToolButton* cased = s.pane().caseSensitiveToggle();
+    REQUIRE(regex != nullptr);
+    REQUIRE(whole != nullptr);
+    REQUIRE(cased != nullptr);
+    CHECK(regex->isVisible());
+    CHECK(whole->isVisible());
+    CHECK(cased->isVisible());
+    // LABELLED AS THE SETTINGS ARE, as the find bar's are.
+    CHECK(regex->text() == ui::catalog::translate(QStringLiteral("prefs.setting.search.useRegex")));
+    CHECK(whole->text() == ui::catalog::translate(QStringLiteral("prefs.setting.search.wholeWords")));
+    CHECK(cased->text() == ui::catalog::translate(QStringLiteral("prefs.setting.search.caseSensitive")));
+    CHECK_FALSE(regex->isChecked());
+
+    // A CLICK DISPATCHES THE COMMAND, which writes the setting -- and the search runs again under it, with no
+    // Search pressed: two lines a page, four pages, two files.
+    regex->click();
+    CHECK(s.fixture.settings.get(core::keys::search::useRegex));
+    CHECK(regex->isChecked());
+    s.settle();
+    CHECK(s.pane().listedRows().size() == 16);
+
+    // `Alt+R` from the pane's query is the same command: off again, the button with it, and nothing found.
+    s.pane().queryField()->setFocus(Qt::OtherFocusReason);
+    QCoreApplication::processEvents();
+    REQUIRE(s.key(Qt::Key_R, Qt::AltModifier));
+    CHECK_FALSE(s.fixture.settings.get(core::keys::search::useRegex));
+    CHECK_FALSE(regex->isChecked());
+    s.settle();
+    CHECK(s.pane().listedRows().empty());
+
+    // FOLLOWING THE SETTINGS, whoever changes them -- here the Search page's path. Each change searched again.
+    s.fixture.settings.set(core::keys::search::wholeWords, true);
+    CHECK(whole->isChecked());
+    s.fixture.settings.set(core::keys::search::wholeWords, false);
+    CHECK_FALSE(whole->isChecked());
+    s.settle();
+
+    // A HIDDEN PANE SEARCHES NOTHING when an option changes, and searches when it is shown again.
+    std::size_t opens = 0;
+    {
+        const std::lock_guard<std::mutex> lock(s.fixture.backend.openMutex);
+        opens = s.fixture.backend.openThreads.size();
+    }
+    s.pane().hide();
+    s.fixture.settings.set(core::keys::search::useRegex, true);
+    s.settle();
+    {
+        const std::lock_guard<std::mutex> lock(s.fixture.backend.openMutex);
+        CHECK(s.fixture.backend.openThreads.size() == opens);
+    }
+    CHECK(regex->isChecked());
+    s.pane().show();
+    s.settle();
+    CHECK(s.pane().listedRows().size() == 16);
+    s.fixture.settings.set(core::keys::search::useRegex, false);
+    s.settle();
 }

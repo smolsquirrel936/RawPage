@@ -3633,6 +3633,10 @@
         <translation>%1 results in %2 files</translation>
     </message>
     <message>
+        <source>search.pane.searched</source>
+        <translation>%1 files searched</translation>
+    </message>
+    <message>
         <source>search.pane.notSearched</source>
         <translation>%1 files not searched</translation>
     </message>

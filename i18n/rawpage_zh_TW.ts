@@ -3633,6 +3633,10 @@
         <translation>%2 個檔案中有 %1 筆結果</translation>
     </message>
     <message>
+        <source>search.pane.searched</source>
+        <translation>已搜尋 %1 個檔案</translation>
+    </message>
+    <message>
         <source>search.pane.notSearched</source>
         <translation>%1 個檔案未搜尋</translation>
     </message>

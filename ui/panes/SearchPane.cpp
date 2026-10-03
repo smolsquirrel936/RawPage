@@ -1,5 +1,6 @@
 #include "ui/panes/SearchPane.h"
 
+#include "core/cmd/ActionRegistry.h"
 #include "core/settings/Settings.h"
 #include "core/text/SearchQuery.h"
 #include "ui/shell/Catalog.h"
@@ -21,7 +22,9 @@
 #include <QMetaObject>
 #include <QPainter>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QStyledItemDelegate>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -89,6 +92,37 @@ public:
     }
 };
 
+// A PATH TOO WIDE FOR ITS COLUMN KEEPS ITS HEAD AND ITS TAIL (S5 guide I-18). The list's own elide mode is
+// `Qt::ElideRight`, which kept `D:\Users\…\Sid…` -- the part every path of a folder search shares -- and cut
+// the file NAME, the one part that tells two rows apart. The middle goes instead, on the user's choice, so
+// the drive and the name both stay. Per column rather than `setTextElideMode` on the list: a skipped file's
+// reason in the text column is a sentence, and a sentence keeps its start.
+class PathDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+protected:
+    void initStyleOption(QStyleOptionViewItem* option, const QModelIndex& index) const override
+    {
+        QStyledItemDelegate::initStyleOption(option, index);
+        option->textElideMode = Qt::ElideMiddle;
+    }
+};
+
+// A search option's button -- the find bar's `commandButton`, for the reason it gives: NOT a default action
+// (convention 23); it carries its text and dispatches its command.
+QToolButton* optionButton(QWidget* parent, core::ActionId id, const QString& settingKey)
+{
+    auto* button = new QToolButton(parent);
+    button->setText(catalog::translate(settingKey));
+    button->setToolTip(catalog::translateAction(id));
+    button->setCheckable(true);
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::TabFocus);   // keyboard operability, retained
+    button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    return button;
+}
+
 std::optional<QDate> dateFrom(const QString& text)
 {
     if (text.trimmed().isEmpty()) return std::nullopt;
@@ -130,6 +164,17 @@ SearchPane::SearchPane(app::Services services, QWidget* parent)
     queryRow->addWidget(searchButton_);
     queryRow->addWidget(stopButton_);
     column->addLayout(queryRow);
+
+    // THE SEARCH OPTIONS, shown (I-20): labelled as their settings are on the Search page, as the find bar's are.
+    auto* optionsRow = new QHBoxLayout;
+    optionsRow->setSpacing(4);
+    regex_ = optionButton(body, core::ActionId::FindToggleRegex, QStringLiteral("prefs.setting.search.useRegex"));
+    wholeWords_ = optionButton(body, core::ActionId::FindToggleWholeWords, QStringLiteral("prefs.setting.search.wholeWords"));
+    caseSensitive_ = optionButton(body, core::ActionId::FindToggleCaseSensitive,
+                                  QStringLiteral("prefs.setting.search.caseSensitive"));
+    for (QToolButton* toggle : {regex_, wholeWords_, caseSensitive_}) optionsRow->addWidget(toggle);
+    optionsRow->addStretch(1);
+    column->addLayout(optionsRow);
 
     auto* folderRow = new QHBoxLayout;
     folderField_ = new QLineEdit(body);
@@ -178,6 +223,7 @@ SearchPane::SearchPane(app::Services services, QWidget* parent)
     list_->setHeaderLabels({catalog::translate(catalog::key::SearchPaneColumnFile),
                             catalog::translate(catalog::key::SearchPaneColumnPage),
                             catalog::translate(catalog::key::SearchPaneColumnSnippet)});
+    list_->setItemDelegateForColumn(FileColumn, new PathDelegate(list_));
     list_->setItemDelegateForColumn(SnippetColumn, new SnippetDelegate(list_));
     list_->header()->setStretchLastSection(true);
     column->addWidget(list_, 1);
@@ -213,12 +259,32 @@ SearchPane::SearchPane(app::Services services, QWidget* parent)
     connect(list_, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem* item, int) {
         if (item != nullptr && item->data(FileColumn, kRowRole).isValid()) activate(item->data(FileColumn, kRowRole).toInt());
     });
+    // EACH OPTION DISPATCHES ITS COMMAND -- the path `Alt+R`, `Alt+W` and `Alt+C` take -- which writes the
+    // setting; the button's checked state then comes back from the setting, never from the click.
+    // The re-read after it is for a dispatch that changed nothing: a checkable button has already flipped
+    // itself on the click, and must not keep a state the setting does not hold.
+    const auto dispatchOption = [this](core::ActionId id) {
+        (void)services_.actions.dispatch(id, core::KeyContext::FindSearch);
+        refreshToggles();
+    };
+    connect(regex_, &QToolButton::clicked, this, [dispatchOption] { dispatchOption(core::ActionId::FindToggleRegex); });
+    connect(wholeWords_, &QToolButton::clicked, this,
+            [dispatchOption] { dispatchOption(core::ActionId::FindToggleWholeWords); });
+    connect(caseSensitive_, &QToolButton::clicked, this,
+            [dispatchOption] { dispatchOption(core::ActionId::FindToggleCaseSensitive); });
+    // THE OPTIONS FOLLOW THE SETTINGS, whoever changes them -- these buttons, `Alt+R` in the find bar, the
+    // Search page. Released in the destructor (convention 10's form for a subscription list).
+    settingsToken_ = services_.settings.subscribe([this](const core::Settings::Change& change) {
+        if (change.group == core::SettingsGroup::Search) onSettingsChanged();
+    });
 
+    refreshToggles();
     updateStatus();
 }
 
 SearchPane::~SearchPane()
 {
+    services_.settings.unsubscribe(settingsToken_);
     // THE FOLDER SEARCH GOES FIRST, its helper joined, while this object can still be posted to (the
     // constructor's note on the pump).
     if (folder_) folder_->setWakeHandler({});
@@ -285,7 +351,37 @@ core::Status SearchPane::search()
     rows_.clear();
     refineTo_.clear();
     refining_ = false;
+    searched_ = true;
     return run(std::move(request), false);
+}
+
+void SearchPane::refreshToggles()
+{
+    regex_->setChecked(services_.settings.get(core::keys::search::useRegex));
+    wholeWords_->setChecked(services_.settings.get(core::keys::search::wholeWords));
+    caseSensitive_->setChecked(services_.settings.get(core::keys::search::caseSensitive));
+}
+
+void SearchPane::onSettingsChanged()
+{
+    refreshToggles();
+    // THE QUERY UNDER NEW FLAGS IS A NEW QUERY (the header): the last search again, if there was one. A
+    // HIDDEN pane does not search a folder nobody is looking at -- it remembers, and searches when shown, so
+    // its list never sits under buttons that say other flags.
+    if (!searched_ || query_->text().trimmed().isEmpty()) return;
+    if (isVisible()) {
+        (void)search();
+    } else {
+        staleOptions_ = true;
+    }
+}
+
+void SearchPane::showEvent(QShowEvent* event)
+{
+    QDockWidget::showEvent(event);
+    if (!staleOptions_) return;
+    staleOptions_ = false;
+    if (searched_ && !query_->text().trimmed().isEmpty()) (void)search();
 }
 
 core::Status SearchPane::refine(const QString& query)
@@ -510,10 +606,18 @@ void SearchPane::updateStatus()
         parts << catalog::translate(catalog::key::SearchPaneSearching).arg(filesDone_).arg(filesTotal_);
     }
     if (error_.isEmpty() && (!results_.files().empty() || !folder_->isRunning())) {
-        if (!results_.files().empty() || !pattern_.isEmpty())
+        if (!results_.files().empty() || !pattern_.isEmpty()) {
+            // THE FILES THE RESULTS ARE IN, and the files searched SAID APART (S5 guide I-19). Until 2026-10-03
+            // the count's second figure was the files searched, hits or none, so M-07's walk read "72 results in
+            // 88 files" over far fewer files with a hit. Counted over the LISTED rows, so a filter that leaves
+            // three files says three.
+            std::set<const core::text::FileResult*> withResults;
+            for (const SearchResults::Row& row : rows_) withResults.insert(row.file);
             parts << catalog::translate(catalog::key::SearchPaneCount)
                          .arg(static_cast<int>(rows_.size()))
-                         .arg(results_.searchedCount());
+                         .arg(static_cast<int>(withResults.size()));
+            parts << catalog::translate(catalog::key::SearchPaneSearched).arg(results_.searchedCount());
+        }
         if (results_.refusedCount() > 0)
             parts << catalog::translate(catalog::key::SearchPaneNotSearched).arg(results_.refusedCount());
         if (limitReached_)

@@ -15,6 +15,13 @@
 // settings; the content-class switches are Preferences' Search page. Every search reads them through
 // `SearchQuery::fromSettings`, so the pane, the bar and Preferences cannot disagree.
 //
+// AND THE PANE SHOWS THE THREE (S5 guide I-20). Until 2026-10-03 it read them and showed none, so M-07's
+// walk searched with regex off and nothing on screen said so. They are the find bar's buttons: the same
+// labels, the same commands dispatched, checked from the settings and following them whoever changes
+// them. A changed option RE-RUNS the pane's last search, as it re-runs the bar's -- the query under new
+// flags is a new query, and a list left over from the old flags beside a button saying the new ones is
+// the state I-20 was. A refine in progress is dropped by it: its first search no longer exists.
+//
 // ---------------------------------------------------------------------------------------------
 // WHAT RUNS WHERE
 // ---------------------------------------------------------------------------------------------
@@ -56,6 +63,8 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QShowEvent;
+class QToolButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 
@@ -103,6 +112,10 @@ public:
     QString statusText() const;
     QLineEdit* queryField() const noexcept { return query_; }
     QTreeWidget* list() const noexcept { return list_; }
+    // The three search options, shown as the find bar shows them (S5 guide I-20).
+    QToolButton* regexToggle() const noexcept { return regex_; }
+    QToolButton* wholeWordsToggle() const noexcept { return wholeWords_; }
+    QToolButton* caseSensitiveToggle() const noexcept { return caseSensitive_; }
     // The last search's pattern, which an opened result is shown under.
     QString pattern() const noexcept { return pattern_; }
 
@@ -113,6 +126,9 @@ signals:
     // `Esc`: the window gives the focus back to the page.
     void closed();
 
+protected:
+    void showEvent(QShowEvent* event) override;
+
 private:
     core::Status run(core::text::FolderSearch::Request request, bool refining);
     void onFile(core::text::FileResult file);
@@ -121,6 +137,8 @@ private:
     void readFilter();
     void updateStatus();
     void activate(int row);
+    void refreshToggles();
+    void onSettingsChanged();
 
     app::Services services_;
     std::unique_ptr<core::text::FolderSearch> folder_;
@@ -131,6 +149,9 @@ private:
     QCheckBox* recursive_ = nullptr;
     QPushButton* searchButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;
+    QToolButton* regex_ = nullptr;
+    QToolButton* wholeWords_ = nullptr;
+    QToolButton* caseSensitive_ = nullptr;
     QComboBox* sort_ = nullptr;
     QLineEdit* author_ = nullptr;
     QLineEdit* subject_ = nullptr;
@@ -155,6 +176,12 @@ private:
     bool limitReached_ = false;
     int filesDone_ = 0;
     int filesTotal_ = 0;
+    // Whether a search has been asked for since the pane was built: a changed option re-runs only that.
+    bool searched_ = false;
+    // An option changed while the pane was hidden: its list is from the old flags, and is searched again
+    // when the pane is shown.
+    bool staleOptions_ = false;
+    int settingsToken_ = 0;
 };
 
 } // namespace rawpage::ui
