@@ -14,17 +14,20 @@
 
 #include "core/cmd/ActionId.h"
 #include "core/text/SearchResults.h"
+#include "ui/panes/LogPane.h"
 #include "ui/panes/SearchPane.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/shell/SidebarDock.h"
 #include "ui/shell/ThemeManager.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/write/FindReplaceBar.h"
 
 #include <QDir>
+#include <QDockWidget>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -704,4 +707,99 @@ TEST_CASE("the pane draws its edge on the side that faces the page wherever it i
         INFO("theme " << (theme == ThemeManager::Resolved::Dark ? "dark" : "light") << ": " << ratio);
         CHECK(ratio >= 1.3);
     }
+}
+
+// =============================================================================================
+// The user's request, 2026-10-04 -- the sidebar and the log pane draw the edge that faces the page too
+// =============================================================================================
+
+namespace {
+
+// THE STRIP SURVIVES AN EDGE BETWEEN DEVICE PIXELS: `dock` rendered at 1.5, offset so the edge it is docked
+// against falls on a half device pixel -- the user's 150 % screens -- and some device pixel across the strip,
+// at mid length, is the line. A hairline ON the edge fails this (A-123's first version).
+bool lineSurvivesHalfPixel(QWidget& dock, Qt::DockWidgetArea side, const QColor& line)
+{
+    const double scale = 1.5;
+    // An odd logical coordinate for the edge, so the edge lands at a .5 device coordinate.
+    const int offsetX = (side == Qt::LeftDockWidgetArea && dock.width() % 2 == 1) ? 2 : 1;
+    const int offsetY = (side == Qt::TopDockWidgetArea && dock.height() % 2 == 1) ? 2 : 1;
+    QImage target(QSize(static_cast<int>((dock.width() + 3) * scale), static_cast<int>((dock.height() + 3) * scale)),
+                  QImage::Format_ARGB32_Premultiplied);
+    target.setDevicePixelRatio(scale);
+    target.fill(dock.palette().color(QPalette::Window));
+    {
+        QPainter painter(&target);
+        dock.render(&painter, QPoint(offsetX, offsetY));
+    }
+    // The strip's logical extent across, in the target: [from, from + 1).
+    double from = 0;
+    switch (side) {
+    case Qt::RightDockWidgetArea: from = offsetX; break;
+    case Qt::LeftDockWidgetArea: from = offsetX + dock.width() - 1; break;
+    case Qt::BottomDockWidgetArea: from = offsetY; break;
+    case Qt::TopDockWidgetArea: from = offsetY + dock.height() - 1; break;
+    default: return false;
+    }
+    const bool across = side == Qt::RightDockWidgetArea || side == Qt::LeftDockWidgetArea;
+    const int along = static_cast<int>(((across ? offsetY + dock.height() / 2.0 : offsetX + dock.width() / 2.0)) * scale);
+    for (int d = static_cast<int>(std::floor(from * scale)); d <= static_cast<int>(std::ceil((from + 1) * scale)); ++d) {
+        const QColor c = across ? target.pixelColor(d, along) : target.pixelColor(along, d);
+        if (c == line) return true;
+    }
+    return false;
+}
+
+} // namespace
+
+TEST_CASE("the sidebar and the log pane draw the edge that faces the page", "[searchpane][edge-line]")
+{
+    Searcher s;
+    s.window->logPane()->show();
+    s.window->sidebar()->show();
+    driveLayout(s.window.get());
+
+    struct Dock {
+        const char* name;
+        QDockWidget* dock;
+        Qt::DockWidgetArea expected;
+    };
+    for (const Dock& d : {Dock{"sidebar", s.window->sidebar(), Qt::LeftDockWidgetArea},
+                          Dock{"log pane", s.window->logPane(), Qt::BottomDockWidgetArea}}) {
+        INFO(d.name);
+        REQUIRE(d.dock->isVisible());
+        REQUIRE(s.window->dockWidgetArea(d.dock) == d.expected);
+        const QColor line = d.dock->palette().color(QPalette::Mid);
+        const QImage image = d.dock->grab().toImage();
+        const double r = image.devicePixelRatio();
+        const auto at = [&](double x, double y) {
+            return image.pixelColor(std::clamp(static_cast<int>(x * r), 0, image.width() - 1),
+                                    std::clamp(static_cast<int>(y * r), 0, image.height() - 1));
+        };
+        const double w = d.dock->width();
+        const double h = d.dock->height();
+        if (d.expected == Qt::LeftDockWidgetArea) {
+            // Docked left: the RIGHT edge faces the page -- over the contents, which reach the edge.
+            CHECK(at(w - 1, h / 2) == line);
+            CHECK(at(w - 3, h / 2) != line);
+            CHECK(at(0, h / 2) != line);
+        } else {
+            // Docked at the bottom: the TOP edge.
+            CHECK(at(w / 2, 0) == line);
+            CHECK(at(w / 2, 3) != line);
+            CHECK(at(w / 2, h - 1) != line);
+        }
+        CHECK(lineSurvivesHalfPixel(*d.dock, d.expected, line));
+    }
+
+    // FLOATING, there is no edge facing the page -- the window frame is the edge.
+    ui::LogPane* log = s.window->logPane();
+    log->setFloating(true);
+    QCoreApplication::processEvents();
+    auto* edge = log->findChild<QWidget*>(QStringLiteral("dockEdge"));
+    REQUIRE(edge != nullptr);
+    CHECK_FALSE(edge->isVisible());
+    log->setFloating(false);
+    QCoreApplication::processEvents();
+    CHECK(edge->isVisible());
 }

@@ -1,6 +1,7 @@
 #include "ui/panes/LogPane.h"
 
 #include "ui/shell/Catalog.h"
+#include "ui/shell/DockEdge.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -126,6 +127,8 @@ LogPane::LogPane(core::LogBuffer& buffer, QWidget* parent)
     column->addWidget(note_);
 
     setWidget(body);
+    // THE EDGE THAT FACES THE PAGE, drawn (`ui/shell/DockEdge`, the user's request, S5 guide A-124).
+    new DockEdge(this);
 
     connect(levelBox_, &QComboBox::currentIndexChanged, this, [this](int index) {
         if (index < 0) return;

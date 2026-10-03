@@ -24,6 +24,8 @@ add_library(rawpage_ui STATIC
     shell/StatusBar.cpp
     shell/SidebarDock.h
     shell/SidebarDock.cpp
+    shell/DockEdge.h
+    shell/DockEdge.cpp
     shell/MainWindow.h
     shell/MainWindow.cpp
 

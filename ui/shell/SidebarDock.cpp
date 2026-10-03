@@ -2,6 +2,7 @@
 
 #include "core/cmd/ActionRegistry.h"
 #include "ui/shell/Catalog.h"
+#include "ui/shell/DockEdge.h"
 
 #include <QComboBox>
 #include <QEvent>
@@ -140,6 +141,8 @@ SidebarDock::SidebarDock(core::ActionRegistry& actions, QWidget* parent)
     bodyLayout->addWidget(stack_, 1);
 
     setWidget(body);
+    // THE EDGE THAT FACES THE PAGE, drawn (`ui/shell/DockEdge`, the user's request, S5 guide A-124).
+    new DockEdge(this);
     updateTitleBarState();
 }
 
