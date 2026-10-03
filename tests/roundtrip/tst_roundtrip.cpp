@@ -28,6 +28,7 @@
 #include "pdf/ops/RevisionWriter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <set>
 
@@ -673,4 +674,48 @@ TEST_CASE("roundtrip I-17 a second save of a hybrid file keeps what the first sa
                                                                   *sink.value());
     INFO("guard: " << (guarded ? std::string() : guarded.error().context.toStdString()));
     CHECK(guarded);
+}
+
+// ==========================================================================================
+// Stage 5 guide issue I-23 -- what `fuzz_cos_roundtrip`'s soak found on 2026-10-03 (run
+// 37111952480): a damaged object stream parsed in time quadratic in its payload
+// ==========================================================================================
+
+TEST_CASE("roundtrip I-23 a damaged object stream is read in time linear in its payload", "[save][roundtrip][fuzz]")
+{
+    // The soak's input was a mutated 900-page file whose object stream decoded to 149 KB of damage:
+    // every packed object read on to the end of the payload, 300 ms a parse in `x64-release` and
+    // fourteen parses through the fuzz body -- past libFuzzer's 30 s under ASan. Built here instead,
+    // for the reason the I-12 cases give: the stream holds only unterminated strings, one per byte,
+    // and the file has no cross-reference table, so every open repairs it and expands the stream.
+    // Measured in `x64-release` on 2026-10-04: 0.076 s bounded, 3.94 s with the bound planted away.
+    // At 12,000 objects the unbounded parse took 0.275 s and passed this clock, which is why it is
+    // 48,000.
+    //
+    // WHAT THIS DOES NOT COVER (convention 19): the bound is a wall clock, and a machine slow enough
+    // could fail it with the fix in place; `cos parser reads each packed object only up to the next
+    // one` asserts the property itself, as spans, which no clock can make flaky.
+    constexpr int kObjects = 48000;
+    QByteArray table;
+    for (int index = 0; index < kObjects; ++index)
+        table += QByteArray::number(10 + index) + " " + QByteArray::number(index) + " ";
+    const QByteArray payload = table + QByteArray(kObjects, '(');
+    const QByteArray input = pdfOf({
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n",
+        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] >>\nendobj\n",
+        streamObject(4, "/Type /ObjStm /N " + QByteArray::number(kObjects) + " /First "
+                            + QByteArray::number(table.size()), payload),
+    });
+
+    const auto started = std::chrono::steady_clock::now();
+    const auto verdict = fuzzBodyOverBytes(input);
+    const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+
+    INFO("failure: " << verdict.failure << " -- " << elapsed << " s");
+    REQUIRE(verdict.editable);
+    CHECK(verdict.pages == 1);
+    CHECK(verdict.ok);
+    CHECK(verdict.written);
+    CHECK(elapsed < 2.0);
 }

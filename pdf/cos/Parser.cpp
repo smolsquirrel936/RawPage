@@ -6,6 +6,7 @@
 #include <QString>
 
 #include <algorithm>
+#include <iterator>
 #include <utility>
 
 namespace rawpage::pdf::cos {
@@ -578,10 +579,9 @@ core::Result<std::vector<IndirectObject>> Parser::parseObjectStream(
         pairs.emplace_back(objectNumber.integer, relativeOffset.integer);
     }
 
-    std::vector<IndirectObject> objects;
-    objects.reserve(pairs.size());
-
-    Parser inner(payload);
+    // Each pair's absolute offset, or none when it is out of range.
+    std::vector<std::optional<std::size_t>> starts;
+    starts.reserve(pairs.size());
     for (const auto& pair : pairs) {
         // RANGE-CHECKED BEFORE IT IS ADDED, never after: `first + pair.second` with an offset near
         // LLONG_MAX overflows, and a check on the sum is a check the compiler may delete (Stage 2
@@ -590,24 +590,72 @@ core::Result<std::vector<IndirectObject>> Parser::parseObjectStream(
         if (pair.second < 0
             || static_cast<unsigned long long>(pair.second)
                    > payload.size() - static_cast<std::size_t>(first)) {
-            record(ParseNote::ObjectStreamOffsetBad, 0, pair.first);
+            starts.push_back(std::nullopt);
             continue;
         }
-        const long long absolute = first + pair.second;
-        inner.seek(static_cast<std::size_t>(absolute));
+        starts.push_back(static_cast<std::size_t>(first + pair.second));
+    }
+
+    // EACH PACKED OBJECT ENDS WHERE THE NEXT ONE BEGINS, and until Stage 5 guide I-23 nothing said
+    // so: every object was parsed from its offset with the whole rest of the payload in view. An
+    // honest object stops on its own, but in a damaged payload -- an unterminated string, array or
+    // dictionary -- each object read on to the end, so the work was the object count times the
+    // payload, and a 149 KB payload of 934 objects parsed 18.4 MB of span and a million notes, 300 ms
+    // per parse, fourteen parses per round trip: a `fuzz_cos_roundtrip` timeout under ASan. Now an
+    // object sees only the bytes up to the next larger offset the table names -- the next larger, not
+    // the next in table order, because nothing makes a damaged table sorted -- and each distinct
+    // offset is parsed once, so the work is linear in the payload. A pair naming an offset an earlier
+    // pair already took is dropped and reported: two objects cannot occupy one place, and a deep copy
+    // of the first for each later claimant would make the memory quadratic instead of the time.
+    std::vector<std::size_t> boundaries;
+    boundaries.reserve(starts.size());
+    for (const auto& start : starts) {
+        if (start)
+            boundaries.push_back(*start);
+    }
+    std::sort(boundaries.begin(), boundaries.end());
+    boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
+    std::vector<bool> taken(boundaries.size(), false);
+
+    std::vector<IndirectObject> objects;
+    objects.reserve(boundaries.size());
+
+    for (std::size_t index = 0; index < pairs.size(); ++index) {
+        const long long number = pairs[index].first;
+        if (!starts[index]) {
+            record(ParseNote::ObjectStreamOffsetBad, 0, number);
+            continue;
+        }
+        const std::size_t absolute = *starts[index];
+        const auto at = std::lower_bound(boundaries.begin(), boundaries.end(), absolute);
+        const auto slot = static_cast<std::size_t>(at - boundaries.begin());
+        if (taken[slot]) {
+            record(ParseNote::ObjectStreamOffsetBad, absolute, number);
+            continue;
+        }
+        taken[slot] = true;
+        const std::size_t end = std::next(at) != boundaries.end() ? *std::next(at) : payload.size();
+
+        // The view keeps the payload's START, so every span and note offset stays relative to
+        // `payload`, as the header promises; only its end moves in.
+        Parser inner(payload.substr(0, end));
+        inner.seek(absolute);
         IndirectObject entry;
-        entry.number = pair.first;
+        entry.number = number;
         // Zero by definition: ISO 32000-1 7.5.7 forbids a non-zero generation in an object
         // stream, so this is the specification rather than an assumption about the file.
         entry.generation = 0;
         entry.object = inner.parseObject();
         entry.span = entry.object.span();
         objects.push_back(std::move(entry));
-    }
 
-    if (notes != nullptr) {
-        const std::vector<ParseNoteRecord>& innerNotes = inner.notes();
-        notes->insert(notes->end(), innerNotes.begin(), innerNotes.end());
+        // Per object, and copied only when asked for. A caller that passes no list -- `XrefTable` and
+        // `XrefRepair` both -- has each object's notes freed with its parser, where one parser for
+        // the whole stream held a million of them.
+        if (notes != nullptr) {
+            const std::vector<ParseNoteRecord>& innerNotes = inner.notes();
+            notes->insert(notes->end(), innerNotes.begin(), innerNotes.end());
+        }
     }
 
     return objects;

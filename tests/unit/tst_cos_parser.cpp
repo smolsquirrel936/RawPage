@@ -592,6 +592,79 @@ TEST_CASE("cos parser reports an object stream offset too large to add to /First
     CHECK(sawOffsetNote);
 }
 
+TEST_CASE("cos parser reads each packed object only up to the next one", "[cos][parser][objstm][I-23]")
+{
+    // Stage 5 guide issue I-23, found by the `fuzz_cos_roundtrip` soak (run 37111952480): every
+    // packed object was parsed with the rest of the payload in view, so in a damaged payload each one
+    // read on to the end and the work was the object count times the payload.
+
+    SECTION("a payload of unterminated strings is read once, not once per object")
+    {
+        // Every object is a `(` that never closes. Unbounded, object i is the string from i to the
+        // end -- K*K/2 bytes of span over K bytes of payload. Bounded, each is its own byte.
+        constexpr std::size_t kObjects = 6000;
+        std::string table;
+        for (std::size_t index = 0; index < kObjects; ++index)
+            table += std::to_string(index + 1) + " " + std::to_string(index) + " ";
+        const std::string payload = table + std::string(kObjects, '(');
+
+        const auto packed = Parser::parseObjectStream(payload, static_cast<long long>(kObjects),
+                                                      static_cast<long long>(table.size()));
+        REQUIRE(packed);
+        REQUIRE(packed.value().size() == kObjects);
+        std::size_t spanned = 0;
+        for (const auto& object : packed.value())
+            spanned += object.span.length;
+        CHECK(spanned <= kObjects);
+    }
+
+    SECTION("an object does not borrow the next object's tokens")
+    {
+        // `12`, `0` and `R` are three packed objects. Read past its own end, the first took the other
+        // two and became a reference.
+        const std::string payload = "1 0 2 3 3 5 12 0 R";
+        const auto packed = Parser::parseObjectStream(payload, 3, 12);
+        REQUIRE(packed);
+        REQUIRE(packed.value().size() == 3);
+        CHECK_FALSE(packed.value()[0].object.isReference());
+        CHECK(packed.value()[0].object.integerValue() == 12);
+        CHECK(packed.value()[1].object.integerValue() == 0);
+        CHECK(packed.value()[2].object.isNull());
+    }
+
+    SECTION("an honest object is whole, and the bound is the next larger offset, not the next pair")
+    {
+        // THE CONTROL: the table is unsorted, so a bound taken from the next PAIR would cut object 1
+        // at offset 0 to nothing and leave object 2 the payload's end.
+        const std::string payload = "2 11 1 0 << /A 1 >> [ 1 2 ]";
+        const auto packed = Parser::parseObjectStream(payload, 2, 9);
+        REQUIRE(packed);
+        REQUIRE(packed.value().size() == 2);
+        CHECK(packed.value()[0].number == 2);
+        REQUIRE(packed.value()[0].object.isArray());
+        CHECK(packed.value()[0].object.items().size() == 2);
+        CHECK(packed.value()[1].number == 1);
+        CHECK(packed.value()[1].object.get("A").integerValue() == 1);
+    }
+
+    SECTION("a second pair at an offset already taken is reported and dropped")
+    {
+        const std::string payload = "1 0 2 0 42";
+        std::vector<rawpage::pdf::cos::ParseNoteRecord> notes;
+        const auto packed = Parser::parseObjectStream(payload, 2, 8, &notes);
+        REQUIRE(packed);
+        REQUIRE(packed.value().size() == 1);
+        CHECK(packed.value()[0].number == 1);
+        CHECK(packed.value()[0].object.integerValue() == 42);
+        bool sawDuplicate = false;
+        for (const auto& record : notes)
+            sawDuplicate = sawDuplicate
+                           || (record.note == ParseNote::ObjectStreamOffsetBad && record.detail == 2
+                               && record.offset == 8);
+        CHECK(sawDuplicate);
+    }
+}
+
 TEST_CASE("cos parser cannot reach the corpus object streams until T7 supplies Flate",
           "[cos][parser][objstm]")
 {

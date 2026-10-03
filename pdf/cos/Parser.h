@@ -154,6 +154,11 @@ public:
     //
     // Static because it parses a buffer that is not this parser's own. Notes are appended to
     // `notes` when given; the objects' spans are relative to `payload`.
+    //
+    // Each object is read only up to the next larger offset the table names (the payload's end
+    // for the last), and a pair repeating an offset already taken is dropped as
+    // `ObjectStreamOffsetBad` -- so the work is linear in the payload however damaged it is
+    // (Stage 5 guide I-23).
     static core::Result<std::vector<IndirectObject>> parseObjectStream(
         std::string_view payload, long long count, long long first,
         std::vector<ParseNoteRecord>* notes = nullptr);
