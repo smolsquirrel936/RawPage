@@ -1542,6 +1542,13 @@ Global rather than appearing in both, so it adds nothing, and the **6** does not
 `Ctrl+Shift+F` (Advanced Search) was listed here until 2026-09-29 and is now a **Global** row, which
 reaches this context too: resolution falls back to Global.
 
+**`Alt+R` is a common GPU overlay's hotkey.** The NVIDIA App's overlay binds it by default, as a
+system-wide hotkey, and Windows gives such a chord to the program that registered it before any
+window sees the key. On a machine running that overlay, `Alt+R` therefore never reaches RawPage: the
+lone `Alt` shows the ribbon's key tips instead (`Stage5-TextSearch-Testing-Guide.md` §8, **I-17**,
+2026-10-03). The row is kept. The answer is to change the overlay's hotkey, or to remap
+`find.toggleRegex` on Preferences' Shortcuts page.
+
 ### Full Screen & Presentation
 
 | Key | Command |

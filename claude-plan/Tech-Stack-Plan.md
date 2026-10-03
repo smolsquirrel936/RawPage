@@ -619,7 +619,12 @@ machine, which this measurement does not prove either.
 
 **What the T14 figure does NOT claim.** It is offscreen, one rig, our own generated corpus (D2-11, D5-23),
 and the main window goes on scrolling while a comparison runs, which a person looking at the comparison would
-not be doing. Whether scrolling *feels* smooth while a first search indexes 900 pages is **M-06**'s, not walked.
+not be doing. Whether scrolling *feels* smooth while a first search indexes 900 pages is **M-06**'s, and
+**M-06 answered it on 2026-10-03, agreeing with the figure.** On `text-900.pdf`, the user scrolled the page view
+fast, paged with `Ctrl+Page Down` and zoomed while the first search was still indexing, and the page kept
+drawing. The second search answered at once. The user reported every step as passed. This is a person's
+judgement on one rig, recorded as such (`Stage5-TextSearch-Testing-Guide.md` M-06), not a measurement. Its one
+finding, I-17 in that guide's §8, was the machine's: the NVIDIA App's overlay held `Alt+R`.
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
