@@ -136,7 +136,7 @@ Each figure was **re-measured on 2026-10-04** unless it says otherwise.
 ## 3. Stage-6-local decisions
 
 Choices this plan makes because nothing upstream decides them. **Rows marked ✅ carry a §0
-question** and read as proposals until you answer.
+question**, and every one was answered on 2026-10-04 (§0); each row reads as its answer left it.
 
 | # | Decision | Why | Revisit |
 |---|---|---|---|

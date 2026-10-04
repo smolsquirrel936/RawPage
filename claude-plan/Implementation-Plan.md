@@ -1584,7 +1584,13 @@ WinAnsi and CJK are `DW-3`; Q4, comment summaries and printing with comments mov
 audio through Qt Multimedia's Media Foundation backend; Q7, the custom stamp from a PDF page and
 `pdf/ops/ObjectGraphCopier` move to Stage 7; Q6, spell-checking comments moves to Stage 13; Q8,
 `qpdf --check` in CI's `gates` job judges every file the suite writes. Each answer's edits are
-listed, paid, in the plan's §10. **The next step is the plan's T1.**
+listed, paid, in the plan's §10. **Q1 is the one answer that touched code** (`a560c8e`): the
+fourteen arming rows moved in `core/cmd/KeyBindingDefaults.def`, `tst_keybindings`' census to
+thirteen collisions and `tst_viewercommands`' unregistered Viewer rows 4 → 18 — **ctest 1422/1422 on
+`x64-release` and on `x64-debug`**, the same four named skips, `checks` clean; its planted control
+(`Ctrl+Alt+M` put back in Annotation tools) failed 4 of the 17 `[keybindings]` cases. **CI run
+37195425389 on `a560c8e`: all five jobs green** (read from its logs 2026-10-05 — `gates` 119,
+Windows 1422, `portable-asan` 742). **The next step is the plan's T1.**
 
 **Objectives.** The full comment and markup toolset of
 [`Features.md` §4](./Features.md#4-review--annotate-), the Comments pane with management, measurement
