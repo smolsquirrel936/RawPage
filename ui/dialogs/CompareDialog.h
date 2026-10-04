@@ -10,6 +10,12 @@
 // and takes any path typed or browsed to. The older defaults to the tab in front and the newer to the next
 // tab, so comparing two open revisions is `Ctrl+Alt+C`, `Enter`.
 //
+// THE NEWER REMEMBERS (the user's request, 2026-10-04, S5 guide A-126): where the older file was compared
+// before, the newer defaults instead to the file it was last compared against -- `core/settings/ComparePairs`,
+// asked through `rememberedNewer` so the dialog holds no settings -- when that file still exists. It FOLLOWS
+// THE OLDER: picking, browsing to or typing another older file offers that file's pair, or the default again,
+// until the newer is chosen by hand; a newer a person picked, typed or browsed to is never replaced.
+//
 // NOBODY TO ASK (convention 16). Offscreen a modal dialog is shown to no one and never returns (Stage 1's
 // I-23): `canAsk()` is false there unless a test has installed an answer, and `compare.documents` is then
 // DISABLED rather than blocking. `setAnswerForTesting` is the parameterized twin a headless case drives; the
@@ -44,8 +50,12 @@ public:
         core::text::CompareOptions options;   // the four that are settings; the rest at their defaults
     };
 
+    // The newer file last compared against an older one, or an empty string (the header).
+    using RememberedNewer = std::function<QString(const QString& older)>;
+
     // `openPaths` are the open tabs' files, the tab in front first; `options` what the four keys hold now.
-    CompareDialog(const QStringList& openPaths, const core::text::CompareOptions& options, QWidget* parent = nullptr);
+    CompareDialog(const QStringList& openPaths, const core::text::CompareOptions& options, QWidget* parent = nullptr,
+                  RememberedNewer rememberedNewer = {});
 
     Choice choice() const;
 
@@ -64,7 +74,7 @@ public:
     // Shows the dialog and returns the choice, or nothing for Cancel -- or the test's answer, if one is
     // installed. Nothing, immediately, when `canAsk()` is false.
     static std::optional<Choice> ask(QWidget* parent, const QStringList& openPaths,
-                                     const core::text::CompareOptions& options);
+                                     const core::text::CompareOptions& options, RememberedNewer rememberedNewer = {});
 
     using Answer = std::function<std::optional<Choice>()>;
     static void setAnswerForTesting(Answer answer);
@@ -72,6 +82,7 @@ public:
 private:
     void browse(QComboBox* field);
     void updateOk();
+    void followOlder();
 
     QComboBox*        older_ = nullptr;
     QComboBox*        newer_ = nullptr;
@@ -80,6 +91,9 @@ private:
     QCheckBox*        ignorePageNumbers_ = nullptr;
     QCheckBox*        ignoreWhitespace_ = nullptr;
     QDialogButtonBox* buttons_ = nullptr;
+    RememberedNewer   rememberedNewer_;
+    QString           defaultNewer_;           // the next tab's file, or nothing
+    bool              newerChosen_ = false;    // picked, typed or browsed to by a person
 };
 
 } // namespace rawpage::ui

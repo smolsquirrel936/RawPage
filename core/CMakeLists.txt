@@ -83,6 +83,10 @@ add_library(rawpage_core STATIC
     settings/RecentFiles.h
     settings/RecentFiles.cpp
 
+    # The Compare dialog's memory of each older file's newer one (the user's request, S5 guide A-126).
+    settings/ComparePairs.h
+    settings/ComparePairs.cpp
+
     # S4 T3 -- session state: the open-document set, per-arrangement window geometry, and guides.
     # In core/settings/ because it WRITES a file, which is that directory's one added privilege.
     settings/SessionState.h

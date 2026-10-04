@@ -562,5 +562,12 @@ RAWPAGE_SETTING(ui, qatLocked, bool,
 RAWPAGE_SETTING(documents, recentList, QStringList,
                 "documents/recentList", "", Internal, false)
 
+// The Compare dialog's memory (the user's request, 2026-10-04, S5 guide A-126): for each older file, the
+// newer file it was last compared against, so the dialog offers that pair again. PAIRS IN ONE LIST -- older,
+// newer, older, newer, most recent first -- because a key family per path would put a path in a key name.
+// `core/settings/ComparePairs` is its one reader and writer, and bounds it.
+RAWPAGE_SETTING(documents, recentComparisons, QStringList,
+                "documents/recentComparisons", "", Internal, false)
+
 #undef RAWPAGE_SETTING
 #undef RAWPAGE_SETTING_RANGED

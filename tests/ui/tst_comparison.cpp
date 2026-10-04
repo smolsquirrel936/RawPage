@@ -16,6 +16,7 @@
 
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
+#include "core/settings/ComparePairs.h"
 #include "core/settings/Settings.h"
 #include "core/settings/SettingsSchema.h"
 #include "tests/ui/ShellFixture.h"
@@ -40,6 +41,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QTreeWidget>
 
@@ -253,6 +255,78 @@ TEST_CASE("the compare dialog collects two paths and the four options", "[compar
     CHECK(single.choice().olderPath == QStringLiteral("C:/a/only.pdf"));
     CHECK(single.choice().newerPath.isEmpty());
     CHECK_FALSE(single.okButton()->isEnabled());
+}
+
+TEST_CASE("the newer field offers the file the older one was last compared against", "[comparison][A-126]")
+{
+    // BUILT AND DRIVEN, NEVER EXECUTED, as the case above. Real files, because a remembered file that is gone is
+    // not offered.
+    Fixture fixture;
+    const QString older = QDir::toNativeSeparators(fixture.writeFile(QStringLiteral("report-v1.pdf")));
+    const QString remembered = QDir::toNativeSeparators(fixture.writeFile(QStringLiteral("report-v2.pdf")));
+    const QString otherOlder = QDir::toNativeSeparators(fixture.writeFile(QStringLiteral("draft.pdf")));
+    const QString nextTab = QDir::toNativeSeparators(fixture.writeFile(QStringLiteral("next-tab.pdf")));
+    const QString gone = QDir(fixture.directory.path()).filePath(QStringLiteral("deleted.pdf"));
+    const auto memory = [&](const QString& asked) {
+        if (asked == older) return remembered;
+        if (asked == otherOlder) return gone;
+        return QString();
+    };
+
+    // THE REMEMBERED FILE, OVER THE NEXT TAB: the older in front was compared against `report-v2.pdf` before.
+    ui::CompareDialog dialog({older, nextTab}, core::text::CompareOptions{}, nullptr, memory);
+    CHECK(dialog.choice().olderPath == older);
+    CHECK(dialog.choice().newerPath == remembered);
+    CHECK(dialog.okButton()->isEnabled());
+
+    // IT FOLLOWS THE OLDER: the next tab picked as the older has no memory, so the newer is the default again --
+    // and an older whose remembered file is GONE offers the default, not the missing file.
+    dialog.olderField()->setCurrentIndex(1);
+    CHECK(dialog.choice().newerPath == nextTab);
+    dialog.olderField()->setEditText(otherOlder);
+    CHECK(dialog.choice().newerPath == nextTab);
+    dialog.olderField()->setEditText(older);
+    CHECK(dialog.choice().newerPath == remembered);
+
+    // A NEWER CHOSEN BY HAND IS KEPT: picked from the list as a person picks, then the older changed.
+    dialog.newerField()->setCurrentIndex(0);
+    emit dialog.newerField()->textActivated(dialog.newerField()->currentText());
+    dialog.olderField()->setEditText(otherOlder);
+    CHECK(dialog.choice().newerPath == older);
+
+    // And typed: the control, a dialog nobody touched, still follows.
+    ui::CompareDialog typed({otherOlder, nextTab}, core::text::CompareOptions{}, nullptr, memory);
+    typed.newerField()->lineEdit()->setText(QStringLiteral("C:/b/typed.pdf"));
+    emit typed.newerField()->lineEdit()->textEdited(QStringLiteral("C:/b/typed.pdf"));
+    typed.olderField()->setEditText(older);
+    CHECK(typed.choice().newerPath == QStringLiteral("C:/b/typed.pdf"));
+    ui::CompareDialog untouched({otherOlder, nextTab}, core::text::CompareOptions{}, nullptr, memory);
+    untouched.olderField()->setEditText(older);
+    CHECK(untouched.choice().newerPath == remembered);
+
+    // NO MEMORY GIVEN: exactly the dialog of the case above.
+    ui::CompareDialog plain({older, nextTab}, core::text::CompareOptions{});
+    CHECK(plain.choice().newerPath == nextTab);
+}
+
+TEST_CASE("an opened comparison is remembered for its older file and a refused one is not", "[comparison][A-126]")
+{
+    Comparer comparer;
+    REQUIRE(core::ComparePairs::newerFor(comparer.fixture.settings, comparer.older).isEmpty());
+
+    // REFUSED -- the newer does not exist -- so nothing is remembered.
+    ui::CompareDialog::Choice missing = comparer.choice();
+    missing.newerPath = QDir(comparer.fixture.directory.path()).filePath(QStringLiteral("absent.pdf"));
+    CHECK_FALSE(static_cast<bool>(comparer.window->compareDocuments(missing)));
+    CHECK(core::ComparePairs::newerFor(comparer.fixture.settings, comparer.older).isEmpty());
+
+    // OPENED: the pair is remembered, in the separators a tab shows, under the older file however it is spelt.
+    const core::Result<ui::ComparisonView*> opened = comparer.window->compareDocuments(comparer.choice());
+    REQUIRE(opened);
+    CHECK(core::ComparePairs::newerFor(comparer.fixture.settings, comparer.older)
+          == QDir::toNativeSeparators(comparer.newer));
+    CHECK(core::ComparePairs::newerFor(comparer.fixture.settings, QDir::toNativeSeparators(comparer.older))
+          == QDir::toNativeSeparators(comparer.newer));
 }
 
 TEST_CASE("Ctrl+] and Ctrl+[ are disabled without a comparison and step one when there is", "[comparison][A-106]")

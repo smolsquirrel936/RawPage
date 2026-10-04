@@ -8,6 +8,7 @@
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
 #include "core/doc/Document.h"
+#include "core/settings/ComparePairs.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/Settings.h"
 #include "platform/platform.h"
@@ -1622,8 +1623,10 @@ void MainWindow::registerViewerActions()
                 if (document == nullptr || document == front || document->path().isEmpty()) continue;
                 open << QDir::toNativeSeparators(document->path());
             }
+            core::Settings& settings = window->services_.settings;
             const std::optional<CompareDialog::Choice> choice = CompareDialog::ask(
-                window, open, core::text::CompareOptions::fromSettings(window->services_.settings));
+                window, open, core::text::CompareOptions::fromSettings(settings),
+                [&settings](const QString& older) { return core::ComparePairs::newerFor(settings, older); });
             if (choice) (void)window->compareDocuments(*choice);
         };
         compare.enable = [] { return CompareDialog::canAsk(); };
@@ -3606,6 +3609,9 @@ core::Result<ComparisonView*> MainWindow::compareDocuments(const CompareDialog::
     services_.settings.set(keys::compareIgnoreHeaderFooter, choice.options.ignoreHeaderFooter);
     services_.settings.set(keys::compareIgnorePageNumbers, choice.options.ignorePageNumbers);
     services_.settings.set(keys::compareIgnoreWhitespace, choice.options.ignoreWhitespace);
+    // AND THE PAIR, for the next dialog over the same older file (S5 guide A-126): in the separators a tab shows.
+    core::ComparePairs::note(services_.settings, QDir::toNativeSeparators(sides[0].path),
+                             QDir::toNativeSeparators(sides[1].path));
 
     auto* view = new ComparisonView(services_, sides[0], sides[1], this);
     view->resize(std::max(900, width() * 9 / 10), std::max(640, height() * 9 / 10));

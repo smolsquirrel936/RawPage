@@ -16,6 +16,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <utility>
+
 namespace rawpage::ui {
 namespace {
 
@@ -40,8 +42,11 @@ QComboBox* pathField(const QStringList& openPaths, int current, QWidget* parent)
 
 } // namespace
 
-CompareDialog::CompareDialog(const QStringList& openPaths, const core::text::CompareOptions& options, QWidget* parent)
+CompareDialog::CompareDialog(const QStringList& openPaths, const core::text::CompareOptions& options, QWidget* parent,
+                             RememberedNewer rememberedNewer)
     : QDialog(parent)
+    , rememberedNewer_(std::move(rememberedNewer))
+    , defaultNewer_(openPaths.size() > 1 ? openPaths.at(1) : QString())
 {
     setObjectName(QStringLiteral("compareDialog"));
     setWindowTitle(catalog::translate(catalog::key::CompareDialogTitle));
@@ -68,6 +73,12 @@ CompareDialog::CompareDialog(const QStringList& openPaths, const core::text::Com
         connect(field, &QComboBox::editTextChanged, this, [this] { updateOk(); });
     }
     column->addLayout(files);
+
+    // THE NEWER FOLLOWS THE OLDER until a person chooses it (the header). `textEdited` and `textActivated` are a
+    // person's -- typing and picking from the list -- where `editTextChanged` is also every `setEditText`.
+    connect(newer_->lineEdit(), &QLineEdit::textEdited, this, [this] { newerChosen_ = true; });
+    connect(newer_, &QComboBox::textActivated, this, [this] { newerChosen_ = true; });
+    connect(older_, &QComboBox::editTextChanged, this, [this] { followOlder(); });
 
     auto* how = new QFormLayout();
     sensitivity_ = new QComboBox(this);
@@ -96,6 +107,7 @@ CompareDialog::CompareDialog(const QStringList& openPaths, const core::text::Com
     connect(buttons_, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons_, &QDialogButtonBox::rejected, this, &QDialog::reject);
     column->addWidget(buttons_);
+    followOlder();   // once the buttons exist: it sets the newer's text, and that enables OK or not
     updateOk();
 }
 
@@ -124,7 +136,18 @@ void CompareDialog::browse(QComboBox* field)
     const QString start = QFileInfo(field->currentText()).absolutePath();
     const QString path = QFileDialog::getOpenFileName(this, catalog::translate(catalog::key::CompareDialogChooseFile), start,
                                                       catalog::translate(catalog::key::CompareDialogFileFilter));
-    if (!path.isEmpty()) field->setEditText(QDir::toNativeSeparators(path));
+    if (path.isEmpty()) return;
+    if (field == newer_) newerChosen_ = true;
+    field->setEditText(QDir::toNativeSeparators(path));
+}
+
+void CompareDialog::followOlder()
+{
+    if (newerChosen_) return;
+    const QString remembered = rememberedNewer_ ? rememberedNewer_(older_->currentText().trimmed()) : QString();
+    // A REMEMBERED FILE THAT IS GONE IS NOT OFFERED: the default is, as if nothing had been remembered.
+    newer_->setEditText(!remembered.isEmpty() && QFileInfo(remembered).isFile() ? QDir::toNativeSeparators(remembered)
+                                                                                : defaultNewer_);
 }
 
 void CompareDialog::updateOk()
@@ -142,11 +165,12 @@ bool CompareDialog::canAsk()
 }
 
 std::optional<CompareDialog::Choice> CompareDialog::ask(QWidget* parent, const QStringList& openPaths,
-                                                        const core::text::CompareOptions& options)
+                                                        const core::text::CompareOptions& options,
+                                                        RememberedNewer rememberedNewer)
 {
     if (installedAnswer()) return installedAnswer()();
     if (!canAsk()) return std::nullopt;
-    CompareDialog dialog(openPaths, options, parent);
+    CompareDialog dialog(openPaths, options, parent, std::move(rememberedNewer));
     if (dialog.exec() != QDialog::Accepted) return std::nullopt;
     return dialog.choice();
 }
