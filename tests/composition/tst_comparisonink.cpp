@@ -10,6 +10,10 @@
 //   * **A-106.** `Ctrl+]` and `Ctrl+[` as key events step both views and the pane, and wrap with a message.
 //   * **A-107.** A comparison changes neither document: both tabs' journals empty, both files byte-identical
 //     and unmoved in time after the comparison -- at *appearance*, its rasters asked for -- and its view closed.
+//   * **A-127** (S5 guide I-24, 2026-10-04). The overlay's wheel, keys and zoom: a fitted pair turns a notch at a
+//     time, a zoomed one scrolls and turns at its edge, only the region in view is rasterized, a stepped-to
+//     difference is brought into view with its tints, and `Ctrl`+wheel zooms about the cursor. The wheel is SENT
+//     to the canvas, below Windows' input queue -- a real mouse's notches are the user's to judge.
 //
 // WHY `tests/composition` (as `tst_selectionink`): real pages need the engine, which `rawpage_ui_tests` links
 // none of. The widget halves -- the chord, the dialog, the claimed keys -- are `tests/ui/tst_comparison.cpp`.
@@ -43,12 +47,16 @@
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QLayout>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QTreeWidget>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <optional>
 
 using namespace rawpage;
 using core::text::CompareSensitivity;
@@ -553,4 +561,247 @@ TEST_CASE("a comparison changes neither document", "[comparisonink][A-107]")
     CHECK(sha256Of(newer) == newerHash);
     CHECK(QFileInfo(older).lastModified() == olderTime);
     CHECK(QFileInfo(newer).lastModified() == newerTime);
+}
+
+// ---- S5 guide I-24: the overlay zooms, scrolls, and turns at the edge (A-127) ------------------------------------
+
+namespace {
+
+// A wheel event as a mouse or touchpad sends it -- `angle` in `angleDelta` units, 120 a notch, negative DOWN --
+// at the middle of what the overlay's viewport shows, or at `at` on the canvas.
+void wheel(ui::ComparisonView& comparison, int angle, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+           std::optional<QPointF> at = std::nullopt)
+{
+    QWidget* canvas = comparison.findChild<QWidget*>(QStringLiteral("comparisonOverlay"));
+    REQUIRE(canvas != nullptr);
+    QWidget* viewport = comparison.overlayScrollArea()->viewport();
+    const QPointF where = at.value_or(QPointF(canvas->mapFrom(viewport, viewport->rect().center())));
+    QWheelEvent event(where, canvas->mapToGlobal(where), QPoint(), QPoint(0, angle), Qt::NoButton, modifiers,
+                      Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(canvas, &event);
+    QCoreApplication::processEvents();
+}
+
+QWidget* overlayCanvas(ui::ComparisonView& comparison)
+{
+    QWidget* canvas = comparison.findChild<QWidget*>(QStringLiteral("comparisonOverlay"));
+    REQUIRE(canvas != nullptr);
+    return canvas;
+}
+
+// The pair's page at the overlay's scale, in device pixels -- the whole raster the region is a part of.
+QSize pageOnOverlay(Product& product, ui::ComparisonView& comparison)
+{
+    const auto [olderPage, newerPage] = comparison.overlayPairs()[static_cast<std::size_t>(comparison.overlayPair())];
+    const core::PageTree* olderPages = product.root->services().backend.pages(comparison.handle(CompareSide::Base));
+    const core::PageTree* newerPages = product.root->services().backend.pages(comparison.handle(CompareSide::Revised));
+    double width = 0.0;
+    double height = 0.0;
+    for (const core::Page* page : {olderPage >= 0 ? olderPages->at(olderPage) : nullptr,
+                                   newerPage >= 0 ? newerPages->at(newerPage) : nullptr}) {
+        if (page == nullptr) continue;
+        width = std::max(width, page->displaySize().width);
+        height = std::max(height, page->displaySize().height);
+    }
+    return QSize(static_cast<int>(std::ceil(width * comparison.overlayScale())),
+                 static_cast<int>(std::ceil(height * comparison.overlayScale())));
+}
+
+} // namespace
+
+TEST_CASE("the overlay wheel turns a fitted pair and scrolls a zoomed one before turning at its edge", "[comparisonink][A-127][I-24]")
+{
+    Product product;
+    ui::ComparisonView& comparison = product.compare(product.copy("compare/base.pdf"),
+                                                     product.copy("compare/word-replaced.pdf"),
+                                                     CompareSensitivity::TextAndLayout);
+    comparison.setMode(ui::ComparisonView::Mode::Overlay);
+    for (int round = 0; round < 6; ++round) product.pump();
+    QWidget* canvas = overlayCanvas(comparison);
+    QScrollBar* down = comparison.overlayScrollArea()->verticalScrollBar();
+    REQUIRE(comparison.overlayPairs().size() >= 3);
+    REQUIRE(comparison.overlayPair() == 0);
+    CHECK(comparison.overlayFit() == core::render::FitMode::Page);
+
+    // FITTED, NOTHING TO SCROLL: each notch turns -- the defect was that it did nothing at all.
+    CHECK(down->maximum() == down->minimum());
+    wheel(comparison, -120);
+    CHECK(comparison.overlayPair() == 1);
+    wheel(comparison, +120);
+    CHECK(comparison.overlayPair() == 0);
+    // A TOUCHPAD'S HALF NOTCHES add up to one turn, not one each.
+    wheel(comparison, -60);
+    CHECK(comparison.overlayPair() == 0);
+    wheel(comparison, -60);
+    CHECK(comparison.overlayPair() == 1);
+    wheel(comparison, +120);
+    REQUIRE(comparison.overlayPair() == 0);
+
+    // ZOOMED, by the side views' chords on the overlay: Actual Size, then three rungs up the ladder to 200 %.
+    CHECK(Product::key(canvas, Qt::Key_1, Qt::ControlModifier));
+    CHECK(comparison.overlayFit() == core::render::FitMode::None);
+    CHECK(comparison.overlayZoom().factor == 1.0);
+    for (int step = 0; step < 3; ++step) CHECK(Product::key(canvas, Qt::Key_Equal, Qt::ControlModifier));
+    CHECK(comparison.overlayZoom().factor == 2.0);
+    down->setValue(down->minimum());
+    for (int round = 0; round < 6; ++round) product.pump();
+    REQUIRE(down->maximum() > down->minimum());
+
+    // ONLY THE REGION IN VIEW IS RASTERIZED, from the page's top here.
+    const QSize page = pageOnOverlay(product, comparison);
+    const double dpr = canvas->devicePixelRatioF();
+    const QSize viewport = comparison.overlayScrollArea()->viewport()->size();
+    QImage composite = comparison.overlayImage();
+    INFO("page " << page.width() << "x" << page.height() << ", composite " << composite.width() << "x"
+                 << composite.height() << ", viewport " << viewport.width() << "x" << viewport.height());
+    REQUIRE_FALSE(composite.isNull());
+    CHECK(composite.height() < page.height());
+    CHECK(composite.height() <= static_cast<int>(std::ceil(2.0 * viewport.height() * dpr)) + 2);
+    CHECK(comparison.overlayOrigin().y() == 0);
+
+    // A NOTCH INSIDE THE PAIR SCROLLS, and does not turn.
+    const int top = down->value();
+    wheel(comparison, -120);
+    CHECK(comparison.overlayPair() == 0);
+    CHECK(down->value() > top);
+
+    // TO ITS BOTTOM, notch by notch -- the notch that arrives there does not turn.
+    for (int notch = 0; notch < 400 && down->value() < down->maximum(); ++notch) wheel(comparison, -120);
+    REQUIRE(down->value() == down->maximum());
+    CHECK(comparison.overlayPair() == 0);
+    for (int round = 0; round < 6; ++round) product.pump();
+    composite = comparison.overlayImage();
+    CHECK(comparison.overlayOrigin().y() > 0);
+    CHECK(std::abs(comparison.overlayOrigin().y() + composite.height() - page.height()) <= 1);
+
+    // ONE NOTCH AT THE EDGE TURNS: the next pair, from its top, at the same zoom -- and up at that top turns
+    // back to the previous pair's bottom.
+    wheel(comparison, -120);
+    CHECK(comparison.overlayPair() == 1);
+    CHECK(down->value() == down->minimum());
+    CHECK(comparison.overlayZoom().factor == 2.0);
+    wheel(comparison, +120);
+    CHECK(comparison.overlayPair() == 0);
+    CHECK(down->value() == down->maximum());
+
+    // THE KEYS DO THE SAME: Page Down at the bottom turns, and inside the pair scrolls; Ctrl+Page Down turns.
+    CHECK(Product::key(canvas, Qt::Key_PageDown, Qt::NoModifier));
+    CHECK(comparison.overlayPair() == 1);
+    CHECK(down->value() == down->minimum());
+    CHECK(Product::key(canvas, Qt::Key_PageDown, Qt::NoModifier));
+    CHECK(comparison.overlayPair() == 1);
+    CHECK(down->value() > down->minimum());
+    CHECK(Product::key(canvas, Qt::Key_PageDown, Qt::ControlModifier));
+    CHECK(comparison.overlayPair() == 2);
+
+    // AND Ctrl+0 FITS THE PAGE AGAIN: nothing to scroll, the whole page one composite at its origin.
+    CHECK(Product::key(canvas, Qt::Key_0, Qt::ControlModifier));
+    for (int round = 0; round < 6; ++round) product.pump();
+    CHECK(comparison.overlayFit() == core::render::FitMode::Page);
+    CHECK(down->maximum() == down->minimum());
+    CHECK(comparison.overlayOrigin() == QPoint(0, 0));
+    CHECK(comparison.overlayImage().size() == pageOnOverlay(product, comparison));
+}
+
+TEST_CASE("a zoomed overlay brings the difference it steps to into view with both tints", "[comparisonink][A-127][I-24]")
+{
+    Product product;
+    ui::ComparisonView& comparison = product.compare(product.copy("compare/base.pdf"),
+                                                     product.copy("compare/word-replaced.pdf"),
+                                                     CompareSensitivity::TextAndLayout);
+    const std::vector<Difference>& all = comparison.differences();
+    const auto replaced = std::find_if(all.begin(), all.end(),
+                                       [](const Difference& d) { return d.kind == core::text::DifferenceKind::Replace; });
+    REQUIRE(replaced != all.end());
+    const Difference difference = *replaced;
+
+    // AT 400 %, SCROLLED TO THE PAIR'S FAR RIGHT: the change is off screen until it is stepped to. (From the top
+    // left it is in view without being brought there -- the planted control "no reveal" stayed green so.)
+    comparison.setMode(ui::ComparisonView::Mode::Overlay);
+    comparison.setOverlayZoom(core::render::Zoom::percent(400));
+    QScrollBar* across = comparison.overlayScrollArea()->horizontalScrollBar();
+    REQUIRE(across->maximum() > across->minimum());
+    across->setValue(across->maximum());
+    for (int round = 0; round < 6; ++round) product.pump();
+    comparison.goToDifference(static_cast<int>(replaced - all.begin()));
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 2000) product.pump();
+
+    const auto [olderPage, newerPage] = comparison.overlayPairs()[static_cast<std::size_t>(comparison.overlayPair())];
+    REQUIRE(olderPage == difference.basePage);
+    REQUIRE(newerPage == difference.revisedPage);
+    const QImage composite = comparison.overlayImage().convertToFormat(QImage::Format_RGB32);
+    REQUIRE_FALSE(composite.isNull());
+    CHECK(composite.height() < pageOnOverlay(product, comparison).height());
+
+    // THE WORD, ON THE COMPOSITE -- which starts at overlayOrigin() on the page -- and in the viewport.
+    const core::PageTree* olderPages = product.root->services().backend.pages(comparison.handle(CompareSide::Base));
+    const core::PageTree* newerPages = product.root->services().backend.pages(comparison.handle(CompareSide::Revised));
+    const double scale = comparison.overlayScale();
+    QRect word;
+    for (const core::PdfRect& rect : difference.baseRects) word |= onComposite(*olderPages->at(olderPage), rect, scale, 3);
+    for (const core::PdfRect& rect : difference.revisedRects) word |= onComposite(*newerPages->at(newerPage), rect, scale, 3);
+    word.translate(-comparison.overlayOrigin());
+    INFO("word " << word.x() << "," << word.y() << " " << word.width() << "x" << word.height() << " on a composite "
+                 << composite.width() << "x" << composite.height());
+    REQUIRE(composite.rect().contains(word));
+
+    QWidget* canvas = overlayCanvas(comparison);
+    const double dpr = canvas->devicePixelRatioF();
+    const QRectF wordOnCanvas =
+        QRectF(QPointF(word.topLeft() + comparison.overlayOrigin()) / dpr, QSizeF(word.size()) / dpr)
+            .translated(comparison.overlayPageRect().topLeft());
+    QWidget* viewport = comparison.overlayScrollArea()->viewport();
+    const QRectF inView(QPointF(canvas->mapFrom(viewport, QPoint(0, 0))), QSizeF(viewport->size()));
+    CHECK(inView.contains(wordOnCanvas));
+
+    int red = 0, blue = 0;
+    for (int y = word.top(); y <= word.bottom(); ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(composite.constScanLine(y));
+        for (int x = word.left(); x <= word.right(); ++x) {
+            red += isRed(row[x]) ? 1 : 0;
+            blue += isBlue(row[x]) ? 1 : 0;
+        }
+    }
+    INFO("red " << red << ", blue " << blue);
+    CHECK(red > 40);
+    CHECK(blue > 40);
+}
+
+TEST_CASE("Ctrl and the wheel zoom the overlay about the cursor", "[comparisonink][A-127][I-24]")
+{
+    Product product;
+    ui::ComparisonView& comparison = product.compare(product.copy("compare/base.pdf"),
+                                                     product.copy("compare/word-replaced.pdf"),
+                                                     CompareSensitivity::TextOnly);
+    comparison.setMode(ui::ComparisonView::Mode::Overlay);
+    for (int round = 0; round < 6; ++round) product.pump();
+    QWidget* canvas = overlayCanvas(comparison);
+    QScrollArea* area = comparison.overlayScrollArea();
+
+    // A POINT A THIRD OF THE WAY INTO THE PAGE, and where it is on the page in points.
+    const QRectF page = comparison.overlayPageRect();
+    const QPointF cursor = page.topLeft() + QPointF(page.width() / 3.0, page.height() / 3.0);
+    const QPointF inViewport = cursor - QPointF(area->horizontalScrollBar()->value(), area->verticalScrollBar()->value());
+    const double before = comparison.overlayScale() / canvas->devicePixelRatioF();
+    const QPointF onPage = (cursor - page.topLeft()) / before;
+    const double fitted = comparison.overlayZoom().factor;
+
+    wheel(comparison, +120, Qt::ControlModifier, cursor);
+    CHECK(comparison.overlayFit() == core::render::FitMode::None);
+    CHECK(comparison.overlayZoom().factor == ui::ViewportController::nextZoomStep(core::render::Zoom{fitted}, +1).factor);
+
+    // THE SAME PAGE POINT UNDER THE SAME PLACE IN THE VIEWPORT.
+    const double after = comparison.overlayScale() / canvas->devicePixelRatioF();
+    const QPointF under = inViewport + QPointF(area->horizontalScrollBar()->value(), area->verticalScrollBar()->value());
+    const QPointF nowOnPage = (under - comparison.overlayPageRect().topLeft()) / after;
+    INFO("before " << onPage.x() << "," << onPage.y() << " pt; after " << nowOnPage.x() << "," << nowOnPage.y() << " pt");
+    CHECK(std::abs(nowOnPage.x() - onPage.x()) * after <= 1.5);
+    CHECK(std::abs(nowOnPage.y() - onPage.y()) * after <= 1.5);
+
+    // AND DOWN AGAIN, one rung.
+    const double zoomed = comparison.overlayZoom().factor;
+    wheel(comparison, -120, Qt::ControlModifier, under);
+    CHECK(comparison.overlayZoom().factor == ui::ViewportController::nextZoomStep(core::render::Zoom{zoomed}, -1).factor);
 }

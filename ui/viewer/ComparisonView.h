@@ -48,6 +48,15 @@
 // grey -- one image -- ink only the older has is RED and ink only the newer has is BLUE. The same two
 // colours mark the differences side by side.
 //
+// IT ZOOMS AND SCROLLS, AND TURNS AT THE EDGE (S5 guide I-24, the user's design, 2026-10-04). The canvas sits in a
+// scroll area and has a fit and a zoom of its own -- Fit Page on entering, `Ctrl+0`, `Ctrl+2` Fit Width, `Ctrl+1`
+// Actual Size, `Ctrl+=`/`Ctrl+-` and `Ctrl`+wheel the ladder, the last about the cursor. The wheel, the arrows,
+// `Page Up`/`Page Down` and `Space` scroll the pair; at its bottom or top they turn to the next or previous pair --
+// the wheel only after one whole notch AT the edge, so a scroll that reaches the end does not also turn.
+// `Ctrl+Page Down`/`Ctrl+Page Up` and `Home`/`End` turn directly. ONLY THE VISIBLE REGION IS RASTERIZED, with half
+// a screen round it, so a zoomed page is never one image of hundreds of megapixels; the composite is that region,
+// placed at `overlayOrigin()` on the pair's page. Until the I-24 fix the canvas was fitted and had no wheel at all.
+//
 // ---------------------------------------------------------------------------------------------
 // THE KEYS (D5-18, clarified at T13)
 // ---------------------------------------------------------------------------------------------
@@ -74,16 +83,23 @@
 
 #include "app/Services.h"
 #include "core/backend.h"
+#include "core/render/DpiPolicy.h"
 #include "core/render/RenderRequest.h"
 #include "core/text/DocumentComparer.h"
 #include "core/text/DocumentIndex.h"
 
 #include <QImage>
+#include <QPoint>
+#include <QPointF>
+#include <QRect>
+#include <QRectF>
+#include <QSizeF>
 #include <QString>
 #include <QWidget>
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <optional>
 #include <vector>
 
@@ -93,8 +109,10 @@ class QComboBox;
 class QKeyEvent;
 class QLabel;
 class QPushButton;
+class QScrollArea;
 class QSplitter;
 class QStackedWidget;
+class QWheelEvent;
 
 namespace rawpage::ui {
 
@@ -159,6 +177,18 @@ public:
     const QImage& overlayImage() const noexcept { return composite_; }
     // Device pixels per PDF point the overlay's rasters were asked at.
     double overlayScale() const noexcept { return overlayScale_; }
+    // Where the composite's top-left is on the pair's page raster, in device pixels: (0, 0) whenever the whole page
+    // is in view, as at Fit Page.
+    QPoint overlayOrigin() const noexcept { return compositeOrigin_; }
+    // The overlay's fit -- `None` once a zoom is chosen -- and the zoom it shows, whichever set it.
+    core::render::FitMode overlayFit() const noexcept { return overlayFit_; }
+    core::render::Zoom    overlayZoom() const;
+    void setOverlayFit(core::render::FitMode fit);
+    // A zoom, about `anchor` on the canvas (logical pixels) or the middle of what is in view.
+    void setOverlayZoom(core::render::Zoom zoom, std::optional<QPointF> anchor = std::nullopt);
+    QScrollArea* overlayScrollArea() const noexcept { return overlayScroll_; }
+    // Where the pair's page is on the overlay's canvas, in logical pixels.
+    QRectF overlayPageRect() const;
 
     // Stops a run in progress; what it had is discarded and the view says so.
     void cancel();
@@ -214,8 +244,19 @@ private:
 
     // The overlay.
     void rebuildPairs();
-    void aimOverlay();
+    // The scale and the canvas's size from the fit or zoom; then, with `request`, the region in view.
+    void aimOverlay(bool request = true);
+    // The region in view, asked for unless the one already asked for covers it -- or always, with `force`.
+    void aimOverlayRegion(bool force);
     void composite();
+    // Pair `index`, scrolled to its top or, with `atBottom`, its bottom.
+    void showOverlayPair(int index, bool atBottom);
+    // The current difference's marks brought into view.
+    void revealOnOverlay(const core::text::Difference& difference);
+    void overlayWheel(QWheelEvent* event);
+    // Scrolls `pixels` down (or up, negative); at the edge in that direction, turns the pair instead.
+    void scrollOverlay(int pixels);
+    void zoomOverlay(int direction, std::optional<QPointF> anchor = std::nullopt);
 
     // The keys this surface keeps (see the header).
     bool shellTakes(const QKeyEvent* event) const;
@@ -232,6 +273,7 @@ private:
     PageView*        older_ = nullptr;
     PageView*        newer_ = nullptr;
     OverlayCanvas*   canvas_ = nullptr;
+    QScrollArea*     overlayScroll_ = nullptr;
     QStackedWidget*  stack_ = nullptr;
     DifferencesPane* pane_ = nullptr;
     QComboBox*       modeChoice_ = nullptr;
@@ -264,6 +306,13 @@ private:
     std::vector<std::pair<int, int>> pairs_;
     int    pair_ = -1;
     double overlayScale_ = 0.0;
+    QSizeF overlayPageSize_;                                       // the pair's page, logical pixels
+    core::render::FitMode overlayFit_ = core::render::FitMode::Page;
+    core::render::Zoom    overlayZoom_ = core::render::Zoom::actualSize();
+    QRect  overlayRegion_;                                         // asked for, device pixels on the page
+    QPoint compositeOrigin_;                                       // where `composite_` is, the same pixels
+    int    overscroll_ = 0;                                        // wheel units past an edge, signed
+    int    wheelZoom_ = 0;                                         // `Ctrl`+wheel units not yet a step
     std::unique_ptr<LoupeRaster> olderRaster_;
     std::unique_ptr<LoupeRaster> newerRaster_;
     core::render::RenderRequest olderRequest_;
