@@ -3728,6 +3728,10 @@
         <translation>重疊</translation>
     </message>
     <message>
+        <source>compare.view.continuous</source>
+        <translation>連續</translation>
+    </message>
+    <message>
         <source>compare.view.cancel</source>
         <translation>取消</translation>
     </message>

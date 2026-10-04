@@ -82,6 +82,9 @@ constexpr double kActualSizePerPoint = 96.0 / 72.0;
 // A wheel notch, in `QWheelEvent::angleDelta` units.
 constexpr int kWheelNotch = 120;
 
+// The gap between two pairs in the continuous overlay, in logical pixels.
+constexpr int kOverlayGap = 12;
+
 } // namespace
 
 // =============================================================================================================
@@ -212,10 +215,22 @@ private:
 };
 
 // =============================================================================================================
-// THE OVERLAY'S CANVAS -- the pair's page, the composite of the region in view on it, and the current difference
-// outlined. It is the scroll area's widget, sized to the page at the overlay's scale and never smaller than the
-// viewport (`aimOverlay`).
+// THE OVERLAY'S CANVAS -- the pair's page (or, continuous, every pair's), the composite of the region in view on
+// each, and the current difference outlined. It is the scroll area's widget, sized to what it lays out at the
+// overlay's scale and never smaller than the viewport (`aimOverlay`).
 // =============================================================================================================
+// ONE PAIR THE OVERLAY SHOWS (the header): its two rasters, the region of its page they were asked for, and what
+// was composited from them, placed at `origin` on the page.
+struct ComparisonView::OverlaySlot {
+    std::unique_ptr<LoupeRaster> older;
+    std::unique_ptr<LoupeRaster> newer;
+    core::render::RenderRequest  olderRequest;
+    core::render::RenderRequest  newerRequest;
+    QRect  region;      // device pixels on the pair's page
+    QImage composite;
+    QPoint origin;      // where `composite` is, the same pixels
+};
+
 class ComparisonView::OverlayCanvas : public QWidget {
 public:
     OverlayCanvas(ComparisonView& owner, QWidget* parent) : QWidget(parent), owner_(owner)
@@ -225,19 +240,13 @@ public:
         setMinimumSize(120, 120);
     }
 
-    // Where the pair's page is, in logical pixels: centred across, `kOverlayMargin` from the top.
-    QRectF pageRect() const
-    {
-        const QSizeF size = owner_.overlayPageSize_;
-        if (size.isEmpty()) return QRectF();
-        return QRectF(std::max<double>(kOverlayMargin, (width() - size.width()) / 2.0), kOverlayMargin, size.width(),
-                      size.height());
-    }
+    // Where the current pair's page is, in logical pixels.
+    QRectF pageRect() const { return owner_.overlayPairRect(owner_.pair_); }
 
-    // A page-space rectangle of `page`, on this canvas.
-    QRectF onCanvas(const core::Page& page, const core::PdfRect& rect) const
+    // A page-space rectangle of `page`, on this canvas, on pair `pair`.
+    QRectF onCanvas(int pair, const core::Page& page, const core::PdfRect& rect) const
     {
-        return mapRect(page, rect, owner_.overlayScale_ / ratio()).translated(pageRect().topLeft());
+        return mapRect(page, rect, owner_.overlayScale_ / ratio()).translated(owner_.overlayPairRect(pair).topLeft());
     }
 
     double ratio() const { return devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0; }
@@ -247,35 +256,41 @@ protected:
     {
         QPainter painter(this);
         painter.fillRect(event->rect(), palette().color(QPalette::Window));
-        const QRectF page = pageRect();
-        if (page.isEmpty()) return;
-        // THE PAPER FIRST, so a region not yet rasterized after a scroll is the page and not a hole.
-        painter.fillRect(page, Qt::white);
-        const QImage& image = owner_.composite_;
-        if (!image.isNull()) {
+        const std::size_t laid = std::min(owner_.pairRects_.size(), owner_.pairs_.size());
+        for (std::size_t p = 0; p < laid; ++p) {
+            const QRectF page = owner_.pairRects_[p];
+            if (page.isEmpty() || !page.intersects(QRectF(event->rect()))) continue;
+            // THE PAPER FIRST, so a region not yet rasterized after a scroll is the page and not a hole.
+            painter.fillRect(page, Qt::white);
+            const auto slot = owner_.slots_.find(static_cast<int>(p));
+            if (slot == owner_.slots_.end() || slot->second->composite.isNull()) continue;
+            const QImage& image = slot->second->composite;
             const double dpr = image.devicePixelRatio() > 0.0 ? image.devicePixelRatio() : 1.0;
-            const QPointF at = page.topLeft() + QPointF(owner_.compositeOrigin_) / dpr;
+            const QPointF at = page.topLeft() + QPointF(slot->second->origin) / dpr;
             painter.drawImage(QRectF(at, QSizeF(image.width() / dpr, image.height() / dpr)), image);
         }
 
-        // THE CURRENT DIFFERENCE, outlined in its side's colour, where it is on this pair.
+        // THE CURRENT DIFFERENCE, outlined in its side's colour, on the pair it is on.
         const int index = owner_.current_;
         if (index < 0 || index >= static_cast<int>(owner_.ordered_.size())) return;
-        if (owner_.pair_ < 0 || owner_.pair_ >= static_cast<int>(owner_.pairs_.size())) return;
         const Difference& difference = owner_.ordered_[static_cast<std::size_t>(index)];
-        const auto [olderPage, newerPage] = owner_.pairs_[static_cast<std::size_t>(owner_.pair_)];
-        for (const int side : {kOlder, kNewer}) {
-            const int pageIndex = side == kOlder ? olderPage : newerPage;
-            const int differencePage = side == kOlder ? difference.basePage : difference.revisedPage;
-            if (pageIndex < 0 || pageIndex != differencePage) continue;
-            const core::Page* info = owner_.sides_[static_cast<std::size_t>(side)].pages->at(pageIndex);
-            if (info == nullptr) continue;
-            QColor edge = tint(side, true);
-            edge.setAlpha(255);
-            painter.setPen(QPen(edge, 2.0));
-            painter.setBrush(Qt::NoBrush);
-            for (const core::PdfRect& rect : owner_.marksOn(difference, side == kOlder ? CompareSide::Base : CompareSide::Revised))
-                painter.drawRect(onCanvas(*info, rect).adjusted(-2.0, -2.0, 2.0, 2.0));
+        for (std::size_t p = 0; p < laid; ++p) {
+            if (owner_.pairRects_[p].isEmpty()) continue;
+            const auto [olderPage, newerPage] = owner_.pairs_[p];
+            for (const int side : {kOlder, kNewer}) {
+                const int pageIndex = side == kOlder ? olderPage : newerPage;
+                const int differencePage = side == kOlder ? difference.basePage : difference.revisedPage;
+                if (pageIndex < 0 || pageIndex != differencePage) continue;
+                const core::Page* info = owner_.sides_[static_cast<std::size_t>(side)].pages->at(pageIndex);
+                if (info == nullptr) continue;
+                QColor edge = tint(side, true);
+                edge.setAlpha(255);
+                painter.setPen(QPen(edge, 2.0));
+                painter.setBrush(Qt::NoBrush);
+                for (const core::PdfRect& rect :
+                     owner_.marksOn(difference, side == kOlder ? CompareSide::Base : CompareSide::Revised))
+                    painter.drawRect(onCanvas(static_cast<int>(p), *info, rect).adjusted(-2.0, -2.0, 2.0, 2.0));
+            }
         }
     }
 
@@ -390,14 +405,12 @@ ComparisonView::ComparisonView(app::Services services, Side older, Side newer, Q
     }
     canvas_->installEventFilter(this);
     overlayScroll_->viewport()->installEventFilter(this);
-    for (QScrollBar* bar : {overlayScroll_->horizontalScrollBar(), overlayScroll_->verticalScrollBar()})
-        connect(bar, &QScrollBar::valueChanged, this, [this] { aimOverlayRegion(false); });
-
-    olderRaster_ = std::make_unique<LoupeRaster>(services_.renderScheduler);
-    newerRaster_ = std::make_unique<LoupeRaster>(services_.renderScheduler);
-    for (LoupeRaster* raster : {olderRaster_.get(), newerRaster_.get()}) {
-        connect(raster, &LoupeRaster::arrived, this, &ComparisonView::composite);
-        connect(raster, &LoupeRaster::failed, this, &ComparisonView::composite);
+    // A PERSON'S SCROLL moves the current pair, continuous, to the one at the top; a scroll of ours holds it.
+    for (QScrollBar* bar : {overlayScroll_->horizontalScrollBar(), overlayScroll_->verticalScrollBar()}) {
+        connect(bar, &QScrollBar::valueChanged, this, [this] {
+            if (continuous_ && !holdingPair_ && mode_ == Mode::Overlay) pair_ = pairAtTop();
+            aimOverlayRegion(false);
+        });
     }
 
     connect(pane_, &DifferencesPane::differenceChosen, this, &ComparisonView::goToDifference);
@@ -420,8 +433,7 @@ ComparisonView::~ComparisonView()
     // Then every other holder of a ticket or a request on the two handles.
     if (indexSubscription_ != 0) services_.documentIndex.unsubscribe(indexSubscription_);
     if (owner_ != 0) services_.documentIndex.release(owner_);
-    olderRaster_.reset();
-    newerRaster_.reset();
+    slots_.clear();
     for (PageView* view : {older_, newer_}) {
         if (view == nullptr) continue;
         disconnect(&view->controller(), nullptr, this, nullptr);
@@ -475,6 +487,13 @@ void ComparisonView::buildBar()
     connect(modeChoice_, &QComboBox::activated, this,
             [this](int index) { setMode(index == 1 ? Mode::Overlay : Mode::SideBySide); });
     row->addWidget(modeChoice_);
+
+    // CONTINUOUS, an overlay's switch, shown only there (A-128).
+    continuousBox_ = new QCheckBox(catalog::translate(catalog::key::CompareViewContinuous), bar);
+    continuousBox_->setObjectName(QStringLiteral("comparisonContinuous"));
+    continuousBox_->setVisible(false);
+    connect(continuousBox_, &QCheckBox::clicked, this, [this](bool checked) { setOverlayContinuous(checked); });
+    row->addWidget(continuousBox_);
 
     row->addWidget(new QLabel(catalog::translate(catalog::key::CompareDialogSensitivity), bar));
     sensitivityChoice_ = new QComboBox(bar);
@@ -1063,6 +1082,7 @@ void ComparisonView::setMode(Mode mode)
         modeChoice_->setCurrentIndex(mode == Mode::Overlay ? 1 : 0);
     }
     stack_->setCurrentIndex(mode == Mode::Overlay ? 1 : 0);
+    continuousBox_->setVisible(mode == Mode::Overlay);
     if (mode == Mode::Overlay) {
         // THE PAIR OF THE CURRENT DIFFERENCE, or of the page at the older view's top.
         int pair = -1;
@@ -1085,8 +1105,7 @@ void ComparisonView::setMode(Mode mode)
             aimOverlayRegion(false);
         }
     } else {
-        olderRaster_->clear();
-        newerRaster_->clear();
+        slots_.clear();
         older_->setFocus(Qt::OtherFocusReason);
         syncFrom(older_);
     }
@@ -1105,6 +1124,9 @@ void ComparisonView::rebuildPairs()
             pairs_.emplace_back(page < olderCount ? page : -1, page < newerCount ? page : -1);
     }
     if (pair_ >= static_cast<int>(pairs_.size())) pair_ = pairs_.empty() ? -1 : 0;
+    // A SLOT IS A PAIR BY INDEX, and the indices just changed.
+    slots_.clear();
+    pairRects_.clear();
 }
 
 void ComparisonView::setOverlayPair(int index)
@@ -1118,14 +1140,80 @@ void ComparisonView::showOverlayPair(int index, bool atBottom)
     pair_ = std::clamp(index, 0, static_cast<int>(pairs_.size()) - 1);
     overscroll_ = 0;
     aimOverlay(false);
+    // ITS TOP, OR ITS BOTTOM: of the canvas when it is the one pair laid out, of its own place when every pair is.
     QScrollBar* bar = overlayScroll_->verticalScrollBar();
-    bar->setValue(atBottom ? bar->maximum() : bar->minimum());
+    holdingPair_ = true;
+    if (continuous_) {
+        const QRectF rect = overlayPairRect(pair_);
+        const double viewport = overlayScroll_->viewport()->height();
+        bar->setValue(static_cast<int>(std::lround(atBottom ? rect.bottom() + kOverlayMargin - viewport
+                                                            : rect.top() - kOverlayMargin)));
+    } else {
+        bar->setValue(atBottom ? bar->maximum() : bar->minimum());
+    }
+    holdingPair_ = false;
     aimOverlayRegion(true);
+}
+
+void ComparisonView::setOverlayContinuous(bool continuous)
+{
+    if (continuous_ == continuous) return;
+    continuous_ = continuous;
+    {
+        const QSignalBlocker blocker(continuousBox_);
+        continuousBox_->setChecked(continuous);
+    }
+    // THE SAME PAIR, AT THE TOP, either way.
+    slots_.clear();
+    if (mode_ == Mode::Overlay) showOverlayPair(pair_ < 0 ? 0 : pair_, false);
+}
+
+const QImage& ComparisonView::overlayImage() const
+{
+    static const QImage none;
+    const auto slot = slots_.find(pair_);
+    return slot != slots_.end() ? slot->second->composite : none;
+}
+
+QPoint ComparisonView::overlayOrigin() const
+{
+    const auto slot = slots_.find(pair_);
+    return slot != slots_.end() ? slot->second->origin : QPoint();
 }
 
 QRectF ComparisonView::overlayPageRect() const
 {
-    return canvas_->pageRect();
+    return overlayPairRect(pair_);
+}
+
+QRectF ComparisonView::overlayPairRect(int index) const
+{
+    return index >= 0 && index < static_cast<int>(pairRects_.size()) ? pairRects_[static_cast<std::size_t>(index)]
+                                                                       : QRectF();
+}
+
+int ComparisonView::pairAtTop() const
+{
+    // THE FIRST PAIR STILL BELOW THE VIEW'S TOP EDGE, past the margin a pair is shown from.
+    const double top = overlayScroll_->verticalScrollBar()->value() + kOverlayMargin + 1.0;
+    int last = pair_;
+    for (std::size_t p = 0; p < pairRects_.size(); ++p) {
+        if (pairRects_[p].isEmpty()) continue;
+        if (pairRects_[p].bottom() >= top) return static_cast<int>(p);
+        last = static_cast<int>(p);
+    }
+    return last;
+}
+
+int ComparisonView::pairAt(QPointF point) const
+{
+    int last = pair_;
+    for (std::size_t p = 0; p < pairRects_.size(); ++p) {
+        if (pairRects_[p].isEmpty()) continue;
+        if (pairRects_[p].bottom() >= point.y()) return static_cast<int>(p);
+        last = static_cast<int>(p);
+    }
+    return last;
 }
 
 core::render::Zoom ComparisonView::overlayZoom() const
@@ -1137,28 +1225,34 @@ core::render::Zoom ComparisonView::overlayZoom() const
 void ComparisonView::setOverlayFit(core::render::FitMode fit)
 {
     overlayFit_ = fit == core::render::FitMode::Width ? fit : core::render::FitMode::Page;
-    aimOverlay();
+    if (continuous_) showOverlayPair(pair_, false);   // the same pair at the top, as the layout moved under it
+    else aimOverlay();
 }
 
 void ComparisonView::setOverlayZoom(core::render::Zoom zoom, std::optional<QPointF> anchor)
 {
-    // THE POINT UNDER THE ANCHOR STAYS UNDER IT: its place on the page, in points, before the scale changes.
+    // THE POINT UNDER THE ANCHOR STAYS UNDER IT: its place on the pair it is over, in points, before the scale
+    // changes -- the current pair, or continuous, whichever pair is there.
     QScrollBar* across = overlayScroll_->horizontalScrollBar();
     QScrollBar* down = overlayScroll_->verticalScrollBar();
     const QSize viewport = overlayScroll_->viewport()->size();
     const QPointF at = anchor.value_or(
         QPointF(across->value() + viewport.width() / 2.0, down->value() + viewport.height() / 2.0));
     const QPointF inViewport = at - QPointF(across->value(), down->value());
+    const int under = pairAt(at);
     const double before = overlayScale_ > 0.0 ? overlayScale_ / canvas_->ratio() : 1.0;
-    const QPointF onPage = (at - canvas_->pageRect().topLeft()) / before;
+    const QPointF onPage = (at - overlayPairRect(under).topLeft()) / before;
 
     overlayFit_ = core::render::FitMode::None;
     overlayZoom_ = zoom.clamped();
     aimOverlay(false);
     const double after = overlayScale_ > 0.0 ? overlayScale_ / canvas_->ratio() : 1.0;
-    const QPointF moved = canvas_->pageRect().topLeft() + onPage * after - inViewport;
+    const QPointF moved = overlayPairRect(under).topLeft() + onPage * after - inViewport;
+    holdingPair_ = true;
     across->setValue(static_cast<int>(std::lround(moved.x())));
     down->setValue(static_cast<int>(std::lround(moved.y())));
+    holdingPair_ = false;
+    if (continuous_) pair_ = pairAtTop();
     aimOverlayRegion(true);
 }
 
@@ -1170,105 +1264,152 @@ void ComparisonView::zoomOverlay(int direction, std::optional<QPointF> anchor)
 void ComparisonView::aimOverlay(bool request)
 {
     if (mode_ != Mode::Overlay || pair_ < 0 || pair_ >= static_cast<int>(pairs_.size())) return;
-    const auto [olderPage, newerPage] = pairs_[static_cast<std::size_t>(pair_)];
-    const core::Page* pages[2] = {
-        olderPage >= 0 && sides_[kOlder].pages != nullptr ? sides_[kOlder].pages->at(olderPage) : nullptr,
-        newerPage >= 0 && sides_[kNewer].pages != nullptr ? sides_[kNewer].pages->at(newerPage) : nullptr};
 
-    // ONE SCALE FOR BOTH, so a pixel of the composite is the same point of both pages: the fit's, over the
-    // bigger page, or the zoom's.
-    double width = 0.0;
-    double height = 0.0;
-    for (const core::Page* page : pages) {
-        if (page == nullptr) continue;
-        width = std::max(width, page->displaySize().width);
-        height = std::max(height, page->displaySize().height);
+    // EACH PAIR'S SIZE, in points: the bigger of its two pages, each way.
+    const auto sizeOf = [this](std::size_t p) {
+        const auto [olderPage, newerPage] = pairs_[p];
+        QSizeF size;
+        for (const auto& [side, page] : {std::pair<int, int>{kOlder, olderPage}, std::pair<int, int>{kNewer, newerPage}}) {
+            const Held& held = sides_[static_cast<std::size_t>(side)];
+            const core::Page* info = page >= 0 && held.pages != nullptr ? held.pages->at(page) : nullptr;
+            if (info == nullptr) continue;
+            size = size.expandedTo(QSizeF(info->displaySize().width, info->displaySize().height));
+        }
+        return size;
+    };
+    std::vector<std::size_t> laid;
+    if (continuous_) {
+        for (std::size_t p = 0; p < pairs_.size(); ++p) laid.push_back(p);
+    } else {
+        laid.push_back(static_cast<std::size_t>(pair_));
     }
-    if (width <= 0.0 || height <= 0.0) return;
+
+    // ONE SCALE FOR EVERY PAIR, so a pixel of a composite is the same point of both pages: the fit's, over the
+    // pair shown or, continuous, the biggest of each way; or the zoom's.
+    QSizeF fitTo;
+    for (const std::size_t p : laid) fitTo = fitTo.expandedTo(sizeOf(p));
+    if (fitTo.width() <= 0.0 || fitTo.height() <= 0.0) return;
     const QSize viewport = overlayScroll_->viewport()->size();
     const double availableWidth = std::max(60.0, viewport.width() - 2.0 * kOverlayMargin);
     const double availableHeight = std::max(60.0, viewport.height() - 2.0 * kOverlayMargin);
     double perPoint = 0.0;   // logical pixels
     switch (overlayFit_) {
-    case core::render::FitMode::Width: perPoint = availableWidth / width; break;
+    case core::render::FitMode::Width: perPoint = availableWidth / fitTo.width(); break;
     case core::render::FitMode::None: perPoint = overlayZoom_.clamped().factor * kActualSizePerPoint; break;
-    default: perPoint = std::min(availableWidth / width, availableHeight / height); break;
+    default: perPoint = std::min(availableWidth / fitTo.width(), availableHeight / fitTo.height()); break;
     }
     overlayScale_ = perPoint * canvas_->ratio();
-    overlayPageSize_ = QSizeF(width * perPoint, height * perPoint);
 
-    // THE CANVAS: the page and its margins, and never smaller than the viewport -- so a page smaller than the
-    // window is centred on the window's background rather than at a corner.
-    const QSize canvas(
-        std::max(viewport.width(), static_cast<int>(std::ceil(overlayPageSize_.width())) + 2 * kOverlayMargin),
-        std::max(viewport.height(), static_cast<int>(std::ceil(overlayPageSize_.height())) + 2 * kOverlayMargin));
-    if (canvas_->size() != canvas) canvas_->resize(canvas);
+    // THE LAYOUT: each pair centred across, one under another, `kOverlayGap` apart -- and the canvas the pairs and
+    // their margins, never smaller than the viewport, so a page smaller than the window is centred on its
+    // background rather than at a corner.
+    const int canvasWidth =
+        std::max(viewport.width(), static_cast<int>(std::ceil(fitTo.width() * perPoint)) + 2 * kOverlayMargin);
+    pairRects_.assign(pairs_.size(), QRectF());
+    double y = kOverlayMargin;
+    for (const std::size_t p : laid) {
+        const QSizeF size = sizeOf(p) * perPoint;
+        if (size.isEmpty()) continue;
+        pairRects_[p] = QRectF(std::max<double>(kOverlayMargin, (canvasWidth - size.width()) / 2.0), y, size.width(),
+                               size.height());
+        y += size.height() + kOverlayGap;
+    }
+    const int canvasHeight =
+        std::max(viewport.height(), static_cast<int>(std::ceil(y - kOverlayGap)) + kOverlayMargin);
+    if (canvas_->size() != QSize(canvasWidth, canvasHeight)) canvas_->resize(canvasWidth, canvasHeight);
     canvas_->update();
     if (request) aimOverlayRegion(true);
 }
 
 void ComparisonView::aimOverlayRegion(bool force)
 {
-    if (mode_ != Mode::Overlay || pair_ < 0 || pair_ >= static_cast<int>(pairs_.size()) || overlayScale_ <= 0.0) return;
-    const auto [olderPage, newerPage] = pairs_[static_cast<std::size_t>(pair_)];
-    const core::Page* pages[2] = {
-        olderPage >= 0 && sides_[kOlder].pages != nullptr ? sides_[kOlder].pages->at(olderPage) : nullptr,
-        newerPage >= 0 && sides_[kNewer].pages != nullptr ? sides_[kNewer].pages->at(newerPage) : nullptr};
+    if (mode_ != Mode::Overlay || overlayScale_ <= 0.0 || pairs_.empty()) return;
 
-    // WHAT IS IN VIEW, in device pixels on the page raster -- and what is asked for: that, with half a viewport
-    // more on every side, so a short scroll shows pixels already drawn and asks for nothing.
+    // WHAT IS IN VIEW, on the canvas -- and what is asked for: that, with half a viewport more on every side, so
+    // a short scroll shows pixels already drawn and asks for nothing.
     const double dpr = canvas_->ratio();
-    const QRectF page = canvas_->pageRect();
     const QPointF scrolled(overlayScroll_->horizontalScrollBar()->value(), overlayScroll_->verticalScrollBar()->value());
-    const QRectF visible = QRectF(scrolled, QSizeF(overlayScroll_->viewport()->size())).translated(-page.topLeft());
+    const QRectF visible(scrolled, QSizeF(overlayScroll_->viewport()->size()));
+    const QRectF wanted = visible.adjusted(-visible.width() / 2.0, -visible.height() / 2.0, visible.width() / 2.0,
+                                           visible.height() / 2.0);
     const auto toDevice = [dpr](const QRectF& r) {
+        if (r.isEmpty()) return QRect();
         const QPoint topLeft(static_cast<int>(std::floor(r.left() * dpr)), static_cast<int>(std::floor(r.top() * dpr)));
         const QPoint bottomRight(static_cast<int>(std::ceil(r.right() * dpr)), static_cast<int>(std::ceil(r.bottom() * dpr)));
         return QRect(topLeft, QSize(bottomRight.x() - topLeft.x(), bottomRight.y() - topLeft.y()));
     };
-    const QRect whole(0, 0, static_cast<int>(std::ceil(page.width() * dpr)), static_cast<int>(std::ceil(page.height() * dpr)));
-    const QRect inView = toDevice(visible) & whole;
-    if (!force && !overlayRegion_.isEmpty() && overlayRegion_.contains(inView)) return;
-    const QRectF wanted = visible.adjusted(-visible.width() / 2.0, -visible.height() / 2.0, visible.width() / 2.0,
-                                           visible.height() / 2.0);
-    overlayRegion_ = toDevice(wanted) & whole;
 
-    // EACH SIDE'S PART OF IT -- the region clipped to that page, which may be the smaller; a side with none of it
-    // is an invalid request, and white.
-    const auto requestFor = [this](int side, int pageIndex, const core::Page* info) {
-        core::render::RenderRequest request;
-        if (info == nullptr) return request;
-        const core::PdfSize display = info->displaySize();
-        const QRect own = overlayRegion_ & QRect(0, 0, static_cast<int>(std::ceil(display.width * overlayScale_)),
-                                                 static_cast<int>(std::ceil(display.height * overlayScale_)));
-        if (own.isEmpty()) return request;
-        request.document = sides_[static_cast<std::size_t>(side)].file.handle;
-        request.pageIndex = pageIndex;
-        request.deviceScale = overlayScale_;
-        request.revision = core::Revision::initial();
-        request.tile = core::render::TileRect{own.x(), own.y(), own.width(), own.height()};
-        return request;
-    };
-    olderRequest_ = requestFor(kOlder, olderPage, pages[0]);
-    newerRequest_ = requestFor(kNewer, newerPage, pages[1]);
-    olderRaster_->aim(olderRequest_);
-    newerRaster_->aim(newerRequest_);
-    composite();
+    // THE PAIRS NEAR THE VIEW keep or get a slot; the others' are dropped, their rasters with them.
+    std::vector<int> near;
+    for (std::size_t p = 0; p < pairRects_.size() && p < pairs_.size(); ++p)
+        if (!pairRects_[p].isEmpty() && pairRects_[p].intersects(wanted)) near.push_back(static_cast<int>(p));
+    for (auto it = slots_.begin(); it != slots_.end();) {
+        if (std::find(near.begin(), near.end(), it->first) == near.end()) it = slots_.erase(it);
+        else ++it;
+    }
+
+    for (const int p : near) {
+        const QRectF rect = pairRects_[static_cast<std::size_t>(p)];
+        const QRect whole(0, 0, static_cast<int>(std::ceil(rect.width() * dpr)), static_cast<int>(std::ceil(rect.height() * dpr)));
+        const QRect inView = toDevice(visible.intersected(rect).translated(-rect.topLeft())) & whole;
+        std::unique_ptr<OverlaySlot>& held = slots_[p];
+        if (!held) {
+            held = std::make_unique<OverlaySlot>();
+            held->older = std::make_unique<LoupeRaster>(services_.renderScheduler);
+            held->newer = std::make_unique<LoupeRaster>(services_.renderScheduler);
+            for (LoupeRaster* raster : {held->older.get(), held->newer.get()}) {
+                connect(raster, &LoupeRaster::arrived, this, [this, p] { composite(p); });
+                connect(raster, &LoupeRaster::failed, this, [this, p] { composite(p); });
+            }
+        }
+        OverlaySlot& slot = *held;
+        if (!force && !slot.region.isEmpty() && (inView.isEmpty() || slot.region.contains(inView))) continue;
+        slot.region = toDevice(wanted.intersected(rect).translated(-rect.topLeft())) & whole;
+
+        // EACH SIDE'S PART OF IT -- the region clipped to that page, which may be the smaller; a side with none of
+        // it is an invalid request, and white.
+        const auto [olderPage, newerPage] = pairs_[static_cast<std::size_t>(p)];
+        const auto requestFor = [this, &slot](int side, int pageIndex) {
+            core::render::RenderRequest request;
+            const Held& sideHeld = sides_[static_cast<std::size_t>(side)];
+            const core::Page* info = pageIndex >= 0 && sideHeld.pages != nullptr ? sideHeld.pages->at(pageIndex) : nullptr;
+            if (info == nullptr) return request;
+            const core::PdfSize display = info->displaySize();
+            const QRect own = slot.region & QRect(0, 0, static_cast<int>(std::ceil(display.width * overlayScale_)),
+                                                  static_cast<int>(std::ceil(display.height * overlayScale_)));
+            if (own.isEmpty()) return request;
+            request.document = sideHeld.file.handle;
+            request.pageIndex = pageIndex;
+            request.deviceScale = overlayScale_;
+            request.revision = core::Revision::initial();
+            request.tile = core::render::TileRect{own.x(), own.y(), own.width(), own.height()};
+            return request;
+        };
+        slot.olderRequest = requestFor(kOlder, olderPage);
+        slot.newerRequest = requestFor(kNewer, newerPage);
+        slot.older->aim(slot.olderRequest);
+        slot.newer->aim(slot.newerRequest);
+        composite(p);
+    }
 }
 
-void ComparisonView::composite()
+void ComparisonView::composite(int pair)
 {
+    const auto found = slots_.find(pair);
+    if (found == slots_.end()) return;
+    OverlaySlot& slot = *found->second;
+
     // EACH SIDE ONTO WHITE -- a missing side IS white -- then per pixel (newer, min(older, newer), older) in
     // grey levels: shared ink grey, older-only red, newer-only blue (the header). Both parts start at the
     // region's top-left, since each is the region clipped at its right and bottom only.
-    const bool wantOlder = olderRequest_.isValid();
-    const bool wantNewer = newerRequest_.isValid();
-    const QImage* olderImage = wantOlder ? olderRaster_->imageFor(olderRequest_) : nullptr;
-    const QImage* newerImage = wantNewer ? newerRaster_->imageFor(newerRequest_) : nullptr;
+    const bool wantOlder = slot.olderRequest.isValid();
+    const bool wantNewer = slot.newerRequest.isValid();
+    const QImage* olderImage = wantOlder ? slot.older->imageFor(slot.olderRequest) : nullptr;
+    const QImage* newerImage = wantNewer ? slot.newer->imageFor(slot.newerRequest) : nullptr;
     if ((wantOlder && olderImage == nullptr) || (wantNewer && newerImage == nullptr)) return;
 
-    const int width = overlayRegion_.width();
-    const int height = overlayRegion_.height();
+    const int width = slot.region.width();
+    const int height = slot.region.height();
     if (width <= 0 || height <= 0) return;
 
     const auto onWhite = [width, height](const QImage* image) {
@@ -1295,29 +1436,35 @@ void ComparisonView::composite()
         }
     }
     out.setDevicePixelRatio(canvas_->ratio());
-    composite_ = std::move(out);
-    compositeOrigin_ = overlayRegion_.topLeft();
+    slot.composite = std::move(out);
+    slot.origin = slot.region.topLeft();
     canvas_->update();
     emit overlayChanged();
 }
 
 void ComparisonView::revealOnOverlay(const Difference& difference)
 {
-    if (pair_ < 0 || pair_ >= static_cast<int>(pairs_.size())) return;
-    const auto [olderPage, newerPage] = pairs_[static_cast<std::size_t>(pair_)];
     QRectF marks;
-    for (const int side : {kOlder, kNewer}) {
-        const int pageIndex = side == kOlder ? olderPage : newerPage;
-        if (pageIndex < 0 || pageIndex != (side == kOlder ? difference.basePage : difference.revisedPage)) continue;
-        const core::Page* info = sides_[static_cast<std::size_t>(side)].pages->at(pageIndex);
-        if (info == nullptr) continue;
-        for (const core::PdfRect& rect : marksOn(difference, side == kOlder ? CompareSide::Base : CompareSide::Revised))
-            marks |= canvas_->onCanvas(*info, rect);
+    for (std::size_t p = 0; p < pairRects_.size() && p < pairs_.size(); ++p) {
+        if (pairRects_[p].isEmpty()) continue;
+        const auto [olderPage, newerPage] = pairs_[p];
+        for (const int side : {kOlder, kNewer}) {
+            const int pageIndex = side == kOlder ? olderPage : newerPage;
+            if (pageIndex < 0 || pageIndex != (side == kOlder ? difference.basePage : difference.revisedPage)) continue;
+            const core::Page* info = sides_[static_cast<std::size_t>(side)].pages->at(pageIndex);
+            if (info == nullptr) continue;
+            for (const core::PdfRect& rect : marksOn(difference, side == kOlder ? CompareSide::Base : CompareSide::Revised))
+                marks |= canvas_->onCanvas(static_cast<int>(p), *info, rect);
+        }
     }
     if (marks.isEmpty()) return;
+    // A SCROLL OF OURS: the pair the difference is on stays the current one, though the reveal may bring the end
+    // of the one before it into view.
     const QPointF centre = marks.center();
+    holdingPair_ = true;
     overlayScroll_->ensureVisible(static_cast<int>(centre.x()), static_cast<int>(centre.y()),
                                   static_cast<int>(marks.width() / 2.0) + 40, static_cast<int>(marks.height() / 2.0) + 40);
+    holdingPair_ = false;
 }
 
 void ComparisonView::scrollOverlay(int pixels)
@@ -1330,6 +1477,8 @@ void ComparisonView::scrollOverlay(int pixels)
         bar->setValue(bar->value() + pixels);
         return;
     }
+    // CONTINUOUS, AN EDGE IS THE DOCUMENT'S: there is no pair to turn to.
+    if (continuous_) return;
     const int next = pair_ + (down ? 1 : -1);
     if (next >= 0 && next < static_cast<int>(pairs_.size())) showOverlayPair(next, !down);
 }
@@ -1356,7 +1505,7 @@ void ComparisonView::overlayWheel(QWheelEvent* event)
 
     // DOWN IS A NEGATIVE ANGLE. Inside the pair the wheel scrolls; AT an edge it turns only once a whole notch
     // has gone past it, counted across events -- so the notch that reaches the end does not also turn, and a
-    // touchpad's small deltas add up to one turn rather than one each.
+    // touchpad's small deltas add up to one turn rather than one each. Continuous, it only scrolls.
     const bool towardBottom = down < 0;
     const bool atEdge = towardBottom ? vertical->value() >= vertical->maximum() : vertical->value() <= vertical->minimum();
     if (!atEdge) {
@@ -1364,6 +1513,7 @@ void ComparisonView::overlayWheel(QWheelEvent* event)
         vertical->setValue(vertical->value() - down * lines * vertical->singleStep() / kWheelNotch);
         return;
     }
+    if (continuous_) return;
     if ((overscroll_ < 0) != (down < 0)) overscroll_ = 0;
     overscroll_ += down;
     if (std::abs(overscroll_) < kWheelNotch) return;

@@ -3728,6 +3728,10 @@
         <translation>Overlay</translation>
     </message>
     <message>
+        <source>compare.view.continuous</source>
+        <translation>Continuous</translation>
+    </message>
+    <message>
         <source>compare.view.cancel</source>
         <translation>Cancel</translation>
     </message>

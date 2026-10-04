@@ -14,6 +14,9 @@
 //     time, a zoomed one scrolls and turns at its edge, only the region in view is rasterized, a stepped-to
 //     difference is brought into view with its tints, and `Ctrl`+wheel zooms about the cursor. The wheel is SENT
 //     to the canvas, below Windows' input queue -- a real mouse's notches are the user's to judge.
+//   * **A-128** (the user's request, 2026-10-04). The continuous overlay: every pair one under another, two in view
+//     both drawn, the wheel scrolling through with nothing to turn, the current pair the one at the top, a
+//     difference stepped to current and in view, and `Ctrl`+wheel about the cursor on any pair.
 //
 // WHY `tests/composition` (as `tst_selectionink`): real pages need the engine, which `rawpage_ui_tests` links
 // none of. The widget halves -- the chord, the dialog, the claimed keys -- are `tests/ui/tst_comparison.cpp`.
@@ -38,6 +41,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/ViewportController.h"
 
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -804,4 +808,198 @@ TEST_CASE("Ctrl and the wheel zoom the overlay about the cursor", "[comparisonin
     const double zoomed = comparison.overlayZoom().factor;
     wheel(comparison, -120, Qt::ControlModifier, under);
     CHECK(comparison.overlayZoom().factor == ui::ViewportController::nextZoomStep(core::render::Zoom{zoomed}, -1).factor);
+}
+
+// ---- The continuous overlay, the user's request (A-128) ---------------------------------------------------------
+
+namespace {
+
+QCheckBox* continuousBox(ui::ComparisonView& comparison)
+{
+    auto* box = comparison.findChild<QCheckBox*>(QStringLiteral("comparisonContinuous"));
+    REQUIRE(box != nullptr);
+    return box;
+}
+
+// How many pixels of a part of the canvas, as drawn, are each tint or grey ink.
+struct Ink {
+    int red = 0, blue = 0, grey = 0;
+};
+Ink inkIn(const QImage& image)
+{
+    const QImage rgb = image.convertToFormat(QImage::Format_RGB32);
+    Ink ink;
+    for (int y = 0; y < rgb.height(); ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(rgb.constScanLine(y));
+        for (int x = 0; x < rgb.width(); ++x) {
+            if (isRed(row[x])) ++ink.red;
+            else if (isBlue(row[x])) ++ink.blue;
+            else if (qGray(row[x]) < 128) ++ink.grey;
+        }
+    }
+    return ink;
+}
+
+} // namespace
+
+TEST_CASE("the continuous overlay lays every pair one under another and scrolls through them", "[comparisonink][A-128]")
+{
+    Product product;
+    // base.pdf's three pages against page-inserted.pdf's four, page numbers ignored: pairs (0,0) (-1,1) (1,2) (2,3)
+    // -- the second only the newer has, all blue; the others identical, all grey.
+    ui::ComparisonView& comparison = product.compare(product.copy("compare/base.pdf"),
+                                                     product.copy("compare/page-inserted.pdf"),
+                                                     CompareSensitivity::TextOnly, true);
+    QCheckBox* box = continuousBox(comparison);
+    CHECK(box->isHidden());   // an overlay's switch: not in side by side
+    comparison.setMode(ui::ComparisonView::Mode::Overlay);
+    CHECK_FALSE(box->isHidden());
+    for (int round = 0; round < 6; ++round) product.pump();
+    REQUIRE(comparison.overlayPairs().size() == 4);
+    REQUIRE(comparison.overlayPairs()[1] == std::make_pair(-1, 1));
+
+    // ONE PAIR AT A TIME until it is switched on: only the current pair is laid out.
+    CHECK_FALSE(comparison.overlayPairRect(0).isEmpty());
+    CHECK(comparison.overlayPairRect(1).isEmpty());
+
+    box->click();
+    REQUIRE(comparison.isOverlayContinuous());
+    for (int round = 0; round < 6; ++round) product.pump();
+    CHECK(comparison.overlayPair() == 0);
+
+    // EVERY PAIR, ONE UNDER ANOTHER, at one scale.
+    for (int p = 0; p < 4; ++p) CHECK_FALSE(comparison.overlayPairRect(p).isEmpty());
+    for (int p = 0; p + 1 < 4; ++p) CHECK(comparison.overlayPairRect(p + 1).top() > comparison.overlayPairRect(p).bottom());
+    CHECK(comparison.overlayPairRect(1).height() == comparison.overlayPairRect(0).height());
+    QScrollBar* down = comparison.overlayScrollArea()->verticalScrollBar();
+    REQUIRE(down->maximum() > down->minimum());   // fitted, four pages are taller than the window
+
+    // TWO PAIRS IN VIEW AT ONCE, BOTH DRAWN: most of the first, grey, above the start of the inserted one, blue --
+    // the boundary three quarters down the view, so the first's part holds its body text and not only its margin.
+    QWidget* canvas = overlayCanvas(comparison);
+    QWidget* viewport = comparison.overlayScrollArea()->viewport();
+    const QRectF first = comparison.overlayPairRect(0);
+    const QRectF second = comparison.overlayPairRect(1);
+    down->setValue(static_cast<int>((first.bottom() + second.top()) / 2.0 - viewport->height() * 0.75));
+    for (int round = 0; round < 10; ++round) product.pump();
+    const QPoint scrolled = canvas->mapFrom(viewport, QPoint(0, 0));
+    const QImage above = canvas->grab(QRect(QPoint(qRound(first.left()), scrolled.y()),
+                                            QPoint(qRound(first.right()), qRound(first.bottom()) - 1))).toImage();
+    const QImage below = canvas->grab(QRect(QPoint(qRound(second.left()), qRound(second.top()) + 1),
+                                            QPoint(qRound(second.right()), scrolled.y() + viewport->height() - 1))).toImage();
+    const Ink top = inkIn(above);
+    const Ink bottom = inkIn(below);
+    INFO("above: grey " << top.grey << " red " << top.red << " blue " << top.blue << "; below: grey " << bottom.grey
+                        << " red " << bottom.red << " blue " << bottom.blue);
+    CHECK(top.grey > 100);
+    CHECK(top.red + top.blue == 0);
+    CHECK(bottom.blue > 100);
+    CHECK(bottom.red + bottom.grey == 0);
+
+    // THE WHEEL SCROLLS THROUGH, and the current pair is the one at the top -- with nothing to turn at an edge.
+    down->setValue(down->minimum());
+    for (int notch = 0; notch < 2000 && down->value() < down->maximum(); ++notch) wheel(comparison, -120);
+    REQUIRE(down->value() == down->maximum());
+    CHECK(comparison.overlayPair() == 3);
+    wheel(comparison, -120);
+    CHECK(comparison.overlayPair() == 3);
+    CHECK(down->value() == down->maximum());
+
+    // A PAIR ASKED FOR IS AT THE TOP, and is the current one: the inserted page, all blue.
+    comparison.setOverlayPair(1);
+    CHECK(comparison.overlayPair() == 1);
+    CHECK(down->value() == static_cast<int>(std::lround(comparison.overlayPairRect(1).top() - 12)));
+    for (int round = 0; round < 10; ++round) product.pump();
+    const Ink inserted = inkIn(comparison.overlayImage());
+    CHECK(inserted.blue > 1000);
+    CHECK(inserted.red == 0);
+    CHECK(inserted.grey == 0);
+
+    // `Ctrl+Page Down` TURNS to the next pair's top.
+    CHECK(Product::key(canvas, Qt::Key_PageDown, Qt::ControlModifier));
+    CHECK(comparison.overlayPair() == 2);
+    CHECK(down->value() == static_cast<int>(std::lround(comparison.overlayPairRect(2).top() - 12)));
+
+    // NOTHING TO TURN EVEN WHERE NOTHING SCROLLS: at 8 % the four pairs fit the window, and a notch at that
+    // edge leaves the current pair where it is -- one pair at a time, it would have turned.
+    comparison.setOverlayZoom(core::render::Zoom::percent(8));
+    comparison.setOverlayPair(0);
+    REQUIRE(down->maximum() == down->minimum());
+    wheel(comparison, -120);
+    CHECK(comparison.overlayPair() == 0);
+    comparison.setOverlayPair(2);
+
+    // AND OFF AGAIN: one pair, the same one.
+    box->click();
+    CHECK_FALSE(comparison.isOverlayContinuous());
+    CHECK(comparison.overlayPair() == 2);
+    CHECK_FALSE(comparison.overlayPairRect(2).isEmpty());
+    CHECK(comparison.overlayPairRect(1).isEmpty());
+    CHECK(comparison.overlayPairRect(3).isEmpty());
+}
+
+TEST_CASE("a difference stepped to in the continuous overlay is the current pair and in view", "[comparisonink][A-128]")
+{
+    Product product;
+    // The report pair: changes on several pages, a page inserted, a figure moved (`report.expected.json`).
+    ui::ComparisonView& comparison = product.compare(product.copy("compare/report-v1.pdf"),
+                                                     product.copy("compare/report-v2.pdf"),
+                                                     CompareSensitivity::TextOnly);
+    REQUIRE(comparison.hasDifferences());
+    comparison.setMode(ui::ComparisonView::Mode::Overlay);
+    comparison.setOverlayContinuous(true);
+    comparison.setOverlayZoom(core::render::Zoom::percent(150));
+    QWidget* viewport = comparison.overlayScrollArea()->viewport();
+    QWidget* canvas = overlayCanvas(comparison);
+
+    const std::vector<Difference>& all = comparison.differences();
+    for (int index = 0; index < static_cast<int>(all.size()); ++index) {
+        comparison.goToDifference(index);
+        const Difference& difference = all[static_cast<std::size_t>(index)];
+        const auto [olderPage, newerPage] = comparison.overlayPairs()[static_cast<std::size_t>(comparison.overlayPair())];
+        INFO("difference " << index << " on older page " << difference.basePage << " / newer page "
+                           << difference.revisedPage << "; current pair (" << olderPage << ", " << newerPage << ")");
+        CHECK(((difference.revisedPage >= 0 && newerPage == difference.revisedPage)
+               || (difference.basePage >= 0 && olderPage == difference.basePage)));
+        const QRectF inView(QPointF(canvas->mapFrom(viewport, QPoint(0, 0))), QSizeF(viewport->size()));
+        CHECK(inView.intersects(comparison.overlayPageRect()));
+    }
+}
+
+TEST_CASE("Ctrl and the wheel zoom the continuous overlay about the cursor on any pair", "[comparisonink][A-128]")
+{
+    Product product;
+    ui::ComparisonView& comparison = product.compare(product.copy("compare/base.pdf"),
+                                                     product.copy("compare/page-inserted.pdf"),
+                                                     CompareSensitivity::TextOnly, true);
+    comparison.setMode(ui::ComparisonView::Mode::Overlay);
+    comparison.setOverlayContinuous(true);
+    // SMALL ENOUGH THAT THE PAIR BELOW THE CURRENT ONE IS IN VIEW, and the cursor on THAT one -- so the point kept is
+    // the pair under the cursor's, not the current pair's.
+    comparison.setOverlayZoom(core::render::Zoom::percent(25));
+    comparison.setOverlayPair(1);
+    for (int round = 0; round < 6; ++round) product.pump();
+    QWidget* canvas = overlayCanvas(comparison);
+    QScrollArea* area = comparison.overlayScrollArea();
+    REQUIRE(comparison.overlayPair() == 1);
+    const QRectF inView(QPointF(canvas->mapFrom(area->viewport(), QPoint(0, 0))), QSizeF(area->viewport()->size()));
+    REQUIRE(inView.contains(comparison.overlayPairRect(2).center()));
+
+    // A POINT ON THE THIRD PAIR, under the cursor -- on its centre line: a page narrower than the window stays
+    // centred, with no scroll across to keep a point off that line where it was.
+    const QRectF pair = comparison.overlayPairRect(2);
+    const QPointF cursor(pair.center().x(), pair.top() + pair.height() / 4.0);
+    const QPointF inViewport = cursor - QPointF(area->horizontalScrollBar()->value(), area->verticalScrollBar()->value());
+    const double before = comparison.overlayScale() / canvas->devicePixelRatioF();
+    const QPointF onPage = (cursor - pair.topLeft()) / before;
+
+    wheel(comparison, +120, Qt::ControlModifier, cursor);
+    const double after = comparison.overlayScale() / canvas->devicePixelRatioF();
+    CHECK(after > before);
+    const QPointF under = inViewport + QPointF(area->horizontalScrollBar()->value(), area->verticalScrollBar()->value());
+    const QPointF nowOnPage = (under - comparison.overlayPairRect(2).topLeft()) / after;
+    INFO("before " << onPage.x() << "," << onPage.y() << " pt; after " << nowOnPage.x() << "," << nowOnPage.y() << " pt");
+    CHECK(std::abs(nowOnPage.x() - onPage.x()) * after <= 1.5);
+    CHECK(std::abs(nowOnPage.y() - onPage.y()) * after <= 1.5);
+    CHECK(comparison.isOverlayContinuous());
 }

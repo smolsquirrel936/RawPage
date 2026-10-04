@@ -57,6 +57,13 @@
 // a screen round it, so a zoomed page is never one image of hundreds of megapixels; the composite is that region,
 // placed at `overlayOrigin()` on the pair's page. Until the I-24 fix the canvas was fitted and had no wheel at all.
 //
+// CONTINUOUS (the user's request, 2026-10-04, S5 guide A-128): the bar's *Continuous* switch lays EVERY aligned pair
+// one under another in the one scroll, at the same scale -- the fit then over the biggest pair -- and the wheel and
+// the keys simply scroll, with nothing to turn at an edge but the document's. The current pair is the one at the
+// top of the view. Each pair near the view is a slot of its own (`OverlaySlot`): its two rasters, the region it
+// asked for and its composite, so a pair scrolled away is dropped and none is ever rasterized whole at a zoom. It
+// is a view of this window, not a setting, and has no chord (`Features.md` §8 binds none).
+//
 // ---------------------------------------------------------------------------------------------
 // THE KEYS (D5-18, clarified at T13)
 // ---------------------------------------------------------------------------------------------
@@ -98,6 +105,7 @@
 #include <QWidget>
 
 #include <array>
+#include <map>
 #include <memory>
 #include <optional>
 #include <optional>
@@ -173,13 +181,13 @@ public:
     const std::vector<std::pair<int, int>>& overlayPairs() const noexcept { return pairs_; }
     int  overlayPair() const noexcept { return pair_; }
     void setOverlayPair(int index);
-    // The composite as last built, in device pixels; null until both rasters of the pair have arrived.
-    const QImage& overlayImage() const noexcept { return composite_; }
+    // The current pair's composite as last built, in device pixels; null until both its rasters have arrived.
+    const QImage& overlayImage() const;
     // Device pixels per PDF point the overlay's rasters were asked at.
     double overlayScale() const noexcept { return overlayScale_; }
     // Where the composite's top-left is on the pair's page raster, in device pixels: (0, 0) whenever the whole page
     // is in view, as at Fit Page.
-    QPoint overlayOrigin() const noexcept { return compositeOrigin_; }
+    QPoint overlayOrigin() const;
     // The overlay's fit -- `None` once a zoom is chosen -- and the zoom it shows, whichever set it.
     core::render::FitMode overlayFit() const noexcept { return overlayFit_; }
     core::render::Zoom    overlayZoom() const;
@@ -187,8 +195,14 @@ public:
     // A zoom, about `anchor` on the canvas (logical pixels) or the middle of what is in view.
     void setOverlayZoom(core::render::Zoom zoom, std::optional<QPointF> anchor = std::nullopt);
     QScrollArea* overlayScrollArea() const noexcept { return overlayScroll_; }
-    // Where the pair's page is on the overlay's canvas, in logical pixels.
+    // Where the current pair's page is on the overlay's canvas, in logical pixels.
     QRectF overlayPageRect() const;
+    // Where pair `index` is on the canvas; empty when it is not laid out -- every pair but the current one, unless
+    // the overlay is continuous.
+    QRectF overlayPairRect(int index) const;
+    // Every pair one under another in one scroll (the header), or one pair at a time.
+    bool isOverlayContinuous() const noexcept { return continuous_; }
+    void setOverlayContinuous(bool continuous);
 
     // Stops a run in progress; what it had is discarded and the view says so.
     void cancel();
@@ -212,6 +226,7 @@ private:
     class RasterBridge;
     class OverlayCanvas;
     friend class OverlayCanvas;
+    struct OverlaySlot;
 
     struct Held {
         Side                      file;
@@ -246,9 +261,13 @@ private:
     void rebuildPairs();
     // The scale and the canvas's size from the fit or zoom; then, with `request`, the region in view.
     void aimOverlay(bool request = true);
-    // The region in view, asked for unless the one already asked for covers it -- or always, with `force`.
+    // The region in view of each pair near it, asked for unless the one already asked for covers it -- or always,
+    // with `force`; slots for pairs no longer near it are dropped.
     void aimOverlayRegion(bool force);
-    void composite();
+    void composite(int pair);
+    // The pair at the top of the view, and the pair under `point` on the canvas (or the nearest below it).
+    int pairAtTop() const;
+    int pairAt(QPointF point) const;
     // Pair `index`, scrolled to its top or, with `atBottom`, its bottom.
     void showOverlayPair(int index, bool atBottom);
     // The current difference's marks brought into view.
@@ -274,6 +293,7 @@ private:
     PageView*        newer_ = nullptr;
     OverlayCanvas*   canvas_ = nullptr;
     QScrollArea*     overlayScroll_ = nullptr;
+    QCheckBox*       continuousBox_ = nullptr;
     QStackedWidget*  stack_ = nullptr;
     DifferencesPane* pane_ = nullptr;
     QComboBox*       modeChoice_ = nullptr;
@@ -306,18 +326,14 @@ private:
     std::vector<std::pair<int, int>> pairs_;
     int    pair_ = -1;
     double overlayScale_ = 0.0;
-    QSizeF overlayPageSize_;                                       // the pair's page, logical pixels
     core::render::FitMode overlayFit_ = core::render::FitMode::Page;
     core::render::Zoom    overlayZoom_ = core::render::Zoom::actualSize();
-    QRect  overlayRegion_;                                         // asked for, device pixels on the page
-    QPoint compositeOrigin_;                                       // where `composite_` is, the same pixels
+    bool   continuous_ = false;
+    bool   holdingPair_ = false;                                   // a scroll of ours: the current pair stays
     int    overscroll_ = 0;                                        // wheel units past an edge, signed
     int    wheelZoom_ = 0;                                         // `Ctrl`+wheel units not yet a step
-    std::unique_ptr<LoupeRaster> olderRaster_;
-    std::unique_ptr<LoupeRaster> newerRaster_;
-    core::render::RenderRequest olderRequest_;
-    core::render::RenderRequest newerRequest_;
-    QImage composite_;
+    std::vector<QRectF> pairRects_;                                // each pair on the canvas, logical; empty if not laid out
+    std::map<int, std::unique_ptr<OverlaySlot>> slots_;           // the pairs near the view, by index
 };
 
 } // namespace rawpage::ui

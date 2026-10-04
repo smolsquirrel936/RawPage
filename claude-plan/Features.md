@@ -263,7 +263,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Compare two PDF files and report their differences.
 - The Compare dialog remembers, for each older file, the newer file it was last compared against, and offers it again.
 - Side-by-side comparison view with synchronized scrolling.
-- Overlay comparison view with per-document colour tinting.
+- Overlay comparison view with per-document colour tinting, one aligned page pair at a time or all pairs in one continuous scroll.
 - Detect text differences (insertions, deletions, replacements, moves).
 - Detect page-appearance differences (graphics, images, position shifts).
 - Detect page insertions, deletions, and reorderings.
