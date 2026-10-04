@@ -4,7 +4,7 @@
     python corpus/make-corpus.py                  # write every file
     python corpus/make-corpus.py --verify         # regenerate in memory, compare against disk
     python corpus/make-corpus.py --check-provenance
-    python corpus/make-corpus.py --check-faults    # the Stage 5 fixtures carry what they claim
+    python corpus/make-corpus.py --check-faults    # the Stage 5 and 6 fixtures carry what they claim
     python corpus/make-corpus.py --list
 
 WHY `--verify` IS THE POINT OF THIS FILE. D2-11 (`Stage2-Rendering-Plan.md` section 3) makes every
@@ -65,7 +65,7 @@ def build_all():
     files["minimal.pdf"] = _load("make-minimal.py").build()
     files["a2-text-page.pdf"] = _load("make-a2-text-page.py").build()
     for script in ("make-ordinary.py", "make-malformed.py", "make-encrypted.py", "make-signed.py",
-                   "make-text.py", "make-compare.py"):
+                   "make-text.py", "make-compare.py", "make-annots.py"):
         files.update(_load(script).generate())
     return files
 
@@ -74,7 +74,17 @@ def build_all():
 # label (`labels/`) is the ground truth for a text fixture and an `expected.json` (`compare/`) the
 # change list for a comparison pair, and each is generated beside its PDF and checked byte for byte
 # like it -- a hand-edited label is a test whose answer was changed to match.
-DATA_GLOBS = ("*.pdf", "labels/*.json", "compare/*.json")
+#
+# Stage 6 T1 added two more kinds of data that are not PDFs: the FDF and XFDF exchange files
+# (`exchange/`) and the custom-stamp images (`stamps/`). Each is generated, checked byte for byte
+# and given a PROVENANCE.md row like a PDF -- an orphan .xfdf is as much a file from nowhere as an
+# orphan .pdf.
+DATA_GLOBS = ("*.pdf", "labels/*.json", "compare/*.json", "exchange/*.fdf", "exchange/*.xfdf",
+              "stamps/*.png", "stamps/*.jpg")
+
+# The file kinds that carry a PROVENANCE.md row of their own. Labels and comparison records do not:
+# each is the sidecar of a PDF whose row names it.
+ROWED = (".pdf", ".fdf", ".xfdf", ".png", ".jpg")
 
 
 def _on_disk():
@@ -132,10 +142,10 @@ def verify(files, disk=None, rerun=True):
 def provenance_rows():
     """The corpus FILE named in the first cell of a `corpus/PROVENANCE.md` table row.
 
-    Only cells ending in `.pdf` count. The document also carries a table describing the generators
-    and encoders themselves, whose first cells are `corpus/deflate.py` and friends -- those are
-    prose about the tooling, not rows about data, and counting them would make this check demand
-    that `pdfbuild.py` generate itself.
+    Only cells ending in one of `ROWED`'s extensions count. The document also carries a table
+    describing the generators and encoders themselves, whose first cells are `corpus/deflate.py` and
+    friends -- those are prose about the tooling, not rows about data, and counting them would make
+    this check demand that `pdfbuild.py` generate itself.
     """
     text = (ROOT / "PROVENANCE.md").read_text(encoding="utf-8")
     rows = []
@@ -147,7 +157,7 @@ def provenance_rows():
         if not cells or not cells[0].startswith("`") or not cells[0].endswith("`"):
             continue
         name = cells[0].strip("`")
-        if name.endswith(".pdf"):
+        if name.endswith(ROWED):
             rows.append(name)
     return rows
 
@@ -159,11 +169,11 @@ def check_provenance(files, rows=None):
     for name in sorted(duplicates):
         problems.append("DUPLICATE %s -- two PROVENANCE.md rows" % name)
     listed = set(rows)
-    pdfs = [relative for relative in files if relative.endswith(".pdf")]
-    for relative in pdfs:
+    rowed = [relative for relative in files if relative.endswith(ROWED)]
+    for relative in rowed:
         if relative not in listed:
             problems.append("UNLISTED  %s -- generated, but no PROVENANCE.md row" % relative)
-    for name in sorted(listed - set(pdfs)):
+    for name in sorted(listed - set(rowed)):
         problems.append("STALE     %s -- a PROVENANCE.md row for a file nothing generates" % name)
     return problems + check_sidecars(files)
 
@@ -171,26 +181,36 @@ def check_provenance(files, rows=None):
 def check_sidecars(files, labelled=None):
     """Stage 5 T1: every label names a corpus file that exists and every text fixture has a label;
     every comparison record names a base and a revised file that exist. A label for a file that is
-    gone is ground truth for nothing, and a text fixture with no label is one nobody can grade."""
+    gone is ground truth for nothing, and a text fixture with no label is one nobody can grade.
+    Stage 6 T1 adds the annotation fixtures, whose labels are `labels/annots-<name>.json`, and the
+    migration label, which names a revised document as well."""
     problems = []
     if labelled is None:
         labelled = ["ordinary/" + name for name in _load("make-text.py").FILES]
+        labelled += ["ordinary/" + name for name in _load("make-annots.py").FILES]
     for relative, data in files.items():
         if relative.startswith("labels/"):
-            named = json.loads(data.decode("utf-8")).get("file")
-            if named not in files:
-                problems.append("LABEL     %s -- names %r, which the corpus does not contain"
-                                % (relative, named))
+            body = json.loads(data.decode("utf-8"))
+            for key in ("file", "revised"):
+                named = body.get(key)
+                if (key == "file" or named is not None) and named not in files:
+                    problems.append("LABEL     %s -- its %s %r is not in the corpus"
+                                    % (relative, key, named))
         elif relative.startswith("compare/") and relative.endswith(".json"):
             record = json.loads(data.decode("utf-8"))
             for key in ("base", "revised"):
                 if record.get(key) not in files:
                     problems.append("EXPECTED  %s -- its %s %r is not in the corpus"
                                     % (relative, key, record.get(key)))
+    annots = _load("make-annots.py")
     for fixture in labelled:
-        label = "labels/" + fixture.split("/")[-1].replace(".pdf", ".json")
+        name = fixture.split("/")[-1]
+        if name in annots.FILES:
+            label = annots.label_name(name)
+        else:
+            label = "labels/" + name.replace(".pdf", ".json")
         if label not in files:
-            problems.append("UNLABELLED %s -- a text fixture with no %s" % (fixture, label))
+            problems.append("UNLABELLED %s -- a labelled fixture with no %s" % (fixture, label))
     return problems
 
 
@@ -205,7 +225,8 @@ def self_test(files):
     `--verify` passing on a clean tree is equally satisfied by a checker that returns success
     without looking -- which is the shape of Stage 1's I-30 and of every waived gate this project
     has had to re-examine. So each detection gets an input that must trigger it -- the five of Stage
-    2 T4 and the five Stage 5 T1 added for labels, comparison records and fixture faults -- and a
+    2 T4, the five Stage 5 T1 added for labels, comparison records and fixture faults, and the four
+    Stage 6 T1 added for the annotation fixtures, their labels and the exchange files -- and a
     detection that stays quiet fails this test.
 
     Nothing here touches the corpus on disk: the stand-in tree and the stand-in row list are
@@ -257,6 +278,26 @@ def self_test(files):
                                                    + b"% wombat" + bytes([10]))
     control("control word present is FAULT", check_faults(control_word), "FAULT")
 
+    # Stage 6 T1 (guide A-14, A-15): the two fixture controls the guide names, an annotation
+    # fixture with no label, and a non-PDF data file with no PROVENANCE.md row.
+    drawn = dict(clean)
+    drawn["ordinary/annots-no-ap.pdf"] = clean["ordinary/annots-no-ap.pdf"].replace(
+        b"/Contents (no appearance: Highlight)",
+        b"/Contents (no appearance: Highlight) /AP << /N 1 0 R >>", 1)
+    control("an /AP on annots-no-ap is FAULT", check_faults(drawn),
+            "FAULT     ordinary/annots-no-ap.pdf")
+    keyless = dict(clean)
+    keyless["ordinary/annots-unknown-keys.pdf"] = clean["ordinary/annots-unknown-keys.pdf"].replace(
+        b"/RawPageTestKey", b"/RawPageTestKez")
+    control("/RawPageTestKey removed is FAULT", check_faults(keyless),
+            "FAULT     ordinary/annots-unknown-keys.pdf")
+    no_annot_label = {k: v for k, v in clean.items() if k != "labels/annots-threads.json"}
+    control("annotation fixture, no label", check_sidecars(no_annot_label),
+            "UNLABELLED ordinary/annots-threads.pdf")
+    control("unrowed exchange file is UNLISTED",
+            check_provenance(clean, [row for row in rows if row != "exchange/threads.xfdf"]),
+            "UNLISTED  exchange/threads.xfdf")
+
     for name, fired, sample in results:
         print("  %-32s %s%s" % (name, "detected" if fired else "NOT DETECTED",
                                 ("  <- " + sample[0]) if fired and sample else ""))
@@ -274,7 +315,7 @@ def main():
     parser.add_argument("--check-provenance", action="store_true",
                         help="every file has a PROVENANCE.md row and every row has a file")
     parser.add_argument("--check-faults", action="store_true",
-                        help="the Stage 5 text fixtures carry the fault or feature each claims")
+                        help="the Stage 5 and 6 fixtures carry the fault or feature each claims")
     parser.add_argument("--self-test", action="store_true",
                         help="the negative controls: prove each --verify failure path fires")
     parser.add_argument("--list", action="store_true",
@@ -320,7 +361,7 @@ def main():
             sum(1 for k in files if k.startswith("labels/")),
             sum(1 for k in files if k.startswith("compare/") and k.endswith(".json"))))
     if arguments.check_faults:
-        checked.append("every Stage 5 fixture carries what its row claims")
+        checked.append("every Stage 5 and Stage 6 fixture carries what its row claims")
     if checked:
         print("corpus check ok: " + "; ".join(checked))
     return 0

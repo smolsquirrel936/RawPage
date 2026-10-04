@@ -1,0 +1,520 @@
+{
+ "file": "ordinary/annots-rotated.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "0B7FBB283F9AA0266A13DFCB9FC6CFE1",
+ "claims": [
+  "pages with /Rotate 0, 90, 180, 270, identical content and annotations in page space; page 1 (rotation 0) is the control",
+  "the note is NoZoom and NoRotate; the free text has /Rotate equal to its page's and an appearance /Matrix"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 8,
+     "subtype": "Highlight",
+     "rect": [
+      212.472,
+      737.723,
+      271.773,
+      747.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "003efa76-0b2f-811d-2aa0-a0515e3f12d4",
+     "author": "Leila Haddad",
+     "contents": "highlight at /Rotate 0",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      212.472,
+      747.898,
+      271.773,
+      747.898,
+      212.472,
+      737.723,
+      271.773,
+      737.723
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 9,
+     "subtype": "Square",
+     "rect": [
+      60,
+      560,
+      200,
+      660
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "6726e319-ca5d-48d4-9b81-f1db53a53f92",
+     "author": "Leila Haddad",
+     "contents": "square at /Rotate 0",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 10,
+     "subtype": "Text",
+     "rect": [
+      400,
+      620,
+      420,
+      640
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "e8423808-6868-e4f6-e6c9-288df03920b4",
+     "author": "Leila Haddad",
+     "contents": "note at /Rotate 0",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 11,
+     "subtype": "FreeText",
+     "rect": [
+      250,
+      420,
+      410,
+      460
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "cba5e1c0-b8d1-eda8-5ad8-ced5bf4c9041",
+     "author": "Leila Haddad",
+     "contents": "Upright at /Rotate 0",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "rotate": 0,
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 90,
+   "annots": [
+    {
+     "index": 0,
+     "object": 12,
+     "subtype": "Highlight",
+     "rect": [
+      212.472,
+      737.723,
+      271.773,
+      747.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "333b28d2-ba81-195b-67f5-0cf16c088d46",
+     "author": "Leila Haddad",
+     "contents": "highlight at /Rotate 90",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      212.472,
+      747.898,
+      271.773,
+      747.898,
+      212.472,
+      737.723,
+      271.773,
+      737.723
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 13,
+     "subtype": "Square",
+     "rect": [
+      60,
+      560,
+      200,
+      660
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "aac8dd32-c309-3907-d272-3d72d88592df",
+     "author": "Leila Haddad",
+     "contents": "square at /Rotate 90",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 14,
+     "subtype": "Text",
+     "rect": [
+      400,
+      620,
+      420,
+      640
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "9dddce33-c817-75e2-0757-dcf607c78c17",
+     "author": "Leila Haddad",
+     "contents": "note at /Rotate 90",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 15,
+     "subtype": "FreeText",
+     "rect": [
+      250,
+      420,
+      290,
+      580
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "1b0ee789-f795-6ea8-f1b0-cd228e4ecf6d",
+     "author": "Leila Haddad",
+     "contents": "Upright at /Rotate 90",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "rotate": 90,
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 180,
+   "annots": [
+    {
+     "index": 0,
+     "object": 16,
+     "subtype": "Highlight",
+     "rect": [
+      212.472,
+      737.723,
+      271.773,
+      747.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "03160285-ce24-3013-a892-af2d978010ff",
+     "author": "Leila Haddad",
+     "contents": "highlight at /Rotate 180",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      212.472,
+      747.898,
+      271.773,
+      747.898,
+      212.472,
+      737.723,
+      271.773,
+      737.723
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 17,
+     "subtype": "Square",
+     "rect": [
+      60,
+      560,
+      200,
+      660
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "50485175-a9ce-a1ac-da9e-d881e0835d2d",
+     "author": "Leila Haddad",
+     "contents": "square at /Rotate 180",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 18,
+     "subtype": "Text",
+     "rect": [
+      400,
+      620,
+      420,
+      640
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "576f932f-05cb-ddb4-f189-09817b27a297",
+     "author": "Leila Haddad",
+     "contents": "note at /Rotate 180",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 19,
+     "subtype": "FreeText",
+     "rect": [
+      250,
+      420,
+      410,
+      460
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "398e2f47-9587-4c35-62df-cbe21b2bb134",
+     "author": "Leila Haddad",
+     "contents": "Upright at /Rotate 180",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "rotate": 180,
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 270,
+   "annots": [
+    {
+     "index": 0,
+     "object": 20,
+     "subtype": "Highlight",
+     "rect": [
+      212.472,
+      737.723,
+      271.773,
+      747.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "291bf5da-32e3-639b-1571-f852aab01092",
+     "author": "Leila Haddad",
+     "contents": "highlight at /Rotate 270",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      212.472,
+      747.898,
+      271.773,
+      747.898,
+      212.472,
+      737.723,
+      271.773,
+      737.723
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 21,
+     "subtype": "Square",
+     "rect": [
+      60,
+      560,
+      200,
+      660
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "739bcafb-e371-0608-82f7-a936436bf341",
+     "author": "Leila Haddad",
+     "contents": "square at /Rotate 270",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 22,
+     "subtype": "Text",
+     "rect": [
+      400,
+      620,
+      420,
+      640
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "a4729d49-536e-7baf-976a-720eff769801",
+     "author": "Leila Haddad",
+     "contents": "note at /Rotate 270",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 23,
+     "subtype": "FreeText",
+     "rect": [
+      250,
+      420,
+      290,
+      580
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "ce88916d-35ad-7195-666c-4cf3d6fd2928",
+     "author": "Leila Haddad",
+     "contents": "Upright at /Rotate 270",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "rotate": 270,
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

@@ -1,8 +1,9 @@
 # `golden/` — reference rasters
 
-**315 PNGs, 92 corpus files, 105 pages, three resolutions, one rasterizer.** Produced by
+**369 PNGs, 103 corpus files, 123 pages, three resolutions, one rasterizer.** Produced by
 `tools/golden-update` — 198 at Stage 2 T17, 24 more at Stage 3 T1 for the six corpus files that
-task added, 9 more at Stage 4 T1 for its three, and 84 more at Stage 5 T1 for its twenty-seven — each
+task added, 9 more at Stage 4 T1 for its three, 84 more at Stage 5 T1 for its twenty-seven, and 54
+more at Stage 6 T1 for its eleven annotated PDFs — each
 one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
@@ -118,7 +119,9 @@ PNG, through QtGui's built-in handler — a raster class that needs no display a
 192 of 222 re-counted at Stage 3 T1 from each PNG's colour-type byte, and **198 of 231** re-counted
 the same way at Stage 4 T1, whose nine are six grey and three RGB — `cropbox-margins.pdf` is the
 one of its three files that carries colour — and **279 of 315** at Stage 5 T1, whose 84 are 81 grey and
-three RGB, `search-classes.pdf`'s yellow note — and expanded back to RGB
+three RGB, `search-classes.pdf`'s yellow note — and **279 of 369** at Stage 6 T1, whose 54 are all
+RGB, every one of its fixtures carrying coloured annotations (re-counted 2026-10-05; 30.6 MB in all) —
+and expanded back to RGB
 on read, which is lossless in both directions and took the T17 tree from 30.5 MB to 13.1 MB. The comparison reads the three colour bytes on both sides, so the encoding is
 invisible above `readPng`.
 

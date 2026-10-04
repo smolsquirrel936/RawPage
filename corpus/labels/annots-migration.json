@@ -1,0 +1,185 @@
+{
+ "file": "ordinary/annots-report-v1.pdf",
+ "revised": "compare/report-v2.pdf",
+ "generator": "corpus/make-annots.py",
+ "pageMap": {
+  "0": 0,
+  "1": 1,
+  "2": 3,
+  "3": 4
+ },
+ "measures": "guide 3.5: precision 100 %, recall >= 95 % of placeable, every unplaceable reported and none placed; markup quads within 1 pt, other annotations within 2 pt",
+ "annotations": [
+  {
+   "nm": "f0fbdf6f-e283-0ebc-779c-05fe488011a4",
+   "subtype": "Highlight",
+   "page": 0,
+   "text": "Page report logical stream",
+   "placeable": true,
+   "why": "text unchanged, in the same place",
+   "expectedPage": 0,
+   "expectedQuadPoints": [
+    54.0,
+    753.18,
+    170.71,
+    753.18,
+    54.0,
+    743.93,
+    170.71,
+    743.93
+   ]
+  },
+  {
+   "nm": "9e52b4c8-3b32-b5c2-7f89-3251b76df77d",
+   "subtype": "Underline",
+   "page": 0,
+   "text": "kerning boundary page monitor",
+   "placeable": true,
+   "why": "text unchanged, its paragraph moved up the page",
+   "expectedPage": 0,
+   "expectedQuadPoints": [
+    107.92,
+    516.18,
+    246.32,
+    516.18,
+    107.92,
+    506.93,
+    246.32,
+    506.93
+   ]
+  },
+  {
+   "nm": "df8f44fd-be5e-30f3-9f9f-fad2699a0941",
+   "subtype": "StrikeOut",
+   "page": 0,
+   "text": "schedule raster tile percentile table",
+   "placeable": false,
+   "why": "the middle word was replaced by 'throughput' in v2"
+  },
+  {
+   "nm": "6216569e-93c3-62a8-4fc7-4b529654278b",
+   "subtype": "Highlight",
+   "page": 2,
+   "text": "Revision scaling tag budget document",
+   "placeable": true,
+   "why": "text unchanged, its page now follows an inserted page",
+   "expectedPage": 3,
+   "expectedQuadPoints": [
+    54.0,
+    709.18,
+    222.97,
+    709.18,
+    54.0,
+    699.93,
+    222.97,
+    699.93
+   ]
+  },
+  {
+   "nm": "03305c0d-9c0c-66ce-b135-e7db1e268006",
+   "subtype": "Squiggly",
+   "page": 2,
+   "text": "typeface viewport stream revision permission",
+   "placeable": false,
+   "why": "the middle word was replaced by 'deterministic' in v2"
+  },
+  {
+   "nm": "3664b121-37e6-72e0-f728-e4dad9bbeb8e",
+   "subtype": "Highlight",
+   "page": 2,
+   "text": "LayoutAnalyzer",
+   "placeable": true,
+   "why": "the row label survives; only the cell beside it changed",
+   "expectedPage": 3,
+   "expectedQuadPoints": [
+    57.0,
+    762.603,
+    115.582,
+    762.603,
+    57.0,
+    754.74,
+    115.582,
+    754.74
+   ]
+  },
+  {
+   "nm": "6538fdd7-68d6-0787-a451-1594fad50f8d",
+   "subtype": "Highlight",
+   "page": 3,
+   "text": "2026-08-31",
+   "placeable": false,
+   "why": "every footer's date changed in v2"
+  },
+  {
+   "nm": "ae0c21dd-fe13-3973-f311-f3999f48a0f9",
+   "subtype": "Underline",
+   "page": 3,
+   "text": "Page monitor logical stream",
+   "placeable": true,
+   "why": "text unchanged, its page now follows an inserted page",
+   "expectedPage": 4,
+   "expectedQuadPoints": [
+    54.0,
+    560.18,
+    177.93,
+    560.18,
+    54.0,
+    550.93,
+    177.93,
+    550.93
+   ]
+  },
+  {
+   "nm": "bb1cfd36-d5cf-b4f0-0c97-4e40a7242f64",
+   "subtype": "Text",
+   "page": 1,
+   "placeable": true,
+   "why": "placed relative to the nearest text line, which v2 keeps",
+   "anchorRule": "the body line whose box is nearest the note's centre in v1 (the higher on a tie); the note keeps its offset from that line's origin",
+   "anchor": {
+    "text": "Report viewport render policy scaling invalidate",
+    "v1": [
+     54.0,
+     567.0
+    ],
+    "v2": [
+     54.0,
+     554.0
+    ]
+   },
+   "expectedPage": 1,
+   "expectedRect": [
+    220.0,
+    572.0,
+    240.0,
+    592.0
+   ]
+  },
+  {
+   "nm": "8aea1fff-85e0-bca8-e1b8-3b7c987b6596",
+   "subtype": "Text",
+   "page": 2,
+   "placeable": true,
+   "why": "placed relative to the nearest text line on a page that moved",
+   "anchorRule": "the body line whose box is nearest the note's centre in v1 (the higher on a tie); the note keeps its offset from that line's origin",
+   "anchor": {
+    "text": "Revision scaling tag budget document facade filter",
+    "v1": [
+     54.0,
+     702.0
+    ],
+    "v2": [
+     54.0,
+     702.0
+    ]
+   },
+   "expectedPage": 3,
+   "expectedRect": [
+    27.0,
+    786.5,
+    47.0,
+    806.5
+   ]
+  }
+ ]
+}

@@ -28,3 +28,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 84 (filtered on `compare/`, `columns-`, `table-ruled`, `rtl-text`, `cjk-vertical`, `hyphenated`, `text-tounicode`, `cjk-readable`, `search-classes`, `text-900`)
 - **Reason** Stage 5 T1: 27 corpus files added (ordinary/columns-two, columns-three, table-ruled, rtl-text, cjk-vertical, hyphenated, text-tounicode, cjk-readable, search-classes, text-900, and the 17 files of compare/). Additions only -- no existing baseline is regenerated, and the filter names only the new files.
+
+## 2026-10-04T17:20:24Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 54 (filtered on `annots-900`, `annots-direct`, `annots-every-type`, `annots-flags`, `annots-no-ap`, `annots-report-v1`, `annots-rotated`, `annots-threads`, `annots-unknown-keys`, `ordinary/attachments`, `measure-scale`)
+- **Reason** Stage 6 T1: 11 corpus files added (ordinary/annots-every-type, annots-no-ap, annots-threads, annots-flags, annots-rotated, annots-direct, annots-unknown-keys, annots-900, attachments, measure-scale, annots-report-v1). Additions only -- no existing baseline is regenerated, and the filter names only the new files. Every image was looked at in a scratch capture first.

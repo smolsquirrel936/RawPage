@@ -1,0 +1,208 @@
+{
+ "file": "ordinary/annots-unknown-keys.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "BDDA27CF6FBE6FB561C820276597CB1C",
+ "claims": [
+  "page 1: /PieceInfo (a private dictionary), /RawPageTestKey in three value types, and /RC rich text",
+  "page 2: the same annotations with none of them"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 6,
+     "subtype": "Square",
+     "rect": [
+      60,
+      600,
+      200,
+      700
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "be89e5b3-fa92-c146-a61c-c53d97922654",
+     "author": "Mateo Rossi",
+     "contents": "square with a private dictionary",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "unknownKeys": {
+      "/PieceInfo": "<< /RawPageCorpus << /LastModified (D:20260925090000+02'00') /Private << /Version 3 /Tags [ /alpha /beta ] >> >> >>",
+      "/RawPageTestKey": "(kept verbatim)"
+     },
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 7,
+     "subtype": "Text",
+     "rect": [
+      240,
+      660,
+      260,
+      680
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "104398f7-909d-79cb-5b5e-3597bd92983f",
+     "author": "Mateo Rossi",
+     "contents": "Rich text: <b> is escaped, not bold.",
+     "richText": "Rich text: <b> is escaped, not bold.",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "unknownKeys": {
+      "/RawPageTestKey": "[ 1 2.5 /Three (four) ]"
+     },
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 8,
+     "subtype": "FreeText",
+     "rect": [
+      300,
+      600,
+      500,
+      660
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "d491d8e4-8c4a-c728-c42b-b8b17b79b5ae",
+     "author": "Mateo Rossi",
+     "contents": "Free text carrying a nested private key.",
+     "richText": "Free text carrying a nested private key.",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "unknownKeys": {
+      "/RawPageTestKey": "<< /Nested << /Deeper true >> /Count 2 >>"
+     },
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 9,
+     "subtype": "Square",
+     "rect": [
+      60,
+      600,
+      200,
+      700
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "e2dcbe1b-0d3f-6c71-a16b-20f7daf89dd7",
+     "author": "Mateo Rossi",
+     "contents": "square with a private dictionary",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 10,
+     "subtype": "Text",
+     "rect": [
+      240,
+      660,
+      260,
+      680
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "0f1affb1-0296-a50a-3f79-f9b8451748f0",
+     "author": "Mateo Rossi",
+     "contents": "Rich text: <b> is escaped, not bold.",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 11,
+     "subtype": "FreeText",
+     "rect": [
+      300,
+      600,
+      500,
+      660
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "7aaba889-18ca-00ff-aa7e-e3b44b25134d",
+     "author": "Mateo Rossi",
+     "contents": "Free text carrying a nested private key.",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

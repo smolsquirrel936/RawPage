@@ -113,11 +113,20 @@ def para_lines(item, frame_width):
     return lines
 
 
-def render_page(doc, index, image_ref):
+def render_page(doc, index, image_ref, lines=None):
+    """The page's content operators. `lines`, when a list is given, receives one record per text run
+    and image drawn -- its kind, item, text, origin and size -- which is how `make-annots.py` places
+    markup on report-v1's words and knows where report-v2 put them (Stage 6 T1). Recording draws
+    nothing, so the bytes are the same with and without it."""
     ops = []
+
+    def note(kind, x, y, size, text=None, **extra):
+        if lines is not None:
+            lines.append(dict(kind=kind, x=x, y=y, size=size, text=text, **extra))
     page = doc["pages"][index]
     if doc["header"]:
         ops.append(pb.show_text(60, 812, 8, doc["header"]))
+        note("header", 60, 812, 8, doc["header"])
     footer = []
     if doc["footerDate"]:
         footer.append(doc["footerDate"])
@@ -125,6 +134,7 @@ def render_page(doc, index, image_ref):
         footer.append("page %d" % (index + 1 + doc["numberOffset"]))
     if footer:
         ops.append(pb.show_text(60, 30, 8, " - ".join(footer)))
+        note("footer", 60, 30, 8, " - ".join(footer))
 
     if doc["columns"] == 1:
         frames = [(60.0, 475.0)]
@@ -132,24 +142,28 @@ def render_page(doc, index, image_ref):
         frames = [(54.0, 230.0), (311.0, 230.0)]
     top = 790.0
     items = list(page)
+    first = 0          # the model index of items[0], so a record names the item as the model does
     if items and items[0]["type"] == "title":
         ops.append(b"BT /F2 18 Tf 1 0 0 1 54 %s Tm %s Tj ET" % (pb.num(top - 10),
                                                              pb.literal(items[0]["text"])))
+        note("title", 54, top - 10, 18, items[0]["text"], bold=True)
         top -= 44
         items = items[1:]
+        first = 1
     frame = 0
     y = top
-    for item in items:
+    for position, item in enumerate(items, first):
         x, frame_width = frames[frame]
         if item["type"] == "para":
-            lines = para_lines(item, frame_width)
-            for line in lines:
+            wrapped = para_lines(item, frame_width)
+            for row, line in enumerate(wrapped):
                 if y < 60:
                     frame += 1
                     assert frame < len(frames), "a comparison page overflowed its frames"
                     x, frame_width = frames[frame]
                     y = top
                 ops.append(pb.show_text(x, y, SIZE, line))
+                note("para", x, y, SIZE, line, item=position, line=row, words=list(item["words"]))
                 y -= LEADING
             y -= GAP
         elif item["type"] == "image":
@@ -161,6 +175,8 @@ def render_page(doc, index, image_ref):
             ops.append(b"q %s 0 0 %s %s %s cm %s Do Q" % (
                 pb.num(IMAGE_W), pb.num(IMAGE_H), pb.num(x + item["dx"]),
                 pb.num(y - IMAGE_H + SIZE), image_ref))
+            note("image", x + item["dx"], y - IMAGE_H + SIZE, None, item=position,
+                 width=IMAGE_W, height=IMAGE_H)
             y -= IMAGE_H + GAP
         elif item["type"] == "table":
             rows = item["rows"]
@@ -189,6 +205,8 @@ def render_page(doc, index, image_ref):
                 for col, value in enumerate(values):
                     ops.append(pb.show_text(edges[col] + 3, table_top - (row + 1) * 16.0 + 4.5,
                                             8.5, value))
+                    note("cell", edges[col] + 3, table_top - (row + 1) * 16.0 + 4.5, 8.5, value,
+                         item=position, row=row, col=col)
             y -= height + GAP
     return b"\n".join(ops) + b"\n"
 

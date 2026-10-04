@@ -1,0 +1,662 @@
+{
+ "file": "ordinary/annots-no-ap.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "D4380D17B8DDD349A258C96D4679D60D",
+ "claims": [
+  "page 1: nine types with NO /AP -- highlight, underline, strikeout, squiggly, square, circle, line, ink and a note",
+  "page 2: the same nine, the same geometry, each WITH an /AP this generator drew"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 6,
+     "subtype": "Highlight",
+     "rect": [
+      176.392,
+      757.723,
+      249.751,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "9d61c763-7878-cb5a-9832-572c79d9f0c3",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Highlight",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      176.392,
+      767.898,
+      249.751,
+      767.898,
+      176.392,
+      757.723,
+      249.751,
+      757.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": false
+    },
+    {
+     "index": 1,
+     "object": 7,
+     "subtype": "Underline",
+     "rect": [
+      180.671,
+      733.723,
+      254.03,
+      743.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "500c600b-3e1c-f1f3-0a90-745792687ac7",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Underline",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      180.671,
+      743.898,
+      254.03,
+      743.898,
+      180.671,
+      733.723,
+      254.03,
+      733.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": false
+    },
+    {
+     "index": 2,
+     "object": 8,
+     "subtype": "StrikeOut",
+     "rect": [
+      176.997,
+      709.723,
+      250.356,
+      719.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "09d58ac5-27e3-cb07-3420-6d85326e573e",
+     "author": "Tomas Varga",
+     "contents": "no appearance: StrikeOut",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      176.997,
+      719.898,
+      250.356,
+      719.898,
+      176.997,
+      709.723,
+      250.356,
+      709.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": false
+    },
+    {
+     "index": 3,
+     "object": 9,
+     "subtype": "Squiggly",
+     "rect": [
+      175.776,
+      685.723,
+      249.135,
+      695.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "5f554c6c-3f98-596c-b0ff-a779a5362f46",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Squiggly",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      175.776,
+      695.898,
+      249.135,
+      695.898,
+      175.776,
+      685.723,
+      249.135,
+      685.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": false
+    },
+    {
+     "index": 4,
+     "object": 10,
+     "subtype": "Square",
+     "rect": [
+      48,
+      520,
+      168,
+      610
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "d728e98f-477b-107c-7921-d911ee675ccb",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Square",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": false
+    },
+    {
+     "index": 5,
+     "object": 11,
+     "subtype": "Circle",
+     "rect": [
+      190,
+      520,
+      310,
+      610
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "aa84794c-c6b6-f05a-dad4-aa564e2244d4",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Circle",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 2,
+     "hasAppearance": false
+    },
+    {
+     "index": 6,
+     "object": 12,
+     "subtype": "Line",
+     "rect": [
+      330,
+      520,
+      540,
+      610
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "afffa85d-cdf2-84bc-61aa-6a2498a18269",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Line",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 2,
+     "line": [
+      340,
+      530,
+      530,
+      600
+     ],
+     "hasAppearance": false
+    },
+    {
+     "index": 7,
+     "object": 13,
+     "subtype": "Ink",
+     "rect": [
+      58,
+      428,
+      197,
+      462
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "7ee0da76-3aaf-9726-bc07-6fb6be97261f",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Ink",
+     "color": [
+      0.1,
+      0.1,
+      0.5
+     ],
+     "borderWidth": 2,
+     "inkList": [
+      [
+       60,
+       430,
+       69,
+       451,
+       78,
+       439,
+       87,
+       460,
+       96,
+       448,
+       105,
+       436,
+       114,
+       457,
+       123,
+       445,
+       132,
+       433,
+       141,
+       454,
+       150,
+       442,
+       159,
+       430,
+       168,
+       451,
+       177,
+       439,
+       186,
+       460,
+       195,
+       448
+      ]
+     ],
+     "hasAppearance": false
+    },
+    {
+     "index": 8,
+     "object": 14,
+     "subtype": "Text",
+     "rect": [
+      330,
+      440,
+      350,
+      460
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "b02b54d0-2a30-3321-a292-2dd0970d0efe",
+     "author": "Tomas Varga",
+     "contents": "no appearance: Text",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": false
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 15,
+     "subtype": "Highlight",
+     "rect": [
+      176.392,
+      757.723,
+      249.751,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "6f9da095-510f-3d22-951f-58e54baa8a95",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Highlight",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      176.392,
+      767.898,
+      249.751,
+      767.898,
+      176.392,
+      757.723,
+      249.751,
+      757.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 16,
+     "subtype": "Underline",
+     "rect": [
+      180.671,
+      733.723,
+      254.03,
+      743.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "c07a4356-364a-7cab-5811-4301996f6971",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Underline",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      180.671,
+      743.898,
+      254.03,
+      743.898,
+      180.671,
+      733.723,
+      254.03,
+      733.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 17,
+     "subtype": "StrikeOut",
+     "rect": [
+      176.997,
+      709.723,
+      250.356,
+      719.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "b1c785da-6267-f226-aa47-2df90b523108",
+     "author": "Tomas Varga",
+     "contents": "with appearance: StrikeOut",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      176.997,
+      719.898,
+      250.356,
+      719.898,
+      176.997,
+      709.723,
+      250.356,
+      709.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 18,
+     "subtype": "Squiggly",
+     "rect": [
+      175.776,
+      685.723,
+      249.135,
+      695.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "ebac7dc3-56b8-69f0-5e24-996335718d44",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Squiggly",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      175.776,
+      695.898,
+      249.135,
+      695.898,
+      175.776,
+      685.723,
+      249.135,
+      685.723
+     ],
+     "created": "D:20260921090000+02'00'",
+     "createdUtc": "2026-09-21T07:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 4,
+     "object": 19,
+     "subtype": "Square",
+     "rect": [
+      48,
+      520,
+      168,
+      610
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "cffcbae9-7f69-b31a-364b-77b5bac2d8b2",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Square",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 5,
+     "object": 20,
+     "subtype": "Circle",
+     "rect": [
+      190,
+      520,
+      310,
+      610
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "ce9fbd6f-ff89-b8be-40a3-2eea7d4165f3",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Circle",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 6,
+     "object": 21,
+     "subtype": "Line",
+     "rect": [
+      330,
+      520,
+      540,
+      610
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "c616836d-fe9a-f914-73b7-70b75344ccdc",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Line",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 2,
+     "line": [
+      340,
+      530,
+      530,
+      600
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 7,
+     "object": 22,
+     "subtype": "Ink",
+     "rect": [
+      58,
+      428,
+      197,
+      462
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "6728a52e-d7eb-9dec-e37a-b61fa8272704",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Ink",
+     "color": [
+      0.1,
+      0.1,
+      0.5
+     ],
+     "borderWidth": 2,
+     "inkList": [
+      [
+       60,
+       430,
+       69,
+       451,
+       78,
+       439,
+       87,
+       460,
+       96,
+       448,
+       105,
+       436,
+       114,
+       457,
+       123,
+       445,
+       132,
+       433,
+       141,
+       454,
+       150,
+       442,
+       159,
+       430,
+       168,
+       451,
+       177,
+       439,
+       186,
+       460,
+       195,
+       448
+      ]
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 8,
+     "object": 23,
+     "subtype": "Text",
+     "rect": [
+      330,
+      440,
+      350,
+      460
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "59280719-5164-1456-08e8-39c7f3a8c7c4",
+     "author": "Tomas Varga",
+     "contents": "with appearance: Text",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

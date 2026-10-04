@@ -9,12 +9,13 @@
 > **Status:** ⚪ **Written 2026-10-04 from the plan's draft, the day Stage 5 was signed off, and before
 > any Stage 6 code. The plan's §0 was ANSWERED the same day, all eight — Q1 … Q6 and Q8 approved as
 > proposed, and Q7 by moving the custom stamp from a PDF page to Stage 7, which rewrote A-78 and M-07.
-> No case has a result.** **108
+> No case had a result until T1.** **T1 (2026-10-05): A-13 … A-16 ✅**, each with its evidence; §8 logs
+> **I-01** and **I-02**, both S3 and closed. **108
 > automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
 > re-read against the answers and stand as written** — A-40, A-46 and A-70 (Q1, A-40's Expect gaining
 > the collision census at **thirteen**, the consequence of Q1 the user accepted); A-08 and A-55 (Q2);
 > A-56 and M-06's step 3 (Q3); A-07, A-101 and M-08 (Q5); and A-31 (Q8). Q4 and Q6 move capabilities out of the stage, so no case is written for them — §1's
-> out-of-scope table says so. §8's issue log is empty.
+> out-of-scope table says so.
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -247,7 +248,7 @@ equal the original file's raster, **0 pixels**.
 | Oracle | Pass bar |
 |---|---|
 | **Golden rasters** (`tst_appearance`) | `golden/README.md`'s thresholds, per type × property; every baseline LOOKED AT before it is kept, its look recorded in `golden/UPDATES.md` |
-| **PDFium's own generation** | For highlight, underline, strikeout, squiggly, square, circle, line, ink and note: our appearance and PDFium's generated one (the same annotation with `/AP` removed), binarized at 50 % coverage at 144 dpi, overlap at **ink IoU ≥ 0.90** |
+| **PDFium's own generation** | For highlight, underline, strikeout, squiggly, square, circle, ink and note — **eight; a line is not among them** (measured at T1, I-02): our appearance and PDFium's generated one (the same annotation with `/AP` removed), binarized at 50 % coverage at 144 dpi, overlap at **ink IoU ≥ 0.90** |
 | **`qpdf --check`** (Q8) | *"No syntax or stream encoding errors found"* for every file the suite writes, read from the `gates` job's log |
 | **Acrobat and Firefox** (M-02) | Each type: the same shape, colour, opacity and position as RawPage shows, to a person comparing side by side. A difference a person would call *different* is an S2 |
 
@@ -389,22 +390,26 @@ the tree at Stage 5's sign-off.
 
 ### 5.3 The corpus this stage is judged on (T1)
 
-**A-13 · The new files regenerate byte-identically, and nothing old moved** ☐
+**A-13 · The new files regenerate byte-identically, and nothing old moved** ✅ *2026-10-05, T1*
 **Steps** `python corpus/make-corpus.py --verify`, `--check-provenance`, `--self-test`; `git status corpus/`.
 **Expect** All three exit 0; one `PROVENANCE.md` row per new file naming what it carries **and its control** (plan §5.2); **every pre-existing corpus file byte-unchanged**. **If it fails** S2.
+**Result** `--verify`: *"152 files regenerate byte-identically"* — the 121 of Stage 5's sign-off plus 31 (11 PDFs, 12 labels, 6 exchange files, 2 images). `--check-provenance`: *"116 PROVENANCE.md rows, one per file; 22 labels and 14 comparison records name files that exist"* — rows now cover `.fdf`, `.xfdf`, `.png` and `.jpg` as well as `.pdf`, and every new row names its control. `--self-test`: *"14 of 14 controls fired"*, the four new ones each matched to the file it damaged. `git status corpus/`: no pre-existing data file modified — **and `--verify` passed over the 121 earlier files after each change to `deflate.py` and `make-compare.py`** (I-01; `render_page` gained a recorder that draws nothing). The first fix for I-01 DID move `ordinary/image-flate-predictor.pdf`, which is how the kept-when-complete rule was found.
 
-**A-14 · The labels are data, checked like the corpus** ☐
+**A-14 · The labels are data, checked like the corpus** ✅ *2026-10-05, T1*
 **Steps** `--verify` and `--check-provenance` over `corpus/labels/annots-*.json`.
 **Expect** Every label regenerates byte-identically and names a corpus file that exists; every annotation fixture has one. **The control:** a label naming a missing file fails. `.gitattributes` treats the labels as text (Stage 5's A-13 finding). **If it fails** S2.
+**Result** Twelve labels — one per annotation fixture (`annots-<name>.json`, `annots-attachments.json` and `annots-measure-scale.json` for the two whose names do not start `annots-`) and `annots-migration.json` — all within `--verify`'s 152, all resolving; the migration label's `revised` file is checked too. Controls: *"label for no file is LABEL"* and the new *"annotation fixture, no label"* (`labels/annots-threads.json` removed → `UNLABELLED ordinary/annots-threads.pdf`) both fire. `git check-attr` on `corpus/labels/annots-every-type.json`: `text: set`, `diff: set`, `eol: lf` — the Stage 5 rule covers them.
 
-**A-15 · Each fixture carries what its row claims — read from the BYTES** ☐
+**A-15 · Each fixture carries what its row claims — read from the BYTES** ✅ *2026-10-05, T1*
 **Goal** A fixture that does not carry its fault tests nothing (Stage 3's A-17).
 **Steps** `make-corpus.py --check-faults` over the new files, decoding streams with `zlib` and never through `pdf/cos/` or PDFium.
 **Expect** `annots-every-type.pdf` has every subtype the plan lists, each with `/AP`; `annots-no-ap.pdf`'s page 1 has **no** `/AP` on any annotation; `annots-threads.pdf` has `/IRT` chains, `/RT /Group`, `/StateModel /Review` and `/Marked` replies, the cycle, the orphan and the cross-page reply; `annots-flags.pdf` each flag bit; `annots-direct.pdf` a direct dictionary and an annotation in two pages' `/Annots`; `annots-unknown-keys.pdf` `/PieceInfo`, `/RawPageTestKey` and `/RC`; `attachments.pdf` its three embedded files with `/Desc` and a `FileAttachment`; `measure-scale.pdf` `/Measure` dictionaries; each FDF and XFDF its claimed shape, the malicious XFDF its external entity. **Two controls:** an `/AP` added to `annots-no-ap.pdf`, and `/RawPageTestKey` removed, each fail the check. **If it fails** S2.
+**Result** `--check-faults`: *"every Stage 5 and Stage 6 fixture carries what its row claims"*, through `corpus/fixturecheck.py`'s `check_annots` — object streams expanded (`annots-900.pdf` counts **9,000** annotation dictionaries), and **every `labels/annots-*.json` entry held to the object it names** (its `/Subtype` and `/NM`), so a label cannot describe an annotation the file lacks. Beyond the Expect: the exchange files' `/F`, `<f>` and `/ID`/`<ids>` match their targets; `malformed.xfdf` must FAIL to parse; the PNG is colour type 6 with alpha 0, 255 and between; the JPEG is SOF0. **Both controls fire, each on its own file:** *"FAULT ordinary/annots-no-ap.pdf -- page 1 must hold nine annotations and NONE with /AP (9, 1 with)"* and *"FAULT ordinary/annots-unknown-keys.pdf -- /RawPageTestKey is missing"*. One check was wrong on its first run and fixed in the checker, not the fixture: the shared-annotation test's lazy regex stopped at the first `]` inside a direct dictionary.
 
-**A-16 · The golden manifest knows the new files** ☐
+**A-16 · The golden manifest knows the new files** ✅ *2026-10-05, T1*
 **Steps** `golden-update.exe --check-manifest`.
 **Expect** Every new PDF a case or an excluded row with a reason; baselines captured with **no tracked PNG changed**; `--explain`'s census re-derived. **If it fails** S3.
+**Result** *"108 corpus files, 103 with baselines and 5 excluded with a reason"* — all eleven new PDFs are cases (18 pages). **Every page was captured into a scratch golden root and LOOKED AT first**, and three fixtures were corrected from what the pictures showed: a caret drawn over the "w" of *words*, a reply icon over the line above its highlight, and two measurement readouts overprinting at the rectangle's centre. The same look found **I-02**. Then **54 baselines in one filtered run**, each filter naming one new file (`annots-` alone would have re-captured `annots-mixed`): `git status golden/` shows **no tracked PNG modified**, and `captured.json` lost only its header's date and reason. `golden/UPDATES.md` carries the one entry.
 
 ### 5.4 The model and its reading (T2)
 
@@ -630,7 +635,7 @@ the tree at Stage 5's sign-off.
 
 **A-65 · Our appearance agrees with PDFium's own** ☐
 **Goal** §3.3's second oracle.
-**Steps** `tst_appearance`'s control over the nine types PDFium can generate.
+**Steps** `tst_appearance`'s control over the eight types PDFium can generate — not line (I-02).
 **Expect** **Ink IoU ≥ 0.90** for each. **If it fails** S2 — and the case says which drew what.
 
 **A-66 · Every generated stream is well-formed** ☐
@@ -1024,7 +1029,33 @@ uses.
 
 | # | Sev | Title | State |
 |---|---|---|---|
-| — | — | *No issue yet — no Stage 6 code exists.* | — |
+| **I-01** | S3 | `corpus/deflate.py` emitted an incomplete Huffman code for a tree deeper than its limit | **Closed** at T1, 2026-10-05 |
+| **I-02** | S3 | Plan D6-6 and §3.3 listed *line* among the types PDFium generates an appearance for; it does not | **Closed** at T1, 2026-10-05 |
+
+**I-01 (S3) — an incomplete length-limited Huffman code in the corpus encoder.** *Found* generating
+`annots-900.pdf` at T1: `deflate.compress`'s own self-check stopped the run with zlib's *"invalid
+literal/lengths set"*. *Mechanism:* `_huffman_lengths`, past its bit limit, clamped every deep code to
+the limit and then lengthened the rarest codes until the Kraft sum was at or below one — and that
+overshoots: on the object stream's 3.3 MB payload (an 18-deep literal/length tree) it stopped at
+0.99960, an **incomplete** code, which inflate refuses as surely as an over-subscribed one. *Why no
+suite saw it:* nothing reads the encoder but the corpus, and the repair had only ever been reached by
+inputs it happened to complete — `ordinary/image-flate-predictor.pdf` is one, measured when a first
+fix that replaced the repair outright moved that file's bytes. *Fix:* the original repair is kept
+whenever its code is complete, so **no earlier file moved** (`--verify`, 121 of 121); when it is not,
+the code is rebuilt by JPEG's `Adjust_BITS` (ITU-T T.81 Annex K.2) on the unclamped depth counts,
+which keeps the tree full, and a completeness assertion follows. *Control:* the captured payload fails
+zlib before the fix and round-trips after; Fibonacci-weighted alphabets of 16 to 29 symbols, which
+force depths past both limits, give complete codes at 15 and at 7 bits. No shipped file was ever
+wrong — the self-check is why.
+
+**I-02 (S3) — a planned oracle that does not exist for one type.** *Found* looking at the T1
+capture of `annots-no-ap.pdf` page 1, whose nine annotations have no `/AP`: PDFium 153 draws eight
+and **nothing for the line**. PDFium's generator (`core/fpdfdoc/cpvt_generateap.cpp`) covers circle,
+highlight, ink, popup, square, squiggly, strikeout, text and underline. *Why it mattered:* A-65 would
+have been written at T8 against a control that draws nothing, and an IoU against empty ink is either
+a division by zero or a pass. *Fix:* D6-6's clause (2), §3.3's row and A-65 now name **eight** types;
+a line's appearance keeps the other three oracles (golden, `qpdf`, Acrobat and Firefox). The page-0
+golden baseline of `annots-no-ap.pdf` is a claim about PDFium's generator, as its manifest note says.
 
 ---
 

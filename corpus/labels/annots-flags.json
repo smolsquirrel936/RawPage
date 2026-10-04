@@ -1,0 +1,426 @@
+{
+ "file": "ordinary/annots-flags.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "6F2F4AF8087E8F1F259C3D50C7851790",
+ "claims": [
+  "Locked, LockedContents, ReadOnly, Hidden, NoView, NoZoom and NoRotate, each on its own annotation with an unflagged twin to its right"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 5,
+     "subtype": "Square",
+     "rect": [
+      180,
+      740,
+      300,
+      780
+     ],
+     "flags": 132,
+     "flagNames": [
+      "Print",
+      "Locked"
+     ],
+     "nm": "85b2b8d7-54cd-a83d-7a1c-84e5b36f25b0",
+     "author": "Kofi Mensah",
+     "contents": "Locked set",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 6,
+     "subtype": "Square",
+     "rect": [
+      380,
+      740,
+      500,
+      780
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "40afd782-4866-3656-bec5-431acb0180fa",
+     "author": "Kofi Mensah",
+     "contents": "Locked twin, no flag",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 7,
+     "subtype": "FreeText",
+     "rect": [
+      180,
+      660,
+      300,
+      700
+     ],
+     "flags": 516,
+     "flagNames": [
+      "Print",
+      "LockedContents"
+     ],
+     "nm": "e7630c24-808c-d45c-2045-cdb4e3857254",
+     "author": "Kofi Mensah",
+     "contents": "LockedContents text",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 8,
+     "subtype": "FreeText",
+     "rect": [
+      380,
+      660,
+      500,
+      700
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "076890cf-e1f6-7e5e-a2b0-0f8fe08ac017",
+     "author": "Kofi Mensah",
+     "contents": "Editable text",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "hasAppearance": true
+    },
+    {
+     "index": 4,
+     "object": 9,
+     "subtype": "Square",
+     "rect": [
+      180,
+      580,
+      300,
+      620
+     ],
+     "flags": 68,
+     "flagNames": [
+      "Print",
+      "ReadOnly"
+     ],
+     "nm": "836de71b-8382-2cba-03ea-b73668c27084",
+     "author": "Kofi Mensah",
+     "contents": "ReadOnly set",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 5,
+     "object": 10,
+     "subtype": "Square",
+     "rect": [
+      380,
+      580,
+      500,
+      620
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "1c70cd10-e32d-1581-bbcc-ff154ecdf9ce",
+     "author": "Kofi Mensah",
+     "contents": "ReadOnly twin, no flag",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 6,
+     "object": 11,
+     "subtype": "Square",
+     "rect": [
+      180,
+      500,
+      300,
+      540
+     ],
+     "flags": 6,
+     "flagNames": [
+      "Hidden",
+      "Print"
+     ],
+     "nm": "7094dd11-4804-4607-a36d-1e2d82cf783c",
+     "author": "Kofi Mensah",
+     "contents": "Hidden set",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 7,
+     "object": 12,
+     "subtype": "Square",
+     "rect": [
+      380,
+      500,
+      500,
+      540
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "c4c4bab5-7657-3b25-47cc-c6313ce04191",
+     "author": "Kofi Mensah",
+     "contents": "Hidden twin, no flag",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 8,
+     "object": 13,
+     "subtype": "Square",
+     "rect": [
+      180,
+      420,
+      300,
+      460
+     ],
+     "flags": 36,
+     "flagNames": [
+      "Print",
+      "NoView"
+     ],
+     "nm": "80d68e82-9712-9fac-386c-731394db229c",
+     "author": "Kofi Mensah",
+     "contents": "NoView set",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 9,
+     "object": 14,
+     "subtype": "Square",
+     "rect": [
+      380,
+      420,
+      500,
+      460
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "0d17bcb2-5365-01f8-0cd8-4f0ecb94991a",
+     "author": "Kofi Mensah",
+     "contents": "NoView twin, no flag",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 10,
+     "object": 15,
+     "subtype": "Text",
+     "rect": [
+      180,
+      350,
+      200,
+      370
+     ],
+     "flags": 12,
+     "flagNames": [
+      "Print",
+      "NoZoom"
+     ],
+     "nm": "68494e76-8774-e451-062e-55769c143f62",
+     "author": "Kofi Mensah",
+     "contents": "NoZoom set",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 11,
+     "object": 16,
+     "subtype": "Text",
+     "rect": [
+      380,
+      350,
+      400,
+      370
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "773c0203-049c-74b0-396f-9de526f939e2",
+     "author": "Kofi Mensah",
+     "contents": "NoZoom twin, no flag",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 12,
+     "object": 17,
+     "subtype": "Text",
+     "rect": [
+      180,
+      270,
+      200,
+      290
+     ],
+     "flags": 20,
+     "flagNames": [
+      "Print",
+      "NoRotate"
+     ],
+     "nm": "ab153519-4588-7c4d-c1ae-6e99f6690bf1",
+     "author": "Kofi Mensah",
+     "contents": "NoRotate set",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    },
+    {
+     "index": 13,
+     "object": 18,
+     "subtype": "Text",
+     "rect": [
+      380,
+      270,
+      400,
+      290
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "4ba78424-0373-10cf-2f53-2e4de65d2079",
+     "author": "Kofi Mensah",
+     "contents": "NoRotate twin, no flag",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,265 @@
+{
+ "file": "ordinary/annots-direct.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "EB2C2B65E130C620BBD2B8C817B7E8B4",
+ "claims": [
+  "page 1: two DIRECT annotation dictionaries in /Annots (one with no /NM) beside an indirect one",
+  "an indirect Square listed by BOTH page 1 and page 2, its /P naming page 1",
+  "page 2: a Circle with no /P",
+  "page 3: the control, every /Annots entry an indirect reference with /P"
+ ],
+ "note": "the shared Square appears in both pages' annots lists with the same object number; listedBy names both",
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": null,
+     "subtype": "Square",
+     "rect": [
+      60,
+      600,
+      180,
+      680
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "77456a8f-3c72-1436-3870-e1ada4ebaed4",
+     "author": "Priya Raman",
+     "contents": "a direct dictionary",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "direct": true,
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": null,
+     "subtype": "Text",
+     "rect": [
+      220,
+      640,
+      240,
+      660
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "author": "Priya Raman",
+     "contents": "direct, and no /NM",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "direct": true,
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 7,
+     "subtype": "Circle",
+     "rect": [
+      280,
+      600,
+      400,
+      680
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "4a8be751-4e0f-fa81-6c21-c90dee0ba64c",
+     "author": "Priya Raman",
+     "contents": "an ordinary indirect annotation",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 8,
+     "subtype": "Square",
+     "rect": [
+      60,
+      400,
+      180,
+      480
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "15652634-d616-7955-6242-be6cb82fc1f6",
+     "author": "Priya Raman",
+     "contents": "listed by pages 1 and 2",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 2,
+     "listedBy": [
+      0,
+      1
+     ],
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 8,
+     "subtype": "Square",
+     "rect": [
+      60,
+      400,
+      180,
+      480
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "15652634-d616-7955-6242-be6cb82fc1f6",
+     "author": "Priya Raman",
+     "contents": "listed by pages 1 and 2",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 2,
+     "listedBy": [
+      0,
+      1
+     ],
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 9,
+     "subtype": "Circle",
+     "rect": [
+      280,
+      400,
+      400,
+      480
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "3e0eff30-fa5a-0bf8-0b8d-ee1c90d2310a",
+     "author": "Priya Raman",
+     "contents": "no /P",
+     "color": [
+      0.5,
+      0.25,
+      0.7
+     ],
+     "borderWidth": 2,
+     "noP": true,
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 10,
+     "subtype": "Square",
+     "rect": [
+      60,
+      600,
+      180,
+      680
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "e88dadf8-402c-c839-9aec-16d975079ecb",
+     "author": "Priya Raman",
+     "contents": "control: indirect",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 2,
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 11,
+     "subtype": "Text",
+     "rect": [
+      220,
+      640,
+      240,
+      660
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "0efdc711-6436-3338-ea20-248858b11016",
+     "author": "Priya Raman",
+     "contents": "control: indirect note",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

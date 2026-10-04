@@ -904,20 +904,26 @@ if(Python3_Interpreter_FOUND)
 
     # A-78, and the NEGATIVE CONTROL the two cases above cannot supply for themselves: a
     # checker that returns success without looking passes both of them. --self-test drives
-    # each of the five detections with an input that must trigger it, in memory, so an
-    # interrupted run cannot leave the real corpus damaged.
+    # each detection with an input that must trigger it, in memory, so an interrupted run
+    # cannot leave the real corpus damaged: Stage 2 T4's five, Stage 5 T1's five, and Stage 6
+    # T1's four (an /AP planted on annots-no-ap.pdf, /RawPageTestKey removed, an annotation
+    # fixture with no label, an exchange file with no PROVENANCE.md row), each matched to the
+    # FILE it damaged so it cannot fire for another file's reason (convention 7).
     rawpage_add_gate_test(NAME gates.corpus.self_test
         COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --self-test
-        EXPECT_EXIT 0 EXPECT_MATCH "10 of 10 controls fired")
+        EXPECT_EXIT 0 EXPECT_MATCH "14 of 14 controls fired")
 
     # Stage 5 T1 (Stage5-TextSearch-Testing-Guide.md A-14): each text fixture carries the fault or
     # feature its PROVENANCE.md row claims, read from its bytes with every stream decoded -- a
     # /ToUnicode that is there, Hebrew emitted in visual order, a control word that is absent. Its
     # controls are two of --self-test's ten, above: a fixture stripped of its /ToUnicode, and the
     # control word planted, must each be reported.
+    # Stage 6 T1 (Stage6-Annotations-Testing-Guide.md A-15) extends it to the annotation
+    # fixtures, the exchange files and the stamp images, and holds every labels/annots-*.json
+    # entry to the object it names.
     rawpage_add_gate_test(NAME gates.corpus.faults
         COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --check-faults
-        EXPECT_EXIT 0 EXPECT_MATCH "every Stage 5 fixture carries what its row claims")
+        EXPECT_EXIT 0 EXPECT_MATCH "every Stage 5 and Stage 6 fixture carries what its row claims")
 
     # Stage 5 T1 (A-15): every comparison record re-derives its revised document from its base, by
     # code that shares nothing with the edits, and each kind of pair keeps its promise about words.

@@ -1,0 +1,340 @@
+{
+ "file": "ordinary/measure-scale.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "2C2639E8884FBBC42ECDABAE65621859",
+ "claims": [
+  "a 216 x 144 pt rectangle (12 ft x 8 ft at 1 in = 4 ft) with both diagonals, and a 288 pt line crossed at its midpoint by a vertical one",
+  "a distance (Line /LineDimension), a perimeter (PolyLine /PolyLineDimension) and an area (Polygon /PolygonDimension), each with /Measure /Subtype /RL",
+  "page 2: text and no path, the control"
+ ],
+ "scale": {
+  "ratio": "1 in = 4 ft",
+  "pointsPerUnit": 18,
+  "unit": "ft"
+ },
+ "geometry": {
+  "page": 0,
+  "segments": [
+   [
+    100,
+    500,
+    316,
+    500
+   ],
+   [
+    316,
+    500,
+    316,
+    644
+   ],
+   [
+    316,
+    644,
+    100,
+    644
+   ],
+   [
+    100,
+    644,
+    100,
+    500
+   ],
+   [
+    100,
+    500,
+    316,
+    644
+   ],
+   [
+    100,
+    644,
+    316,
+    500
+   ],
+   [
+    100,
+    400,
+    388,
+    400
+   ],
+   [
+    244,
+    350,
+    244,
+    450
+   ]
+  ],
+  "points": [
+   {
+    "kind": "endpoint",
+    "x": 100,
+    "y": 500
+   },
+   {
+    "kind": "endpoint",
+    "x": 316,
+    "y": 500
+   },
+   {
+    "kind": "midpoint",
+    "x": 208.0,
+    "y": 500.0
+   },
+   {
+    "kind": "endpoint",
+    "x": 316,
+    "y": 644
+   },
+   {
+    "kind": "midpoint",
+    "x": 316.0,
+    "y": 572.0
+   },
+   {
+    "kind": "endpoint",
+    "x": 100,
+    "y": 644
+   },
+   {
+    "kind": "midpoint",
+    "x": 208.0,
+    "y": 644.0
+   },
+   {
+    "kind": "midpoint",
+    "x": 100.0,
+    "y": 572.0
+   },
+   {
+    "kind": "midpoint",
+    "x": 208.0,
+    "y": 572.0
+   },
+   {
+    "kind": "endpoint",
+    "x": 100,
+    "y": 400
+   },
+   {
+    "kind": "endpoint",
+    "x": 388,
+    "y": 400
+   },
+   {
+    "kind": "midpoint",
+    "x": 244.0,
+    "y": 400.0
+   },
+   {
+    "kind": "endpoint",
+    "x": 244,
+    "y": 350
+   },
+   {
+    "kind": "endpoint",
+    "x": 244,
+    "y": 450
+   }
+  ]
+ },
+ "expected": {
+  "distance": "216 pt = 12 ft",
+  "perimeter": "504 pt = 28 ft",
+  "area": "216 x 144 pt = 96 sq ft"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 6,
+     "subtype": "Line",
+     "rect": [
+      95,
+      480,
+      321,
+      510
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "996e659f-d54a-f549-bd9c-0e98f8bdcf5d",
+     "author": "Kofi Mensah",
+     "contents": "12.00 ft",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 1,
+     "intent": "LineDimension",
+     "leaderLength": 0,
+     "lineEndings": [
+      "ClosedArrow",
+      "ClosedArrow"
+     ],
+     "line": [
+      100,
+      490,
+      316,
+      490
+     ],
+     "measure": {
+      "ratio": "1 in = 4 ft",
+      "x": {
+       "unit": "ft",
+       "factor": 0.0555556,
+       "precision": 100
+      },
+      "distance": {
+       "unit": "ft",
+       "factor": 1,
+       "precision": 100
+      },
+      "area": {
+       "unit": "sq ft",
+       "factor": 1,
+       "precision": 100
+      }
+     },
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 7,
+     "subtype": "PolyLine",
+     "rect": [
+      97,
+      497,
+      319,
+      647
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "c061e75f-19f2-2a2c-4586-98f2a5996b55",
+     "author": "Kofi Mensah",
+     "contents": "28.00 ft",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 1,
+     "intent": "PolyLineDimension",
+     "vertices": [
+      100,
+      500,
+      100,
+      644,
+      316,
+      644,
+      316,
+      500
+     ],
+     "measure": {
+      "ratio": "1 in = 4 ft",
+      "x": {
+       "unit": "ft",
+       "factor": 0.0555556,
+       "precision": 100
+      },
+      "distance": {
+       "unit": "ft",
+       "factor": 1,
+       "precision": 100
+      },
+      "area": {
+       "unit": "sq ft",
+       "factor": 1,
+       "precision": 100
+      }
+     },
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 8,
+     "subtype": "Polygon",
+     "rect": [
+      97,
+      497,
+      319,
+      647
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "710e6efd-b342-f393-b2e6-3d85fe8185f0",
+     "author": "Kofi Mensah",
+     "contents": "96.00 sq ft",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "opacity": 0.5,
+     "borderWidth": 1,
+     "intent": "PolygonDimension",
+     "vertices": [
+      100,
+      500,
+      316,
+      500,
+      316,
+      644,
+      100,
+      644
+     ],
+     "measure": {
+      "ratio": "1 in = 4 ft",
+      "x": {
+       "unit": "ft",
+       "factor": 0.0555556,
+       "precision": 100
+      },
+      "distance": {
+       "unit": "ft",
+       "factor": 1,
+       "precision": 100
+      },
+      "area": {
+       "unit": "sq ft",
+       "factor": 1,
+       "precision": 100
+      }
+     },
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": []
+  }
+ ]
+}

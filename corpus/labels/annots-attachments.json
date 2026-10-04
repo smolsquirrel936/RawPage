@@ -1,0 +1,86 @@
+{
+ "file": "ordinary/attachments.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "3E197A7B8A08A057AF92CC192E2C4781",
+ "claims": [
+  "/Names /EmbeddedFiles with appendix.pdf, readme.txt and setup.exe, each with /Desc, /Subtype, /Params /Size and /CheckSum",
+  "a FileAttachment annotation on page 1 carrying measurements.csv",
+  "the control, a document with no attachment, is ordinary/text-a4.pdf"
+ ],
+ "documentFiles": [
+  {
+   "name": "appendix.pdf",
+   "mime": "application/pdf",
+   "description": "A one-page appendix, attached as a PDF",
+   "size": 1083,
+   "sha256": "8f0be030b26c85f9ff5ebf21585458d38c72024081ff76dd2c587eb11d7f517e",
+   "modified": "D:20260925120000+03'00'"
+  },
+  {
+   "name": "readme.txt",
+   "mime": "text/plain",
+   "description": "Plain-text notes about this document",
+   "size": 56,
+   "sha256": "10e585b207db044dbe1f77d9b5268c1b2fc788ddfbab1ac17a98adc30018554a",
+   "modified": "D:20260925120000+03'00'"
+  },
+  {
+   "name": "setup.exe",
+   "mime": "application/octet-stream",
+   "description": "Named like an executable; its bytes are text and run nothing",
+   "size": 53,
+   "sha256": "4a99e716b5e5e4ed302268c23f76c8820cc3a6761b7e43a66763164f01fb14f1",
+   "modified": "D:20260925120000+03'00'"
+  }
+ ],
+ "executableNames": [
+  "setup.exe"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 5,
+     "subtype": "FileAttachment",
+     "rect": [
+      100,
+      640,
+      116,
+      664
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "eebb0261-1cbb-29be-bec6-77c5f41bcda7",
+     "author": "Noa Levi",
+     "contents": "measurements.csv",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "icon": "PushPin",
+     "attachment": {
+      "name": "measurements.csv",
+      "mime": "text/csv",
+      "size": 38,
+      "sha256": "9ff358efdcb7d61c9f4661540bf1e1342c7a9640f8161babfd3e7316afc569d7",
+      "description": "the measurements behind figure 1"
+     },
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

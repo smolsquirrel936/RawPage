@@ -1,0 +1,1082 @@
+{
+ "file": "ordinary/annots-900.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "973F2B61CA5FF45B4AE41D6DE7972A79",
+ "claims": [
+  "900 pages, ten annotations a page (9,000) in a fixed order of kinds, every appearance stream shared between pages, the dictionaries in object streams"
+ ],
+ "formula": {
+  "pages": 900,
+  "annotsPerPage": 10,
+  "kinds": [
+   "Highlight",
+   "Underline",
+   "StrikeOut",
+   "Squiggly",
+   "Square",
+   "Circle",
+   "Line",
+   "Ink",
+   "Text",
+   "FreeText"
+  ],
+  "authors": [
+   "Ana Lima",
+   "Ben Okafor",
+   "Imani Okoye",
+   "Kofi Mensah"
+  ],
+  "author": "authors[(page * 10 + k) mod 4]",
+  "contents": "{kind} {k + 1} on page {page + 1}",
+  "created": "2026-09-(1 + page mod 28) at (9 + k):((page * 7) mod 60), +01'00'",
+  "geometry": "identical on every page: see pages 0, 1 and 899"
+ },
+ "totalAnnotations": 9000,
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 904,
+     "subtype": "Highlight",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "803d1970-fd17-7eff-39c6-8f5f6dcaf313",
+     "author": "Ana Lima",
+     "subject": "Highlight",
+     "contents": "Highlight 1 on page 1",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260901090000+01'00'",
+     "createdUtc": "2026-09-01T08:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 905,
+     "subtype": "Underline",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "838b0bd2-517a-3946-1501-38728dda8ff1",
+     "author": "Ben Okafor",
+     "subject": "Underline",
+     "contents": "Underline 2 on page 1",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260901100000+01'00'",
+     "createdUtc": "2026-09-01T09:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 906,
+     "subtype": "StrikeOut",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "aeb2b576-40d6-78e3-6e27-daefd414be3f",
+     "author": "Imani Okoye",
+     "subject": "StrikeOut",
+     "contents": "StrikeOut 3 on page 1",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260901110000+01'00'",
+     "createdUtc": "2026-09-01T10:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 907,
+     "subtype": "Squiggly",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "a520b7f8-23e6-8154-9220-fa3455209e18",
+     "author": "Kofi Mensah",
+     "subject": "Squiggly",
+     "contents": "Squiggly 4 on page 1",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260901120000+01'00'",
+     "createdUtc": "2026-09-01T11:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 4,
+     "object": 908,
+     "subtype": "Square",
+     "rect": [
+      60,
+      420,
+      180,
+      460
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "a601c703-e70c-e6b5-e72e-8c15b177caa6",
+     "author": "Ana Lima",
+     "subject": "Square",
+     "contents": "Square 5 on page 1",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "borderWidth": 1,
+     "created": "D:20260901130000+01'00'",
+     "createdUtc": "2026-09-01T12:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 5,
+     "object": 909,
+     "subtype": "Circle",
+     "rect": [
+      60,
+      360,
+      180,
+      400
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "2aa6612e-5a66-1805-5983-877b8b7afa02",
+     "author": "Ben Okafor",
+     "subject": "Circle",
+     "contents": "Circle 6 on page 1",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 1,
+     "created": "D:20260901140000+01'00'",
+     "createdUtc": "2026-09-01T13:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 6,
+     "object": 910,
+     "subtype": "Line",
+     "rect": [
+      60,
+      300,
+      180,
+      340
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "dfdfd3ab-d026-d90c-77ad-18434d0ce4ea",
+     "author": "Imani Okoye",
+     "subject": "Line",
+     "contents": "Line 7 on page 1",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 1,
+     "line": [
+      62,
+      302,
+      178,
+      338
+     ],
+     "created": "D:20260901150000+01'00'",
+     "createdUtc": "2026-09-01T14:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 7,
+     "object": 911,
+     "subtype": "Ink",
+     "rect": [
+      60,
+      240,
+      180,
+      280
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "44e4bdea-6708-b0c3-f62c-abf1c45c2138",
+     "author": "Kofi Mensah",
+     "subject": "Ink",
+     "contents": "Ink 8 on page 1",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 1,
+     "inkList": [
+      [
+       62,
+       242,
+       120,
+       278,
+       178,
+       242
+      ]
+     ],
+     "created": "D:20260901160000+01'00'",
+     "createdUtc": "2026-09-01T15:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 8,
+     "object": 912,
+     "subtype": "Text",
+     "rect": [
+      60,
+      200,
+      80,
+      220
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "3bf8acac-9c02-296d-f9a0-667380d158a8",
+     "author": "Ana Lima",
+     "subject": "Text",
+     "contents": "Text 9 on page 1",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "icon": "Comment",
+     "created": "D:20260901170000+01'00'",
+     "createdUtc": "2026-09-01T16:00:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 9,
+     "object": 913,
+     "subtype": "FreeText",
+     "rect": [
+      60,
+      120,
+      260,
+      160
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "632483d5-4eba-1f69-3b87-d8cb862eff8b",
+     "author": "Ben Okafor",
+     "subject": "FreeText",
+     "contents": "FreeText 10 on page 1",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "justification": 0,
+     "created": "D:20260901180000+01'00'",
+     "createdUtc": "2026-09-01T17:00:00Z",
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 914,
+     "subtype": "Highlight",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "dc8b63b8-8499-d16f-e102-2e83eed97a28",
+     "author": "Imani Okoye",
+     "subject": "Highlight",
+     "contents": "Highlight 1 on page 2",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260902090700+01'00'",
+     "createdUtc": "2026-09-02T08:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 915,
+     "subtype": "Underline",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "610b9c6b-a384-8b2a-43c7-c909dcb31d34",
+     "author": "Kofi Mensah",
+     "subject": "Underline",
+     "contents": "Underline 2 on page 2",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260902100700+01'00'",
+     "createdUtc": "2026-09-02T09:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 916,
+     "subtype": "StrikeOut",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "102b929c-4ab8-cbe5-6de3-e4e07e268eb0",
+     "author": "Ana Lima",
+     "subject": "StrikeOut",
+     "contents": "StrikeOut 3 on page 2",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260902110700+01'00'",
+     "createdUtc": "2026-09-02T10:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 917,
+     "subtype": "Squiggly",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "07ab762d-cfad-4a95-d445-d021663a9dd0",
+     "author": "Ben Okafor",
+     "subject": "Squiggly",
+     "contents": "Squiggly 4 on page 2",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260902120700+01'00'",
+     "createdUtc": "2026-09-02T11:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 4,
+     "object": 918,
+     "subtype": "Square",
+     "rect": [
+      60,
+      420,
+      180,
+      460
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "1f67a3bf-84af-358f-35f2-6a3c291f2e3f",
+     "author": "Imani Okoye",
+     "subject": "Square",
+     "contents": "Square 5 on page 2",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 1,
+     "created": "D:20260902130700+01'00'",
+     "createdUtc": "2026-09-02T12:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 5,
+     "object": 919,
+     "subtype": "Circle",
+     "rect": [
+      60,
+      360,
+      180,
+      400
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "95bc7b80-05f4-fe56-510e-d3e02c77efa5",
+     "author": "Kofi Mensah",
+     "subject": "Circle",
+     "contents": "Circle 6 on page 2",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 1,
+     "created": "D:20260902140700+01'00'",
+     "createdUtc": "2026-09-02T13:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 6,
+     "object": 920,
+     "subtype": "Line",
+     "rect": [
+      60,
+      300,
+      180,
+      340
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "ad420d54-f53e-c675-33e9-90a42e180e2c",
+     "author": "Ana Lima",
+     "subject": "Line",
+     "contents": "Line 7 on page 2",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "borderWidth": 1,
+     "line": [
+      62,
+      302,
+      178,
+      338
+     ],
+     "created": "D:20260902150700+01'00'",
+     "createdUtc": "2026-09-02T14:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 7,
+     "object": 921,
+     "subtype": "Ink",
+     "rect": [
+      60,
+      240,
+      180,
+      280
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "87b9c5cb-f7b7-2bfb-97c2-c664709d5453",
+     "author": "Ben Okafor",
+     "subject": "Ink",
+     "contents": "Ink 8 on page 2",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 1,
+     "inkList": [
+      [
+       62,
+       242,
+       120,
+       278,
+       178,
+       242
+      ]
+     ],
+     "created": "D:20260902160700+01'00'",
+     "createdUtc": "2026-09-02T15:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 8,
+     "object": 922,
+     "subtype": "Text",
+     "rect": [
+      60,
+      200,
+      80,
+      220
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "ce1fef8f-acd5-7a66-29ee-ebf54ca25fa0",
+     "author": "Imani Okoye",
+     "subject": "Text",
+     "contents": "Text 9 on page 2",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "icon": "Comment",
+     "created": "D:20260902170700+01'00'",
+     "createdUtc": "2026-09-02T16:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 9,
+     "object": 923,
+     "subtype": "FreeText",
+     "rect": [
+      60,
+      120,
+      260,
+      160
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "4c40dccf-4adb-b0cb-80a5-d6fe23d85ec1",
+     "author": "Kofi Mensah",
+     "subject": "FreeText",
+     "contents": "FreeText 10 on page 2",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "justification": 0,
+     "created": "D:20260902180700+01'00'",
+     "createdUtc": "2026-09-02T17:07:00Z",
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 899,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 9894,
+     "subtype": "Highlight",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "eced02b2-2d20-2520-da77-2f54ed4d1783",
+     "author": "Imani Okoye",
+     "subject": "Highlight",
+     "contents": "Highlight 1 on page 900",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260904095300+01'00'",
+     "createdUtc": "2026-09-04T08:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 9895,
+     "subtype": "Underline",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "3cb031c0-d011-01a9-8ff8-ebac62727ced",
+     "author": "Kofi Mensah",
+     "subject": "Underline",
+     "contents": "Underline 2 on page 900",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260904105300+01'00'",
+     "createdUtc": "2026-09-04T09:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 9896,
+     "subtype": "StrikeOut",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "9efe1aa2-d354-b81c-eadd-40967ea4c520",
+     "author": "Ana Lima",
+     "subject": "StrikeOut",
+     "contents": "StrikeOut 3 on page 900",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260904115300+01'00'",
+     "createdUtc": "2026-09-04T10:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 9897,
+     "subtype": "Squiggly",
+     "rect": [
+      156.812,
+      757.723,
+      225.881,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "345aba70-326f-2810-76ef-469021badae2",
+     "author": "Ben Okafor",
+     "subject": "Squiggly",
+     "contents": "Squiggly 4 on page 900",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      156.812,
+      767.898,
+      225.881,
+      767.898,
+      156.812,
+      757.723,
+      225.881,
+      757.723
+     ],
+     "created": "D:20260904125300+01'00'",
+     "createdUtc": "2026-09-04T11:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 4,
+     "object": 9898,
+     "subtype": "Square",
+     "rect": [
+      60,
+      420,
+      180,
+      460
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "605bc396-b3f7-6791-d061-3257830df831",
+     "author": "Imani Okoye",
+     "subject": "Square",
+     "contents": "Square 5 on page 900",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 1,
+     "created": "D:20260904135300+01'00'",
+     "createdUtc": "2026-09-04T12:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 5,
+     "object": 9899,
+     "subtype": "Circle",
+     "rect": [
+      60,
+      360,
+      180,
+      400
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "13d57ed2-c302-bd17-a313-ccf06e3f448c",
+     "author": "Kofi Mensah",
+     "subject": "Circle",
+     "contents": "Circle 6 on page 900",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 1,
+     "created": "D:20260904145300+01'00'",
+     "createdUtc": "2026-09-04T13:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 6,
+     "object": 9900,
+     "subtype": "Line",
+     "rect": [
+      60,
+      300,
+      180,
+      340
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "bffb92a6-72b5-0fac-6e97-4a8468f30b82",
+     "author": "Ana Lima",
+     "subject": "Line",
+     "contents": "Line 7 on page 900",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "borderWidth": 1,
+     "line": [
+      62,
+      302,
+      178,
+      338
+     ],
+     "created": "D:20260904155300+01'00'",
+     "createdUtc": "2026-09-04T14:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 7,
+     "object": 9901,
+     "subtype": "Ink",
+     "rect": [
+      60,
+      240,
+      180,
+      280
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "77c46d08-7120-8444-0a6e-c785eac74da4",
+     "author": "Ben Okafor",
+     "subject": "Ink",
+     "contents": "Ink 8 on page 900",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 1,
+     "inkList": [
+      [
+       62,
+       242,
+       120,
+       278,
+       178,
+       242
+      ]
+     ],
+     "created": "D:20260904165300+01'00'",
+     "createdUtc": "2026-09-04T15:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 8,
+     "object": 9902,
+     "subtype": "Text",
+     "rect": [
+      60,
+      200,
+      80,
+      220
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "77c0a846-0b1a-0d4f-881a-0546a98b40a9",
+     "author": "Imani Okoye",
+     "subject": "Text",
+     "contents": "Text 9 on page 900",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "icon": "Comment",
+     "created": "D:20260904175300+01'00'",
+     "createdUtc": "2026-09-04T16:53:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 9,
+     "object": 9903,
+     "subtype": "FreeText",
+     "rect": [
+      60,
+      120,
+      260,
+      160
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "13197801-c1fa-b7da-e581-35dfd54306c0",
+     "author": "Kofi Mensah",
+     "subject": "FreeText",
+     "contents": "FreeText 10 on page 900",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "justification": 0,
+     "created": "D:20260904185300+01'00'",
+     "createdUtc": "2026-09-04T17:53:00Z",
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

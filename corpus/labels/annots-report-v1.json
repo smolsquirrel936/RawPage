@@ -1,0 +1,406 @@
+{
+ "file": "ordinary/annots-report-v1.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "DA2D9445ADF24445803B87C90902525A",
+ "claims": [
+  "compare/report-v1.pdf's content streams, unchanged, with annotations whose migration to compare/report-v2.pdf is labelled in labels/annots-migration.json"
+ ],
+ "revised": "compare/report-v2.pdf",
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 9,
+     "subtype": "Highlight",
+     "rect": [
+      54.0,
+      743.93,
+      170.71,
+      753.18
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "f0fbdf6f-e283-0ebc-779c-05fe488011a4",
+     "author": "Kofi Mensah",
+     "contents": "Page report logical stream",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      54.0,
+      753.18,
+      170.71,
+      753.18,
+      54.0,
+      743.93,
+      170.71,
+      743.93
+     ],
+     "created": "D:20260921100100Z",
+     "createdUtc": "2026-09-21T10:01:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 10,
+     "subtype": "Underline",
+     "rect": [
+      364.92,
+      584.93,
+      503.32,
+      594.18
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "9e52b4c8-3b32-b5c2-7f89-3251b76df77d",
+     "author": "Kofi Mensah",
+     "contents": "kerning boundary page monitor",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      364.92,
+      594.18,
+      503.32,
+      594.18,
+      364.92,
+      584.93,
+      503.32,
+      584.93
+     ],
+     "created": "D:20260921100200Z",
+     "createdUtc": "2026-09-21T10:02:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 11,
+     "subtype": "StrikeOut",
+     "rect": [
+      116.24,
+      631.93,
+      270.75,
+      641.18
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "df8f44fd-be5e-30f3-9f9f-fad2699a0941",
+     "author": "Kofi Mensah",
+     "contents": "schedule raster tile percentile table",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      116.24,
+      641.18,
+      270.75,
+      641.18,
+      116.24,
+      631.93,
+      270.75,
+      631.93
+     ],
+     "created": "D:20260921100300Z",
+     "createdUtc": "2026-09-21T10:03:00Z",
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 17,
+     "subtype": "Text",
+     "rect": [
+      220.0,
+      585.0,
+      240.0,
+      605.0
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "bb1cfd36-d5cf-b4f0-0c97-4e40a7242f64",
+     "author": "Kofi Mensah",
+     "contents": "A note beside the figure.",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "created": "D:20260921100900Z",
+     "createdUtc": "2026-09-21T10:09:00Z",
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 12,
+     "subtype": "Highlight",
+     "rect": [
+      54.0,
+      699.93,
+      222.97,
+      709.18
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "6216569e-93c3-62a8-4fc7-4b529654278b",
+     "author": "Kofi Mensah",
+     "contents": "Revision scaling tag budget document",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      54.0,
+      709.18,
+      222.97,
+      709.18,
+      54.0,
+      699.93,
+      222.97,
+      699.93
+     ],
+     "created": "D:20260921100400Z",
+     "createdUtc": "2026-09-21T10:04:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 13,
+     "subtype": "Squiggly",
+     "rect": [
+      54.0,
+      574.93,
+      253.5,
+      584.18
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "03305c0d-9c0c-66ce-b135-e7db1e268006",
+     "author": "Kofi Mensah",
+     "contents": "typeface viewport stream revision permission",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      54.0,
+      584.18,
+      253.5,
+      584.18,
+      54.0,
+      574.93,
+      253.5,
+      574.93
+     ],
+     "created": "D:20260921100500Z",
+     "createdUtc": "2026-09-21T10:05:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 14,
+     "subtype": "Highlight",
+     "rect": [
+      57.0,
+      754.74,
+      115.582,
+      762.603
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "3664b121-37e6-72e0-f728-e4dad9bbeb8e",
+     "author": "Kofi Mensah",
+     "contents": "LayoutAnalyzer",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "quadPoints": [
+      57.0,
+      762.603,
+      115.582,
+      762.603,
+      57.0,
+      754.74,
+      115.582,
+      754.74
+     ],
+     "created": "D:20260921100600Z",
+     "createdUtc": "2026-09-21T10:06:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 18,
+     "subtype": "Text",
+     "rect": [
+      27.0,
+      786.5,
+      47.0,
+      806.5
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "8aea1fff-85e0-bca8-e1b8-3b7c987b6596",
+     "author": "Kofi Mensah",
+     "contents": "A note beside the table.",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "created": "D:20260921101000Z",
+     "createdUtc": "2026-09-21T10:10:00Z",
+     "hasAppearance": true
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 15,
+     "subtype": "Highlight",
+     "rect": [
+      60.0,
+      28.344,
+      100.912,
+      35.744
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "6538fdd7-68d6-0787-a451-1594fad50f8d",
+     "author": "Kofi Mensah",
+     "contents": "2026-08-31",
+     "color": [
+      0.95,
+      0.55,
+      0.1
+     ],
+     "quadPoints": [
+      60.0,
+      35.744,
+      100.912,
+      35.744,
+      60.0,
+      28.344,
+      100.912,
+      28.344
+     ],
+     "created": "D:20260921100700Z",
+     "createdUtc": "2026-09-21T10:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 16,
+     "subtype": "Underline",
+     "rect": [
+      54.0,
+      550.93,
+      177.93,
+      560.18
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "ae0c21dd-fe13-3973-f311-f3999f48a0f9",
+     "author": "Kofi Mensah",
+     "contents": "Page monitor logical stream",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      54.0,
+      560.18,
+      177.93,
+      560.18,
+      54.0,
+      550.93,
+      177.93,
+      550.93
+     ],
+     "created": "D:20260921100800Z",
+     "createdUtc": "2026-09-21T10:08:00Z",
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}

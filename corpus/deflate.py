@@ -152,8 +152,17 @@ def _huffman_lengths(freqs, limit):
     if max(lengths) <= limit:
         return lengths
 
-    # Kraft redistribution: clamp everything over the limit, then pay for it by lengthening the
-    # rarest codes until the Kraft sum is back under one.
+    # Too deep. Two repairs, tried in order, because the first one's outputs are already in the
+    # corpus and "every existing file is byte-unchanged" is a Stage 6 T1 exit criterion.
+    #
+    # The FIRST is this file's original: clamp everything over the limit, then lengthen the rarest
+    # codes until the Kraft sum is back at or under one. When that lands exactly ON one the code is
+    # complete and is kept -- `ordinary/image-flate-predictor.pdf` is one such stream. But it can
+    # overshoot, and an INCOMPLETE literal/length or code-length code is refused by inflate ("invalid
+    # literal/lengths set") as surely as an over-subscribed one: on annots-900.pdf's object stream
+    # (an 18-deep tree) it left the sum at 0.99960 and compress()'s self-check stopped generation
+    # (Stage6-Annotations-Testing-Guide.md, issue I-01).
+    unclamped = list(lengths)
     for sym, length in enumerate(lengths):
         if length > limit:
             lengths[sym] = limit
@@ -169,6 +178,39 @@ def _huffman_lengths(freqs, limit):
             total -= 1 << (limit - lengths[sym])
             lengths[sym] += 1
             total += 1 << (limit - lengths[sym])
+    if total == one:
+        return lengths
+
+    # The SECOND is JPEG's Adjust_BITS (ITU-T T.81 Annex K.2) on the count of codes per depth: take
+    # two sibling leaves from the deepest level -- their parent becomes a leaf one level up -- and
+    # hang them under a leaf from the deepest level with room, which becomes their parent. Each
+    # step is surgery on a full tree that leaves it full, so the Kraft sum stays exactly one.
+    deepest = max(unclamped)
+    count = [0] * (deepest + 1)
+    for length in unclamped:
+        if length:
+            count[length] += 1
+    for depth in range(deepest, limit, -1):
+        while count[depth] > 0:
+            donor = depth - 2
+            while count[donor] == 0:
+                donor -= 1
+            count[depth] -= 2
+            count[depth - 1] += 1
+            count[donor + 1] += 2
+            count[donor] -= 1
+    # Hand the lengths back out: the most frequent symbols take the shortest codes, ties broken by
+    # symbol index -- never by sort stability or heap order.
+    lengths = [0] * len(freqs)
+    order = sorted((sym for sym in range(len(unclamped)) if unclamped[sym]),
+                   key=lambda sym: (-freqs[sym], sym))
+    position = 0
+    for bits in range(1, limit + 1):
+        for _ in range(count[bits]):
+            lengths[order[position]] = bits
+            position += 1
+    if sum(1 << (limit - length) for length in lengths if length) != one:
+        raise AssertionError("length-limited Huffman code is not complete")
     return lengths
 
 

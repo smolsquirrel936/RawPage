@@ -1296,6 +1296,186 @@
         },
         {
             "dpi": 96,
+            "file": "ordinary/annots-900.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-900.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-900.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-900.pdf",
+            "height": 1123,
+            "page": 899,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-900.pdf",
+            "height": 1684,
+            "page": 899,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-900.pdf",
+            "height": 2246,
+            "page": 899,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-direct.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-direct.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-direct.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-direct.pdf",
+            "height": 1123,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-direct.pdf",
+            "height": 1684,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-direct.pdf",
+            "height": 2246,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-every-type.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-every-type.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-every-type.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-flags.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-flags.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-flags.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "ordinary/annots-mixed.pdf",
             "height": 1123,
             "page": 0,
@@ -1349,6 +1529,336 @@
             "file": "ordinary/annots-mixed.pdf",
             "height": 2246,
             "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-no-ap.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-no-ap.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-no-ap.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-no-ap.pdf",
+            "height": 1123,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-no-ap.pdf",
+            "height": 1684,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-no-ap.pdf",
+            "height": 2246,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-report-v1.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-report-v1.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-report-v1.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 794,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1123
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1191,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1684
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1588,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 2246
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1123,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1684,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 2246,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 794,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1123
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1191,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1684
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-rotated.pdf",
+            "height": 1588,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 2246
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-threads.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-threads.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-threads.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-threads.pdf",
+            "height": 1123,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-threads.pdf",
+            "height": 1684,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-threads.pdf",
+            "height": 2246,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/annots-unknown-keys.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/annots-unknown-keys.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/annots-unknown-keys.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/attachments.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/attachments.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/attachments.pdf",
+            "height": 2246,
+            "page": 0,
             "substitutions": [
                 "Helvetica -> (engine) [standard-declined]"
             ],
@@ -2076,6 +2586,36 @@
         {
             "dpi": 192,
             "file": "ordinary/latin-embedded.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "ordinary/measure-scale.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "ordinary/measure-scale.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "ordinary/measure-scale.pdf",
             "height": 2246,
             "page": 0,
             "substitutions": [
@@ -3164,7 +3704,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-09-29T12:29:04Z",
+    "capturedUtc": "2026-10-04T17:20:24Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 5 T1: 27 corpus files added (ordinary/columns-two, columns-three, table-ruled, rtl-text, cjk-vertical, hyphenated, text-tounicode, cjk-readable, search-classes, text-900, and the 17 files of compare/). Additions only -- no existing baseline is regenerated, and the filter names only the new files."
+    "reason": "Stage 6 T1: 11 corpus files added (ordinary/annots-every-type, annots-no-ap, annots-threads, annots-flags, annots-rotated, annots-direct, annots-unknown-keys, annots-900, attachments, measure-scale, annots-report-v1). Additions only -- no existing baseline is regenerated, and the filter names only the new files. Every image was looked at in a scratch capture first."
 }

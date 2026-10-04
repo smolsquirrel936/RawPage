@@ -1,0 +1,902 @@
+{
+ "file": "ordinary/annots-every-type.pdf",
+ "generator": "corpus/make-annots.py",
+ "units": "PDF points, page space (before /Rotate)",
+ "fileId": "9AA96C74F8F51185B66C6F9C973D2BE0",
+ "claims": [
+  "one of every subtype Stage 6 writes, each with an appearance this generator drew",
+  "a note with its pop-up; FreeText as a box, a callout and a typewriter",
+  "a polygon with a cloudy border; a line with two different heads",
+  "a file attachment and a sound, each with its payload; a redaction mark with /RO"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "index": 0,
+     "object": 5,
+     "subtype": "Highlight",
+     "rect": [
+      256.461,
+      757.723,
+      346.342,
+      767.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "5043e2eb-3e13-d3bf-03ab-158c24668db9",
+     "author": "Imani Okoye",
+     "subject": "Highlight",
+     "contents": "highlight on 'highlighted phrase'",
+     "color": [
+      1,
+      0.92,
+      0.23
+     ],
+     "opacity": 0.6,
+     "quadPoints": [
+      256.461,
+      767.898,
+      346.342,
+      767.898,
+      256.461,
+      757.723,
+      346.342,
+      757.723
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090100+08'00'",
+     "modifiedUtc": "2026-09-20T01:01:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 1,
+     "object": 6,
+     "subtype": "Underline",
+     "rect": [
+      285.215,
+      735.723,
+      373.259,
+      745.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "e4f037ea-99cd-b57a-485d-a8bdfec1c311",
+     "author": "Imani Okoye",
+     "subject": "Underline",
+     "contents": "underline on 'underlined phrase'",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "quadPoints": [
+      285.215,
+      745.898,
+      373.259,
+      745.898,
+      285.215,
+      735.723,
+      373.259,
+      735.723
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090200+08'00'",
+     "modifiedUtc": "2026-09-20T01:02:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 7,
+     "subtype": "StrikeOut",
+     "rect": [
+      272.972,
+      713.723,
+      338.994,
+      723.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "16fc7293-5460-32da-3614-4903a6cccb82",
+     "author": "Imani Okoye",
+     "subject": "StrikeOut",
+     "contents": "strikeout on 'struck phrase'",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "quadPoints": [
+      272.972,
+      723.898,
+      338.994,
+      723.898,
+      272.972,
+      713.723,
+      338.994,
+      713.723
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090300+08'00'",
+     "modifiedUtc": "2026-09-20T01:03:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 3,
+     "object": 8,
+     "subtype": "Squiggly",
+     "rect": [
+      262.577,
+      691.723,
+      339.61,
+      701.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "08377982-5306-82e1-ff41-d432dc1d7a91",
+     "author": "Imani Okoye",
+     "subject": "Squiggly",
+     "contents": "squiggly on 'squiggly phrase'",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "quadPoints": [
+      262.577,
+      701.898,
+      339.61,
+      701.898,
+      262.577,
+      691.723,
+      339.61,
+      691.723
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090400+08'00'",
+     "modifiedUtc": "2026-09-20T01:04:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 4,
+     "object": 9,
+     "subtype": "Caret",
+     "rect": [
+      295.976,
+      669,
+      301.976,
+      677
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "52662da7-b868-9a69-ad95-353b2b1ed48f",
+     "author": "Imani Okoye",
+     "subject": "Inserted Text",
+     "contents": "new",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "caretSymbol": "None",
+     "rectDifferences": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090500+08'00'",
+     "modifiedUtc": "2026-09-20T01:05:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 5,
+     "object": 10,
+     "subtype": "Redact",
+     "rect": [
+      269.925,
+      647.723,
+      376.955,
+      657.898
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "53ffb200-6114-dff8-7ce9-757f0064b01d",
+     "author": "Imani Okoye",
+     "subject": "Redact",
+     "contents": "account number",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0,
+      0,
+      0
+     ],
+     "defaultAppearance": "1 1 1 rg /Helv 9 Tf",
+     "overlayText": "REDACTED",
+     "repeat": false,
+     "quadPoints": [
+      269.925,
+      657.898,
+      376.955,
+      657.898,
+      269.925,
+      647.723,
+      376.955,
+      647.723
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090600+08'00'",
+     "modifiedUtc": "2026-09-20T01:06:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 6,
+     "object": 11,
+     "subtype": "Square",
+     "rect": [
+      48,
+      470,
+      168,
+      560
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "5fa2bf4b-603c-2849-f079-dbe9d8d1a4ec",
+     "author": "Imani Okoye",
+     "subject": "Rectangle",
+     "contents": "a square, filled",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "interiorColor": [
+      0.99,
+      0.9,
+      0.9
+     ],
+     "opacity": 0.9,
+     "borderWidth": 2,
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090700+08'00'",
+     "modifiedUtc": "2026-09-20T01:07:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 7,
+     "object": 12,
+     "subtype": "Circle",
+     "rect": [
+      190,
+      470,
+      310,
+      560
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "676dbc06-c29c-5095-400b-3e70084f45dc",
+     "author": "Imani Okoye",
+     "subject": "Oval",
+     "contents": "a circle",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 2,
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090800+08'00'",
+     "modifiedUtc": "2026-09-20T01:08:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 8,
+     "object": 13,
+     "subtype": "Line",
+     "rect": [
+      330,
+      470,
+      547,
+      560
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "df29efbe-c387-5a15-e039-424d6e6fa2ff",
+     "author": "Imani Okoye",
+     "subject": "Arrow",
+     "contents": "a line with an open and a closed head",
+     "color": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "interiorColor": [
+      0.13,
+      0.55,
+      0.25
+     ],
+     "borderWidth": 2,
+     "lineEndings": [
+      "OpenArrow",
+      "ClosedArrow"
+     ],
+     "line": [
+      340,
+      480,
+      537,
+      550
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920090900+08'00'",
+     "modifiedUtc": "2026-09-20T01:09:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 9,
+     "object": 14,
+     "subtype": "Polygon",
+     "rect": [
+      43,
+      358,
+      167,
+      447
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "e093b27e-2d49-2f80-d033-4cb2f0f54001",
+     "author": "Imani Okoye",
+     "subject": "Polygon",
+     "contents": "a pentagon",
+     "color": [
+      0.5,
+      0.25,
+      0.7
+     ],
+     "borderWidth": 1.5,
+     "vertices": [
+      60,
+      360,
+      150,
+      360,
+      165,
+      410,
+      105,
+      445,
+      45,
+      410
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091000+08'00'",
+     "modifiedUtc": "2026-09-20T01:10:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 10,
+     "object": 15,
+     "subtype": "Polygon",
+     "rect": [
+      197,
+      357,
+      308,
+      443
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "8265ec15-9c60-7335-141e-c4caec2e9f49",
+     "author": "Imani Okoye",
+     "subject": "Cloud",
+     "contents": "a cloud",
+     "color": [
+      0.95,
+      0.55,
+      0.1
+     ],
+     "borderWidth": 1,
+     "cloudIntensity": 1,
+     "vertices": [
+      205,
+      365,
+      300,
+      365,
+      300,
+      435,
+      205,
+      435
+     ],
+     "rectDifferences": [
+      8,
+      8,
+      8,
+      8
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091100+08'00'",
+     "modifiedUtc": "2026-09-20T01:11:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 11,
+     "object": 16,
+     "subtype": "PolyLine",
+     "rect": [
+      338,
+      363,
+      539,
+      432
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "e697edf8-f7bf-c913-216b-c72e6a6104b6",
+     "author": "Imani Okoye",
+     "subject": "Polygonal Line",
+     "contents": "a polyline",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "borderWidth": 1.5,
+     "lineEndings": [
+      "None",
+      "OpenArrow"
+     ],
+     "vertices": [
+      340,
+      365,
+      390,
+      430,
+      440,
+      375,
+      490,
+      430,
+      537,
+      370
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091200+08'00'",
+     "modifiedUtc": "2026-09-20T01:12:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 12,
+     "object": 17,
+     "subtype": "Ink",
+     "rect": [
+      54.0,
+      234,
+      155.5,
+      301
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "8e5c7867-e514-6f7e-6fdb-c08ee187a7f8",
+     "author": "Imani Okoye",
+     "subject": "Pencil",
+     "contents": "three ink strokes",
+     "color": [
+      0.1,
+      0.1,
+      0.5
+     ],
+     "borderWidth": 2,
+     "inkList": [
+      [
+       56.0,
+       236,
+       63.5,
+       243,
+       71.0,
+       241,
+       78.5,
+       242,
+       86.0,
+       240,
+       93.5,
+       247,
+       101.0,
+       239,
+       108.5,
+       246,
+       116.0,
+       244,
+       123.5,
+       236,
+       131.0,
+       243,
+       138.5,
+       241,
+       146.0,
+       242,
+       153.5,
+       240
+      ],
+      [
+       56.0,
+       265,
+       63.5,
+       272,
+       71.0,
+       270,
+       78.5,
+       262,
+       86.0,
+       269,
+       93.5,
+       267,
+       101.0,
+       268,
+       108.5,
+       266,
+       116.0,
+       273,
+       123.5,
+       265,
+       131.0,
+       272,
+       138.5,
+       270,
+       146.0,
+       262,
+       153.5,
+       269
+      ],
+      [
+       56.0,
+       294,
+       63.5,
+       292,
+       71.0,
+       299,
+       78.5,
+       291,
+       86.0,
+       298,
+       93.5,
+       296,
+       101.0,
+       288,
+       108.5,
+       295,
+       116.0,
+       293,
+       123.5,
+       294,
+       131.0,
+       292,
+       138.5,
+       299,
+       146.0,
+       291,
+       153.5,
+       298
+      ]
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091300+08'00'",
+     "modifiedUtc": "2026-09-20T01:13:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 13,
+     "object": 18,
+     "subtype": "Stamp",
+     "rect": [
+      190,
+      255,
+      340,
+      299
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "a7367727-f931-a4c5-3055-41079075640e",
+     "author": "Imani Okoye",
+     "subject": "Approved",
+     "contents": "Approved",
+     "icon": "Approved",
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091400+08'00'",
+     "modifiedUtc": "2026-09-20T01:14:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 14,
+     "object": 19,
+     "subtype": "FileAttachment",
+     "rect": [
+      360,
+      270,
+      376,
+      294
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "37887e16-3e66-462c-71ca-c1791d898463",
+     "author": "Imani Okoye",
+     "subject": "File Attachment",
+     "contents": "data.csv",
+     "color": [
+      0.13,
+      0.4,
+      0.86
+     ],
+     "icon": "PushPin",
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091500+08'00'",
+     "modifiedUtc": "2026-09-20T01:15:00Z",
+     "attachment": {
+      "name": "data.csv",
+      "mime": "text/csv",
+      "size": 32,
+      "sha256": "564e840995b6afe701aa61d28f69c7c986a73c2ddc68d0748db3c05745584f89",
+      "description": "the figures behind table 2"
+     },
+     "hasAppearance": true
+    },
+    {
+     "index": 15,
+     "object": 20,
+     "subtype": "Sound",
+     "rect": [
+      420,
+      272,
+      440,
+      292
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "53a1973b-98a6-276a-83b0-c418211c7580",
+     "author": "Imani Okoye",
+     "subject": "Sound",
+     "contents": "a quarter-second tone",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Speaker",
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091600+08'00'",
+     "modifiedUtc": "2026-09-20T01:16:00Z",
+     "sound": {
+      "rate": 8000,
+      "channels": 1,
+      "bits": 16,
+      "encoding": "Signed",
+      "byteOrder": "big-endian",
+      "samples": 2000,
+      "sha256": "7bcffa4344ef1fa4971d1f696b2cca88182278fd2f4d5fd47966318905b5f532"
+     },
+     "hasAppearance": true
+    },
+    {
+     "index": 16,
+     "object": 21,
+     "subtype": "Text",
+     "rect": [
+      480,
+      274,
+      500,
+      294
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "c33a1126-619f-0b3e-f7a5-5e73089b8810",
+     "author": "Imani Okoye",
+     "subject": "Sticky Note",
+     "contents": "A sticky note with a pop-up.",
+     "color": [
+      1,
+      0.85,
+      0.3
+     ],
+     "icon": "Comment",
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091700+08'00'",
+     "modifiedUtc": "2026-09-20T01:17:00Z",
+     "popup": 22,
+     "hasAppearance": true
+    },
+    {
+     "index": 17,
+     "object": 22,
+     "subtype": "Popup",
+     "rect": [
+      395,
+      170,
+      547,
+      250
+     ],
+     "flags": 28,
+     "flagNames": [
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "open": false,
+     "parent": 21,
+     "hasAppearance": false
+    },
+    {
+     "index": 18,
+     "object": 23,
+     "subtype": "FreeText",
+     "rect": [
+      48,
+      80,
+      200,
+      150
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "45343d2e-fcf2-9e43-c7f9-1eda8c31a511",
+     "author": "Imani Okoye",
+     "subject": "Text Box",
+     "contents": "A free text box in Helvetica, wrapped by the generator.",
+     "richText": "A free text box in Helvetica, wrapped by the generator.",
+     "color": [
+      0.3,
+      0.3,
+      0.3
+     ],
+     "borderWidth": 1,
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091800+08'00'",
+     "modifiedUtc": "2026-09-20T01:18:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 19,
+     "object": 24,
+     "subtype": "FreeText",
+     "rect": [
+      220,
+      60,
+      380,
+      200
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "2e61775f-ad99-a487-51dd-586f201930d9",
+     "author": "Imani Okoye",
+     "subject": "Callout",
+     "contents": "A callout pointing up.",
+     "color": [
+      0.86,
+      0.15,
+      0.15
+     ],
+     "borderWidth": 1,
+     "intent": "FreeTextCallout",
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "lineEndings": [
+      "OpenArrow"
+     ],
+     "callout": [
+      250,
+      190,
+      260,
+      150,
+      280,
+      120
+     ],
+     "rectDifferences": [
+      60,
+      0,
+      0,
+      80
+     ],
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920091900+08'00'",
+     "modifiedUtc": "2026-09-20T01:19:00Z",
+     "hasAppearance": true
+    },
+    {
+     "index": 20,
+     "object": 25,
+     "subtype": "FreeText",
+     "rect": [
+      400,
+      110,
+      547,
+      130
+     ],
+     "flags": 4,
+     "flagNames": [
+      "Print"
+     ],
+     "nm": "e9a7f737-7c1b-82a1-6890-63c681fe3491",
+     "author": "Imani Okoye",
+     "subject": "Typewriter",
+     "contents": "Typewriter text.",
+     "borderWidth": 0,
+     "intent": "FreeTextTypeWriter",
+     "defaultAppearance": "0 0 0 rg /Helv 10 Tf",
+     "defaultStyle": "font: Helvetica,sans-serif 10.0pt; text-align:left; color:#000000",
+     "justification": 0,
+     "created": "D:20260920090000+08'00'",
+     "createdUtc": "2026-09-20T01:00:00Z",
+     "modified": "D:20260920092000+08'00'",
+     "modifiedUtc": "2026-09-20T01:20:00Z",
+     "hasAppearance": true
+    }
+   ]
+  }
+ ]
+}
