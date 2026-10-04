@@ -14,8 +14,8 @@
 > | How Stage 5 is verified | [`Stage5-TextSearch-Testing-Guide.md`](./Stage5-TextSearch-Testing-Guide.md) — written from this plan, **before** the code |
 >
 > **Status:** ⚪ **Written 2026-09-29, two days after Stage 4 was signed off, as a draft; §0 ANSWERED
-> the same day, all seven — so this is now the plan.** *(It was written before any Stage 5 code; T1 to T13
-> have been built since, 2026-09-29 to 2026-10-02 -- this sentence said "T1 to T9" from T9 until T13 corrected it --
+> the same day, all seven — so this is now the plan.** *(It was written before any Stage 5 code; T1 to T14
+> were built since, 2026-09-29 to 2026-10-02, and **the stage was signed off by the user on 2026-10-04** -- this sentence said "T1 to T9" from T9 until T13 corrected it, and "T1 to T13" until the sign-off --
 > and where they stand is the status block named below.)* Q1, Q2, Q5, Q6 and Q7
 > were approved as proposed (Q1 with the correction D5-15 records); Q3 and Q4 were answered with
 > **option B** after the user asked for more detail — a snapshot resolution setting (D5-10, D5-11) and
@@ -178,7 +178,7 @@ questions** and read as proposals until you answer.
 ## 4. File manifest
 
 Every file Stage 5 creates or turns from ○, with the [`Architecture-FileMap.md`](./Architecture-FileMap.md)
-row it must flip **in the same change**. Rows marked ⚠️ have no FileMap row yet and are lockstep debt
+row it must flip **in the same change**. Rows marked ⚠️ had no FileMap row when planned and were lockstep debt -- all seven paid with their files, re-checked 2026-10-04 --
 (§10), paid with the file.
 
 | File | FileMap row | Task |
@@ -190,7 +190,7 @@ row it must flip **in the same change**. Rows marked ⚠️ have no FileMap row 
 | `core/render/RenderScheduler.{h,cpp}` — the text job and the `Background` lane (D5-3) | §3.4's scheduler row | T2 |
 | `tests/bench/bench_pipeline.cpp` — the Stage 5 mode | §3.17's `tests/bench/` row (D5-22) | T3 |
 | `core/text/LayoutAnalyzer.{h,cpp}` | §3.5 ○ (S5) → ✅ | T4 |
-| `core/text/TextNormalizer.{h,cpp}` — D5-5's one pipeline | ⚠️ **no row** — §3.5, added with the file | T4 |
+| `core/text/TextNormalizer.{h,cpp}` — D5-5's one pipeline | ✅ **row added with the file** (⚠️ no row when planned) — §3.5, added with the file | T4 |
 | `core/text/TextSelection.{h,cpp}` | §3.5 ○ (S5) → ✅ | T5 |
 | `ui/viewer/SelectionOverlay.{h,cpp}` | §3.14 ○ (S5) → ✅ — selection **and** search highlights (flow G) | T5, T7 |
 | `ui/viewer/tools/SelectTool.{h,cpp}` — given its subject | §3.14's `tools/*` row | T5 |
@@ -198,19 +198,19 @@ row it must flip **in the same change**. Rows marked ⚠️ have no FileMap row 
 | `core/settings/SettingsKeys.def` — the fifteen keys; `PreferencesDialog::shippedPages()` — Search | §3.8's `core/settings/` rows and §3.15's `PreferencesDialog` row | T6, T13 |
 | `ui/write/FindReplaceBar.{h,cpp}` — the find half | §3.15 ○ (S5 find, S13 replace) → 🟡 (S5 find ✅, S13 replace) | T7 |
 | `pdf/render/PdfiumDocument.{h,cpp}` — the search-units reader (D5-12) | §3.10's row | T8 |
-| `core/text/SearchUnit.h` — the search unit and its parts (D5-12) *(added at T8)* | ⚠️ **no row** — §3.5, added with the file | T8 |
-| `pdf/ops/EmbeddedFileReader.{h,cpp}` — an embedded file's `/Desc`, which PDFium does not read (D5-12 clarified) *(added at T8)* | ⚠️ **no row** — the `pdf/ops/` section, added with the file | T8 |
+| `core/text/SearchUnit.h` — the search unit and its parts (D5-12) *(added at T8)* | ✅ **row added with the file** (⚠️ no row when planned) — §3.5, added with the file | T8 |
+| `pdf/ops/EmbeddedFileReader.{h,cpp}` — an embedded file's `/Desc`, which PDFium does not read (D5-12 clarified) *(added at T8)* | ✅ **row added with the file** (⚠️ no row when planned) — the `pdf/ops/` section, added with the file | T8 |
 | `core/render/RenderScheduler.{h,cpp}` — the engine task, a third kind of job (D5-12 clarified) | §3.4's scheduler row | T8 |
 | `ui/panes/SearchPane.{h,cpp}` | §3.15 ○ (S5) → 🟡 (S5 folder ✅, S16 catalog and portfolio) | T9 |
-| `core/text/SearchResults.{h,cpp}` — sort, filter, refine, and the CSV bytes (D5-13) | ⚠️ **no row** — §3.5, added with the file | T9 |
-| `core/text/FolderSearch.{h,cpp}` — the folder run, each file opened in pieces (D5-13 clarified) *(added at T9)* | ⚠️ **no row** — §3.5, added with the file | T9 |
+| `core/text/SearchResults.{h,cpp}` — sort, filter, refine, and the CSV bytes (D5-13) | ✅ **row added with the file** (⚠️ no row when planned) — §3.5, added with the file | T9 |
+| `core/text/FolderSearch.{h,cpp}` — the folder run, each file opened in pieces (D5-13 clarified) *(added at T9)* | ✅ **row added with the file** (⚠️ no row when planned) — §3.5, added with the file | T9 |
 | `core/backend.h`, `pdf/DocumentBackendImpl`, `pdf/render/PdfiumDocument` — the open in pieces (D5-13 clarified); `core/render/RenderScheduler` — tasks of no document and exclusive tasks *(T9)* | §3.8's, §3.10's and §3.4's rows | T9 |
 | `tests/unit/tst_searchresults.cpp`, `tests/render/tst_foldersearch.cpp`, `tests/ui/tst_searchpane.cpp` *(T9)* | §3.17's rows | T9 |
 | `ui/viewer/tools/SnapshotTool.{h,cpp}` | §3.14's `tools/*` row | T10 |
 | `ui/viewer/LoupeRaster.{h,cpp}` — a cache policy and a `failed()` signal, so a second instance serves the snapshot (D5-11 clarified) *(added at T10)* | §3.14's `LoupeRaster` row | T10 |
 | `tests/composition/tst_snapshotink.cpp` — the snapshot against a fresh render of the page, A-90's and A-114's pixel halves *(added at T10, `tst_selectionink`'s deviation: ink needs the engine, which `rawpage_ui_tests` links none of)* | §3.17's `tests/composition/` row | T10 |
-| `ui/viewer/ReflowView.{h,cpp}` | ⚠️ **no row** — §3.14, added with the file (D5-16) | T11 |
-| `core/text/ReflowText.{h,cpp}` — the paragraphs the reflow shows, and the block at the top of a page view (D5-16 clarified) *(added at T11)* | ⚠️ **no row** — §3.5, added with the file | T11 |
+| `ui/viewer/ReflowView.{h,cpp}` | ✅ **row added with the file** (⚠️ no row when planned) — §3.14, added with the file (D5-16) | T11 |
+| `core/text/ReflowText.{h,cpp}` — the paragraphs the reflow shows, and the block at the top of a page view (D5-16 clarified) *(added at T11)* | ✅ **row added with the file** (⚠️ no row when planned) — §3.5, added with the file | T11 |
 | `tests/unit/tst_reflowtext.cpp`, `tests/ui/tst_reflow.cpp`, `tests/composition/tst_reflowink.cpp` -- the last over `columns-two.pdf` against the generator's labels *(added at T11, `tst_selectionink`'s deviation)* | §3.17's `tests/unit/`, `tests/ui/` and `tests/composition/` rows | T11 |
 | `core/text/DocumentComparer.{h,cpp}` | §3.5 ○ (S5) → ✅ (its *"ICU"* in *Interacts with* corrected, D5-5) | T12 |
 | `ui/viewer/ComparisonView.{h,cpp}`, `ui/panes/DifferencesPane.{h,cpp}`, `ui/dialogs/CompareDialog.{h,cpp}` | §3.14, §3.15 ○ (S5) → ✅; the dialog-family row's *S5* entry | T13 |
@@ -436,17 +436,17 @@ that is yours:
 
 **Owed with the code**:
 
-- Every ⚠️ row in §4, with its file; `DocumentIndex`'s and `DocumentComparer`'s FileMap corrections
-  (D5-4, D5-5). ✅ **`DocumentIndex`'s paid at T6** -- its *"shares the cache directory policy"* is gone from
+- ✅ Every ⚠️ row in §4, with its file; `DocumentIndex`'s and `DocumentComparer`'s FileMap corrections
+  (D5-4, D5-5). **All paid, re-checked 2026-10-04 at sign-off**: each of the seven files has its row, and the comparer's row says *not ICU*. ✅ **`DocumentIndex`'s paid at T6** -- its *"shares the cache directory policy"* is gone from
   the row, which now says memory only and why.
 - ✅ **Flow G's search half redrawn at T6** (`Architecture-FileMap.md` §5) with the engine thread, the
   `Background` lane and the matching workers, and marked with what each later task adds; T7 and T9 finish it.
-- **Flow G** (`Architecture-FileMap.md` §5) redrawn at T7 and T9 with the engine thread and the
-  `Background` lane, which the flow does not show. **Flow C** gains the text job at T2. Stage 4 paid
+- ✅ **Flow G** (`Architecture-FileMap.md` §5) redrawn at T7 and T9 with the engine thread and the
+  `Background` lane, which the flow does not show. **Flow C** gains the text job at T2. **Both paid, re-checked 2026-10-04**: flow G is marked built as of T9, and flow C names the engine thread's text job. Stage 4 paid
   two flow updates a task late and wrote down that the list is what noticed.
-- `Tech-Stack-Plan.md` §3.3's A2 entry, at T3 and T14, kept in two blocks as Stage 4's were; §10's
-  **R1** row at T4. ✅ **The T14 block paid 2026-10-02**, beside T3's and not instead of it.
-- `Implementation-Plan.md` §8's **O7** row at T3.
+- ✅ `Tech-Stack-Plan.md` §3.3's A2 entry, at T3 and T14, kept in two blocks as Stage 4's were; §10's
+  **R1** row at T4 (present, re-checked 2026-10-04). ✅ **The T14 block paid 2026-10-02**, beside T3's and not instead of it.
+- ✅ `Implementation-Plan.md` §8's **O7** row at T3 (its Stage 5 revisit present, re-checked 2026-10-04).
 - **`CLAUDE.md`'s *What works today* and *deliberately absent* paragraphs**, re-derived at T14 from
   the product: `Select` selects, the unregistered count, the backend census **4 of 7**, the waiver
   census **15**, and the fuzz target count **4** — each re-measured, none predicted here. ✅ **Paid at T14,

@@ -97,8 +97,8 @@ inherit it — with a gate fixture in each direction.
 | ○ | Planned. The parenthesized **S*n*** is the [roadmap](./Implementation-Plan.md) stage that builds it. |
 | ⤵ | Folded into another file — the row stays as a breadcrumb, pointing at where the responsibility went. |
 
-**The census, re-counted at Stage 5 T14 (2026-10-02) by a script over §3's rows: 193 ✅, 25 🟡, 106 ○,
-1 ⤵ — 325 file rows**, every row of §3 being a file row, **unmoved by T14**, which changed existing files
+**The census, re-counted 2026-10-04 at Stage 5's sign-off by a script over §3's rows: 195 ✅, 25 🟡, 106 ○,
+1 ⤵ — 327 file rows**, every row of §3 being a file row: the +2 are two built rows added after T14, `ui/shell/DockEdge` (S5 guide A-123, A-124) and `core/settings/ComparePairs` (A-126). It was *193 ✅, 25 🟡, 106 ○, 1 ⤵ of 325* at Stage 5 T14 (2026-10-02), **unmoved by T14**, which changed existing files
 (the find bar, the comparison's bar, the surface bench) and added none; T13 flipped `ui/viewer/ComparisonView` and
 `ui/panes/DifferencesPane` ○ → ✅ and added two built rows, `core/text/CompareSensitivity.h` (a file the plan did
 not name) and `ui/dialogs/CompareDialog`, which the dialog family row now points at. It was *189 ✅, 25 🟡, 108 ○,
