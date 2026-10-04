@@ -1,0 +1,1052 @@
+# Stage 6 — Annotations and Review · Testing Guide
+
+> **Authoritative verification document for Stage 6.** Written from
+> [`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md) and
+> [`Implementation-Plan.md` § Stage 6](./Implementation-Plan.md#stage-6--annotations-and-review),
+> **before any Stage 6 code exists** — which is the point: verification written afterwards only ever
+> confirms whatever got built, including the parts built wrong.
+>
+> **Status:** ⚪ **Written 2026-10-04 from the plan's draft, the day Stage 5 was signed off, and before
+> any Stage 6 code. The plan's §0 was ANSWERED the same day, all eight — Q1 … Q6 and Q8 approved as
+> proposed, and Q7 by moving the custom stamp from a PDF page to Stage 7, which rewrote A-78 and M-07.
+> No case has a result.** **108
+> automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
+> re-read against the answers and stand as written** — A-40, A-46 and A-70 (Q1, A-40's Expect gaining
+> the collision census at **thirteen**, the consequence of Q1 the user accepted); A-08 and A-55 (Q2);
+> A-56 and M-06's step 3 (Q3); A-07, A-101 and M-08 (Q5); and A-31 (Q8). Q4 and Q6 move capabilities out of the stage, so no case is written for them — §1's
+> out-of-scope table says so. §8's issue log is empty.
+>
+> **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
+> — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
+> you walk it on real hardware, and **I never mark a manual case passed on your behalf.**
+>
+> **What the manual half is for at this stage.** Annotations are written for **other people's
+> readers**, and the one question no assertion here can answer is whether Acrobat and Firefox show
+> what RawPage shows (plan D6-6). Chrome and Edge are PDFium, so they cannot answer it. Everything
+> else — geometry, identity, threads, merge, the bytes written, what survives undo and recovery — is
+> arithmetic a test can reach, because the corpus generator records every annotation it wrote (plan
+> §5.2). **Anything in §6 that could have been automated is a defect in this guide — say so and I
+> will move it.**
+>
+> **Label scoping.** `A-nn`, `M-nn` and `I-nn` here are **this guide's**; Stages 0 to 5 have their
+> own, and this guide cites theirs with the stage named — *"Stage 5's I-04"*. `A2` and `A4` (no
+> hyphen) are **risks** in `Tech-Stack-Plan.md` §3.3. `T1`…`T15` are **Stage 6** tasks, `D6-n` Stage 6
+> decisions and `Q1`…`Q8` the plan's open questions, all in `Stage6-Annotations-Plan.md` (§6, §3 and
+> §0).
+
+---
+
+## 1. Scope
+
+### In scope — must pass for sign-off
+
+- **Every `Features.md` §4.1 tool in this stage creates a correct annotation with a correct
+  appearance** — correct by the generator's record, by the rendered ink, and by Acrobat and Firefox.
+- **What the screen shows is what Save writes** (plan D6-2): a live view and the saved file reopened
+  rasterize identically.
+- **An edit changes what it means to and nothing else**: unmodelled keys, content streams and signed
+  ranges are untouched (D6-5, D6-25, A4).
+- **Every change is a command, one gesture one undo step**, surviving save, undo, redo and a crash
+  (D6-1, D6-4, D6-23).
+- **The Comments pane** groups, sorts, filters, searches, threads, replies, sets status and
+  checkmarks, by keyboard as well as mouse.
+- **Stamps, attachments, measurement, redaction marks, FDF/XFDF exchange and migration** as the plan
+  specifies them.
+- **The A2-at-Stage-6 verdict and A4's product half are recorded.**
+- **No regression** in any Stage 0 to 5 case, on **both** presets.
+
+### Out of scope — do NOT file these as bugs
+
+Planned absences, itemized in [`Stage6-Annotations-Plan.md` §11](./Stage6-Annotations-Plan.md#11-explicitly-out-of-scope).
+
+| Not a bug this stage | Arrives at |
+|---|---|
+| **An encrypted document's comments are neither listed nor editable** — the first-party reader declines it (D6-3) | Stage 10 |
+| **A redaction mark hides nothing** — it is a mark; applying is Stage 10's (D6-25) | Stage 10 |
+| **There is no comment summary and no print-with-comments** (Q4, approved 2026-10-04; D6-19) | Stage 8 |
+| **A typed comment refuses Cyrillic, Greek, Hebrew, Arabic, Thai…** (Q3, approved 2026-10-04; D6-7) | `DW-3` |
+| **Comment text is not spell-checked** (Q6, approved 2026-10-04) | Stage 13 |
+| **The link tool does nothing** | Stage 7 |
+| **Form fields cannot be edited** | Stage 9 |
+| **A signature image is not a digital signature** — it is a stamp (D6-16) | Stage 11 |
+| **A custom stamp cannot be made from a PDF page** — images only (Q7, answered: D6-16) | Stage 7 |
+| **No shared review, no review tracking** | Stage 16 |
+| **`Ctrl+B` does nothing** and leaves the key alone | Stage 7 |
+| **A page colour can be inverted and not substituted** — Stage 4's **I-07** | `DW-1` |
+
+### What this evidence cannot tell us
+
+- **Every automated claim is about our own generated corpus** (D6-26). Real annotations from real
+  producers are met only in M-04, through what Acrobat exports.
+- **"Looks the same in another reader" is judged by a person, in two readers** — Acrobat and Firefox
+  (pdf.js). Not in every reader, and not on a phone unless you walk one (P-2).
+- **`ui/` is outside every sanitizer this project has** (O10). `portable-asan` and
+  `fuzz_annot_pipeline` cover the model, the reader, the ops, the builder and the codecs, and nothing
+  about the overlay, the tools or the panes.
+- **PDFium is not a sanitized dependency.** A reload that hands PDFium a freed buffer would not be
+  seen by ASan, which never runs PDFium; A-37 asserts the ownership instead.
+- **Latency is measured; responsiveness is judged.** A-38 measures the edit-to-pixels latency and the
+  viewport's p95; whether drawing ink *feels* immediate is M-12's.
+
+### Case anatomy
+
+Every case is **ID · Goal · Steps · Expect · If it fails**, with a `☐` changed to ✅ or ❌. A case
+either passes or yields a **specific** failure — "looks fine" is not a result.
+
+### The rules this guide is written under
+
+**Rule 1 — assert the EFFECT, not the intent** (Stage 2's I-28, convention 19). A command in the
+journal is not an annotation in the file; an annotation in the file is not one on the screen; a
+`/AP` stream is not an appearance. Where a case can only reach the intent, it says so at the
+assertion and names what it therefore does not cover.
+
+**Rule 2 — a repaired case is re-walked from step 1** (Stage 1's I-45).
+
+**Rule 3 — a green tick is not a clean run** (Stage 2's I-38). Linux-only halves — `portable-asan`,
+`portable-fuzz`, `qpdf` — are read from the CI job's **log**, never from its tick.
+
+**Rule 4 — a widget case drives layout itself, and asserts a non-zero visible count first**
+(convention 12).
+
+**Rule 5 — a new mechanism gets a control written from what must NOT happen** (convention 22). An
+undo before a save must write nothing; a mark must remove nothing; a locked annotation must not move;
+a text field must keep its own `Ctrl+V` and `Esc`.
+
+**Rule 6 — the oracle for GEOMETRY is the rendered ink** (Stage 4's I-10). Quadpoints, hit-tests,
+snaps and placements are compared against the **raster**, located by code that shares nothing with
+the transform that produced them.
+
+**Rule 7 — the oracle for CONTENT is the generator**, never PDFium. The reader is graded against
+`corpus/labels/annots-*.json`; a case comparing `AnnotationReader` with `FPDFAnnot_*` getters proves
+the two readers agree, which is A-18's narrower job.
+
+**Rule 8 — the oracle for APPEARANCE is not our builder** (D6-6): golden rasters LOOKED AT before
+they are kept, PDFium's own generation, `qpdf`, and Acrobat and Firefox by a person.
+
+**Rule 9 — both presets, and the UI binary whole** (Stage 4's I-09 and I-28).
+
+### Severity
+
+| Sev | Meaning |
+|---|---|
+| **S1** | **The product changes a byte it did not mean to** — a content stream under a redaction mark, an unmodelled key, a signed range, another annotation. **The screen shows what the file does not contain**, or the file contains what the screen never showed (D6-2). **An annotation is lost** on save, undo, redo, recovery or exchange. **An executable is opened from a document.** A crash on a corpus file |
+| **S2** | A documented behaviour is wrong in a way a later stage builds on — an appearance another reader draws differently, geometry off the glyphs, a thread or status read wrongly, a merge that duplicates or drops, a migration that places an annotation on the wrong text, a chord that cannot be pressed |
+| **S3** | A message is unclear, a figure is misreported, a pane mislabels, a diagnostic names the wrong thing |
+| **S4** | Polish nobody outside the team would notice |
+
+**The S1 that is new at this stage is *a change nobody asked for*.** Every earlier stage could break
+the product; this one can break a document someone else will open, and the change is invisible in the
+reader that made it.
+
+---
+
+## 2. Build, launch, environment
+
+`cmake`, `ninja` and `g++` are **not on this machine's `PATH`**. Every command assumes
+`scripts\env.ps1` has been dot-sourced first.
+
+```powershell
+. .\scripts\env.ps1
+cmake --preset x64-release
+cmake --build --preset x64-release --target checks      # four gates; mutation-lint names §4's commands
+cmake --build --preset x64-release
+ctest --preset x64-release --output-on-failure
+ctest --preset x64-release -R "annot|comment|measure|fdf|migrate|stamp|attach|profile|sound"
+ctest --preset x64-release -R "reversibility|roundtrip|a4_product"
+.\build\x64-release\bin\rawpage_bench_pipeline.exe --stage6 > bench-stage6.txt   # T4's A2 figure — to a FILE
+.\build\x64-release\bin\rawpage.exe tests\manual\M-01\annots-every-type.pdf
+```
+
+**Notes carried from `CLAUDE.md`** because they still cost time: PowerShell does not wait on a GUI
+binary; its pipeline captures none of `rawpage.exe`'s output; a running `rawpage.exe` blocks the
+release link; a failing run's output survives only until the next run, in
+`build\<preset>\Testing\Temporary\LastTest.log`; a bench whose pipeline is cut short keeps running.
+
+**Where things are written**, so a walker can look:
+
+| What | Where |
+|---|---|
+| An annotated document | Only where **Save** or **Save As** puts it — a walk saves into `tests\manual\<case>\` |
+| An exported FDF/XFDF, an extracted attachment | Where you choose — for a walk, `tests\manual\<case>\` |
+| An opened non-PDF attachment | `%LOCALAPPDATA%\RawPage\attachments\<session>\`, **emptied at a clean quit** (D6-17) |
+| Custom stamps | `%APPDATA%\RawPage\stamps\` (D6-16) |
+| Recovery journals and their side files | `%LOCALAPPDATA%\RawPage\recovery\<docid>-<pid>-<n>\` (D6-23) |
+| Settings | `%APPDATA%\RawPage\settings.ini` |
+| Logs | `%LOCALAPPDATA%\RawPage\logs\` |
+| A manual walk's own files | `tests\manual\<case>`, and nowhere else (`CLAUDE.md`) — a **copy** of the corpus file, never the corpus file itself |
+
+### Settings keys that affect these cases
+
+**Defaults are owned by `core/settings/SettingsKeys.def`** — **re-read the `.def` rather than this
+table** (Stage 2's I-26). The rows and the family are listed in the plan's D6-13.
+
+| Key | Affects |
+|---|---|
+| `identity/author`, `identity/email`, `identity/organization` | A-27, A-53, A-54, A-69, A-76; every walk — **set `identity/author` before M-01** so your comments carry your name |
+| `commenting/stickyTool` | A-62, M-01 |
+| `commenting/popupBehaviour` | A-47, M-01 |
+| `commenting/default<Property>.<tool>` (the family) | A-61, A-63, M-01, M-02 |
+| `measuring/scaleRatio`, `measuring/displayUnit`, `measuring/precision`, `measuring/snapToPaths`, `measuring/writeToComment` | A-87 … A-92, M-09 |
+| `units/snapToObjects` | A-89, M-09 |
+| `search/includeComments` | A-74 |
+
+### Test rig
+
+| | |
+|---|---|
+| **Acrobat** | **P-1** ✅ Acrobat **26.2.21931** (read 2026-10-04) — M-02, M-03, M-04, M-10 |
+| **A reader that is not PDFium** | **P-2** ✅ **Firefox 157** (pdf.js) — M-02. Chrome 154 and Edge 154 are present and **are PDFium**: use them only as a control that should agree with RawPage |
+| **A microphone** | **P-3** ✅ the Jabra EVOLVE 20 headset microphone — M-08 (Q5) |
+| **`qpdf`** | **P-4** — CI's Ubuntu `gates` job only (Q8), not this machine |
+| **Monitors** | Stage 4's P-1 rig (150 % and 100 %) — M-01 and M-09 ask for both, because a hit-test or a snap that holds at one scale and not the other is Stage 4's I-11 in a new place |
+| **Corpus** | **97 PDFs before T1** (2026-10-04); T1 adds §5.2's fixtures, every one generated by `corpus/make-annots.py` with a `PROVENANCE.md` row and a label |
+
+---
+
+## 3. Verdicts this guide must produce
+
+A stage that is green but has no verdict is not signed off. **Every scale below is fixed here, before
+the measurement**, so nothing is graded against whatever it happened to achieve.
+
+### 3.1 A2 at Stage 6
+
+| Verdict | Assembled from | Recorded in |
+|---|---|---|
+| Does the frame budget hold while annotation commands reload the engine (D6-2), and does an edit reach the pixels promptly? | **Bench (T4):** A-38. **Product (T15):** A-104. **Judgement:** M-12 | [`Tech-Stack-Plan.md` §3.3](./Tech-Stack-Plan.md#33-assumptions-that-are-not-yet-verified), labelled **Stage 6's workload** |
+
+Two quantities, both reported, both graded:
+
+- **The viewport's p95 queued latency** — the same quantity as Stage 2 T18's product figure and Stages
+  4 and 5, so all are comparable.
+- **The edit-to-pixels latency** — from `CommandJournal::run` returning to the first tile of the
+  command's scope page being delivered **with the change visible in its pixels** (the case checks the
+  pixels, rule 1). Reported as p95 and maximum.
+
+The workload: one `AddAnnotation` (an ink stroke of 200 samples) every 100 ms for 30 s on page 450 of
+`pages-900.pdf` and of `text-900.pdf`, and separately on `objstm-xrefstream.pdf`, with a viewport
+scrolling at Stage 4's D4-16 rate. Compose time, reload time and path-geometry time (D6-14) are
+reported and **not** graded.
+
+| Result | Means |
+|---|---|
+| **go** | On every file, the viewport's p95 stays **inside 16.667 ms** at the shipped cache cap, **and** the edit-to-pixels p95 is **≤ 100 ms** with its maximum **≤ 250 ms** |
+| **go, with named custom work** | A figure leaves its bound only under a named, reachable condition — a burst faster than one reload per frame, a cross-reference chain of many sections, a page whose re-render alone exceeds the budget — and a change in `core/render/` or `pdf/render/` brings it back: reloads coalesced to one per frame, the reload yielding to visible tiles, a scope page's re-render at `Visible`. **The work is named in the verdict and done in the stage** |
+| **no-go** | No scheduling change recovers it. **D6-2 changes to the mirror** — a new decision recorded before T5, because every tool's result reaches the screen through it |
+
+### 3.2 What is shown is what is saved (D6-2)
+
+For **every annotation type the product creates**, created **through its tool** (not by constructing a
+command): the scope page rasterized from the live engine document after the reload, and the same page
+rasterized from **the saved file reopened in a fresh engine document**, at 72 and 144 dpi and under a
+90° view rotation: **0 differing pixels.** The same engine drawing the same bytes must agree exactly;
+any difference means the screen and the file disagree, which is an S1. After an undo, the page must
+equal the original file's raster, **0 pixels**.
+
+### 3.3 Appearance consistency (D6-6)
+
+| Oracle | Pass bar |
+|---|---|
+| **Golden rasters** (`tst_appearance`) | `golden/README.md`'s thresholds, per type × property; every baseline LOOKED AT before it is kept, its look recorded in `golden/UPDATES.md` |
+| **PDFium's own generation** | For highlight, underline, strikeout, squiggly, square, circle, line, ink and note: our appearance and PDFium's generated one (the same annotation with `/AP` removed), binarized at 50 % coverage at 144 dpi, overlap at **ink IoU ≥ 0.90** |
+| **`qpdf --check`** (Q8) | *"No syntax or stream encoding errors found"* for every file the suite writes, read from the `gates` job's log |
+| **Acrobat and Firefox** (M-02) | Each type: the same shape, colour, opacity and position as RawPage shows, to a person comparing side by side. A difference a person would call *different* is an S2 |
+
+### 3.4 A4 through the product — the carried exit criterion
+
+Stage 3 (guide issue I-06, decided by the user 2026-09-14) carried **risk A4's permitted edit
+through the product** to this stage.
+
+| Half | Pass bar |
+|---|---|
+| **Automated (A-33, T3)** | Each of the four `corpus/signed/` files opened in the product, one comment added by the first annotation command, saved through `SaveCoordinator`: **OpenSSL verifies 4 of 4**, rejects **8 of 8** flipped-byte controls, and every original is the byte-identical prefix of its output |
+| **Acrobat (M-03)** | Every **approval** signature reads *"the revision … covered by this signature has not been altered; however, there have been subsequent changes"*, and Acrobat lists the comment as that change; **`certified-nochanges.pdf` is flagged** — its certification permits no changes |
+
+Recorded beside Stage 3's figures in `Tech-Stack-Plan.md` §3.3's A4 row, **both bounded to RawPage's
+own generated signatures**.
+
+### 3.5 Migration (D6-21)
+
+On `annots-report-v1.pdf` → `compare/report-v2.pdf`, against `labels/annots-migration.json`:
+
+| Measure | Pass bar |
+|---|---|
+| **Precision** | **100 %** — no annotation placed on a page or text other than the label's |
+| **Recall** | **≥ 95 %** of the annotations the label marks placeable |
+| **Reporting** | **Every** annotation the label marks unplaceable is in the report, and **none** of them is placed |
+| **Position** | Text markup's quads within **1 pt** of the anchor text's glyph boxes in `report-v2` (the generator's coordinates); other annotations within **2 pt** of the label's point |
+
+### 3.6 The Comments pane at scale
+
+On `annots-900.pdf` (9,000 annotations), on this machine: the store hydrated from the file in
+**≤ 500 ms**; the pane populated **≤ 500 ms** after; a group, sort or filter change delivered in
+**≤ 100 ms at p95** over 20 changes; the store's live heap **≤ 64 MB** (measured as LIVE heap, Stage
+2's I-35). A miss is an S2 and its named work is done in the stage.
+
+### 3.7 Exchange round trip (D6-20)
+
+For every annotation in the corpus that RawPage can write: exported to XFDF, and separately to FDF,
+then imported into a copy of the document with every annotation removed: **every modelled field
+equal** — the fields the labels carry — with dates compared at the second, PDF's precision.
+
+---
+
+## 4. Traceability — exit criterion → case
+
+| Exit criterion ([`Implementation-Plan.md` § Stage 6](./Implementation-Plan.md#stage-6--annotations-and-review)) | Closed by |
+|---|---|
+| Every §4.1 tool creates a correct, correctly-appearing annotation | A-34, A-49 … A-66, A-75 … A-81, A-85, A-87 … A-92, A-100, A-101, A-108; **M-01**, **M-02**, **M-06**, **M-07**, **M-08**, **M-09** |
+| The Comments pane groups, filters, sorts, searches, replies and sets status | A-67 … A-74; **M-05** |
+| FDF/XFDF round-trips with at least one other reader | A-93 … A-97 on generated files; **M-04** with Acrobat |
+| Comment summaries generate in all four layouts | **Moved to Stage 8 by Q4, approved 2026-10-04** (D6-19) — no case here |
+| Annotations undo cleanly | A-25, A-28, A-35, A-42, A-44, A-51, A-60, A-71, A-95, A-107; **M-11** |
+| *(Carried from Stage 3)* A4's Acrobat half through the product | **A-33**, **M-03**, graded on §3.4 |
+| *(Plan D6-1)* Every change a command, one gesture one step | A-08, A-09, A-28, A-29, A-42, A-44, A-71 |
+| *(Plan D6-2, D6-24)* Shown is saved; A2 at Stage 6 | A-34 … A-39, A-104, A-108; **M-12** |
+| *(Plan D6-3)* One model, read first-party, agreeing with the engine | A-17 … A-19 |
+| *(Plan D6-4, D6-5)* Identity; nothing unmodelled lost | A-26, A-27, A-29 |
+| *(Plan D6-6)* Appearances checked by oracles that are not the builder | A-31, A-64 … A-66; **M-02** |
+| *(Plan D6-7, D6-8)* Fonts; typewriter as an annotation | A-55 … A-57; **M-06** |
+| *(Plan D6-9)* Chords that can be pressed; the context chain | A-40, A-44 … A-46, A-70 |
+| *(Plan D6-10, D6-11)* Precise invalidation; comments searched from the store | A-36, A-74 |
+| *(Plan D6-12)* Threads, status, checkmarks as ISO's | A-21, A-68, A-69 |
+| *(Plan D6-13)* The keys, the family, three pages | A-54, A-61, A-62, A-92 |
+| *(Plan D6-14)* Measurement | A-87 … A-92; **M-09** |
+| *(Plan D6-15)* Ink and the eraser | A-59, A-60 |
+| *(Plan D6-16)* Stamps, from images (a PDF page source is Stage 7's, Q7) | A-75 … A-80; **M-07** |
+| *(Plan D6-17)* Attachments | A-82 … A-86; **M-13** |
+| *(Plan D6-18)* Audio | A-07, A-101; **M-08** |
+| *(Plan D6-20, D6-21)* Exchange and migration | A-93 … A-99; **M-04**, **M-10** |
+| *(Plan D6-22)* Copy, cut and paste | A-81 |
+| *(Plan D6-23)* Large payloads in recovery | A-86, A-107 |
+| *(Plan D6-25)* Redaction marks remove nothing | A-100 |
+| *(Plan D6-27, D6-28)* Flags; pop-ups | A-43, A-47 |
+| *(Plan D6-29)* Hostile input | A-22, A-23, A-97 |
+
+---
+
+## 5. Automated verification — I run this
+
+Every case names its command and its pass condition. I report the **actual** output; a failing case is
+reported as failing, with that output, and is never declared fixed without a re-run. **When a case is
+ticked it carries the evidence it was ticked on** — Stage 1's I-32 was a guide whose summary claimed a
+green its cases did not record. Every *"byte-unchanged"* diff below is taken against **`b49b13c`**,
+the tree at Stage 5's sign-off.
+
+### 5.1 Build, boundary, environment
+
+**A-01 · Configure and build, both presets, from clean** ☐
+**Steps** `cmake --preset x64-debug`, `--preset x64-release`; `cmake --build --preset <p> --clean-first` for each, the log kept.
+**Expect** Exit 0 on all four; **0 `warning:` and 0 `error:` lines in either log**, `ui/` included. `--clean-first` is required (Stage 3's A-01). Object counts re-derived, not quoted. **If it fails** S1.
+
+**A-02 · The `ui/` warning grace list is still empty** ☐
+**Steps** Read `RAWPAGE_UI_WARNING_GRACE` in `cmake/RawPageWarnings.cmake`.
+**Expect** Empty. **If it fails** S3, and the entry's reason is recorded in the status block.
+
+**A-03 · The headless suite is still headless** ☐
+**Goal** The annotation model, the store, `core/Measure`, the codecs and the migrator are `core/`, and `core/` links no display and no engine.
+**Steps** `ctest -R "gates.headless_assert"`.
+**Expect** Every case as before, the negative controls still caught. **If it fails** S1.
+
+**A-04 · `portable-asan` runs every Stage 6 suite in `core/`, `pdf/cos/` and `pdf/ops/`** ☐
+**Steps** The `portable-asan` CI job; **read the log, not the tick** (rule 3).
+**Expect** Every case of `tst_annotation`, `tst_annotstore`, `tst_annotationops`, `tst_measure`, `tst_fdf`, `tst_migrate`, `tst_profilestore`, `tst_sounddata` and every `[serialize:]`/`[revert:]` case present **by case name**; **0 `runtime error:`, 0 `ERROR: AddressSanitizer`, 0 `LeakSanitizer` lines**. **What it does not cover:** PDFium, the reload (D6-2) and every `ui/` surface. **If it fails** S1 for a sanitizer finding; S2 if a suite is absent.
+
+**A-05 · The product starts, and every new key resolves** ☐
+**Steps** `$env:QT_QPA_PLATFORM="offscreen"`; `rawpage.exe --dump-ui-strings`, `--lang zh-TW --dump-ui-strings` and `--list-actions`, **through `cmd` redirection**.
+**Expect** Exit 0; every `annot.*`, `comments.*`, `measure.*` and `stamps.*` key resolves in `en` and `zh-TW` and **none resolves to itself**; the log says the backend is **4 of 7** and the platform **6 of 18** — Stage 6 adds no interface (plan §5.1). **If it fails** S2.
+
+**A-06 · Stage 6's `core/` uses only the Qt the portable presets have** ☐
+**Goal** Convention 24: CI builds `core/` against Ubuntu's Qt **6.4**.
+**Steps** The `portable-asan` job's build log.
+**Expect** `core/doc/` (the store, `XfdfCodec` over `QXmlStreamReader`, `CommentMigrator`, `SoundData`) and `core/Measure` compile there. **If it fails** S2.
+
+**A-07 · Audio deploys Media Foundation and nothing of FFmpeg** ☐ *(Q5)*
+**Steps** `objdump -p build\x64-release\bin\rawpage.exe`; the deployment step's output directory; `license-audit` as `checks` runs it.
+**Expect** `Qt6Multimedia.dll` imported by `rawpage.exe` and no `core/` library; `plugins\multimedia\windowsmediaplugin.dll` deployed; **no `ffmpegmediaplugin.dll`, `avcodec-*`, `avformat-*`, `avutil-*`, `swresample-*` or `swscale-*`** anywhere beside the binary; `license-audit`'s Qt-module list names `Multimedia` and it is clean. **The control:** copying `ffmpegmediaplugin.dll` into the deployment makes the case fail. **If it fails** S2.
+
+### 5.2 The gates — and the numbers that must and must not move
+
+**A-08 · `checks` clean, and `mutation-lint` names exactly the plan's commands** ☐ *(Q2)*
+**Goal** D6-1's mechanical proof.
+**Steps** `cmake --build --preset x64-release --target checks`; `mutation-lint.exe --root . --explain`.
+**Expect** Exit 0; four gates; `mutation-lint` names **exactly** `RotatePageCommand` and the plan §4's commands — **twelve**, Q2 approved 2026-10-04 — each with its `Commands.def` row and its `[serialize:]` and `[revert:]` cases listed by `--explain`. **If it fails** S1 for an unlisted command; S2 for a missing test.
+
+**A-09 · `mutation-lint` still fires** ☐
+**Steps** A throwaway `core/cmd/commands/ZzProbeCommand.h` deriving from `Command`, with no row and no tests; `mutation-lint`; delete it.
+**Expect** Fails naming **that** class, three times (row, serialize, revert); clean again after. **If it fails** S1.
+
+**A-10 · The waiver census stays FIFTEEN, and the engine stays in `pdf/render/`** ☐
+**Steps** `layer-lint.exe --root . --explain`.
+**Expect** Clean; **15** active filesystem-write escapes, the same fifteen as at Stage 5's sign-off — the extract, the exports and the attachment session folder are written by `pdf/` (D6-17, D6-20), the recovery side files by `RecoveryJournal`'s existing write (D6-23), the stamps by `core/settings/` (D6-16). `FPDF_` appears only in `pdf/render/` — the reload (D6-2) included. A sixteenth escape is a finding. **If it fails** S2.
+
+**A-11 · `i18n-lint` knows `annot`, `comments`, `measure` and `stamps`** ☐
+**Steps** `i18n-lint.exe --root . --explain`; a throwaway source naming `annot.noSuchKey`.
+**Expect** The four families listed; the probe fails `unknown-key` naming **that** key; every Stage 6 key in both shipped catalogs; **no catalog entry outside its `<context>`** (Stage 5's I-05). **If it fails** S2.
+
+**A-12 · No dependency arrived without a decision** ☐
+**Steps** `git diff b49b13c..HEAD -- vcpkg.json`; `license-audit`; `objdump -p` for imported DLLs.
+**Expect** `vcpkg.json` unchanged; `license-audit` clean with Stage 5's component count; **no `icu*`, `harfbuzz`, `freetype` or `hunspell` DLL imported**; Qt Multimedia, by Q5 (approved 2026-10-04), and nothing else (A-07). **If it fails** S2.
+
+### 5.3 The corpus this stage is judged on (T1)
+
+**A-13 · The new files regenerate byte-identically, and nothing old moved** ☐
+**Steps** `python corpus/make-corpus.py --verify`, `--check-provenance`, `--self-test`; `git status corpus/`.
+**Expect** All three exit 0; one `PROVENANCE.md` row per new file naming what it carries **and its control** (plan §5.2); **every pre-existing corpus file byte-unchanged**. **If it fails** S2.
+
+**A-14 · The labels are data, checked like the corpus** ☐
+**Steps** `--verify` and `--check-provenance` over `corpus/labels/annots-*.json`.
+**Expect** Every label regenerates byte-identically and names a corpus file that exists; every annotation fixture has one. **The control:** a label naming a missing file fails. `.gitattributes` treats the labels as text (Stage 5's A-13 finding). **If it fails** S2.
+
+**A-15 · Each fixture carries what its row claims — read from the BYTES** ☐
+**Goal** A fixture that does not carry its fault tests nothing (Stage 3's A-17).
+**Steps** `make-corpus.py --check-faults` over the new files, decoding streams with `zlib` and never through `pdf/cos/` or PDFium.
+**Expect** `annots-every-type.pdf` has every subtype the plan lists, each with `/AP`; `annots-no-ap.pdf`'s page 1 has **no** `/AP` on any annotation; `annots-threads.pdf` has `/IRT` chains, `/RT /Group`, `/StateModel /Review` and `/Marked` replies, the cycle, the orphan and the cross-page reply; `annots-flags.pdf` each flag bit; `annots-direct.pdf` a direct dictionary and an annotation in two pages' `/Annots`; `annots-unknown-keys.pdf` `/PieceInfo`, `/RawPageTestKey` and `/RC`; `attachments.pdf` its three embedded files with `/Desc` and a `FileAttachment`; `measure-scale.pdf` `/Measure` dictionaries; each FDF and XFDF its claimed shape, the malicious XFDF its external entity. **Two controls:** an `/AP` added to `annots-no-ap.pdf`, and `/RawPageTestKey` removed, each fail the check. **If it fails** S2.
+
+**A-16 · The golden manifest knows the new files** ☐
+**Steps** `golden-update.exe --check-manifest`.
+**Expect** Every new PDF a case or an excluded row with a reason; baselines captured with **no tracked PNG changed**; `--explain`'s census re-derived. **If it fails** S3.
+
+### 5.4 The model and its reading (T2)
+
+**A-17 · The reader returns the generator's annotations** ☐
+**Goal** Rule 7.
+**Steps** `tst_annotreader` over every labelled fixture.
+**Expect** For every annotation: page, subtype, rectangle, quadpoints, vertices, ink samples, colour, opacity, border, `/Contents`, `/Subj`, `/T`, `/NM`, dates, `/IRT`, `/RT`, state and flags **equal to the label**; none missing, none invented. **The control:** one label entry removed surfaces as an invented annotation. **If it fails** S1 for an invented or lost annotation; S2 for a wrong field.
+
+**A-18 · The two readers agree, and a page where they do not is read-only** ☐
+**Goal** D6-3.
+**Steps** Over every corpus file both readers open: the first-party store against `FPDFAnnot_GetCount`, `_GetSubtype` and `_GetRect` per page; then a planted disagreement (the reader told to skip one annotation on page 2 of `annots-mixed.pdf`).
+**Expect** Agreement on every page of every file, the rectangle within `float` tolerance; under the plant, page 2 is **read-only** — `Permissions::may(Operation::Annotate)` refuses it by key with the page named — and page 1 is editable. **If it fails** S2.
+
+**A-19 · What cannot be read is refused by name** ☐
+**Steps** Open every `corpus/encrypted/` file; and `annots-direct.pdf`'s annotation with no `/P` listed by no page.
+**Expect** An encrypted document: the store refuses by key (the reason D2-6) and no annotation command is enabled; the unplaceable annotation is **reported** in the log and absent from the store. **If it fails** S2.
+
+**A-20 · The model's invariants** ☐
+**Steps** `tst_annotation`.
+**Expect** A rectangle is normalized (`x0 ≤ x1`, `y0 ≤ y1`); quadpoints keep ISO's corner order and the de facto order Acrobat writes is read; colour arrays of 0, 1, 3 and 4 components; flags round-trip; a JSON serialize → deserialize is identity for every subtype. **If it fails** S2.
+
+**A-21 · Threads, states and queries are the label's** ☐
+**Steps** `tst_annotstore` over the labels of `annots-threads.pdf`, headless.
+**Expect** Every reply under its parent; the group shown as one item; each annotation's status and **history** (author and date of each state reply) equal to the label; checkmarks **per author**; the `/IRT` cycle broken and **reported**, the orphan and the cross-page reply top-level and reported. **If it fails** S2.
+
+**A-22 · Hostile annotations are bounded** ☐
+**Steps** `tst_annotstore`'s and `tst_annotreader`'s hostile cases: NaN and infinite rectangles, a 1,000,000-point `/InkList`, a 10,000-deep `/IRT` chain, `/Annots` that is a dictionary, an annotation listed by 1,000 pages.
+**Expect** Each read within one second, bounded memory, the defect reported; no crash. **If it fails** S1 for a crash or a hang; S2 otherwise.
+
+**A-23 · Five fuzz targets, and the fifth runs** ☐
+**Steps** `ctest --preset gates -R fuzz_count`; the `portable-fuzz` CI job's **log**.
+**Expect** The count assertion at **5**, its controls refusing 4 and 0; `fuzz_annot_pipeline` *"Done N runs in 6x second(s)"* with no finding, and in the soak. **If it fails** S2.
+
+### 5.5 The write path (T3)
+
+**A-24 · An update holds exactly what the edit needs** ☐
+**Goal** D3-5 applied to annotations.
+**Steps** `tst_annotationops`: add a highlight to page 1 of `text-a4.pdf`, save; diff the objects of the update against the original's.
+**Expect** The update holds **exactly** the new annotation dictionary, its `/AP` stream (and its form resources if any) and page 1's dictionary or its `/Annots` array — **nothing else**; the original is the byte-identical prefix of the saved file. **If it fails** S1 for an object that should not be there.
+
+**A-25 · Desired state: an undo before a save writes nothing** ☐
+**Steps** Add then undo, save; add, save, delete, save.
+**Expect** The first save is refused `error.save.nothingToSave` (or writes no update); the second pair writes page 1's `/Annots` **back to its pre-annotation value** and no annotation object. **If it fails** S1.
+
+**A-26 · An edit preserves what it does not model** ☐
+**Goal** D6-5.
+**Steps** For every annotation in `annots-unknown-keys.pdf` and `annots-mixed.pdf`: an `EditAnnotation` changing its colour, saved; the dictionary read back first-party.
+**Expect** Every key the model does not own **equal in value** before and after — `/PieceInfo` and `/RawPageTestKey` included; `/RC` rewritten exactly when `/Contents` changed and untouched when it did not; `/AP` regenerated for the edited ones and **byte-identical** for annotations nobody edited. **If it fails** S1.
+
+**A-27 · Everything RawPage writes has an identity** ☐
+**Steps** Create one of each type; save; read back.
+**Expect** Each carries a `/NM` unique in the document, `/M`, `/CreationDate`, `/T` equal to `identity/author` (or the login name `app/` supplied), and `/P` naming its page. A direct dictionary, once edited, is indirect. **If it fails** S2.
+
+**A-28 · Every command reverts exactly** ☐
+**Steps** `ctest -R reversibility` — each command's `[revert:Class]` case, and `tst_reversibility`'s sweep over every corpus file the command applies to.
+**Expect** `apply` then `revert` restores the **structural hash** and the store's state; a refused `apply` leaves both untouched (partial application is a bug). **If it fails** S1.
+
+**A-29 · Every command serializes, and recovery replays it** ☐
+**Steps** Each `[serialize:Class]` case; a journal of one of each command replayed by `RecoveryJournal` against the file as opened.
+**Expect** `serialize → deserialize → apply` reaches the same desired state; replay reaches it too; no command's line names an object number a compose allocated (D6-4). **If it fails** S1.
+
+**A-30 · Save verifies annotations too** ☐
+**Steps** `RevisionWriter::verify` over a correct update; then with `setComposeFaultForTesting` deleting the new annotation from the composed bytes.
+**Expect** The correct one passes; the faulted save **fails by key before any replace**, the temporary file removed, the target byte-unchanged. **If it fails** S1.
+
+**A-31 · `qpdf` finds nothing wrong with what we write** ☐ *(Q8)*
+**Steps** Every file the suite writes under its scratch roots is collected by the `gates` job and passed to `qpdf --check`; read the **log**.
+**Expect** The qpdf version printed; *"No syntax or stream encoding errors found"* for every file; the file count printed and non-zero. **The control:** a file with a truncated stream fails. **If it fails** S2.
+
+**A-32 · A full round trip keeps every annotation** ☐
+**Steps** Open each annotation fixture; add one annotation of every type through commands; save; reopen in a fresh process.
+**Expect** The store read back equals the store before the save in every modelled field, the originals included. **If it fails** S1.
+
+**A-33 · A4: a comment through the product, judged by OpenSSL** ☐
+**Goal** §3.4's automated half.
+**Steps** `ctest -R a4_product -V` extended: each `corpus/signed/` file opened through the composition, one note added by `AddAnnotationCommand`, saved through `SaveCoordinator`; `tests/gates/check-signatures.py` over the outputs, its flipped-byte controls first.
+**Expect** **8 of 8 controls rejected, then 4 of 4 verified**; each original the byte-identical prefix of its output. Outputs left in `build\x64-release\a4-product\` for M-03. **If it fails** S1.
+
+### 5.6 How it reaches the pixels — A2 at Stage 6 (T4)
+
+**A-34 · What is shown is what is saved** ☐
+**Goal** §3.2.
+**Steps** `tst_annotink` (composition): one annotation of every type created **through its tool**, the live page rasterized; saved; reopened fresh; rasterized at 72 and 144 dpi and at a 90° view rotation.
+**Expect** **0 differing pixels** in every comparison. **The control:** a reload skipped (the live engine left on the old bytes) makes every comparison differ. **If it fails** S1.
+
+**A-35 · An undo shows the page as it was** ☐
+**Steps** Each type added and undone; the page rasterized.
+**Expect** **0 pixels** from the original file's raster. **If it fails** S1.
+
+**A-36 · Only the scope is invalidated** ☐
+**Goal** D6-10.
+**Steps** On `text-900.pdf`, search once (the index complete), render pages 449–451, add a highlight on 450.
+**Expect** Pages 449 and 451 served **from the cache** after the edit (hit counts); page 450 re-rendered; **no text job** for page 450 (the index keeps its text); a search for the highlight's comment text finds it (D6-11). **The control:** an annotation command whose scope says *content* re-extracts page 450. **If it fails** S2.
+
+**A-37 · The reload happens where and when it must** ☐
+**Steps** `tst_annotdisplay`: the reload under a burst of commands while tiles are in flight; thread ids and the scheduler's state recorded.
+**Expect** Every `FPDF_LoadCustomDocument` on the **render thread**, never the UI thread; each swap **between jobs** — no tile in flight against a document the swap closed; **no copy of the original bytes** — the process's live heap grows by less than 10 % of `pages-900.pdf`'s size per reload. **If it fails** S1 for a job against a closed document; S2 otherwise.
+
+**A-38 · A2 at Stage 6, graded** ☐
+**Goal** §3.1, the bench half.
+**Steps** `rawpage_bench_pipeline.exe --stage6 > bench-stage6.txt`, three runs; read the file.
+**Expect** The bench **prints the dpi, the viewport and the file it reached** (Stage 4's A-72); per file: viewport p95, edit-to-pixels p95 and maximum, compose, reload and path-geometry distributions. Graded on §3.1 and **recorded** in `Tech-Stack-Plan.md` §3.3 as *A2 at Stage 6*. **If it fails** — a no-go is a verdict, not a defect: D6-2 changes before T5.
+
+**A-39 · A reload that fails leaves the page drawing** ☐
+**Steps** A compose fault (as A-30) during an edit.
+**Expect** The engine keeps the previous document and **keeps drawing it**; the edit is refused by key, the command not left in the journal; the status bar says so. **If it fails** S1.
+
+### 5.7 The overlay, the context chain, the properties bar (T5)
+
+**A-40 · Every chord can be pressed from where a person is** ☐ *(Q1)*
+**Steps** `tst_annottools`, from key events: with the page focused and **nothing armed**, each of the fourteen `Ctrl+Alt+` chords; with a tool armed, `Ctrl+=`, `Page Down` and `Ctrl+0`; `tst_keybindings` against `Features.md` §8.
+**Expect** Each chord arms its tool (or opens the stamp palette, or arms the redaction mark); with a tool armed the Viewer chords still act (the chain); `tst_keybindings` agrees with §8 row for row, its census at **thirteen** Write-mode collisions, 9 + 4 + 0 — `Ctrl+Alt+M` the ninth over Viewer (Q1's consequence, accepted 2026-10-04) — and `Ctrl+Alt+M` still a margin comment in Write mode. **If it fails** S2.
+
+**A-41 · An annotation is hit where it is drawn** ☐
+**Goal** Rule 6.
+**Steps** `tst_annotink`: for each annotation in `annots-every-type.pdf` and `annots-rotated.pdf`, a click at a point inside its **rendered ink** (found in the raster) and one 3 device px outside its ink; at device scale 1.0 and 1.5 at an odd logical offset (`CLAUDE.md`'s 150 % trap).
+**Expect** Inside selects it, outside does not; `NoZoom` and `NoRotate` annotations hit where they are drawn. **If it fails** S2.
+
+**A-42 · One gesture, one command** ☐
+**Steps** Drag-move, drag-resize, `Shift`+drag (constrained), `Alt`+drag (duplicate), and a drag abandoned with `Esc`.
+**Expect** Each completed gesture is **one** `MoveAnnotation`, `EditAnnotation` or `AddAnnotation` in the journal; the constraint holds to 45° and 1:1; the abandoned drag leaves the journal and the bytes unchanged; one `Ctrl+Z` undoes each. **If it fails** S2.
+
+**A-43 · `Delete`, and the flags** ☐
+**Goal** D6-27.
+**Steps** `Delete` on a plain annotation; on each of `annots-flags.pdf`'s flagged ones: move, resize, delete, edit text.
+**Expect** Plain: deleted, one undo restores it. `Locked`: no move, resize or delete — refused with a message; `LockedContents`: text not editable; `ReadOnly`: selection only; `Hidden`/`NoView`: not drawn, listed hidden. `LockAnnotation` toggles each, and is undoable. **If it fails** S2.
+
+**A-44 · A burst of nudges is one step** ☐
+**Steps** Ten `→` presses, a pause of 600 ms, three `Ctrl+↑`.
+**Expect** Two `MoveAnnotation` commands; the offsets are the plan's step sizes; arrows with **no** annotation selected scroll the page as before. **If it fails** S2.
+
+**A-45 · `Ctrl+E` opens one properties bar from either context** ☐
+**Steps** `Ctrl+E` with the page focused; again with a tool armed; again with an annotation selected; change a colour in the bar.
+**Expect** The bar toggles in the Viewer, shows the armed tool's defaults, then the selection's properties; the change is one `SetAnnotationAppearance`. **If it fails** S2.
+
+**A-46 · `Esc` cancels an annotation in progress and nothing else loses it** ☐ *(Q1)*
+**Steps** `Esc` during a polygon in progress; then `Esc` in the tool finder's result popup, the find bar and the properties bar's text field.
+**Expect** The polygon abandoned, the journal unchanged, the Selection tool armed; **each other `Esc` reaches its widget** — `edit.cancel` still unregistered (Stage 4's I-06). **If it fails** S2.
+
+**A-47 · Pop-ups are never a tile and never a command** ☐
+**Goal** D6-28.
+**Steps** Open, move and close a note's pop-up; rasterize the page between; read the journal; each `commenting/popupBehaviour` value.
+**Expect** The page raster **unchanged** by the pop-up; no command; `always` shows every pop-up, `on hover` on hover only, `never` none. **If it fails** S2.
+
+**A-48 · The overlay's selection is not part of the document's appearance** ☐
+**Steps** Select an annotation (handles showing); take a snapshot (`S`) over it; rasterize the tile.
+**Expect** No handle, no selection tint in the snapshot or the tile (D4-11, D5-11). **If it fails** S2.
+
+### 5.8 Text markup and notes (T6)
+
+**A-49 · A highlight covers the selected glyphs' ink** ☐
+**Goal** Rule 6.
+**Steps** `tst_annotink`: highlight a selection on `columns-two.pdf` (across the column break), `annots-rotated.pdf` and `cjk-vertical.pdf`; find the glyphs' ink in a raster of the page without the highlight, and the highlight's ink in the difference.
+**Expect** Every selected glyph's ink inside the highlight; no unselected glyph's ink more than 10 % covered. **If it fails** S2.
+
+**A-50 · Underline, strikeout and squiggly sit where a reader expects** ☐
+**Steps** Each over one line of `text-a4.pdf`, against the glyphs' ink.
+**Expect** Underline and squiggly below the baseline within the descender band; strikeout through the x-height's middle third. **If it fails** S2.
+
+**A-51 · A replace is one edit** ☐
+**Steps** Select a word, *Replace text*, type a replacement.
+**Expect** A `StrikeOut` and a `Caret` grouped (`/IRT`, `/RT /Group`), the replacement in the caret's `/Contents`; **one** undo step; one item in the pane. **If it fails** S2.
+
+**A-52 · An insertion mark sits between the glyphs clicked** ☐
+**Steps** *Insert text* at a click between two letters.
+**Expect** A `Caret` whose rectangle's centre is within 1 pt of the boundary between the two glyphs' ink. **If it fails** S2.
+
+**A-53 · A note is made where the cursor is, by whoever is set** ☐
+**Steps** `Ctrl+Alt+M` with the pointer over the page; `identity/author` empty, then set.
+**Expect** A `Text` annotation and its `Popup` at the cursor; `/T` the login name `app/` passed, then the set author. **Convention 11's control:** no `core/` file reads an environment variable or the OS user name (a grep). **If it fails** S2.
+
+**A-54 · The Identity page ships** ☐
+**Steps** `tst_preferences`; `PreferencesDialog::shippedPages()`.
+**Expect** Identity among the shipped pages, its three keys with editors generated from the table (convention 17); the shipped count re-derived. **If it fails** S3.
+
+### 5.9 Free text, callout, typewriter (T7)
+
+**A-55 · The three typed kinds are made and edited in place** ☐ *(Q2)*
+**Steps** A text box, a callout (with its leader), a typewriter run; each edited in place; saved; read back.
+**Expect** `FreeText` with no `/IT`, `/IT /FreeTextCallout` with `/CL`, `/IT /FreeTextTypeWriter` with no border; an edit is one `EditAnnotation`; **no content stream changes** (Q2). **If it fails** S2.
+
+**A-56 · The characters a typed comment can show** ☐ *(Q3)*
+**Steps** Type into a text box: `café € “quoted”`; `中文 繁體 日本語 한국어`; `Ελληνικά`; `שלום`.
+**Expect** The Latin line in Helvetica (WinAnsi), each CJK run in its predefined CID font, **non-embedded**; the Greek and Hebrew **refused at input**, the message naming the first refused character; `/DA` names the font the `/AP` uses. **If it fails** S1 if a refused character reaches the file as another; S2 otherwise.
+
+**A-57 · The appearance says what was typed** ☐
+**Steps** For each accepted string of A-56: decode the `/AP` content stream first-party (font encoding and CMap) and compare with `/Contents`.
+**Expect** Equal, character for character. **If it fails** S1.
+
+### 5.10 Drawing, ink, eraser, tool defaults (T8)
+
+**A-58 · Shapes and their constraints** ☐
+**Steps** Line (each head style at each end), arrow, rectangle, oval, polygon and polyline (finished by `Enter`), cloud (two jag sizes); each with `Shift`.
+**Expect** The right subtype and `/LE`, `/BE`, `/Vertices`; `Shift` gives 45° steps, a square and a circle; `Enter` finishes, `Esc` abandons. **If it fails** S2.
+
+**A-59 · Ink passes through every sample and keeps them** ☐
+**Goal** D6-15.
+**Steps** `tst_annotation`: stroke sample sets with sharp turns, loops and repeated points.
+**Expect** `/InkList` equals the samples (after the 0.25 px deduplication); the drawn curve passes through every sample within 0.01 pt and stays inside the rectangle grown by half the width. **If it fails** S2.
+
+**A-60 · The eraser splits strokes** ☐
+**Steps** Erase a whole stroke; erase the middle of another.
+**Expect** The first removed; the second split into two strokes at the covered samples; **one** `EditAnnotation`; undo restores the samples exactly. **If it fails** S2.
+
+**A-61 · Tool defaults are a declared family** ☐
+**Goal** D6-13.
+**Steps** `Ctrl+Alt+Enter` with a tool armed and changed properties; a new annotation; the Commenting page; `ctest -R "unit.settings.compile"` with a fixture naming an undeclared `(tool, property)`.
+**Expect** The armed tool's family rows written; the next annotation uses them; the page edits them; **the fixture does not compile**. **If it fails** S2.
+
+**A-62 · `K` keeps the tool** ☐
+**Steps** `K`; draw two rectangles; `K`; draw one.
+**Expect** `commenting/stickyTool` toggled; the tool stays armed after the first two and returns to Select after the third. **If it fails** S3.
+
+**A-63 · Opacity and blend mode reach the pixels** ☐
+**Steps** A highlight at 50 % opacity and `Multiply`; read its `/AP`'s `ExtGState`; rasterize over black text.
+**Expect** `/CA`, `/ca` and `/BM /Multiply` present; the text's ink stays dark under the highlight (multiply), lighter colours tinted. **If it fails** S2.
+
+### 5.11 Appearances (T8, extended by every later tool task)
+
+**A-64 · Every appearance matches its golden** ☐
+**Steps** `ctest -R "render.golden.appearance"`.
+**Expect** Every type × property case inside `golden/README.md`'s thresholds — colours, opacity, width, dash, blend mode, each page rotation and `NoRotate`; every baseline's first capture LOOKED AT and recorded in `golden/UPDATES.md`. **If it fails** S2; the diff image in `golden-failures/` first.
+
+**A-65 · Our appearance agrees with PDFium's own** ☐
+**Goal** §3.3's second oracle.
+**Steps** `tst_appearance`'s control over the nine types PDFium can generate.
+**Expect** **Ink IoU ≥ 0.90** for each. **If it fails** S2 — and the case says which drew what.
+
+**A-66 · Every generated stream is well-formed** ☐
+**Steps** Every `/AP` the suite generates, re-read by `pdf/cos/`'s lexer.
+**Expect** Only operators in the allowlist; `q`/`Q` and `BT`/`ET` balanced; every resource named in the stream present in its `/Resources`. **If it fails** S1 — a malformed stream is drawn differently by every reader.
+
+### 5.12 The Comments pane (T9)
+
+**A-67 · Group, sort and filter are the label's** ☐
+**Steps** `tst_annotstore` (headless) and `tst_commentspane` over `annots-threads.pdf`.
+**Expect** Each grouping — page, author, date, type, status, checkmark — and each sort within it; each filter — author, type, status, checkmark, date range — returns **exactly** the label's set; the pane shows what the query returns. **If it fails** S2.
+
+**A-68 · Replies make threads** ☐
+**Steps** `Ctrl+Enter` on a comment; again on the reply; type; save; read back.
+**Expect** `ReplyToAnnotation`, `/IRT` to the parent, `/RT /R`; shown nested two deep. **If it fails** S2.
+
+**A-69 · Status, history and the personal checkmark** ☐
+**Goal** D6-12.
+**Steps** `Ctrl+Shift+K` → *Accepted*, then *Completed*; `Space`; change `identity/author`; `Space` again.
+**Expect** Two `/StateModel /Review` replies with author and date; the history lists both; the first `Space` adds a `/Marked` reply by the first author, and the second author **does not see it as theirs** — their checkmark is independent. **If it fails** S2.
+
+**A-70 · The whole Comments pane table, from key events** ☐ *(Q1)*
+**Steps** `tst_commentspane`: `↑`/`↓`, `Enter`, `F2`, `Ctrl+Enter`, `Delete`, `Space`, `Ctrl+Shift+K`, `Ctrl+F`, `Ctrl+.`/`Ctrl+,` in the pane; `Ctrl+.`/`Ctrl+,` and `Space` in the Viewer; `Ctrl+Shift+C`.
+**Expect** Each acts as §8 says; `Ctrl+.` from the pane **moves the page view** to the comment; **`Space` in the Viewer still scrolls** (the collision's control); `Ctrl+Shift+C` opens the pane from anywhere. **If it fails** S2.
+
+**A-71 · Deleting many is one step** ☐
+**Steps** *Delete all*; undo; filter by an author, *Delete matching*; undo.
+**Expect** One `DeleteAnnotation` each, removing exactly the set (replies with their parents); one undo each restores all. **If it fails** S1 if an undo loses one; S2 otherwise.
+
+**A-72 · Sequence numbers are shown and never written** ☐
+**Steps** Turn numbering on; rasterize a tile; read the journal.
+**Expect** Numbers in the pane and over the page in reading order; **tile pixels unchanged**; no command. **If it fails** S2.
+
+**A-73 · The pane at 9,000 annotations** ☐
+**Goal** §3.6.
+**Steps** `tst_commentspane`'s timing case over `annots-900.pdf`, three runs.
+**Expect** Inside every §3.6 bound, the figures printed. **If it fails** S2.
+
+**A-74 · Comments are searched from the store** ☐
+**Goal** D6-11.
+**Steps** Add a note containing `marmoset` without saving; find `marmoset` with `search/includeComments` on, then off; Advanced Search over a scratch folder holding the same file, closed; a find hit on an attachment of `attachments.pdf`.
+**Expect** Found when on, not when off; the hit **selects the annotation**; the folder search finds only what is saved; the attachment hit **selects the attachment in the Attachments pane**. **If it fails** S2.
+
+### 5.13 Stamps (T10)
+
+**A-75 · Built-in stamps are what other readers know** ☐
+**Steps** Place each built-in standard stamp.
+**Expect** `/Name` one of ISO 32000-1 Table 181's values; the `/AP` golden. **If it fails** S2.
+
+**A-76 · A dynamic stamp is baked, not computed** ☐
+**Steps** With the clock seam fixed at 2026-10-04 09:30, place a dynamic stamp; save; reopen with the clock at 2027-01-01.
+**Expect** The author, date and time of the placement in the `/AP` and `/Contents`, unchanged on reopening. **If it fails** S2.
+
+**A-77 · Image stamps keep their pixels** ☐
+**Steps** Custom stamps from `corpus/stamps/*.png` (with alpha) and `*.jpg`.
+**Expect** The PNG as a Flate image with an `/SMask`; the JPEG as `/DCTDecode` **byte-identical** to the file's; each rendered within the golden threshold of the source image. **If it fails** S2.
+
+**A-78 · One image, placed twice, is written once — and a PDF is not a stamp source** ☐
+*(Rewritten 2026-10-04 by Q7's answer: until then it graded `ObjectGraphCopier`, which moved to Stage 7.)*
+**Steps** A custom stamp from `corpus/stamps/*.png`, placed on two pages; save; count the image XObjects. Then offer the custom-stamp dialog a PDF.
+**Expect** **One** image XObject (with its `/SMask`) referenced by both appearances; the dialog lists image types only and refuses a PDF by name. **If it fails** S2 for a duplicate; S3 for the dialog.
+
+**A-79 · The stamp library survives a restart and damage** ☐
+**Steps** `tst_profilestore` with a scratch root: a category, a favourite, two processes; then a truncated profile file.
+**Expect** Both survive the second process; the damaged file is **reported** and the rest of the library loads. **If it fails** S2.
+
+**A-80 · A placed stamp resizes and rotates** ☐
+**Steps** Resize by a handle; rotate by 90° and 30°.
+**Expect** One command each; the `/AP` matrix carries the rotation, and the rectangle bounds the rotated ink (rule 6). **If it fails** S2.
+
+**A-81 · Copy, cut and paste carry annotations** ☐
+**Goal** D6-22.
+**Steps** Copy two annotations; paste into another tab; paste into a second RawPage process; cut one; put an image on the clipboard and paste; then `Ctrl+V` and `Ctrl+X` in the find bar, a properties-bar text field and the tool finder.
+**Expect** The pasted annotations equal in every modelled field but `/NM` and `/P`; the cut is copy plus one delete; the image becomes an image stamp; **every text widget keeps its own `Ctrl+V` and `Ctrl+X`** (Stage 5's I-04 turned round). **If it fails** S2.
+
+### 5.14 Attachments (T11)
+
+**A-82 · The pane lists what the label lists** ☐
+**Steps** `tst_attachments` over `attachments.pdf`.
+**Expect** Every document-level and annotation attachment with its name, description and size equal to the label. **If it fails** S2.
+
+**A-83 · Adding and deleting are commands** ☐
+**Steps** Add a file; delete one; save; reopen; undo each.
+**Expect** `AddAttachment` and `DeleteAttachment`; the saved file's `/EmbeddedFiles` as expected; each undo exact. **If it fails** S1 for a lost attachment.
+
+**A-84 · Extract writes the bytes and nothing else** ☐
+**Steps** Extract each attachment into a scratch folder; census the scratch, temp and `%LOCALAPPDATA%\RawPage\` trees before and after.
+**Expect** Each file's SHA-256 equals the embedded stream's decoded bytes; **nothing else written** anywhere. **If it fails** S2.
+
+**A-85 · Opening is asked, and an executable is refused** ☐
+**Goal** D6-17.
+**Steps** Open the attached PDF; open the `.txt`; open the `.exe`-named file; quit cleanly; create a `FileAttachment` with `annot.attachFile`.
+**Expect** The PDF opens in a tab **from bytes** (no file written); the `.txt` asks first and then lands in the session folder; the `.exe` is **refused** and nothing is written; the session folder is **empty after the quit**; the pushpin annotation is created. **If it fails** S1 if an executable is written or launched; S2 otherwise.
+
+**A-86 · Large payloads go to side files, through the existing write** ☐
+**Goal** D6-23.
+**Steps** Add a 5 MB attachment and an image stamp; read the journal directory; `layer-lint --explain`.
+**Expect** The journal line names each payload by SHA-256; the side files exist with those hashes; **15** waivers, unchanged. **If it fails** S2.
+
+### 5.15 Measurement (T12)
+
+**A-87 · The arithmetic** ☐
+**Steps** `tst_measure`: distances, perimeters and areas at several scales, units and precisions, against hand-computed values.
+**Expect** Equal to the declared precision; a self-intersecting polygon's area refused by name rather than reported as a signed sum. **If it fails** S2.
+
+**A-88 · `/Measure` is written and read** ☐
+**Steps** A distance, a perimeter and an area at a 1 in : 10 ft scale; save; read back; read `measure-scale.pdf`'s existing ones.
+**Expect** `/IT` the dimension kind; `/Measure` `/Subtype /RL` with the scale string and conversion factors; the value read back equals the one shown. **If it fails** S2.
+
+**A-89 · Snapping lands on the generator's points** ☐
+**Goal** Rule 6, D6-14.
+**Steps** `tst_measuretool` over `measure-scale.pdf`: drags ending 3 device px from each known endpoint, midpoint and intersection; at 100 % and 400 %; `units/snapToObjects` off.
+**Expect** Each snaps **exactly** to the generator's coordinate; the threshold is the same in device px at both zooms (Stage 4's rule); precedence point > edge > guide > grid; with the key off, no object snap. **If it fails** S2.
+
+**A-90 · Calibration reads true** ☐
+**Steps** Measure the drawing's 100 mm line, calibrate it as 100 mm; measure the 37.5 mm line.
+**Expect** `measuring/scaleRatio` set; the second reads 37.5 mm at the set precision. **If it fails** S2.
+
+**A-91 · Path geometry is engine work, bounded and kept** ☐
+**Steps** `tst_measuretool`: thread ids for `pageGeometry`; a page of 150,000 segments (synthetic); a second request for the same page.
+**Expect** Read on the render thread; the large page gives no object snaps and says so **once**; the second request served from `DocumentIndex` with no engine job. **If it fails** S2.
+
+**A-92 · The keys and the page, and the comment** ☐
+**Steps** The Measuring page; `measuring/writeToComment` on, then off; a dimension callout.
+**Expect** Five keys with generated editors and `units/snapToObjects` on Units & Guides; the readout in `/Contents` exactly when on; the callout's leader lines (`/LL`, `/LLE`). **If it fails** S3.
+
+### 5.16 Exchange (T13)
+
+**A-93 · XFDF and FDF round-trip every field** ☐
+**Goal** §3.7.
+**Steps** `tst_fdf` over every fixture.
+**Expect** §3.7's equality for both formats. **If it fails** S1 for a lost annotation; S2 for a field.
+
+**A-94 · Acrobat-shaped exports import** ☐
+**Steps** Import each `corpus/exchange/` file into its target.
+**Expect** Every annotation present with the label's fields; the one `ImportAnnotations` in the journal. **If it fails** S2.
+
+**A-95 · Merge by `/NM`** ☐
+**Steps** Import an XFDF holding one new `/NM`, one known with a newer `/M`, one known with an older `/M`; undo.
+**Expect** Added, replaced, kept — and the `MergeResult` says each; one undo restores all three. **If it fails** S2.
+
+**A-96 · Export only the filtered** ☐
+**Steps** Filter the pane by author; export.
+**Expect** Exactly the filtered set (with their threads) in the file, written by `pdf/ops`. **If it fails** S2.
+
+**A-97 · A hostile XFDF is refused** ☐
+**Steps** Import the external-entity fixture, a billion-laughs fixture and a truncated file.
+**Expect** **No file or URL resolved** (a scratch file the entity names stays unread); bounded time and memory; each refused by key, the document unchanged. **If it fails** S1.
+
+**A-98 · Migration, graded** ☐
+**Goal** §3.5.
+**Steps** `tst_migrate` (headless, over the two documents' text and Stage 5's alignment) and its composition half.
+**Expect** Every §3.5 bar met. **If it fails** S2.
+
+**A-99 · What cannot be migrated is reported and not placed** ☐
+**Steps** The annotations on text `report-v2` deleted.
+**Expect** Each in the report; none in the revised document. **If it fails** S1 — a silent misplacement in someone else's revision.
+
+### 5.17 Redaction marks and audio (T14)
+
+**A-100 · A mark removes nothing** ☐
+**Goal** D6-25.
+**Steps** `Ctrl+Alt+K` over an area and over a text selection, with overlay text, colour and repeat set; save.
+**Expect** `Redact` annotations with `/QuadPoints` (text), `/OverlayText`, `/IC`, `/Repeat`, `/AP /N` and `/RO`; **every content stream of every page byte-identical** to the original's; the text still extractable and found. **If it fails** S1.
+
+**A-101 · A sound's samples round-trip exactly** ☐ *(Q5)*
+**Steps** `tst_sounddata`: WAV files of 8 and 16 bit, mono and stereo, into a `Sound` annotation; save; read back; a by-hand recording run on the `windows` platform (skips offscreen, like Stage 5's A-50).
+**Expect** `/R`, `/C`, `/B`, `/E` as the WAV's; the samples **byte-identical**; a non-PCM WAV refused by name; the recording run produces a `Sound` annotation that plays. **If it fails** S2.
+
+### 5.18 The stage-wide sweeps (T15)
+
+**A-102 · Every earlier case is still here, on both presets** ☐
+**Steps** `ctest --preset x64-release` and `--preset x64-debug` after clean builds; the case names compared with Stage 5's sign-off run.
+**Expect** Green on both; every Stage 0–5 case present **by name** or its rename said. **If it fails** S1.
+
+**A-103 · No existing golden baseline moved** ☐
+**Steps** `ctest -R "render.golden"`; `git diff b49b13c..HEAD -- golden/`.
+**Expect** Green; only new baselines added, each with a reason in `golden/UPDATES.md`. **If it fails** S1.
+
+**A-104 · A2 re-read through the shipped surfaces** ☐
+**Goal** §3.1, the product half.
+**Steps** `rawpage_bench_surface.exe --stage6`: the shipped composition with an ink tool drawing on `pages-900.pdf`.
+**Expect** The figure printed with the dpi and viewport reached; graded on §3.1 and recorded beside T4's. **If it fails** S2.
+
+**A-105 · The action census agrees with itself** ☐
+**Steps** `rawpage.exe --list-actions`; `tst_viewercommands`.
+**Expect** The declared, registered and unregistered counts re-derived and equal to what the documents state; **`Ctrl+B` the only Viewer chord still `NotFound`**. **If it fails** S3.
+
+**A-106 · The UI binary runs whole** ☐
+**Steps** `rawpage_ui_tests.exe` whole, in declaration order and under three seeds, on both presets.
+**Expect** Green each time; `ProcessStateGuard` silent (Stage 4's A-103). **If it fails** S2.
+
+**A-107 · A killed session recovers its annotations** ☐
+**Steps** `platform.recovery.kill` extended: `TerminateProcess` ×20 during annotation commands and saves, a large payload among them.
+**Expect** Each recovery offer replays to a store equal to the journal's last line; side files present; no recovery offered for a session that ended cleanly. **If it fails** S1.
+
+**A-108 · Shown is saved, for everything the tools make** ☐
+**Steps** A-34 re-run over every type T5 … T14 added, each created through its tool.
+**Expect** **0 differing pixels** everywhere. **If it fails** S1.
+
+---
+
+## 6. Manual verification — you run this
+
+Thirteen cases, **each on a copy of a generated corpus file** in `tests\manual\<case>\`, each asking for
+a judgement no assertion makes. **Walk each at the task that makes it walkable**, not at the end:
+
+| Walk at | Cases |
+|---|---|
+| **T6** | M-01, M-03, M-11 |
+| **T7** | M-06 |
+| **T8** | M-02, M-12 |
+| **T9** | M-05 |
+| **T10** | M-07 |
+| **T11** | M-13 |
+| **T12** | M-09 |
+| **T13** | M-04, M-10 |
+| **T14** | M-08 |
+
+Three things about the state you will be walking, so a planned absence is not reported as a defect:
+
+- **Every change you make is undoable and changes the file only when you save.** A file whose
+  *modified* time moves without a Save is a finding.
+- **There is no comment summary, no redaction applied, and no typed comment outside Latin and CJK**
+  (Q3 and Q4, approved 2026-10-04).
+- **Walk on copies in `tests\manual\<case>\`**, never on the corpus files themselves. **Set
+  `identity/author` first**, so the comments are yours.
+
+---
+
+**M-01 · Marking up and noting a page** ☐
+- **Goal** The markup tools and notes judged by a person: on the glyphs, the colour expected, the pop-ups where they should be.
+- **Pre** T6. Copies of `columns-two.pdf`, `annots-rotated.pdf` and `cjk-vertical.pdf` in `tests\manual\M-01`; both monitors if available.
+- **Steps**
+  1. From the page with nothing armed, `Ctrl+Alt+H`; highlight a sentence, then one running from the foot of one column to the head of the next.
+  2. `Ctrl+Alt+U`, `Ctrl+Alt+X`; *Squiggly*, *Replace text* and *Insert text* from the ribbon.
+  3. `Ctrl+Alt+M` with the pointer over the margin; type a note; switch `commenting/popupBehaviour` through its three values.
+  4. Repeat steps 1 and 3 on the rotated pages and on the vertical CJK, and on the 100 % monitor.
+  5. `Ctrl+Z` back to the start, `Ctrl+Y` forward; save; close; reopen.
+- **Expect** Each mark on the glyphs a person meant, on every page and both monitors; a replace or insert reads as one item in the Comments pane; undo and redo step one gesture at a time; after reopening everything is where it was.
+- **If it fails** Note the file, the page, the tool and the monitor; a mark off the glyphs is S2.
+
+**M-02 · What other readers show** ☐
+- **Goal** D6-6's fourth oracle: Acrobat and Firefox show what RawPage shows.
+- **Pre** T8. A copy of `text-a4.pdf` in `tests\manual\M-02`; P-1, P-2.
+- **Steps**
+  1. In RawPage, make one of every type T6 … T8 provide — highlight, underline, strikeout, squiggly, caret, note, line with heads, arrow, rectangle, oval, polygon, polyline, cloud, ink — with varied colours, one at 50 % opacity, one dashed; save as `m02.pdf`.
+  2. Open `m02.pdf` in **Acrobat** and in **Firefox**, side by side with RawPage at the same zoom.
+  3. Optionally on a phone (P-2), noting which reader.
+  4. As a **control**, open it in Chrome: it should agree with RawPage, because it is PDFium.
+- **Expect** In Acrobat and Firefox each annotation the same shape, colour, opacity and position as in RawPage. **Do not edit anything in Acrobat first** — Acrobat may regenerate an appearance it edits (§7).
+- **If it fails** Name the type, the reader and what differs; S2, with a screenshot of each in `tests\manual\M-02\`.
+
+**M-03 · A4 through the product — a comment on a signed document** ☐
+- **Goal** §3.4's Acrobat half; Stage 3's carried exit criterion.
+- **Pre** T6. Copies of the four `corpus/signed/` files in `tests\manual\M-03`; P-1. A-33 green.
+- **Steps**
+  1. Open each copy in RawPage; add one sticky note with `Ctrl+Alt+M`; save with `Ctrl+S`.
+  2. Open each saved file in Acrobat; open the Signatures panel; *Validate Signature*.
+  3. For an approval file, *View Signed Version*.
+- **Expect** Each **approval** signature: *"the revision … covered by this signature has not been altered; however, there have been subsequent changes"*, the note listed as the change, and absent from the signed version; **`certified-nochanges.pdf` flagged** — its certification permits no changes.
+- **If it fails** Record Acrobat's exact wording per file. An approval signature reported altered is S1.
+
+**M-04 · Exchanging comments with Acrobat** ☐
+- **Goal** *FDF/XFDF round-trips with at least one other reader* — with a real one.
+- **Pre** T13. A copy of `text-a4.pdf` in `tests\manual\M-04`; P-1.
+- **Steps**
+  1. In Acrobat, add a note, a highlight, a reply and an *Accepted* status; export comments as **XFDF** and as **FDF**.
+  2. In RawPage, open a clean copy and import each.
+  3. In RawPage, add a comment and export XFDF; import it into Acrobat on a clean copy.
+- **Expect** Each import shows every comment with its author, text, thread and status; the import report lists nothing unplaced.
+- **If it fails** Keep the exported files in `tests\manual\M-04\`; they cannot enter the corpus, but they reproduce the failure. S2.
+
+**M-05 · Managing comments in the pane, by keyboard** ☐
+- **Goal** The pane's whole table, and its feel, from the keyboard.
+- **Pre** T9. A copy of `annots-threads.pdf` in `tests\manual\M-05`.
+- **Steps**
+  1. `Ctrl+Shift+C`; walk the list with `↑`/`↓`; `Enter`; `F2`; `Ctrl+Enter` a reply; `Ctrl+Shift+K` a status; `Space` a checkmark; `Ctrl+F` and search.
+  2. Group by each grouping; filter by author and by date; sort.
+  3. `Ctrl+.`/`Ctrl+,` from the pane and from the page; `Delete`; *Delete matching* under a filter; `Ctrl+Z`.
+- **Expect** Every key acts as §8 says; `Space` on the page still scrolls; the page follows the list; threads read naturally; one undo restores a deletion.
+- **If it fails** The key, the focus and what happened; S2.
+
+**M-06 · Typed comments** ☐
+- **Goal** Free text, callout and typewriter judged where a person types.
+- **Pre** T7. A copy of `text-a4.pdf` in `tests\manual\M-06`.
+- **Steps**
+  1. A text box, a callout pointing at a word, and typewriter text in a margin — in English.
+  2. The same in Traditional Chinese and in Japanese.
+  3. *(Q3)* Type a Greek word.
+  4. Save; open in Acrobat and Firefox.
+- **Expect** The text where it was typed, wrapping as typed; CJK drawn with the system's face; the Greek refused with a message naming the letter; the same text in the other readers.
+- **If it fails** S2; S1 if a character appears that was not typed.
+
+**M-07 · Stamps** ☐
+- **Goal** The palette, custom stamps and dynamic stamps judged by a person.
+- **Pre** T10. A copy of `text-a4.pdf` and the `corpus\stamps\` images in `tests\manual\M-07`.
+- **Steps**
+  1. `Ctrl+Alt+S`; place *Approved* and a dynamic stamp; resize and rotate one.
+  2. Create a custom stamp from the PNG and the JPEG; make one a favourite; file one under a new category; add a signature image. *(A PDF page is not a source until Stage 7 — Q7.)*
+  3. Paste an image from Paint (`Ctrl+V` on the page).
+  4. Quit, relaunch: the library is as you left it. Save; open in Acrobat.
+- **Expect** The built-in stamps crisp at 400 %, the image stamps as sharp as their images; the dynamic stamp shows your name and the time of placing; Acrobat shows the same.
+- **If it fails** S2.
+
+**M-08 · An audio comment** ☐ *(Q5)*
+- **Goal** Recording and playback on real hardware.
+- **Pre** T14. P-3. A copy of `text-a4.pdf` in `tests\manual\M-08`.
+- **Steps**
+  1. *Record audio comment*; speak five seconds; stop; play it back inline.
+  2. Attach an existing WAV.
+  3. Save; open in Acrobat and play both.
+- **Expect** Both play in RawPage and in Acrobat, at the right speed and pitch.
+- **If it fails** S2. Audio may slip alone (D6-18): a failure here does not hold the other cases.
+
+**M-09 · Measuring a drawing** ☐
+- **Goal** A calibrated measurement with snapping, judged on real monitors.
+- **Pre** T12. A copy of `measure-scale.pdf` in `tests\manual\M-09`; both monitors if available.
+- **Steps**
+  1. `Ctrl+Alt+D`; calibrate on the drawing's labelled line.
+  2. Measure a distance, a perimeter and an area, snapping to corners, midpoints and an intersection; at 100 % and 400 %, on both monitors.
+  3. Turn `units/snapToObjects` off and measure again; save; open in Acrobat.
+- **Expect** The snaps catch at the same on-screen distance at every zoom and monitor; the readouts match the drawing's labels; Acrobat shows the same measurements.
+- **If it fails** S2.
+
+**M-10 · Migrating comments to a revision** ☐
+- **Goal** The migration and its report judged by a person (§3.5).
+- **Pre** T13. Copies of `annots-report-v1.pdf` and `compare\report-v2.pdf` in `tests\manual\M-10`.
+- **Steps**
+  1. Open `report-v2.pdf`; *Migrate comments* from `annots-report-v1.pdf`.
+  2. Read the report; check each migrated comment against where it was in v1.
+- **Expect** Every comment whose text survived is on that text; every comment whose text was deleted is in the report and nowhere on the page.
+- **If it fails** A comment on the wrong text is S2 and, unreported, S1.
+
+**M-11 · Undo, redo and recovery** ☐
+- **Goal** A person's session survives a crash.
+- **Pre** T6 (re-walked at T13 with stamps and attachments). A copy of `text-a4.pdf` in `tests\manual\M-11`.
+- **Steps**
+  1. Make ten annotations of mixed kinds, undo three, redo one.
+  2. End the process from Task Manager.
+  3. Relaunch; accept the recovery offer.
+- **Expect** The recovered document shows exactly the eight annotations that were on screen; `Ctrl+Z` continues from there.
+- **If it fails** S1.
+
+**M-12 · Drawing on a 900-page document** ☐
+- **Goal** §3.1's judgement half: an edit feels immediate and the page does not stutter.
+- **Pre** T8. A copy of `pages-900.pdf` in `tests\manual\M-12`.
+- **Steps**
+  1. Page 450; draw twenty quick ink strokes.
+  2. Scroll fast while drawing; add highlights on pages 1, 450 and 900.
+- **Expect** Each stroke appears as it is finished, without a flash; scrolling stays smooth.
+- **If it fails** S2, with T4's figures beside the observation.
+
+**M-13 · Attachments** ☐
+- **Goal** The Attachments pane, its warning and its refusals.
+- **Pre** T11. A copy of `attachments.pdf` in `tests\manual\M-13`.
+- **Steps**
+  1. `Ctrl+Shift+A`; open the attached PDF; open the `.txt`; try the `.exe`-named file.
+  2. Extract each; add a file; delete one; `annot.attachFile` a file as a pushpin.
+  3. Save; reopen; quit cleanly and look in `%LOCALAPPDATA%\RawPage\attachments\`.
+- **Expect** The PDF in a tab; the `.txt` after a question; the `.exe` refused; extracts equal to what was attached; the session folder empty after the quit.
+- **If it fails** S1 if anything executable runs or is written; S2 otherwise.
+
+---
+
+## 7. Known caveats — verify, do not assume broken
+
+Behaviours that look like defects and are not. **A wrong row here is worse than a missing one.**
+
+| Looks broken | Is |
+|---|---|
+| **Chrome or Edge shows exactly what RawPage shows** | Not evidence — both are PDFium (D6-6). Acrobat and Firefox are the oracles |
+| **Acrobat redraws a RawPage annotation differently after you edit it in Acrobat** | Acrobat regenerates the appearance of what it edits. Compare **before** touching anything in Acrobat |
+| **An encrypted document's comments do not appear in the pane** | Correct until Stage 10 (D6-3) |
+| **A redaction mark leaves the text visible and searchable** | Correct — it is a mark (D6-25) |
+| **A Greek or Hebrew letter is refused in a text box** | Correct — Q3, `DW-3` |
+| **Opening or moving a pop-up does not make the document *changed*** | Correct — pop-ups are view state (D6-28) |
+| **The drag preview looks slightly different from the final annotation for a moment** | The preview is drawn by Qt and released when the engine's tiles arrive (D6-2) |
+| **A smooth ink stroke saves its raw points** | Correct — the samples are the data; smoothing is the appearance (D6-15) |
+| **An `.exe` attachment cannot be opened** | Correct until Stage 10's trust model (D6-17) |
+| **A `Ctrl+Alt+` chord types a character or does nothing** | On a keyboard layout with **AltGr**, `Ctrl+Alt` is AltGr and the layout owns the chord; or another program holds it as a system-wide hotkey (Stage 5's I-17) — try `RegisterHotKey` on it |
+| **There is no comment summary** | Stage 8's — Q4 (D6-19) |
+
+---
+
+## 8. Issue log
+
+Numbered `I-nn`, **this stage's own namespace**. Each entry carries its mechanism, why the suite
+missed it, and the control that was run red before the fix — the shape every earlier stage's log
+uses.
+
+| # | Sev | Title | State |
+|---|---|---|---|
+| — | — | *No issue yet — no Stage 6 code exists.* | — |
+
+---
+
+## 9. Sign-off criteria
+
+Stage 6 is done when **all** of these hold — [`Stage6-Annotations-Plan.md` §13](./Stage6-Annotations-Plan.md#13-definition-of-done-for-stage-6)
+restated as a checklist.
+
+1. ✅ **2026-10-04.** The plan's §0 answered — all eight, the day it was written — and every case
+   written against a proposal re-read against its answer: all stand as written, A-40's Expect gaining
+   the census at thirteen (Q1) and A-78 and M-07 rewritten (Q7).
+2. ☐ Every automated case carries a result, recorded against it rather than summarized (Stage 1's
+   I-32); Linux-only halves read from the job's **log**.
+3. ☐ M-01 … M-13 walked and signed off **by you**. I do not mark a manual case.
+4. ☐ `checks` clean — `mutation-lint` naming exactly the plan's commands (A-08), **15** waivers (A-10).
+5. ☐ `ctest` green on **both** presets and the `gates` preset, every earlier case present by name
+   (A-102); the UI binary green whole (A-106).
+6. ☐ `portable-asan` clean over every Stage 6 suite (A-04); `portable-fuzz` and the soak clean on
+   **five** targets (A-23); `qpdf --check` clean (A-31).
+7. ☐ The golden suite green with every existing baseline unchanged (A-103).
+8. ☐ **A2 at Stage 6** recorded, bench and product (A-38, A-104); **A4's product half** recorded
+   (A-33, M-03).
+9. ☐ No open S1 or S2 in §8.
+10. ☐ `Architecture-FileMap.md` rows flipped with their files; the plan's §10 debt paid;
+    `Implementation-Plan.md`'s Stage 6 block updated to reality, deviations included.

@@ -66,7 +66,7 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
 
     // THE FIRST DECLARED CONTEXT IN THE PRODUCT (D2-8). Everything above this widget in the focus
     // chain still resolves to `Global`; everything at or below it now resolves to `Viewer`, which
-    // is what makes `Features.md` §8's twelve deliberate collisions mean anything at all.
+    // is what makes `Features.md` §8's deliberate collisions mean anything at all.
     ShortcutBinder::declareContext(this, core::KeyContext::Viewer);
 
     // Focusable by click AND by tab, because a viewer that cannot be reached from the keyboard is

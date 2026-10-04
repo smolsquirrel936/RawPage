@@ -21,7 +21,7 @@
 // `ShortcutBinder::declareContext(this, KeyContext::Viewer)`. Stage 1 shipped the entire context
 // resolution mechanism with nothing declaring a context, so `activeContext()` answered `Global` for
 // every keystroke the product had ever seen -- the honest state, and completely untested against a
-// real second context. The twelve deliberate chord collisions in `Features.md` §8 exist precisely
+// real second context. The deliberate chord collisions in `Features.md` §8 (thirteen since 2026-10-04) exist precisely
 // so one chord means two things, and until this line not one of them had ever resolved differently.
 //
 // The Viewer COMMANDS are T14's. What T13 owes is that the context resolves, and that it resolves

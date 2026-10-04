@@ -151,7 +151,7 @@ survive CTest's filter round trip and the case then "fails" with a passing body.
 
 ```powershell
 ctest --preset x64-debug -R "distinct error codes" --output-on-failure
-ctest --preset x64-debug -R "twelve Write-mode collisions" --output-on-failure
+ctest --preset x64-debug -R "thirteen Write-mode collisions" --output-on-failure
 
 # Suites that do not exist yet, named here so the shape is on record:
 ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash (Stage 3)

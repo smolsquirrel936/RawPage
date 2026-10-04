@@ -1010,6 +1010,16 @@ after a full build.
 `QtLinguistTools` (build-time only). **All nine are present in the installed prefix** — verified
 2026-08-17 against `C:\Qt\6.11.1\mingw_64\lib\cmake`, so no module gap blocks any stage.
 
+**`QtMultimedia` ships its Windows Media Foundation backend ONLY** — decided 2026-10-04 by the user's
+answer to `Stage6-Annotations-Plan.md` Q5 (D6-18), when Stage 6's audio comments became its first
+user. The installed prefix carries two Windows backends: `plugins\multimedia\windowsmediaplugin.dll`
+(Media Foundation, the operating system's) and `plugins\multimedia\ffmpegmediaplugin.dll`, which
+brings `avcodec-61`, `avformat-61`, `avutil-59`, `swresample-5` and `swscale-8` with it (read from
+`C:\Qt\6.11.1\mingw_64` on 2026-10-04). **The FFmpeg plugin and those five DLLs are never deployed**:
+Stage 6's `Sound` annotations carry raw PCM, so no codec is involved, and FFmpeg would add five DLLs
+and a licence review of its own build configuration for nothing the product needs. Stage 6's guide
+case A-07 checks the deployment. `QtMultimedia` links into `ui/` only — never `core/`.
+
 **Explicitly not taken:** `QtWebEngine` (enormous, and we render PDFs ourselves), `QtCharts` and
 `QtDataVisualization` (**GPL-3.0 only under the open-source license — taking either would breach
 D4**), `QtQuick`/QML (D2).
@@ -1335,6 +1345,14 @@ replay stops cleanly at the last good command and reports it. Make the recovery 
 crash, and its first save is forced to `Save As`. `tests/fuzz_cos` — built by the `portable-fuzz`
 preset, since GCC cannot produce it — runs 10 minutes with no new crash before each release. A crash
 it finds is reproduced on Windows through the ordinary `x64-debug` build before it is called fixed.
+
+**What we write, judged by tools that are not ours (D3-2, `Stage6-Annotations-Plan.md` D6-6).** A
+signature in a file we saved is judged by the **OpenSSL** command line, never by our own reader
+(Stage 3). From Stage 6, **every file the suite writes is also passed to `qpdf --check`**
+(Apache-2.0) in CI's Ubuntu `gates` job, which must report *"No syntax or stream encoding errors
+found"* for each — decided 2026-10-04 by the user's answer to `Stage6-Annotations-Plan.md` Q8.
+Both are verification tools only: installed on the CI runner, never linked, never shipped, and not
+needed on a developer machine.
 
 **Layering (§4.2).** `tools/layer-lint --explain` prints the include graph; assert no edge points
 outward. Deliberately add `#include "pdf/cos/CosDict.h"` to a `core/` file → CI fails.

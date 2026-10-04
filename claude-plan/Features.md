@@ -1288,7 +1288,9 @@ The contexts are: **Global**, **Viewer (Review mode)**, **Write mode**, **Annota
 **Page Thumbnails pane**, **Bookmarks pane**, **Comments pane**, **Forms — Design**,
 **Forms — Fill**, **Find / Search**, and **Full Screen & Presentation**.
 
-### What "the twelve deliberate collisions" counts
+<a id="what-the-twelve-deliberate-collisions-counts"></a>
+
+### What "the thirteen deliberate collisions" counts
 
 The figure quoted throughout the document set means one specific thing: **chords that mean something
 different in Write mode than in the context they would otherwise resolve to.** It is the set that
@@ -1297,12 +1299,19 @@ chord disagree most.
 
 | Write mode overrides… | Count | Chords |
 |---|---|---|
-| **Viewer** | **8** | `Ctrl+B` `Ctrl+E` `Ctrl+L` `Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N` |
+| **Viewer** | **9** | `Ctrl+B` `Ctrl+E` `Ctrl+L` `Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N` `Ctrl+Alt+M` |
 | **Global** | **4** | `Ctrl+D` `Ctrl+K` `Ctrl+Shift+A` `Ctrl+Shift+L` |
 | **Common** | 0 | — |
-| | **12** | |
+| | **13** | |
 
-Other, wider counts exist over these tables and are **not** what "twelve" refers to — a census of
+**Thirteen since 2026-10-04, twelve before.** `Ctrl+Alt+M` — a sticky note in the Viewer, a margin
+comment in Write mode — became the thirteenth when the arming chords moved from Annotation tools to
+the Viewer (`Stage6-Annotations-Plan.md` Q1, the user's decision to accept the larger figure rather
+than leave the note's chord unreachable). Both meanings add a comment, each in its own mode, which is
+the kind of collision this count exists for. Figures in signed-off stage documents that say *twelve*
+are history; the live statement is here. The old anchor is kept above so links to it still land.
+
+Other, wider counts exist over these tables and are **not** what "thirteen" refers to — a census of
 every context gives **6** chords where any context redefines a `Global` chord, **9** where a context
 overrides a `Common` one, and **53** chords appearing in more than one table at all (mostly the
 ordinary per-context meanings of `Enter`, `Delete` and the arrow keys). Stating the scope here so
@@ -1311,6 +1320,12 @@ that downstream documents cite a defined number rather than an ambiguous one. *(
 reproduced the previous **52** and **6** before the edit. **53** is 52 plus Stage 5's `Alt`+drag, now
 in Viewer and Annotation tools with different meanings. `Ctrl+Shift+F` MOVED from Find / Search to
 Global rather than appearing in both, so it adds nothing, and the **6** does not move.)*
+*(2026-10-04: moving the fourteen arming chords from Annotation tools to Viewer moves neither the
+**6**, the **9** nor the multi-table count — `Ctrl+Alt+M` was in two tables before and is in two
+after, and the other thirteen are in one. Re-parsed before and after the edit by a script that reads
+**52** both times, one fewer than the **53** stated above; that one-chord difference in method was
+not traced, so the **53** is left as stated rather than replaced by a figure whose method disagrees
+with the one that produced it.)*
 
 ### Global (active in every context)
 
@@ -1380,6 +1395,20 @@ Global rather than appearing in both, so it adds nothing, and the **6** does not
 | `Ctrl+Alt+C` | Compare documents… |
 | `Ctrl+.` / `Ctrl+,` | Next / previous comment |
 | `Ctrl+]` / `Ctrl+[` | Next / previous difference (during a comparison) |
+| `Ctrl+Alt+M` | New sticky note at the cursor — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+H` | Highlight tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+U` | Underline tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+X` | Strikeout tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+T` | Text box tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+L` | Line tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+R` | Rectangle tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+O` | Oval tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+N` | Polygon tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+P` | Pencil / ink tool — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+S` | Stamp palette — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+D` | Distance measurement — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+A` | Area measurement — arms the tool (S6 decision D6-9) |
+| `Ctrl+Alt+K` | Mark for redaction — arms the tool (S6 decision D6-9) |
 
 ### Write mode
 
@@ -1418,8 +1447,8 @@ Global rather than appearing in both, so it adds nothing, and the **6** does not
 | `Ctrl+Shift+W` | Word count |
 
 > **Deliberate collisions between Review and Write mode.** `Ctrl+B`, `Ctrl+D`, `Ctrl+E`, `Ctrl+K`,
-> `Ctrl+L`, `Ctrl+R`, `Ctrl+U`, `Ctrl+=`, `Ctrl+Shift+A`, `Ctrl+Shift+L`, `Ctrl+Shift+N`, and
-> `Ctrl+Shift+T` each mean one thing in a reading/review context and another in Write mode. This is
+> `Ctrl+L`, `Ctrl+R`, `Ctrl+U`, `Ctrl+=`, `Ctrl+Shift+A`, `Ctrl+Shift+L`, `Ctrl+Shift+N`,
+> `Ctrl+Shift+T`, and — since 2026-10-04 (S6 decision D6-9) — `Ctrl+Alt+M` each mean one thing in a reading/review context and another in Write mode. This is
 > intentional and is the reason a dispatch layer must resolve chords by context rather than
 > globally: **Review-side contexts follow Acrobat-family conventions; Write mode follows
 > word-processor conventions**, because those are the two sets of muscle memory the product's users
@@ -1428,22 +1457,14 @@ Global rather than appearing in both, so it adds nothing, and the **6** does not
 
 ### Annotation tools
 
+**The fourteen `Ctrl+Alt+` chords that ARM a tool are Viewer rows since 2026-10-04**
+(`Stage6-Annotations-Plan.md` Q1, D6-9): this context is active only once a tool is armed or an
+annotation is selected, so a chord that arms one could not be pressed from the page with nothing
+armed. **This context resolves through the Viewer** — Annotation tools → Viewer → Common → Global — so
+a Viewer chord still acts with a tool armed, and the rows below win where they collide.
+
 | Key | Command |
 |---|---|
-| `Ctrl+Alt+M` | New sticky note at the cursor |
-| `Ctrl+Alt+H` | Highlight tool |
-| `Ctrl+Alt+U` | Underline tool |
-| `Ctrl+Alt+X` | Strikeout tool |
-| `Ctrl+Alt+T` | Text box tool |
-| `Ctrl+Alt+L` | Line tool |
-| `Ctrl+Alt+R` | Rectangle tool |
-| `Ctrl+Alt+O` | Oval tool |
-| `Ctrl+Alt+N` | Polygon tool |
-| `Ctrl+Alt+P` | Pencil / ink tool |
-| `Ctrl+Alt+S` | Stamp palette |
-| `Ctrl+Alt+D` | Distance measurement |
-| `Ctrl+Alt+A` | Area measurement |
-| `Ctrl+Alt+K` | Mark for redaction |
 | `K` | Toggle "keep the tool selected after use" |
 | `Shift`+drag | Constrain to a square / circle / 45° angle |
 | `Alt`+drag | Duplicate the annotation being dragged |

@@ -126,8 +126,27 @@ RAWPAGE_BINDING(Viewer, "Ctrl+,",        NavPrevComment)
 RAWPAGE_BINDING(Viewer, "Ctrl+]",        NavNextDifference)
 RAWPAGE_BINDING(Viewer, "Ctrl+[",        NavPrevDifference)
 
+// The fourteen tools' ARMING chords -- moved here from Annotation tools on 2026-10-04 with
+// `Features.md` §8 (`Stage6-Annotations-Plan.md` Q1, D6-9). Annotation tools is the context of a tool
+// already armed or an annotation selected, so a chord that arms one was unreachable from the page
+// with nothing armed. `Ctrl+Alt+M` is now a thirteenth Write-mode collision (a margin comment there).
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+M",    AnnotStickyNote)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+H",    AnnotHighlight)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+U",    AnnotUnderline)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+X",    AnnotStrikeout)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+T",    AnnotTextBox)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+L",    AnnotLine)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+R",    AnnotRectangle)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+O",    AnnotOval)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+N",    AnnotPolygon)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+P",    AnnotPencil)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+S",    AnnotStamp)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+D",    AnnotMeasureDistance)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+A",    AnnotMeasureArea)
+RAWPAGE_BINDING(Viewer, "Ctrl+Alt+K",    RedactMark)
+
 // =============================================================================================
-// Write mode -- the context the "twelve deliberate collisions" figure is scoped to
+// Write mode -- the context the "thirteen deliberate collisions" figure is scoped to (twelve until 2026-10-04)
 // =============================================================================================
 RAWPAGE_BINDING(Write, "Ctrl+B",         WriteBold)
 RAWPAGE_BINDING(Write, "Ctrl+I",         WriteItalic)
@@ -168,20 +187,6 @@ RAWPAGE_BINDING(Write, "Ctrl+Shift+W",   WriteWordCount)
 // =============================================================================================
 // Annotation tools
 // =============================================================================================
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+M", AnnotStickyNote)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+H", AnnotHighlight)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+U", AnnotUnderline)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+X", AnnotStrikeout)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+T", AnnotTextBox)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+L", AnnotLine)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+R", AnnotRectangle)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+O", AnnotOval)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+N", AnnotPolygon)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+P", AnnotPencil)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+S", AnnotStamp)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+D", AnnotMeasureDistance)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+A", AnnotMeasureArea)
-RAWPAGE_BINDING(AnnotationTools, "Ctrl+Alt+K", RedactMark)
 RAWPAGE_BINDING(AnnotationTools, "K",          AnnotKeepToolSelected)
 RAWPAGE_BINDING(AnnotationTools, "Enter",      AnnotFinishShape)
 RAWPAGE_BINDING(AnnotationTools, "Esc",        EditCancel)

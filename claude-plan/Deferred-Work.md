@@ -35,6 +35,7 @@ takes it.
 |---|---|---|---|---|
 | **DW-1** | **Substitute page colours** — the second half of `Features.md` §1.2's *"invert / substitute page colors for high-contrast reading"* | `Stage4-ViewingSurface-Testing-Guide.md` §8 **I-07** (S4), Stage 4 T8, 2026-09-21 | ⚪ **Deferred** by the user, 2026-09-27 | **Unassigned** — no stage's plan names it |
 | **DW-2** | **A vector snapshot** — `Features.md` §8's `S` (*"copy a dragged region as an image"*) as a vector metafile that stays sharp when scaled, rather than a bitmap | `Stage5-TextSearch-Plan.md` §0 **Q3** and **D5-10**, written 2026-09-29 before any Stage 5 code | ⚪ **Deferred** by the user, 2026-09-29 (option B of three) | **Unassigned** — no stage's plan names it |
+| **DW-3** | **Typed comments in scripts outside WinAnsi and the four CJK collections** — `Features.md` §4.1's text box, callout, typewriter and dynamic stamp showing Cyrillic, Greek, Hebrew, Arabic, Thai, Devanagari and every other script a font must be embedded for | `Stage6-Annotations-Plan.md` §0 **Q3** and **D6-7**, written 2026-10-04 before any Stage 6 code | ⚪ **Deferred** by the user, 2026-10-04 (Q3 approved as proposed) | **Unassigned** — no stage's plan names it |
 
 ---
 
@@ -110,5 +111,38 @@ reaching Windows as CF_HTML, `Stage5-TextSearch-Testing-Guide.md` A-50):
 engine call that takes a Windows device context; and any measurement of what PDFium's `HDC` path emits for
 transparency, soft masks and shadings — a print path may turn those into bitmaps inside the metafile, which
 would make the *vector* snapshot partly a bitmap anyway. The stage that takes this decides.
+
+**Taken by:** —
+
+---
+
+### DW-3 · Typed comments outside WinAnsi and CJK
+
+**The capability.** `Features.md` §4.1's typed annotations — *Text callout*, *Free text box*,
+*Typewriter-style free text* and the *dynamic stamp* that fills in the author — showing whatever a person
+types. Stage 6 shows **Latin in WinAnsi** (base-14 Helvetica) and **Chinese, Japanese and Korean** (the four
+predefined Adobe CID collections, not embedded). Every other script is this entry.
+
+**Why it was deferred.** A typed annotation's appearance stream needs a font that every reader can draw.
+Base-14 fonts cover WinAnsi alone, and the predefined CID fonts cover the four CJK collections because
+readers carry or substitute faces for them. Anything else needs a font **embedded** in the document, and
+embedding one sensibly means **subsetting** it — a whole system face is megabytes per document, tens for
+CJK. Subsetting is not built: `pdf/ops/OptimizeOps` (Stage 8) names font subsetting for optimization, and
+HarfBuzz arrives with Stage 13's `shaping` feature. Offered on 2026-10-04 with the alternative of
+embedding whole fonts, **the user approved the proposal**: refuse such characters at input, by name, and
+record the gap here (`Stage6-Annotations-Plan.md` D6-7).
+
+**What exists today** (checked 2026-10-04, before any Stage 6 code):
+
+- **No typed annotation exists yet**; Stage 6 T7 builds them, with the refusal.
+- Stage 5 T1 measured PDFium drawing a non-embedded `STSong-Light` through `UniGB-UCS2-H` with this
+  machine's face (`STSong -> SimSun`, `corpus/ordinary/cjk-readable.pdf`) — the path D6-7 relies on for
+  CJK.
+- `vcpkg.json`'s `shaping` feature (HarfBuzz and ICU) is **off** (`Stage5-TextSearch-Plan.md` D5-5).
+- No first-party code reads, subsets or writes a font program.
+
+**What is absent:** a font subsetter; a policy for choosing a system face per script and checking its
+embedding permission (`OS/2.fsType`); `/ToUnicode` generation for an embedded subset; and any measurement
+of how Acrobat and Firefox draw a subset RawPage embeds. The stage that takes this decides.
 
 **Taken by:** —

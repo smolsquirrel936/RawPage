@@ -1572,7 +1572,19 @@ works automatically once Stage 16 adds OCR — no change needed here.
 
 ### Stage 6 — Annotations and review
 
-**Status:** ⚪ **Not started.** May run in parallel with Stage 7.
+**Status:** ⚪ **Not started — no Stage 6 code exists.** May run in parallel with Stage 7. **Its plan,
+[`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md), and its testing guide,
+[`Stage6-Annotations-Testing-Guide.md`](./Stage6-Annotations-Testing-Guide.md), were written on
+2026-10-04**, the day Stage 5 was signed off, before any Stage 6 code. The plan's §0 asked eight questions (Q1 … Q8)
+that move a §8 binding, a capability, a dependency or a component between stages. **All eight were
+answered on 2026-10-04** — Q1 … Q6 and Q8 approved as proposed, Q7 answered by a move to Stage 7 — and
+this entry carries each answer where it lands: Q1, the fourteen tool chords are Viewer rows (below); Q2, typewriter text
+is an annotation, so `ContentCommands` and `AddTypewriterText` leave it; Q3, typed comments outside
+WinAnsi and CJK are `DW-3`; Q4, comment summaries and printing with comments move to Stage 8; Q5,
+audio through Qt Multimedia's Media Foundation backend; Q7, the custom stamp from a PDF page and
+`pdf/ops/ObjectGraphCopier` move to Stage 7; Q6, spell-checking comments moves to Stage 13; Q8,
+`qpdf --check` in CI's `gates` job judges every file the suite writes. Each answer's edits are
+listed, paid, in the plan's §10. **The next step is the plan's T1.**
 
 **Objectives.** The full comment and markup toolset of
 [`Features.md` §4](./Features.md#4-review--annotate-), the Comments pane with management, measurement
@@ -1584,18 +1596,26 @@ tools, and FDF/XFDF exchange.
   `MergeResult importFdf(const Fdf&)`, `Fdf exportFdf(Filter) const`.
 - `core/doc/Attachments` — `void add(EmbeddedFile)`, `Result<QByteArray> extract(FileId) const`.
 - `core/cmd/commands/AnnotationCommands` — one subclass per operation.
-- `core/cmd/commands/ContentCommands` — typewriter text only this stage.
+- ~~`core/cmd/commands/ContentCommands` — typewriter text only this stage.~~ **Not built at Stage 6**
+  (Q2, 2026-10-04, `Stage6-Annotations-Plan.md` D6-8): typewriter text is a `FreeText` annotation with
+  `/IT /FreeTextTypeWriter`, made by `AnnotationCommands`; `ContentCommands` is wholly Stage 13's.
 - `core/settings/ProfileStore` (first user: stamps).
 - `pdf/ops/AnnotationOps`, `pdf/ops/AppearanceStreamBuilder` —
   `CosStream build(const Annotation&, AppearanceState)`.
 - `pdf/cos/ContentStreamBuilder`.
 - `ui/viewer/AnnotationOverlay`, `ui/viewer/tools/{MarkupTool,NoteTool,TypewriterTool,DrawingTool,InkTool,StampTool,MeasureTool}`.
 - `ui/panes/CommentsPane`, `ui/panes/StampPalettePane`, `ui/panes/AttachmentsPane`.
-- `ui/dialogs/{CommentSummaryDialog,MeasurementScaleDialog,CustomStampDialog}`.
+- `ui/dialogs/{MeasurementScaleDialog,CustomStampDialog}` — **`CommentSummaryDialog` moved to Stage 8**
+  (Q4, 2026-10-04, D6-19).
+- **Audio comments** (Q5, 2026-10-04, D6-18): `Sound` annotations carrying raw PCM, recorded and played
+  through **Qt Multimedia's Media Foundation backend only** — the FFmpeg plugin and its DLLs are never
+  deployed. Its task is last and slips alone.
 
-**Key bindings handled** — the whole
-[Annotation tools](./Features.md#annotation-tools) table (`KeyContext::AnnotationTool`):
-`Ctrl+Alt+{M,H,U,X,T,L,R,O,N,P,S,D,A,K}`, `K`, `Shift`+drag, `Alt`+drag, `Enter`, `Esc`, `Delete`,
+**Key bindings handled** — the fourteen tool-arming chords
+`Ctrl+Alt+{M,H,U,X,T,L,R,O,N,P,S,D,A,K}`, **Viewer rows since 2026-10-04** (Q1, D6-9: in
+[Annotation tools](./Features.md#annotation-tools) they could not be pressed with nothing armed), and
+the rest of the Annotation tools table (`KeyContext::AnnotationTools`, which now resolves through the
+Viewer): `K`, `Shift`+drag, `Alt`+drag, `Enter`, `Esc`, `Delete`,
 `Ctrl+E`, `Ctrl+Alt+Enter`, arrows/`Ctrl+`arrows. The whole
 [Comments pane](./Features.md#comments-pane) table (`KeyContext::Comments`): `↑`/`↓`, `Enter`, `F2`,
 `Ctrl+Enter`, `Delete`, `Space` (checkmark — note the deliberate three-way collision with Viewer
@@ -1610,12 +1630,15 @@ scroll and Forms-Fill toggle), `Ctrl+Shift+K`, `Ctrl+F`, `Ctrl+.`/`Ctrl+,`. [Glo
 `measuring/precision`, `measuring/snapToPaths`, `measuring/writeToComment`, and — **moved here from
 Stage 4 on 2026-09-18** (`Stage4-ViewingSurface-Plan.md` D4-5) — **`units/snapToObjects`**, which
 arrives with the first objects there are to snap to; Stage 4 builds the snap resolver and passes it an
-empty edge list.
+empty edge list. **`commenting/printComments` and `commenting/summaryLayout` moved to Stage 8** with
+the summary and printing (Q4, 2026-10-04); `commenting/showPopupsOnHover` and the three
+`default*.<tool>` names are re-decided by `Stage6-Annotations-Plan.md` D6-13, and
+`commenting/spellCheckComments` **moved to Stage 13** (Q6, 2026-10-04).
 
 **Cross-cutting additions.** Commands registered: `AddAnnotation`, `EditAnnotation`, `MoveAnnotation`,
 `DeleteAnnotation`, `ReplyToAnnotation`, `SetAnnotationStatus`, `SetAnnotationAppearance`,
-`LockAnnotation`, `ImportAnnotations`, `AddAttachment`, `DeleteAttachment`, `AddTypewriterText` —
-each with its inverse and both tests. i18n: `annot.*`, `comments.*`, `measure.*`, `stamps.*`.
+`LockAnnotation`, `ImportAnnotations`, `AddAttachment`, `DeleteAttachment` — **eleven**, each with
+its inverse and both tests; `AddTypewriterText` is not built (Q2, 2026-10-04). i18n: `annot.*`, `comments.*`, `measure.*`, `stamps.*`.
 
 **Algorithms & notes.**
 - **We generate every `/AP` appearance stream ourselves** rather than relying on the viewer, so a
@@ -1633,14 +1656,15 @@ each with its inverse and both tests. i18n: `annot.*`, `comments.*`, `measure.*`
 *Automated:* `tst_annotation`, `tst_annotstore` (filter/sort/group, threading, status history),
 `tst_fdf` (import/export round-trip, and against files produced by other readers),
 `tst_appearance` (golden raster per annotation type — this is what protects interoperability),
-`tst_measure` (scale, units, precision), plus reversibility and round-trip for all twelve commands.
+`tst_measure` (scale, units, precision), plus reversibility and round-trip for all eleven commands (twelve until Q2, 2026-10-04).
 *Manual:* → queued **`Stage6-Annotations-Testing-Guide.md`**. Every tool on a real page; open the
 result in another PDF reader and confirm identical appearance; import comments exported by another
 reader; record an audio comment; measure with a calibrated scale.
 
 **Exit criteria.** Every §4.1 tool creates a correct, correctly-appearing annotation; the Comments
 pane groups, filters, sorts, searches, replies, and sets status; FDF/XFDF round-trips with at least
-one other reader; comment summaries generate in all four layouts; annotations undo cleanly. **Carried
+one other reader; ~~comment summaries generate in all four layouts~~ — **Stage 8's exit criterion
+since 2026-10-04** (Q4, D6-19); annotations undo cleanly. **Carried
 from Stage 3 (guide issue I-06, decided by the user 2026-09-14): risk A4's Acrobat half through the
 product** — each of the four `corpus/signed/` files opened in RawPage, a comment added with the first
 annotation command, saved through `SaveCoordinator`, and Acrobat reporting every approval signature's
@@ -1659,9 +1683,17 @@ slips, it slips alone.
 **Status:** ⚪ **Not started.** May run in parallel with Stage 6.
 
 **Objectives.** All of [`Features.md` §5](./Features.md#5-assemble) except batch: page operations,
-merge, bookmark editing, tags, layers, headers/footers/Bates, watermarks, imposition, and links.
+merge, bookmark editing, tags, layers, headers/footers/Bates, watermarks, imposition, and links —
+**and [`Features.md` §4.1](./Features.md#41-annotation-tools)'s *create a custom stamp from a PDF
+page***, taken from Stage 6 on 2026-10-04 by the user's answer to its plan's Q7
+(`Stage6-Annotations-Plan.md` D6-16): Stage 6 builds custom stamps from images only.
 
 **Components & responsibilities.**
+- **`pdf/ops/ObjectGraphCopier`** — copies a page's content and every object it reaches from one
+  document into another, each reached object exactly once and shared objects shared. **Taken from
+  Stage 6 on 2026-10-04** (Q7): its consumers are this stage's merge and insert-from-file, and the
+  custom stamp made from a PDF page, which writes the copied page as a form XObject into a Stage 6
+  `Stamp` annotation's appearance through Stage 6's `AppearanceStreamBuilder` and `ProfileStore`.
 - `core/doc/PageTree` (full mutation set), `Outline` (full editing + generators),
   `Destinations`, `LayerTree`, `TagTree`.
 - `core/cmd/commands/PageCommands` (all: insert, delete, move, duplicate, extract, replace, crop,
@@ -1736,7 +1768,9 @@ here every path has been incremental-save only.
 **Objectives.** All of [`Features.md` §2.5](./Features.md#25-save-and-export): full-rewrite Save-As,
 version and conformance targets, export to every listed format, content reuse, optimization, and
 flattening — **and the two PDF outputs of [`Features.md` §1.5](./Features.md#15-document-comparison-)'s
-comparison**, taken from Stage 5 on 2026-09-29 (below).
+comparison**, taken from Stage 5 on 2026-09-29 (below) — **and [`Features.md` §4.2](./Features.md#42-comment-management)'s
+comments summary in its four layouts and printing with comments**, taken from Stage 6 on 2026-10-04
+(below).
 
 **Components & responsibilities.**
 - `pdf/cos/FullWriter` — `Result<void> write(QIODevice&, const Document&, WriteOptions)`.
@@ -1754,6 +1788,14 @@ comparison**, taken from Stage 5 on 2026-09-29 (below).
   `core/text/DocumentComparer` difference set, which needs Stage 6's annotation appearances and this
   stage's writer, and Stage 5 changes no document. Like every export here they are **not** commands —
   they write a new file and change neither compared document. How they are built is this stage's.
+- **The comments summary and printing with comments** (`Features.md` §4.2): a new PDF in each of the
+  four layouts — document and comments with connector lines, document and comments on separate pages,
+  comments only, document only with sequence numbers — over the comment types and filter chosen, and
+  printing the document with its comments or with the summary appended; `ui/dialogs/CommentSummaryDialog`
+  and `comment.summarize`. **Taken from Stage 6 on 2026-10-04** by the user's answer to its plan's Q4
+  (`Stage6-Annotations-Plan.md` D6-19): a summary is a new document, three of whose layouts carry the
+  document's pages, and printing is `PrintDialog`'s. It reads Stage 6's `AnnotationStore::query`, the
+  same query the Comments pane shows. Not a command — it changes no document.
 - `ui/dialogs/{ExportDialog,OptimizerDialog,ConformanceReportDialog,PrintDialog,FlattenDialog}`.
 
 **Key bindings handled** — [Global](./Features.md#global-active-in-every-context): `Ctrl+Shift+S`,
@@ -1766,7 +1808,8 @@ comparison**, taken from Stage 5 on 2026-09-29 (below).
 `documents/flattenTargets`, `documents/saveMode` (incremental | full) — **moved here from Stage 3**
 (`Stage3-Mutation-Plan.md` D3-9), because `full` is `FullWriter`'s. **`Ctrl+Shift+S` is registered
 from Stage 3**, where Save-As copies and appends (D3-16); this stage changes what it writes, not
-whether it exists.
+whether it exists. **`commenting/summaryLayout` and `commenting/printComments`** — moved here from
+Stage 6 on 2026-10-04 (its plan's Q4), with the summary and printing they configure.
 
 **Cross-cutting additions.** Commands: `OptimizeDocument`, `FlattenContent`,
 `ConvertPdfVersion` — all document mutations and therefore commands. Export and print are **not**
@@ -1798,7 +1841,8 @@ real Word; print to a physical printer; validate PDF/A output in an external val
 
 **Exit criteria.** Save-As produces a smaller, semantically identical file; every export format
 opens correctly in its native application; PDF/A output validates externally; flattening changes
-nothing visually; the space audit's numbers match reality; **R3 has a recorded decision with
+nothing visually; **comment summaries generate in all four layouts** (Stage 6's criterion, moved here
+2026-10-04 by its plan's Q4); the space audit's numbers match reality; **R3 has a recorded decision with
 fidelity measurements**.
 
 **Deferrals.** PDF/X output profiles beyond X-1a and X-4. EPUB. Batch export (Stage 14).
@@ -2089,8 +2133,9 @@ Key signatures: `FixedToReflowConverter::convert(const Document&) -> Result<Refl
 `TableModel::evaluate(CellRef) -> Value`; `ChangeTracker::accept(RevisionId)`.
 
 **Key bindings handled** — the **whole** [Write mode](./Features.md#write-mode) table
-(`KeyContext::WriteMode`), which is where the twelve deliberate collisions become real and testable
-— **eight overriding Viewer and four overriding Global**, per
+(`KeyContext::WriteMode`), which is where the thirteen deliberate collisions become real and testable
+— **nine overriding Viewer and four overriding Global** (twelve and eight until 2026-10-04, when
+Stage 6's Q1 moved `Ctrl+Alt+M`'s sticky note to the Viewer — Write mode's margin comment), per
 [`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts): `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+D`, `Ctrl+E`, `Ctrl+K`, `Ctrl+L`,
 `Ctrl+R`, `Ctrl+J`, `Ctrl+=`, `Ctrl+Shift+A`, `Ctrl+Shift+L`, `Ctrl+Shift+N`, `Ctrl+Shift+>`/`<`,
 `Ctrl+Shift+=`, `Ctrl+Space`, `Ctrl+Alt+1`/`2`/`3`, `Ctrl+Shift+7`, `Tab`/`Shift+Tab`, `Ctrl+H`,
@@ -2104,7 +2149,9 @@ Key signatures: `FixedToReflowConverter::convert(const Document&) -> Result<Refl
 `documents/trackChangesOnByDefault`, `documents/reviewerColour`, `documents/showFormattingMarks`,
 `documents/defaultStyleSet`, `documents/autosaveIntervalSec` — **moved here from Stage 3**
 (`Stage3-Mutation-Plan.md` D3-9): the recovery journal is flushed per command, and an interval first
-means something when a burst of typing is coalesced into one journal line.
+means something when a burst of typing is coalesced into one journal line. **`commenting/spellCheckComments`**
+— moved here from Stage 6 on 2026-10-04 (`Stage6-Annotations-Plan.md` Q6): spell-checking comment text
+needs this stage's spelling engine and dictionaries, and arrives with them.
 
 **Cross-cutting additions.** Commands: `EditTextRun`, `SetParagraphFormat`, `ApplyStyle`,
 `InsertPageBreak`, `InsertTable`, `EditTable`, `InsertObject`, `SetTextWrap`, `InsertToc`,
@@ -2142,7 +2189,7 @@ rather than re-inferring from glyphs, which is precisely what this case has to p
 reversibility for all 23 commands including coalesced typing.
 *Manual:* → queued **`Stage13-WriteMode-Testing-Guide.md`**. Emphasis: convert real-world documents
 of every kind — a tagged Word export, an untagged scan-derived file, a multi-column journal article,
-a spreadsheet-heavy report — and score each conversion by hand; the twelve chord collisions verified
+a spreadsheet-heavy report — and score each conversion by hand; the thirteen chord collisions verified
 by switching modes with the same key; IME input for CJK.
 
 **Exit criteria.** Convert to Writable produces an editable document with an honest fidelity report;
@@ -2150,7 +2197,7 @@ by switching modes with the same key; IME input for CJK.
 over the corpus (O2)**;
 text, paragraph, style, and page-layout editing all work; tables including formulas work; TOC
 generates and updates; change tracking records and accepts/rejects; Prevent Further Edits produces a
-fixed PDF that renders within the golden threshold of the composed layout; **every one of the twelve
+fixed PDF that renders within the golden threshold of the composed layout; **every one of the thirteen
 documented chord collisions resolves correctly on mode switch**; all Write-mode edits undo.
 
 **Deferrals.** Convert to Writable Excel (Stage 16). Equations, SmartArt-style diagrams, and index
@@ -2325,16 +2372,18 @@ Each guide carries **two sections**, per §2:
 Stages whose surface is entirely headless still get a guide — its manual section is short or empty,
 and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1, 2, 3 and 4 have theirs**, each
 written from its plan before its code — Stage 4's on 2026-09-18, the day Stage 3 was signed off — **and Stage 5's** (2026-09-29, with its plan, before
-any Stage 5 code); every other row below is a schedule, not a backlog of missing
-documents.
+any Stage 5 code), **and Stage 6's** (2026-10-04, with its plan, before any Stage 6 code); every
+other row below is a schedule, not a backlog of missing documents.
 
 **A stage's §4 entry may also be expanded into a `Stage<N>-<Area>-Plan.md` execution document** when
 its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./Stage0-Toolchain-Plan.md),
 [`Stage1-AppShell-Plan.md`](./Stage1-AppShell-Plan.md),
 [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md),
 [`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md),
-[`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md) and
-[`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md) are the six that exist. Such a document
+[`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md),
+[`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md) and
+[`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md) are the seven
+that exist. Such a document
 owns **only** that stage's
 task ordering and its stage-local design choices; the objectives, components, and exit criteria stay
 here, and the stage's live status stays in its §4 status block. It sits between plan and guide in the
@@ -2349,7 +2398,7 @@ guide.**
 | 3 — Mutation & save | [`Stage3-Mutation-Testing-Guide.md`](./Stage3-Mutation-Testing-Guide.md) | ✅ **Written 2026-09-14** from [`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md), before any Stage 3 code · **Every task's cases run, T1 to T13** (2026-09-14 … 2026-09-17), the last six — A-01, A-02, A-06, A-07, A-12, A-13 — on 2026-09-18, **so every case carries a result**. **Every manual case is signed off by the user**: M-03's probe walk 2026-09-14 (A4's probe verdict `go`); M-01, M-02, M-03's product walk and M-04 … M-07 on 2026-09-17 (M-02's walk found I-14, S1, closed); **M-08 on 2026-09-18**, its walk having found I-15 (S2, fixed the same day and confirmed by a re-walk). **The stage was signed off by the user on 2026-09-18.** The guide's own status line and §9 checklist are authoritative. **83 automated** (A-01…A-83), **8 manual** (M-01…M-08). Carries the **A4** verdict, measured twice and judged by OpenSSL (integrity) and Acrobat (policy). ~~Needs a hex editor~~ — the byte comparison is automated against bytes read back from disk; **killing mid-edit is automated too**, with `TerminateProcess` at instants the harness must prove it reached, and the manual residue is the real product killed by hand. **Sixteen issues, none open**: **I-01** and **I-02** raised by reading, **I-03** at T1, **I-04** to **I-06** at T2, **I-07** at T3, **I-08** at T6, **I-09** at T8, **I-10** at T10, **I-11** at T11, **I-12** and **I-13** at T13 — found by the new fuzz target — **I-14** by M-02's walk (S1, closed) and **I-15** by M-08's (S2, fixed the same day), and **I-16** by A-12's first run (S4, this guide's own Expect) (§8 of the guide) |
 | 4 — Viewing surface | [`Stage4-ViewingSurface-Testing-Guide.md`](./Stage4-ViewingSurface-Testing-Guide.md) | ✅ **Written 2026-09-18** from [`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md), the same day and **before any Stage 4 code** · ✅ **automated half COMPLETE, and the manual half COMPLETE — all twelve cases walked and signed off, the last on 2026-09-27; every §9 item met, and THE STAGE SIGNED OFF BY THE USER ON 2026-09-27 — T1 to T14 recorded, the last on 2026-09-23, and A-04 read from Linux CI's `portable-asan` log on 2026-09-24**: **108 automated** (A-01…A-107 plus **A-66(a)**), **12 manual** (M-01…M-12), **all 108 carry a result** (re-derived 2026-09-27 from the guide itself — 108 headers; A-105 to A-107 came with I-30's and I-31's fixes; A-103 and A-104 came with I-28's and I-29's fixes, after the walk; A-101 and A-102 came with decision D4-22; A-99 and A-100 came with decision D4-20, the sharp lens, A-100 a `bench_surface` column; A-97 and A-98 came with I-26's and I-27's fixes; A-95 and A-96 came with I-24's and I-25's fixes, none still boxed; A-94 came with I-23's fix and, like A-85, is a `windows`-platform run; A-90 and A-91 came with I-18's and I-19's fixes on 2026-09-27, A-91 rewritten with I-20's, A-92 with I-21's, and A-93 with I-22's guard; the 81st is A-80, added with I-10's fix, A-81 to A-83, A-85 and A-86 came with I-11's to I-15's on 2026-09-26, A-84 with decision D4-18, A-87 and A-88 with I-16's and I-17's fixes, and A-89 with the user's dotted-preview request; A-85's result is a `windows`-platform run, because under `ctest` it skips): the T1 corpus cases, T2’s four A2 cases, T3’s seven session cases, T4’s four reader cases, T5’s seven pane cases, T6’s two plus the two re-reads T5 owed — A-30's pane half and A-37 against all three panes, both now ✅ — **T7’s five tool cases**, **T8’s eight ruler, grid, guide and snap cases**, **T9’s four split cases**, **T10’s seven**, **T11’s four**, **T12’s six** and **T13’s five session-restore cases, A-75 … A-79**, the last including **A-11 and A-29, which T1 and T4 had recorded amber and grey because the observables they are written against did not exist until T12 built them**. A-01 to A-09 are the stage-wide gate and suite cases that T14 runs. **All twelve manual cases are walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2), which is what a manual half is for; M-01, 2026-09-26, failed its first walk — it raised I-11 (S2) and I-12 (S3), both fixed the same day — and passed its re-walk the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2), fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding; M-05, 2026-09-26, failed at step 5 — I-15, fixed that day — and passed that step's re-walk; M-07, 2026-09-26, passed with no finding, on the build that fixed I-16 and I-17, both found while preparing it; and M-08, 2026-09-27, FAILED its first walk at step 1 — I-18 and I-19 — and its first re-walk of that step — I-20 and I-21 — all four fixed that day — and passed its second re-walk the same day; and M-09, 2026-09-27, FAILED its first walk at the cascade — I-23, fixed that day — and passed its re-walk the same day; and M-10, 2026-09-27, stopped at step 3 of its first walk — I-24 and I-25, fixed that day — and passed its resumed walk the same day, step 5 by decision D4-19; and M-12, 2026-09-27, raising I-26 and I-27 at step 2, both fixed that day, and passing its Loupe re-walk on D4-20's sharp lens and D4-22's `Alt`+wheel the same day — pen and touch not run, for want of hardware.** Carries the **A2-at-Stage-4** verdict, **recorded at T2 as `go, with named custom work` and re-read at T14 through the shipped panes as a plain `go`**, which also answered `platform::IAcceleratedSurface`: **not built**. **The manual half is the largest of any stage** and says why: this stage's subject is what a person sees on hardware the harness does not have — two monitors at different scaling, a monitor removed mid-presentation, a session restored onto a desktop that changed shape, a 900-page thumbnails pane judged for smoothness. **All four preconditions are cleared** (P-2 is `Win`+`P`, P-4 a wheel mouse with no pen or touch). It inherited Stage 2's **I-28** (Fit Visible), **which T12 closed in Stage 2's own guide on 2026-09-23**, with the measurement; its own §8 holds **thirty-one issues, one open: I-07 (S4, deferred as `DW-1` in `Deferred-Work.md`, no stage owning it yet); I-30 (S3), the kill harness's instants locked to the timer tick, and I-31 (S1), a save killed inside `ReplaceFileW` leaving no file at the document's path since Stage 3 T7, closed 2026-09-27; I-28 (S3), cases leaving process-wide state behind so the UI binary could not run whole, and I-29 (S2), a second window compounding the UI font scale, were found after the walk on 2026-09-27 by investigating the first, and closed the same day with A-103 and A-104; I-26 (S3), a loupe drag pinning the lens, and I-27 (S3), the temporary hand leaving the lens on screen, were raised by M-12's walk on 2026-09-27 and closed the same day with A-97 and A-98; I-24 (S2), a re-docked sidebar left out of the window, and I-25 (S3), a closed sidebar's edge strip that opened nothing, were raised by M-10's walk on 2026-09-27 and closed the same day with A-95 and A-96; I-23 (S2), an arranged window's title bar off the screen, was raised by M-09's walk on 2026-09-27 and closed the same day with A-94; I-22 (S3), four document paths holding control bytes where their backslashes had been, was found by a byte-level read on 2026-09-27 and closed with a `gates` check, A-93; I-18 (S2), a zoom reaching one pane of a spreadsheet split, and I-19 (S2), a frozen pane scrolling on its own, were raised by M-08's walk on 2026-09-27, and I-20 (S2), a defect in I-19's fix, and I-21 (S3), the keypad's `+`, by its re-walk, all closed the same day; I-10 (S2, raised 2026-09-24 by M-11's walk — Fit Page measured the sheet while the product draws the crop — was closed the same day, as were I-11 (S2) and I-12 (S3), raised 2026-09-26 by M-01's walk — a fit measuring the wrong page of a mixed document, and a split with no visible divider — I-13 (S3), the vertical ruler with no numbers, raised by the user that day, I-14 (S2), a moved presentation keeping its physical size, raised by M-02's walk that day, I-15 (S2), no general preference surviving a restart, raised by M-05's walk that day, I-16 (S2), a guide snap no gesture called, found by reading the code before M-07's walk, and I-17 (S3), no cursor readout anywhere, raised by the user preparing that walk; the other eight are closed — I-05 at T12, the task this guide named as its owner, and I-01 and I-09 at T13** |
 | 5 — Text, selection, search | [`Stage5-TextSearch-Testing-Guide.md`](./Stage5-TextSearch-Testing-Guide.md) | ✅ **Written 2026-09-29** from [`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md), **before any Stage 5 code**, and its plan's §0 answered the same day; **the stage signed off by the user on 2026-10-04** · **automated half run — every case carries a result (all 114 by T14, 2026-10-02, and A-115 … A-123 on 2026-10-03 and A-124 … A-129 on 2026-10-04); the manual half fully walked — M-01 and M-02 passed, 2026-10-02, M-03, M-04, M-05, M-06 and M-07 on 2026-10-03 (M-06's one finding, guide I-17, the walker's machine; M-07's three, I-18 … I-20, closed after it), M-08 and M-09 on 2026-10-04 (I-24 raised while preparing M-08, closed before its walk; A-129 asked for in M-09's); the guide's status line is authoritative.** **129 automated** (A-01…A-129 — A-114 added with the answer to Q3, A-115 and A-116 with the user's requests for the rulers' corner box and a narrower find field, A-117 … A-119 with the fixes to I-18 … I-20, A-120 … A-122 with I-21's and I-22's and the user's design for `Enter` in Advanced Search, A-123 with the user's request for the pane's edge, A-124 with the user's request for the sidebar's and the log pane's, A-125 with I-23's fix, found by the nightly fuzz soak, A-126 with the user's request for the Compare dialog to remember each older file's newer one, A-127 with I-24's fix, the overlay's zoom and scroll, A-128 with the user's request for a continuous overlay, A-129 with the user's request in M-09's walk for `Ctrl`+wheel in Reflow view), **9 manual** (M-01…M-09). Carries the **A2-at-Stage-5** verdict, the **layout baseline** evidence for R1, and **O7**'s revisit, each with its scale fixed in the guide's §3 before the measurement. The manual half walks **generated documents** — the user's decision of 2026-09-29 (plan D5-23), so every Stage 5 claim, manual included, is bounded to the generated corpus — with Word and Excel from Office LTSC Professional Plus 2024 for the paste (plan §7, P-1 … P-5, **all answered**) |
-| 6 — Annotations | `Stage6-Annotations-Testing-Guide.md` | ⚪ Queued |
+| 6 — Annotations | [`Stage6-Annotations-Testing-Guide.md`](./Stage6-Annotations-Testing-Guide.md) | ✅ **Written 2026-10-04** from [`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md), **before any Stage 6 code**, and its plan's §0 answered the same day, all eight · **not yet run** — no case has a result. **108 automated** (A-01 … A-108), **13 manual** (M-01 … M-13); every case written against a §0 proposal re-read against its answer (A-78 and M-07 rewritten by Q7's). Carries **A2 at Stage 6** (D6-2's display path, graded before any tool) and **A4's product half**, carried from Stage 3 |
 | 7 — Assembly | `Stage7-Assembly-Testing-Guide.md` | ⚪ Queued |
 | 8 — Save & export | `Stage8-SaveExport-Testing-Guide.md` | ⚪ Queued |
 | 9 — Forms | `Stage9-Forms-Testing-Guide.md` | ⚪ Queued |
@@ -2398,8 +2447,8 @@ guide.**
 | §3.2 Review-mode editing | 6 (typewriter), 13 (text, objects, article threads), 3 (metadata) |
 | §3.3 Write-mode editing | 13a (text, paragraph, styles, page layout, spelling), 13b (tables, illustrations, TOC, revisions) |
 | §3.4 Rich media and 3D | 16 |
-| §4.1 Annotation tools | 6 (all), 10 (redaction marks' apply path) |
-| §4.2 Comment management | 6 |
+| §4.1 Annotation tools | 6 (all but one), 7 (a custom stamp from a PDF page — Stage 6's Q7, 2026-10-04), 10 (redaction marks' apply path) |
+| §4.2 Comment management | 6 (all but three), 8 (the comments summary in four layouts, and printing with comments — Stage 6's Q4, 2026-10-04), 13 (spell-checking comment text — Stage 6's Q6, 2026-10-04) |
 | §4.3 Sharing and collaboration | 16 |
 | §5.1–5.2 Pages & thumbnails | 3 (rotate), 4 (thumbnail navigation), 7 (everything else) |
 | §5.3 Merge | 7 |

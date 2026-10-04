@@ -247,32 +247,35 @@ TEST_CASE("the per-context row counts are reported and non-trivial", "[keybindin
 }
 
 // =======================================================================================
-// A-31 -- the twelve Write-mode collisions
+// A-31 -- the Write-mode collisions: thirteen since 2026-10-04, twelve before
 // =======================================================================================
 
-TEST_CASE("the census reports exactly twelve Write-mode collisions, split 8 + 4 + 0", "[keybindings]")
+TEST_CASE("the census reports exactly thirteen Write-mode collisions, split 9 + 4 + 0", "[keybindings]")
 {
     // Stage 13's exit criteria depend on this figure, which is why it is asserted at the stage that
     // builds the store rather than discovered eleven stages later. The SPLIT is asserted too: a
     // total of twelve reached with a different split would be a different fact wearing the right
-    // number, and that is precisely how issue I-01 arose.
+    // number, and that is precisely how issue I-01 arose. THIRTEEN since 2026-10-04: the fourteen
+    // annotation-tool arming chords moved from Annotation tools to Viewer (`Stage6-Annotations-Plan.md`
+    // Q1, D6-9), and `Ctrl+Alt+M` -- a sticky note there, a margin comment in Write mode -- became a
+    // Write-over-Viewer collision. The user chose to count it rather than leave the chord unreachable.
     const KeyBindingStore store;
     const CollisionCensus census = store.census();
 
     CHECK(chordSet(census.writeModeOverViewer) ==
           std::set<std::string>{"Ctrl+B", "Ctrl+E", "Ctrl+L", "Ctrl+R", "Ctrl+U", "Ctrl+=",
-                                "Ctrl+Shift+=", "Ctrl+Shift+N"});
+                                "Ctrl+Shift+=", "Ctrl+Shift+N", "Ctrl+Alt+M"});
     CHECK(chordSet(census.writeModeOverGlobal) ==
           std::set<std::string>{"Ctrl+D", "Ctrl+K", "Ctrl+Shift+A", "Ctrl+Shift+L"});
 
-    CHECK(census.writeModeOverViewer.size() == 8);
+    CHECK(census.writeModeOverViewer.size() == 9);
     CHECK(census.writeModeOverGlobal.size() == 4);
     CHECK(census.writeModeOverCommon.size() == 0);
-    CHECK(census.writeModeTotal() == 12);
+    CHECK(census.writeModeTotal() == 13);
 }
 
 // =======================================================================================
-// A-32 -- the two wider numbers that are NOT "twelve"
+// A-32 -- the two wider numbers that are NOT "thirteen"
 // =======================================================================================
 
 TEST_CASE("class 1 is exactly the six chords a context takes back from Global", "[keybindings]")
@@ -343,7 +346,7 @@ TEST_CASE("the class-1 chords each mean the right thing in each context", "[keyb
     CHECK(at("Ctrl+Shift+G", KeyContext::FindSearch) == ActionId::FindPrevious);
 }
 
-TEST_CASE("all twelve Write-mode chords resolve to their word-processor meaning", "[keybindings]")
+TEST_CASE("all thirteen Write-mode chords resolve to their word-processor meaning", "[keybindings]")
 {
     const KeyBindingStore store;
     const auto inWrite = [&](const char* chord) {
@@ -362,10 +365,12 @@ TEST_CASE("all twelve Write-mode chords resolve to their word-processor meaning"
     CHECK(inWrite("Ctrl+K") == ActionId::WriteInsertHyperlink);
     CHECK(inWrite("Ctrl+Shift+A") == ActionId::WriteAllCaps);
     CHECK(inWrite("Ctrl+Shift+L") == ActionId::WriteBulletedList);
+    CHECK(inWrite("Ctrl+Alt+M") == ActionId::WriteInsertMarginComment);
 
     // And the Viewer meanings they displace are still intact where Write is not active.
     CHECK(store.lookup(*Chord::parse("Ctrl+B"), KeyContext::Viewer) == ActionId::BookmarkNew);
     CHECK(store.lookup(*Chord::parse("Ctrl+="), KeyContext::Viewer) == ActionId::ViewZoomIn);
+    CHECK(store.lookup(*Chord::parse("Ctrl+Alt+M"), KeyContext::Viewer) == ActionId::AnnotStickyNote);
 }
 
 // =======================================================================================
