@@ -8,6 +8,8 @@
 //     `tests/composition/tst_reflowink.cpp`'s over `columns-two.pdf` with the real engine.
 //   * **Whether it reads well.** Re-wrapped text at a size a person chooses, on a real screen -- manual
 //     case M-09.
+//   * **A real wheel.** A-129's `Ctrl`+wheel is a `QWheelEvent` sent to the viewport, below Windows' input
+//     queue; a mouse's and a touchpad's notches are the walker's.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -33,6 +35,7 @@
 #include <QLineEdit>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QWheelEvent>
 
 #include <cmath>
 #include <memory>
@@ -237,6 +240,57 @@ TEST_CASE("the zoom chords change the reflow's text size and leave the page's zo
     CHECK(reader.reflow().drawnSize(10.0) == before);
 
     // THE PAGE'S ZOOM DID NOT MOVE: the chords went to the surface on show.
+    CHECK(reader.view->controller().zoom().factor == pageZoom);
+}
+
+TEST_CASE("Ctrl and the wheel step the reflow's text size as the zoom chords do", "[reflow][A-129]")
+{
+    Reader reader;
+    const double pageZoom = reader.view->controller().zoom().factor;
+    reader.toggle();
+    REQUIRE(reader.document().isReflowing());
+    ui::ReflowView& reflow = reader.reflow();
+    const double before = reflow.textScale();
+
+    // A WHEEL AS A MOUSE SENDS IT, to the text browser's viewport -- the widget under the pointer.
+    const auto wheel = [&reflow](int angle, Qt::KeyboardModifiers modifiers) {
+        QWidget* viewport = reflow.viewport();
+        const QPointF at(viewport->width() / 2.0, viewport->height() / 2.0);
+        QWheelEvent event(at, viewport->mapToGlobal(at), QPoint(), QPoint(0, angle), Qt::NoButton, modifiers,
+                          Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(viewport, &event);
+        QCoreApplication::processEvents();
+    };
+
+    // A NOTCH UP IS ONE STEP, THE SAME AS `Ctrl+=` -- and drawn at it.
+    wheel(+120, Qt::ControlModifier);
+    reader.settle();
+    CHECK(reflow.textScale() == before * ui::ReflowView::kZoomStep);
+    QTextCursor inside(reflow.document()->begin());
+    inside.movePosition(QTextCursor::Right);
+    CHECK(std::abs(inside.charFormat().fontPointSize() - reflow.drawnSize(10.0)) < 0.01);
+
+    // A TOUCHPAD'S HALF NOTCHES add up to one step, not one each.
+    wheel(+60, Qt::ControlModifier);
+    CHECK(reflow.textScale() == before * ui::ReflowView::kZoomStep);
+    wheel(+60, Qt::ControlModifier);
+    CHECK(std::abs(reflow.textScale() - before * ui::ReflowView::kZoomStep * ui::ReflowView::kZoomStep) < 1e-9);
+
+    // DOWN, A STEP A NOTCH -- the same as `Ctrl+-`.
+    wheel(-120, Qt::ControlModifier);
+    wheel(-120, Qt::ControlModifier);
+    reader.settle();
+    CHECK(std::abs(reflow.textScale() - before) < 1e-9);
+
+    // THE CONTROL: without `Ctrl` the wheel scrolls and the size stays.
+    QScrollBar* bar = reflow.verticalScrollBar();
+    REQUIRE(bar->maximum() > bar->minimum());
+    const int top = bar->value();
+    wheel(-120, Qt::NoModifier);
+    CHECK(bar->value() > top);
+    CHECK(std::abs(reflow.textScale() - before) < 1e-9);
+
+    // AND THE PAGE'S ZOOM DID NOT MOVE.
     CHECK(reader.view->controller().zoom().factor == pageZoom);
 }
 

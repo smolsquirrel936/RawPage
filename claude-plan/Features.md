@@ -171,7 +171,7 @@ Then: **§8 Key Bindings** (authoritative), **§9 System & Infrastructure**, **�
 - Fit Visible (fit the content bounding box, ignoring white margins).
 - Actual Size (100% at the monitor's physical DPI).
 - Zoom to the current selection.
-- Reflow view: re-wrap the text of a tagged document to the window width.
+- Reflow view: re-wrap the text of a tagged document to the window width, its text size stepped by the zoom chords or `Ctrl`+wheel.
 
 **View transforms (non-destructive)**
 - Rotate the view clockwise / counter-clockwise, without modifying the document.

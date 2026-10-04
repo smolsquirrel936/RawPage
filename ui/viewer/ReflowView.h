@@ -36,6 +36,9 @@
 // It declares the `Viewer` context (`ShortcutBinder`), so `Ctrl+4` comes back here and the zoom chords
 // reach it -- **`Ctrl+=`, `Ctrl+-` and `Ctrl+0` change the TEXT size** (`zoomIn`, `zoomOut`,
 // `resetZoom`), through `MainWindow`'s zoom handlers asking the document window which surface is shown.
+// **`Ctrl` and the wheel step it too** (the user's request in M-09's walk, 2026-10-04, S5 guide A-129): a
+// step a notch, counted across events so a touchpad's small deltas add up to one. The text browser's own
+// `Ctrl`+wheel zooms its DEFAULT font, which every run here overrides with its own size, so it did nothing.
 // The keys a reader scrolls with -- the arrows, `Page Up`/`Page Down`, `Home`/`End`, `Space` -- are
 // CLAIMED through Qt's `ShortcutOverride` handshake, which `ShortcutBinder` offers the focused widget
 // first: left to the Viewer table they would page the hidden page view. `Ctrl+C` and `Ctrl+A` are the
@@ -132,6 +135,7 @@ public:
 protected:
     bool event(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
     void onIndexEvent(const core::text::DocumentIndex::Event& event);
@@ -163,6 +167,7 @@ private:
     std::optional<PendingTop> pendingTop_;
 
     double scale_ = 1.0;
+    int wheelZoom_ = 0;             // `Ctrl`+wheel units not yet a step
     QTimer* rebuildTimer_ = nullptr;
     bool rebuilding_ = false;
     bool readerScrolled_ = false;   // the scroll bar's last move was the reader's own action

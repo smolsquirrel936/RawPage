@@ -12,6 +12,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTimer>
+#include <QWheelEvent>
 
 #include <algorithm>
 
@@ -421,6 +422,22 @@ bool ReflowView::event(QEvent* event)
         }
     }
     return QTextBrowser::event(event);
+}
+
+void ReflowView::wheelEvent(QWheelEvent* event)
+{
+    // `Ctrl` AND THE WHEEL ARE THE ZOOM CHORDS (see the header): a step a notch, whichever way. Without
+    // `Ctrl` the text browser scrolls, as before.
+    if (!(event->modifiers() & Qt::ControlModifier)) {
+        wheelZoom_ = 0;
+        QTextBrowser::wheelEvent(event);
+        return;
+    }
+    event->accept();
+    constexpr int kNotch = 120;   // `QWheelEvent::angleDelta` units
+    wheelZoom_ += event->angleDelta().y();
+    for (; wheelZoom_ >= kNotch; wheelZoom_ -= kNotch) zoomIn();
+    for (; wheelZoom_ <= -kNotch; wheelZoom_ += kNotch) zoomOut();
 }
 
 void ReflowView::resizeEvent(QResizeEvent* event)
