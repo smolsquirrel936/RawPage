@@ -58,6 +58,7 @@ add_library(rawpage_core STATIC
     # Stage 3 T5 -- mutation through commands (D3-10, D3-12). Commands.def is the command TABLE:
     # CommandRegistry is generated from it and tools/mutation-lint (T6) reads it as text.
     cmd/Command.h
+    cmd/Command.cpp
     cmd/Commands.def
     cmd/CommandRegistry.h
     cmd/CommandRegistry.cpp
@@ -65,6 +66,10 @@ add_library(rawpage_core STATIC
     cmd/CommandJournal.cpp
     cmd/commands/PageCommands.h
     cmd/commands/PageCommands.cpp
+    # S6 T3 (D6-1): commands over a SET of annotations -- AddAnnotationCommand and DeleteAnnotationCommand
+    # first; the rest of the eleven arrive with the tasks that need them (Stage6-Annotations-Plan.md §4).
+    cmd/commands/AnnotationCommands.h
+    cmd/commands/AnnotationCommands.cpp
 
     # Stage 3 T9 (D3-11): what the journal tells a durable recorder, and the recorder -- the recovery
     # directory, one flushed line per operation, discovery and replay by undo step.

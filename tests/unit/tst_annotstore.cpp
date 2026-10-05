@@ -457,3 +457,26 @@ TEST_CASE("the annotation fuzz body's invariants fire", "[annotstore][fuzz][A-23
     REQUIRE(back);
     CHECK_FALSE(back.value() == a);                         // ...is caught by the equality the body uses
 }
+
+TEST_CASE("the annotation fuzz body's write invariant fires on a composed update verify refuses", "[annotstore][fuzz][A-23]")
+{
+    // Stage 6 T3's control for the WRITE invariant: the same compose-fault seam guide A-30 uses, renaming
+    // the update's /Annots so the page lists nothing -- and the body must report it, not pass over it.
+    QFile file(QString::fromStdString(std::string(RAWPAGE_CORPUS_DIR) + "/ordinary/text-a4.pdf"));
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    const std::size_t original = static_cast<std::size_t>(bytes.size());
+    const auto run = [&bytes]() {
+        return fuzz::annotPipelineFuzzOnce(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                           static_cast<std::size_t>(bytes.size()));
+    };
+    CHECK(run().ok);   // clean without the fault
+    pdf::ops::RevisionWriter::setComposeFaultForTesting([original](QByteArray& composed) {
+        const qsizetype at = composed.indexOf("/Annots", static_cast<qsizetype>(original));
+        if (at >= 0) composed[at + 1] = 'X';
+    });
+    const fuzz::AnnotVerdict faulted = run();
+    pdf::ops::RevisionWriter::setComposeFaultForTesting({});
+    CHECK_FALSE(faulted.ok);
+    CHECK(faulted.failure == "a composed annotation update its own verify refuses");
+}

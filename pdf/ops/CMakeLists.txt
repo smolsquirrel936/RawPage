@@ -43,6 +43,14 @@ add_library(rawpage_ops STATIC
     # annotation's object number and its dictionary as written, which PDFium's API does not give.
     AnnotationReader.h
     AnnotationReader.cpp
+
+    # S6 T3 (D6-4, D6-5, D6-6): what an annotation intent means as COS objects -- a created
+    # annotation's dictionary, an edited one's keys over the dictionary on disk, a page's /Annots --
+    # and the /AP normal appearance RawPage draws for every type it creates (Highlight first).
+    AnnotationOps.h
+    AnnotationOps.cpp
+    AppearanceStreamBuilder.h
+    AppearanceStreamBuilder.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

@@ -22,6 +22,7 @@
 
 #include "core/Result.h"
 #include "core/backend.h"
+#include "core/doc/AnnotationStore.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Permissions.h"
@@ -51,6 +52,13 @@ public:
     const PageTree& pages() const noexcept { return pages_; }
     PageTree& pages() noexcept { return pages_; }
 
+    // THE ANNOTATIONS -- Stage 6 T3 (D6-1, D6-3). Copied from the backend's first-party reading at
+    // hydration, and from then on changed ONLY by an annotation command's `apply()` and `revert()`,
+    // exactly as the page tree is by a rotation. A backend that supplies none leaves the store
+    // unassessed, which refuses every change to it.
+    const AnnotationStore& annotations() const noexcept { return annotations_; }
+    AnnotationStore& annotations() noexcept { return annotations_; }
+
     const RepairReport& repairReport() const noexcept { return repair_; }
     const Permissions& permissions() const noexcept { return permissions_; }
 
@@ -60,8 +68,9 @@ public:
     Revision revision() const noexcept { return revision_; }
     void advanceRevision() noexcept { revision_ = revision_.next(); }
 
-    // A SHA-256 over the MODEL -- every page's index, boxes, rotation and label, in order -- and
-    // nothing else: not the revision, which only goes up, and not the handle or identity, which no
+    // A SHA-256 over the MODEL -- every page's index, boxes, rotation and label, in order, and since
+    // Stage 6 T3 every page's annotation LISTING, entry by entry, with each annotation's every
+    // modelled field -- and nothing else: not the revision, which only goes up, and not the handle or identity, which no
     // command changes. Stage 3 T5. Two properties are measured with it: apply-then-revert restores it
     // exactly (guide case A-43), and a refused or failed command leaves it unchanged (A-40). Stage 6
     // and later extend it as the model grows; a model part a command can change and this hash cannot
@@ -72,6 +81,7 @@ private:
     DocumentHandle handle_;
     DocumentId id_;
     PageTree pages_;
+    AnnotationStore annotations_;
     RepairReport repair_;
     Permissions permissions_;
     Revision revision_ = Revision::invalid();

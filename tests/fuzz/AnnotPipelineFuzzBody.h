@@ -5,12 +5,14 @@
 // the day anybody reads its output.
 //
 // -------------------------------------------------------------------------------------------
-// THE PIPELINE, AS FAR AS T2 BUILDS IT
+// THE PIPELINE, AS FAR AS T3 BUILDS IT
 // -------------------------------------------------------------------------------------------
 // bytes -> `pdf/cos/` (through `MutationSinkImpl::open`, the backend's own walk) ->
 // `pdf/ops/AnnotationReader` -> `core::AnnotationStore` (threads, states, queries) -> every annotation's
-// JSON round trip. **T3 extends it** with `AppearanceStreamBuilder` and the generated stream re-read,
-// and **T13** with the XFDF branch, as D6-29 lists; until then those halves are not fuzzed, and this
+// JSON round trip -> (T3) `AppearanceStreamBuilder` over every annotation of a kind it draws, the
+// generated stream re-read, and the input itself re-read as a content stream -> (T3) a highlight added
+// to page 1 and every annotation it listed removed, composed by `RevisionWriter` and VERIFIED, as a
+// save would. **T13** adds the XFDF branch, as D6-29 lists; until then that half is not fuzzed, and this
 // comment is where that is said.
 //
 // THE INVARIANTS, each one a defect the reader or the store could plausibly have:
@@ -24,7 +26,13 @@
 //   * PARTITION -- every annotation is exactly one of: top-level, under a parent, a state reply, a
 //                  pop-up;
 //   * QUERY     -- the unfiltered query is the top-level list, in some order, each once;
-//   * JSON      -- `Annotation::fromJson(a.toJson()) == a`, which T3's journal relies on.
+//   * JSON      -- `Annotation::fromJson(a.toJson()) == a`, which T3's journal relies on;
+//   * APPEARANCE -- (T3) the builder either refuses an annotation by key or returns a stream
+//                  `ContentStreamBuilder::check` accepts; and `check` survives any bytes at all;
+//   * WRITE     -- (T3) a composed update over a highlight added and page 1's annotations removed is one
+//                  `RevisionWriter::verify` accepts. A compose REFUSED is not a finding (a repaired file
+//                  chains to nothing, D3-6); a compose that verify rejects is our writer writing a file
+//                  our reader cannot read back as the sink meant it.
 //
 // WHAT IS NOT A FINDING: an input the sink cannot walk. That is `fuzz_cos_parser`'s ground.
 
@@ -32,8 +40,11 @@
 #define RAWPAGE_TESTS_FUZZ_ANNOTPIPELINEFUZZBODY_H
 
 #include "core/doc/AnnotationStore.h"
+#include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/ops/AnnotationReader.h"
+#include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/RevisionWriter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -134,6 +145,43 @@ inline AnnotVerdict annotPipelineFuzzOnce(const std::uint8_t* data, std::size_t 
         const core::Result<core::Annotation> back = core::Annotation::fromJson(a.toJson());
         if (!back) return fail("an annotation's JSON does not read back");
         if (!(back.value() == a)) return fail("an annotation's JSON round trip changed it");
+    }
+
+    // APPEARANCE
+    (void)pdf::cos::ContentStreamBuilder::check(std::string_view(reinterpret_cast<const char*>(data), size));
+    for (const core::Annotation& a : store.all()) {
+        if (!pdf::ops::AppearanceStreamBuilder::supports(a.subtype)) continue;
+        const auto appearance = pdf::ops::AppearanceStreamBuilder::normal(a);
+        if (appearance && !pdf::cos::ContentStreamBuilder::check(appearance.value().data))
+            return fail("a generated appearance its own re-read refuses");
+        if (appearance && !appearance.value().dictionary.isStream())
+            return fail("a generated appearance that is not a stream");
+    }
+
+    // WRITE
+    if (pages > 0) {
+        pdf::ops::MutationSinkImpl& editing = *sink.value();
+        std::vector<core::AnnotationPlacement> removals;
+        const std::vector<pdf::ops::MutationSinkImpl::ListedEntry> listing = editing.desiredListing(0);
+        for (std::size_t at = listing.size(); at > 0; --at) {
+            if (listing[at - 1].id) removals.push_back(core::AnnotationPlacement{0, static_cast<int>(at - 1)});
+        }
+        if (!removals.empty() && !editing.removeAnnotations(removals)) return fail("the sink refused its own listing");
+        core::Annotation added = core::newAnnotation(core::AnnotationSubtype::Highlight, 0, "Fuzz", 0);
+        added.nm = "0123456789abcdef0123456789abcdef";   // fixed: a finding must reproduce byte for byte
+        added.id = core::AnnotationId::ofCreated(added.nm);
+        added.quadPoints = {10, 30, 110, 30, 10, 20, 110, 20};
+        added.rect = *core::boundsOfPoints(added.quadPoints);
+        const int end = static_cast<int>(editing.desiredListing(0).size());
+        if (!editing.insertAnnotations({core::AnnotationPlacement{0, end}}, {added}))
+            return fail("the sink refused a highlight at the end of page 1");
+        auto composed = pdf::ops::RevisionWriter::compose(editing, false);
+        if (composed) {
+            const std::string_view written(composed.value().bytes.constData(),
+                                           static_cast<std::size_t>(composed.value().bytes.size()));
+            if (!pdf::ops::RevisionWriter::verify(editing.bytes(), written, editing))
+                return fail("a composed annotation update its own verify refuses");
+        }
     }
     return verdict;
 }

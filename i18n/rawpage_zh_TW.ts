@@ -2430,6 +2430,26 @@
         <translation>已儲存的檔案有 %1 頁，與編輯時的頁數不符。未儲存的變更已保留。</translation>
     </message>
     <message>
+        <source>error.pdf.contentStreamInvalid</source>
+        <translation>RawPage 產生的圖形格式不正確（%1），未寫入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.pdf.appearanceUnsupported</source>
+        <translation>RawPage 尚無法繪製 %1 類型的註解。</translation>
+    </message>
+    <message>
+        <source>error.pdf.appearanceGeometry</source>
+        <translation>無法繪製此註解的形狀（%1）。</translation>
+    </message>
+    <message>
+        <source>error.pdf.annotationPlacement</source>
+        <translation>頁面的註解清單與編輯預期的不符（%1）。</translation>
+    </message>
+    <message>
+        <source>error.pdf.annotationUnknown</source>
+        <translation>編輯所指的註解不在此文件中（%1）。</translation>
+    </message>
+    <message>
         <source>error.edit.encrypted</source>
         <translation>此 PDF 有密碼保護。RawPage 尚無法變更受保護的檔案。</translation>
     </message>
@@ -3402,6 +3422,22 @@
 </context>
 <context>
     <name>command</name>
+    <message>
+        <source>command.annot.add</source>
+        <translation>新增註解</translation>
+    </message>
+    <message>
+        <source>command.annot.addMany</source>
+        <translation>新增 %1 個註解</translation>
+    </message>
+    <message>
+        <source>command.annot.delete</source>
+        <translation>刪除註解</translation>
+    </message>
+    <message>
+        <source>command.annot.deleteMany</source>
+        <translation>刪除 %1 個註解</translation>
+    </message>
     <message>
         <source>command.page.rotate</source>
         <translation>將第 %1 頁旋轉 %2 度</translation>

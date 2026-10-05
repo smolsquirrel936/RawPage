@@ -28,6 +28,11 @@
 //   * **`operation()` is what `Permissions::may()` is asked** before `apply()` runs. It is the one
 //     method beyond `Tech-Stack-Plan.md` §5.3's list, added at T5: the pre-flight has to know WHICH
 //     kind of edit is being attempted, and Stage 10's permission bits answer per operation.
+//   * **`permitted()` IS that pre-flight** (Stage 6 T3), and `CommandJournal::run` asks it rather than
+//     `may()` directly: its default is `may(operation())`, and an annotation command adds the question
+//     D6-3 made per page -- `Permissions::mayAnnotate(page)` for every page it touches -- so a page
+//     whose `/Annots` the engine and the first-party reader read differently is refused BY KEY before
+//     anything changes, rather than by an `apply()` that returns a bare false.
 //
 // A NEW COMMAND SHIPS WITH ITS INVERSE AND ITS TESTS, OR IT DOES NOT SHIP. `tools/mutation-lint`
 // (T6) fails the build for a class under `core/cmd/commands/` with no `Commands.def` row, no test
@@ -36,6 +41,7 @@
 #ifndef RAWPAGE_CORE_CMD_COMMAND_H
 #define RAWPAGE_CORE_CMD_COMMAND_H
 
+#include "core/Result.h"
 #include "core/doc/Permissions.h"
 #include "core/doc/Scope.h"
 
@@ -69,6 +75,7 @@ public:
     virtual CatalogText name() const = 0;
     virtual Scope scope() const = 0;
     virtual Operation operation() const = 0;
+    virtual Status permitted(const Document& document) const;   // core/cmd/Command.cpp
 
     virtual bool apply(Document& document, MutationSink& sink) = 0;
     virtual bool revert(Document& document, MutationSink& sink) = 0;

@@ -90,7 +90,10 @@ target_compile_definitions(rawpage_render_tests PRIVATE
     RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
     # Stage 3 T8: where A-57 saves the four signed files for OpenSSL and for M-03's product walk. The
     # BUILD tree, never the source tree -- they are measurements, regenerated every run.
-    RAWPAGE_A4_PRODUCT_DIR="${CMAKE_BINARY_DIR}/a4-product")
+    RAWPAGE_A4_PRODUCT_DIR="${CMAKE_BINARY_DIR}/a4-product"
+    # Stage 6 T3 (guide A-33): the same four files with a COMMENT added instead of a rotation -- the
+    # permitted edit Stage 3 carried here (its guide's I-06) -- for OpenSSL and for M-03's Acrobat walk.
+    RAWPAGE_A4_ANNOT_DIR="${CMAKE_BINARY_DIR}/a4-product-annot")
 
 target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -132,6 +135,19 @@ add_test(NAME render.a4_product.openssl
             "-DCHECKS_DIR=${CMAKE_SOURCE_DIR}/tests/gates"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
 set_tests_properties(render.a4_product.openssl PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
+# --- A-33 (Stage 6 T3): A4 through the product with the PERMITTED edit, judged by OpenSSL ------------
+# The same runner over the case that adds a highlight through AddAnnotationCommand and saves through
+# SaveCoordinator. `-R a4_product` selects both, as the Stage 6 guide's A-33 says.
+add_test(NAME render.a4_product.annotation.openssl
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_render_tests>"
+            "-DPRODUCT_DIR=${CMAKE_BINARY_DIR}/a4-product-annot"
+            "-DCHECKS_DIR=${CMAKE_SOURCE_DIR}/tests/gates"
+            "-DCASE=A4 product saves an annotation into every signed corpus file"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
+set_tests_properties(render.a4_product.annotation.openssl PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 include(Catch)

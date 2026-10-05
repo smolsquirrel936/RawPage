@@ -55,6 +55,9 @@ add_executable(rawpage_tests
     tst_annotation.cpp            # Stage 6 T2 -- guide A-20: the annotation model's invariants, read and JSON
     tst_annotstore.cpp            # Stage 6 T2 -- guide A-21, A-22 and the fuzz body's replay (A-23): threads,
                                   #   states, queries and hostile input, through pdf/ops/AnnotationReader
+    tst_annotationops.cpp         # Stage 6 T3 -- guide A-24 … A-30: the write path, one type end to end --
+                                  #   the content-stream builder and its re-read, a highlight's appearance,
+                                  #   the sink's listings, save, undo, identity, preservation, verify
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,
@@ -180,7 +183,11 @@ target_compile_definitions(rawpage_tests PRIVATE
     RAWPAGE_A4_PROBE_DIR="${CMAKE_BINARY_DIR}/a4-probe"
     # Stage 3 T5: the catalog SOURCES, for guide case A-42 -- every command's `name()` key is present
     # in both shipped locales. Read as text, the same way tools/i18n-lint reads them.
-    RAWPAGE_I18N_DIR="${CMAKE_SOURCE_DIR}/i18n")
+    RAWPAGE_I18N_DIR="${CMAKE_SOURCE_DIR}/i18n"
+    # Stage 6 T3 (Q8, guide A-31): a copy of every file tst_annotationops saves, for `qpdf --check` --
+    # an independent reader of what our writer wrote. The portable-asan CI job runs this suite and then
+    # tests/gates/CheckQpdf.cmake over the directory; in the BUILD tree, regenerated every run.
+    RAWPAGE_WRITTEN_DIR="${CMAKE_BINARY_DIR}/written")
 
 target_include_directories(rawpage_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 

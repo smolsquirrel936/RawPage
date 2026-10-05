@@ -108,6 +108,12 @@ add_library(rawpage_cos STATIC
     cos/ObjectAllocator.cpp
     cos/IncrementalWriter.h
     cos/IncrementalWriter.cpp
+
+    # Stage 6 T3 (D6-6): content streams, written one operator at a time and re-read against Annex A's
+    # operator table. COS syntax with no opinion about what an appearance looks like -- that is
+    # pdf/ops/AppearanceStreamBuilder's.
+    cos/ContentStreamBuilder.h
+    cos/ContentStreamBuilder.cpp
 )
 
 target_include_directories(rawpage_cos PUBLIC "${CMAKE_SOURCE_DIR}")

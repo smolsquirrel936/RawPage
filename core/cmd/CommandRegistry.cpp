@@ -4,6 +4,7 @@
 
 // One include per table row's header column. Listed by hand because a macro cannot generate an
 // #include; a row whose header is missing here fails to compile below, on the row's own name.
+#include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 
 #include <QJsonValue>

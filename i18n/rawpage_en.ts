@@ -2430,6 +2430,26 @@
         <translation>The saved file has %1 pages, which is not what was edited. The unsaved changes were kept.</translation>
     </message>
     <message>
+        <source>error.pdf.contentStreamInvalid</source>
+        <translation>A drawing RawPage generated is not well-formed (%1). Nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.pdf.appearanceUnsupported</source>
+        <translation>RawPage cannot yet draw an annotation of type %1.</translation>
+    </message>
+    <message>
+        <source>error.pdf.appearanceGeometry</source>
+        <translation>The annotation's shape cannot be drawn (%1).</translation>
+    </message>
+    <message>
+        <source>error.pdf.annotationPlacement</source>
+        <translation>The annotation list of a page is not where the edit expected it (%1).</translation>
+    </message>
+    <message>
+        <source>error.pdf.annotationUnknown</source>
+        <translation>The annotation the edit names is not in this document (%1).</translation>
+    </message>
+    <message>
         <source>error.edit.encrypted</source>
         <translation>This PDF is password-protected. RawPage cannot change protected files yet.</translation>
     </message>
@@ -3402,6 +3422,22 @@
 </context>
 <context>
     <name>command</name>
+    <message>
+        <source>command.annot.add</source>
+        <translation>Add annotation</translation>
+    </message>
+    <message>
+        <source>command.annot.addMany</source>
+        <translation>Add %1 annotations</translation>
+    </message>
+    <message>
+        <source>command.annot.delete</source>
+        <translation>Delete annotation</translation>
+    </message>
+    <message>
+        <source>command.annot.deleteMany</source>
+        <translation>Delete %1 annotations</translation>
+    </message>
     <message>
         <source>command.page.rotate</source>
         <translation>Rotate page %1 by %2 degrees</translation>

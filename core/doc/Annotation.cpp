@@ -4,6 +4,7 @@
 
 #include <QDate>
 #include <QJsonArray>
+#include <QRandomGenerator>
 #include <QStringList>
 
 #include <array>
@@ -142,6 +143,22 @@ PdfDate PdfDate::parse(const QString& raw)
     // the distro Qt 6.4 that builds `core/` on Linux may have none (convention 24).
     const long long days = calendar.toJulianDay() - 2440588LL;
     date.utcSeconds = days * 86400LL + hour * 3600LL + minute * 60LL + second - offsetSeconds;
+    return date;
+}
+
+PdfDate PdfDate::fromUtcSeconds(std::int64_t utcSeconds)
+{
+    long long days = utcSeconds / 86400;
+    long long rest = utcSeconds % 86400;
+    if (rest < 0) { rest += 86400; --days; }
+    const QDate calendar = QDate::fromJulianDay(days + 2440588LL);
+    PdfDate date;
+    date.raw = QStringLiteral("D:%1%2%3%4Z")
+                   .arg(calendar.toString(QStringLiteral("yyyyMMdd")))
+                   .arg(rest / 3600, 2, 10, QLatin1Char('0'))
+                   .arg((rest / 60) % 60, 2, 10, QLatin1Char('0'))
+                   .arg(rest % 60, 2, 10, QLatin1Char('0'));
+    date.utcSeconds = utcSeconds;
     return date;
 }
 
@@ -376,6 +393,49 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
     a.rotate = json.value(QStringLiteral("rotate")).toInt();
     a.hasAppearance = json.value(QStringLiteral("hasAppearance")).toBool();
     return a;
+}
+
+// --- Creation (Stage 6 T3, D6-4) -----------------------------------------------------------------
+
+QString newAnnotationName()
+{
+    QString hex;
+    hex.reserve(32);
+    for (int word = 0; word < 4; ++word)
+        hex += QStringLiteral("%1").arg(QRandomGenerator::system()->generate(), 8, 16, QLatin1Char('0'));
+    return hex;
+}
+
+Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& author, std::int64_t utcNow)
+{
+    Annotation a;
+    a.nm = newAnnotationName();
+    a.id = AnnotationId::ofCreated(a.nm);
+    a.subtype = subtype;
+    a.page = page;
+    a.author = author;
+    a.created = PdfDate::fromUtcSeconds(utcNow);
+    a.modified = a.created;
+    a.flags = AnnotationFlag::Print;
+    a.hasAppearance = true;   // RawPage writes the /AP of everything it creates (D6-6)
+    return a;
+}
+
+std::optional<PdfRect> boundsOfPoints(const std::vector<double>& coordinates)
+{
+    if (coordinates.size() < 2) return std::nullopt;
+    double left = coordinates[0], right = coordinates[0];
+    double bottom = coordinates[1], top = coordinates[1];
+    for (std::size_t at = 0; at + 1 < coordinates.size(); at += 2) {
+        const double x = coordinates[at];
+        const double y = coordinates[at + 1];
+        if (!std::isfinite(x) || !std::isfinite(y)) return std::nullopt;
+        left = std::min(left, x);
+        right = std::max(right, x);
+        bottom = std::min(bottom, y);
+        top = std::max(top, y);
+    }
+    return normalizedRect(left, bottom, right, top);
 }
 
 } // namespace rawpage::core

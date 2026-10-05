@@ -77,7 +77,7 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
         return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.failed"), QString()};
 
     // 1. The pre-flight, before the command sees anything (D3-7).
-    const Status permitted = document_.permissions().may(command->operation());
+    const Status permitted = command->permitted(document_);
     if (!permitted)
         return permitted;
     if (sink_ == nullptr) {

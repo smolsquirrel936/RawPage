@@ -86,6 +86,9 @@ struct PdfDate {
     std::optional<std::int64_t> utcSeconds;   // nullopt when absent or unparseable
 
     static PdfDate parse(const QString& raw);
+    // The date RawPage WRITES (Stage 6 T3): `D:YYYYMMDDHHmmSSZ`, the instant in UTC. ISO 32000-1 §7.9.4
+    // allows `Z` for a zero offset, and a UTC stamp says nothing about where its author sat.
+    static PdfDate fromUtcSeconds(std::int64_t utcSeconds);
     // `2026-09-01T01:15:00Z`, or empty when the instant is unknown -- the form the labels carry.
     QString utcIso() const;
     bool operator==(const PdfDate&) const = default;
@@ -175,6 +178,30 @@ struct Annotation {
 // A rectangle from any two diagonally opposite corners: `x0 <= x1` and `y0 <= y1` after it. A
 // non-finite coordinate yields nullopt -- the caller reports it, it is never silently zeroed.
 std::optional<PdfRect> normalizedRect(double x0, double y0, double x1, double y1);
+
+// WHERE AN ENTRY SITS IN A PAGE'S `/Annots` -- Stage 6 T3. Every annotation command names its changes
+// to the listing this way, to the store and to the sink alike (`core/backend.h`), because the two hold
+// the same listing read from the same array and must stay entry-for-entry the same: a position is
+// what both mean by *the third entry of page 2*, including the entries that are not annotations at all.
+struct AnnotationPlacement {
+    int page = -1;
+    int position = -1;
+    bool operator==(const AnnotationPlacement&) const = default;
+};
+
+// THE IDENTITY AND METADATA OF AN ANNOTATION RAWPAGE CREATES (D6-4): a `/NM` of 128 random bits in
+// lowercase hex, generated here ONCE and then carried by the command that adds it -- so a replay, an
+// undo and a redo all name the same annotation -- `/T` from `author`, `/CreationDate` and `/M` at
+// `utcNow`, and the `Print` flag, which is what Acrobat sets on every comment it creates. Geometry,
+// colour and text are the caller's.
+Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& author, std::int64_t utcNow);
+
+// 32 lowercase hex digits from the system's random source.
+QString newAnnotationName();
+
+// The smallest rectangle holding every point of `coordinates` (x y pairs); nullopt for none, or for a
+// non-finite one.
+std::optional<PdfRect> boundsOfPoints(const std::vector<double>& coordinates);
 
 } // namespace rawpage::core
 

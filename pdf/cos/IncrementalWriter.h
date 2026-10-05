@@ -165,6 +165,12 @@ public:
     // which `rawpage_bench_save` measures. It never fails: an object that will not fetch is one no
     // reader resolves either, and is left where it is. Not const, because `XrefTable::fetch` caches.
     static void protectOriginal(XrefTable& table, ObjectDelta& delta);
+
+    // The largest object number any object `table` places REFERENCES -- defined or not; -1 for none.
+    // The second half of `protectOriginal`, alone, for a caller that ADDS objects to a delta and so must
+    // raise the allocator's floor before the first number is handed out (Stage 6 T3: an annotation and
+    // its appearance). The same walk over every object, so a caller computes it once per revision.
+    static long long largestReference(XrefTable& table);
 };
 
 // A direct object in PDF syntax, from its VALUES (spans ignored -- see the note above). A Stream

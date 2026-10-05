@@ -29,5 +29,7 @@
 #endif
 
 RAWPAGE_COMMAND(RotatePageCommand, "page.rotate", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(AddAnnotationCommand, "annot.add", "core/cmd/commands/AnnotationCommands.h")
+RAWPAGE_COMMAND(DeleteAnnotationCommand, "annot.delete", "core/cmd/commands/AnnotationCommands.h")
 
 #undef RAWPAGE_COMMAND

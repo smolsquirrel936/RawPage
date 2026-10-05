@@ -330,6 +330,16 @@ jobs:
       - name: Run the headless suite under ASan+UBSan
         run: ctest --preset portable-asan
 
+      # Stage 6 guide case A-31 (plan Q8, D6-6): an INDEPENDENT reader of what our writer wrote. The
+      # headless suite's tst_annotationops copies every file it saves into build/portable-asan/written;
+      # qpdf --check reads each, after a truncated-stream control that must fail first. HERE and not in
+      # the gates job the plan's P-4 named: that job builds no Qt and runs no suite, so it has no file to
+      # judge -- and a qpdf step over no files is a green tick that checked nothing (the script refuses one).
+      - name: A-31 -- qpdf judges every file the suite wrote
+        run: |
+          sudo apt-get install -y qpdf
+          python3 tests/gates/check-qpdf.py --qpdf qpdf build/portable-asan/written/*.pdf
+
   # =====================================================================================
   # 4. libFuzzer over the COS reader (guide cases A-25 and A-26). Stage 2 T18.
   #

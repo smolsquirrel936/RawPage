@@ -54,6 +54,25 @@ QByteArray Document::modelHash() const
         addInt(buffer, label.size());       // length-prefixed, so one label cannot run into the next page
         buffer.append(label);
     }
+
+    // The annotations (Stage 6 T3): the store's refusal, then every listing entry in page order --
+    // what it resolved to, and a digest of the annotation's whole JSON, which carries every modelled
+    // field (cached by the store: `AnnotationStore::annotationDigest` says why). Listed
+    // twice, an annotation is hashed twice, because its two listings are two facts a revert restores.
+    addInt(buffer, annotations_.status() ? 1 : 0);
+    addInt(buffer, annotations_.pageCount());
+    for (int page = 0; page < annotations_.pageCount(); ++page) {
+        const std::vector<AnnotationListingEntry>& listing = annotations_.listing(page);
+        addInt(buffer, static_cast<qint64>(listing.size()));
+        for (const AnnotationListingEntry& entry : listing) {
+            addInt(buffer, entry.fact.dictionary ? 1 : 0);
+            if (!entry.annotation) {
+                addInt(buffer, -1);
+                continue;
+            }
+            buffer.append(annotations_.annotationDigest(*entry.annotation));   // its whole JSON, hashed once
+        }
+    }
     return QCryptographicHash::hash(buffer, QCryptographicHash::Sha256);
 }
 
@@ -83,12 +102,14 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     const RepairReport* repair = backend.repairReport(handle);
     const Permissions* permissions = backend.permissions(handle);
     const DocumentId* id = backend.documentId(handle);
+    const AnnotationStore* annotations = backend.annotations(handle);
 
     handle_ = handle;
     pages_ = *pages;
     repair_ = repair ? *repair : RepairReport{};
     permissions_ = permissions ? *permissions : Permissions{};
     id_ = id ? *id : DocumentId{};
+    annotations_ = annotations ? *annotations : AnnotationStore{};
     revision_ = Revision::initial();
     return Status{};
 }

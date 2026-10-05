@@ -118,6 +118,14 @@ core::Status RevisionWriter::verify(std::string_view original, std::string_view 
                              QStringLiteral("rotation:%1").arg(index + 1));
         }
     }
+
+    // Every page's /Annots reads back as the sink composed it (Stage 6 T3) -- a created annotation as a
+    // dictionary with its /NM, its /Subtype, its page and a well-formed appearance, every other entry
+    // the one that was listed -- and, the walk being over every page, a page nobody changed reads back
+    // unchanged. Guide case A-30.
+    auto annotations = sink.reconcile(opened.value().table, walk.value(), true);
+    if (!annotations)
+        return annotations.error();
     return core::Status{};
 }
 

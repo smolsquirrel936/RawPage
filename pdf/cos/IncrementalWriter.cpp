@@ -609,6 +609,35 @@ void IncrementalWriter::protectOriginal(XrefTable& table, ObjectDelta& delta)
     delta.reserveNumbersThrough(largestReferenced);
 }
 
+long long IncrementalWriter::largestReference(XrefTable& table)
+{
+    std::vector<long long> placed;
+    placed.reserve(table.entryCount());
+    for (const auto& [number, entry] : table.entries()) {
+        if (entry.type != XrefEntryType::Free && number > 0)
+            placed.push_back(number);
+    }
+    long long largest = -1;
+    std::vector<const CosObject*> stack;
+    for (const long long number : placed) {
+        auto fetched = table.fetch(number);
+        if (!fetched || fetched.value().number != number)
+            continue;
+        stack.assign(1, &fetched.value().object);
+        while (!stack.empty()) {
+            const CosObject* value = stack.back();
+            stack.pop_back();
+            if (value->isReference())
+                largest = std::max(largest, value->reference().number);
+            for (const CosObject& item : value->items())
+                stack.push_back(&item);
+            for (const CosObject::Entry& entry : value->entries())
+                stack.push_back(&entry.value);
+        }
+    }
+    return largest;
+}
+
 core::Result<WrittenUpdate> IncrementalWriter::append(std::string_view original,
                                                       const XrefTable& table,
                                                       const ObjectDelta& delta)

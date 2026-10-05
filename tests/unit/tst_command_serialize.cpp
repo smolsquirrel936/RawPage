@@ -14,6 +14,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/cmd/CommandRegistry.h"
+#include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 
 #include <QFile>
@@ -31,6 +32,18 @@ using core::RotatePageCommand;
 
 namespace {
 
+// Stage 6 T3: a highlight as `core::newAnnotation` makes one, every field a created annotation carries.
+core::Annotation sampleHighlight(int page, const QString& author = QStringLiteral("Ana"))
+{
+    core::Annotation a = core::newAnnotation(core::AnnotationSubtype::Highlight, page, author, 1791504000);
+    a.quadPoints = {72, 714, 272, 714, 72, 700, 272, 700};
+    a.rect = *core::boundsOfPoints(a.quadPoints);
+    a.color = {1, 1, 0};
+    a.opacity = 0.5;
+    a.contents = QStringLiteral("Zo\u00EB's note");
+    return a;
+}
+
 // One or more sample commands per `Commands.def` row. A row with no entry here FAILS the round-trip
 // case, so a new command cannot arrive without a sample.
 const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>()>>& samples()
@@ -42,6 +55,28 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              for (int page : {0, 1, 899, RotatePageCommand::kMaxPageIndex})
                  for (int degrees : {90, 180, 270, -90})
                      out.push_back(std::make_unique<RotatePageCommand>(page, degrees));
+             return out;
+         }},
+        // Stage 6 T3: one annotation, a set across pages, and the limit of a page index.
+        {"annot.add",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{sampleHighlight(0)}));
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{
+                 sampleHighlight(0), sampleHighlight(3, QStringLiteral("\u6797")), sampleHighlight(0)}));
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(
+                 std::vector<core::Annotation>{sampleHighlight(core::AnnotationCommandLimits::kMaxPageIndex)}));
+             return out;
+         }},
+        // Every kind of identity a command can name (D6-4).
+        {"annot.delete",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DeleteAnnotationCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofObject(12)}));
+             out.push_back(std::make_unique<core::DeleteAnnotationCommand>(std::vector<core::AnnotationId>{
+                 core::AnnotationId::ofObject(1LL << 40), core::AnnotationId::ofDirect(2, 3),
+                 core::AnnotationId::ofCreated(core::newAnnotationName())}));
              return out;
          }},
     };
@@ -72,7 +107,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -107,7 +142,7 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16);
+    CHECK(roundTrips == 16 + 3 + 2);
 }
 
 TEST_CASE("CommandRegistry returns NotFound for a type id it does not register", "[cmd][serialize]")
@@ -223,6 +258,74 @@ TEST_CASE("CommandRegistry refuses every malformed page rotation by Result", "[c
         CHECK(CommandRegistry::deserialize(
             QJsonObject{{"type", "page.rotate"}, {"page", 3.0}, {"degrees", 180.0}}));
     }
+}
+
+TEST_CASE("CommandRegistry refuses every malformed annotation command by Result", "[cmd][serialize][hostile][annotops]")
+{
+    // Stage 6 T3. The recovery journal is a file on disk, so `annot.add` and `annot.delete` are parsers of
+    // hostile input as `page.rotate` is (Stage 3's A-45). Each entry breaks ONE thing about a good command.
+    const QJsonObject good = core::AddAnnotationCommand({sampleHighlight(0)}).serialize();
+    const QJsonObject goodAnnotation = good.value("annotations").toArray().at(0).toObject();
+    const auto withAnnotation = [&](const char* key, const QJsonValue& value) {
+        QJsonObject annotation = goodAnnotation;
+        if (value.isUndefined()) annotation.remove(QLatin1String(key));
+        else annotation.insert(QLatin1String(key), value);
+        return QJsonObject{{"type", "annot.add"}, {"annotations", QJsonArray{annotation}}};
+    };
+    QJsonArray tooMany;
+    for (std::size_t i = 0; i <= core::AnnotationCommandLimits::kMaxAnnotations; ++i) tooMany.append(QStringLiteral("obj:1"));
+    QJsonArray hugeQuads;
+    for (std::size_t i = 0; i < core::AnnotationCommandLimits::kMaxCoordinates + 8; ++i) hugeQuads.append(1.0);
+    const QString huge(10 * 1024 * 1024, QLatin1Char('9'));
+
+    const std::vector<std::pair<const char*, QJsonObject>> hostile{
+        {"add: annotations missing", QJsonObject{{"type", "annot.add"}}},
+        {"add: annotations an object", QJsonObject{{"type", "annot.add"}, {"annotations", QJsonObject{}}}},
+        {"add: annotations empty", QJsonObject{{"type", "annot.add"}, {"annotations", QJsonArray{}}}},
+        {"add: an annotation a number", QJsonObject{{"type", "annot.add"}, {"annotations", QJsonArray{7}}}},
+        {"add: no id", withAnnotation("id", QJsonValue::Undefined)},
+        {"add: an object id", withAnnotation("id", "obj:12")},
+        {"add: a direct id", withAnnotation("id", "direct:0:1")},
+        {"add: nm not the id", withAnnotation("nm", "something-else")},
+        {"add: a 10 MB nm", withAnnotation("id", QStringLiteral("nm:") + huge)},
+        {"add: an unknown subtype", withAnnotation("subtype", "Bogus")},
+        {"add: no rect", withAnnotation("rect", QJsonValue::Undefined)},
+        {"add: a 3-number rect", withAnnotation("rect", QJsonArray{1, 2, 3})},
+        {"add: a non-finite rect flagged", withAnnotation("rectFinite", false)},
+        {"add: page -1", withAnnotation("page", -1)},
+        {"add: page past the limit", withAnnotation("page", core::AnnotationCommandLimits::kMaxPageIndex + 1)},
+        {"add: too much geometry", withAnnotation("quadPoints", hugeQuads)},
+        {"add: a colour of 5", withAnnotation("color", QJsonArray{1, 1, 1, 1, 1})},
+        {"add: opacity 2", withAnnotation("opacity", 2.0)},
+        {"add: a negative border", withAnnotation("borderWidth", -1.0)},
+        {"delete: ids missing", QJsonObject{{"type", "annot.delete"}}},
+        {"delete: ids empty", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{}}}},
+        {"delete: an id a number", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{12}}}},
+        {"delete: an id of no form", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"12"}}}},
+        {"delete: object 0", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"obj:0"}}}},
+        {"delete: a negative position", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"direct:0:-1"}}}},
+        {"delete: a direct page past the limit",
+         QJsonObject{{"type", "annot.delete"},
+                     {"ids", QJsonArray{QStringLiteral("direct:%1:0").arg(core::AnnotationCommandLimits::kMaxPageIndex + 1)}}}},
+        {"delete: an empty nm", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"nm:"}}}},
+        {"delete: a 10 MB id", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{QStringLiteral("nm:") + huge}}}},
+        {"delete: too many ids", QJsonObject{{"type", "annot.delete"}, {"ids", tooMany}}},
+    };
+    for (const auto& [label, json] : hostile) {
+        INFO("input: " << label);
+        auto result = CommandRegistry::deserialize(json);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().code == core::ErrorCode::ParseFailure);
+        CHECK(keyOf(result.error()) == "error.command.malformed");
+        CHECK(result.error().context.size() < 64);
+    }
+
+    // THE CONTROL: the good command, and every boundary, is accepted.
+    CHECK(CommandRegistry::deserialize(good));
+    CHECK(CommandRegistry::deserialize(withAnnotation("page", core::AnnotationCommandLimits::kMaxPageIndex)));
+    CHECK(CommandRegistry::deserialize(withAnnotation("opacity", 0.0)));
+    CHECK(CommandRegistry::deserialize(
+        QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"obj:1", "direct:0:0", "nm:x"}}}));
 }
 
 TEST_CASE("RotatePageCommand normalizes a counter-clockwise turn and marks a non-quarter turn invalid", "[cmd][serialize]")

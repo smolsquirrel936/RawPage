@@ -88,6 +88,8 @@ class Destinations;          // core/doc/Destinations.h    -- Stage 4 T4 (read h
 struct Metadata;             // core/doc/Metadata.h        -- Stage 4 T4 (Info only, D4-4)
 class PageTransitions;       // core/doc/PageTransitions.h -- Stage 4 T10 (D4-12)
 class AnnotationStore;       // core/doc/AnnotationStore.h -- Stage 6 T2 (read half, D6-3)
+struct Annotation;           // core/doc/Annotation.h      -- Stage 6 T2; the sink's intents from T3
+struct AnnotationPlacement;  // core/doc/Annotation.h      -- Stage 6 T3
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -285,6 +287,27 @@ public:
     virtual ~MutationSink() = default;
 
     virtual Status setPageRotation(int pageIndex, int degrees) = 0;
+
+    // ANNOTATIONS -- Stage 6 T3 (`Stage6-Annotations-Plan.md` D6-1, D6-4, D6-5). Two intents over a
+    // page's `/Annots` LISTING, each over a SET and ALL OR NOTHING, because one command -- *delete
+    // every comment on these pages*, an import -- changes many entries and is one undo step. Each
+    // placement is counted in the listing as the entries before it in the same call left it, exactly
+    // as `AnnotationStore::insert` and `remove` count them: the store and the sink hold the same
+    // listing, read from the same array, and a command tells both the same thing.
+    //
+    // `insertAnnotations` lists `annotations[i]` at `at[i]`. Which bytes that means is the sink's: an
+    // annotation the file already holds -- one being restored by an undo -- is listed again AS IT IS
+    // ON DISK, unmodelled keys and producer's appearance included (D6-5), and one RawPage created is
+    // written new with its own `/AP` (D6-6). Refused, with nothing changed, for a placement out of
+    // range, for a created annotation of a kind the sink cannot write yet, or for an id it cannot
+    // place -- the sizes differ, which is what a malformed or hostile replay looks like.
+    //
+    // `removeAnnotations` drops the listing entry at each placement. The dictionary it named stays
+    // in the file -- an incremental update never removes an object -- and is no longer listed, which
+    // is what deleting an annotation means to every reader.
+    virtual Status insertAnnotations(const std::vector<AnnotationPlacement>& at,
+                                     const std::vector<Annotation>& annotations) = 0;
+    virtual Status removeAnnotations(const std::vector<AnnotationPlacement>& at) = 0;
 };
 
 // =======================================================================================

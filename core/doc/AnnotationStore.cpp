@@ -3,6 +3,9 @@
 
 #include "core/doc/AnnotationStore.h"
 
+#include <QCryptographicHash>
+#include <QJsonDocument>
+
 #include <algorithm>
 #include <limits>
 #include <utility>
@@ -55,13 +58,21 @@ AnnotationStore AnnotationStore::fromReading(Reading reading)
     store.refusal_.reset();
     store.annotations_ = std::move(reading.annotations);
     store.pages_ = std::move(reading.pages);
-    store.notes_ = std::move(reading.notes);
-    for (std::size_t index = 0; index < store.annotations_.size(); ++index) {
-        const AnnotationId& id = store.annotations_[index].id;
-        if (id.kind == AnnotationId::Kind::Object) store.byObject_.emplace(id.object, index);
-    }
-    store.buildThreads();
+    store.readingNotes_ = std::move(reading.notes);
+    store.reindex();
     return store;
+}
+
+void AnnotationStore::reindex()
+{
+    byObject_.clear();
+    for (std::size_t index = 0; index < annotations_.size(); ++index) {
+        const AnnotationId& id = annotations_[index].id;
+        if (id.kind == AnnotationId::Kind::Object) byObject_.emplace(id.object, index);
+    }
+    // The thread notes are recomputed with the threads; the reading's are what the file held at open.
+    notes_ = readingNotes_;
+    buildThreads();
 }
 
 AnnotationStore AnnotationStore::refused(Error why)
@@ -328,6 +339,133 @@ std::vector<QString> AnnotationStore::authors() const
     }
     std::sort(out.begin(), out.end());
     return out;
+}
+
+// --- Changes (Stage 6 T3) ---------------------------------------------------------------------
+
+namespace {
+
+AnnotationFact factOf(const Annotation& annotation)
+{
+    AnnotationFact fact;
+    fact.dictionary = true;
+    fact.subtype = annotation.subtype;
+    if (annotation.rectFinite) fact.rect = annotation.rect;
+    return fact;
+}
+
+} // namespace
+
+std::vector<AnnotationPlacement> AnnotationStore::placementsOf(const AnnotationId& id) const
+{
+    std::vector<AnnotationPlacement> out;
+    const std::optional<std::size_t> index = find(id);
+    if (!index) return out;
+    for (std::size_t page = 0; page < pages_.size(); ++page) {
+        const std::vector<AnnotationListingEntry>& listing = pages_[page];
+        for (std::size_t position = 0; position < listing.size(); ++position) {
+            if (listing[position].annotation == index)
+                out.push_back(AnnotationPlacement{static_cast<int>(page), static_cast<int>(position)});
+        }
+    }
+    return out;
+}
+
+Status AnnotationStore::insert(const std::vector<std::pair<AnnotationPlacement, Annotation>>& entries)
+{
+    if (refusal_) return *refusal_;
+    // Validated in full against a simulation of the listing sizes before anything changes.
+    std::map<int, std::size_t> sizes;
+    for (const auto& [at, annotation] : entries) {
+        if (at.page < 0 || at.page >= pageCount() || at.position < 0 || !annotation.id.isValid())
+            return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"),
+                         QStringLiteral("placement %1:%2").arg(at.page).arg(at.position)};
+        auto size = sizes.find(at.page);
+        if (size == sizes.end()) size = sizes.emplace(at.page, pages_[static_cast<std::size_t>(at.page)].size()).first;
+        if (static_cast<std::size_t>(at.position) > size->second)
+            return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"),
+                         QStringLiteral("placement %1:%2").arg(at.page).arg(at.position)};
+        ++size->second;
+    }
+
+    for (const auto& [at, annotation] : entries) {
+        std::optional<std::size_t> index = find(annotation.id);
+        if (!index) {
+            index = annotations_.size();
+            digests_.resize(annotations_.size());   // a digest moves with its annotation; a new one has none
+            annotations_.push_back(annotation);
+            digests_.emplace_back();
+            if (annotation.id.kind == AnnotationId::Kind::Object) byObject_.emplace(annotation.id.object, *index);
+        }
+        AnnotationListingEntry entry;
+        entry.fact = factOf(annotations_[*index]);
+        entry.annotation = *index;
+        std::vector<AnnotationListingEntry>& listing = pages_[static_cast<std::size_t>(at.page)];
+        listing.insert(listing.begin() + at.position, entry);
+    }
+    reindex();
+    return Status{};
+}
+
+Status AnnotationStore::remove(const std::vector<AnnotationPlacement>& placements)
+{
+    if (refusal_) return *refusal_;
+    // On copies of the touched listings, so a refusal part-way leaves the store as it was.
+    std::map<int, std::vector<AnnotationListingEntry>> changed;
+    for (const AnnotationPlacement& at : placements) {
+        if (at.page < 0 || at.page >= pageCount())
+            return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"),
+                         QStringLiteral("placement %1:%2").arg(at.page).arg(at.position)};
+        auto listing = changed.find(at.page);
+        if (listing == changed.end()) listing = changed.emplace(at.page, pages_[static_cast<std::size_t>(at.page)]).first;
+        if (at.position < 0 || static_cast<std::size_t>(at.position) >= listing->second.size()
+            || !listing->second[static_cast<std::size_t>(at.position)].annotation) {
+            return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"),
+                         QStringLiteral("placement %1:%2").arg(at.page).arg(at.position)};
+        }
+        listing->second.erase(listing->second.begin() + at.position);
+    }
+    for (auto& [page, listing] : changed) pages_[static_cast<std::size_t>(page)] = std::move(listing);
+
+    // An annotation no page lists any more leaves the store, and every index above it moves down.
+    std::vector<bool> listed(annotations_.size(), false);
+    for (const std::vector<AnnotationListingEntry>& listing : pages_) {
+        for (const AnnotationListingEntry& entry : listing) {
+            if (entry.annotation) listed[*entry.annotation] = true;
+        }
+    }
+    std::vector<std::size_t> renumbered(annotations_.size(), 0);
+    std::vector<Annotation> kept;
+    std::vector<QByteArray> keptDigests;
+    kept.reserve(annotations_.size());
+    digests_.resize(annotations_.size());
+    for (std::size_t index = 0; index < annotations_.size(); ++index) {
+        renumbered[index] = kept.size();
+        if (listed[index]) {
+            kept.push_back(std::move(annotations_[index]));
+            keptDigests.push_back(std::move(digests_[index]));
+        }
+    }
+    annotations_ = std::move(kept);
+    digests_ = std::move(keptDigests);
+    for (std::vector<AnnotationListingEntry>& listing : pages_) {
+        for (AnnotationListingEntry& entry : listing) {
+            if (entry.annotation) entry.annotation = renumbered[*entry.annotation];
+        }
+    }
+    reindex();
+    return Status{};
+}
+
+const QByteArray& AnnotationStore::annotationDigest(std::size_t index) const
+{
+    if (digests_.size() < annotations_.size()) digests_.resize(annotations_.size());
+    QByteArray& digest = digests_.at(index);
+    if (digest.isEmpty()) {
+        const QByteArray json = QJsonDocument(annotations_.at(index).toJson()).toJson(QJsonDocument::Compact);
+        digest = QCryptographicHash::hash(json, QCryptographicHash::Sha256);
+    }
+    return digest;
 }
 
 } // namespace rawpage::core

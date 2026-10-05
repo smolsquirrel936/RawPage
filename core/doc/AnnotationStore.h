@@ -37,6 +37,7 @@
 #include "core/doc/Annotation.h"
 #include "core/doc/Permissions.h"
 
+#include <QByteArray>
 #include <QString>
 
 #include <cstddef>
@@ -149,14 +150,44 @@ public:
     // Every author of a top-level item, sorted.
     std::vector<QString> authors() const;
 
+    // --- Changes (Stage 6 T3) ------------------------------------------------------------------
+    // Called by a command's `apply()` and `revert()` and by nothing else (D6-1): the store is the
+    // MODEL half of an annotation command, and `MutationSink`'s annotation intents are the other half,
+    // named in the same placements so the two stay entry-for-entry the same listing.
+
+    // Every listing of `id`, ascending by page and position. Empty for an id the store does not hold.
+    std::vector<AnnotationPlacement> placementsOf(const AnnotationId& id) const;
+
+    // Lists each annotation at its placement, IN ORDER -- each position counted in the listing as the
+    // inserts before it left it. An annotation whose id the store already holds (or that an earlier
+    // entry of the same call added) is listed AGAIN, and its value here is ignored: the store keeps one
+    // annotation per dictionary. ALL OR NOTHING: refused, unchanged, for a refused store, a page or
+    // position out of range, or an invalid id.
+    Status insert(const std::vector<std::pair<AnnotationPlacement, Annotation>>& entries);
+
+    // Removes the listing entry at each placement, IN ORDER; an annotation listed nowhere afterwards
+    // leaves the store. All or nothing: refused, unchanged, for a placement out of range or one naming
+    // an entry that is not an annotation -- an entry the model cannot name is not the model's to drop.
+    Status remove(const std::vector<AnnotationPlacement>& placements);
+
+    // A SHA-256 of annotation `index`'s whole JSON -- every modelled field, the form A-20 proves complete --
+    // for `Document::modelHash()`. CACHED per annotation: an annotation changes only by leaving the store
+    // and coming back, so a digest is computed once and moves with its annotation through `insert` and
+    // `remove`. Measured at Stage 6 T3: hashing `annots-900.pdf`'s 9,000 annotations' JSON took 78 ms,
+    // and `CommandJournal::run` hashes the model before EVERY command -- one highlight took 80 ms.
+    const QByteArray& annotationDigest(std::size_t index) const;
+
 private:
+    void reindex();
     void buildThreads();
     std::vector<AnnotationStateChange> stateHistory(std::size_t index, const QString& model) const;
 
     std::optional<Error> refusal_;
     std::vector<Annotation> annotations_;
+    mutable std::vector<QByteArray> digests_;    // parallel to annotations_; empty until asked for
     std::vector<std::vector<AnnotationListingEntry>> pages_;
-    std::vector<AnnotationNote> notes_;
+    std::vector<AnnotationNote> notes_;          // the reading's notes, then the threads' (rebuilt)
+    std::vector<AnnotationNote> readingNotes_;   // the reading's alone: what a change never recomputes
     std::map<long long, std::size_t> byObject_;
     std::vector<std::optional<std::size_t>> parent_;
     std::vector<std::vector<std::size_t>> children_;

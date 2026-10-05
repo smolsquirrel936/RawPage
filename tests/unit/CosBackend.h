@@ -44,6 +44,9 @@ namespace rawpage::tests {
 class CosBackend final : public core::IDocumentBackend {
 public:
     void plantReading(core::CosReading reading) { planted_ = reading; }
+    // Stage 6 T3: the next `open()` assesses its annotations as if the ENGINE had read one entry fewer on
+    // page `page` -- how a headless case obtains a page D6-3 makes read-only, with no engine linked.
+    void plantAnnotationDisagreement(int page) { plantedDisagreement_ = page; }
 
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
     {
@@ -93,6 +96,14 @@ public:
         // `tests/render/tst_annotreader.cpp`'s, where both readers are.
         entry->annotations = core::AnnotationStore::fromReading(
             pdf::ops::AnnotationReader::read(sink.value()->table(), sink.value()->pages()));
+        if (plantedDisagreement_) {
+            std::vector<std::vector<core::AnnotationFact>> engine = entry->annotations.listingFacts();
+            const auto page = static_cast<std::size_t>(*plantedDisagreement_);
+            if (page < engine.size() && !engine[page].empty()) engine[page].pop_back();
+            else if (page < engine.size()) engine[page].push_back(core::AnnotationFact{});
+            entry->permissions.assessAnnotations(engine, entry->annotations.listingFacts());
+            plantedDisagreement_.reset();
+        }
         if (entry->permissions.canEditPages())
             entry->sink = std::move(sink).value();
 
@@ -252,6 +263,7 @@ private:
     std::map<std::uint64_t, std::unique_ptr<Entry>> entries_;
     std::uint64_t next_ = 1;
     std::optional<core::CosReading> planted_;
+    std::optional<int> plantedDisagreement_;
     bool failWrite_ = false;
     bool failAdopt_ = false;
     int adoptions_ = 0;

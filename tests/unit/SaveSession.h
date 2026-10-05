@@ -24,6 +24,7 @@
 #include <QTemporaryDir>
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -75,6 +76,8 @@ struct SaveSession {
     }
 };
 
+inline std::unique_ptr<SaveSession> openSession(std::unique_ptr<SaveSession> session);
+
 // Opens a copy of `relative`. Returns null -- after a REQUIRE on the copy -- when the first-party writer
 // cannot open it for editing, so a corpus sweep can count and name those files.
 inline std::unique_ptr<SaveSession> openCopy(std::string_view relative)
@@ -85,6 +88,28 @@ inline std::unique_ptr<SaveSession> openCopy(std::string_view relative)
     session->path = session->directory.filePath(name);
     REQUIRE(QFile::copy(corpusFile(relative), session->path));
     QFile::setPermissions(session->path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return openSession(std::move(session));
+}
+
+// Stage 6 T3: the same over bytes a case built (`tests/unit/TinyPdf.h`), written into the session's own
+// directory as `name`. A planted reading or annotation disagreement is set on `prepare`'s backend first.
+inline std::unique_ptr<SaveSession> openBuilt(const QString& name, const std::string& bytes,
+                                              const std::function<void(CosBackend&)>& prepare = {})
+{
+    auto session = std::make_unique<SaveSession>();
+    REQUIRE(session->directory.isValid());
+    session->path = session->directory.filePath(name);
+    {
+        QFile file(session->path);
+        REQUIRE(file.open(QIODevice::WriteOnly));
+        REQUIRE(file.write(bytes.data(), static_cast<qint64>(bytes.size())) == static_cast<qint64>(bytes.size()));
+    }
+    if (prepare) prepare(session->backend);
+    return openSession(std::move(session));
+}
+
+inline std::unique_ptr<SaveSession> openSession(std::unique_ptr<SaveSession> session)
+{
     session->openedBytes = readAllBytes(session->path);
 
     auto handle = session->backend.open(session->path, nullptr);

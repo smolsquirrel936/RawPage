@@ -29,6 +29,7 @@
 
 #include "CosBackend.h"
 #include "core/cmd/CommandRegistry.h"
+#include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 
@@ -65,6 +66,38 @@ const Generators& registeredGenerators()
              std::vector<std::unique_ptr<Command>> out;
              for (int degrees : {90, 180, 270})
                  out.push_back(std::make_unique<RotatePageCommand>(page, degrees));
+             return out;
+         }},
+        // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
+        {"annot.add",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.annotations().status()) return out;
+             const auto make = [page](double y) {
+                 core::Annotation a = core::newAnnotation(core::AnnotationSubtype::Highlight, page,
+                                                          QStringLiteral("Reversibility"), 1791504000);
+                 a.quadPoints = {36, y + 12, 136, y + 12, 36, y, 136, y};
+                 a.rect = *core::boundsOfPoints(a.quadPoints);
+                 a.color = {1, 1, 0};
+                 return a;
+             };
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{make(36)}));
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{make(36), make(60)}));
+             return out;
+         }},
+        // Every annotation the page owns as ONE set, and its first alone -- including, on
+        // annots-direct.pdf, a direct dictionary and an annotation two pages list.
+        {"annot.delete",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const core::AnnotationStore& store = document.annotations();
+             if (!store.status()) return out;
+             std::vector<core::AnnotationId> ids;
+             for (const std::size_t index : store.onPage(page)) ids.push_back(store.at(index).id);
+             if (ids.empty()) return out;
+             out.push_back(std::make_unique<core::DeleteAnnotationCommand>(ids));
+             if (ids.size() > 1)
+                 out.push_back(std::make_unique<core::DeleteAnnotationCommand>(std::vector<core::AnnotationId>{ids.front()}));
              return out;
          }},
     };
@@ -331,7 +364,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
     }
     SECTION("a registered type id with no generator")
     {
-        CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate"});
+        CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete"});
     }
 }
 
@@ -339,7 +372,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

@@ -53,7 +53,23 @@ public:
         ++calls;
         return {};
     }
+    // Stage 6 T3: accepted and counted, as a rotation is. What the real sink writes is `tests/unit`'s.
+    core::Status insertAnnotations(const std::vector<core::AnnotationPlacement>& at,
+                                   const std::vector<core::Annotation>&) override
+    {
+        annotationInserts += static_cast<int>(at.size());
+        ++calls;
+        return {};
+    }
+    core::Status removeAnnotations(const std::vector<core::AnnotationPlacement>& at) override
+    {
+        annotationRemovals += static_cast<int>(at.size());
+        ++calls;
+        return {};
+    }
     std::map<int, int> rotations;
+    int annotationInserts = 0;
+    int annotationRemovals = 0;
     int calls = 0;
 };
 

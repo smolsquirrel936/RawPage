@@ -18,8 +18,10 @@
 //   3. **Read it back FROM THAT PATH** -- not from the buffer just written, because the claim is
 //      about the file on disk -- and verify: the original is a byte-identical prefix; the file
 //      opens through its own cross-reference structures with nothing that forces a Save-As; it has
-//      the same number of pages; and every page's effective rotation is the one the sink says it
-//      should have. A file failing any check is REMOVED and the save fails by key before anything
+//      the same number of pages; every page's effective rotation is the one the sink says it should
+//      have; and -- from Stage 6 T3 -- every page's `/Annots` is the listing the sink composed, each
+//      created annotation a dictionary with its `/NM`, its `/Subtype`, its page and a well-formed `/AP`
+//      (`MutationSinkImpl::reconcile`). A file failing any check is REMOVED and the save fails by key before anything
 //      replaces anything (A-54).
 //
 // The temporary file is this class's to remove on its own failure. After `write()` returns success

@@ -13,6 +13,8 @@
 # M-03's product walk, at T13.
 #
 # Required: -DTEST_BINARY=<rawpage_render_tests> -DPRODUCT_DIR=<dir> -DCHECKS_DIR=<tests/gates>
+# Optional: -DCASE=<the saving case's name> -- Stage 6 T3's guide A-33 runs the same judgement over the
+# case that adds a COMMENT, the edit Acrobat's policy permits after an approval signature.
 
 foreach(required TEST_BINARY PRODUCT_DIR CHECKS_DIR)
     if(NOT DEFINED ${required})
@@ -26,8 +28,11 @@ foreach(name approval.pdf approval-xrefstream.pdf certified-nochanges.pdf approv
     list(APPEND file_list "${PRODUCT_DIR}/${name}")
 endforeach()
 
+if(NOT DEFINED CASE)
+    set(CASE "A4 product saves a rotation into every signed corpus file")
+endif()
 execute_process(
-    COMMAND "${TEST_BINARY}" "A4 product saves a rotation into every signed corpus file"
+    COMMAND "${TEST_BINARY}" "${CASE}"
     RESULT_VARIABLE rc)
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "the A4 product's saving case failed (exit ${rc}); nothing was judged")

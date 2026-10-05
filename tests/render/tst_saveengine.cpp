@@ -14,7 +14,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/cmd/CommandJournal.h"
+#include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
+#include "core/doc/AnnotationStore.h"
 #include "core/doc/Document.h"
 #include "core/doc/SaveCoordinator.h"
 #include "core/render/RenderRequest.h"
@@ -341,4 +343,105 @@ TEST_CASE("A4 product saves a rotation into every signed corpus file", "[render]
         ++written;
     }
     CHECK(written == 4);
+}
+
+// ==========================================================================================
+// Stage 6 T3 -- A-33: A4 through the product with the PERMITTED edit, and the engine reading what we wrote
+// ==========================================================================================
+
+namespace {
+
+core::Annotation testHighlight(int page)
+{
+    core::Annotation a = core::newAnnotation(core::AnnotationSubtype::Highlight, page, QStringLiteral("A4 Probe"),
+                                             1791504000);
+    a.quadPoints = {72, 160, 272, 160, 72, 146, 272, 146};
+    a.rect = *core::boundsOfPoints(a.quadPoints);
+    a.color = {1, 1, 0};
+    a.opacity = 0.5;
+    a.contents = QStringLiteral("A comment added after the signature");
+    return a;
+}
+
+// The saved file, opened FRESH by the shipped backend: the engine and the first-party reader must read
+// every page's /Annots alike (D6-3) -- on a file whose newest annotations OUR writer wrote -- and the
+// added one must be in the store by its /NM.
+void requireEngineReadsItAlike(const QString& path, const core::Annotation& added)
+{
+    DocumentBackendImpl fresh;
+    auto handle = fresh.open(path, nullptr);
+    REQUIRE(handle);
+    const core::Permissions* permissions = fresh.permissions(handle.value());
+    REQUIRE(permissions != nullptr);
+    CHECK(permissions->annotationDisagreements().empty());
+    CHECK(permissions->mayAnnotate(added.page));
+    const core::AnnotationStore* store = fresh.annotations(handle.value());
+    REQUIRE(store != nullptr);
+    const std::optional<std::size_t> found = [&]() -> std::optional<std::size_t> {
+        for (std::size_t i = 0; i < store->size(); ++i)
+            if (store->at(i).nm == added.nm) return i;
+        return std::nullopt;
+    }();
+    REQUIRE(found);
+    CHECK(store->at(*found).page == added.page);
+    CHECK(store->at(*found).subtype == core::AnnotationSubtype::Highlight);
+    CHECK(fresh.close(handle.value()));
+}
+
+} // namespace
+
+TEST_CASE("A4 product saves an annotation into every signed corpus file", "[render][save][a4][annotops]")
+{
+    // RAWPAGE_A4_ANNOT_DIR, for tests/render/RunA4Product.cmake to hand to OpenSSL (A-33) -- controls
+    // first -- and for manual case M-03's Acrobat walk.
+    const QString outDir = QStringLiteral(RAWPAGE_A4_ANNOT_DIR);
+    REQUIRE(QDir().mkpath(outDir));
+    std::size_t written = 0;
+    for (const char* name : {"approval.pdf", "approval-xrefstream.pdf", "certified-nochanges.pdf", "approval-then-update.pdf"}) {
+        INFO("file: " << name);
+        const QString target = QDir(outDir).filePath(QString::fromLatin1(name));
+        if (QFile::exists(target)) {
+            QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+            REQUIRE(QFile::remove(target));
+        }
+        auto session = openCopy(QString::fromStdString((fs::path(RAWPAGE_CORPUS_DIR) / "signed" / name).string()), target);
+        REQUIRE(session);
+        const core::Annotation added = testHighlight(0);
+        auto run = session->journal->run(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{added}));
+        INFO("run error: " << (run ? std::string() : std::string(run.error().messageKey.data())));
+        REQUIRE(run);
+        auto result = session->coordinator->save(*session->journal, target);
+        INFO("save error: " << (result ? std::string() : std::string(result.error().messageKey.data())));
+        REQUIRE(result);
+        REQUIRE(result.value().kind == SaveOutcome::Kind::Saved);
+
+        const QByteArray onDisk = readAll(target);   // FROM THE PATH
+        CHECK(onDisk.startsWith(session->openedBytes));
+        CHECK(onDisk.size() > session->openedBytes.size());
+        requireEngineReadsItAlike(target, added);
+        ++written;
+    }
+    CHECK(written == 4);
+}
+
+TEST_CASE("the engine reads a highlight our writer saved as the first-party reader does", "[render][save][annotops]")
+{
+    // D6-3 over OUR output: a page with no annotations, one with nine, a page whose /Annots sits in an
+    // object stream, and a document with a direct annotation dictionary.
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    std::size_t files = 0;
+    for (const char* name : {"ordinary/text-a4.pdf", "ordinary/annots-mixed.pdf", "ordinary/objstm-xrefstream.pdf",
+                             "ordinary/annots-direct.pdf", "ordinary/annots-every-type.pdf"}) {
+        INFO("file: " << name);
+        const QString copy = dir.filePath(QString::fromStdString(fs::path(name).filename().string()));
+        auto session = openCopy(QString::fromStdString((fs::path(RAWPAGE_CORPUS_DIR) / name).string()), copy);
+        REQUIRE(session);
+        const core::Annotation added = testHighlight(0);
+        REQUIRE(session->journal->run(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{added})));
+        const QString saved = saveOrSaveAs(*session, dir.filePath(QStringLiteral("saved-as-") + QFileInfo(copy).fileName()));
+        requireEngineReadsItAlike(saved, added);
+        ++files;
+    }
+    CHECK(files == 5);
 }
