@@ -407,3 +407,83 @@ TEST_CASE("journal folds a nested group into the outer one and records nothing f
         CHECK_FALSE(journal.endGroup());          // nothing left to close
     }
 }
+
+// ==========================================================================================
+// Stage 6 T4 (D6-2) -- shown, or not done
+// ==========================================================================================
+
+TEST_CASE("journal asks the show step after every run undo and redo and before anyone is told", "[cmd][journal][annotdisplay]")
+{
+    auto session = openSession("ordinary/text-a4.pdf");
+    CommandJournal& journal = *session->journal;
+    std::vector<std::string> order;
+    journal.setShowHandler([&](const Scope& scope) {
+        order.push_back("show " + std::to_string(scope.pageIndices().empty() ? -1 : scope.pageIndices().front()));
+        return core::Status{};
+    });
+    journal.subscribeMutated([&](const Scope&) { order.push_back("mutated"); });
+
+    REQUIRE(journal.run(rotate(2)));
+    REQUIRE(journal.undo());
+    REQUIRE(journal.redo());
+    CHECK(order == std::vector<std::string>{"show 2", "mutated", "show 2", "mutated", "show 2", "mutated"});
+
+    // A refused command is not shown: nothing changed.
+    order.clear();
+    CHECK_FALSE(journal.run(std::make_unique<RefusingCommand>()));
+    CHECK(order.empty());
+
+    // UNSET, nothing is asked -- every headless caller, and a replay before its window exists.
+    journal.setShowHandler({});
+    CHECK_FALSE(journal.hasShowHandler());
+    REQUIRE(journal.run(rotate(1)));
+    CHECK(order == std::vector<std::string>{"mutated"});
+}
+
+TEST_CASE("journal takes back a run undo or redo the show step refuses and leaves no trace", "[cmd][journal][annotdisplay][A-39]")
+{
+    auto session = openSession("ordinary/text-a4.pdf");
+    CommandJournal& journal = *session->journal;
+    int mutated = 0;
+    journal.subscribeMutated([&](const Scope&) { ++mutated; });
+    bool refuse = false;
+    journal.setShowHandler([&](const Scope&) -> core::Status {
+        if (refuse) return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.edit.notShown"), QStringLiteral("test")};
+        return {};
+    });
+
+    // A RUN: refused by the show step's key, the model, the sink, the revision and the history untouched.
+    const QByteArray hash = session->document().modelHash();
+    const core::Revision revision = journal.revision();
+    refuse = true;
+    const core::Status refused = journal.run(rotate(0));
+    REQUIRE_FALSE(refused);
+    CHECK(std::string(refused.error().messageKey.data()) == "error.edit.notShown");
+    CHECK(session->document().modelHash() == hash);
+    CHECK(deltaIsEmpty(session->sink()));
+    CHECK(journal.revision() == revision);
+    CHECK_FALSE(journal.canUndo());
+    CHECK_FALSE(journal.isDirty());
+    CHECK(mutated == 0);
+
+    // AN UNDO: refused, and the step still applied -- the page still turned, the undo still available.
+    refuse = false;
+    REQUIRE(journal.run(rotate(0)));
+    const QByteArray turned = session->document().modelHash();
+    refuse = true;
+    CHECK_FALSE(journal.undo());
+    CHECK(session->document().modelHash() == turned);
+    CHECK(session->rotation(0) == 90);
+    CHECK(journal.canUndo());
+    CHECK_FALSE(deltaIsEmpty(session->sink()));
+
+    // A REDO: refused, and the step still undone.
+    refuse = false;
+    REQUIRE(journal.undo());
+    refuse = true;
+    CHECK_FALSE(journal.redo());
+    CHECK(session->document().modelHash() == hash);
+    CHECK(journal.canRedo());
+    CHECK(deltaIsEmpty(session->sink()));
+    CHECK(mutated == 2);   // the run and the undo that were shown; nothing for the refusals
+}

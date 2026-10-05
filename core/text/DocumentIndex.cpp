@@ -624,6 +624,11 @@ void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
     Event dropped;
     dropped.kind = Event::Kind::PagesInvalidated;
     dropped.entry = entryId;
+    // Pages whose UNITS went and whose text stayed (D6-10) -- told as an eviction: their text is what it
+    // was, so a selection or a reflow holding it keeps it, and a waiting search asks again for the units.
+    Event unitsOnly;
+    unitsOnly.kind = Event::Kind::PagesEvicted;
+    unitsOnly.entry = entryId;
     std::vector<std::shared_ptr<const void>> released;   // freed off this thread (I-13)
     for (int page = 0; page < entry->pageCount; ++page) {
         if (!scope.touchesPage(page)) continue;
@@ -635,6 +640,12 @@ void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
             entry->units.erase(unit);
             hadUnits = true;
         }
+        // THE TEXT STAYS when only the page's annotations changed (S6 T4, D6-10): no annotation can
+        // change what the page's content says, and re-extracting it would cost a whole text job per edit.
+        if (!scope.touchesText(page)) {
+            if (hadUnits) unitsOnly.pages.push_back(page);
+            continue;
+        }
         if (!held && !hadUnits) continue;
         if (held) {
             released.push_back(std::move(held));
@@ -643,6 +654,7 @@ void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
         dropped.pages.push_back(page);
     }
     release(std::move(released));
+    if (!unitsOnly.pages.empty()) notify(unitsOnly);
     if (dropped.pages.empty()) return;
     notify(dropped);
 }

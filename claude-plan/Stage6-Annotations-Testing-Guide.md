@@ -14,8 +14,11 @@
 > 37250978598, its soak log still owed. That run's `portable-asan` job failed A-22's clock (**I-05**). **T3
 (2026-10-05): A-24, A-25, A-28, A-29, A-30 and A-33 ✅; A-26 (the rule, at `AnnotationOps`), A-27 and
 A-32 (Highlight, the one type T3 writes) in part, each saying what is owed; A-31's CI step written, its log
-owed** -- thirteen planted controls, all fired. §8 logs
-> **I-01 … I-05**, all S3 and closed. **108
+owed** -- thirteen planted controls, all fired. **T4 (2026-10-05): A-35, A-37 and A-38 ✅ -- A-38 a
+VERDICT, *A2 at Stage 6* `go, with named custom work` (the user's choice), its named work built in the task
+and what it did not bring inside recorded; A-34 (Highlight, through commands), A-36 (all but its search
+clause, T9's) and A-39 (all but the status bar, T5's) in part** -- fifteen planted controls, all fired. §8 logs
+> **I-01 … I-06**, all S3 and closed. **108
 > automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
 > re-read against the answers and stand as written** — A-40, A-46 and A-70 (Q1, A-40's Expect gaining
 > the collision census at **thirteen**, the consequence of Q1 the user accepted); A-08 and A-55 (Q2);
@@ -512,32 +515,38 @@ the tree at Stage 5's sign-off.
 
 ### 5.6 How it reaches the pixels — A2 at Stage 6 (T4)
 
-**A-34 · What is shown is what is saved** ☐
+**A-34 · What is shown is what is saved** ☐ *Highlight through commands 2026-10-05, T4; each type through its tool with its task*
 **Goal** §3.2.
 **Steps** `tst_annotink` (composition): one annotation of every type created **through its tool**, the live page rasterized; saved; reopened fresh; rasterized at 72 and 144 dpi and at a 90° view rotation.
 **Expect** **0 differing pixels** in every comparison. **The control:** a reload skipped (the live engine left on the old bytes) makes every comparison differ. **If it fails** S1.
+**Result so far -- the one type the sink writes, created by constructing its command (no tool exists before T5).** `tests/render/tst_annotdisplay.cpp`, over the shipped backend and the journal's show step set as `DocumentWindow` sets it: a highlight on nine pages -- `text-a4.pdf`, `annots-mixed.pdf` (nine annotations), `objstm-xrefstream.pdf` (its `/Annots` in an object stream), all four of `annots-rotated.pdf`'s rotations, `annots-direct.pdf` and page 450 of `text-900.pdf` -- rasterized live and from the saved file reopened fresh, at 72 and 144 dpi and turned 90°: **0 differing bytes in every comparison**, and the live page changed by the edit in every one (rule 1). A rotation and a highlight on one page, in both orders, on a page at `/Rotate` 0 and one at 90: **0** -- the rasterizer's correction for a reloaded `/Rotate` (D6-2). Through the shipped SCHEDULER and cache (the named work of A-38, below): every 256-pixel tile of an edited page at 2 px/pt, under view rotations 0, 90 and 180, on pages at `/Rotate` 90 and 270 and with an unsaved rotation as each tile's delta -- 35 tiles, **4 to 8 drawn again and the rest served from the cache at the new revision** -- each equal to the same tile of the saved file, **0 differing bytes**. Headless, under `portable-asan` too: the update `showEdits` hands the engine is byte for byte the update the save appends (`tst_annotationops`). **The control:** the show step left out -- the live page unchanged by the edit and different from the saved file in all three views. **Owed:** every other type, through its tool, in `tst_annotink`.
 
-**A-35 · An undo shows the page as it was** ☐
+**A-35 · An undo shows the page as it was** ✅ *2026-10-05, T4, for Highlight; re-run as each type arrives*
 **Steps** Each type added and undone; the page rasterized.
 **Expect** **0 pixels** from the original file's raster. **If it fails** S1.
+**Result** On `text-a4.pdf`, `annots-mixed.pdf` and `annots-rotated.pdf` page 3 (`/Rotate` 180): added, undone -- **0 differing bytes** from the page before the edit at 72 and 144 dpi and turned 90° -- and redone, **0** from the page as first edited. Headless: an undo is shown too, and an undo back to the file on disk shows no update at all.
 
-**A-36 · Only the scope is invalidated** ☐
+**A-36 · Only the scope is invalidated** ☐ *all but the search clause 2026-10-05, T4; that clause at T9 (D6-11)*
 **Goal** D6-10.
 **Steps** On `text-900.pdf`, search once (the index complete), render pages 449–451, add a highlight on 450.
 **Expect** Pages 449 and 451 served **from the cache** after the edit (hit counts); page 450 re-rendered; **no text job** for page 450 (the index keeps its text); a search for the highlight's comment text finds it (D6-11). **The control:** an annotation command whose scope says *content* re-extracts page 450. **If it fails** S2.
+**Result so far** Through the shipped scheduler, cache, `DocumentIndex` and text extractor on `text-900.pdf`, its pages 449-451 extracted and drawn: after a highlight on 450, **2 tiles from the cache, 1 drawn again -- with the highlight in it -- and no text job**, page 450's text still held; **the control**, a CONTENT scope on page 450, drops its text. Headless: `Scope::annotationsOf` keeps text and merges outwards to content; the index keeps an annotated page's text, drops its search units, tells subscribers an EVICTION (the text is what it was, so a selection or a reflow keeps it), and the next comment search reads the page's units again and extracts no text. **Beyond the Expect -- the named work of A-38:** an annotation command's scope now names each changed annotation's RECTANGLE, padded a point, and the whole page for a popup, an annotation with one, `NoZoom`, `NoRotate` or a rectangle that is not a box; the cache and the scheduler drop only the tiles a rectangle reaches (`render::tileTouchedBy`, placing it through the crop box, the engine's `/Rotate`, the delta, the view rotation and the scale -- every rotation checked by hand values), and a queued, running or finished tile of the document the mutation does not reach is RE-KEYED to the new revision instead of cancelled (**I-06**). **Owed:** the search for the highlight's comment text -- comments in an open document are searched from the store at T9 (D6-11).
 
-**A-37 · The reload happens where and when it must** ☐
+**A-37 · The reload happens where and when it must** ✅ *2026-10-05, T4*
 **Steps** `tst_annotdisplay`: the reload under a burst of commands while tiles are in flight; thread ids and the scheduler's state recorded.
 **Expect** Every `FPDF_LoadCustomDocument` on the **render thread**, never the UI thread; each swap **between jobs** — no tile in flight against a document the swap closed; **no copy of the original bytes** — the process's live heap grows by less than 10 % of `pages-900.pdf`'s size per reload. **If it fails** S1 for a job against a closed document; S2 otherwise.
+**Result** Twenty highlights on page 450 of `pages-900.pdf` while three pages' tiles were queued around each: the swaps were taken by jobs on the WORKER, never the thread driving the journal (the run printed *"reloads 15, coalesced 5, failures 0"* -- a burst coalesces); the newest revision shown; **no failed job and no engine entry without the lock** (`unlockedEngineEntries() == 0`) -- the swap is made under the engine lock at the top of a job, so no job can hold a page of the document it closes; the engine reads the original from **the very buffer the backend holds** (the data pointers equal); and the live heap over ten add-and-undo pairs grew **78 bytes a reload** against a bound of 12,645. **Controls:** the original deep-copied per reload fails the pointer check; the reload taken on the calling thread fails the thread check.
 
-**A-38 · A2 at Stage 6, graded** ☐
+**A-38 · A2 at Stage 6, graded** ✅ *2026-10-05, T4 -- the verdict recorded; T15 re-reads it (A-104)*
 **Goal** §3.1, the bench half.
 **Steps** `rawpage_bench_pipeline.exe --stage6 > bench-stage6.txt`, three runs; read the file.
 **Expect** The bench **prints the dpi, the viewport and the file it reached** (Stage 4's A-72); per file: viewport p95, edit-to-pixels p95 and maximum, compose, reload and path-geometry distributions. Graded on §3.1 and **recorded** in `Tech-Stack-Plan.md` §3.3 as *A2 at Stage 6*. **If it fails** — a no-go is a verdict, not a defect: D6-2 changes before T5.
+**Result -- VERDICT `go, with named custom work`, the user's choice on 2026-10-05; the named work built in T4; NOT inside §3.1 after it, and recorded as such.** `rawpage_bench_pipeline --stage6` (phase 7), each 30-second run printing the dpi (288), the viewport (1920x1080), the files and the page it edited. **Deviation:** each edit is a HIGHLIGHT of 50 quadrilaterals (400 coordinates, a 200-sample ink stroke's count) in a fresh cell, because the sink writes Highlight alone until T8; the path-geometry time is not reported (`pageGeometry` is T12's). **The first measurement**, before the named work, two runs: the viewport's p95 **112.5-114.7 ms** on the 900-page files (the viewer alone 9.1-13.2), edit-to-pixels p95 **14.7-15.4 s** -- every file outside. The leg breakdown named the cause: the reload itself costs **p95 1.9-2.0 ms** and the pump was never late (p95 0.02 ms) -- **the render thread spent 23 of 30 s redrawing the edited page's 40 viewport tiles** after every edit, each heavier as highlights accumulated, and every revision cancelled every queued tile of the document (9,051 in a run, guide **I-06**). The mirror the plan names for a no-go would have shared all of that, so the user chose `go, with named custom work` and the work in T4: **an annotation edit drops only the tiles its rectangle reaches, and a revision re-keys every tile it does not reach** (D6-10 extended; A-34, A-36). **After it, three runs** (run 3's viewer-alone column itself read 11.9 / 17.7 ms against 9.2-9.3 / 13.1-13.3, a slower machine that hour): the edited page's redrawn tiles **528-586 a run against ~7,400**, its engine time 7.1-10.4 s against 23; viewport p95 **pages-900 49.6 / 96.4 / 105.7 ms, text-900 99.5 / 99.6 / 107.6, objstm-xrefstream 0.05 / 0.56 / 53.4**; edit-to-pixels p95 **pages-900 47 / 49 / 301 ms, text-900 109 / 154 / 301, objstm-xrefstream 43 / 246 / 243**, max **301-360 ms**; the reload p95 2.4-3.8 ms; compose and verify on the UI thread p95 45-67 ms (verify 17-30); 300 reloads a run, none failed. **Outside §3.1 on the viewport everywhere but the three-page file's first two runs, and on edit-to-pixels in six of nine readings and every maximum.** **What remains, named, for T15's re-reading (A-104):** (1) **a tile of a page carrying hundreds of annotations costs p95 38-50 ms, max 40-63 ms, on its own** -- PDFium draws every annotation of the page in every tile -- §3.1's *"a page whose re-render alone exceeds the budget"*; (2) **compose and verify on the UI thread grow with the unsaved annotations** (`journal.run` p95 47-68 ms by 300), which now shows in the viewport as the pump's leg (p95 up to 40 ms, max 54) -- named at T4 and not built: each created annotation's objects serialized once rather than on every compose. Recorded in `Tech-Stack-Plan.md` §3.3 as *A2 at Stage 6*.
 
-**A-39 · A reload that fails leaves the page drawing** ☐
+**A-39 · A reload that fails leaves the page drawing** ☐ *all but the status bar 2026-10-05, T4; that clause at T5*
 **Steps** A compose fault (as A-30) during an edit.
 **Expect** The engine keeps the previous document and **keeps drawing it**; the edit is refused by key, the command not left in the journal; the status bar says so. **If it fails** S1.
+**Result so far** A-30's fault -- the update's `/Annots` renamed -- during an edit: refused `error.edit.notShown` (both catalogs), context `error.save.verifyFailed:…`, because the journal's show step composes and VERIFIES as Save does, so an edit Save could not write is refused when it is made; nothing undoable, not dirty, the model hash and the sink's delta as before, nothing queued for the engine, and the page drawn exactly as before (**0 differing bytes**); the control, unfaulted, is made and shown. An undo or redo the show step refuses is taken back and answers false. Below the first-party check, bytes the ENGINE refuses: the swap does not happen, the failure is counted and logged, the page drawn as before, and the document put back on its own bytes is no work. **Owed:** *the status bar says so* -- no UI path runs an annotation command before T5's tools.
 
 ### 5.7 The overlay, the context chain, the properties bar (T5)
 
@@ -1056,6 +1065,7 @@ uses.
 | **I-03** | S3 | T1's fixtures wrote `/StateModel` and `/State` as names; ISO 32000-1 makes them text strings | **Closed** at T2, 2026-10-05 |
 | **I-04** | S3 | T1's commit left `gates.text_bytes.tracked_tree` red: two new binary types the check did not know | **Closed** at T2, 2026-10-05 |
 | **I-05** | S3 | A-22's one-second clock graded the `portable-asan` build, which defines `NDEBUG`: CI run 37250978598 red | **Closed** 2026-10-05 |
+| **I-06** | S3 | Every revision cancelled every queued tile of the document, whatever its page, though the scheduler's header said only the touched scope's | **Closed** at T4, 2026-10-05 |
 
 **I-01 (S3) — an incomplete length-limited Huffman code in the corpus encoder.** *Found* generating
 `annots-900.pdf` at T1: `deflate.compress`'s own self-check stopped the run with zlib's *"invalid
@@ -1114,6 +1124,23 @@ grading no speed; `x64-release` keeps the second (203 ms) and `x64-debug` five (
 `g++ -fsanitize=address -dM -E` defines the macro and the plain preprocessor does not; the release
 ceiling planted at 100 ms failed the case on `x64-release`, so that build still compiles the
 one-second branch. **Not yet read:** a `portable-asan` log over the fix.
+
+**I-06 (S3) — a revision cancelled what it did not touch.** *Found* by T4's bench (`bench_pipeline
+--stage6`, A-38): an edit on page 450 every 100 ms cancelled **9,051** scrolled tiles of OTHER pages in
+30 s, each asked for again at the back of the queue. *Mechanism:* `RenderScheduler::documentChanged`'s
+header promised that *"every request in flight or in the queue for the touched scope is superseded"*;
+`isSupersededLocked` compared a request's revision with the document's and nothing else, so every
+queued, running and finished tile of the document at the old revision was dropped, whatever its page.
+The cache had always re-keyed what it held outside the scope (Stage 2 T11); the queue did not. *Why no
+suite saw it:* it costs time, not correctness -- the views ask again and the right pixels arrive later --
+and every case of it (`tst_renderscheduler`'s supersede cases) put the tile on the page the scope named.
+Stage 3's rotations, one at a time by hand, never made it measurable. *Fix:* a tile of the document the
+scope does not reach (`render::tileTouchedBy`) is re-keyed to the new revision where it stands -- queued
+(joining an equal request already queued at the new revision, if there is one), running (delivered under
+its new key) or finished. *Regression cases:* `render scheduler keeps a tile a mutation did not reach at
+the new revision` (five sections) and A-34's every-tile comparison. *Controls:* re-keying a tile the
+change reached (stale tiles in the every-tile comparison) and a running tile delivered under its old
+key (dropped) each failed.
 
 ---
 

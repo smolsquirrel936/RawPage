@@ -319,7 +319,16 @@ public:
     // in flight or in the queue for the touched scope is superseded. A result that arrives for a
     // superseded request is dropped and never cached -- A-38's second half, which is how a stale
     // tile reaches the screen.
-    void documentChanged(DocumentHandle document, const Scope& scope, Revision newRevision);
+    //
+    // **AND ONLY THOSE, since Stage 6 T4** (the named work of A2 at Stage 6): a tile of the document at
+    // the old revision that the scope does NOT reach (`tileTouchedBy`, over `pages`, the engine's tree)
+    // is RE-KEYED to the new revision where it stands -- queued, running or finished -- because its
+    // pixels are the same at both, as the cache re-keys what it holds. Until then every queued tile of
+    // the document was cancelled by every revision, whatever page it was of, and the views asked for it
+    // again at the back of the queue: under Stage 6's edits, 9,000 scrolled tiles in 30 s. A re-keyed job
+    // that meets an equal request already queued at the new revision joins it.
+    void documentChanged(DocumentHandle document, const Scope& scope, Revision newRevision,
+                         const PageTree* pages = nullptr);
 
     // Removed by TOKEN, never by hoping. Convention 10's threaded form: a subscriber that outlives
     // its object is Stage 1's I-12, and a worker thread makes it a use-after-free rather than a
@@ -383,6 +392,7 @@ public:
         long long started = 0;
         long long completed = 0;
         long long cancelledBeforeStart = 0;   // A-36's number: the rasterizer was never entered
+        long long rekeyed = 0;                // S6 T4: a tile a mutation did not reach, kept at its new revision
         long long droppedCancelled = 0;       // finished, but nobody wants it any more
         long long droppedSuperseded = 0;      // finished at a revision that has since moved
         long long droppedOverflow = 0;        // the queue was full and this was the lowest priority
@@ -471,6 +481,9 @@ private:
     std::uint64_t selectNextLocked(int workerIndex) const;
     void dropLowestPriorityLocked();
     bool isSupersededLocked(const RenderRequest& request) const;
+    // Requires the lock. Moves a queued or running raster job to `revision` (S6 T4). False when an equal
+    // request is already a job of its own: the caller then folds this one into it, or drops its result.
+    bool rekeyLocked(std::unordered_map<std::uint64_t, Job>::iterator job, Revision revision);
 
     RasterizerFactory factory_;
     TextExtractorFactory textFactory_;

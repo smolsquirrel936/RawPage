@@ -19,6 +19,7 @@
 #include <QFileInfo>
 #include <QStringList>
 
+#include <chrono>
 #include <map>
 #include <optional>
 #include <utility>
@@ -93,6 +94,11 @@ struct DocumentBackendImpl::Open {
     // stop being the newest revision at the first save -- a repaired document must not be forced to
     // Save-As a second time because the engine still remembers the first file.
     std::optional<core::RepairReport> savedReport;
+
+    // Stage 6 T4 (D6-2): the last `showEdits`' compose and verify, timed on its caller's thread, and the
+    // verify alone.
+    std::chrono::nanoseconds lastCompose{0};
+    std::chrono::nanoseconds lastVerify{0};
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -421,6 +427,98 @@ core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, c
         << "backend: handle" << static_cast<int>(document.id) << "adopted the revision saved at" << path
         << "(" << entry->bytes.size() << "bytes)";
     return core::Status{};
+}
+
+// THE LOCK IS HELD ONLY TO FIND THE ENTRIES, as `writeRevision` holds it: composing and verifying a
+// large file is the UI thread's work, and `rasterizer()` is asked from the render thread under the same
+// mutex. The entries are destroyed only by `close()`, which the same thread calls.
+core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
+                                            const std::vector<core::DocumentHandle>& viewers)
+{
+    Open* entry = nullptr;
+    std::vector<Open*> shown;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+        if (entry == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                               QString::number(static_cast<qulonglong>(document.id))};
+        }
+        shown.push_back(entry);
+        for (const core::DocumentHandle viewer : viewers) {
+            Open* other = find(viewer);
+            if (other == nullptr) {
+                return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                                   QString::number(static_cast<qulonglong>(viewer.id))};
+            }
+            if (other != entry) shown.push_back(other);
+        }
+    }
+
+    // NO SINK, NO UPDATE: each engine back on the bytes it opened (no work when it never left them).
+    if (!entry->sink) {
+        for (Open* target : shown) target->document->show(target->document->bytes(), QByteArray());
+        return core::Status{};
+    }
+
+    // SAVE'S OWN COMPOSE AND VERIFY, so what is drawn is what Save would write and an edit Save would
+    // refuse is refused now. The composition is the WHOLE file and is transient: verify reads one
+    // contiguous file, as it does at a save. What the engines are handed is the newest revision on
+    // disk -- the buffer this entry already holds -- and the update alone.
+    const auto began = std::chrono::steady_clock::now();
+    const bool complete = entry->savedReport ? entry->savedReport->requiresSaveAs()
+                                             : entry->document->repairReport().requiresSaveAs();
+    const auto notShown = [](const core::Error& error) {
+        return core::Error{error.code, QLatin1String("error.edit.notShown"),
+                           error.context.isEmpty() ? QString(error.messageKey)
+                                                   : QString(error.messageKey) + QLatin1Char(':') + error.context};
+    };
+    auto composed = ops::RevisionWriter::compose(*entry->sink, complete);
+    if (!composed) return notShown(composed.error());
+    const std::string_view original = entry->sink->bytes();
+    const std::string_view written(composed.value().bytes.constData(),
+                                   static_cast<std::size_t>(composed.value().bytes.size()));
+    const auto verifying = std::chrono::steady_clock::now();
+    if (const core::Status verified = ops::RevisionWriter::verify(original, written, *entry->sink); !verified)
+        return notShown(verified.error());
+    entry->lastVerify = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - verifying);
+    const QByteArray update = composed.value().bytes.mid(static_cast<qsizetype>(original.size()));
+    composed.value().bytes = QByteArray();   // the transient whole goes before the engines are told
+    entry->lastCompose = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - began);
+
+    for (Open* target : shown) target->document->show(entry->bytes, update);
+    return core::Status{};
+}
+
+std::optional<DocumentBackendImpl::ReloadRecord> DocumentBackendImpl::reloadRecord(core::DocumentHandle document) const
+{
+    const render::PdfiumDocument* found = nullptr;
+    std::chrono::nanoseconds compose{0};
+    std::chrono::nanoseconds verify{0};
+    const void* onDisk = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        const Open* entry = find(document);
+        if (entry == nullptr) return std::nullopt;
+        found = entry->document.get();
+        compose = entry->lastCompose;
+        verify = entry->lastVerify;
+        onDisk = entry->bytes.constData();
+    }
+    const render::PdfiumDocument::ReloadStats stats = found->reloadStats();
+    ReloadRecord record;
+    record.reloads = stats.reloads;
+    record.failures = stats.failures;
+    record.coalesced = stats.coalesced;
+    record.lastLoad = stats.lastLoad;
+    record.lastThread = stats.lastThread;
+    record.pendingGeneration = stats.pendingGeneration;
+    record.shownGeneration = stats.shownGeneration;
+    record.lastCompose = compose;
+    record.lastVerify = verify;
+    record.engineBase = stats.shownBase;
+    record.newestOnDisk = onDisk;
+    return record;
 }
 
 // CALLED FROM THE RENDER THREAD, as a text job (D5-3) -- `rasterizer()`'s arrangement exactly, and

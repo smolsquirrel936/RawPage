@@ -2474,6 +2474,10 @@
         <translation>此 PDF 第 %1 頁的註解儲存方式，RawPage 讀取與繪製的結果不一致，因此無法變更該頁的註解。</translation>
     </message>
     <message>
+        <source>error.edit.notShown</source>
+        <translation>RawPage 無法依儲存時的方式準備此變更，因此未進行變更。文件未變更。</translation>
+    </message>
+    <message>
         <source>error.edit.notAssessed</source>
         <translation>內部錯誤：此文件尚未經過編輯檢查。未變更任何內容。</translation>
     </message>

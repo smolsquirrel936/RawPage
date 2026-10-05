@@ -125,6 +125,25 @@ void DocumentWindow::attachCompanion(DocumentWindow* companion)
     connect(this, &DocumentWindow::mutated, companion, [this, companion] {
         for (PageView* pane : companion->split_->views()) pane->modelChanged(revision());
     });
+
+    // AND ITS ENGINE DRAWS THE LEADER'S EDITS (S6 T4, D6-2): the companion rasterizes through a handle
+    // of its own, so an unsaved annotation reaches its pixels only if that engine is shown the same
+    // revision. Nothing to show while the leader has nothing unsaved.
+    if (journal_ && journal_->isDirty() && companion->handle_.isValid()) {
+        if (const core::Status shown = services_.backend.showEdits(handle_, {companion->handle_}); !shown) {
+            RAWPAGE_LOG_WARNING(LogSubsystem::Render)
+                << "window: the second view of" << path_ << "cannot show its unsaved edits --"
+                << shown.error().messageKey;
+        }
+    }
+}
+
+core::Status DocumentWindow::showEdits()
+{
+    std::vector<core::DocumentHandle> viewers;
+    for (const DocumentWindow* companion : companions_)
+        if (companion->handle_.isValid()) viewers.push_back(companion->handle_);
+    return services_.backend.showEdits(handle_, viewers);
 }
 
 void DocumentWindow::unlinkFromLeader()
@@ -144,6 +163,15 @@ void DocumentWindow::detachFromLeader()
     // leader's disposition has just been settled, and what this tab's own `DocumentHandle` has been
     // rasterizing all along is the file. See the constructor's comment.
     revision_ = core::Revision::initial();
+    // ITS ENGINE BACK ON THE FILE (S6 T4, D6-2): the leader's unsaved edits went with the leader, and
+    // its own handle has none -- no work when it was never shown any.
+    if (handle_.isValid()) {
+        if (const core::Status shown = services_.backend.showEdits(handle_, {}); !shown) {
+            RAWPAGE_LOG_WARNING(LogSubsystem::Render)
+                << "window: the detached view of" << path_ << "could not be put back on its file --"
+                << shown.error().messageKey;
+        }
+    }
     for (PageView* pane : split_->views()) handDocumentTo(pane);
 }
 
@@ -378,7 +406,10 @@ void DocumentWindow::build(const Recovery* recovery)
                 journal_->setRecorder(recovery_.get());
             }
             journal_->subscribeMutated([this](const core::Scope& scope) {
-                services_.renderScheduler.documentChanged(handle_, scope, journal_->revision());
+                // THE ENGINE'S TREE places an annotation's rectangle in each tile, so only the tiles it
+                // reaches are dropped (S6 T4): a request's delta is relative to that tree.
+                services_.renderScheduler.documentChanged(handle_, scope, journal_->revision(),
+                                                          services_.backend.pages(handle_));
                 // THE TEXT GOES STALE WHERE IT IS KEPT (S5 T6, D5-4): the index drops the pages the scope
                 // names, for this window and every companion reading the same entry, and the next search
                 // re-extracts exactly those (guide A-64).
@@ -386,6 +417,19 @@ void DocumentWindow::build(const Recovery* recovery)
                 afterMutation();
             });
             journal_->subscribeDirty([this](bool dirty) { emit dirtyChanged(dirty); });
+
+            // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES (S6 T4, D6-2): every command, undo and redo is
+            // composed, verified and handed to the engine before it counts -- one Save could not write
+            // is refused when it is made. Set after the replay, which runs with no window to show; a
+            // replayed session is then shown once, whole.
+            journal_->setShowHandler([this](const core::Scope&) { return showEdits(); });
+            if (journal_->position() > 0) {
+                if (const core::Status shown = showEdits(); !shown) {
+                    RAWPAGE_LOG_WARNING(LogSubsystem::Render)
+                        << "recovery: the replayed session of" << path_ << "could not be shown --"
+                        << shown.error().messageKey << shown.error().context;
+                }
+            }
         }
     }
 

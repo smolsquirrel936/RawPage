@@ -21,12 +21,34 @@
 // this class cannot reason about precisely. A caller asking "must I repaint page 4?" gets "yes"
 // when the answer is unknown, and a wasted repaint is the correct failure direction.
 //
+// -------------------------------------------------------------------------------------------
+// THE ASPECT -- Stage 6 T4, decision D6-10 (`Stage6-Annotations-Plan.md` §3)
+// -------------------------------------------------------------------------------------------
+// A page scope says WHAT of those pages changed: their CONTENT (a rotation, and every Stage 3 scope)
+// or only their ANNOTATIONS. Both drop the pages' tiles -- an annotation is drawn into the tile -- but
+// only content drops their TEXT: `DocumentIndex` keeps an annotated page's extracted text, which no
+// annotation can change, and drops its annotation search units alone. Without it, every highlight on
+// page 450 of `text-900.pdf` would re-extract the page. The widening rule holds: two scopes of
+// different aspects merge to CONTENT, which claims more, never less; every kind but `Pages` is content.
+//
+// AND WHERE ON THE PAGE -- the named work of A2 at Stage 6 (Stage 6 T4, `Tech-Stack-Plan.md` §3.3). An
+// annotation scope may say WHICH RECTANGLES of a page changed, in page space: each added or removed
+// annotation's `/Rect`. A tile none of them reaches keeps its pixels -- an annotation's appearance is
+// drawn inside its rectangle -- so `core/render/` re-keys it rather than re-rendering it
+// (`render::tileTouchedBy`). Measured at T4: without it, every edit re-rendered the edited page's 40
+// visible tiles at 288 dpi, 23 of 30 s of the one engine thread under the guide's workload. A page with
+// no rectangles is the WHOLE page, which is what every scope said before; any merge that cannot keep
+// the rectangles exactly drops them, and a page whole on either side is whole.
+//
 // NO QT GUI TYPES, and no user-facing English: this is `core/`.
 
 #ifndef RAWPAGE_CORE_DOC_SCOPE_H
 #define RAWPAGE_CORE_DOC_SCOPE_H
 
+#include "core/Geometry.h"
+
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace rawpage::core {
@@ -52,6 +74,23 @@ public:
     static Scope pages(std::vector<int> indices);
     static Scope objects(std::vector<long long> numbers);
 
+    // S6 T4 (D6-10). `Content` unless a page scope says otherwise.
+    enum class Aspect : std::uint8_t { Content, Annotations };
+    static Scope annotationsOf(std::vector<int> indices);
+    Aspect aspect() const noexcept { return aspect_; }
+
+    // An annotation scope over RECTANGLES of pages (page index, page-space rectangle). A page named
+    // more than once keeps every rectangle. An empty list is `Nothing`.
+    static Scope annotationRegions(std::vector<std::pair<int, PdfRect>> regions);
+    // The rectangles of `page` that changed, or null when the WHOLE page did -- which is the answer for
+    // every page of a scope without rectangles, and for a page this scope does not touch (ask
+    // `touchesPage` first).
+    const std::vector<PdfRect>* regionsOf(int page) const noexcept;
+
+    // "Must I throw away the TEXT of page `index`?" -- `touchesPage` for every scope but one that
+    // changed only annotations, which keeps it.
+    bool touchesText(int index) const noexcept { return aspect_ == Aspect::Content && touchesPage(index); }
+
     Kind kind() const noexcept { return kind_; }
     bool isNothing() const noexcept { return kind_ == Kind::Nothing; }
     bool touchesEverything() const noexcept { return kind_ == Kind::WholeDocument; }
@@ -75,13 +114,17 @@ public:
 
 private:
     Kind kind_ = Kind::Nothing;
+    Aspect aspect_ = Aspect::Content;
     std::vector<int> pages_;
+    // Sorted by page; a page of `pages_` absent here is whole. Only for the `Annotations` aspect.
+    std::vector<std::pair<int, std::vector<PdfRect>>> regions_;
     std::vector<long long> objects_;
 };
 
 // Stable, ASCII, non-localized. Diagnostics and test failure messages -- never a user-facing
 // string; `core/Result.h` carries a catalog key for that.
 const char* scopeKindName(Scope::Kind kind) noexcept;
+const char* scopeAspectName(Scope::Aspect aspect) noexcept;
 
 } // namespace rawpage::core
 

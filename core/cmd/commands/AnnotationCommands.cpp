@@ -61,9 +61,42 @@ std::optional<QString> invalidCreated(const Annotation& a)
     return std::nullopt;
 }
 
-Scope pagesScope(std::vector<int> pages)
+// The rectangle of a page an annotation's change can repaint, or the WHOLE page when that is not known
+// (S6 T4, the named work of A2 at Stage 6). An appearance is drawn inside its `/Rect` (ISO 32000-1
+// 12.5.5 maps its box into it), so the rectangle -- padded a point for anti-aliasing -- is all a
+// change repaints, EXCEPT where a reader draws the annotation somewhere else: a popup (its own
+// rectangle, and the parent's popup when open), an annotation with one, and one drawn at a fixed size
+// or orientation (`NoZoom`, `NoRotate`). Those, and a rectangle that is not a finite non-empty box, are
+// the whole page: claiming too much costs a repaint, claiming too little is a stale tile.
+std::optional<PdfRect> repaintedRect(const Annotation& a)
 {
-    return pages.empty() ? Scope::nothing() : Scope::pages(std::move(pages));
+    if (a.subtype == AnnotationSubtype::Popup || a.popup || a.hasFlag(AnnotationFlag::NoZoom)
+        || a.hasFlag(AnnotationFlag::NoRotate))
+        return std::nullopt;
+    const PdfRect& r = a.rect;
+    if (!std::isfinite(r.left()) || !std::isfinite(r.bottom()) || !std::isfinite(r.size.width)
+        || !std::isfinite(r.size.height) || r.size.width <= 0.0 || r.size.height <= 0.0)
+        return std::nullopt;
+    constexpr double kPad = 1.0;
+    return PdfRect{PdfPoint{r.left() - kPad, r.bottom() - kPad}, PdfSize{r.size.width + 2 * kPad, r.size.height + 2 * kPad}};
+}
+
+// ANNOTATIONS of these pages (S6 T4, D6-10): their tiles go, their extracted text stays -- and where every
+// changed annotation's rectangle is known, only the tiles those rectangles reach go.
+Scope annotationsScope(const std::vector<std::pair<int, const Annotation*>>& changed)
+{
+    if (changed.empty()) return Scope::nothing();
+    std::vector<std::pair<int, PdfRect>> regions;
+    std::vector<int> wholePages;
+    for (const auto& [page, annotation] : changed) {
+        if (const std::optional<PdfRect> rect = repaintedRect(*annotation))
+            regions.emplace_back(page, *rect);
+        else
+            wholePages.push_back(page);
+    }
+    const Scope wholes = Scope::annotationsOf(std::move(wholePages));
+    const Scope parts = Scope::annotationRegions(std::move(regions));
+    return wholes.merged(parts);
 }
 
 } // namespace
@@ -85,9 +118,9 @@ CatalogText AddAnnotationCommand::name() const
 
 Scope AddAnnotationCommand::scope() const
 {
-    std::vector<int> pages;
-    for (const Annotation& a : annotations_) pages.push_back(a.page);
-    return pagesScope(std::move(pages));
+    std::vector<std::pair<int, const Annotation*>> changed;
+    for (const Annotation& a : annotations_) changed.emplace_back(a.page, &a);
+    return annotationsScope(changed);
 }
 
 Status AddAnnotationCommand::permitted(const Document& document) const
@@ -202,9 +235,9 @@ CatalogText DeleteAnnotationCommand::name() const
 Scope DeleteAnnotationCommand::scope() const
 {
     if (!applied_) return Scope::wholeDocument();
-    std::vector<int> pages;
-    for (const auto& [at, annotation] : removed_) pages.push_back(at.page);
-    return pagesScope(std::move(pages));
+    std::vector<std::pair<int, const Annotation*>> changed;
+    for (const auto& [at, annotation] : removed_) changed.emplace_back(at.page, &annotation);
+    return annotationsScope(changed);
 }
 
 Status DeleteAnnotationCommand::permitted(const Document& document) const

@@ -17,11 +17,6 @@ std::size_t imageBytes(const RasterImage& image) noexcept
     return static_cast<std::size_t>(image.pixels.size());
 }
 
-bool isStale(const RenderRequest& request, DocumentHandle document, const Scope& scope) noexcept
-{
-    if (request.document != document) return false;
-    return scope.touchesPage(request.pageIndex);
-}
 
 // EVERY DELETION IN THIS FILE GOES THROUGH HERE, and that is a layering decision rather than a
 // tidiness one: it keeps the file's `layer-lint` waiver census at TWO -- one write, one delete --
@@ -167,14 +162,14 @@ void DiskTileStore::eraseIterator(EntryList::iterator it)
 }
 
 std::size_t DiskTileStore::invalidate(DocumentHandle document, const Scope& scope,
-                                      Revision newRevision)
+                                      Revision newRevision, const PageTree* pages)
 {
     std::size_t dropped = 0;
     std::vector<EntryList::iterator> stale;
     std::vector<EntryList::iterator> survivors;
     for (auto it = lru_.begin(); it != lru_.end(); ++it) {
         if (it->request.document != document) continue;
-        if (isStale(it->request, document, scope))
+        if (tileTouchedBy(it->request, document, scope, pages))
             stale.push_back(it);
         else if (newRevision.isValid() && it->request.revision != newRevision)
             survivors.push_back(it);

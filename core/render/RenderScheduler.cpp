@@ -405,14 +405,34 @@ void RenderScheduler::cancelDocument(DocumentHandle document)
     idle_.notify_all();
 }
 
+bool RenderScheduler::rekeyLocked(std::unordered_map<std::uint64_t, Job>::iterator job, Revision revision)
+{
+    RenderRequest moved = job->second.request;
+    moved.revision = revision;
+    if (byRequest_.count(moved) != 0) return false;
+    byRequest_.erase(job->second.request);
+    job->second.request = moved;
+    byRequest_.emplace(moved, job->first);
+    ++stats_.rekeyed;
+    return true;
+}
+
 void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scope,
-                                      Revision newRevision)
+                                      Revision newRevision, const PageTree* pages)
 {
     // The cache first, on this thread, for `RenderCache.h`'s reason.
-    if (cache_ != nullptr) cache_->invalidate(document, scope, newRevision);
+    if (cache_ != nullptr) cache_->invalidate(document, scope, newRevision, pages);
 
     std::lock_guard<std::mutex> lock(mutex_);
     if (newRevision.isValid()) revisions_[document.id] = newRevision;
+
+    // KEPT AT THE NEW REVISION (S6 T4): a tile of this document the scope does not reach. Its pixels
+    // are the same either side of the mutation -- the engine may draw it from the old document or the
+    // reloaded one, and both draw this tile alike.
+    const auto unreached = [&](const RenderRequest& request) {
+        return newRevision.isValid() && request.document == document
+               && !tileTouchedBy(request, document, scope, pages);
+    };
 
     std::vector<std::uint64_t> keep;
     keep.reserve(pending_.size());
@@ -426,20 +446,53 @@ void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scop
             keep.push_back(id);
             continue;
         }
+        if (unreached(found->second.request)) {
+            if (rekeyLocked(found, newRevision)) {
+                keep.push_back(id);
+                continue;
+            }
+            // AN EQUAL REQUEST IS ALREADY QUEUED at the new revision: this job's holders join it, and the
+            // more urgent lane and the wish to keep the tile go with them.
+            RenderRequest moved = found->second.request;
+            moved.revision = newRevision;
+            Job& other = jobs_[byRequest_.at(moved)];
+            for (const std::uint64_t ticket : found->second.tickets) {
+                other.tickets.push_back(ticket);
+                ticketToJob_[ticket] = byRequest_.at(moved);
+            }
+            found->second.tickets.clear();
+            other.cacheable = other.cacheable || found->second.cacheable;
+            if (!other.started && static_cast<int>(found->second.priority) < static_cast<int>(other.priority))
+                other.priority = found->second.priority;
+            forgetJobLocked(found);
+            ++stats_.coalesced;
+            continue;
+        }
         forgetJobLocked(found);
         ++stats_.cancelledBeforeStart;
     }
     pending_ = std::move(keep);
 
-    for (auto& [id, job] : jobs_) {
-        (void)id;
-        if (job.started && job.kind == JobKind::Raster && isSupersededLocked(job.request))
-            job.superseded = true;
+    for (auto it = jobs_.begin(); it != jobs_.end(); ++it) {
+        Job& job = it->second;
+        if (!job.started || job.kind != JobKind::Raster || !isSupersededLocked(job.request)) continue;
+        // A RUNNING tile the scope does not reach is delivered at the new revision; one it reaches, or
+        // one an equal request already waits for, is dropped on delivery as before.
+        if (unreached(job.request) && rekeyLocked(it, newRevision)) continue;
+        job.superseded = true;
     }
 
     // A completion already sitting in the queue for a request the mutation superseded must go too.
     // This is the narrowest window in the whole class -- the tile finished while the mutation was
-    // being applied -- and it is exactly the one that puts a stale pixel on screen.
+    // being applied -- and it is exactly the one that puts a stale pixel on screen. One the scope does
+    // not reach is kept, at the new revision.
+    for (Completion& completion : completed_) {
+        if (completion.kind == JobKind::Raster && isSupersededLocked(completion.request)
+            && unreached(completion.request)) {
+            completion.request.revision = newRevision;
+            ++stats_.rekeyed;
+        }
+    }
     completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
                                     [this](const Completion& completion) {
                                         return completion.kind == JobKind::Raster
@@ -853,8 +906,11 @@ void RenderScheduler::workerLoop(int index)
                                     : std::chrono::steady_clock::now();
         const bool cancelled = finished != jobs_.end() && finished->second.cancelled;
         const bool cacheable = finished == jobs_.end() || finished->second.cacheable;
+        // THE JOB'S REQUEST AS IT IS NOW, not as it was when the worker took it: a mutation the tile did
+        // not reach re-keyed it to the new revision while it ran (S6 T4), and it is delivered under that.
+        const RenderRequest delivered = finished != jobs_.end() ? finished->second.request : request;
         const bool superseded =
-            (finished != jobs_.end() && finished->second.superseded) || isSupersededLocked(request);
+            (finished != jobs_.end() && finished->second.superseded) || isSupersededLocked(delivered);
 
         if (finished != jobs_.end()) forgetJobLocked(finished);
 
@@ -866,7 +922,7 @@ void RenderScheduler::workerLoop(int index)
             ++stats_.droppedSuperseded;
         } else {
             Completion completion;
-            completion.request = request;
+            completion.request = delivered;
             completion.image = std::move(result.value());
             completion.usable = true;
             completion.priority = lane;

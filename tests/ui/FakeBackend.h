@@ -85,6 +85,8 @@ public:
     bool failVerify = false;     // the composed bytes fail their own re-read -- `Corrupted`, OUR BYTES (refused)
     int writes = 0;
     int adoptions = 0;
+    bool failShows = false;      // S6 T4: `showEdits` refuses
+    std::vector<std::vector<core::DocumentHandle>> shows;   // S6 T4: every `showEdits`, document first
 
     // What to answer for a given path. The default opens everything, so a harness that does not
     // care about opening writes nothing; a case that does sets this.
@@ -410,6 +412,19 @@ public:
         found->second->id = identityOf(path);
         repairs = core::RepairReport{};          // a saved file needs no repair
         ++adoptions;
+        return {};
+    }
+
+    // S6 T4 (D6-2): no engine to reload -- every call is recorded, as `[document, viewers...]`, so a case
+    // can see who asked to be shown what; `failShows` refuses as a compose that fails verify would.
+    core::Status showEdits(core::DocumentHandle document, const std::vector<core::DocumentHandle>& viewers) override
+    {
+        if (failShows)
+            return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.edit.notShown"),
+                               QStringLiteral("error.save.verifyFailed")};
+        std::vector<core::DocumentHandle> call{document};
+        call.insert(call.end(), viewers.begin(), viewers.end());
+        shows.push_back(std::move(call));
         return {};
     }
 

@@ -41,10 +41,13 @@
 #include "core/doc/PageTree.h"
 #include "core/doc/RepairReport.h"
 
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <thread>
 
 namespace rawpage::pdf {
 
@@ -110,6 +113,27 @@ public:
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
     core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;
     core::Status adoptRevision(core::DocumentHandle document, const QString& path) override;
+    // Stage 6 T4 (D6-2): `RevisionWriter::compose` and `verify` -- Save's own -- then each engine's
+    // `PdfiumDocument::show`.
+    core::Status showEdits(core::DocumentHandle document, const std::vector<core::DocumentHandle>& viewers) override;
+
+    // D6-2's record, for the cases and the bench that grade it (guide A-37, A-38): the reloads the
+    // engine of `document` has made. Not on the interface -- a diagnostic of this engine, as
+    // `PdfiumDocument` is.
+    struct ReloadRecord {
+        long long reloads = 0;
+        long long failures = 0;
+        long long coalesced = 0;
+        std::chrono::nanoseconds lastLoad{0};
+        std::thread::id lastThread;
+        std::uint64_t pendingGeneration = 0;
+        std::uint64_t shownGeneration = 0;
+        std::chrono::nanoseconds lastCompose{0};   // the last `showEdits`: compose and verify, on its caller
+        std::chrono::nanoseconds lastVerify{0};    // ...of which the verify
+        const void* engineBase = nullptr;          // the data the engine reads the original from...
+        const void* newestOnDisk = nullptr;        // ...and the backend's own buffer: equal when nothing was copied
+    };
+    std::optional<ReloadRecord> reloadRecord(core::DocumentHandle document) const;
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle document) override;
     core::ITextExtractor*  textExtractor(core::DocumentHandle document) override;

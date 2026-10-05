@@ -54,6 +54,10 @@
 #include <unordered_map>
 #include <vector>
 
+namespace rawpage::core {
+class PageTree;   // core/doc/PageTree.h -- `tileTouchedBy` places a rectangle with it (S6 T4)
+}
+
 namespace rawpage::core::render {
 
 // One tier. D2-14's "behind the same interface as the memory tier", which is what lets the disk
@@ -62,6 +66,19 @@ namespace rawpage::core::render {
 // `lookup` is non-const here and `const` on `RenderCache`: a tier genuinely mutates (LRU order, a
 // file's access time), and hiding that behind `mutable` in every implementation would be the same
 // lie told three times instead of once.
+// WHETHER A MUTATION'S SCOPE REACHES THIS TILE -- the one predicate the cache's tiers and the scheduler
+// share, so a tile the cache re-keys and a queued tile the scheduler re-keys are decided alike (Stage 6
+// T4, the named work of A2 at Stage 6). False for another document, or a page the scope does not touch.
+// For a page whose scope carries RECTANGLES (`Scope::regionsOf`), true only when one of them, mapped into
+// THIS tile's device pixels, meets the tile: the rectangle in page space is turned by the page's own
+// `/Rotate` in `pages` -- the ENGINE's tree, which a request's unsaved-rotation delta is relative to --
+// then by the request's delta and view rotation, scaled by its `deviceScale` over the crop box, exactly as
+// the rasterizer places the page, and padded two device pixels. With no `pages`, or a page it does not
+// have, a rectangle cannot be placed and the answer is TRUE: claiming too much costs a repaint, claiming
+// too little is a stale tile.
+bool tileTouchedBy(const RenderRequest& request, DocumentHandle document, const Scope& scope,
+                   const PageTree* pages) noexcept;
+
 class ITileStore {
 public:
     virtual ~ITileStore() = default;
@@ -73,10 +90,11 @@ public:
     // a 40-megapixel tile that evicted everything else to store itself is worse than a miss.
     virtual bool put(const RenderRequest& request, const RasterImage& image) = 0;
 
-    // Drops what the scope touches for `document` and re-keys the rest to `newRevision`. Returns
-    // how many entries it dropped, which is what `CacheStats` counts.
-    virtual std::size_t invalidate(DocumentHandle document, const Scope& scope,
-                                   Revision newRevision) = 0;
+    // Drops what the scope touches for `document` (`tileTouchedBy`, over `pages`, which may be null)
+    // and re-keys the rest to `newRevision`. Returns how many entries it dropped, which is what
+    // `CacheStats` counts.
+    virtual std::size_t invalidate(DocumentHandle document, const Scope& scope, Revision newRevision,
+                                   const PageTree* pages) = 0;
 
     virtual std::size_t dropDocument(DocumentHandle document) = 0;
     virtual void clear() = 0;
@@ -103,8 +121,8 @@ public:
 
     std::optional<RasterImage> lookup(const RenderRequest& request) override;
     bool put(const RenderRequest& request, const RasterImage& image) override;
-    std::size_t invalidate(DocumentHandle document, const Scope& scope,
-                           Revision newRevision) override;
+    std::size_t invalidate(DocumentHandle document, const Scope& scope, Revision newRevision,
+                           const PageTree* pages) override;
     std::size_t dropDocument(DocumentHandle document) override;
     void clear() override;
 
@@ -213,7 +231,11 @@ public:
     // several -- `RenderRequest` carries a handle precisely so two documents can share a cache
     // without their tiles colliding. Without the handle, invalidating one document's page 3 would
     // drop page 3 of every open document.
-    void invalidate(DocumentHandle document, const Scope& scope, Revision newRevision);
+    //
+    // `pages` (Stage 6 T4): the document's ENGINE page tree, which places a scope's rectangles in each
+    // tile (`tileTouchedBy`). Null for a caller that has none -- a rectangle then drops its whole page.
+    void invalidate(DocumentHandle document, const Scope& scope, Revision newRevision,
+                    const PageTree* pages = nullptr);
 
     // Everything for one document, when it is closed.
     void dropDocument(DocumentHandle document);

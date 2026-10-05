@@ -75,6 +75,9 @@ add_executable(rawpage_render_tests
                                   #   graded against the generator's label
     tst_annotreader.cpp           # Stage 6 T2 -- guide A-17 ... A-19 (D6-3): pdf/ops/AnnotationReader through the
                                   #   shipped backend, against the generator's labels and the engine, page by page
+    tst_annotdisplay.cpp          # Stage 6 T4 -- guide A-34 (through commands), A-35, A-36, A-37, A-39 (D6-2,
+                                  #   D6-10): what the live engine draws after an edit is what the saved file
+                                  #   draws; the reload on the render thread, between jobs, with no copy
     tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it

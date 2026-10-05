@@ -1,6 +1,7 @@
 #include "core/render/RenderCache.h"
 
 #include "core/Log.h"
+#include "core/doc/PageTree.h"
 
 #include <algorithm>
 #include <utility>
@@ -19,13 +20,39 @@ std::size_t imageBytes(const RasterImage& image) noexcept
 // `Objects`, because it cannot know which pages an object appears on. That asymmetry is the whole
 // design (`core/doc/Scope.h`), and a cache is exactly the caller it was written for: a wasted
 // repaint is the correct failure direction, a stale tile is not.
-bool isStale(const RenderRequest& request, DocumentHandle document, const Scope& scope) noexcept
+} // namespace
+
+bool tileTouchedBy(const RenderRequest& request, DocumentHandle document, const Scope& scope,
+                   const PageTree* pages) noexcept
 {
     if (request.document != document) return false;
-    return scope.touchesPage(request.pageIndex);
-}
+    if (!scope.touchesPage(request.pageIndex)) return false;
+    const std::vector<PdfRect>* rects = scope.regionsOf(request.pageIndex);
+    if (rects == nullptr) return true;                       // the whole page
+    const Page* page = pages != nullptr ? pages->at(request.pageIndex) : nullptr;
+    if (page == nullptr || !(request.deviceScale > 0.0)) return true;   // cannot place it: the whole page
 
-} // namespace
+    // The rasterizer's placement: the crop box, turned by the page's own /Rotate and then by what the
+    // request adds to it, at `deviceScale` device pixels a point (`pdf/render/PdfiumRasterizer`).
+    const PageRotation turned = combine(page->rotation(), combine(request.viewRotation, request.pageRotationDelta));
+    const PdfRect crop = page->cropBox();
+    const PageTransform transform(crop.size, 1.0, request.deviceScale * 72.0, turned);
+    constexpr double kPadPixels = 2.0;
+    const double tileLeft = request.tile.x;
+    const double tileTop = request.tile.y;
+    const double tileRight = tileLeft + request.tile.width;
+    const double tileBottom = tileTop + request.tile.height;
+    for (const PdfRect& rect : *rects) {
+        const PdfRect inBox{PdfPoint{rect.left() - crop.left(), rect.bottom() - crop.bottom()}, rect.size};
+        const DeviceRect device = transform.toDevice(inBox);
+        const double left = device.origin.x - kPadPixels;
+        const double top = device.origin.y - kPadPixels;
+        const double right = device.origin.x + device.size.width + kPadPixels;
+        const double bottom = device.origin.y + device.size.height + kPadPixels;
+        if (left < tileRight && tileLeft < right && top < tileBottom && tileTop < bottom) return true;
+    }
+    return false;
+}
 
 // ---------------------------------------------------------------------------------------------
 // MemoryTileStore
@@ -87,7 +114,7 @@ void MemoryTileStore::eraseIterator(EntryList::iterator it)
 }
 
 std::size_t MemoryTileStore::invalidate(DocumentHandle document, const Scope& scope,
-                                        Revision newRevision)
+                                        Revision newRevision, const PageTree* pages)
 {
     std::size_t dropped = 0;
     // Two passes, because a re-key changes an entry's hash and therefore its position in the index:
@@ -97,7 +124,7 @@ std::size_t MemoryTileStore::invalidate(DocumentHandle document, const Scope& sc
     std::vector<EntryList::iterator> survivors;
     for (auto it = lru_.begin(); it != lru_.end(); ++it) {
         if (it->request.document != document) continue;
-        if (isStale(it->request, document, scope))
+        if (tileTouchedBy(it->request, document, scope, pages))
             stale.push_back(it);
         else if (newRevision.isValid() && it->request.revision != newRevision)
             survivors.push_back(it);
@@ -240,11 +267,12 @@ void RenderCache::put(const RenderRequest& request, const RasterImage& image)
     if (disk_ != nullptr) disk_->put(request, image);
 }
 
-void RenderCache::invalidate(DocumentHandle document, const Scope& scope, Revision newRevision)
+void RenderCache::invalidate(DocumentHandle document, const Scope& scope, Revision newRevision,
+                             const PageTree* pages)
 {
     ++stats_.invalidations;
-    std::size_t dropped = memory_->invalidate(document, scope, newRevision);
-    if (disk_ != nullptr) dropped += disk_->invalidate(document, scope, newRevision);
+    std::size_t dropped = memory_->invalidate(document, scope, newRevision, pages);
+    if (disk_ != nullptr) dropped += disk_->invalidate(document, scope, newRevision, pages);
     stats_.invalidatedEntries += static_cast<long long>(dropped);
 
     if (newRevision.isValid()) revisions_[document.id] = newRevision;

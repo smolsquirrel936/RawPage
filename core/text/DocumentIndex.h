@@ -59,7 +59,8 @@
 // page space is unrotated (D5-2) -- so the drop is honest rather than necessary; it is here because a
 // later stage's command WILL change a page's text, and the index is where text is kept, so the index is
 // where it goes stale (`core/render/RenderScheduler.h`'s `TextRequest` argues why the engine side cannot
-// be the place).
+// be the place). **Since Stage 6 T4 (D6-10) a scope that changed only ANNOTATIONS keeps the text** and
+// drops the pages' search units alone: no annotation changes what a page's content says.
 //
 // **The budget evicts WHOLE documents, least recently SEARCHED first** (guide A-65). A document never
 // searched -- only selected on -- goes first. **The document a person is searching is never evicted to
@@ -203,7 +204,9 @@ public:
             PageArrived,        // `page` is in the index now (possibly as a failed, empty page)
             PagesInvalidated,   // a mutation's `Scope` dropped `pages`: their text may have CHANGED
             PagesEvicted,       // the budget dropped `pages`: their text is what it was, and is gone
-                                //   from here only -- a selection holding them keeps them
+                                //   from here only -- a selection holding them keeps them. Also (S6 T4,
+                                //   D6-10) a scope that changed only annotations: their search units
+                                //   went, their text stayed
             EntryDropped,       // the last handle detached; every page and every request went with it
             UnitsArrived,       // search-unit part `page` is in the index now (possibly failed, empty)
         };
@@ -268,7 +271,8 @@ public:
     long long unitsRequestedFor(EntryId entry) const;
 
     // ---- Staleness and memory -------------------------------------------------------------------
-    // Drops every stored page `scope` touches (`Scope::touchesPage`'s rule, rounded outwards).
+    // Drops every stored page `scope` touches (`Scope::touchesPage`'s rule, rounded outwards) -- its
+    // search units always, its text only where `Scope::touchesText` (S6 T4, D6-10).
     void invalidate(EntryId entry, const Scope& scope);
 
     // A search of this entry started: it is now the most recently searched (the eviction order).

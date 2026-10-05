@@ -824,3 +824,115 @@ TEST_CASE("recovery replays annotation commands to the same model and the same b
     REQUIRE(replayed);
     CHECK(tests::sha256(replayed.value().bytes) == tests::sha256(expected.value().bytes));
 }
+
+// ==========================================================================================
+// Stage 6 T4 (D6-2) -- what is shown is what is saved, at the level of BYTES, headless
+// ==========================================================================================
+// The engine's half -- the same pixels -- is `tests/render/tst_annotdisplay.cpp`. This half runs under
+// `portable-asan` too: the update `showEdits` hands the engine after each command is byte for byte the
+// update the next save appends, over the shipped backend's compose and verify (`RevisionWriter`).
+
+namespace {
+
+void showLikeTheProduct(tests::SaveSession& session)
+{
+    tests::SaveSession* self = &session;
+    session.journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); });
+}
+
+} // namespace
+
+TEST_CASE("the update shown after every command is the update the save appends", "[annotops][annotdisplay][A-34]")
+{
+    auto session = tests::openCopy("ordinary/annots-mixed.pdf");
+    REQUIRE(session);
+    showLikeTheProduct(*session);
+    const int showsBefore = session->backend.shows();
+
+    REQUIRE(add(*session, {highlight(0), highlight(0, 72, 600)}));
+    REQUIRE(session->rotate(0));
+    REQUIRE(add(*session, {highlight(1)}));
+    CHECK(session->backend.shows() - showsBefore == 3);   // ONE per command
+    const QByteArray shown = session->backend.shownUpdate(session->handle);
+    REQUIRE_FALSE(shown.isEmpty());
+
+    const QByteArray saved = save(*session, QStringLiteral("T4-shown-is-saved.pdf"));
+    REQUIRE(saved.startsWith(session->openedBytes));
+    CHECK(tests::sha256(saved.mid(session->openedBytes.size())) == tests::sha256(shown));
+
+    // AN UNDO IS SHOWN TOO, and an undo back to the file on disk shows no update at all.
+    const QByteArray afterSave = tests::readAllBytes(session->path);
+    REQUIRE(session->journal->undo());
+    CHECK_FALSE(session->backend.shownUpdate(session->handle).isEmpty());
+    REQUIRE(session->journal->redo());
+    CHECK(session->backend.shownUpdate(session->handle).isEmpty());
+    CHECK(tests::readAllBytes(session->path) == afterSave);
+}
+
+TEST_CASE("an edit whose update fails verify is refused when it is made and leaves no trace", "[annotops][annotdisplay][A-39]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    showLikeTheProduct(*session);
+    const QByteArray hash = session->journal->document().modelHash();
+    const std::size_t original = static_cast<std::size_t>(session->openedBytes.size());
+
+    // A-30's fault, now at EDIT time rather than at the save.
+    pdf::ops::RevisionWriter::setComposeFaultForTesting([original](QByteArray& bytes) {
+        const qsizetype at = bytes.indexOf("/Annots", static_cast<qsizetype>(original));
+        if (at >= 0) bytes[at + 1] = 'X';
+    });
+    const core::Status refused = add(*session, {highlight(0)});
+    pdf::ops::RevisionWriter::setComposeFaultForTesting({});
+    REQUIRE_FALSE(refused);
+    CHECK(keyOf(refused.error()) == "error.edit.notShown");
+    CHECK(refused.error().context.startsWith(QStringLiteral("error.save.verifyFailed")));
+    CHECK_FALSE(session->journal->canUndo());
+    CHECK_FALSE(session->journal->isDirty());
+    CHECK(session->journal->document().modelHash() == hash);
+    // The SINK was taken back as well as the model: the next save has nothing to write.
+    auto delta = session->sink()->delta();
+    REQUIRE(delta);
+    CHECK(delta.value().isEmpty());
+
+    // THE CONTROL: unfaulted, the same edit is made.
+    REQUIRE(add(*session, {highlight(0)}));
+    CHECK(session->journal->canUndo());
+}
+
+// Stage 6 T4, the named work of A2 at Stage 6: what an annotation command says it repaints.
+TEST_CASE("an annotation command's scope is its annotations' rectangles and the whole page where a reader draws elsewhere", "[annotops][annotdisplay]")
+{
+    Annotation plain = highlight(0, 72, 700, 200, 14);
+    Annotation onAnother = highlight(2, 100, 100, 50, 10);
+    const core::Scope scope = AddAnnotationCommand({plain, onAnother}).scope();
+    CHECK(scope.aspect() == core::Scope::Aspect::Annotations);
+    CHECK(scope.pageIndices() == std::vector<int>{0, 2});
+    REQUIRE(scope.regionsOf(0) != nullptr);
+    REQUIRE(scope.regionsOf(0)->size() == 1);
+    // The rectangle, padded a point for anti-aliasing.
+    const core::PdfRect padded = scope.regionsOf(0)->front();
+    CHECK(padded.left() == 71.0);
+    CHECK(padded.bottom() == 699.0);
+    CHECK(padded.size.width == 202.0);
+    CHECK(padded.size.height == 16.0);
+
+    // DRAWN ELSEWHERE, OR NOT KNOWN: the whole page.
+    Annotation noZoom = highlight(1);
+    noZoom.flags |= core::AnnotationFlag::NoZoom;
+    Annotation noRotate = highlight(3);
+    noRotate.flags |= core::AnnotationFlag::NoRotate;
+    Annotation withPopup = highlight(4);
+    withPopup.popup = 77;
+    Annotation popup = core::newAnnotation(AnnotationSubtype::Popup, 5, kAuthor, kNow);
+    popup.rect = core::PdfRect{core::PdfPoint{0, 0}, core::PdfSize{100, 100}};
+    Annotation empty = highlight(6);
+    empty.rect = core::PdfRect{};
+    for (const Annotation& a : {noZoom, noRotate, withPopup, popup, empty}) {
+        INFO("page " << a.page);
+        const core::Scope whole = AddAnnotationCommand({a, plain}).scope();
+        CHECK(whole.touchesPage(a.page));
+        CHECK(whole.regionsOf(a.page) == nullptr);
+        CHECK(whole.regionsOf(0) != nullptr);   // the plain one beside it keeps its rectangle
+    }
+}

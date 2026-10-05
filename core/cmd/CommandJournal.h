@@ -49,6 +49,18 @@
 //
 // WHAT IT DOES NOT DO YET: write the recovery journal (T9) or save (T8). `markSaved()` is what the save
 // path calls once the file is on disk.
+//
+// -------------------------------------------------------------------------------------------
+// SHOWN, OR NOT DONE -- Stage 6 T4 (`Stage6-Annotations-Plan.md` D6-2)
+// -------------------------------------------------------------------------------------------
+// The SHOW handler, when one is set, is asked after every successful apply, undo and redo -- BEFORE the
+// step is recorded, announced or counted -- to put what the model now says in front of the reader: in
+// the product, `IDocumentBackend::showEdits`, which composes and verifies the update Save would write
+// and hands it to the engine. If it refuses, the operation is taken back exactly (a run reverts its
+// command; an undo re-applies its step; a redo reverts it) and leaves no trace -- the refusal is the
+// run's result, and undo and redo answer false. So an edit Save could not write is refused when it is
+// made, and the screen never shows a model the file could not hold. Unset (every headless caller and
+// a replay before its window exists), nothing is asked and nothing changes.
 
 #ifndef RAWPAGE_CORE_CMD_COMMANDJOURNAL_H
 #define RAWPAGE_CORE_CMD_COMMANDJOURNAL_H
@@ -122,6 +134,11 @@ public:
     std::size_t position() const noexcept { return position_; }
     std::size_t historySize() const noexcept { return history_.size(); }
 
+    // Stage 6 T4 (D6-2): see the header. One handler; setting another replaces it, an empty one clears it.
+    using ShowHandler = std::function<Status(const Scope&)>;
+    void setShowHandler(ShowHandler handler) { showHandler_ = std::move(handler); }
+    bool hasShowHandler() const noexcept { return static_cast<bool>(showHandler_); }
+
     using MutatedHandler = std::function<void(const Scope&)>;
     using DirtyHandler = std::function<void(bool)>;
     int subscribeMutated(MutatedHandler handler);
@@ -148,6 +165,7 @@ private:
     Document document_;
     MutationSink* sink_ = nullptr;
     OperationRecorder* recorder_ = nullptr;
+    ShowHandler showHandler_;
 
     std::vector<Step> history_;
     std::size_t position_ = 0;

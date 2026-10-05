@@ -356,6 +356,9 @@ signals:
 private:
     void build(const Recovery* recovery);
     void afterMutation();
+    // Stage 6 T4 (D6-2): the journal's show step -- `IDocumentBackend::showEdits` for this tab's handle
+    // and every companion's, so each engine draws the bytes Save would write.
+    core::Status showEdits();
 
     // ---- The split (S4 T9) -------------------------------------------------------------------
     // A pane the container has just built: it is handed the document, both settings groups, and

@@ -56,8 +56,8 @@ public:
 
     std::optional<RasterImage> lookup(const RenderRequest& request) override;
     bool put(const RenderRequest& request, const RasterImage& image) override;
-    std::size_t invalidate(DocumentHandle document, const Scope& scope,
-                           Revision newRevision) override;
+    std::size_t invalidate(DocumentHandle document, const Scope& scope, Revision newRevision,
+                           const PageTree* pages) override;
     std::size_t dropDocument(DocumentHandle document) override;
     void clear() override;
 

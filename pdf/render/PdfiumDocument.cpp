@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <mutex>
 #include <vector>
@@ -343,6 +344,60 @@ struct PdfiumDocument::Engine {
     // frame on the first widget it draws. It is a member for that reason and no other.
     FPDF_FORMFILLINFO info{};
     FPDF_FORMHANDLE  form = nullptr;
+
+    // S6 T4 (D6-2): a RELOADED engine document reads these two through `access`, so they -- and this
+    // struct, which `access.m_Param` points at -- must outlive `document`. Empty for the document
+    // loaded at open, which reads `PdfiumDocument::bytes_` from memory.
+    QByteArray base;
+    QByteArray update;
+    FPDF_FILEACCESS access{};
+
+    // PDFium's read callback: `size` bytes at `position` of `base ⧺ update`, which may straddle the
+    // two. 1 on success, 0 for a read past the end -- PDFium's contract.
+    static int readBlock(void* param, unsigned long position, unsigned char* into, unsigned long size)
+    {
+        const auto* self = static_cast<const Engine*>(param);
+        const auto baseSize = static_cast<std::uint64_t>(self->base.size());
+        const auto total = baseSize + static_cast<std::uint64_t>(self->update.size());
+        std::uint64_t at = position;
+        std::uint64_t left = size;
+        if (at > total || left > total - at) return 0;
+        while (left > 0) {
+            const bool inBase = at < baseSize;
+            const char* from = inBase ? self->base.constData() + at : self->update.constData() + (at - baseSize);
+            const std::uint64_t available = inBase ? baseSize - at : total - at;
+            const std::uint64_t n = std::min(left, available);
+            std::memcpy(into, from, static_cast<std::size_t>(n));
+            into += n;
+            at += n;
+            left -= n;
+        }
+        return 1;
+    }
+
+    // Closes what this holds -- the form handle FIRST, and the order is not cosmetic: the environment
+    // holds a reference to the document, and closing the document under it is a use-after-free that
+    // shows up as a crash on close rather than as anything to do with forms. Under the engine lock.
+    void closeLocked()
+    {
+        if (form != nullptr) {
+            FPDFDOC_ExitFormFillEnvironment(form);
+            form = nullptr;
+        }
+        if (document != nullptr) {
+            FPDF_CloseDocument(document);
+            document = nullptr;
+        }
+    }
+
+    // The form-fill environment for widget appearances (I-21): version 2 and every callback null,
+    // which makes it an appearance renderer and nothing interactive. Under the engine lock.
+    void initFormLocked()
+    {
+        info = FPDF_FORMFILLINFO{};
+        info.version = 2;
+        form = FPDFDOC_InitFormFillEnvironment(document, &info);
+    }
 };
 
 PdfiumDocument::PdfiumDocument() : engine_(std::make_unique<Engine>()) {}
@@ -351,21 +406,111 @@ PdfiumDocument::~PdfiumDocument()
 {
     if (engine_ && engine_->document != nullptr) {
         const std::lock_guard<EngineMutex> guard(engineLock());
-        // THE FORM HANDLE GOES FIRST, and the order is not cosmetic: the environment holds a
-        // reference to the document, and closing the document under it is a use-after-free that
-        // shows up as a crash on close rather than as anything to do with forms.
-        if (engine_->form != nullptr) {
-            FPDFDOC_ExitFormFillEnvironment(engine_->form);
-            engine_->form = nullptr;
-        }
-        FPDF_CloseDocument(engine_->document);
-        engine_->document = nullptr;
+        engine_->closeLocked();
     }
 }
 
 void* PdfiumDocument::engineHandle() const noexcept
 {
+    adoptPendingLocked();
     return engine_ ? static_cast<void*>(engine_->document) : nullptr;
+}
+
+// =============================================================================================
+// THE RELOAD -- Stage 6 T4, D6-2 (the header's `show`)
+// =============================================================================================
+
+void PdfiumDocument::show(QByteArray base, QByteArray update)
+{
+    const std::lock_guard<std::mutex> guard(pendingMutex_);
+    // NO WORK FOR WHAT IS ALREADY DRAWN OR ALREADY QUEUED: the same buffer (by identity, which is what
+    // sharing makes cheap to ask) and the same update bytes.
+    const auto same = [&](const QByteArray& otherBase, const QByteArray& otherUpdate) {
+        return otherBase.constData() == base.constData() && otherBase.size() == base.size()
+               && otherUpdate == update;
+    };
+    const bool drawnNow = shownBase_.isNull() ? same(bytes_, QByteArray()) : same(shownBase_, shownUpdate_);
+    if (pending_ ? same(pending_->base, pending_->update) : drawnNow) return;
+    if (pending_) {
+        ++reloadStats_.coalesced;
+        if (drawnNow) {
+            // Back to what is drawn before the queued one was swapped in: the queue is simply emptied.
+            pending_.reset();
+            reloadStats_.pendingGeneration = ++nextGeneration_;
+            reloadStats_.shownGeneration = reloadStats_.pendingGeneration;
+            return;
+        }
+    }
+    Pending next;
+    next.base = std::move(base);
+    next.update = std::move(update);
+    next.generation = ++nextGeneration_;
+    reloadStats_.pendingGeneration = next.generation;
+    pending_ = std::move(next);
+}
+
+PdfiumDocument::ReloadStats PdfiumDocument::reloadStats() const
+{
+    const std::lock_guard<EngineMutex> engine(engineLock());
+    const std::lock_guard<std::mutex> guard(pendingMutex_);
+    ReloadStats stats = reloadStats_;
+    stats.shownBase = shownBase_.isNull() ? static_cast<const void*>(bytes_.constData())
+                                          : static_cast<const void*>(shownBase_.constData());
+    return stats;
+}
+
+void PdfiumDocument::adoptPendingLocked() const
+{
+    std::optional<Pending> next;
+    {
+        const std::lock_guard<std::mutex> guard(pendingMutex_);
+        if (!pending_) return;
+        next.swap(pending_);
+    }
+    requireEngineLock();
+    const auto began = std::chrono::steady_clock::now();
+
+    auto fresh = std::make_unique<Engine>();
+    fresh->base = next->base;
+    fresh->update = next->update;
+    const auto total = static_cast<std::uint64_t>(fresh->base.size()) + static_cast<std::uint64_t>(fresh->update.size());
+
+    bool loaded = false;
+    unsigned long error = 0;
+    // `m_FileLen` is an `unsigned long` -- 32 bits on Windows -- so a composed file of 4 GiB or more
+    // cannot be read through a callback at all; it is refused like any other load that fails.
+    if (total <= std::numeric_limits<unsigned long>::max()) {
+        fresh->access.m_FileLen = static_cast<unsigned long>(total);
+        fresh->access.m_GetBlock = &Engine::readBlock;
+        fresh->access.m_Param = fresh.get();
+        // NO PASSWORD: an encrypted document has no sink and is never edited (D3-7), so nothing
+        // shows it a revision. One that somehow did would fail here and keep its engine.
+        fresh->document = FPDF_LoadCustomDocument(&fresh->access, nullptr);
+        if (fresh->document == nullptr) {
+            error = FPDF_GetLastError();
+        } else {
+            fresh->initFormLocked();
+            loaded = true;
+        }
+    }
+
+    const std::lock_guard<std::mutex> guard(pendingMutex_);
+    if (!loaded) {
+        ++reloadStats_.failures;
+        RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+            << "reload: the engine refused revision" << QString::number(next->generation) << "of"
+            << QFileInfo(path_).fileName() << "(" << QString::number(total) << "bytes, error"
+            << QString::number(error) << ") -- it keeps drawing the revision it had";
+        return;
+    }
+    if (engine_) engine_->closeLocked();
+    engine_ = std::move(fresh);
+    shownBase_ = std::move(next->base);
+    shownUpdate_ = std::move(next->update);
+    ++reloadStats_.reloads;
+    reloadStats_.lastLoad = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - began);
+    reloadStats_.lastThread = std::this_thread::get_id();
+    reloadStats_.shownGeneration = next->generation;
 }
 
 void* PdfiumDocument::formHandle() const noexcept
@@ -409,7 +554,7 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
     std::optional<core::PdfRect> computed;
     {
         const std::lock_guard<EngineMutex> guard(engineLock());
-        FPDF_DOCUMENT document = engine_->document;
+        auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());   // a queued revision first (D6-2)
         if (document == nullptr) {
             return core::Error{core::ErrorCode::Unavailable,
                                QLatin1String("error.render.documentClosed")};
@@ -565,7 +710,7 @@ core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<Q
         int count = 0;
         {
             const std::lock_guard<EngineMutex> guard(engineLock());
-            if (engine_->document == nullptr)
+            if (engineHandle() == nullptr)   // a queued revision first (D6-2)
                 return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
             count = std::min(FPDFDoc_GetAttachmentCount(engine_->document), kMaxAttachments);
         }
@@ -575,7 +720,9 @@ core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<Q
             {
                 // ONE ATTACHMENT PER LOCK: its name and its bytes, and nothing else held.
                 const std::lock_guard<EngineMutex> guard(engineLock());
-                FPDF_ATTACHMENT attachment = FPDFDoc_GetAttachment(engine_->document, index);
+                auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());
+                if (document == nullptr) continue;
+                FPDF_ATTACHMENT attachment = FPDFDoc_GetAttachment(document, index);
                 if (attachment == nullptr) continue;
                 name = wideStringFrom([attachment](void* buffer, unsigned long size) {
                     return FPDFAttachment_GetName(attachment, static_cast<FPDF_WCHAR*>(buffer), size);
@@ -660,7 +807,7 @@ core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<Q
     {
         // ONE PAGE, AND THE WHOLE OF IT UNDER THE LOCK -- the page load, each annotation and both closes.
         const std::lock_guard<EngineMutex> guard(engineLock());
-        FPDF_DOCUMENT document = engine_->document;
+        auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());   // a queued revision first (D6-2)
         if (document == nullptr)
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
         FPDF_PAGE page = FPDF_LoadPage(document, part);
@@ -888,8 +1035,7 @@ core::Status PdfiumDocument::Opening::step()
         // HOST to do something -- pop a dialog, set a timer, move focus -- and a read-only
         // rasterizer answers none of them. Leaving them null is supported and is what makes this
         // an appearance-stream renderer rather than an interactive form layer.
-        self->engine_->info.version = 2;
-        self->engine_->form = FPDFDOC_InitFormFillEnvironment(self->engine_->document, &self->engine_->info);
+        self->engine_->initFormLocked();
 
         // A DOCUMENT WITH NO `/AcroForm` STILL GETS A HANDLE, and that is correct rather than
         // wasteful: PDFium returns one regardless, `FPDF_FFLDraw` on a page with no widgets draws

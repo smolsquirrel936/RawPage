@@ -23,6 +23,9 @@
 // `FPDF_LoadCustomDocument` with a read callback is the upgrade path and is deliberately not taken
 // here -- it trades a memory bound for a lifetime and threading problem that D2-9's measured
 // finding (I-05) makes worse, and Stage 2 has no page-level streaming to benefit from it yet.
+// **Stage 6 T4 takes it for one purpose only** -- the RELOAD after an edit (`show()`, D6-2), which
+// reads the original and the update as two buffers so the original is not copied per edit. The
+// first load is still `FPDF_LoadMemDocument64` over `bytes_`.
 //
 // -------------------------------------------------------------------------------------------
 // ENCRYPTION: TWO READERS, TWO DIFFERENT CORRECT ANSWERS (D2-6)
@@ -56,10 +59,12 @@
 #include <QString>
 
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -210,10 +215,54 @@ public:
     // PDFium holds a pointer into them.
     QByteArray bytes() const { return bytes_; }
 
+    // WHAT THE ENGINE DRAWS AFTER AN EDIT -- Stage 6 T4, decision **D6-2** (`Stage6-Annotations-Plan.md`
+    // §3), which ends Stage 3's D3-15 for everything a render parameter cannot express.
+    //
+    // `show(base, update)` says: from the next engine call on, draw `base` followed by `update` -- the
+    // newest revision on disk and the update the mutation sink composed over it, which are the bytes
+    // Save would write. It does NOT touch the engine: it queues, under a lock of its own, and returns.
+    // The swap happens on whichever thread next enters the engine for this document -- the render
+    // thread, in the product -- at the top of that call and UNDER THE ENGINE LOCK, which every engine
+    // call of this class, the rasterizer and the extractor holds for the whole of one job (load the
+    // page, use it, close it). So a swap is BETWEEN JOBS by construction: no job can hold a page of
+    // the document the swap closes. A newer `show` before the swap replaces the queued one, so a burst
+    // of edits costs one reload, not one each.
+    //
+    // **NO COPY OF THE ORIGINAL.** The new engine document is read through `FPDF_LoadCustomDocument`,
+    // whose callback reads across the two buffers; `base` is an implicitly shared `QByteArray`, so the
+    // engine holds a reference to the bytes the backend already holds, plus the update.
+    //
+    // **WHAT IS NOT RE-READ:** the page tree, the labels, the outline and the other readers above.
+    // No command of Stage 6 changes a page's size or the document's structure, and `pages()` must stay
+    // the tree a caller already holds a pointer to. A rotation the update carries is drawn right
+    // anyway: the rasterizer takes each page's `/Rotate` from the loaded page and corrects for its
+    // difference from `pages()`, which is what a request's unsaved-rotation delta is relative to.
+    //
+    // **A RELOAD THAT FAILS changes nothing**: the engine keeps the document it had and keeps drawing
+    // it, and the failure is counted and logged. `show(bytes(), {})` puts the document back on the
+    // bytes it opened, and is no work at all when it never left them.
+    void show(QByteArray base, QByteArray update);
+
+    // What the reloads have done, for the cases and the bench that grade D6-2 (guide A-37, A-38).
+    struct ReloadStats {
+        long long reloads = 0;                  // swaps made
+        long long failures = 0;                 // loads the engine refused; the previous document kept
+        long long coalesced = 0;                // queued revisions a newer `show` replaced before a swap
+        std::chrono::nanoseconds lastLoad{0};   // the last swap's load and form environment, under the lock
+        std::thread::id lastThread;             // the thread the last swap ran on
+        std::uint64_t pendingGeneration = 0;    // the newest `show`, 0 before any
+        std::uint64_t shownGeneration = 0;      // the newest swapped in (or found to need none)
+        const void* shownBase = nullptr;        // the data of the buffer the engine reads its original from
+    };
+    ReloadStats reloadStats() const;
+
     // The engine handle, as an opaque pointer, for `PdfiumRasterizer` alone. It is `void*` rather
     // than `FPDF_DOCUMENT` **so this header names no engine type**: `pdf/render/` may, but a header
     // that did would put `fpdf_*.h` into every translation unit that includes it, and the handle
     // rule `layer-lint` enforces is about names rather than about directories.
+    //
+    // **CALL IT WITH THE ENGINE LOCK HELD** (S6 T4): it swaps in a revision `show` queued before it
+    // answers -- D6-2's between-jobs swap, at the top of a job.
     void* engineHandle() const noexcept;
 
     // The form-fill environment, likewise opaque and likewise for `PdfiumRasterizer` alone. Null
@@ -230,7 +279,26 @@ private:
     PdfiumDocument();
 
     struct Engine;
-    std::unique_ptr<Engine> engine_;
+    // `mutable` since S6 T4: a const reader swaps a queued revision in before it reads (D6-2). It is
+    // the same document, at a newer revision, so the method stays logically const.
+    mutable std::unique_ptr<Engine> engine_;
+
+    // D6-2's queue and its record. `pending_` under `pendingMutex_` (written from the UI thread);
+    // `reloadStats_` and the swap itself under the engine lock.
+    struct Pending {
+        QByteArray base;
+        QByteArray update;
+        std::uint64_t generation = 0;
+    };
+    void adoptPendingLocked() const;
+    mutable std::mutex pendingMutex_;
+    mutable std::optional<Pending> pending_;
+    std::uint64_t nextGeneration_ = 0;           // under `pendingMutex_`
+    // What the engine draws now, under `pendingMutex_` (written at a swap, which holds the engine lock
+    // and takes this one inside it -- never the other order): a `show` of exactly this is no work.
+    mutable QByteArray shownBase_;
+    mutable QByteArray shownUpdate_;
+    mutable ReloadStats reloadStats_;
 
     QByteArray bytes_;      // PDFium points INTO this; it must outlive `engine_`
     QString path_;

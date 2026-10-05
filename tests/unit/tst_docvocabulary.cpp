@@ -19,11 +19,13 @@
 #include "core/doc/Revision.h"
 #include "core/doc/Scope.h"
 
+#include <string>
 #include <type_traits>
 #include <unordered_set>
 
 using rawpage::core::Revision;
 using rawpage::core::Scope;
+using rawpage::core::scopeAspectName;
 using rawpage::core::scopeKindName;
 
 // ==========================================================================================
@@ -162,4 +164,85 @@ TEST_CASE("doc scope kind names are stable and complete", "[core][doc]")
     for (int value = 0; value <= static_cast<int>(Scope::Kind::WholeDocument); ++value)
         CHECK(std::string(scopeKindName(static_cast<Scope::Kind>(value))) != "?");
     CHECK(std::string(scopeKindName(Scope::Kind::WholeDocument)) == "WholeDocument");
+}
+
+// Stage 6 T4 (D6-10, guide A-36's headless half): a page scope says WHAT of the pages changed.
+TEST_CASE("doc scope keeps text for an annotation-only scope and merges aspects outwards", "[core][doc][A-36]")
+{
+    const Scope annotations = Scope::annotationsOf({3, 1});
+    CHECK(annotations.kind() == Scope::Kind::Pages);
+    CHECK(annotations.aspect() == Scope::Aspect::Annotations);
+    CHECK(annotations.pageIndices() == std::vector<int>{1, 3});
+    // THE TILES GO, THE TEXT STAYS.
+    CHECK(annotations.touchesPage(3));
+    CHECK_FALSE(annotations.touchesText(3));
+    CHECK_FALSE(annotations.touchesPage(2));
+
+    // A content scope -- every Stage 3 scope -- drops both, and is the default.
+    const Scope content = Scope::page(3);
+    CHECK(content.aspect() == Scope::Aspect::Content);
+    CHECK(content.touchesText(3));
+    CHECK(Scope::wholeDocument().touchesText(7));
+    CHECK(Scope::objects({9}).touchesText(7));
+    CHECK_FALSE(Scope::nothing().touchesText(0));
+
+    // An empty set is still Nothing, whatever it was asked to be about.
+    CHECK(Scope::annotationsOf({}).isNothing());
+
+    // THE ASPECT IS PART OF EQUALITY: the same pages, two different claims.
+    CHECK(Scope::annotationsOf({3}) != Scope::page(3));
+
+    // Merging: annotations only when BOTH are -- a content change in either is a content change, which
+    // claims more, never less.
+    CHECK(annotations.merged(Scope::annotationsOf({5})).aspect() == Scope::Aspect::Annotations);
+    CHECK(annotations.merged(Scope::annotationsOf({5})).pageIndices() == std::vector<int>{1, 3, 5});
+    CHECK(annotations.merged(content).aspect() == Scope::Aspect::Content);
+    CHECK(content.merged(annotations).aspect() == Scope::Aspect::Content);
+    CHECK(annotations.merged(content).touchesText(1));
+    CHECK(annotations.merged(Scope::nothing()) == annotations);
+    CHECK(annotations.merged(Scope::wholeDocument()).touchesText(0));
+    CHECK(std::string(scopeAspectName(Scope::Aspect::Annotations)) == "Annotations");
+    CHECK(std::string(scopeAspectName(Scope::Aspect::Content)) == "Content");
+}
+
+// Stage 6 T4, the named work of A2 at Stage 6: an annotation scope may carry the RECTANGLES that changed.
+TEST_CASE("doc scope carries an annotation change's rectangles and drops them wherever a merge cannot keep them", "[core][doc][annotdisplay]")
+{
+    using rawpage::core::PdfPoint;
+    using rawpage::core::PdfRect;
+    using rawpage::core::PdfSize;
+    const PdfRect a{PdfPoint{10.0, 10.0}, PdfSize{20.0, 20.0}};
+    const PdfRect b{PdfPoint{100.0, 100.0}, PdfSize{5.0, 5.0}};
+
+    const Scope regions = Scope::annotationRegions({{4, a}, {2, b}, {4, b}});
+    CHECK(regions.aspect() == Scope::Aspect::Annotations);
+    CHECK(regions.pageIndices() == std::vector<int>{2, 4});
+    REQUIRE(regions.regionsOf(4) != nullptr);
+    CHECK(*regions.regionsOf(4) == std::vector<PdfRect>{a, b});
+    REQUIRE(regions.regionsOf(2) != nullptr);
+    CHECK(*regions.regionsOf(2) == std::vector<PdfRect>{b});
+    CHECK(regions.regionsOf(3) == nullptr);
+    CHECK_FALSE(regions.touchesText(4));
+    CHECK(Scope::annotationRegions({}).isNothing());
+
+    // Equality sees the rectangles: the same pages, two different claims.
+    CHECK(regions != Scope::annotationsOf({2, 4}));
+
+    // MERGING. Rectangles on both sides of a page join; a page only one side names keeps that side's.
+    const Scope more = Scope::annotationRegions({{4, b}, {7, a}});
+    const Scope both = regions.merged(more);
+    CHECK(both.pageIndices() == std::vector<int>{2, 4, 7});
+    REQUIRE(both.regionsOf(4) != nullptr);
+    CHECK(both.regionsOf(4)->size() == 3);
+    REQUIRE(both.regionsOf(7) != nullptr);
+    CHECK(*both.regionsOf(7) == std::vector<PdfRect>{a});
+    // A page WHOLE on either side is whole -- in either order.
+    CHECK(regions.merged(Scope::annotationsOf({4})).regionsOf(4) == nullptr);
+    CHECK(Scope::annotationsOf({4}).merged(regions).regionsOf(4) == nullptr);
+    CHECK(regions.merged(Scope::annotationsOf({4})).regionsOf(2) != nullptr);
+    // A content change is content, rectangles gone.
+    const Scope content = regions.merged(Scope::page(9));
+    CHECK(content.aspect() == Scope::Aspect::Content);
+    CHECK(content.regionsOf(4) == nullptr);
+    CHECK(regions.merged(Scope::nothing()) == regions);
 }

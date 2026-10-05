@@ -55,6 +55,10 @@
 // **PHASE 6, `--stage5`** (Stage 5 T3, D5-22) is A2 AT STAGE 5: the viewport while text extraction
 // shares this pipeline's one engine thread -- see the phase's own header, below phase 5.
 //
+// **PHASE 7, `--stage6`** (Stage 6 T4, D6-24) is A2 AT STAGE 6: the viewport while annotation commands
+// make the engine RELOAD the composed revision (D6-2), and how long an edit takes to reach the pixels --
+// see the phase's own header, below phase 6.
+//
 // **O7** -- is the render cache's disk tier shared between documents or per-document? D2-14 says
 // that is answered by MEASUREMENT over the corpus rather than by preference, and `CacheStats` plus
 // `crossDocumentEvictions()` exist in `RenderCache` for it (T11) rather than being bolted on here.
@@ -109,6 +113,10 @@
 #include "app/BackendRasterizer.h"
 #include "app/BackendTextExtractor.h"
 #include "core/backend.h"
+#include "core/cmd/CommandJournal.h"
+#include "core/cmd/commands/AnnotationCommands.h"
+#include "core/doc/Annotation.h"
+#include "core/doc/Document.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Revision.h"
 #include "core/render/DiskTileStore.h"
@@ -122,6 +130,7 @@
 #include "core/text/PageTextModel.h"
 #include "core/text/SearchEngine.h"
 #include "pdf/BackendFactory.h"
+#include "pdf/DocumentBackendImpl.h"
 #include "pdf/render/PdfiumInit.h"
 
 #include <QCoreApplication>
@@ -1382,6 +1391,420 @@ int runStage5Workload(core::IDocumentBackend& backend, const OpenFn& open, const
     return 0;
 }
 
+
+// =============================================================================================
+// PHASE 7 -- A2 AT STAGE 6 (Stage 6 T4, D6-24), `--stage6`
+// =============================================================================================
+//
+// D6-2 makes every annotation command RELOAD the engine: the journal's show step composes the update
+// Save would write, verifies it as Save does (on the UI thread, inside `CommandJournal::run`), and the
+// next engine call swaps `original ⧺ update` in through `FPDF_LoadCustomDocument`. So two costs land on
+// the pipeline that Stages 2 to 5 never had: the compose-and-verify on the thread that also pumps the
+// tiles, and the reload on the one engine thread. This phase measures both against the scale
+// `Stage6-Annotations-Testing-Guide.md` §3.1 fixed before it ran.
+//
+// THE WORKLOAD, per file: for `g_stage6Seconds` (30 by default -- §3.1's figure), ONE `AddAnnotation`
+// every 100 ms on the scope page, and half a period later a SCROLL -- the visible tiles of a 1920x1080
+// viewport over another page, at A2's configuration, at `Visible`. After each edit the scope page's own
+// viewport is asked for again at `Visible`, as the page view showing it would.
+//
+//   * THE VIEWPORT -- enqueue to delivery of the scroll's tiles: D2-1's quantity, comparable with every
+//     earlier stage's. A column with no edits ("viewer") is run first over the same file, so the two
+//     subtract.
+//   * EDIT-TO-PIXELS -- from `CommandJournal::run` RETURNING to the delivery of the first tile of the
+//     scope page that covers the new annotation, at the edit's revision or later, WITH ITS PIXELS
+//     CHANGED from that tile's previous delivery (rule 1: a tile that arrived unchanged is counted and is
+//     not a sample of anything).
+//   * `run` (the journal's whole call, compose and verify inside it), compose and verify alone, and the
+//     reload under the engine lock -- reported, not graded.
+//
+// **A DEVIATION FROM §3.1, STATED WHERE IT IS MADE:** §3.1's annotation is an ink stroke of 200 samples;
+// the sink writes Highlight alone until T8, so each edit here is a HIGHLIGHT OF 50 QUADRILATERALS -- 400
+// coordinates, as 200 ink samples are -- in its own 24 x 18 pt cell of a 20 x 15 grid over the scope
+// page's top-left 480 x 270 pt, which is what the viewport shows at A2's 4 px/pt. Each edit therefore
+// lands on paper no earlier edit covered, so its pixels change. The annotations ACCUMULATE: by the end
+// of 30 s the page carries 300 and the update every compose writes holds them all, which is the honest
+// shape of a burst. **The path-geometry time (D6-14) is not reported: `pageGeometry` is T12's.**
+//
+// The page geometry assumes the scope page is unrotated with its crop box at the media box's corner,
+// which `pages-900.pdf`, `text-900.pdf` and `objstm-xrefstream.pdf` are; the bench prints which page
+// and box it used.
+
+int g_stage6Seconds = 30;
+constexpr int kStage6PeriodMs = 100;
+constexpr int kStage6ViewerSeconds = 10;
+constexpr int kStage6GridColumns = 20;
+constexpr int kStage6GridRows = 15;
+constexpr double kStage6CellWidth = 24.0;
+constexpr double kStage6CellHeight = 18.0;
+constexpr int kStage6Quads = 50;
+
+struct Stage6Outcome {
+    std::vector<double> viewport;
+    std::vector<double> editToPixels;
+    std::vector<double> runMs;
+    std::vector<double> composeMs;
+    std::vector<double> verifyMs;
+    std::vector<double> reloadMs;
+    long long edits = 0;
+    long long editsRefused = 0;
+    long long editsUnseen = 0;        // an edit whose scope tile never arrived changed
+    long long tilesUnchanged = 0;     // a scope tile delivered covering an edit, with the same pixels as before
+    long long reloads = 0;
+    long long coalesced = 0;
+    long long reloadFailures = 0;
+    double wallMs = 0.0;
+    int scrolls = 0;
+    core::render::RenderScheduler::Stats schedulerStats;
+    // WHERE EACH VIEWPORT TILE'S WAIT WENT (phase 6's account): queued until the worker took it; in the
+    // engine; finished until the pump delivered it. A long first leg is the engine thread busy -- the
+    // scope page's re-render, the reload -- and a long last leg is the PUMP not running: the UI thread
+    // inside `journal.run`, composing and verifying.
+    std::vector<double> queuedLeg, engineLeg, pumpLeg;
+    double scopeEngineMs = 0.0;    // worker time on the scope page's tiles
+    double scrollEngineMs = 0.0;   // worker time on the scroll's tiles
+    std::vector<double> scopeTileMs;   // one scope-page tile in the engine, each
+    long long reRequested = 0;     // viewport tiles waiting when an edit landed, asked again
+};
+
+core::Annotation stage6Highlight(int page, const core::Page& info, int index)
+{
+    const core::PdfRect crop = info.cropBox();
+    const int cell = index % (kStage6GridColumns * kStage6GridRows);
+    const double left = crop.left() + 6.0 + (cell % kStage6GridColumns) * kStage6CellWidth;
+    const double top = crop.top() - 6.0 - (cell / kStage6GridColumns) * kStage6CellHeight;
+    const double width = kStage6CellWidth - 4.0;
+    const double band = (kStage6CellHeight - 4.0) / kStage6Quads;
+    core::Annotation a = core::newAnnotation(core::AnnotationSubtype::Highlight, page, QStringLiteral("A2 Stage 6"),
+                                             1791504000 + index);
+    for (int q = 0; q < kStage6Quads; ++q) {
+        const double y0 = top - q * band;
+        const double y1 = y0 - band * 0.8;
+        a.quadPoints.insert(a.quadPoints.end(), {left, y0, left + width, y0, left, y1, left + width, y1});
+    }
+    a.rect = *core::boundsOfPoints(a.quadPoints);
+    a.color = {1.0, 0.85, 0.0};
+    a.opacity = 0.6;
+    return a;
+}
+
+Stage6Outcome runStage6Column(const QString& relative, int scopePage, const Resolution& view, bool edits,
+                              int seconds)
+{
+    Stage6Outcome outcome;
+    pdf::DocumentBackendImpl backend;
+    const core::Result<core::DocumentHandle> opened =
+        backend.open(QDir(QStringLiteral(RAWPAGE_CORPUS_DIR)).filePath(relative), core::PasswordCallback{});
+    if (!opened) return outcome;
+    const core::DocumentHandle handle = opened.value();
+    const core::PageTree* pages = backend.pages(handle);
+    core::Document document;
+    if (pages == nullptr || backend.mutationSink(handle) == nullptr || !document.hydrate(backend, handle)) {
+        backend.close(handle);
+        return outcome;
+    }
+    core::CommandJournal journal(std::move(document), backend.mutationSink(handle));
+    // THE PRODUCT'S SHOW STEP, as `ui/shell/DocumentWindow` sets it.
+    journal.setShowHandler([&](const core::Scope&) { return backend.showEdits(handle, {}); });
+
+    ServiceLog log;
+    {
+        core::render::RenderCache cache;
+        core::render::RenderScheduler scheduler(
+            [&]() -> std::unique_ptr<core::IPageRasterizer> { return std::make_unique<TimingRasterizer>(backend, log); },
+            &cache);
+        // Filled below; the mutated handler needs it, so it is declared before the subscription.
+        std::map<std::string, std::pair<Clock::time_point, RenderRequest>> awaitingViewport;
+        journal.subscribeMutated([&](const core::Scope& scope) {
+            scheduler.documentChanged(handle, scope, journal.revision(), backend.pages(handle));
+            // THE VIEWS ASK AGAIN (`PageView::modelChanged`): the page view re-requests what it shows at the new
+            // revision. So does this, keeping the time each was FIRST asked for, because the person has been
+            // waiting since. A tile the scheduler kept (re-keyed, S6 T4) is joined rather than queued twice; one
+            // the edit reached was cancelled, and is queued again.
+            for (auto& [key, waiting] : awaitingViewport) {
+                (void)key;
+                waiting.second.revision = journal.revision();
+                scheduler.enqueue(waiting.second, RenderPriority::Visible);
+                ++outcome.reRequested;
+            }
+        });
+
+        const TileGrid grid;
+        const double scale = view.rasterScale();
+        const core::Page* scopeInfo = pages->at(scopePage);
+
+        struct PendingEdit {
+            core::Revision revision;
+            Clock::time_point returned;
+            TileRect device;   // the annotation's rectangle in the page's device pixels
+        };
+        std::deque<PendingEdit> pendingEdits;
+        std::map<std::string, Clock::time_point> viewportSent;
+        std::map<std::string, Clock::time_point> viewportDelivered;
+        std::map<std::string, QByteArray> lastScopePixels;
+        long long reloadsSeen = 0;
+
+        const auto intersects = [](const TileRect& a, const TileRect& b) {
+            return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+        };
+        const auto takeReload = [&] {
+            const auto record = backend.reloadRecord(handle);
+            if (record && record->reloads > reloadsSeen) {
+                reloadsSeen = record->reloads;
+                outcome.reloadMs.push_back(std::chrono::duration<double, std::milli>(record->lastLoad).count());
+            }
+        };
+
+        const core::render::RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
+            [&](const RenderRequest& request, const core::RasterImage& image) {
+                const std::string key = scaledTileKey(request);
+                if (const auto at = awaitingViewport.find(key); at != awaitingViewport.end()) {
+                    outcome.viewport.push_back(latencySince(at->second.first));
+                    viewportDelivered[key] = Clock::now();
+                    awaitingViewport.erase(at);
+                }
+                if (request.document != handle || request.pageIndex != scopePage) return;
+                const auto previous = lastScopePixels.find(key);
+                const bool changed = previous == lastScopePixels.end() || previous->second != image.pixels;
+                lastScopePixels[key] = image.pixels;
+                bool covers = false;
+                for (const PendingEdit& edit : pendingEdits)
+                    if (request.revision.value() >= edit.revision.value() && intersects(request.tile, edit.device)) covers = true;
+                if (!covers) return;
+                if (!changed) {
+                    ++outcome.tilesUnchanged;
+                    return;
+                }
+                takeReload();
+                const Clock::time_point now = Clock::now();
+                for (auto it = pendingEdits.begin(); it != pendingEdits.end();) {
+                    if (request.revision.value() >= it->revision.value() && intersects(request.tile, it->device)) {
+                        outcome.editToPixels.push_back(std::chrono::duration<double, std::milli>(now - it->returned).count());
+                        it = pendingEdits.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            });
+
+        const auto enqueueViewport = [&](int page, bool sample) {
+            const core::Page* info = pages->at(page);
+            const TileRect bounds = TileGrid::pageBounds(*info, view);
+            TileRect viewport = bounds;
+            viewport.width = std::min(bounds.width, kViewportWidth);
+            viewport.height = std::min(bounds.height, kViewportHeight);
+            for (const TileRect& tile : grid.tilesFor(*info, view, viewport).visible) {
+                RenderRequest request = requestFor(handle, page, tile, view.dpi);
+                request.revision = journal.revision();
+                if (sample) awaitingViewport[scaledTileKey(request)] = {Clock::now(), request};
+                scheduler.enqueue(request, RenderPriority::Visible);
+                if (sample) viewportSent[scaledTileKey(request)] = Clock::now();
+            }
+        };
+
+        const Clock::time_point start = Clock::now();
+        Clock::time_point nextEdit = start;
+        Clock::time_point nextScroll = start + std::chrono::milliseconds(kStage6PeriodMs / 2);
+        const auto end = start + std::chrono::seconds(seconds);
+        int scroll = 0;
+        enqueueViewport(scopePage, false);
+        while (Clock::now() < end) {
+            if (Clock::now() >= nextScroll) {
+                // Another page, never the scope page: the scroll measures the viewport.
+                int page = (scroll * 7 + 1) % pages->count();
+                if (page == scopePage) page = (page + 1) % pages->count();
+                enqueueViewport(page, true);
+                ++scroll;
+                nextScroll += std::chrono::milliseconds(kStage6PeriodMs);
+            }
+            if (edits && Clock::now() >= nextEdit) {
+                const core::Annotation added = stage6Highlight(scopePage, *scopeInfo, static_cast<int>(outcome.edits));
+                const Clock::time_point began = Clock::now();
+                const core::Status ran = journal.run(
+                    std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{added}));
+                const Clock::time_point returned = Clock::now();
+                ++outcome.edits;
+                outcome.runMs.push_back(std::chrono::duration<double, std::milli>(returned - began).count());
+                if (!ran) {
+                    ++outcome.editsRefused;
+                } else {
+                    if (const auto record = backend.reloadRecord(handle)) {
+                        outcome.composeMs.push_back(std::chrono::duration<double, std::milli>(record->lastCompose).count());
+                        outcome.verifyMs.push_back(std::chrono::duration<double, std::milli>(record->lastVerify).count());
+                    }
+                    const core::PdfRect crop = scopeInfo->cropBox();
+                    TileRect device;
+                    device.x = static_cast<int>((added.rect.left() - crop.left()) * scale);
+                    device.y = static_cast<int>((crop.top() - added.rect.top()) * scale);
+                    device.width = std::max(1, static_cast<int>(added.rect.size.width * scale));
+                    device.height = std::max(1, static_cast<int>(added.rect.size.height * scale));
+                    pendingEdits.push_back(PendingEdit{journal.revision(), returned, device});
+                    enqueueViewport(scopePage, false);
+                }
+                nextEdit += std::chrono::milliseconds(kStage6PeriodMs);
+            }
+            scheduler.deliverReady();
+            std::this_thread::yield();
+        }
+        // Drain: what was asked is delivered before the counts are taken.
+        for (int i = 0; i < 2000 && (scheduler.pendingCount() > 0 || scheduler.runningCount() > 0); ++i) {
+            scheduler.deliverReady();
+            scheduler.waitForIdle(5);
+        }
+        scheduler.deliverReady();
+        takeReload();
+        outcome.wallMs = millisSince(start);
+        outcome.scrolls = scroll;
+        outcome.editsUnseen = static_cast<long long>(pendingEdits.size());
+        scheduler.unsubscribeReady(token);
+        outcome.schedulerStats = scheduler.stats();
+        if (const auto record = backend.reloadRecord(handle)) {
+            outcome.reloads = record->reloads;
+            outcome.coalesced = record->coalesced;
+            outcome.reloadFailures = record->failures;
+        }
+        scheduler.cancelDocument(handle);
+        scheduler.waitForIdle(30000);
+
+        // --- what the worker did -------------------------------------------------------------
+        const std::string scopeMark = "/" + std::to_string(scopePage) + "/";
+        const std::lock_guard<std::mutex> lock(log.mutex);
+        for (const ServiceLog::Entry& entry : log.entries) {
+            const bool scope = entry.key.find(scopeMark) != std::string::npos;
+            (scope ? outcome.scopeEngineMs : outcome.scrollEngineMs) += entry.ms;
+            if (scope) outcome.scopeTileMs.push_back(entry.ms);
+            const auto sent = viewportSent.find(entry.key);
+            const auto delivered = viewportDelivered.find(entry.key);
+            if (scope || sent == viewportSent.end() || delivered == viewportDelivered.end()) continue;
+            if (entry.start < sent->second || delivered->second < entry.start) continue;
+            const double queued = std::chrono::duration<double, std::milli>(entry.start - sent->second).count();
+            const double total = std::chrono::duration<double, std::milli>(delivered->second - sent->second).count();
+            outcome.queuedLeg.push_back(queued);
+            outcome.engineLeg.push_back(entry.ms);
+            outcome.pumpLeg.push_back(total - queued - entry.ms);
+        }
+    }
+    backend.close(handle);
+    return outcome;
+}
+
+void reportDistribution(const char* label, const std::vector<double>& samples)
+{
+    if (samples.empty()) {
+        std::printf("      %-16s no samples\n", label);
+        return;
+    }
+    // Into locals first (I-29).
+    const double p50 = percentile(samples, 0.50);
+    const double p95 = percentile(samples, 0.95);
+    const double max = percentile(samples, 1.00);
+    std::printf("      %-16s %5zu   p50 %8.3f  p95 %8.3f  max %8.3f ms\n", label, samples.size(), p50, p95, max);
+}
+
+int runStage6Workload(const Resolution& a2)
+{
+    const Resolution view = resolutionAt(a2.dpi);
+    std::printf("\n  phase 7 -- STAGE 6's WORKLOAD (D6-24): the viewport while annotation commands reload the"
+                " engine (D6-2)\n");
+    std::printf("    viewport      at A2's configuration -> %.1f dpi, %.3f px/pt, %dx%d, at Visible\n",
+                view.dpi, view.rasterScale(), kViewportWidth, kViewportHeight);
+    std::printf("    edits         one AddAnnotation every %d ms for %d s: a highlight of %d quadrilaterals"
+                " (400 coordinates, for a 200-sample ink stroke -- the sink writes Highlight alone until T8),"
+                " each in a fresh %.0fx%.0f pt cell;\n                  a scroll to another page half a period"
+                " later; the scope page's viewport asked again after each edit\n",
+                kStage6PeriodMs, g_stage6Seconds, kStage6Quads, kStage6CellWidth, kStage6CellHeight);
+    std::printf("    not reported  the path-geometry time (D6-14): `pageGeometry` is Stage 6 T12's\n");
+    std::printf("    re-requests   after each edit the scroll's waiting tiles are asked again at the new revision, timed"
+                " from when they were FIRST asked, as `PageView::modelChanged` asks again\n");
+
+    struct File {
+        const char* relative;
+        int scopePage;   // 0-based; the guide's page 450 where the file has one
+    };
+    const File files[] = {{"ordinary/pages-900.pdf", 449}, {"ordinary/text-900.pdf", 449},
+                          {"ordinary/objstm-xrefstream.pdf", 0}};
+    struct Verdict {
+        const char* file;
+        double viewerP95, editsP95, toPixelsP95, toPixelsMax;
+        long long missing;
+    };
+    std::vector<Verdict> verdicts;
+    for (const File& file : files) {
+        {
+            pdf::DocumentBackendImpl probe;
+            const auto opened = probe.open(
+                QDir(QStringLiteral(RAWPAGE_CORPUS_DIR)).filePath(QString::fromLatin1(file.relative)), core::PasswordCallback{});
+            if (!opened) {
+                std::fprintf(stderr, "A2 at Stage 6: %s would not open -- no measurement\n", file.relative);
+                return 1;
+            }
+            const core::Page* info = probe.pages(opened.value())->at(file.scopePage);
+            std::printf("\n    %s, %d pages -- edits on page %d, crop box %.0fx%.0f pt at (%.0f, %.0f), /Rotate %d\n",
+                        file.relative, probe.pages(opened.value())->count(), file.scopePage + 1,
+                        info->cropBox().size.width, info->cropBox().size.height, info->cropBox().left(),
+                        info->cropBox().bottom(), static_cast<int>(info->rotation()));
+            probe.close(opened.value());
+        }
+
+        const Stage6Outcome viewer = runStage6Column(QString::fromLatin1(file.relative), file.scopePage, view, false,
+                                                     std::min(kStage6ViewerSeconds, g_stage6Seconds));
+        const Stage6Outcome edited = runStage6Column(QString::fromLatin1(file.relative), file.scopePage, view, true,
+                                                     g_stage6Seconds);
+        if (viewer.viewport.empty() || edited.viewport.empty() || edited.edits == 0) {
+            std::fprintf(stderr, "A2 at Stage 6: %s delivered no viewport tile or made no edit -- no measurement\n",
+                         file.relative);
+            return 1;
+        }
+        report("viewer VIEWPORT", viewer.viewport, viewer.wallMs);
+        report("+ edits VIEWPORT", edited.viewport, edited.wallMs);
+        reportDistribution("edit->pixels", edited.editToPixels);
+        reportDistribution("journal.run", edited.runMs);
+        reportDistribution("compose+verify", edited.composeMs);
+        reportDistribution("  the verify", edited.verifyMs);
+        reportDistribution("reload", edited.reloadMs);
+        std::printf("      edits %lld (%lld refused, %lld never seen changed), %d scrolls; reloads %lld, coalesced"
+                    " %lld, failed %lld; scope tiles delivered over an edit unchanged %lld\n",
+                    edited.edits, edited.editsRefused, edited.editsUnseen, edited.scrolls, edited.reloads,
+                    edited.coalesced, edited.reloadFailures, edited.tilesUnchanged);
+        reportDistribution("viewport queued", edited.queuedLeg);
+        reportDistribution("  in the engine", edited.engineLeg);
+        reportDistribution("  before pump", edited.pumpLeg);
+        reportDistribution("viewer queued", viewer.queuedLeg);
+        reportDistribution("  in the engine", viewer.engineLeg);
+        reportDistribution("  before pump", viewer.pumpLeg);
+        reportDistribution("scope tile", edited.scopeTileMs);
+        std::printf("      worker     %.0f ms on the scope page's tiles, %.0f ms on the scroll's, over %.0f ms;"
+                    " %lld viewport tiles waiting when an edit landed were asked again\n",
+                    edited.scopeEngineMs, edited.scrollEngineMs, edited.wallMs, edited.reRequested);
+        std::printf("      scheduler  enqueued %lld   started %lld   from cache %lld   droppedSuperseded %lld"
+                    "   cancelledBeforeStart %lld   failed %lld\n",
+                    edited.schedulerStats.enqueued, edited.schedulerStats.started,
+                    edited.schedulerStats.servedFromCache, edited.schedulerStats.droppedSuperseded,
+                    edited.schedulerStats.cancelledBeforeStart, edited.schedulerStats.failed);
+        const double viewerP95 = percentile(viewer.viewport, 0.95);
+        const double editsP95 = percentile(edited.viewport, 0.95);
+        const double toPixelsP95 = percentile(edited.editToPixels, 0.95);
+        const double toPixelsMax = percentile(edited.editToPixels, 1.00);
+        verdicts.push_back(Verdict{file.relative, viewerP95, editsP95, toPixelsP95, toPixelsMax,
+                                   edited.editsUnseen + edited.editsRefused});
+    }
+
+    std::printf("\n    AGAINST Stage6-Annotations-Testing-Guide.md 3.1 -- viewport p95 inside %.3f ms; edit->pixels"
+                " p95 <= 100 ms and max <= 250 ms:\n", kFrameBudgetMs);
+    for (const Verdict& v : verdicts) {
+        std::printf("      %-32s viewport p95 %7.3f (viewer alone %7.3f) %-7s  edit->pixels p95 %7.3f %-7s"
+                    " max %7.3f %-7s%s\n",
+                    v.file, v.editsP95, v.viewerP95, v.editsP95 < kFrameBudgetMs ? "inside" : "OUTSIDE",
+                    v.toPixelsP95, v.toPixelsP95 <= 100.0 ? "inside" : "OUTSIDE", v.toPixelsMax,
+                    v.toPixelsMax <= 250.0 ? "inside" : "OUTSIDE",
+                    v.missing > 0 ? "   -- SOME EDITS NEVER REACHED THE PIXELS" : "");
+    }
+    std::printf("\n    Grade on the guide's 3.1 and record it in Tech-Stack-Plan.md 3.3, LABELLED as Stage 6's"
+                " workload. This bench never fails on speed: its exit code is about whether the measurement was"
+                " possible.\n\n");
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1396,6 +1819,7 @@ int main(int argc, char** argv)
     bool wholePage = false;
     bool stage4 = false;
     bool stage5 = false;
+    bool stage6 = false;
     const QStringList arguments = QCoreApplication::arguments();
     for (int at = 1; at < arguments.size(); ++at) {
         if (arguments.at(at) == QLatin1String("--whole-page")) {
@@ -1408,6 +1832,16 @@ int main(int argc, char** argv)
         }
         if (arguments.at(at) == QLatin1String("--stage5")) {
             stage5 = true;
+            continue;
+        }
+        if (arguments.at(at) == QLatin1String("--stage6")) {
+            stage6 = true;
+            continue;
+        }
+        // `--seconds N`: phase 7's edit columns run N seconds instead of the guide's 30 (CTest's short run).
+        if (arguments.at(at) == QLatin1String("--seconds") && at + 1 < arguments.size()) {
+            const int value = arguments.at(++at).toInt();
+            if (value > 0) g_stage6Seconds = value;
             continue;
         }
         if (arguments.at(at) == QLatin1String("--dead-instrument")) {
@@ -1548,6 +1982,11 @@ int main(int argc, char** argv)
             // Stage 5 T3 (D5-22). Phase 0 has run, for phase 5's reason; the rest is phase 6.
             backend->close(document->handle);
             return runStage5Workload(*backend, open, a2);
+        }
+        if (stage6) {
+            // Stage 6 T4 (D6-24). Phase 0 has run; the rest is phase 7, on a backend of its own per column.
+            backend->close(document->handle);
+            return runStage6Workload(a2);
         }
 
         std::printf("\n  phase 1 -- A2's configuration, the probe's subject\n");

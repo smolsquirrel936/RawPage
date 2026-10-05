@@ -9,6 +9,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/doc/PageTree.h"
 #include "core/doc/Scope.h"
 #include "core/render/DiskTileStore.h"
 #include "core/render/RenderCache.h"
@@ -370,4 +371,133 @@ TEST_CASE("two view rotations of one tile are different cache entries", "[core][
     // THE ROTATED VIEW MISSES, which is the whole point.
     CHECK_FALSE(cache.lookup(turned).has_value());
     CHECK(cache.entryCount() == 1);
+}
+
+// ==========================================================================================
+// Stage 6 T4 -- the named work of A2 at Stage 6: an annotation's RECTANGLE drops only the tiles it reaches
+// ==========================================================================================
+
+namespace {
+
+using rawpage::core::PageRotation;
+using rawpage::core::PdfPoint;
+using rawpage::core::PdfRect;
+using rawpage::core::PdfSize;
+using rawpage::core::render::tileTouchedBy;
+
+// One page, 600 x 800 pt, its crop box at `cropAt`, at `rotation` -- an engine tree of one page.
+rawpage::core::PageTree treeOf(PageRotation rotation, PdfPoint cropAt = PdfPoint{0.0, 0.0})
+{
+    rawpage::core::Page page(0, PdfRect{cropAt, PdfSize{600.0, 800.0}});
+    page.setRotation(static_cast<int>(rotation));
+    return rawpage::core::PageTree(std::vector<rawpage::core::Page>{page});
+}
+
+RenderRequest tileAt(int x, int y, PageRotation view = PageRotation::None, PageRotation delta = PageRotation::None)
+{
+    RenderRequest request;
+    request.document = kDocA;
+    request.pageIndex = 0;
+    request.tile = TileRect{x, y, 256, 256};
+    request.deviceScale = 1.0;
+    request.revision = Revision::initial();
+    request.viewRotation = view;
+    request.pageRotationDelta = delta;
+    return request;
+}
+
+// A rectangle at the page's top-left: x 10..50, y 750..790 in page space.
+Scope topLeftRegion(PdfPoint cropAt = PdfPoint{0.0, 0.0})
+{
+    return Scope::annotationRegions({{0, PdfRect{PdfPoint{cropAt.x + 10.0, cropAt.y + 750.0}, PdfSize{40.0, 40.0}}}});
+}
+
+} // namespace
+
+TEST_CASE("an annotation rectangle reaches only the tiles it is drawn in at every rotation", "[core][render][annotdisplay]")
+{
+    const Scope region = topLeftRegion();
+
+    // UPRIGHT: device x 10..50, y 10..50 -- the first tile, and no other.
+    const rawpage::core::PageTree upright = treeOf(PageRotation::None);
+    CHECK(tileTouchedBy(tileAt(0, 0), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(256, 0), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 256), kDocA, region, &upright));
+
+    // TURNED 90 BY THE VIEW: the page's top-left is the display's top-right -- x 750..790, y 10..50.
+    CHECK(tileTouchedBy(tileAt(512, 0, PageRotation::Clockwise90), kDocA, region, &upright));
+    CHECK(tileTouchedBy(tileAt(768, 0, PageRotation::Clockwise90), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0, PageRotation::Clockwise90), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(512, 256, PageRotation::Clockwise90), kDocA, region, &upright));
+
+    // THE SAME TURN BY THE PAGE'S OWN /Rotate, and by an unsaved delta: one placement, whichever adds it.
+    const rawpage::core::PageTree turned = treeOf(PageRotation::Clockwise90);
+    CHECK(tileTouchedBy(tileAt(512, 0), kDocA, region, &turned));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0), kDocA, region, &turned));
+    CHECK(tileTouchedBy(tileAt(512, 0, PageRotation::None, PageRotation::Clockwise90), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0, PageRotation::None, PageRotation::Clockwise90), kDocA, region, &upright));
+
+    // HALF A TURN: the bottom-right -- x 550..590, y 750..790.
+    CHECK(tileTouchedBy(tileAt(512, 512, PageRotation::Half), kDocA, region, &upright));
+    CHECK(tileTouchedBy(tileAt(512, 768, PageRotation::Half), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0, PageRotation::Half), kDocA, region, &upright));
+
+    // THREE QUARTERS: the bottom-left -- x 10..50, y 550..590.
+    CHECK(tileTouchedBy(tileAt(0, 512, PageRotation::Clockwise270), kDocA, region, &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0, PageRotation::Clockwise270), kDocA, region, &upright));
+
+    // A CROP BOX AWAY FROM THE ORIGIN: the rectangle is placed relative to it.
+    const rawpage::core::PageTree offset = treeOf(PageRotation::None, PdfPoint{100.0, 200.0});
+    CHECK(tileTouchedBy(tileAt(0, 0), kDocA, topLeftRegion(PdfPoint{100.0, 200.0}), &offset));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0), kDocA, region, &offset));   // x 10..50 is left of that crop
+
+    // THE PAD: two device pixels either side. x 10..50 reaches a tile starting at 51, not one at 53.
+    RenderRequest edge = tileAt(51, 0);
+    CHECK(tileTouchedBy(edge, kDocA, region, &upright));
+    edge.tile.x = 53;
+    CHECK_FALSE(tileTouchedBy(edge, kDocA, region, &upright));
+
+    // THE SCALE: at 2 px/pt the rectangle is x 20..100, so the tile at 256 is still clear and the one at
+    // 64 is not.
+    RenderRequest scaled = tileAt(64, 0);
+    scaled.deviceScale = 2.0;
+    scaled.tile.width = 64;
+    CHECK(tileTouchedBy(scaled, kDocA, region, &upright));
+    scaled.tile.x = 256;
+    CHECK_FALSE(tileTouchedBy(scaled, kDocA, region, &upright));
+
+    // EVERY DOUBT IS A YES: no tree, a page the tree lacks, a whole-page scope -- and the other answers.
+    CHECK(tileTouchedBy(tileAt(256, 256), kDocA, region, nullptr));
+    RenderRequest elsewhere = tileAt(256, 256);
+    elsewhere.pageIndex = 0;
+    const rawpage::core::PageTree empty;
+    CHECK(tileTouchedBy(elsewhere, kDocA, region, &empty));
+    CHECK(tileTouchedBy(tileAt(256, 256), kDocA, Scope::annotationsOf({0}), &upright));
+    CHECK(tileTouchedBy(tileAt(256, 256), kDocA, Scope::page(0), &upright));
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0), kDocB, region, &upright));                      // another document
+    CHECK_FALSE(tileTouchedBy(tileAt(0, 0), kDocA, Scope::annotationRegions({{1, PdfRect{}}}), &upright));   // another page
+}
+
+TEST_CASE("render cache drops only the tiles an annotation rectangle reaches and re-keys the rest", "[core][render][annotdisplay]")
+{
+    RenderCache cache;
+    const Revision r1 = Revision::initial();
+    const Revision r2 = r1.next();
+    const rawpage::core::PageTree upright = treeOf(PageRotation::None);
+    // requestFor's tiles: 64 px wide at 2 px/pt, along the top -- x 0, 64, 128, 192.
+    for (int x : {0, 64, 128, 192}) cache.put(requestFor(kDocA, 0, x, r1), tileOf(kTileBytes, static_cast<char>('a' + x / 64)));
+    // x 40..70 pt is device x 80..140: the tiles at 64 and 128 only (with the pad, 78..142).
+    const Scope region = Scope::annotationRegions({{0, PdfRect{PdfPoint{40.0, 780.0}, PdfSize{30.0, 10.0}}}});
+    cache.invalidate(kDocA, region, r2, &upright);
+    CHECK(cache.lookup(requestFor(kDocA, 0, 0, r2)).has_value());
+    CHECK_FALSE(cache.lookup(requestFor(kDocA, 0, 64, r2)).has_value());
+    CHECK_FALSE(cache.lookup(requestFor(kDocA, 0, 128, r2)).has_value());
+    CHECK(cache.lookup(requestFor(kDocA, 0, 192, r2)).has_value());
+    CHECK(cache.stats().invalidatedEntries == 2);
+
+    // THE CONTROL: the same scope with no tree to place it drops the whole page.
+    RenderCache blind;
+    for (int x : {0, 64, 128, 192}) blind.put(requestFor(kDocA, 0, x, r1), tileOf(kTileBytes));
+    blind.invalidate(kDocA, region, r2, nullptr);
+    CHECK(blind.entryCount() == 0);
 }

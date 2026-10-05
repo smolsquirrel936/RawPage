@@ -94,6 +94,16 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
                      QLatin1String(command->typeId())};
     }
 
+    // 2b. Shown, or not done (S6 T4, D6-2): a refusal reverts the command and leaves no trace.
+    if (showHandler_) {
+        const Status shown = showHandler_(command->scope());
+        if (!shown) {
+            if (!command->revert(document_, *sink_) || document_.modelHash() != before)
+                reportPartialApplication(*command);
+            return shown;
+        }
+    }
+
     // 3. Record it: into the open group's step, or as a new step that throws away redo.
     const bool wasDirty = isDirty();
     const Scope scope = command->scope();
@@ -176,6 +186,12 @@ bool CommandJournal::undo()
     Step& step = history_[position_ - 1];
     if (!revertStep(step))
         return false;
+    if (showHandler_ && !showHandler_(scopeOf(step))) {
+        if (!applyStep(step)) {   // back where it was: the undo did not happen
+            RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: an undo that could not be shown could not be taken back";
+        }
+        return false;
+    }
     --position_;
     if (recorder_ != nullptr)
         recorder_->recordUndo(step.name, commandsOf(step));
@@ -191,6 +207,12 @@ bool CommandJournal::redo()
     Step& step = history_[position_];
     if (!applyStep(step))
         return false;
+    if (showHandler_ && !showHandler_(scopeOf(step))) {
+        if (!revertStep(step)) {   // back where it was: the redo did not happen
+            RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a redo that could not be shown could not be taken back";
+        }
+        return false;
+    }
     ++position_;
     if (recorder_ != nullptr)
         recorder_->recordRedo(step.name, commandsOf(step));
@@ -232,6 +254,14 @@ bool CommandJournal::abandonOpenGroup()
     const Scope scope = scopeOf(step);
     if (!revertStep(step))
         return false;
+    // Shown as well (D6-2) -- but a group abandoned is a step that never happened, so a refusal here
+    // cannot keep it: it is logged, and the engine goes on drawing what it drew.
+    if (showHandler_) {
+        if (const Status shown = showHandler_(scope); !shown) {
+            RAWPAGE_LOG_WARNING(LogSubsystem::Save)
+                << "journal: an abandoned group could not be shown --" << shown.error().messageKey;
+        }
+    }
     history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(position_ - 1));
     --position_;
     afterOperation(scope, wasDirty);

@@ -48,6 +48,36 @@ Scope Scope::pages(std::vector<int> indices)
     return scope;
 }
 
+Scope Scope::annotationsOf(std::vector<int> indices)
+{
+    Scope scope = pages(std::move(indices));
+    if (scope.kind_ == Kind::Pages) scope.aspect_ = Aspect::Annotations;
+    return scope;
+}
+
+Scope Scope::annotationRegions(std::vector<std::pair<int, PdfRect>> regions)
+{
+    std::vector<int> indices;
+    indices.reserve(regions.size());
+    for (const auto& region : regions) indices.push_back(region.first);
+    Scope scope = annotationsOf(std::move(indices));
+    if (scope.kind_ != Kind::Pages) return scope;
+    std::stable_sort(regions.begin(), regions.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (auto& [page, rect] : regions) {
+        if (scope.regions_.empty() || scope.regions_.back().first != page) scope.regions_.push_back({page, {}});
+        scope.regions_.back().second.push_back(rect);
+    }
+    return scope;
+}
+
+const std::vector<PdfRect>* Scope::regionsOf(int page) const noexcept
+{
+    const auto found = std::lower_bound(regions_.begin(), regions_.end(), page,
+                                        [](const auto& entry, int value) { return entry.first < value; });
+    return found != regions_.end() && found->first == page ? &found->second : nullptr;
+}
+
 Scope Scope::objects(std::vector<long long> numbers)
 {
     if (numbers.empty())
@@ -90,7 +120,23 @@ Scope Scope::merged(const Scope& other) const
     if (kind_ == Kind::Pages && other.kind_ == Kind::Pages) {
         std::vector<int> combined = pages_;
         combined.insert(combined.end(), other.pages_.begin(), other.pages_.end());
-        return pages(std::move(combined));
+        // Annotations only when BOTH say so (D6-10): a content change in either is a content change.
+        if (aspect_ != Aspect::Annotations || other.aspect_ != Aspect::Annotations) return pages(std::move(combined));
+        Scope merged = annotationsOf(std::move(combined));
+        // THE RECTANGLES: a page keeps them only when BOTH sides have them for it, or only one side
+        // names the page and has them; a page WHOLE on either side is whole.
+        for (const int page : merged.pages_) {
+            const bool inThis = std::binary_search(pages_.begin(), pages_.end(), page);
+            const bool inOther = std::binary_search(other.pages_.begin(), other.pages_.end(), page);
+            const std::vector<PdfRect>* mine = inThis ? regionsOf(page) : nullptr;
+            const std::vector<PdfRect>* theirs = inOther ? other.regionsOf(page) : nullptr;
+            if ((inThis && mine == nullptr) || (inOther && theirs == nullptr)) continue;   // whole
+            std::vector<PdfRect> rects;
+            if (mine != nullptr) rects.insert(rects.end(), mine->begin(), mine->end());
+            if (theirs != nullptr) rects.insert(rects.end(), theirs->begin(), theirs->end());
+            merged.regions_.push_back({page, std::move(rects)});
+        }
+        return merged;
     }
     if (kind_ == Kind::Objects && other.kind_ == Kind::Objects) {
         std::vector<long long> combined = objects_;
@@ -107,7 +153,8 @@ Scope Scope::merged(const Scope& other) const
 
 bool operator==(const Scope& a, const Scope& b)
 {
-    return a.kind_ == b.kind_ && a.pages_ == b.pages_ && a.objects_ == b.objects_;
+    return a.kind_ == b.kind_ && a.aspect_ == b.aspect_ && a.pages_ == b.pages_ && a.objects_ == b.objects_
+           && a.regions_ == b.regions_;
 }
 
 const char* scopeKindName(Scope::Kind kind) noexcept
@@ -117,6 +164,15 @@ const char* scopeKindName(Scope::Kind kind) noexcept
     case Scope::Kind::Pages:         return "Pages";
     case Scope::Kind::Objects:       return "Objects";
     case Scope::Kind::WholeDocument: return "WholeDocument";
+    }
+    return "?";
+}
+
+const char* scopeAspectName(Scope::Aspect aspect) noexcept
+{
+    switch (aspect) {
+    case Scope::Aspect::Content:     return "Content";
+    case Scope::Aspect::Annotations: return "Annotations";
     }
     return "?";
 }

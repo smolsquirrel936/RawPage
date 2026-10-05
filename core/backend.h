@@ -534,6 +534,22 @@ public:
     // relative to those bytes.
     virtual Status adoptRevision(DocumentHandle document, const QString& path) = 0;
 
+    // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES -- Stage 6 T4, decision **D6-2**, which ends D3-15 for
+    // every edit a render parameter cannot express (an annotation's appearance is the first). Composes
+    // `document`'s update exactly as `writeRevision` would, VERIFIES the composition exactly as it does,
+    // and then has the engine of `document` -- and of each handle in `viewers`, a `window.new` companion
+    // that draws the same document through a handle of its own -- draw the newest revision on disk
+    // followed by that update. The engine swaps it in on the render thread, between jobs, before its
+    // next call for that handle; this returns once it is queued. `CommandJournal` calls it after every
+    // command, undo and redo, so an edit Save could not write is REFUSED WHEN IT IS MADE: on any
+    // failure nothing is queued, every engine keeps what it draws, and the refusal is
+    // `error.edit.notShown` with the failure's key as its context.
+    //
+    // A document with NO SINK (one this build will not edit) has no update: its engine is put back on
+    // the bytes it opened, which is no work when it never left them -- what a companion detached from
+    // its leader asks for its own handle.
+    virtual Status showEdits(DocumentHandle document, const std::vector<DocumentHandle>& viewers) = 0;
+
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;
     virtual ITextExtractor*  textExtractor(DocumentHandle document) = 0;

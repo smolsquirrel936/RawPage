@@ -1095,3 +1095,48 @@ TEST_CASE("a search unit part the reader cannot read is reported and the rest ar
         CHECK(none.hits.size() == 2);   // the page text is still searched
     }
 }
+
+// =============================================================================================
+// Stage 6 T4 (D6-10, guide A-36's index half) -- an annotation's scope keeps the page's text
+// =============================================================================================
+
+TEST_CASE("an annotation-only scope keeps the page's text and drops only its search units", "[index][A-36]")
+{
+    Rig rig;
+    UnitProbe units;
+    wireUnits(rig, units);
+    const DocumentHandle handle{181};
+    const auto id = identity(QStringLiteral("annotated.pdf"));
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 3);
+    (void)rig.search(entry, withClasses(QStringLiteral("quokka"), true, false, false, false));
+    REQUIRE(rig.index.pagesHeld(entry) == 3);
+    REQUIRE(units.callsFor(1) == 1);
+
+    std::vector<DocumentIndex::Event> events;
+    const auto token = rig.index.subscribe([&](const DocumentIndex::Event& event) { events.push_back(event); });
+
+    // A HIGHLIGHT ON PAGE 2 (index 1): its tiles go elsewhere; HERE its text stays, its units go, and the
+    // subscribers are told an EVICTION -- the text is what it was -- never an invalidation.
+    rig.index.invalidate(entry, core::Scope::annotationsOf({1}));
+    CHECK(rig.index.pagesHeld(entry) == 3);
+    CHECK(rig.index.has(entry, 1));
+    CHECK(rig.index.stats().pagesDropped == 0);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == DocumentIndex::Event::Kind::PagesEvicted);
+    CHECK(events[0].pages == std::vector<int>{1});
+
+    // The next comment search reads page 2's units again -- and extracts NO text.
+    const int textBefore = rig.probe.total();
+    (void)rig.search(entry, withClasses(QStringLiteral("quokka"), true, false, false, false));
+    CHECK(units.callsFor(1) == 2);
+    CHECK(units.callsFor(0) == 1);
+    CHECK(rig.probe.total() == textBefore);
+
+    // THE CONTROL: a CONTENT scope on the same page drops its text, and says the text may have changed.
+    events.clear();
+    rig.index.invalidate(entry, core::Scope::page(1));
+    CHECK_FALSE(rig.index.has(entry, 1));
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == DocumentIndex::Event::Kind::PagesInvalidated);
+    rig.index.unsubscribe(token);
+}

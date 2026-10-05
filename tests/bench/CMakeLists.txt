@@ -176,6 +176,17 @@ set_tests_properties(bench.render.a2_stage5 PROPERTIES
         "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
 
+# Stage 6 T4 (D6-24). `--stage6`: the viewport while annotation commands make the engine reload the
+# composed revision (D6-2), and an edit's time to the pixels. The GRADED run is 30 s a file, by hand
+# (Stage6-Annotations-Testing-Guide.md A-38); CTest runs it SHORT (`--seconds 4`) so the mode cannot rot
+# without costing every suite run two minutes. Its exit code is only whether the measurement was possible.
+add_test(NAME bench.render.a2_stage6 COMMAND rawpage_bench_pipeline --stage6 --seconds 4)
+set_tests_properties(bench.render.a2_stage6 PROPERTIES
+    TIMEOUT 600
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)
+
 # rawpage_bench_openclose -- Stage 2 issue I-35's reproducer: private bytes and handles per round of
 # ten documents opened, rendered and closed with no window. NOT registered with CTest: it reports a
 # trend over dozens of rounds, and no threshold for that trend has been decided. It links the

@@ -2474,6 +2474,10 @@
         <translation>The comments on page %1 of this PDF are stored in a way RawPage reads differently from how it draws them, so they cannot be changed on that page.</translation>
     </message>
     <message>
+        <source>error.edit.notShown</source>
+        <translation>RawPage could not prepare this change the way it would be saved, so it was not made. The document is unchanged.</translation>
+    </message>
+    <message>
         <source>error.edit.notAssessed</source>
         <translation>Internal error: this document has not been checked for editing. Nothing was changed.</translation>
     </message>

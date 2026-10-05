@@ -12,6 +12,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/doc/PageTree.h"
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
 #include "core/text/PageTextModel.h"
@@ -1264,5 +1265,126 @@ TEST_CASE("render scheduler never runs a cancelled engine task and forgets a clo
         scheduler.cancelDocument(kDocB);     // ... and its document closed before the pump
         CHECK(scheduler.deliverReady() == 0);
         CHECK(reported.size() == 1);
+    }
+}
+
+// ==========================================================================================
+// Stage 6 T4 -- the named work of A2 at Stage 6: a mutation cancels only the tiles it reaches
+// ==========================================================================================
+
+TEST_CASE("render scheduler keeps a tile a mutation did not reach at the new revision", "[core][render][annotdisplay]")
+{
+    // Until T4 every queued tile of the document was cancelled by every revision, whatever its page --
+    // 9,000 scrolled tiles cancelled and asked for again in 30 s of Stage 6's edits.
+    const Revision r1 = Revision::initial();
+    const Revision r2 = r1.next();
+
+    SECTION("a QUEUED tile of another page is re-keyed in place, and one of the page is cancelled")
+    {
+        RenderCache cache;
+        RasterizerProbe probe;
+        RenderScheduler scheduler(factoryFor(probe), &cache);
+        scheduler.pause();
+        scheduler.enqueue(requestFor(3, 0, r1), RenderPriority::Visible);
+        scheduler.enqueue(requestFor(2, 0, r1), RenderPriority::Visible);
+        scheduler.documentChanged(kDocA, Scope::annotationsOf({2}), r2);
+        CHECK(scheduler.pendingCount() == 1);
+        CHECK(scheduler.stats().rekeyed == 1);
+        CHECK(scheduler.stats().cancelledBeforeStart == 1);
+
+        std::vector<RenderRequest> delivered;
+        scheduler.subscribeReady([&](const RenderRequest& request, const RasterImage&) { delivered.push_back(request); });
+        scheduler.resume();
+        REQUIRE(scheduler.waitForIdle(2000));
+        CHECK(scheduler.deliverReady() == 1);
+        REQUIRE(delivered.size() == 1);
+        CHECK(delivered[0].pageIndex == 3);
+        CHECK(delivered[0].revision == r2);
+        CHECK(cache.lookup(requestFor(3, 0, r2)).has_value());
+        CHECK_FALSE(cache.lookup(requestFor(3, 0, r1)).has_value());
+    }
+
+    SECTION("a RUNNING tile it did not reach is delivered at the new revision")
+    {
+        RasterizerProbe held;
+        held.hold.store(true);
+        RenderCache cache;
+        RenderScheduler running(factoryFor(held), &cache);
+        running.enqueue(requestFor(6, 0, r1), RenderPriority::Visible);
+        REQUIRE(held.waitForCalls(1, 2000));
+        running.documentChanged(kDocA, Scope::annotationsOf({2}), r2);
+        held.release();
+        REQUIRE(running.waitForIdle(2000));
+        CHECK(running.stats().droppedSuperseded == 0);
+        CHECK(running.deliverReady() == 1);
+        CHECK(cache.lookup(requestFor(6, 0, r2)).has_value());
+    }
+
+    SECTION("a FINISHED tile it did not reach is kept, and one it reached is dropped")
+    {
+        RenderCache cache;
+        RasterizerProbe probe;
+        RenderScheduler scheduler(factoryFor(probe), &cache);
+        scheduler.enqueue(requestFor(5, 0, r1), RenderPriority::Visible);
+        scheduler.enqueue(requestFor(2, 0, r1), RenderPriority::Visible);
+        REQUIRE(scheduler.waitForIdle(2000));
+        scheduler.documentChanged(kDocA, Scope::annotationsOf({2}), r2);
+        CHECK(scheduler.deliverReady() == 1);
+        CHECK(cache.lookup(requestFor(5, 0, r2)).has_value());
+        CHECK_FALSE(cache.lookup(requestFor(2, 0, r2)).has_value());
+    }
+
+    SECTION("a re-keyed tile joins an equal request already queued at the new revision")
+    {
+        RenderCache cache;
+        RasterizerProbe probe;
+        RenderScheduler scheduler(factoryFor(probe), &cache);
+        scheduler.pause();
+        scheduler.enqueue(requestFor(3, 0, r1), RenderPriority::Prefetch);
+        scheduler.enqueue(requestFor(3, 0, r2), RenderPriority::Speculative);
+        scheduler.documentChanged(kDocA, Scope::annotationsOf({2}), r2);
+        CHECK(scheduler.pendingCount() == 1);
+        int deliveries = 0;
+        scheduler.subscribeReady([&](const RenderRequest& request, const RasterImage&) {
+            ++deliveries;
+            CHECK(request.revision == r2);
+        });
+        scheduler.resume();
+        REQUIRE(scheduler.waitForIdle(2000));
+        scheduler.deliverReady();
+        CHECK(probe.calls.load() == 1);   // ONE rasterization for both holders
+        CHECK(deliveries == 1);
+    }
+
+    SECTION("a tile of the page outside the change's rectangle is kept, one inside is cancelled")
+    {
+        // requestFor's tiles are 8 x 8 at 1 px/pt along the top of the page; a rectangle at the page's
+        // top-left corner, x 0..8 pt, reaches the tile at 0 and not the one at 100.
+        rawpage::core::Page page(0, rawpage::core::PdfRect{rawpage::core::PdfPoint{0.0, 0.0}, rawpage::core::PdfSize{600.0, 800.0}});
+        std::vector<rawpage::core::Page> pages;
+        for (int i = 0; i < 3; ++i) pages.emplace_back(i, page.mediaBox());
+        const rawpage::core::PageTree tree(pages);
+        const Scope region = Scope::annotationRegions(
+            {{2, rawpage::core::PdfRect{rawpage::core::PdfPoint{0.0, 792.0}, rawpage::core::PdfSize{8.0, 8.0}}}});
+
+        RenderCache cache;
+        RasterizerProbe probe;
+        RenderScheduler scheduler(factoryFor(probe), &cache);
+        scheduler.pause();
+        scheduler.enqueue(requestFor(2, 0, r1), RenderPriority::Visible);
+        scheduler.enqueue(requestFor(2, 100, r1), RenderPriority::Visible);
+        scheduler.documentChanged(kDocA, region, r2, &tree);
+        CHECK(scheduler.pendingCount() == 1);
+        CHECK(scheduler.stats().cancelledBeforeStart == 1);
+        CHECK(scheduler.stats().rekeyed == 1);
+        // THE CONTROL: with no tree to place the rectangle, the page is whole and both go.
+        RenderScheduler blind(factoryFor(probe), &cache);
+        blind.pause();
+        blind.enqueue(requestFor(2, 0, r1), RenderPriority::Visible);
+        blind.enqueue(requestFor(2, 100, r1), RenderPriority::Visible);
+        blind.documentChanged(kDocA, region, r2, nullptr);
+        CHECK(blind.pendingCount() == 0);
+        scheduler.cancelAll();
+        blind.cancelAll();
     }
 }

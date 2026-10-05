@@ -131,6 +131,10 @@ public:
     {
         return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notEditable"), QString()};
     }
+    core::Status showEdits(core::DocumentHandle, const std::vector<core::DocumentHandle>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "showEdits");
+    }
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }

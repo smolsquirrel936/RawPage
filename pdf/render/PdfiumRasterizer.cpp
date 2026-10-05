@@ -3,6 +3,7 @@
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumInit.h"
 
+#include <fpdf_edit.h>
 #include <fpdf_formfill.h>
 #include <fpdfview.h>
 
@@ -114,6 +115,15 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
                                QString::number(request.pageIndex));
         }
 
+        // Stage 6 T4 (D6-2): AFTER A RELOAD the engine may hold a newer `/Rotate` than `pages()`
+        // describes -- the composed update carries any unsaved rotation as well as the annotations --
+        // while the request's delta is relative to `pages()`. So the loaded page's own rotation is read
+        // and the difference handed back here; before any reload the two agree and this adds nothing.
+        // Without it, a rotation followed by a highlight on the same page turns that page twice.
+        const int loadedQuarters = FPDFPage_GetRotation(enginePage);
+        const int correction = static_cast<int>(page->rotation()) / 90 - (loadedQuarters < 0 ? 0 : loadedQuarters);
+        const int rotate = static_cast<int>(core::rotateBy(drawn, correction)) / 90;
+
         // The bitmap is built over OUR buffer rather than PDFium's, so the pixels never have to be
         // copied out -- `FPDFBitmap_CreateEx` takes the stride, which is why `RasterImage` carries
         // one rather than assuming `width * 4` (I-03's argument, and the reason a padded buffer
@@ -138,12 +148,13 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         // the origin is NEGATIVE: that is how `FPDF_RenderPageBitmap` renders a region into a
         // smaller bitmap. Passing the tile's size as the page size scales the entire page into the
         // tile instead, putting a thumbnail of the page in every tile.
-        // `rotate` IS THE VIEW ROTATION PLUS THE UNSAVED DELTA, AND NOTHING ELSE. PDFium applies the
+        // `rotate` IS THE VIEW ROTATION PLUS THE UNSAVED DELTA (and, after a reload, the correction
+        // above), AND NOTHING ELSE. PDFium applies the
         // page's `/Rotate` itself, so passing the page's whole rotation here would rotate it twice --
         // which reads as "rotate view is broken for some documents and fine for others", the worst
         // shape of rendering bug because it depends on the file.
         FPDF_RenderPageBitmap(bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
-                              pageHeight, static_cast<int>(drawn) / 90, flags);
+                              pageHeight, rotate, flags);
 
         // AND THE WIDGETS, WHICH THE CALL ABOVE DOES NOT DRAW (I-21). PDFium renders every
         // annotation except `/Subtype /Widget` from `FPDF_RenderPageBitmap`; a widget's `/AP` is
@@ -173,7 +184,7 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
             // typed into has nowhere to live across two tiles of the same page.
             FORM_OnAfterLoadPage(enginePage, form);
             FPDF_FFLDraw(form, bitmap, enginePage, -request.tile.x, -request.tile.y, pageWidth,
-                         pageHeight, static_cast<int>(drawn) / 90, flags);
+                         pageHeight, rotate, flags);
             FORM_OnBeforeClosePage(enginePage, form);
         }
 

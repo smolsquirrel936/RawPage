@@ -218,6 +218,39 @@ public:
         return core::Status{};
     }
 
+    // Stage 6 T4 (D6-2): the shipped backend's compose and verify -- `pdf/ops/RevisionWriter`, the same
+    // calls -- with no engine to hand the result to. What WOULD be drawn is kept: `shownUpdate()` is the
+    // update after the newest revision on disk, so a headless case can compare it with what Save writes.
+    core::Status showEdits(core::DocumentHandle handle, const std::vector<core::DocumentHandle>&) override
+    {
+        auto* entry = findMutable(handle);
+        if (entry == nullptr)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"), QString()};
+        ++shows_;
+        if (!entry->sink) {
+            entry->shown = QByteArray();
+            return {};
+        }
+        const auto notShown = [](const core::Error& error) {
+            return core::Error{error.code, QLatin1String("error.edit.notShown"), QString(error.messageKey)};
+        };
+        auto composed = pdf::ops::RevisionWriter::compose(*entry->sink, entry->repair.requiresSaveAs());
+        if (!composed) return notShown(composed.error());
+        const std::string_view original = entry->sink->bytes();
+        const std::string_view written(composed.value().bytes.constData(),
+                                       static_cast<std::size_t>(composed.value().bytes.size()));
+        if (const core::Status verified = pdf::ops::RevisionWriter::verify(original, written, *entry->sink); !verified)
+            return notShown(verified.error());
+        entry->shown = composed.value().bytes.mid(static_cast<qsizetype>(original.size()));
+        return {};
+    }
+    QByteArray shownUpdate(core::DocumentHandle handle) const
+    {
+        const auto* entry = find(handle);
+        return entry ? entry->shown : QByteArray();
+    }
+    int shows() const { return shows_; }
+
     // Test seams for `tst_savecoordinator`: make the next write or adopt fail, as a backend can.
     void failNextWrites(bool fail) { failWrite_ = fail; }
     void failNextAdopts(bool fail) { failAdopt_ = fail; }
@@ -249,6 +282,7 @@ private:
         core::Permissions permissions;
         core::DocumentId id;
         std::unique_ptr<pdf::ops::MutationSinkImpl> sink;
+        QByteArray shown;                      // S6 T4: the update the last `showEdits` composed
     };
     Entry* findMutable(core::DocumentHandle handle)
     {
@@ -267,6 +301,7 @@ private:
     bool failWrite_ = false;
     bool failAdopt_ = false;
     int adoptions_ = 0;
+    int shows_ = 0;
 };
 
 } // namespace rawpage::tests
