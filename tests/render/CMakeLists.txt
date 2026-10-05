@@ -73,6 +73,8 @@ add_executable(rawpage_render_tests
     tst_searchclasses.cpp         # Stage 5 T8 -- guide A-76, A-78, A-79 (D5-12): search-classes.pdf's four
                                   #   other content classes through the shipped backend's searchUnits,
                                   #   graded against the generator's label
+    tst_annotreader.cpp           # Stage 6 T2 -- guide A-17 ... A-19 (D6-3): pdf/ops/AnnotationReader through the
+                                  #   shipped backend, against the generator's labels and the engine, page by page
     tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it

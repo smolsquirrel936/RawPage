@@ -52,6 +52,10 @@ add_executable(rawpage_tests
     # tests/ui/tst_rulers.cpp's half.
     tst_snap.cpp
 
+    tst_annotation.cpp            # Stage 6 T2 -- guide A-20: the annotation model's invariants, read and JSON
+    tst_annotstore.cpp            # Stage 6 T2 -- guide A-21, A-22 and the fuzz body's replay (A-23): threads,
+                                  #   states, queries and hostile input, through pdf/ops/AnnotationReader
+
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,
     # and the assertion is on the NUMBER rather than on the mode -- the whole of I-28's lesson. The

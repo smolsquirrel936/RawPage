@@ -9,8 +9,9 @@
 > **Status:** ⚪ **Written 2026-10-04 from the plan's draft, the day Stage 5 was signed off, and before
 > any Stage 6 code. The plan's §0 was ANSWERED the same day, all eight — Q1 … Q6 and Q8 approved as
 > proposed, and Q7 by moving the custom stamp from a PDF page to Stage 7, which rewrote A-78 and M-07.
-> No case had a result until T1.** **T1 (2026-10-05): A-13 … A-16 ✅**, each with its evidence; §8 logs
-> **I-01** and **I-02**, both S3 and closed. **108
+> No case had a result until T1.** **T1 (2026-10-05): A-13 … A-16 ✅**, each with its evidence. **T2
+> (2026-10-05): A-17 … A-22 ✅ and A-23's Windows half** — its `portable-fuzz` and soak logs are owed to the
+> next CI run. §8 logs **I-01 … I-04**, all S3 and closed. **108
 > automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
 > re-read against the answers and stand as written** — A-40, A-46 and A-70 (Q1, A-40's Expect gaining
 > the collision census at **thirteen**, the consequence of Q1 the user accepted); A-08 and A-55 (Q2);
@@ -413,35 +414,42 @@ the tree at Stage 5's sign-off.
 
 ### 5.4 The model and its reading (T2)
 
-**A-17 · The reader returns the generator's annotations** ☐
+**A-17 · The reader returns the generator's annotations** ✅ *2026-10-05, T2*
 **Goal** Rule 7.
 **Steps** `tst_annotreader` over every labelled fixture.
 **Expect** For every annotation: page, subtype, rectangle, quadpoints, vertices, ink samples, colour, opacity, border, `/Contents`, `/Subj`, `/T`, `/NM`, dates, `/IRT`, `/RT`, state and flags **equal to the label**; none missing, none invented. **The control:** one label entry removed surfaces as an invented annotation. **If it fails** S1 for an invented or lost annotation; S2 for a wrong field.
+**Result** `render.the reader returns every labelled annotation field by field`: *"11 labelled files, 151 listed annotations compared field by field"*, through the SHIPPED backend, every one equal -- beyond the Expect's fields also the line, callout, `/RD`, interior colour, intent, icon, `/DA`, `/RC` (holding the label's text XML-escaped), pop-up and parent, `/Open`, `/Rotate`, `/AP` present, the identity (object number, or page and position for a direct dictionary), and both dates in UTC. `annots-900.json`'s three written pages included. **The control fires:** the label with its last page-1 entry removed reports *"1 annotation(s) INVENTED"*. A third case holds the shared annotation of `annots-direct.pdf` to be ONE annotation listed twice and owned by the page its `/P` names. Planted control P5 (the author read as raw bytes) failed this case on `Zoë Müller`; P1 (ownership by first listing) did NOT fail the shared-annotation case -- that fixture's `/P` IS its first listing page -- and failed A-22's thousand-page case instead.
 
-**A-18 · The two readers agree, and a page where they do not is read-only** ☐
+**A-18 · The two readers agree, and a page where they do not is read-only** ✅ *2026-10-05, T2*
 **Goal** D6-3.
 **Steps** Over every corpus file both readers open: the first-party store against `FPDFAnnot_GetCount`, `_GetSubtype` and `_GetRect` per page; then a planted disagreement (the reader told to skip one annotation on page 2 of `annots-mixed.pdf`).
 **Expect** Agreement on every page of every file, the rectangle within `float` tolerance; under the plant, page 2 is **read-only** — `Permissions::may(Operation::Annotate)` refuses it by key with the page named — and page 1 is editable. **If it fails** S2.
+**Result** *"98 files both readers read, 3014 pages, 9147 /Annots entries; 0 page(s) disagree"*. **Deviation in the plant: it is on `annots-threads.pdf` page 2**, because `annots-mixed.pdf`'s page 2 carries no annotation; with one entry removed from the first-party reading, `mayAnnotate(1)` refuses with `error.edit.annotationsDisagree` and context `2`, page 1 and `may(EditPages)` stay allowed. The predicate is `mayAnnotate(page)`, not `may(Operation::Annotate)`, which answers for the whole document. **Beyond the Expect, three more cases:** (a) TEN awkward `/Annots` forms built in memory -- no `/Rect`, five numbers, reversed, a name inside, an indirect `/Rect`, a reference to no object, a direct dictionary, an integer object, an unknown subtype, no subtype -- read alike by the engine and the first-party reader ENTRY BY ENTRY, which is what the reader's "read `/Rect` as PDFium does" rests on; (b) a page whose `/Rect` holds a number too long for a double, which the two readers DO read differently (our lexer clamps it), opened through the backend: that page read-only, the other editable -- the backend's own wiring, which no corpus file can show; (c) `tst_permissions`' per-entry plants (subtype, a rectangle 0.5 pt off, no rectangle, not a dictionary), each refusing exactly that page, and a 4e-6 pt difference accepted. Planted controls P4, P6, P7, P9 and P10 each failed the case written for them.
 
-**A-19 · What cannot be read is refused by name** ☐
+**A-19 · What cannot be read is refused by name** ✅ *2026-10-05, T2*
 **Steps** Open every `corpus/encrypted/` file; and `annots-direct.pdf`'s annotation with no `/P` listed by no page.
 **Expect** An encrypted document: the store refuses by key (the reason D2-6) and no annotation command is enabled; the unplaceable annotation is **reported** in the log and absent from the store. **If it fails** S2.
+**Result** All five `corpus/encrypted/` files: `status()` is `error.edit.encrypted`, the store empty, `may(Operation::Annotate)` and `mayAnnotate(0)` refused -- *no command is enabled* is the predicate's half; no annotation command exists until T3. **The fixture was amended for this case:** `annots-direct.pdf`'s no-`/P` annotation was LISTED by page 2, so it was placeable; T2 added an annotation with no `/P` that no page lists, reached only through the `/IRT` of a hidden state reply (neither is drawn: the golden suite passed unchanged over it). The log carries *"object N is an annotation no page lists; it has no page and is ignored"*, the store has no annotation at that object, and the reply that points at it is noted `MissingParent`.
 
-**A-20 · The model's invariants** ☐
+**A-20 · The model's invariants** ✅ *2026-10-05, T2*
 **Steps** `tst_annotation`.
 **Expect** A rectangle is normalized (`x0 ≤ x1`, `y0 ≤ y1`); quadpoints keep ISO's corner order and the de facto order Acrobat writes is read; colour arrays of 0, 1, 3 and 4 components; flags round-trip; a JSON serialize → deserialize is identity for every subtype. **If it fails** S2.
+**Result** `tst_annotation`, nine cases, all green: a reversed `/Rect` normalized and a non-finite corner refused by `normalizedRect`; Acrobat's and ISO's corner orders each read AS WRITTEN; colours of 0, 1, 3 and 4 components; flags 28 and 642 named; dates across `+08'00'`, `Z`, `-05'00'`, a missing closing apostrophe, `D:2026` and `D:202609` to one UTC instant, and four non-dates kept with no instant; identities through their strings; every subtype name both ways; the JSON round trip for every subtype with every field set (an `/IRT` of 2^60 kept exactly -- object numbers are 64-bit integers in the JSON, never doubles) and for **every annotation of the eleven labelled files** -- more than 9,000, the case asserts.
 
-**A-21 · Threads, states and queries are the label's** ☐
+**A-21 · Threads, states and queries are the label's** ✅ *2026-10-05, T2*
 **Steps** `tst_annotstore` over the labels of `annots-threads.pdf`, headless.
 **Expect** Every reply under its parent; the group shown as one item; each annotation's status and **history** (author and date of each state reply) equal to the label; checkmarks **per author**; the `/IRT` cycle broken and **reported**, the orphan and the cross-page reply top-level and reported. **If it fails** S2.
+**Result** `tst_annotstore`, six A-21 cases over `annots-threads.pdf` read headless, graded on its label: every reply under its parent (a reply to a reply found); the replace edit's StrikeOut a group member of its Caret and not a comment under it; the four histories -- two Review, two Marked -- equal in author, state, UTC date and object, in time order across four zones, and the CURRENT review the latest on every annotation with a history; the checkmark per author (Zoë's latest `Unmarked` is not marked, Ana's `Marked` is, Ben never marked); both cycle members, the missing-parent reply and the cross-page reply top-level, each with its note; the whole top level equal to the label's roots plus those four; queries by author, text (case-insensitive), page and date order, and Hidden and NoView excluded on request (`annots-flags.pdf`, 2 fewer). Planted controls P2 (the cycle not broken) and P3 (the current review the FIRST) failed it -- **P3 only after the case was strengthened**: it had checked one annotation whose history has one entry, where first and latest coincide.
 
-**A-22 · Hostile annotations are bounded** ☐
+**A-22 · Hostile annotations are bounded** ✅ *2026-10-05, T2*
 **Steps** `tst_annotstore`'s and `tst_annotreader`'s hostile cases: NaN and infinite rectangles, a 1,000,000-point `/InkList`, a 10,000-deep `/IRT` chain, `/Annots` that is a dictionary, an annotation listed by 1,000 pages.
 **Expect** Each read within one second, bounded memory, the defect reported; no crash. **If it fails** S1 for a crash or a hang; S2 otherwise.
+**Result** Built in memory (`tests/unit/TinyPdf.h`), read and threaded: the 1,000,000-point `/InkList` in **205-230 ms on `x64-release`** (1.8 s on `x64-debug`, where the case grades a five-second ceiling and says why -- the one-second bound is the shipped build's), truncated to `kMaxCoordinates` (200,000) and noted; the 10,000-deep chain in 26 ms release (~250 ms debug), one top-level item and a parent chain 10,000 deep, walked without recursion; the 10,000-member cycle in 24-25 ms (~250 ms debug), every member top-level and noted; `/Annots` as a dictionary: nothing listed, noted; one annotation on 1,000 pages: one annotation, 1,000 listings, owned by page 501 (its `/P`), 999 notes, 2-3 ms (35 ms debug). **"NaN and infinite rectangles" cannot be produced through `pdf/cos/`**: PDF syntax has no NaN, and the lexer CLAMPS a number too long for a double (Stage 2's choice) -- so the case holds that a 400-digit coordinate reaches the model finite and clamped, and the model's own refusal of a non-finite corner is A-20's; the reader's `NonFiniteRect` branch is defensive and said to be. Planted P8 (the bound lifted) failed it.
 
-**A-23 · Five fuzz targets, and the fifth runs** ☐
+**A-23 · Five fuzz targets, and the fifth runs** ☐ *Windows half 2026-10-05, T2; the Linux logs owed*
 **Steps** `ctest --preset gates -R fuzz_count`; the `portable-fuzz` CI job's **log**.
 **Expect** The count assertion at **5**, its controls refusing 4 and 0; `fuzz_annot_pipeline` *"Done N runs in 6x second(s)"* with no finding, and in the soak. **If it fails** S2.
+**Result so far** `tests/fuzz/CMakeLists.txt` expects **5**; `gates.fuzz_count.five_of_five_with_a_helper` passes and `four_of_five_fails` refuses, beside `zero_fails` -- `gates` **135/135**. The body (`tests/fuzz/AnnotPipelineFuzzBody.h`) replayed by `tst_annotstore` over every corpus PDF: *"108 corpus files, 101 walked, 9146 annotations through the body"*, every invariant held; its control (a JSON writer that drops a field) is caught by the equality the body uses. `ci.yml`'s `portable-fuzz` job and `fuzz-soak.yml` run the fifth target, seeded with `corpus/ordinary` and `corpus/malformed`. **Not yet read:** the job's and the soak's logs -- the first CI run after T2 is pushed.
 
 ### 5.5 The write path (T3)
 
@@ -1031,6 +1039,8 @@ uses.
 |---|---|---|---|
 | **I-01** | S3 | `corpus/deflate.py` emitted an incomplete Huffman code for a tree deeper than its limit | **Closed** at T1, 2026-10-05 |
 | **I-02** | S3 | Plan D6-6 and §3.3 listed *line* among the types PDFium generates an appearance for; it does not | **Closed** at T1, 2026-10-05 |
+| **I-03** | S3 | T1's fixtures wrote `/StateModel` and `/State` as names; ISO 32000-1 makes them text strings | **Closed** at T2, 2026-10-05 |
+| **I-04** | S3 | T1's commit left `gates.text_bytes.tracked_tree` red: two new binary types the check did not know | **Closed** at T2, 2026-10-05 |
 
 **I-01 (S3) — an incomplete length-limited Huffman code in the corpus encoder.** *Found* generating
 `annots-900.pdf` at T1: `deflate.compress`'s own self-check stopped the run with zlib's *"invalid
@@ -1056,6 +1066,24 @@ have been written at T8 against a control that draws nothing, and an IoU against
 a division by zero or a pass. *Fix:* D6-6's clause (2), §3.3's row and A-65 now name **eight** types;
 a line's appearance keeps the other three oracles (golden, `qpdf`, Acrobat and Firefox). The page-0
 golden baseline of `annots-no-ap.pdf` is a claim about PDFium's generator, as its manifest note says.
+
+**I-03 (S3) — state replies written in the wrong type.** *Found* writing T2's reader: ISO 32000-1
+Table 172 makes `/StateModel` and `/State` TEXT STRINGS, as Acrobat writes them, and
+`corpus/make-annots.py` wrote them as NAMES. *Why T1 missed it:* its byte check looked for the markers
+the generator wrote, so it agreed with the generator. *Fix:* the generator writes strings; the
+fixture check looks for `(Review)`, `(Marked)` and the five states; the reader accepts both forms
+(producers write names too). `annots-threads.pdf`, its label, and the `threads` exchange files moved;
+no pixel did -- state replies are hidden.
+
+**I-04 (S3) — a red gate committed.** *Found* by T2's first full run: `gates.text_bytes.tracked_tree`
+failed on every preset, naming control bytes in `corpus/exchange/every-type.fdf`. *Mechanism:*
+`tests/gates/check-text-bytes.py` reads every TRACKED file not of a known binary extension, and T1 added
+two binary types -- `.fdf`, whose streams carry a sound's raw PCM, and `.jpg`. *Why T1's run missed it:*
+the gate reads `git ls-files`, and T1's suite ran BEFORE the files were added, so the commit `96f0e23`
+turned it red unseen (it was not pushed). The checker's own header predicted this: *a new binary type
+fails this check loudly until its extension is added.* *Fix:* `.fdf` and `.jpg` join
+`BINARY_EXTENSIONS`; `.xfdf` is XML and stays checked. *The lesson for a later task that adds a file
+type:* run the gates after `git add`, not before.
 
 ---
 

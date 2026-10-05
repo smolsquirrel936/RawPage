@@ -92,6 +92,10 @@ public:
     // this is hydrated from the first-party walk `open()` already runs -- `pdf/ops/TransitionReader`.
     const core::PageTransitions* pageTransitions(core::DocumentHandle document) const override;
 
+    // S6 T2 (D6-3). The third first-party reading off the same walk: `pdf/ops/AnnotationReader`, held
+    // to agree with the engine page by page through `core::Permissions::assessAnnotations`.
+    const core::AnnotationStore* annotations(core::DocumentHandle document) const override;
+
     // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
     // per page -- the one reader on this interface that is not hydrated at open, and the header of
     // `core/backend.h` says why.

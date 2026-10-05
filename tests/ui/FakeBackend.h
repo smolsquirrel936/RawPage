@@ -14,6 +14,7 @@
 #ifndef RAWPAGE_TESTS_UI_FAKEBACKEND_H
 #define RAWPAGE_TESTS_UI_FAKEBACKEND_H
 
+#include "core/doc/AnnotationStore.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
@@ -234,6 +235,15 @@ public:
         return &transitions_;
     }
     core::PageTransitions& transitions() noexcept { return transitions_; }
+
+    // S6 T2 (D6-3): an EMPTY store that was read -- this fake has no file to read annotations from,
+    // and *read, and there are none* is what its documents are. Public and settable as the
+    // transitions are, for the cases from T5 that need a document with comments.
+    const core::AnnotationStore* annotations(core::DocumentHandle) const override
+    {
+        return &annotations_;
+    }
+    core::AnnotationStore annotations_ = core::AnnotationStore::fromReading({});
 
     // S4 T12 (D4-14). PUBLIC and settable for the same reason as the transitions above: there is no
     // engine here to union any objects, and the fit cases need a document whose content box is a

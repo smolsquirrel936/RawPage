@@ -38,6 +38,11 @@ add_library(rawpage_ops STATIC
     # does not read (it reads the embedded file's params dictionary instead). Names only to match.
     EmbeddedFileReader.h
     EmbeddedFileReader.cpp
+
+    # S6 T2 (D6-3). The third: every page's /Annots, read first-party because editing needs each
+    # annotation's object number and its dictionary as written, which PDFium's API does not give.
+    AnnotationReader.h
+    AnnotationReader.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

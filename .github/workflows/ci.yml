@@ -387,9 +387,10 @@ jobs:
       # are run, because "it did not crash" is also what a missing file produces if nobody looks.
       # THREE from Stage 3 T13 (D3-17): fuzz_cos_roundtrip, the reader and the writer against each other.
       # FOUR from Stage 5 T4 (D5-21): fuzz_text_pipeline, core/text/ over hostile geometry.
-      - name: A-25 / A-26 / A-83 / S5 A-40 -- all four targets linked
+      # FIVE from Stage 6 T2 (D6-29): fuzz_annot_pipeline, the annotation reader and store.
+      - name: A-25 / A-26 / A-83 / S5 A-40 / S6 A-23 -- all five targets linked
         run: |
-          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip fuzz_text_pipeline; do
+          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip fuzz_text_pipeline fuzz_annot_pipeline; do
             path="build/portable-fuzz/bin/$target"
             if [ ! -x "$path" ]; then
               echo "::error::$path was not built -- a preset that has never linked anything has not been proven to link anything"
@@ -442,6 +443,15 @@ jobs:
         run: |
           mkdir -p fuzz-work/text
           ./build/portable-fuzz/bin/fuzz_text_pipeline fuzz-work/text corpus/labels \
+              -max_total_time=60 -error_exitcode=1
+
+      # Stage 6 T2, D6-29 (S6 guide A-23): bytes through the backend's first-party walk, the annotation
+      # reader and the store -- threads, states, queries, the JSON round trip. Seeded with the corpus's
+      # ordinary/ files, the annotation fixtures among them; the first directory is scratch, as above.
+      - name: S6 A-23 -- fuzz_annot_pipeline
+        run: |
+          mkdir -p fuzz-work/annot
+          ./build/portable-fuzz/bin/fuzz_annot_pipeline fuzz-work/annot corpus/ordinary corpus/malformed \
               -max_total_time=60 -error_exitcode=1
 
   # =====================================================================================

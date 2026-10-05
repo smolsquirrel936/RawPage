@@ -4,6 +4,7 @@
 
 #include "core/doc/PageTree.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace rawpage::core {
@@ -61,11 +62,63 @@ Status Permissions::may(Operation operation) const
 {
     switch (operation) {
     case Operation::EditPages:
+    case Operation::Annotate:
         if (editable_)
             return Status{};
         return Error{ErrorCode::PermissionDenied, refusalKey_, refusalContext_};
     }
     return Error{ErrorCode::PermissionDenied, refusalKey_, refusalContext_};
+}
+
+namespace {
+
+bool closeEnough(double a, double b)
+{
+    const double allowed = std::max(Permissions::kRectTolerance,
+                                    Permissions::kRectRelativeTolerance * std::max(std::fabs(a), std::fabs(b)));
+    return std::fabs(a - b) <= allowed;   // false for NaN, which is the answer wanted
+}
+
+bool sameEntry(const AnnotationFact& engine, const AnnotationFact& cos)
+{
+    if (engine.dictionary != cos.dictionary) return false;
+    if (!engine.dictionary) return true;
+    if (engine.subtype != cos.subtype) return false;
+    if (engine.rect.has_value() != cos.rect.has_value()) return false;
+    if (!engine.rect) return true;
+    const PdfRect& a = *engine.rect;
+    const PdfRect& b = *cos.rect;
+    return closeEnough(a.left(), b.left()) && closeEnough(a.bottom(), b.bottom())
+           && closeEnough(a.right(), b.right()) && closeEnough(a.top(), b.top());
+}
+
+} // namespace
+
+void Permissions::assessAnnotations(const std::vector<std::vector<AnnotationFact>>& engine,
+                                    const std::vector<std::vector<AnnotationFact>>& cos)
+{
+    disagreeing_.clear();
+    const std::size_t pages = std::max(engine.size(), cos.size());
+    static const std::vector<AnnotationFact> none;
+    for (std::size_t page = 0; page < pages; ++page) {
+        const std::vector<AnnotationFact>& theirs = page < engine.size() ? engine[page] : none;
+        const std::vector<AnnotationFact>& ours = page < cos.size() ? cos[page] : none;
+        bool same = theirs.size() == ours.size();
+        for (std::size_t entry = 0; same && entry < theirs.size(); ++entry)
+            same = sameEntry(theirs[entry], ours[entry]);
+        if (!same) disagreeing_.push_back(static_cast<int>(page));
+    }
+}
+
+Status Permissions::mayAnnotate(int page) const
+{
+    if (Status document = may(Operation::Annotate); !document) return document;
+    if (std::find(disagreeing_.begin(), disagreeing_.end(), page) != disagreeing_.end()) {
+        // Context is the 1-based page number a person would look for, as for the page-tree refusals.
+        return Error{ErrorCode::PermissionDenied, QLatin1String("error.edit.annotationsDisagree"),
+                     QString::number(page + 1)};
+    }
+    return Status{};
 }
 
 } // namespace rawpage::core

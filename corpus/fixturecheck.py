@@ -315,9 +315,9 @@ def check_annots(files):
     if data is not None:
         annots = annotation_bodies(data)
         blob = b"\n".join(annots.values())
-        for marker in (b"/RT /Group", b"/StateModel /Review", b"/StateModel /Marked",
-                       b"/State /Accepted", b"/State /Rejected", b"/State /Completed",
-                       b"/State /Cancelled", b"/State /Unmarked", b"/RC "):
+        for marker in (b"/RT /Group", b"/StateModel (Review)", b"/StateModel (Marked)",
+                       b"/State (Accepted)", b"/State (Rejected)", b"/State (Completed)",
+                       b"/State (Cancelled)", b"/State (Unmarked)", b"/RC "):
             claim(name, marker in blob, "no annotation carries %s" % marker.decode())
         claim(name, b"/T <FEFF" in blob or b"/T (\\376\\377" in blob,
               "no author is written in UTF-16 (the non-ASCII author)")
@@ -366,8 +366,15 @@ def check_annots(files):
             listed += set(re.findall(rb"(\d+) 0 R", inside))
         claim(name, any(listed.count(n) > 1 for n in listed),
               "no annotation is listed by two pages")
-        claim(name, any(b"/P " not in b for b in annotation_bodies(data).values()),
+        bodies = annotation_bodies(data)
+        claim(name, any(b"/P " not in b for b in bodies.values()),
               "no indirect annotation without /P")
+        listed_numbers = {int(n) for n in listed}
+        unlisted = [n for n, b in bodies.items() if n not in listed_numbers and b"/P " not in b]
+        claim(name, len(unlisted) == 1, "not exactly one annotation that no page lists (%d)"
+              % len(unlisted))
+        claim(name, any(_ref(b, b"/IRT") in unlisted for b in bodies.values()),
+              "nothing points at the unlisted annotation, so no reader could meet it")
 
     name = "ordinary/annots-unknown-keys.pdf"
     data = need(name)

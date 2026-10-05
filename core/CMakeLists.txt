@@ -127,6 +127,12 @@ add_library(rawpage_core STATIC
     doc/DocumentId.h
     doc/Permissions.h
     doc/Permissions.cpp
+    # Stage 6 T2 (D6-3, D6-4, D6-12): the annotation model and its store -- read side, threads,
+    # states and queries. Pure; pdf/ops/AnnotationReader fills the store's reading.
+    doc/Annotation.h
+    doc/Annotation.cpp
+    doc/AnnotationStore.h
+    doc/AnnotationStore.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

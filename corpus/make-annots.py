@@ -566,8 +566,10 @@ class Fixture:
         if fields.get("nm") is None:
             fields.pop("nm", None)
         fields.setdefault("flags", NOTE_FLAGS if subtype in ("Text", "Popup") else PRINT)
+        unlisted = fields.pop("unlisted", False)
         spec.update(fields)
-        page.listing.append(spec)
+        if not unlisted:          # an unlisted annotation is written, and no page's /Annots names it
+            page.listing.append(spec)
         self.specs.append(spec)
         return spec
 
@@ -730,8 +732,10 @@ class Fixture:
         if "rt" in spec:
             pairs.append((b"/RT", pb.name(spec["rt"])))
         if "state_model" in spec:
-            pairs += [(b"/StateModel", pb.name(spec["state_model"])),
-                      (b"/State", pb.name(spec["state"]))]
+            # TEXT STRINGS, as ISO 32000-1 Table 172 says and Acrobat writes -- not names. Written as
+            # names until Stage 6 T2, whose reader is lenient about it and found it.
+            pairs += [(b"/StateModel", text_string(spec["state_model"])),
+                      (b"/State", text_string(spec["state"]))]
         if "popup" in spec:
             pairs.append((b"/Popup", pb.ref(ref_of(spec["popup"]))))
         if "parent" in spec:
@@ -842,6 +846,10 @@ class Fixture:
                           "rotate": page.rotate,
                           "annots": [self.label_entry(spec, position)
                                      for position, spec in enumerate(page.listing)]})
+        unlisted = [self.label_entry(spec, -1) for spec in self.specs
+                    if not any(spec in page.listing for page in self.pages)]
+        if unlisted:
+            top = dict(top, unlisted=unlisted)
         body = {"file": "ordinary/" + self.name, "generator": GENERATOR,
                 "units": "PDF points, page space (before /Rotate)",
                 "fileId": self.file_id, "claims": self.claims, **top, "pages": pages}
@@ -1487,6 +1495,8 @@ def annots_direct():
                 "indirect one",
                 "an indirect Square listed by BOTH page 1 and page 2, its /P naming page 1",
                 "page 2: a Circle with no /P",
+                "an annotation with no /P that NO page lists, reached only through the /IRT of a "
+                "hidden state reply on page 2 -- unplaceable, so a reader reports it (D6-3)",
                 "page 3: the control, every /Annots entry an indirect reference with /P"]
     p1, p2, p3 = f.page(), f.page(), f.page()
     for index, p in enumerate((p1, p2, p3)):
@@ -1502,13 +1512,21 @@ def annots_direct():
     p2.listing.append(shared)
     f.annot(p2, "Circle", (280, 400, 400, 480), color=PURPLE, border=2, no_p=True,
             author="Priya Raman", contents="no /P")
+    # Unplaceable: written, never listed, no /P. A hidden Marked state reply on page 2 points at it,
+    # which is how a reader comes to meet it at all -- and being hidden, neither draws anything.
+    orphan = f.annot(p2, "Square", (60, 200, 180, 280), color=RED, border=2, no_p=True,
+                     unlisted=True, author="Priya Raman", contents="listed by no page")
+    f.annot(p2, "Text", (60, 200, 80, 220), icon="Comment", author="Priya Raman",
+            contents="Marked set by Priya Raman", irt=orphan, state_model="Marked",
+            state="Marked", flags=HIDDEN_STATE, ap=False)
     f.annot(p3, "Square", (60, 600, 180, 680), color=RED, border=2, author="Priya Raman",
             contents="control: indirect")
     f.annot(p3, "Text", (220, 640, 240, 660), icon="Comment", color=NOTE_YELLOW,
             author="Priya Raman", contents="control: indirect note")
     data = f.build()
     return data, f.label(note="the shared Square appears in both pages' annots lists with the "
-                              "same object number; listedBy names both")
+                              "same object number; listedBy names both. unlisted holds the "
+                              "annotation no page lists")
 
 
 @generator("annots-unknown-keys.pdf")

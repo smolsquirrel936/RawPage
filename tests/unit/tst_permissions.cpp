@@ -127,3 +127,64 @@ TEST_CASE("permissions refuse until assessed", "[doc][permissions]")
     REQUIRE_FALSE(refusal);
     CHECK(std::string(refusal.error().messageKey.data()) == "error.edit.notAssessed");
 }
+
+// --- Stage 6 T2 (D6-3): annotations, compared entry by entry --------------------------------------
+// Guide case A-18's arithmetic half. Its engine half plants a missing ENTRY, which a comparison that
+// counted and looked at nothing else would also catch; these hold each per-entry fact on its own --
+// dictionary-ness, subtype, rectangle beyond the tolerance -- and the tolerance itself.
+
+namespace {
+
+AnnotationFact square(double x0, double y0, double x1, double y1)
+{
+    return AnnotationFact{true, AnnotationSubtype::Square, normalizedRect(x0, y0, x1, y1)};
+}
+
+} // namespace
+
+TEST_CASE("permissions refuse annotations on the page whose entries differ in any compared fact", "[doc][permissions][A-18]")
+{
+    const std::vector<std::vector<AnnotationFact>> engine{{square(0, 0, 100, 50)}, {square(10, 10, 20, 20)}};
+    const Permissions editable = Permissions::assess(treeOf(2), CosReading::Read, factsOf(2));
+
+    // THE CONTROL: the same facts agree, and a difference inside the engine's float tolerance agrees.
+    Permissions same = editable;
+    same.assessAnnotations(engine, engine);
+    CHECK(same.annotationDisagreements().empty());
+    auto close = engine;
+    close[1][0] = square(10.000004, 10, 20, 20.000004);
+    same.assessAnnotations(engine, close);
+    CHECK(same.annotationDisagreements().empty());
+
+    struct Plant { const char* what; AnnotationFact fact; };
+    for (const Plant& plant : {Plant{"subtype", AnnotationFact{true, AnnotationSubtype::Circle, normalizedRect(10, 10, 20, 20)}},
+                               Plant{"rectangle", square(10, 10, 20, 20.5)},
+                               Plant{"no rectangle", AnnotationFact{true, AnnotationSubtype::Square, std::nullopt}},
+                               Plant{"not a dictionary", AnnotationFact{}}}) {
+        auto cos = engine;
+        cos[1][0] = plant.fact;
+        Permissions permissions = editable;
+        permissions.assessAnnotations(engine, cos);
+        INFO(plant.what);
+        CHECK(permissions.annotationDisagreements() == std::vector<int>{1});
+        CHECK(permissions.mayAnnotate(0));
+        const auto refused = permissions.mayAnnotate(1);
+        REQUIRE_FALSE(refused);
+        CHECK(std::string(refused.error().messageKey.data()) == "error.edit.annotationsDisagree");
+        CHECK(refused.error().context == QStringLiteral("2"));
+    }
+
+    // Two entries that are both not dictionaries agree -- PDFium counts them too, and draws neither.
+    Permissions bothEmpty = editable;
+    bothEmpty.assessAnnotations({{AnnotationFact{}}}, {{AnnotationFact{}}});
+    CHECK(bothEmpty.annotationDisagreements().empty());
+}
+
+TEST_CASE("permissions refuse every annotation where the document is refused", "[doc][permissions][A-18]")
+{
+    const Permissions encrypted = Permissions::assess(treeOf(1), CosReading::Encrypted, {});
+    CHECK_FALSE(encrypted.may(Operation::Annotate));
+    const auto refused = encrypted.mayAnnotate(0);
+    REQUIRE_FALSE(refused);
+    CHECK(std::string(refused.error().messageKey.data()) == "error.edit.encrypted");
+}

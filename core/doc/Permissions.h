@@ -24,6 +24,17 @@
 //   * `error.edit.notAssessed` -- a default-constructed value. Nothing is editable until a backend
 //     has said it is.
 //
+// -------------------------------------------------------------------------------------------
+// WHAT STAGE 6 ADDS: `Operation::Annotate`, AND A PAGE WHERE THE TWO READERS DISAGREE (D6-3)
+// -------------------------------------------------------------------------------------------
+// An annotation is edited through the first-party reading (`pdf/ops/AnnotationReader`) and drawn by
+// the engine, so the two must read each page's `/Annots` alike -- the same number of entries, and per
+// entry the same subtype and the same rectangle (within the engine's `float`). `assessAnnotations()`
+// compares them PER PAGE, and a page where they differ is READ-ONLY for annotations, refused by
+// `error.edit.annotationsDisagree` with that page named; the rest of the document stays editable. It is
+// D3-7's rule one level down: a comment written onto the entry the first-party reader calls the third
+// would otherwise land on an annotation the engine draws as something else.
+//
 // WHY THE ASSESSMENT IS HERE AND NOT IN THE BACKEND. The comparison is a domain rule -- which facts
 // must agree, and how closely -- and `core/` owns domain rules (convention 11). The backend supplies
 // both readers' facts and calls `assess()`; `tst_permissions` plants each disagreement with no engine
@@ -34,6 +45,7 @@
 
 #include "core/Geometry.h"
 #include "core/Result.h"
+#include "core/doc/Annotation.h"
 
 #include <QLatin1String>
 #include <QString>
@@ -46,8 +58,16 @@ namespace rawpage::core {
 class PageTree;
 
 // What a command may do. Stage 3 has one kind of edit; later stages add theirs as their commands
-// arrive, and Stage 10 answers each against the permission bits as well.
-enum class Operation { EditPages };
+// arrive, and Stage 10 answers each against the permission bits as well. `Annotate` is Stage 6's
+// (D6-3), asked per page through `mayAnnotate`.
+enum class Operation { EditPages, Annotate };
+
+// One entry of a page's `/Annots`, as either reader sees it -- what D6-3 compares.
+struct AnnotationFact {
+    bool dictionary = false;                                    // the entry resolves to a dictionary
+    AnnotationSubtype subtype = AnnotationSubtype::Unknown;
+    std::optional<PdfRect> rect;                                // normalized; absent or non-finite: none
+};
 
 // What the first-party reader could make of the document.
 enum class CosReading { Read, Encrypted, NoPageMap };
@@ -70,6 +90,20 @@ public:
 
     Status may(Operation operation) const;
 
+    // D6-3: compare each page's `/Annots` as the engine reads it (`engine`) with the first-party
+    // reading (`cos`), one vector per page. A page that disagrees becomes read-only for annotations.
+    // Meaningful only on an editable assessment; called once, at open, by the backend.
+    void assessAnnotations(const std::vector<std::vector<AnnotationFact>>& engine,
+                           const std::vector<std::vector<AnnotationFact>>& cos);
+    // May annotations on `page` (0-based) be changed? The document's refusal first, then the page's.
+    Status mayAnnotate(int page) const;
+    const std::vector<int>& annotationDisagreements() const noexcept { return disagreeing_; }
+
+    // Rectangles agree within this many points, or this fraction of the coordinate, whichever is
+    // larger: the engine reports them through `float`, whose step at 10,000 pt is about 0.001.
+    static constexpr double kRectTolerance = 0.01;
+    static constexpr double kRectRelativeTolerance = 1e-6;
+
     bool canEditPages() const noexcept { return editable_; }
     QLatin1String refusalKey() const noexcept { return refusalKey_; }
     const QString& refusalContext() const noexcept { return refusalContext_; }
@@ -80,6 +114,7 @@ private:
     bool editable_ = false;
     QLatin1String refusalKey_{"error.edit.notAssessed"};
     QString refusalContext_;
+    std::vector<int> disagreeing_;   // 0-based pages whose /Annots the two readers read differently
 };
 
 } // namespace rawpage::core

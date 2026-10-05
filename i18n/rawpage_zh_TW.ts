@@ -2450,6 +2450,10 @@
         <translation>此 PDF 在第 %1 頁附近的頁面結構已損毀，變更頁面可能影響到錯誤的頁面。</translation>
     </message>
     <message>
+        <source>error.edit.annotationsDisagree</source>
+        <translation>此 PDF 第 %1 頁的註解儲存方式，RawPage 讀取與繪製的結果不一致，因此無法變更該頁的註解。</translation>
+    </message>
+    <message>
         <source>error.edit.notAssessed</source>
         <translation>內部錯誤：此文件尚未經過編輯檢查。未變更任何內容。</translation>
     </message>

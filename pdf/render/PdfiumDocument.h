@@ -48,6 +48,7 @@
 #include "core/doc/Metadata.h"
 #include "core/doc/Outline.h"
 #include "core/doc/PageTree.h"
+#include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
 #include "core/text/SearchUnit.h"
 
@@ -129,11 +130,21 @@ public:
         int count_ = 0;
         int nextPage_ = 0;
         std::vector<core::Page> pages_;
+        std::vector<std::vector<core::AnnotationFact>> annotationFacts_;   // S6 T2, beside pages_
         std::optional<core::Error> failure_;
     };
 
     int pageCount() const noexcept;
     const core::PageTree& pages() const noexcept { return pages_; }
+
+    // S6 T2 (D6-3): each page's `/Annots` as the ENGINE reads it -- per entry, whether it is a
+    // dictionary, its subtype and its rectangle -- taken during the page walk at open, while the page
+    // is loaded anyway. `core::Permissions::assessAnnotations` compares it with the first-party
+    // reading. One vector per page of `pages()`.
+    const std::vector<std::vector<core::AnnotationFact>>& annotationFacts() const noexcept
+    {
+        return annotationFacts_;
+    }
     const QString& path() const noexcept { return path_; }
 
     // What the first-party COS reader had to reconstruct, for the same bytes. **PDFium does its own
@@ -224,6 +235,7 @@ private:
     QByteArray bytes_;      // PDFium points INTO this; it must outlive `engine_`
     QString path_;
     core::PageTree pages_;
+    std::vector<std::vector<core::AnnotationFact>> annotationFacts_;
     core::RepairReport repair_;
     core::Outline outline_;
     core::Destinations destinations_;

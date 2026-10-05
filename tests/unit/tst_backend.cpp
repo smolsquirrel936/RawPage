@@ -88,6 +88,7 @@ public:
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
 
     // S4 T10 (D4-12): empty, which is the ordinary answer -- almost no document carries one.
+    const core::AnnotationStore* annotations(core::DocumentHandle) const override { return nullptr; }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {
         return &transitions_;

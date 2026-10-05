@@ -2,14 +2,43 @@
  "file": "ordinary/annots-direct.pdf",
  "generator": "corpus/make-annots.py",
  "units": "PDF points, page space (before /Rotate)",
- "fileId": "EB2C2B65E130C620BBD2B8C817B7E8B4",
+ "fileId": "85B3D0AD996A83781CD23251366D2DDD",
  "claims": [
   "page 1: two DIRECT annotation dictionaries in /Annots (one with no /NM) beside an indirect one",
   "an indirect Square listed by BOTH page 1 and page 2, its /P naming page 1",
   "page 2: a Circle with no /P",
+  "an annotation with no /P that NO page lists, reached only through the /IRT of a hidden state reply on page 2 -- unplaceable, so a reader reports it (D6-3)",
   "page 3: the control, every /Annots entry an indirect reference with /P"
  ],
- "note": "the shared Square appears in both pages' annots lists with the same object number; listedBy names both",
+ "note": "the shared Square appears in both pages' annots lists with the same object number; listedBy names both. unlisted holds the annotation no page lists",
+ "unlisted": [
+  {
+   "index": -1,
+   "object": 10,
+   "subtype": "Square",
+   "rect": [
+    60,
+    200,
+    180,
+    280
+   ],
+   "flags": 4,
+   "flagNames": [
+    "Print"
+   ],
+   "nm": "e88dadf8-402c-c839-9aec-16d975079ecb",
+   "author": "Priya Raman",
+   "contents": "listed by no page",
+   "color": [
+    0.86,
+    0.15,
+    0.15
+   ],
+   "borderWidth": 2,
+   "noP": true,
+   "hasAppearance": true
+  }
+ ],
  "pages": [
   {
    "index": 0,
@@ -194,6 +223,36 @@
      "borderWidth": 2,
      "noP": true,
      "hasAppearance": true
+    },
+    {
+     "index": 2,
+     "object": 11,
+     "subtype": "Text",
+     "rect": [
+      60,
+      200,
+      80,
+      220
+     ],
+     "flags": 30,
+     "flagNames": [
+      "Hidden",
+      "Print",
+      "NoZoom",
+      "NoRotate"
+     ],
+     "nm": "0efdc711-6436-3338-ea20-248858b11016",
+     "author": "Priya Raman",
+     "contents": "Marked set by Priya Raman",
+     "icon": "Comment",
+     "stateModel": "Marked",
+     "state": "Marked",
+     "inReplyTo": {
+      "object": 10,
+      "nm": "e88dadf8-402c-c839-9aec-16d975079ecb",
+      "page": 1
+     },
+     "hasAppearance": false
     }
    ]
   },
@@ -209,7 +268,7 @@
    "annots": [
     {
      "index": 0,
-     "object": 10,
+     "object": 12,
      "subtype": "Square",
      "rect": [
       60,
@@ -221,7 +280,7 @@
      "flagNames": [
       "Print"
      ],
-     "nm": "e88dadf8-402c-c839-9aec-16d975079ecb",
+     "nm": "fc927d8b-62f5-d3c9-aecf-bfe88904959a",
      "author": "Priya Raman",
      "contents": "control: indirect",
      "color": [
@@ -234,7 +293,7 @@
     },
     {
      "index": 1,
-     "object": 11,
+     "object": 13,
      "subtype": "Text",
      "rect": [
       220,
@@ -248,7 +307,7 @@
       "NoZoom",
       "NoRotate"
      ],
-     "nm": "0efdc711-6436-3338-ea20-248858b11016",
+     "nm": "76abbd59-23f2-9767-7c4c-c26bd30ec956",
      "author": "Priya Raman",
      "contents": "control: indirect note",
      "color": [

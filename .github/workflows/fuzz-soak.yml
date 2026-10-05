@@ -71,6 +71,9 @@ jobs:
           # Stage 5 T4 (D5-21, S5 guide A-40): core/text/ over hostile geometry.
           - target: fuzz_text_pipeline
             seeds: corpus/labels
+          # Stage 6 T2 (D6-29, S6 guide A-23): the annotation reader and store.
+          - target: fuzz_annot_pipeline
+            seeds: corpus/ordinary corpus/malformed
     env:
       SOAK_SECONDS: ${{ github.event.inputs.seconds || '600' }}
     steps:

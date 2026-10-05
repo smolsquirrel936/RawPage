@@ -1,9 +1,11 @@
 #include "pdf/DocumentBackendImpl.h"
 
 #include "core/Log.h"
+#include "core/doc/AnnotationStore.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/Permissions.h"
 #include "core/text/SearchUnit.h"
+#include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/TransitionReader.h"
@@ -15,11 +17,45 @@
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
+#include <QStringList>
 
+#include <map>
 #include <optional>
 #include <utility>
 
 namespace rawpage::pdf {
+namespace {
+
+// S6 T2 (D6-3): what the annotation reading met, said once at open. The count of each kind of note,
+// every unplaceable annotation by object number -- the case guide A-19 looks for in the log -- and
+// every page the two readers disagree on, which is a page whose comments cannot be changed.
+void logAnnotationReading(const QString& path, const core::AnnotationStore& store,
+                          const core::Permissions& permissions)
+{
+    if (store.size() == 0 && store.notes().empty()) return;
+    std::map<core::AnnotationNoteKind, int> counts;
+    for (const core::AnnotationNote& note : store.notes()) {
+        ++counts[note.kind];
+        if (note.kind == core::AnnotationNoteKind::Unlisted) {
+            RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
+                << "annotations:" << path << "object" << note.object
+                << "is an annotation no page lists; it has no page and is ignored";
+        }
+    }
+    QStringList summary;
+    for (const auto& [kind, count] : counts)
+        summary << QStringLiteral("%1 %2").arg(count).arg(QLatin1String(core::annotationNoteName(kind)));
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
+        << "annotations:" << path << "--" << static_cast<int>(store.size()) << "read"
+        << (summary.isEmpty() ? QString() : QStringLiteral("(") + summary.join(QStringLiteral(", ")) + QLatin1Char(')'));
+    for (const int page : permissions.annotationDisagreements()) {
+        RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+            << "annotations:" << path << "page" << page + 1
+            << "-- the engine and the first-party reader read its /Annots differently; read-only";
+    }
+}
+
+} // namespace
 
 // One open document and the rasterizer and text extractor that serve it. Both hold the document by
 // reference, so declaration order here is the destruction contract: they are destroyed before
@@ -45,6 +81,9 @@ struct DocumentBackendImpl::Open {
     // the engine reads attachments' names and bytes and never their descriptions
     // (`pdf/ops/EmbeddedFileReader.h`). Empty for almost every document, and for an encrypted one.
     std::vector<std::pair<QString, QString>> attachmentDescriptions;
+    // S6 T2 (D6-3). Every annotation, read first-party off the same walk; refused, with the reason, for
+    // a document that walk could not read.
+    core::AnnotationStore annotations;
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
@@ -273,6 +312,22 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
             entry->attachmentDescriptions.emplace_back(std::move(file.name), std::move(file.description));
     }
     entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
+
+    // S6 T2 (D6-3): the annotations, first-party, and their agreement with the engine page by page.
+    // A page whose /Annots the two read differently is read-only for annotations, and says which.
+    if (sink) {
+        entry->annotations = core::AnnotationStore::fromReading(
+            ops::AnnotationReader::read(sink.value()->table(), sink.value()->pages()));
+        entry->permissions.assessAnnotations(entry->document->annotationFacts(),
+                                             entry->annotations.listingFacts());
+        logAnnotationReading(path, entry->annotations, entry->permissions);
+    } else {
+        entry->annotations = core::AnnotationStore::refused(core::Error{
+            core::ErrorCode::PermissionDenied,
+            reading == core::CosReading::Encrypted ? QLatin1String("error.edit.encrypted")
+                                                    : QLatin1String("error.edit.noPageMap"),
+            QString()});
+    }
     if (sink && entry->permissions.canEditPages())
         entry->sink = std::move(sink).value();
 
@@ -288,6 +343,13 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
                       .arg(entry->permissions.refusalKey(), entry->permissions.refusalContext()));
     open_.emplace(handle.id, std::move(entry));
     return handle;
+}
+
+const core::AnnotationStore* DocumentBackendImpl::annotations(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry != nullptr ? &entry->annotations : nullptr;
 }
 
 // THE CALLER'S PROTOCOL, because a mutex cannot express it: before closing, cancel the document's

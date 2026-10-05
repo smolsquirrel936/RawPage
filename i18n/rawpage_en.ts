@@ -2450,6 +2450,10 @@
         <translation>This PDF's page structure is damaged around page %1, so changing its pages could affect the wrong page.</translation>
     </message>
     <message>
+        <source>error.edit.annotationsDisagree</source>
+        <translation>The comments on page %1 of this PDF are stored in a way RawPage reads differently from how it draws them, so they cannot be changed on that page.</translation>
+    </message>
+    <message>
         <source>error.edit.notAssessed</source>
         <translation>Internal error: this document has not been checked for editing. Nothing was changed.</translation>
     </message>

@@ -32,8 +32,11 @@ import subprocess
 import sys
 
 # The binary types this repository tracks, re-derived from `git ls-files` on 2026-09-27 -- the
-# golden PNGs, the corpus PDFs, and the pinned toolchain and engine artifacts.
-BINARY_EXTENSIONS = {".png", ".pdf", ".dll", ".a", ".exe"}
+# golden PNGs, the corpus PDFs, and the pinned toolchain and engine artifacts -- and on 2026-10-05 at
+# Stage 6 T2, when this check went red over the two types Stage 6 T1 committed: `.fdf` (COS syntax, its
+# streams raw bytes -- an attachment's file, a sound's PCM) and `.jpg` (a custom stamp image). `.xfdf`
+# is XML and stays checked (Stage 6 guide I-04).
+BINARY_EXTENSIONS = {".png", ".pdf", ".dll", ".a", ".exe", ".fdf", ".jpg"}
 
 NAMES = {0x00: "NUL", 0x07: "BELL", 0x08: "BACKSPACE", 0x0B: "VERTICAL TAB", 0x0C: "FORM FEED",
          0x0D: "LONE CARRIAGE RETURN", 0x1B: "ESCAPE", 0x7F: "DELETE"}

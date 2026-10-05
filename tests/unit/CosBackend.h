@@ -17,6 +17,8 @@
 #ifndef RAWPAGE_TESTS_UNIT_COSBACKEND_H
 #define RAWPAGE_TESTS_UNIT_COSBACKEND_H
 
+#include "core/doc/AnnotationStore.h"
+#include "pdf/ops/AnnotationReader.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
@@ -86,6 +88,11 @@ public:
             entry->tree, planted_.value_or(core::CosReading::Read), facts);
         planted_.reset();
         entry->id = core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);   // the real time: SaveCoordinator compares it (T8)
+        // S6 T2 (D6-3): the annotations, from the same first-party walk as the shipped backend's.
+        // There is no engine here, so no per-page agreement is assessed -- that half is
+        // `tests/render/tst_annotreader.cpp`'s, where both readers are.
+        entry->annotations = core::AnnotationStore::fromReading(
+            pdf::ops::AnnotationReader::read(sink.value()->table(), sink.value()->pages()));
         if (entry->permissions.canEditPages())
             entry->sink = std::move(sink).value();
 
@@ -133,6 +140,12 @@ public:
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {
         return &transitions_;
+    }
+
+    const core::AnnotationStore* annotations(core::DocumentHandle handle) const override
+    {
+        const auto* entry = find(handle);
+        return entry ? &entry->annotations : nullptr;
     }
 
     // S4 T12 (D4-14): this fake has no engine and therefore no objects to bound. An explicit
@@ -218,6 +231,7 @@ public:
 
 private:
     struct Entry {
+        core::AnnotationStore annotations;     // S6 T2
         QByteArray bytes;
         core::PageTree tree;
         core::RepairReport repair;

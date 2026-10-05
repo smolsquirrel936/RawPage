@@ -55,6 +55,42 @@ bool looksLikePdf(const QByteArray& bytes)
 
 // A page label, as UTF-16LE from `FPDF_GetPageLabel`. Empty when the document has none, which is
 // the ordinary case -- most files number their pages implicitly.
+// S6 T2. PDFium's subtype constant as the model's. `core::AnnotationSubtype` happens to number its
+// values as PDFium does; this maps them explicitly anyway, and the asserts are what would fail if
+// either side ever renumbered.
+core::AnnotationSubtype subtypeFromEngine(int subtype)
+{
+    static_assert(static_cast<int>(core::AnnotationSubtype::Text) == FPDF_ANNOT_TEXT);
+    static_assert(static_cast<int>(core::AnnotationSubtype::Ink) == FPDF_ANNOT_INK);
+    static_assert(static_cast<int>(core::AnnotationSubtype::ThreeD) == FPDF_ANNOT_THREED);
+    static_assert(static_cast<int>(core::AnnotationSubtype::XfaWidget) == FPDF_ANNOT_XFAWIDGET);
+    static_assert(static_cast<int>(core::AnnotationSubtype::Redact) == FPDF_ANNOT_REDACT);
+    if (subtype < FPDF_ANNOT_UNKNOWN || subtype > FPDF_ANNOT_REDACT) return core::AnnotationSubtype::Unknown;
+    return static_cast<core::AnnotationSubtype>(subtype);
+}
+
+// One loaded page's `/Annots`, entry by entry, as the engine reads them (D6-3). The caller holds the
+// engine lock.
+std::vector<core::AnnotationFact> annotationFactsOf(FPDF_PAGE page)
+{
+    std::vector<core::AnnotationFact> facts;
+    const int count = FPDFPage_GetAnnotCount(page);
+    facts.reserve(static_cast<std::size_t>(std::max(0, count)));
+    for (int index = 0; index < count; ++index) {
+        core::AnnotationFact fact;
+        if (FPDF_ANNOTATION annotation = FPDFPage_GetAnnot(page, index)) {
+            fact.dictionary = true;
+            fact.subtype = subtypeFromEngine(FPDFAnnot_GetSubtype(annotation));
+            FS_RECTF rect{};
+            if (FPDFAnnot_GetRect(annotation, &rect))
+                fact.rect = core::normalizedRect(rect.left, rect.bottom, rect.right, rect.top);
+            FPDFPage_CloseAnnot(annotation);
+        }
+        facts.push_back(fact);
+    }
+    return facts;
+}
+
 QString pageLabel(FPDF_DOCUMENT document, int index)
 {
     requireEngineLock();
@@ -877,6 +913,7 @@ core::Status PdfiumDocument::Opening::step()
             count_ = FPDF_GetPageCount(self->engine_->document);
         }
         pages_.reserve(static_cast<std::size_t>(std::max(0, count_)));
+        annotationFacts_.reserve(static_cast<std::size_t>(std::max(0, count_)));
         stage_ = Stage::Pages;
         return {};
     }
@@ -910,6 +947,7 @@ core::Status PdfiumDocument::Opening::step()
                 // too. It gets a zero-sized entry so indices stay aligned with the engine's, and
                 // the TRAILING run of these is dropped below.
                 pages_.emplace_back(index, core::PdfRect{});
+                annotationFacts_.emplace_back();
                 continue;
             }
 
@@ -941,6 +979,11 @@ core::Status PdfiumDocument::Opening::step()
             built.setRotation(FPDFPage_GetRotation(page) * 90);
             built.setLabel(pageLabel(document, index));
 
+            // S6 T2 (D6-3): the page's `/Annots` as the engine reads it, while the page is loaded.
+            // `FPDFPage_GetAnnotCount` is the ARRAY's length, whatever its entries are; an entry that
+            // is not a dictionary gives no annotation handle, and is a fact in its own right.
+            annotationFacts_.push_back(annotationFactsOf(page));
+
             FPDF_ClosePage(page);
             pages_.push_back(std::move(built));
         }
@@ -962,6 +1005,7 @@ core::Status PdfiumDocument::Opening::step()
         while (!pages_.empty() && pages_.back().mediaBox().size.width <= 0.0
                && pages_.back().mediaBox().size.height <= 0.0) {
             pages_.pop_back();
+            annotationFacts_.pop_back();
         }
 
         // **A DOCUMENT WITH NO READABLE PAGE IS REFUSED, not opened** (Stage 2 issue I-31). There is
@@ -978,6 +1022,8 @@ core::Status PdfiumDocument::Opening::step()
 
         self->pages_ = core::PageTree(std::move(pages_));
         pages_.clear();
+        self->annotationFacts_ = std::move(annotationFacts_);
+        annotationFacts_.clear();
         stage_ = Stage::Readers;
         return {};
     }

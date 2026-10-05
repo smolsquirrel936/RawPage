@@ -87,6 +87,7 @@ class Outline;               // core/doc/Outline.h         -- Stage 4 T4 (read h
 class Destinations;          // core/doc/Destinations.h    -- Stage 4 T4 (read half, D4-3)
 struct Metadata;             // core/doc/Metadata.h        -- Stage 4 T4 (Info only, D4-4)
 class PageTransitions;       // core/doc/PageTransitions.h -- Stage 4 T10 (D4-12)
+class AnnotationStore;       // core/doc/AnnotationStore.h -- Stage 6 T2 (read half, D6-3)
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -447,6 +448,15 @@ public:
     //
     // Empty is the ordinary answer: almost no document carries a transition.
     virtual const PageTransitions* pageTransitions(DocumentHandle document) const = 0;
+
+    // EVERY ANNOTATION OF THE DOCUMENT -- added at Stage 6 T2 (D6-3), or null for a handle this
+    // backend did not open. Hydrated ONCE, at open, from the same first-party walk as the transitions,
+    // because editing needs what PDFium's API does not give: each annotation's object number and its
+    // dictionary as written (`pdf/ops/AnnotationReader`). PDFium still draws them, and `permissions()`
+    // carries the per-page agreement of the two readings (`Permissions::mayAnnotate`). For a document
+    // the first-party reader declines -- an encrypted one (D2-6) -- the store is EMPTY AND SAYS WHY:
+    // `status()` is the refusal, never an empty success.
+    virtual const AnnotationStore* annotations(DocumentHandle document) const = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it
