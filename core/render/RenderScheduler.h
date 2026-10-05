@@ -127,10 +127,10 @@ const char* renderPriorityName(RenderPriority priority) noexcept;
 // ONE PAGE'S TEXT, asked of the engine thread -- Stage 5 T2, D5-3. Deliberately smaller than a
 // `RenderRequest`, and the absences are the design:
 //
-//   * NO `Revision`. The engine never reloads a document it opened (D3-15): an unsaved rotation
-//     reaches the pixels as a render DELTA, and a page's text is in unrotated PAGE space (D5-2), so
-//     what a page's text is depends on the handle and the index and on nothing a Stage 5 command
-//     can change. A revision here would make every rotation throw away a 900-page index build for
+//   * NO `Revision`. A page's text is in unrotated PAGE space (D5-2), so no rotation changes it, and
+//     no annotation does either -- the engine RELOADS after an annotation edit (S6 T4, D6-2), but the
+//     page's content is the same bytes -- so what a page's text is depends on the handle and the index
+//     and on nothing a command up to Stage 6 can change. A revision here would make every rotation throw away a 900-page index build for
 //     text that did not move. When a later stage's command changes a page's CONTENT, it is
 //     `core/text/DocumentIndex` (T6) that drops the page by `Scope` -- the index is where text is
 //     kept, so the index is where it goes stale.

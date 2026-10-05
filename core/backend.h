@@ -529,9 +529,10 @@ public:
     virtual Status writeRevision(DocumentHandle document, const QString& temporaryPath) = 0;
 
     // `adoptRevision`: after the replace, `path` holds the newest revision on disk. The sink compares
-    // against it from now on, and `repairReport()` and `documentId()` describe it. The ENGINE keeps the
-    // bytes it loaded (D3-15): an unsaved rotation is drawn as a render delta, and the delta stays
-    // relative to those bytes.
+    // against it from now on, and `repairReport()` and `documentId()` describe it. The ENGINE is not
+    // reloaded by a save: it goes on drawing what `showEdits` last handed it, which is what was just
+    // written (S6 T4, D6-2). Its PAGE TREE (`pages()`) stays the one read at open, and an unsaved
+    // rotation's render delta stays relative to that tree (D3-15).
     virtual Status adoptRevision(DocumentHandle document, const QString& path) = 0;
 
     // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES -- Stage 6 T4, decision **D6-2**, which ends D3-15 for

@@ -17,7 +17,7 @@ A-32 (Highlight, the one type T3 writes) in part, each saying what is owed; A-31
 owed** -- thirteen planted controls, all fired. **T4 (2026-10-05): A-35, A-37 and A-38 ✅ -- A-38 a
 VERDICT, *A2 at Stage 6* `go, with named custom work` (the user's choice), its named work built in the task
 and what it did not bring inside recorded; A-34 (Highlight, through commands), A-36 (all but its search
-clause, T9's) and A-39 (all but the status bar, T5's) in part** -- fifteen planted controls, all fired. §8 logs
+clause, T9's) and A-39 (all but the status bar, T5's) in part** -- sixteen planted controls, all fired, one only after its case was strengthened (I-06's entry and the T4 row say which). §8 logs
 > **I-01 … I-06**, all S3 and closed. **108
 > automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
 > re-read against the answers and stand as written** — A-40, A-46 and A-70 (Q1, A-40's Expect gaining

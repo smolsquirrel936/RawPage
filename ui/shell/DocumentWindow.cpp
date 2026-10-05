@@ -371,7 +371,8 @@ void DocumentWindow::build(const Recovery* recovery)
     applyViewSettings();
 
     // THE DOCUMENT AND ITS JOURNAL (Stage 3 T10). Hydrated from the backend -- a copy of its page tree, so
-    // a rotation changes the model and never the engine's reading (D3-15). A handle the backend does not
+    // a rotation changes the model and never the engine's page tree (D3-15); since S6 T4 the engine itself
+    // is shown each edit (D6-2, the show step below). A handle the backend does not
     // know hydrates nothing, and the view draws nothing.
     // A COMPANION HYDRATES NOTHING (S4 T11). No journal, no recovery journal, no coordinator --
     // the constructor's comment argues why two journals over one file is the defect rather than

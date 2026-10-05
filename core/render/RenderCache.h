@@ -20,7 +20,8 @@
 //
 // So `invalidate()` does two things rather than one:
 //
-//   * entries the scope TOUCHES are dropped;
+//   * entries the scope TOUCHES are dropped -- `tileTouchedBy`: a page the scope names, or, for an
+//     annotation scope that carries rectangles (Stage 6 T4), only the tiles one of them reaches;
 //   * entries it does not touch are **re-keyed to the new revision**, so a tile rendered before a
 //     mutation that did not affect it is still found afterwards.
 //
