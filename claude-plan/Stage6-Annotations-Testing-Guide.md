@@ -10,8 +10,9 @@
 > any Stage 6 code. The plan's §0 was ANSWERED the same day, all eight — Q1 … Q6 and Q8 approved as
 > proposed, and Q7 by moving the custom stamp from a PDF page to Stage 7, which rewrote A-78 and M-07.
 > No case had a result until T1.** **T1 (2026-10-05): A-13 … A-16 ✅**, each with its evidence. **T2
-> (2026-10-05): A-17 … A-22 ✅ and A-23's Windows half** — its `portable-fuzz` and soak logs are owed to the
-> next CI run. §8 logs **I-01 … I-04**, all S3 and closed. **108
+> (2026-10-05): A-17 … A-22 ✅ and A-23's Windows half** — its `portable-fuzz` log read from CI run
+> 37250978598, its soak log still owed. That run's `portable-asan` job failed A-22's clock (**I-05**). §8 logs
+> **I-01 … I-05**, all S3 and closed. **108
 > automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
 > re-read against the answers and stand as written** — A-40, A-46 and A-70 (Q1, A-40's Expect gaining
 > the collision census at **thirteen**, the consequence of Q1 the user accepted); A-08 and A-55 (Q2);
@@ -444,12 +445,12 @@ the tree at Stage 5's sign-off.
 **A-22 · Hostile annotations are bounded** ✅ *2026-10-05, T2*
 **Steps** `tst_annotstore`'s and `tst_annotreader`'s hostile cases: NaN and infinite rectangles, a 1,000,000-point `/InkList`, a 10,000-deep `/IRT` chain, `/Annots` that is a dictionary, an annotation listed by 1,000 pages.
 **Expect** Each read within one second, bounded memory, the defect reported; no crash. **If it fails** S1 for a crash or a hang; S2 otherwise.
-**Result** Built in memory (`tests/unit/TinyPdf.h`), read and threaded: the 1,000,000-point `/InkList` in **205-230 ms on `x64-release`** (1.8 s on `x64-debug`, where the case grades a five-second ceiling and says why -- the one-second bound is the shipped build's), truncated to `kMaxCoordinates` (200,000) and noted; the 10,000-deep chain in 26 ms release (~250 ms debug), one top-level item and a parent chain 10,000 deep, walked without recursion; the 10,000-member cycle in 24-25 ms (~250 ms debug), every member top-level and noted; `/Annots` as a dictionary: nothing listed, noted; one annotation on 1,000 pages: one annotation, 1,000 listings, owned by page 501 (its `/P`), 999 notes, 2-3 ms (35 ms debug). **"NaN and infinite rectangles" cannot be produced through `pdf/cos/`**: PDF syntax has no NaN, and the lexer CLAMPS a number too long for a double (Stage 2's choice) -- so the case holds that a 400-digit coordinate reaches the model finite and clamped, and the model's own refusal of a non-finite corner is A-20's; the reader's `NonFiniteRect` branch is defensive and said to be. Planted P8 (the bound lifted) failed it.
+**Result** Built in memory (`tests/unit/TinyPdf.h`), read and threaded: the 1,000,000-point `/InkList` in **205-230 ms on `x64-release`** (1.8 s on `x64-debug`, where the case grades a five-second ceiling and says why -- the one-second bound is the shipped build's -- and 2571 ms under `portable-asan`, which the second failed until it was given a ten-second ceiling of its own, I-05), truncated to `kMaxCoordinates` (200,000) and noted; the 10,000-deep chain in 26 ms release (~250 ms debug), one top-level item and a parent chain 10,000 deep, walked without recursion; the 10,000-member cycle in 24-25 ms (~250 ms debug), every member top-level and noted; `/Annots` as a dictionary: nothing listed, noted; one annotation on 1,000 pages: one annotation, 1,000 listings, owned by page 501 (its `/P`), 999 notes, 2-3 ms (35 ms debug). **"NaN and infinite rectangles" cannot be produced through `pdf/cos/`**: PDF syntax has no NaN, and the lexer CLAMPS a number too long for a double (Stage 2's choice) -- so the case holds that a 400-digit coordinate reaches the model finite and clamped, and the model's own refusal of a non-finite corner is A-20's; the reader's `NonFiniteRect` branch is defensive and said to be. Planted P8 (the bound lifted) failed it.
 
 **A-23 · Five fuzz targets, and the fifth runs** ☐ *Windows half 2026-10-05, T2; the Linux logs owed*
 **Steps** `ctest --preset gates -R fuzz_count`; the `portable-fuzz` CI job's **log**.
 **Expect** The count assertion at **5**, its controls refusing 4 and 0; `fuzz_annot_pipeline` *"Done N runs in 6x second(s)"* with no finding, and in the soak. **If it fails** S2.
-**Result so far** `tests/fuzz/CMakeLists.txt` expects **5**; `gates.fuzz_count.five_of_five_with_a_helper` passes and `four_of_five_fails` refuses, beside `zero_fails` -- `gates` **135/135**. The body (`tests/fuzz/AnnotPipelineFuzzBody.h`) replayed by `tst_annotstore` over every corpus PDF: *"108 corpus files, 101 walked, 9146 annotations through the body"*, every invariant held; its control (a JSON writer that drops a field) is caught by the equality the body uses. `ci.yml`'s `portable-fuzz` job and `fuzz-soak.yml` run the fifth target, seeded with `corpus/ordinary` and `corpus/malformed`. **Not yet read:** the job's and the soak's logs -- the first CI run after T2 is pushed.
+**Result so far** `tests/fuzz/CMakeLists.txt` expects **5**; `gates.fuzz_count.five_of_five_with_a_helper` passes and `four_of_five_fails` refuses, beside `zero_fails` -- `gates` **135/135**. The body (`tests/fuzz/AnnotPipelineFuzzBody.h`) replayed by `tst_annotstore` over every corpus PDF: *"108 corpus files, 101 walked, 9146 annotations through the body"*, every invariant held; its control (a JSON writer that drops a field) is caught by the equality the body uses. `ci.yml`'s `portable-fuzz` job and `fuzz-soak.yml` run the fifth target, seeded with `corpus/ordinary` and `corpus/malformed`. **The job's log, CI run 37250978598 on `133a046`:** the count *"(5, as expected)"*, and `fuzz_annot_pipeline` *"Done 18589 runs in 62 second(s)"* with no finding. **Not yet read:** the soak's log.
 
 ### 5.5 The write path (T3)
 
@@ -1041,6 +1042,7 @@ uses.
 | **I-02** | S3 | Plan D6-6 and §3.3 listed *line* among the types PDFium generates an appearance for; it does not | **Closed** at T1, 2026-10-05 |
 | **I-03** | S3 | T1's fixtures wrote `/StateModel` and `/State` as names; ISO 32000-1 makes them text strings | **Closed** at T2, 2026-10-05 |
 | **I-04** | S3 | T1's commit left `gates.text_bytes.tracked_tree` red: two new binary types the check did not know | **Closed** at T2, 2026-10-05 |
+| **I-05** | S3 | A-22's one-second clock graded the `portable-asan` build, which defines `NDEBUG`: CI run 37250978598 red | **Closed** 2026-10-05 |
 
 **I-01 (S3) — an incomplete length-limited Huffman code in the corpus encoder.** *Found* generating
 `annots-900.pdf` at T1: `deflate.compress`'s own self-check stopped the run with zlib's *"invalid
@@ -1084,6 +1086,21 @@ turned it red unseen (it was not pushed). The checker's own header predicted thi
 fails this check loudly until its extension is added.* *Fix:* `.fdf` and `.jpg` join
 `BINARY_EXTENSIONS`; `.xfdf` is XML and stays checked. *The lesson for a later task that adds a file
 type:* run the gates after `git add`, not before.
+
+**I-05 (S3) — a release clock on an instrumented build.** *Found* by CI run 37250978598 on `133a046`,
+T2's push: `portable-asan` failed `unit.a million-point ink list is truncated and reported` at
+`tst_annotstore.cpp`'s `CHECK(ms < 1000)` -- *"1,000,000-point /InkList: 2571 ms"* -- every other job
+green (Windows 1457, `gates` 121). *Mechanism:* `readWithinASecond` chose its ceiling by `NDEBUG`,
+taking it to mean *the shipped build*; `portable-asan` is `RelWithDebInfo`, so `NDEBUG` is defined
+there too and ASan's instrumentation was graded against the release second. The read was bounded --
+truncated and noted as the case requires; only the clock failed. *Why no suite saw it:* MinGW has no
+ASan, so the Windows presets compile only the two branches they take. *Fix:* the case detects
+AddressSanitizer -- GCC's `__SANITIZE_ADDRESS__`, clang's `__has_feature(address_sanitizer)` -- and
+grades a ten-second ceiling there, as loose as `tst_layout`'s million-character case and likewise
+grading no speed; `x64-release` keeps the second (203 ms) and `x64-debug` five (1681 ms). *Controls:*
+`g++ -fsanitize=address -dM -E` defines the macro and the plain preprocessor does not; the release
+ceiling planted at 100 ms failed the case on `x64-release`, so that build still compiles the
+one-second branch. **Not yet read:** a `portable-asan` log over the fix.
 
 ---
 

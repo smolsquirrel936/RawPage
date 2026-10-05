@@ -35,6 +35,16 @@
 #include <set>
 #include <string>
 
+// Under AddressSanitizer -- GCC says so with a macro, clang through `__has_feature`, which GCC 13 lacks
+// and which may not share an `#if` with `defined(__has_feature)` on a compiler that lacks it.
+#if defined(__SANITIZE_ADDRESS__)
+#define RAWPAGE_TEST_UNDER_ASAN 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define RAWPAGE_TEST_UNDER_ASAN 1
+#endif
+#endif
+
 using namespace rawpage;
 using core::AnnotationNoteKind;
 using core::AnnotationStore;
@@ -274,10 +284,15 @@ AnnotationStore readWithinASecond(const std::string& bytes, const char* what)
     const qint64 ms = clock.elapsed();
     std::printf("A-22 %s: %lld ms, %zu annotation(s), %zu note(s)\n", what, static_cast<long long>(ms),
                 store.size(), store.notes().size());
-    // THE ONE-SECOND BOUND IS THE SHIPPED BUILD'S, graded where NDEBUG is defined (`x64-release`). An
-    // unoptimized `x64-debug` parses the million-point case in ~1.9 s (measured at T2), so there the case
-    // proves the read ENDS and stays bounded, under a ceiling five times looser -- it does not grade speed.
-#ifdef NDEBUG
+    // THE ONE-SECOND BOUND IS THE SHIPPED BUILD'S, graded where NDEBUG is defined and no sanitizer is
+    // (`x64-release`). An unoptimized `x64-debug` parses the million-point case in ~1.9 s (measured at T2),
+    // so there the case proves the read ENDS and stays bounded, under a ceiling five times looser -- it does
+    // not grade speed. `portable-asan` is RelWithDebInfo, so NDEBUG is defined there too, and ASan's
+    // instrumentation took the same case to 2571 ms (CI run 37250978598, S6 guide I-05): it gets a ceiling
+    // of its own, as loose as `tst_layout`'s million-character case, and likewise grades no speed.
+#if defined(RAWPAGE_TEST_UNDER_ASAN)
+    CHECK(ms < 10000);
+#elif defined(NDEBUG)
     CHECK(ms < 1000);
 #else
     CHECK(ms < 5000);
