@@ -1615,6 +1615,58 @@
         <translation>The snapshot could not be rendered. The clipboard is unchanged.</translation>
     </message>
     <message>
+        <source>shell.status.annotationRefused</source>
+        <translation>Not changed: %1</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolArmed</source>
+        <translation>%1 is selected. Select, move, resize or delete comments with it; making new ones with this tool comes in a later step of this version.</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.nothing</source>
+        <translation>Nothing selected</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.selectionOne</source>
+        <translation>1 comment selected</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.selectionMany</source>
+        <translation>%1 comments selected</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.tool</source>
+        <translation>%1 — defaults</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.colour</source>
+        <translation>Colour</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.opacity</source>
+        <translation>Opacity %</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.width</source>
+        <translation>Line width</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.text</source>
+        <translation>Text</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.locked</source>
+        <translation>Locked</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.contentsLocked</source>
+        <translation>Text locked</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.readOnly</source>
+        <translation>Read-only</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>Light</translation>
     </message>
@@ -2472,6 +2524,18 @@
     <message>
         <source>error.edit.annotationsDisagree</source>
         <translation>The comments on page %1 of this PDF are stored in a way RawPage reads differently from how it draws them, so they cannot be changed on that page.</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationLocked</source>
+        <translation>This comment on page %1 is locked, so it cannot be moved, resized, restyled or deleted. Unlock it first.</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationContentsLocked</source>
+        <translation>The text of this comment on page %1 is locked, so it cannot be changed. Unlock it first.</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationReadOnly</source>
+        <translation>This comment on page %1 is read-only: it can be selected but not changed. Clear its read-only lock first.</translation>
     </message>
     <message>
         <source>error.edit.notShown</source>
@@ -3441,6 +3505,38 @@
     <message>
         <source>command.annot.deleteMany</source>
         <translation>Delete %1 annotations</translation>
+    </message>
+    <message>
+        <source>command.annot.edit</source>
+        <translation>Edit annotation</translation>
+    </message>
+    <message>
+        <source>command.annot.editMany</source>
+        <translation>Edit %1 annotations</translation>
+    </message>
+    <message>
+        <source>command.annot.move</source>
+        <translation>Move annotation</translation>
+    </message>
+    <message>
+        <source>command.annot.moveMany</source>
+        <translation>Move %1 annotations</translation>
+    </message>
+    <message>
+        <source>command.annot.setAppearance</source>
+        <translation>Change annotation appearance</translation>
+    </message>
+    <message>
+        <source>command.annot.setAppearanceMany</source>
+        <translation>Change the appearance of %1 annotations</translation>
+    </message>
+    <message>
+        <source>command.annot.lock</source>
+        <translation>Change annotation locks</translation>
+    </message>
+    <message>
+        <source>command.annot.lockMany</source>
+        <translation>Change the locks of %1 annotations</translation>
     </message>
     <message>
         <source>command.page.rotate</source>

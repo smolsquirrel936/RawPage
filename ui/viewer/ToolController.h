@@ -53,6 +53,7 @@
 #ifndef RAWPAGE_UI_VIEWER_TOOLCONTROLLER_H
 #define RAWPAGE_UI_VIEWER_TOOLCONTROLLER_H
 
+#include "ui/viewer/tools/AnnotationTool.h"
 #include "ui/viewer/tools/HandTool.h"
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
@@ -86,6 +87,17 @@ public:
     // can see any more.
     void arm(ToolKind kind);
     ToolKind armed() const noexcept { return armed_; }
+
+    // ---- The annotation tools (Stage 6 T5, D6-9) ---------------------------------------------------
+    // Arms `ToolKind::Annotate` as `which` -- one of §8's fourteen. Arming another annotation tool while
+    // one is armed swaps it, and says so through `armedChanged`.
+    void armAnnotation(AnnotationToolKind which);
+    // The annotation tool armed, or none when the armed tool is not one.
+    std::optional<AnnotationToolKind> armedAnnotation() const noexcept;
+    // `K` (§8, Annotation tools): keep the tool armed after it is used, or return to the Selection tool.
+    // Read by the tools that create, from T6; T5 keeps the switch and toggles it.
+    bool keepToolSelected() const noexcept { return keepToolSelected_; }
+    void setKeepToolSelected(bool keep);
 
     // What input is actually going to -- `armed()`, or `Hand` while the temporary modifier is
     // held. The distinction is the whole of behaviour 2 above, and it is why a case must read this
@@ -150,6 +162,7 @@ public:
 
 signals:
     void armedChanged(ToolKind kind);
+    void keepToolSelectedChanged(bool keep);
     void cursorChanged(Qt::CursorShape cursor);
     void autoScrollChanged(bool running);
 
@@ -165,6 +178,8 @@ private:
     MarqueeZoomTool marquee_;
     LoupeTool       loupe_;
     SnapshotTool    snapshot_;
+    AnnotationTool  annotation_;
+    bool            keepToolSelected_ = false;
 
     ToolKind armed_ = ToolKind::Select;
     bool     temporaryHand_ = false;

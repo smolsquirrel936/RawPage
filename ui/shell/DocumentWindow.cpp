@@ -11,8 +11,10 @@
 #include "core/render/RenderScheduler.h"
 #include "platform/platform.h"
 #include "ui/shell/Catalog.h"
+#include "ui/viewer/AnnotationOverlay.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/ReflowView.h"
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/SelectionOverlay.h"
@@ -234,6 +236,17 @@ void DocumentWindow::build(const Recovery* recovery)
     connect(selection_, &SelectionOverlay::copyNotExtractable, this, &DocumentWindow::selectionNotExtractable);
     connect(selection_, &SelectionOverlay::copyCancelled, this, &DocumentWindow::selectionCopyCancelled);
     connect(selection_, &SelectionOverlay::presenceChanged, this, &DocumentWindow::selectionPresenceChanged);
+
+    // THE ANNOTATIONS (S6 T5): one overlay for every pane, given its store and its runner once the journal
+    // exists (below). A refusal is said in the person's words; a selection re-asks the chrome and the bar.
+    annotations_ = new AnnotationOverlay(this);
+    connect(annotations_, &AnnotationOverlay::refused, this, [this](const core::Error& error) {
+        emit annotationRefused(catalog::translateError(QString(error.messageKey), error.context));
+    });
+    connect(annotations_, &AnnotationOverlay::selectionChanged, this, [this] {
+        refreshPropertiesBar();
+        emit annotationStateChanged();
+    });
     horizontalRuler_ = new RulerWidget(Qt::Horizontal, surface);
     verticalRuler_ = new RulerWidget(Qt::Vertical, surface);
 
@@ -278,6 +291,24 @@ void DocumentWindow::build(const Recovery* recovery)
     findBar_ = new FindReplaceBar(services_, this);
     column->insertWidget(0, findBar_);
     findBar_->setCurrentPageProvider([this] { return view() != nullptr ? view()->controller().currentPage() : 0; });
+
+    // THE PROPERTIES BAR (S6 T5, D6-9), under the find bar and hidden until `Ctrl+E`. It collects; the overlay
+    // constructs the one command each change means.
+    propertiesBar_ = new PropertiesBar(this);
+    propertiesBar_->hide();
+    column->insertWidget(1, propertiesBar_);
+    connect(propertiesBar_, &PropertiesBar::appearanceRequested, this,
+            [this](const core::AnnotationAppearance& appearance) { (void)annotations_->setAppearance(appearance); });
+    connect(propertiesBar_, &PropertiesBar::contentsRequested, this,
+            [this](const QString& text) { (void)annotations_->setContents(text); });
+    connect(propertiesBar_, &PropertiesBar::locksRequested, this,
+            [this](std::uint32_t set, std::uint32_t clear) { (void)annotations_->setLocks(set, clear); });
+    connect(propertiesBar_, &PropertiesBar::toolDefaultsChanged, this, [this](const AnnotationToolDefaults& defaults) {
+        if (PageView* pane = view()) {
+            if (const std::optional<AnnotationToolKind> armed = pane->tools().armedAnnotation())
+                sessionToolDefaults(*armed) = defaults;
+        }
+    });
     // A HIT LEAVES REFLOW FIRST (S5 T11, D5-16): find does not run inside it, and a hit is a place ON A PAGE.
     connect(findBar_, &FindReplaceBar::hitActivated, this, [this](int page, core::PdfRect rect) {
         setReflowing(false);
@@ -418,6 +449,10 @@ void DocumentWindow::build(const Recovery* recovery)
                 afterMutation();
             });
             journal_->subscribeDirty([this](bool dirty) { emit dirtyChanged(dirty); });
+
+            // THE OVERLAY READS THIS DOCUMENT'S STORE AND RUNS THROUGH THIS JOURNAL (S6 T5, D6-1).
+            annotations_->setStore(&journal_->document().annotations());
+            annotations_->setRunner([this](std::unique_ptr<core::Command> command) { return journal_->run(std::move(command)); });
 
             // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES (S6 T4, D6-2): every command, undo and redo is
             // composed, verified and handed to the engine before it counts -- one Save could not write
@@ -608,8 +643,11 @@ void DocumentWindow::handDocumentTo(PageView* pane)
     // `NotFound` -- a page with no objects -- becomes `std::nullopt`, and `core/render/FitPolicy`
     // falls back to the CropBox. The error is not logged: an empty page is an ordinary document,
     // not a defect, and a log line per fit would be a log nobody reads.
-    // ONE SELECTION FOR EVERY PANE (S5 T5, D5-8).
+    // ONE SELECTION FOR EVERY PANE (S5 T5, D5-8) -- and one selection of ANNOTATIONS (S6 T5). A pane's tool
+    // decides what the bar shows, so a pane arming one re-asks it (a member slot: `UniqueConnection` is safe).
     pane->setSelectionOverlay(selection_);
+    pane->setAnnotationOverlay(annotations_);
+    connect(pane, &PageView::toolChanged, this, &DocumentWindow::refreshPropertiesBar, Qt::UniqueConnection);
 
     // EVERY PANE'S SNAPSHOT IS THIS TAB'S (S5 T10, D5-11), forwarded as the selection's copy is, so the one
     // `disconnect(document, ...)` `MainWindow` makes when a tab leaves it covers these too. Unique, because
@@ -929,6 +967,21 @@ DocumentWindow::~DocumentWindow()
         reflow_ = nullptr;
     }
 
+    // THE ANNOTATIONS AND THEIR BAR (S6 T5): before the journal whose store the overlay reads goes with this
+    // object's members, and with every pane let go of it first.
+    if (propertiesBar_ != nullptr) {
+        disconnect(propertiesBar_, nullptr, this, nullptr);
+        delete propertiesBar_;
+        propertiesBar_ = nullptr;
+    }
+    if (annotations_ != nullptr) {
+        if (split_)
+            for (PageView* pane : split_->views()) pane->setAnnotationOverlay(nullptr);
+        disconnect(annotations_, nullptr, this, nullptr);
+        delete annotations_;
+        annotations_ = nullptr;
+    }
+
     // THE SELECTION GOES BEFORE THE HANDLE CLOSES (S5 T5): it holds text tickets on this document and a
     // subscription to the scheduler, and every pane lets go of it first so none paints through a
     // pointer to a destroyed object.
@@ -1008,12 +1061,44 @@ void DocumentWindow::afterMutation()
     // part of every tile's key -- D2-12's argument, arriving at its third consumer after the
     // thumbnails pane.
     for (PageView* pane : split_->views()) pane->modelChanged(journal_->revision());
+    // S6 T5: an annotation the model no longer holds leaves the selection; the bar shows what it is now.
+    if (annotations_ != nullptr) annotations_->modelChanged();
+    refreshPropertiesBar();
     if (recovery_ && !recovery_->isRecoverable() && !recoveryReported_) {
         recoveryReported_ = true;
         emit recoveryUnavailable(catalog::translateError(QString::fromLatin1(recovery_->unrecoverableKey()),
                                                          recovery_->unrecoverableContext()));
     }
     emit mutated();
+}
+
+bool DocumentWindow::propertiesBarShown() const
+{
+    return propertiesBar_ != nullptr && !propertiesBar_->isHidden();
+}
+
+void DocumentWindow::togglePropertiesBar()
+{
+    if (propertiesBar_ == nullptr) return;
+    propertiesBar_->setVisible(propertiesBar_->isHidden());
+    refreshPropertiesBar();
+    emit annotationStateChanged();
+}
+
+void DocumentWindow::refreshPropertiesBar()
+{
+    if (propertiesBar_ == nullptr || annotations_ == nullptr) return;
+    if (annotations_->hasSelection()) {
+        propertiesBar_->showSelection(annotations_->selected());
+        return;
+    }
+    if (PageView* pane = view()) {
+        if (const std::optional<AnnotationToolKind> armed = pane->tools().armedAnnotation()) {
+            propertiesBar_->showToolDefaults(catalog::translateAction(armingAction(*armed)), sessionToolDefaults(*armed));
+            return;
+        }
+    }
+    propertiesBar_->showNothing();
 }
 
 core::Result<core::SaveOutcome> DocumentWindow::save()

@@ -151,10 +151,24 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // pressed. MINTED, chordless -- the id exists so the tool finder and the batch runner reach what the
     // box does (D1-7(a)); 374 ids are declared.
     //
+    // **Eighteen more at Stage 6 T5** (D6-9): the fourteen annotation-tool arming chords, §8's Viewer
+    // `Ctrl+Alt+M` … `Ctrl+Alt+K` since Q1; `annot.keepToolSelected` (`K`) and `annot.deleteSelected`
+    // (`Delete`) in Annotation tools; and `Ctrl+E` twice -- `view.togglePropertiesBar` in the Viewer and
+    // `annot.properties` in Annotation tools, one bar. No id is minted. `annot.finishShape` and
+    // `annot.setToolDefault` stay unregistered (T8), as `edit.cancel` does (Stage 4's I-06).
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 111);
+    CHECK(fixture.actions.registeredCount() == 129);
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotHighlight));         // S6 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::RedactMark));             // S6 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::ViewTogglePropertiesBar)); // S6 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotProperties));        // S6 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotDeleteSelected));    // S6 T5
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotKeepToolSelected));  // S6 T5
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::AnnotFinishShape));    // T8
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::AnnotSetToolDefault)); // T8
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewCycleRulerUnit));  // 2026-10-03
     CHECK(fixture.actions.isRegistered(core::ActionId::CompareDocuments));    // S5 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::NavNextDifference));   // S5 T13

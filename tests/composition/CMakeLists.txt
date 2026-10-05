@@ -56,6 +56,11 @@ add_executable(rawpage_composition_tests
     # pair, and both files byte-identical after a comparison at appearance. Here for tst_selectionink's reason.
     tst_comparisonink.cpp
 
+    # Stage 6 T5 -- guide cases A-41 and A-48 and D6-2's hold: an annotation hit where its RENDERED INK is and
+    # not three pixels beside it, at two device scales and an odd offset; a selection's handles absent from a
+    # snapshot; an edit's superseded tiles shown until their replacements arrive. Here for tst_selectionink's reason.
+    tst_annotink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

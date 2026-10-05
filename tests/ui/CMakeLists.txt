@@ -146,6 +146,13 @@ add_executable(rawpage_ui_tests
     # its own, a find hit leaving it, the window growing. A real page's order is tests/composition's.
     tst_reflow.cpp
 
+    # S6 T5 -- the annotation overlay and the context chain from mouse and key events (guide A-40, A-42 ...
+    # A-47, A-39's status bar): one gesture one command, the locks, the nudge burst, the properties bar, Esc
+    # kept by every widget that owns it, pop-ups as view state. Over the fake backend, which draws nothing:
+    # the same gestures against the INK are tests/composition/tst_annotink.cpp's (A-41).
+    tst_annotoverlay.cpp
+    tst_annottools.cpp
+
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the
     # dialog's widgets, the steps disabled and then stepping, the claimed keys, the bar as the settings, the

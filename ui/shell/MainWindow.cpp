@@ -723,6 +723,15 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (document != currentDocument() || !status_) return;
         status_->setMessage(catalog::translate(catalog::key::StatusSnapshotFailed));
     });
+    // S6 T5: a refused annotation change, said in the status bar (guide A-39's last clause) -- for the tab in
+    // front, as the copy and the snapshot are; and the selection or the bar changing re-asks the commands.
+    connect(document, &DocumentWindow::annotationRefused, this, [this, document](const QString& reason) {
+        if (document != currentDocument() || !status_) return;
+        status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused).arg(reason));
+    });
+    connect(document, &DocumentWindow::annotationStateChanged, this, [this] {
+        if (actionFactory_) actionFactory_->refresh();
+    });
     connect(document, &DocumentWindow::reflowChanged, this, [this](bool) {
         if (actionFactory_) actionFactory_->refresh();
     });
@@ -2756,6 +2765,7 @@ void MainWindow::registerActions()
 
     // --- The §8 Viewer commands (S2 T14) ----------------------------------------------------
     registerViewerActions();
+    registerAnnotationActions();
 
     // --- Undo, redo, rotate, save (Stage 3 T10) -----------------------------------------------
     registerMutationActions();
@@ -3200,6 +3210,108 @@ void MainWindow::registerMutationActions()
         saveAs.unavailableText = whyNotEditable(ActionId::FileSaveAs);
         registerRegistration(ActionId::FileSaveAs, std::move(saveAs));
     }
+}
+
+void MainWindow::registerAnnotationActions()
+{
+    // STAGE 6 T5 (D6-9, `Stage6-Annotations-Plan.md` §3). The fourteen `Ctrl+Alt+` chords are Viewer rows
+    // since Q1, and each ARMS its tool from the page with nothing armed; with one armed the page is in
+    // Annotation tools, which resolves through the Viewer. What each tool creates is its own task's (T6 ...),
+    // and the status bar says so when one is armed rather than leaving a person to find out by dragging.
+    // Every handler resolves the tab at dispatch time (convention 14). No id is minted.
+    const auto hasView = [] {
+        MainWindow* window = activeShell();
+        return window != nullptr && window->currentView() != nullptr && window->currentView()->pageCount() > 0;
+    };
+    const auto documentInFront = []() -> DocumentWindow* {
+        MainWindow* window = activeShell();
+        return window ? window->currentDocument() : nullptr;
+    };
+
+    for (int i = 0; i < kAnnotationToolKindCount; ++i) {
+        const auto kind = static_cast<AnnotationToolKind>(i);
+        const ActionId id = armingAction(kind);
+        if (services_.actions.isRegistered(id)) continue;
+        core::ActionRegistry::Registration registration;
+        registration.handler = [kind, id](KeyContext) {
+            MainWindow* window = activeShell();
+            PageView* view = window ? window->currentView() : nullptr;
+            if (view == nullptr) return;
+            view->tools().armAnnotation(kind);
+            if (window->status_)
+                window->status_->setMessage(
+                    catalog::translate(catalog::key::StatusAnnotationToolArmed).arg(catalog::translateAction(id)));
+            window->updateViewChrome();
+        };
+        registration.checked = [kind] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->tools().armedAnnotation() == kind;
+        };
+        registration.enable = hasView;
+        registration.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(registration));
+    }
+
+    // `K`: keep the tool armed after a use. The switch is the tool controller's (Stage 4 T7 left it there);
+    // the tools that read it create from T6.
+    if (!services_.actions.isRegistered(ActionId::AnnotKeepToolSelected)) {
+        core::ActionRegistry::Registration keep;
+        keep.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (PageView* view = window ? window->currentView() : nullptr) {
+                view->tools().setKeepToolSelected(!view->tools().keepToolSelected());
+                window->updateViewChrome();
+            }
+        };
+        keep.checked = [] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->tools().keepToolSelected();
+        };
+        keep.enable = hasView;
+        keep.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::AnnotKeepToolSelected, std::move(keep));
+    }
+
+    // `Delete` in Annotation tools: the selected annotations, as ONE command (D6-1). Disabled with nothing
+    // selected -- and Annotation tools is only the context with a tool armed or something selected.
+    if (!services_.actions.isRegistered(ActionId::AnnotDeleteSelected)) {
+        core::ActionRegistry::Registration remove;
+        remove.handler = [documentInFront](KeyContext) {
+            if (DocumentWindow* document = documentInFront()) {
+                if (AnnotationOverlay* annotations = document->annotations()) (void)annotations->deleteSelection();
+            }
+        };
+        remove.enable = [documentInFront] {
+            const DocumentWindow* document = documentInFront();
+            return document != nullptr && document->annotations() != nullptr && document->annotations()->hasSelection();
+        };
+        remove.unavailableKey = "shell.tooltip.needsSelection";
+        services_.actions.register_(ActionId::AnnotDeleteSelected, std::move(remove));
+    }
+
+    // `Ctrl+E`, TWICE in §8 -- `view.togglePropertiesBar` in the Viewer and `annot.properties` in Annotation
+    // tools -- and ONE bar (D6-9): each toggles it, and it shows what is in front of the person.
+    for (const ActionId id : {ActionId::ViewTogglePropertiesBar, ActionId::AnnotProperties}) {
+        if (services_.actions.isRegistered(id)) continue;
+        core::ActionRegistry::Registration bar;
+        bar.handler = [documentInFront](KeyContext) {
+            if (DocumentWindow* document = documentInFront()) document->togglePropertiesBar();
+        };
+        bar.checked = [documentInFront] {
+            const DocumentWindow* document = documentInFront();
+            return document != nullptr && document->propertiesBarShown();
+        };
+        bar.enable = hasView;
+        bar.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(id, std::move(bar));
+    }
+
+    // NOT REGISTERED, on purpose, each with its owner: `annot.finishShape` (`Enter`, a polygon in progress --
+    // T8), `annot.setToolDefault` (`Ctrl+Alt+Enter`, a default needs the settings family -- T8),
+    // `annot.duplicate` and `annot.nudge` (`Alt`+drag and the arrows are gestures the overlay handles; a
+    // direction is an argument and dispatch carries none -- O11), and `edit.cancel` (Stage 4's I-06).
 }
 
 PreferencesDialog* MainWindow::showPreferences()

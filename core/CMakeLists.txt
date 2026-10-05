@@ -138,6 +138,10 @@ add_library(rawpage_core STATIC
     doc/Annotation.cpp
     doc/AnnotationStore.h
     doc/AnnotationStore.cpp
+    # Stage 6 T5 (D6-27, D6-30): a move or resize carrying every point with the rectangle, and the hit
+    # test that finds an annotation where it is drawn. Pure.
+    doc/AnnotationGeometry.h
+    doc/AnnotationGeometry.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

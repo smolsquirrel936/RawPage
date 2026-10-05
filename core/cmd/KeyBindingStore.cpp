@@ -78,6 +78,11 @@ std::optional<KeyBinding> KeyBindingStore::resolve(const Chord& chord, KeyContex
     // does the right thing -- it just finds the answer on the first or second step.
     if (!keyContextIsLayer(context)) {
         if (const std::optional<KeyBinding> inner = resolveExact(chord, context)) return inner;
+        // THE CHAIN (Stage 6 T5, D6-9): Annotation tools -> Viewer, then the layers. One step, because
+        // `keyContextFallback` names one; a context with none goes straight to Common.
+        for (std::optional<KeyContext> next = keyContextFallback(context); next; next = keyContextFallback(*next)) {
+            if (const std::optional<KeyBinding> outer = resolveExact(chord, *next)) return outer;
+        }
     }
 
     if (const std::optional<KeyBinding> common = resolveExact(chord, KeyContext::Common))

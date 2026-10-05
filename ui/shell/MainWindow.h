@@ -429,6 +429,8 @@ private:
     // already 250 lines: the registration mechanism, the once-per-registry guard and the
     // resolve-at-dispatch rule are all identical and all argued there.
     void registerViewerActions();
+    // S6 T5 (D6-9): the fourteen arming chords, `K`, `Delete` and both `Ctrl+E` rows.
+    void registerAnnotationActions();
 
     // S4 T10 (D4-12). The seven §8 Full Screen rows, every one of them DECLARED at Stage 1 with a
     // chord and registered by nothing until now -- so that whole table resolved `NotFound` and

@@ -84,8 +84,17 @@ public:
     // held for the old one -- a presenter that kept them would paint the previous document's pixels
     // into the new one's rectangles, which is a defect that looks like corruption.
     // `enginePages` (Stage 3 T10, D3-15): what the engine loaded, when it differs from `pages`, the model.
+    //
+    // A NEW REVISION OF THE SAME DOCUMENT KEEPS WHAT IS ON SCREEN UNTIL ITS REPLACEMENT ARRIVES (Stage 6 T5,
+    // D6-2's *nothing flashes*). Every held tile becomes STALE rather than being dropped, and is painted --
+    // under the fresh ones -- for as long as a request for the SAME tile at the new revision is in flight;
+    // when that tile arrives, or is no longer wanted, the stale one goes. Until T5 an edit dropped every tile
+    // of the document here, and the page was a white sheet until the cache or the engine refilled it. A
+    // stale tile whose twin is never asked for -- a page whose size a rotation changed -- is never painted.
     void setDocument(core::DocumentHandle document, core::Revision revision,
                      const core::PageTree* pages, const core::PageTree* enginePages = nullptr);
+    // How many superseded tiles are held while their replacements are on the way (for the cases).
+    std::size_t staleTileCount() const noexcept { return stale_.size(); }
 
     core::DocumentHandle document() const noexcept { return document_; }
 
@@ -175,6 +184,7 @@ public:
         int pagesDrawn = 0;
         int tilesDrawn = 0;
         int placeholders = 0;
+        int staleDrawn = 0;   // S6 T5: superseded tiles painted while their replacements were on the way
     };
     const PaintStats& lastPaint() const noexcept { return lastPaint_; }
 
@@ -206,6 +216,10 @@ private:
     const core::PageTree* enginePages_ = nullptr;
 
     std::unordered_map<core::render::RenderRequest, HeldRaster> tiles_;
+    // S6 T5: the previous revision's tiles, painted until their replacements arrive (see `setDocument`).
+    std::unordered_map<core::render::RenderRequest, HeldRaster> stale_;
+    // The request `stale` is replaced by: the same tile at the current revision.
+    core::render::RenderRequest twinOf(const core::render::RenderRequest& stale) const;
     std::unordered_map<core::render::RenderRequest, core::render::RenderTicket> tickets_;
 
     core::render::RenderScheduler::SubscriptionToken subscription_ = 0;

@@ -50,6 +50,22 @@
 // position AT OPEN keeps that name across a save that moved it, and a removed one is kept here, by that
 // name, so an undo after the save can list it again as it was written.
 //
+// EDITS IN PLACE -- Stage 6 T5 (D6-5): `replaceAnnotations` keeps, per annotation the file holds, the
+// model as it is ON DISK and as it should BE -- only where the two differ, so an edit undone before a save
+// writes nothing. `delta()` rewrites each such annotation from its dictionary on disk with only the changed
+// modelled keys (`AnnotationOps::editedDictionary`), and redraws its `/AP` only where what it draws changed:
+// an annotation carried into a new rectangle and otherwise drawn the same keeps the appearance it has,
+// because ISO 32000-1 §12.5.5 maps that appearance into the rectangle (`core::isMappedCopy`). A change it
+// cannot draw is refused when it is asked for, not at save. A DIRECT dictionary is written as a new object
+// the first time it is edited and its page lists that object (D6-4) -- keeping, across the save, the
+// (page, position) name the model gives it. A created annotation not yet saved is simply drawn anew.
+//
+// AN UNDO RETURNS THE DICTIONARY, NOT A REDRAWING OF IT. Every dictionary an edited annotation has had ON
+// DISK is remembered beside the model it read as, from the first edit on; when an edit's result IS one of
+// those models -- an undo after a save, a change put back -- that dictionary is written again verbatim, its
+// producer's `/AP` with it. Found by guide case A-35 at T5: a highlight from the file recoloured, saved and
+// undone was drawn by our builder in its old colour, not as the file had drawn it.
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -107,6 +123,9 @@ public:
     core::Status insertAnnotations(const std::vector<core::AnnotationPlacement>& at,
                                    const std::vector<core::Annotation>& annotations) override;
     core::Status removeAnnotations(const std::vector<core::AnnotationPlacement>& at) override;
+    // Stage 6 T5 -- see the header.
+    core::Status replaceAnnotations(const std::vector<core::Annotation>& before,
+                                    const std::vector<core::Annotation>& after) override;
 
     // One entry of a page's `/Annots`, as the sink holds it.
     struct ListedEntry {
@@ -132,6 +151,16 @@ public:
     // Pages whose listing differs from the disk.
     std::vector<int> pagesWithAnnotationChanges() const;
 
+    // An annotation the file holds, changed in place (T5): as on disk, as it will be written, and whether
+    // its appearance is drawn anew. Null for one that is not edited.
+    struct Edit {
+        core::Annotation disk;
+        core::Annotation now;
+        bool redraw = false;
+        std::optional<cos::CosObject> restore;   // `now` is a version the file has held: this dictionary
+    };
+    const Edit* editOf(const core::AnnotationId& id) const;
+
     // Every page's `/Annots` as `table` holds it, entries identified as the reader at open names them.
     static std::vector<PageListing> readListings(cos::XrefTable& table, const PageWalk& walk);
 
@@ -145,6 +174,8 @@ public:
         std::vector<PageListing> listings;
         std::map<QString, cos::CosRef> created;   // by /NM: where `written` put each created annotation
     };
+    // T5: an edited annotation must read back edited -- its `/Subtype`, its `/Rect`, and a well-formed `/AP`
+    // where it was redrawn -- and a direct one first edited must be listed as the object it became.
     core::Result<Reconciled> reconcile(cos::XrefTable& written, const PageWalk& walk, bool strict) const;
 
 private:
@@ -154,6 +185,12 @@ private:
     void commitListings(std::map<int, std::vector<ListedEntry>> changed);
     core::Status composeAnnotations(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pageDictionaries);
     long long referenceFloor();
+    // T5: the pages whose /Annots the next delta writes -- those whose listing changed, and those listing a
+    // direct dictionary that is edited (it becomes an object, and the page lists that object).
+    std::vector<int> pagesToRewrite() const;
+    // T5: an edited annotation's dictionary as it will be written, from `onDisk`; its appearance added to
+    // `delta` when it is redrawn.
+    core::Result<cos::CosObject> editedFrom(const cos::CosObject& onDisk, const Edit& edit, cos::ObjectDelta& delta);
 
     std::string_view bytes_;
     cos::XrefTable table_;
@@ -164,7 +201,13 @@ private:
     std::map<int, std::vector<ListedEntry>> desiredListings_;   // only pages that differ from the disk
     std::map<QString, core::Annotation> created_;              // by /NM: listed, and not on disk
     std::map<QString, cos::CosRef> createdOnDisk_;             // by /NM: where a save put it
-    std::map<core::AnnotationId, cos::CosObject> removedDirect_;   // removed direct entries, by name
+    // Entries removed that no object number names -- a direct dictionary, or one a save promoted -- by the
+    // model's name, so an undo lists them again as they were (T3; T5 holds the entry, not just a value).
+    std::map<core::AnnotationId, ListedEntry> removedEntries_;
+    std::map<core::AnnotationId, Edit> edits_;                 // T5: annotations on disk edited in place
+    // T5: every dictionary an edited annotation has had on disk, with the model it read as -- see the header.
+    std::map<core::AnnotationId, std::vector<std::pair<core::Annotation, cos::CosObject>>> versions_;
+    std::optional<cos::CosObject> dictionaryOnDisk(const core::AnnotationId& id);
     std::map<long long, int> arrayUsers_;                      // an /Annots array object -> its pages
     std::optional<long long> referenceFloor_;                  // largest number the file references
 };

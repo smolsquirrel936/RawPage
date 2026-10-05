@@ -44,6 +44,7 @@
 #include "core/doc/Revision.h"
 #include "core/render/PagePresentation.h"
 #include "core/render/RenderRequest.h"
+#include "ui/viewer/AnnotationOverlay.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/viewer/PageLayoutEngine.h"
@@ -290,6 +291,21 @@ public:
     void setSelectionOverlay(SelectionOverlay* selection);
     SelectionOverlay* selection() const override { return selection_; }
 
+    // ---- The annotations (S6 T5, D6-9) -------------------------------------------------------------
+    // The DOCUMENT WINDOW's overlay, handed in as the text selection is: every pane of a split paints and
+    // drives one selection of annotations. Null detaches. With the Selection tool or an annotation tool
+    // armed, a press is offered to it BEFORE the tool, so an annotation under the pointer is picked up
+    // rather than selected through.
+    void setAnnotationOverlay(AnnotationOverlay* annotations);
+    AnnotationOverlay* annotations() const noexcept { return annotations_; }
+    // This pane's layout, scroll and device-pixel ratio, as the overlay is handed them.
+    AnnotationOverlay::Viewport annotationViewport() const;
+
+    // THE CONTEXT THIS PANE DECLARES (D6-9): **Annotation tools** while an annotation tool is armed or an
+    // annotation is selected, the **Viewer** otherwise -- and nothing while a presentation has made it
+    // Full Screen. Annotation tools resolves through the Viewer, so every page chord still acts.
+    void updateKeyContext();
+
     // ---- Marks (S5 T13, D5-18) -----------------------------------------------------------------
     // Rectangles in PAGE SPACE painted over the tiles, under the selection -- a comparison's differences on
     // this side. Painted and never rasterized, for D4-11's reason: changing which difference is current
@@ -402,6 +418,7 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void keyReleaseEvent(QKeyEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
@@ -619,6 +636,10 @@ private:
 
     // S5 T5: the window's selection (not owned), and the click counter.
     SelectionOverlay* selection_ = nullptr;
+    // S6 T5: the window's annotations (not owned).
+    AnnotationOverlay* annotations_ = nullptr;
+    // Whether the armed tool hands a press to the overlay first: the Selection tool and the annotation tools.
+    bool overlayFirst() const;
 
     // S5 T13: a comparison's marks on this side (`setPageMarks`).
     std::vector<PageMark> marks_;

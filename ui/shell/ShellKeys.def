@@ -353,6 +353,27 @@ RAWPAGE_SHELL_STRING(SearchBarInField,          "search.bar.inField")
 RAWPAGE_SHELL_STRING(SearchBarInBookmark,       "search.bar.inBookmark")
 RAWPAGE_SHELL_STRING(SearchBarInAttachment,     "search.bar.inAttachment")
 
+// --- The annotation properties bar (S6 T5, D6-9) -- `ui/viewer/PropertiesBar` -------------------------
+// In the `shell.` family rather than a new `annot.` one: the command type ids (`annot.add`) and the
+// action ids (`annot.highlight`) are `annot.`-spelled literals that are not catalog keys, and a family is
+// what the unknown-key rule reads every quoted literal against (Stage 5's I-08).
+RAWPAGE_SHELL_STRING(PropertiesBarNothing,        "shell.propertiesBar.nothing")
+RAWPAGE_SHELL_STRING(PropertiesBarSelectionOne,   "shell.propertiesBar.selectionOne")
+RAWPAGE_SHELL_STRING(PropertiesBarSelectionMany,  "shell.propertiesBar.selectionMany")
+RAWPAGE_SHELL_STRING(PropertiesBarTool,           "shell.propertiesBar.tool")
+RAWPAGE_SHELL_STRING(PropertiesBarColour,         "shell.propertiesBar.colour")
+RAWPAGE_SHELL_STRING(PropertiesBarOpacity,        "shell.propertiesBar.opacity")
+RAWPAGE_SHELL_STRING(PropertiesBarWidth,          "shell.propertiesBar.width")
+RAWPAGE_SHELL_STRING(PropertiesBarText,           "shell.propertiesBar.text")
+RAWPAGE_SHELL_STRING(PropertiesBarLocked,         "shell.propertiesBar.locked")
+RAWPAGE_SHELL_STRING(PropertiesBarContentsLocked, "shell.propertiesBar.contentsLocked")
+RAWPAGE_SHELL_STRING(PropertiesBarReadOnly,       "shell.propertiesBar.readOnly")
+// A refused annotation change, in the status bar (guide A-39's last clause): `%1` is the reason's own text.
+RAWPAGE_SHELL_STRING(StatusAnnotationRefused,     "shell.status.annotationRefused")
+// An annotation tool armed: `%1` is its name. What it creates arrives with its task (T6 ...); until then it
+// selects, moves and edits what is there.
+RAWPAGE_SHELL_STRING(StatusAnnotationToolArmed,   "shell.status.annotationToolArmed")
+
 // --- Advanced Search (S5 T9, D5-13) -- `ui/panes/SearchPane`, the same `search.` family ---------------
 RAWPAGE_SHELL_STRING(SearchPaneTitle,            "search.pane.title")
 RAWPAGE_SHELL_STRING(SearchPaneQueryPlaceholder, "search.pane.queryPlaceholder")

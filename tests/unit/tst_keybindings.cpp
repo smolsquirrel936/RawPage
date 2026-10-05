@@ -399,6 +399,47 @@ TEST_CASE("resolution is innermost, then Common, then Global", "[keybindings]")
     CHECK_FALSE(store.lookup(*Chord::parse("Ctrl+Alt+Shift+F12"), KeyContext::Viewer).has_value());
 }
 
+// Stage 6 T5, decision D6-9 (`Stage6-Annotations-Plan.md` §3), guide case A-40's store half: the FIRST
+// context chain. Annotation tools resolves through the Viewer before the layers -- and only it does.
+TEST_CASE("annotation tools resolve through the viewer and then the layers", "[keybindings][D6-9]")
+{
+    const KeyBindingStore store;
+    const KeyContext tools = KeyContext::AnnotationTools;
+
+    // A Viewer chord still acts with a tool armed: zoom, page, fit, and the arming chords themselves --
+    // so one tool can be swapped for another without disarming first.
+    CHECK(store.lookup(*Chord::parse("Ctrl+="), tools) == ActionId::ViewZoomIn);
+    CHECK(store.lookup(*Chord::parse("Page Down"), tools) == ActionId::NavNextScreen);
+    CHECK(store.lookup(*Chord::parse("Ctrl+Alt+H"), tools) == ActionId::AnnotHighlight);
+    CHECK(store.lookup(*Chord::parse("Ctrl+Alt+M"), tools) == ActionId::AnnotStickyNote);
+
+    // Its own rows win where they collide with the Viewer's: `Ctrl+E` is the properties bar either way,
+    // through two ids (§8 binds both); `Delete` is the selected annotation, not Common's `edit.delete`.
+    CHECK(store.lookup(*Chord::parse("Ctrl+E"), tools) == ActionId::AnnotProperties);
+    CHECK(store.lookup(*Chord::parse("Ctrl+E"), KeyContext::Viewer) == ActionId::ViewTogglePropertiesBar);
+    CHECK(store.lookup(*Chord::parse("Delete"), tools) == ActionId::AnnotDeleteSelected);
+    CHECK(store.lookup(*Chord::parse("K"), tools) == ActionId::AnnotKeepToolSelected);
+    CHECK_FALSE(store.lookup(*Chord::parse("K"), KeyContext::Viewer).has_value());
+
+    // The Viewer's widget-native arrows are reached too, and stay the widget's: no action, a binding.
+    const std::optional<KeyBinding> up = store.resolve(*Chord::parse("Up"), tools);
+    REQUIRE(up.has_value());
+    CHECK(up->kind == BindingKind::WidgetNative);
+
+    // Then Common and Global, as for every context.
+    CHECK(store.lookup(*Chord::parse("Ctrl+Z"), tools) == ActionId::EditUndo);
+    CHECK(store.lookup(*Chord::parse("Ctrl+O"), tools) == ActionId::FileOpen);
+
+    // NO OTHER CONTEXT HAS A CHAIN: a Viewer chord means nothing from a pane.
+    CHECK_FALSE(store.lookup(*Chord::parse("Ctrl+Alt+H"), KeyContext::Bookmarks).has_value());
+    CHECK_FALSE(store.lookup(*Chord::parse("Ctrl+="), KeyContext::PageThumbnails).has_value());
+    CHECK(keyContextFallback(KeyContext::AnnotationTools) == KeyContext::Viewer);
+    for (std::size_t i = 0; i < kKeyContextCount; ++i) {
+        const auto context = static_cast<KeyContext>(i);
+        if (context != KeyContext::AnnotationTools) CHECK_FALSE(keyContextFallback(context).has_value());
+    }
+}
+
 TEST_CASE("a widget-native row resolves to no action but is still a known binding", "[keybindings]")
 {
     // ShortcutBinder needs the difference: "nothing bound" may fall through, but a widget-native

@@ -170,10 +170,16 @@ public:
     // an entry that is not an annotation -- an entry the model cannot name is not the model's to drop.
     Status remove(const std::vector<AnnotationPlacement>& placements);
 
+    // REPLACES annotations IN PLACE, each by its id -- an edit (Stage 6 T5): every listing is left as it
+    // is, and each entry naming a replaced annotation takes its new fact. ALL OR NOTHING: refused,
+    // unchanged, for a refused store, an id it does not hold, one id twice, or a change to what an edit
+    // cannot change -- the identity, the subtype, the owning page.
+    Status replace(const std::vector<Annotation>& changed);
+
     // A SHA-256 of annotation `index`'s whole JSON -- every modelled field, the form A-20 proves complete --
-    // for `Document::modelHash()`. CACHED per annotation: an annotation changes only by leaving the store
-    // and coming back, so a digest is computed once and moves with its annotation through `insert` and
-    // `remove`. Measured at Stage 6 T3: hashing `annots-900.pdf`'s 9,000 annotations' JSON took 78 ms,
+    // for `Document::modelHash()`. CACHED per annotation: a digest is computed once and moves with its
+    // annotation through `insert` and `remove`, and `replace` -- the one way an annotation changes in
+    // place -- drops the digest of each annotation it replaces. Measured at Stage 6 T3: hashing `annots-900.pdf`'s 9,000 annotations' JSON took 78 ms,
     // and `CommandJournal::run` hashes the model before EVERY command -- one highlight took 80 ms.
     const QByteArray& annotationDigest(std::size_t index) const;
 

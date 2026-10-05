@@ -90,6 +90,7 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
     if (!command->apply(document_, *sink_)) {
         if (document_.modelHash() != before)
             reportPartialApplication(*command);
+        if (std::optional<Error> why = command->refusal()) return *why;   // S6 T5: the sink's reason, by key
         return Error{ErrorCode::Unknown, QLatin1String("error.command.failed"),
                      QLatin1String(command->typeId())};
     }

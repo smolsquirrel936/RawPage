@@ -49,6 +49,8 @@
 #include <QLatin1String>
 #include <QStringList>
 
+#include <optional>
+
 namespace rawpage::core {
 
 class Document;
@@ -76,6 +78,12 @@ public:
     virtual Scope scope() const = 0;
     virtual Operation operation() const = 0;
     virtual Status permitted(const Document& document) const;   // core/cmd/Command.cpp
+
+    // WHY `apply()` LAST ANSWERED FALSE, when the command knows better than *it failed* -- Stage 6 T5: an
+    // in-place annotation command keeps the sink's refusal by key (an appearance this build cannot draw
+    // yet), and `CommandJournal::run` returns it instead of `error.command.failed`, so the status bar can
+    // say what stopped the change. None by default, which keeps every other command's answer as it was.
+    virtual std::optional<Error> refusal() const { return std::nullopt; }
 
     virtual bool apply(Document& document, MutationSink& sink) = 0;
     virtual bool revert(Document& document, MutationSink& sink) = 0;

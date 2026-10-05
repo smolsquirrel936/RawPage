@@ -457,6 +457,40 @@ Status AnnotationStore::remove(const std::vector<AnnotationPlacement>& placement
     return Status{};
 }
 
+Status AnnotationStore::replace(const std::vector<Annotation>& changed)
+{
+    if (refusal_) return *refusal_;
+    const auto malformed = [](const Annotation& a) {
+        return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), a.id.toString()};
+    };
+    // Validated in full before anything changes.
+    std::vector<std::size_t> indices;
+    indices.reserve(changed.size());
+    std::vector<bool> replaced(annotations_.size(), false);
+    for (const Annotation& a : changed) {
+        const std::optional<std::size_t> index = find(a.id);
+        if (!index || replaced[*index]) return malformed(a);
+        replaced[*index] = true;
+        const Annotation& now = annotations_[*index];
+        if (now.subtype != a.subtype || now.page != a.page || now.nm != a.nm) return malformed(a);
+        indices.push_back(*index);
+    }
+
+    if (digests_.size() < annotations_.size()) digests_.resize(annotations_.size());
+    for (std::size_t i = 0; i < changed.size(); ++i) {
+        annotations_[indices[i]] = changed[i];
+        digests_[indices[i]].clear();
+    }
+    for (std::vector<AnnotationListingEntry>& listing : pages_) {
+        for (AnnotationListingEntry& entry : listing) {
+            if (entry.annotation && replaced[*entry.annotation])
+                entry.fact = factOf(annotations_[*entry.annotation]);
+        }
+    }
+    reindex();
+    return Status{};
+}
+
 const QByteArray& AnnotationStore::annotationDigest(std::size_t index) const
 {
     if (digests_.size() < annotations_.size()) digests_.resize(annotations_.size());

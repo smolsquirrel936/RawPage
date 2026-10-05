@@ -26,6 +26,28 @@ const char* toolKindName(ToolKind kind) noexcept
     case ToolKind::MarqueeZoom: return "MarqueeZoom";
     case ToolKind::Loupe:       return "Loupe";
     case ToolKind::Snapshot:    return "Snapshot";
+    case ToolKind::Annotate:    return "Annotate";
+    }
+    return "?";
+}
+
+const char* annotationToolKindName(AnnotationToolKind kind) noexcept
+{
+    switch (kind) {
+    case AnnotationToolKind::StickyNote:      return "StickyNote";
+    case AnnotationToolKind::Highlight:       return "Highlight";
+    case AnnotationToolKind::Underline:       return "Underline";
+    case AnnotationToolKind::Strikeout:       return "Strikeout";
+    case AnnotationToolKind::TextBox:         return "TextBox";
+    case AnnotationToolKind::Line:            return "Line";
+    case AnnotationToolKind::Rectangle:       return "Rectangle";
+    case AnnotationToolKind::Oval:            return "Oval";
+    case AnnotationToolKind::Polygon:         return "Polygon";
+    case AnnotationToolKind::Pencil:          return "Pencil";
+    case AnnotationToolKind::Stamp:           return "Stamp";
+    case AnnotationToolKind::MeasureDistance: return "MeasureDistance";
+    case AnnotationToolKind::MeasureArea:     return "MeasureArea";
+    case AnnotationToolKind::RedactMark:      return "RedactMark";
     }
     return "?";
 }
@@ -48,6 +70,7 @@ Tool& ToolController::toolFor(ToolKind kind)
     case ToolKind::MarqueeZoom: return marquee_;
     case ToolKind::Loupe:       return loupe_;
     case ToolKind::Snapshot:    return snapshot_;
+    case ToolKind::Annotate:    return annotation_;
     case ToolKind::Select:      break;
     }
     return select_;
@@ -97,6 +120,74 @@ void ToolController::arm(ToolKind kind)
     emit armedChanged(armed_);
     emitCursor();
     host_.requestRepaint();
+}
+
+void ToolController::armAnnotation(AnnotationToolKind which)
+{
+    if (armed_ == ToolKind::Annotate && annotation_.which() == which) return;
+    if (armed_ == ToolKind::Annotate) {
+        annotation_.setWhich(which);
+        emit armedChanged(armed_);   // the same kind of tool, another tool: said all the same
+        host_.requestRepaint();
+        return;
+    }
+    annotation_.setWhich(which);
+    arm(ToolKind::Annotate);
+}
+
+namespace {
+
+struct Arming {
+    AnnotationToolKind kind;
+    core::ActionId action;
+};
+
+constexpr Arming kArming[kAnnotationToolKindCount] = {
+    {AnnotationToolKind::StickyNote, core::ActionId::AnnotStickyNote},
+    {AnnotationToolKind::Highlight, core::ActionId::AnnotHighlight},
+    {AnnotationToolKind::Underline, core::ActionId::AnnotUnderline},
+    {AnnotationToolKind::Strikeout, core::ActionId::AnnotStrikeout},
+    {AnnotationToolKind::TextBox, core::ActionId::AnnotTextBox},
+    {AnnotationToolKind::Line, core::ActionId::AnnotLine},
+    {AnnotationToolKind::Rectangle, core::ActionId::AnnotRectangle},
+    {AnnotationToolKind::Oval, core::ActionId::AnnotOval},
+    {AnnotationToolKind::Polygon, core::ActionId::AnnotPolygon},
+    {AnnotationToolKind::Pencil, core::ActionId::AnnotPencil},
+    {AnnotationToolKind::Stamp, core::ActionId::AnnotStamp},
+    {AnnotationToolKind::MeasureDistance, core::ActionId::AnnotMeasureDistance},
+    {AnnotationToolKind::MeasureArea, core::ActionId::AnnotMeasureArea},
+    {AnnotationToolKind::RedactMark, core::ActionId::RedactMark},
+};
+
+} // namespace
+
+core::ActionId armingAction(AnnotationToolKind kind) noexcept
+{
+    for (const Arming& row : kArming) {
+        if (row.kind == kind) return row.action;
+    }
+    return core::ActionId::AnnotHighlight;
+}
+
+std::optional<AnnotationToolKind> armedBy(core::ActionId action) noexcept
+{
+    for (const Arming& row : kArming) {
+        if (row.action == action) return row.kind;
+    }
+    return std::nullopt;
+}
+
+std::optional<AnnotationToolKind> ToolController::armedAnnotation() const noexcept
+{
+    if (armed_ != ToolKind::Annotate) return std::nullopt;
+    return annotation_.which();
+}
+
+void ToolController::setKeepToolSelected(bool keep)
+{
+    if (keep == keepToolSelected_) return;
+    keepToolSelected_ = keep;
+    emit keepToolSelectedChanged(keep);
 }
 
 void ToolController::setModifiers(Qt::KeyboardModifiers modifiers)
@@ -184,6 +275,13 @@ bool ToolController::cancel()
     if (tool.kind() == ToolKind::Loupe && loupe_.isVisible()) {
         loupe_.cancel(host_);
         emitCursor();
+        return true;
+    }
+
+    // AN ANNOTATION TOOL GOES BACK TO THE SELECTION TOOL (§8's Annotation tools `Esc`, Stage 6 T5): the
+    // tool is what is in front of the person, so putting it away is what `Esc` cancelled.
+    if (armed_ == ToolKind::Annotate && !tool.isDragging()) {
+        arm(ToolKind::Select);
         return true;
     }
 

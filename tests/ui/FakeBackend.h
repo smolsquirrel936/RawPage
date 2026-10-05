@@ -67,9 +67,19 @@ public:
         ++calls;
         return {};
     }
+    // Stage 6 T5: an edit, accepted and counted -- the last one kept, for a case that asks what it was.
+    core::Status replaceAnnotations(const std::vector<core::Annotation>&, const std::vector<core::Annotation>& after) override
+    {
+        annotationEdits += static_cast<int>(after.size());
+        lastEdit = after;
+        ++calls;
+        return {};
+    }
     std::map<int, int> rotations;
     int annotationInserts = 0;
     int annotationRemovals = 0;
+    int annotationEdits = 0;
+    std::vector<core::Annotation> lastEdit;
     int calls = 0;
 };
 

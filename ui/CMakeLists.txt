@@ -124,6 +124,8 @@ add_library(rawpage_ui STATIC
     # ToolHost rather than a PageView, so the family names no widget: that is what keeps the
     # thirteen later files off the widget and lets a case drive a tool with no window.
     viewer/tools/Tool.h
+    # Stage 6 T5 (D6-9): the fourteen annotation tools, armed; each creates from its own task (T6 ...).
+    viewer/tools/AnnotationTool.h
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
@@ -162,6 +164,14 @@ add_library(rawpage_ui STATIC
     # copy to Qt's clipboard as plain text and HTML. The range arithmetic is core/text/TextSelection.
     viewer/SelectionOverlay.h
     viewer/SelectionOverlay.cpp
+
+    # S6 T5 -- one document window's annotations as something a person points at (D6-9, D6-27, D6-28,
+    # D6-30): the selection and its handles, the drag, the nudge, delete and the pop-ups, each gesture ONE
+    # command handed to the journal; and the properties bar `Ctrl+E` opens over the page.
+    viewer/AnnotationOverlay.h
+    viewer/AnnotationOverlay.cpp
+    viewer/PropertiesBar.h
+    viewer/PropertiesBar.cpp
 
     # write/ -- S5 T7. The find half of the find-and-replace bar (D5-14), at the path the FileMap gives it
     # although the rest of write/ is Stage 13's: Write mode's find is this bar with replace switched on.

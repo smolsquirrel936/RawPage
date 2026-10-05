@@ -58,6 +58,8 @@ add_executable(rawpage_tests
     tst_annotationops.cpp         # Stage 6 T3 -- guide A-24 … A-30: the write path, one type end to end --
                                   #   the content-stream builder and its re-read, a highlight's appearance,
                                   #   the sink's listings, save, undo, identity, preservation, verify
+    tst_annotedit.cpp             # Stage 6 T5 -- guide A-26 through the command, A-28/A-29 for the four
+                                  #   in-place commands, A-43's headless half (D6-27), D6-30's geometry
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

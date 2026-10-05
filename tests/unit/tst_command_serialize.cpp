@@ -79,6 +79,53 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  core::AnnotationId::ofCreated(core::newAnnotationName())}));
              return out;
          }},
+        // Stage 6 T5: the four in-place commands, each over one identity and over every kind (D6-4).
+        {"annot.edit",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::Annotation fromFile = sampleHighlight(0);
+             fromFile.id = core::AnnotationId::ofObject(12);
+             fromFile.nm = QStringLiteral("producer");
+             out.push_back(std::make_unique<core::EditAnnotationCommand>(std::vector<core::Annotation>{fromFile}));
+             core::Annotation direct = sampleHighlight(2);
+             direct.id = core::AnnotationId::ofDirect(2, 3);
+             out.push_back(std::make_unique<core::EditAnnotationCommand>(std::vector<core::Annotation>{direct, sampleHighlight(1)}));
+             return out;
+         }},
+        {"annot.move",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::MoveAnnotationCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofObject(12)}, 10.5, -2.25, 1791504000));
+             out.push_back(std::make_unique<core::MoveAnnotationCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofDirect(0, 1), core::AnnotationId::ofCreated(core::newAnnotationName())},
+                 0.0, 0.1, 0));
+             return out;
+         }},
+        {"annot.setAppearance",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::AnnotationAppearance colour;
+             colour.color = std::vector<double>{0, 0.5, 1};
+             out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofObject(12)}, colour, 1791504000));
+             core::AnnotationAppearance all;
+             all.interiorColor = std::vector<double>{};
+             all.opacity = 0.25;
+             all.borderWidth = 3.0;
+             out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofDirect(1, 0), core::AnnotationId::ofObject(7)}, all, 1791504000));
+             return out;
+         }},
+        {"annot.lock",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::LockAnnotationCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofObject(12)}, core::AnnotationFlag::Locked, 0, 1791504000));
+             out.push_back(std::make_unique<core::LockAnnotationCommand>(
+                 std::vector<core::AnnotationId>{core::AnnotationId::ofObject(12)}, 0, core::LockAnnotationCommand::kLockFlags, 1791504000));
+             return out;
+         }},
     };
     return table;
 }
@@ -107,7 +154,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -142,7 +189,7 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2);
+    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2);
 }
 
 TEST_CASE("CommandRegistry returns NotFound for a type id it does not register", "[cmd][serialize]")

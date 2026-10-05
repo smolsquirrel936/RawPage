@@ -13,6 +13,7 @@
 
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QFocusEvent>
 #include <QDateTime>
 #include <QGuiApplication>
 #include <QStyleHints>
@@ -123,6 +124,8 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
         // discard them -- and would make the hand tool's `isDragging()` the only thing standing
         // between a hover and a pan.
         updateMouseTracking();
+        // AND THE CONTEXT (S6 T5, D6-9): an annotation tool armed puts the page in Annotation tools.
+        updateKeyContext();
         viewport()->update();
         emit toolChanged(kind);
     });
@@ -710,7 +713,8 @@ void PageView::updateMouseTracking()
     // pointer. Anything else gets none, because a move per pixel delivered to a tool that
     // discards it is the cost this flag exists to avoid.
     viewport()->setMouseTracking(tools_->activeTool().tracksHover()
-                                 || guides_->settings().showRulers);
+                                 || guides_->settings().showRulers
+                                 || (annotations_ != nullptr && annotations_->wantsHover()));
 }
 
 void PageView::applyGuideSettings(const GuideSettings& settings)
@@ -731,6 +735,44 @@ void PageView::setSelectionOverlay(SelectionOverlay* selection)
     if (selection_ != nullptr)
         connect(selection_, &SelectionOverlay::changed, this, [this] { viewport()->update(); });
     viewport()->update();
+}
+
+void PageView::setAnnotationOverlay(AnnotationOverlay* annotations)
+{
+    if (annotations_ == annotations) return;
+    if (annotations_ != nullptr) disconnect(annotations_, nullptr, this, nullptr);
+    annotations_ = annotations;
+    // A CHANGE REPAINTS AND REACHES NOTHING ELSE (D4-11): the outline, the handles, a preview and the
+    // pop-ups are painted over the tiles. A selection changes the context this pane declares (D6-9).
+    if (annotations_ != nullptr) {
+        connect(annotations_, &AnnotationOverlay::changed, this, [this] { viewport()->update(); });
+        connect(annotations_, &AnnotationOverlay::selectionChanged, this, [this] {
+            updateKeyContext();
+            updateMouseTracking();
+        });
+    }
+    updateKeyContext();
+    updateMouseTracking();
+    viewport()->update();
+}
+
+AnnotationOverlay::Viewport PageView::annotationViewport() const
+{
+    return AnnotationOverlay::Viewport{&engine_.layout(), controller_->visibleRect(), devicePixelRatioF()};
+}
+
+bool PageView::overlayFirst() const
+{
+    return annotations_ != nullptr && (tools_->armed() == ToolKind::Select || tools_->armed() == ToolKind::Annotate);
+}
+
+void PageView::updateKeyContext()
+{
+    // A PRESENTATION'S SURFACE IS FULL SCREEN and stays so: that context is the controller's to undo.
+    if (ShortcutBinder::declaredContext(this) == core::KeyContext::FullScreen) return;
+    const bool annotating = (tools_ != nullptr && tools_->armed() == ToolKind::Annotate)
+                            || (annotations_ != nullptr && annotations_->hasSelection());
+    ShortcutBinder::declareContext(this, annotating ? core::KeyContext::AnnotationTools : core::KeyContext::Viewer);
 }
 
 PagePoint PageView::pagePointAt(QPoint pos) const
@@ -876,6 +918,16 @@ void PageView::mousePressEvent(QMouseEvent* event)
         lastPressPos_ = event->pos();
     }
 
+    // THE ANNOTATIONS BEFORE THE TOOL (S6 T5): with the Selection tool or an annotation tool armed, a press
+    // on an annotation, one of its handles or a pop-up is the overlay's -- a pick, a drag, a resize. A press
+    // anywhere else is the tool's, as it always was. A temporary hand still reaches the overlay first:
+    // `Shift` over an annotation constrains its drag (§8), and over the page pans.
+    if (event->button() == Qt::LeftButton && overlayFirst()
+        && annotations_->press(annotationViewport(), event->pos(), event->modifiers(), clicks_)) {
+        event->accept();
+        return;
+    }
+
     if (!tools_->press(event->pos(), event->button(), event->modifiers(), clicks_)) {
         QAbstractScrollArea::mousePressEvent(event);
         return;
@@ -903,6 +955,15 @@ void PageView::mouseMoveEvent(QMouseEvent* event)
         return;
     }
 
+    // An annotation gesture in flight is the overlay's; with no button down, a hover over a note (D6-28).
+    if (annotations_ != nullptr) {
+        if (annotations_->move(annotationViewport(), event->pos(), event->modifiers())) {
+            event->accept();
+            return;
+        }
+        if (event->buttons() == Qt::NoButton) annotations_->hover(annotationViewport(), event->pos());
+    }
+
     if (!tools_->move(event->pos(), event->modifiers())) {
         QAbstractScrollArea::mouseMoveEvent(event);
         return;
@@ -914,6 +975,12 @@ void PageView::mouseReleaseEvent(QMouseEvent* event)
 {
     if (guides_->dragging() && event->button() == Qt::LeftButton) {
         guides_->endDrag();
+        event->accept();
+        return;
+    }
+
+    if (annotations_ != nullptr && event->button() == Qt::LeftButton
+        && annotations_->release(annotationViewport(), event->pos(), event->modifiers())) {
         event->accept();
         return;
     }
@@ -1221,7 +1288,17 @@ void PageView::keyPressEvent(QKeyEvent* event)
             event->accept();
             return;
         }
+        // AN ANNOTATION GESTURE IN FLIGHT (S6 T5): abandoned, nothing constructed -- then the tool, which
+        // puts an annotation tool away to the Selection tool (§8), then a selected annotation let go.
+        if (annotations_ != nullptr && annotations_->cancel()) {
+            event->accept();
+            return;
+        }
         if (tools_->cancel()) {
+            event->accept();
+            return;
+        }
+        if (annotations_ != nullptr && annotations_->clearSelection()) {
             event->accept();
             return;
         }
@@ -1249,6 +1326,27 @@ void PageView::keyPressEvent(QKeyEvent* event)
     // `ActionId`'s. Minting four permanent public names for a scroll gesture is what D1-16 warns
     // against; `NavNextPage` already exists for the dispatchable version.
     //
+    // THE ARROWS NUDGE A SELECTED ANNOTATION (S6 T5, D6-9): the overlay owns them while one is selected, a
+    // bare arrow a point and `Ctrl` with it a tenth, along the SCREEN's directions; a burst is one move.
+    // With nothing selected they scroll, below, exactly as before.
+    if (annotations_ != nullptr && annotations_->hasSelection()
+        && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ControlModifier)) {
+        int dx = 0;
+        int dy = 0;
+        switch (event->key()) {
+        case Qt::Key_Down:  dy = 1; break;
+        case Qt::Key_Up:    dy = -1; break;
+        case Qt::Key_Right: dx = 1; break;
+        case Qt::Key_Left:  dx = -1; break;
+        default: break;
+        }
+        if ((dx != 0 || dy != 0)
+            && annotations_->nudge(annotationViewport(), dx, dy, event->modifiers() == Qt::ControlModifier)) {
+            event->accept();
+            return;
+        }
+    }
+
     // BARE ARROWS ONLY. A modifier belongs to whoever else wants it, and consuming `Ctrl+Left`
     // here would eat a chord some later stage binds.
     if (event->modifiers() == Qt::NoModifier) {
@@ -1277,6 +1375,13 @@ void PageView::keyPressEvent(QKeyEvent* event)
     }
 
     QAbstractScrollArea::keyPressEvent(event);
+}
+
+void PageView::focusOutEvent(QFocusEvent* event)
+{
+    // A BURST OF NUDGES ENDS WHEN THE FOCUS LEAVES (D6-9), not half a second later in a pane nobody is in.
+    if (annotations_ != nullptr) (void)annotations_->commitNudge();
+    QAbstractScrollArea::focusOutEvent(event);
 }
 
 bool PageView::event(QEvent* event)
@@ -1318,7 +1423,10 @@ void PageView::contextMenuEvent(QContextMenuEvent* event)
 
 bool PageView::viewportEvent(QEvent* event)
 {
-    if (event->type() == QEvent::Leave) emit cursorMoved(QPoint(), false);
+    if (event->type() == QEvent::Leave) {
+        emit cursorMoved(QPoint(), false);
+        if (annotations_ != nullptr) annotations_->hover(annotationViewport(), std::nullopt);
+    }
     return QAbstractScrollArea::viewportEvent(event);
 }
 
@@ -1393,6 +1501,10 @@ void PageView::paintContent(QPainter& painter, const QRect& area)
     // The grid and the guides go OVER the inversion, so a guide keeps its colour on an inverted
     // page rather than becoming its complement.
     guides_->paint(painter, engine_.layout(), visible, dpr);
+
+    // THE ANNOTATIONS' SELECTION, A GESTURE'S PREVIEW AND THE POP-UPS (S6 T5), over everything: they are
+    // what the person is handling. Painted, never rasterized (D4-11, D6-28) -- a snapshot has none of them.
+    if (annotations_ != nullptr) annotations_->paint(painter, annotationViewport());
 }
 
 // THE PAGE'S COLOURS, NOT THE THEME'S -- and that is the argument for constants here where the selection

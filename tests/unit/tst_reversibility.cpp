@@ -53,6 +53,19 @@ namespace {
 
 namespace fs = std::filesystem;
 
+// The instant every in-place command of the sweep stamps (2026-10-10T00:00:00Z).
+constexpr std::int64_t kEditInstant = 1791590400;
+
+// What page `page` owns, in its listing order.
+std::vector<core::AnnotationId> ownedIds(const core::Document& document, int page)
+{
+    std::vector<core::AnnotationId> ids;
+    const core::AnnotationStore& store = document.annotations();
+    if (!store.status()) return ids;
+    for (const std::size_t index : store.onPage(page)) ids.push_back(store.at(index).id);
+    return ids;
+}
+
 // Makes the commands to try on page `page` of `document`.
 using Generator = std::function<std::vector<std::unique_ptr<Command>>(const core::Document& document, int page)>;
 using Generators = std::map<std::string, Generator>;
@@ -98,6 +111,75 @@ const Generators& registeredGenerators()
              out.push_back(std::make_unique<core::DeleteAnnotationCommand>(ids));
              if (ids.size() > 1)
                  out.push_back(std::make_unique<core::DeleteAnnotationCommand>(std::vector<core::AnnotationId>{ids.front()}));
+             return out;
+         }},
+        // Stage 6 T5 -- the four that change annotations IN PLACE, each over what the page owns.
+        // A MOVE of every annotation the page owns as one set, and of its first alone: every kind can be
+        // moved, because its appearance goes with its rectangle (D6-5).
+        {"annot.move",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const std::vector<core::AnnotationId> ids = ownedIds(document, page);
+             if (ids.empty()) return out;
+             out.push_back(std::make_unique<core::MoveAnnotationCommand>(ids, 7.5, -12.25, kEditInstant));
+             out.push_back(std::make_unique<core::MoveAnnotationCommand>(std::vector<core::AnnotationId>{ids.front()},
+                                                                         -3.0, 0.0, kEditInstant));
+             return out;
+         }},
+        // NEW TEXT on every annotation whose text it does not draw -- free text draws its own (T7's).
+        {"annot.edit",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const core::AnnotationStore& store = document.annotations();
+             if (!store.status()) return out;
+             std::vector<core::Annotation> after;
+             for (const std::size_t index : store.onPage(page)) {
+                 core::Annotation a = store.at(index);
+                 if (a.subtype == core::AnnotationSubtype::FreeText) continue;
+                 a.contents = a.contents + QStringLiteral(" (edited)");
+                 a.modified = core::PdfDate::fromUtcSeconds(kEditInstant);
+                 after.push_back(std::move(a));
+             }
+             if (after.empty()) return out;
+             out.push_back(std::make_unique<core::EditAnnotationCommand>(after));
+             return out;
+         }},
+        // A NEW COLOUR on the page's highlights, the one kind this build redraws; an opacity on them too.
+        {"annot.setAppearance",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const core::AnnotationStore& store = document.annotations();
+             if (!store.status()) return out;
+             std::vector<core::AnnotationId> ids;
+             for (const std::size_t index : store.onPage(page)) {
+                 const core::Annotation& a = store.at(index);
+                 if (a.subtype == core::AnnotationSubtype::Highlight && a.quadPoints.size() >= 8) ids.push_back(a.id);
+             }
+             if (ids.empty()) return out;
+             core::AnnotationAppearance appearance;
+             appearance.color = std::vector<double>{0.25, 0.5, 0.75};
+             appearance.opacity = 0.3;
+             out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(ids, appearance, kEditInstant));
+             return out;
+         }},
+        // EVERY LOCK set on what the page owns, and every lock cleared -- whichever changes something.
+        {"annot.lock",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const core::AnnotationStore& store = document.annotations();
+             const std::vector<core::AnnotationId> ids = ownedIds(document, page);
+             if (ids.empty()) return out;
+             bool anyUnlocked = false;
+             bool anyLocked = false;
+             for (const std::size_t index : store.onPage(page)) {
+                 const std::uint32_t locks = store.at(index).flags & core::LockAnnotationCommand::kLockFlags;
+                 anyUnlocked = anyUnlocked || locks != core::LockAnnotationCommand::kLockFlags;
+                 anyLocked = anyLocked || locks != 0;
+             }
+             if (anyUnlocked)
+                 out.push_back(std::make_unique<core::LockAnnotationCommand>(ids, core::LockAnnotationCommand::kLockFlags, 0, kEditInstant));
+             if (anyLocked)
+                 out.push_back(std::make_unique<core::LockAnnotationCommand>(ids, 0, core::LockAnnotationCommand::kLockFlags, kEditInstant));
              return out;
          }},
     };
@@ -364,7 +446,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
     }
     SECTION("a registered type id with no generator")
     {
-        CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete"});
+        CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete", "annot.edit",
+                                                                          "annot.move", "annot.setAppearance", "annot.lock"});
     }
 }
 
@@ -372,7 +455,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

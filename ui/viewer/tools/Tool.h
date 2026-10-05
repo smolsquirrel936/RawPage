@@ -76,9 +76,12 @@ enum class ToolKind {
     MarqueeZoom,
     Loupe,
     Snapshot,
+    // Stage 6 T5 (D6-9): one of the fourteen annotation tools is armed -- which one is
+    // `ToolController::armedAnnotation()` (`ui/viewer/tools/AnnotationTool.h`).
+    Annotate,
 };
 
-inline constexpr int kToolKindCount = 5;
+inline constexpr int kToolKindCount = 6;
 
 const char* toolKindName(ToolKind kind) noexcept;
 

@@ -375,6 +375,89 @@ TEST_CASE("an undone highlight shows the page as the file draws it and a redo sh
 }
 
 // =============================================================================================
+// A-34 and A-35 for the IN-PLACE edits (Stage 6 T5): a move, a recolour, new text and a lock are drawn as
+// the saved file draws them, and an undo draws the page as it was
+// =============================================================================================
+
+TEST_CASE("an annotation edited in place is shown as the saved file draws it and undone as the file was",
+          "[render][annotdisplay][A-34][A-35]")
+{
+    FontBridge fonts;
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    constexpr std::int64_t kAt = 1791590400;
+    struct Edit {
+        const char* file;
+        int page;
+        const char* what;
+        bool visible;   // whether the edit changes what the page draws -- a lock and a note's text do not
+    };
+    // Every kind on annots-every-type moved with its producer's appearance; a direct dictionary promoted; a
+    // highlight from the file recoloured (redrawn by our builder); a square's text and a lock (drawn the same).
+    const Edit edits[] = {{"ordinary/annots-every-type.pdf", 0, "move-all", true},
+                          {"ordinary/annots-direct.pdf", 0, "move-all", true},
+                          {"ordinary/annots-rotated.pdf", 1, "move-all", true},
+                          {"ordinary/annots-mixed.pdf", 0, "recolour-highlight", true},
+                          {"ordinary/annots-mixed.pdf", 0, "retext-and-lock", false}};
+    int n = 0;
+    for (const Edit& edit : edits) {
+        INFO("file: " << edit.file << " page " << edit.page + 1 << " edit " << edit.what);
+        const QString copy = dir.filePath(QStringLiteral("t5-edit-%1.pdf").arg(n++));
+        auto live = openLive(corpusFile(edit.file), copy);
+        std::vector<core::RasterImage> original;
+        for (const View& view : kViews) original.push_back(renderLive(*live, edit.page, view.scale, view.rotation));
+
+        const core::AnnotationStore& store = live->journal->document().annotations();
+        std::vector<core::AnnotationId> owned;
+        for (const std::size_t index : store.onPage(edit.page)) {
+            if (store.at(index).subtype != core::AnnotationSubtype::Popup) owned.push_back(store.at(index).id);
+        }
+        REQUIRE_FALSE(owned.empty());
+        int steps = 0;
+        if (QLatin1String(edit.what) == QLatin1String("move-all")) {
+            REQUIRE(live->journal->run(std::make_unique<core::MoveAnnotationCommand>(owned, 9.0, -14.0, kAt)));
+            ++steps;
+        } else if (QLatin1String(edit.what) == QLatin1String("recolour-highlight")) {
+            std::vector<core::AnnotationId> highlights;
+            for (const std::size_t index : store.onPage(edit.page)) {
+                if (store.at(index).subtype == core::AnnotationSubtype::Highlight) highlights.push_back(store.at(index).id);
+            }
+            REQUIRE_FALSE(highlights.empty());
+            core::AnnotationAppearance appearance;
+            appearance.color = std::vector<double>{0.1, 0.4, 1.0};
+            REQUIRE(live->journal->run(std::make_unique<core::SetAnnotationAppearanceCommand>(highlights, appearance, kAt)));
+            ++steps;
+        } else {
+            std::optional<core::Annotation> square;
+            for (const std::size_t index : store.onPage(edit.page)) {
+                if (store.at(index).subtype == core::AnnotationSubtype::Square) square = store.at(index);
+            }
+            REQUIRE(square);
+            square->contents = QStringLiteral("edited in place");
+            square->modified = core::PdfDate::fromUtcSeconds(kAt);
+            REQUIRE(live->journal->run(std::make_unique<core::EditAnnotationCommand>(std::vector<core::Annotation>{*square})));
+            REQUIRE(live->journal->run(std::make_unique<core::LockAnnotationCommand>(
+                std::vector<core::AnnotationId>{square->id}, core::AnnotationFlag::Locked, 0, kAt)));
+            steps += 2;
+        }
+        // THE CHANGE IS IN THE PIXELS where it should be, and NOT where it should not (rule 1).
+        const qsizetype changed = differingBytes(original[0], renderLive(*live, edit.page, 1.0, core::PageRotation::None));
+        if (edit.visible) CHECK(changed > 0);
+        else CHECK(changed == 0);
+
+        const QString saved = saveOrSaveAs(*live, copy + QStringLiteral(".saved-as.pdf"));
+        CHECK(differenceFromSaved(*live, saved, edit.page) == 0);
+
+        // A-35: undone, after the save, the page is the original file's to the byte, in every view.
+        for (int i = 0; i < steps; ++i) REQUIRE(live->journal->undo());
+        for (std::size_t v = 0; v < std::size(kViews); ++v) {
+            INFO("view: " << kViews[v].name);
+            CHECK(differingBytes(original[v], renderLive(*live, edit.page, kViews[v].scale, kViews[v].rotation)) == 0);
+        }
+    }
+}
+
+// =============================================================================================
 // A-39 -- an edit that cannot be shown is refused, and the page keeps drawing
 // =============================================================================================
 

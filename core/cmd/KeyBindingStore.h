@@ -4,10 +4,12 @@
 // class owns *resolution*, *overriding* and the *collision census*.
 //
 // ---------------------------------------------------------------------------------------------
-// RESOLUTION ORDER IS THE MODEL: innermost context, then `Common`, then `Global`.
+// RESOLUTION ORDER IS THE MODEL: innermost context, then its fallback, then `Common`, then `Global`.
 //
 // That order is what lets `Ctrl+K` mean Preferences in the Viewer and Insert-hyperlink in Write
-// mode. It is not a lookup optimisation and must not be reordered for one.
+// mode. It is not a lookup optimisation and must not be reordered for one. The FALLBACK is Stage 6
+// T5's (D6-9, `KeyContext.h`'s `keyContextFallback`): Annotation tools resolves through the Viewer
+// before the layers, so a tool armed on the page keeps the page's chords; no other context has one.
 //
 // ---------------------------------------------------------------------------------------------
 // THE CENSUS, AND WHY IT HAS TWO CLASSES THAT MUST NEVER BE CONFLATED.

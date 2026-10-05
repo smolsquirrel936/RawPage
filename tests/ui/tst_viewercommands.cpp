@@ -170,17 +170,18 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     CHECK(viewer.fixture.actions.isRegistered(core::ActionId::PageRotate));
     CHECK(ui::ShortcutBinder::consumes(viewer.press("Ctrl+R")));
 
-    // THE CENSUS, re-counted from the table: 35 dispatched Viewer rows registered, 18 not, since
-    // 2026-10-04, when the fourteen annotation-tool arming chords (`Ctrl+Alt+M`, `H`, `U`, `X`, `T`, `L`,
+    // THE CENSUS, re-counted from the table: 50 dispatched Viewer rows registered, 3 not, since Stage 6 T5,
+    // which registered the fourteen annotation-tool arming chords and `Ctrl+E` (`view.togglePropertiesBar`,
+    // D6-9). 35 and 18 from 2026-10-04, when the fourteen (`Ctrl+Alt+M`, `H`, `U`, `X`, `T`, `L`,
     // `R`, `O`, `N`, `P`, `S`, `D`, `A`, `K`) moved here from Annotation tools (`Stage6-Annotations-Plan.md`
-    // Q1, D6-9); Stage 6 registers them. 35 and 4 as of Stage 5 T13 -- 26 and 13 from Stage 3 T10 until `Ctrl+U`, `Ctrl+'` and `Ctrl+;` moved across
+    // Q1, D6-9). The three left are `Ctrl+B` (Stage 7), `Ctrl+.` and `Ctrl+,` (T9's comment navigation). 35 and 4 as of Stage 5 T13 -- 26 and 13 from Stage 3 T10 until `Ctrl+U`, `Ctrl+'` and `Ctrl+;` moved across
     // it at Stage 4 T8, then `Ctrl+L` (reading mode) at Stage 4 T12, then `S` (the Snapshot, D5-11) at
     // Stage 5 T10, then `Ctrl+4` (Reflow view, D5-16) at Stage 5 T11, then `Ctrl+Alt+C`, `Ctrl+]` and
     // `Ctrl+[` (the comparison, D5-18) at Stage 5 T13. The four left are `Ctrl+B`, `Ctrl+E`, `Ctrl+.` and
     // `Ctrl+,` -- the figure the guide's A-108 names. A change to either is a registration or a table edit,
     // and belongs in the same change as this.
-    CHECK(registered == 35);
-    CHECK(unregistered == 18);
+    CHECK(registered == 50);
+    CHECK(unregistered == 3);
 }
 
 // =============================================================================================

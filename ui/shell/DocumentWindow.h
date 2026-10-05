@@ -99,7 +99,9 @@ class CommandJournal;
 
 namespace rawpage::ui {
 
+class AnnotationOverlay;
 class PageView;
+class PropertiesBar;
 class ReflowView;
 class RulerWidget;
 class FindReplaceBar;
@@ -268,6 +270,19 @@ public:
     void setReflowing(bool on);
     ReflowView* reflow() const noexcept { return reflow_; }
 
+    // ---- THE ANNOTATIONS (S6 T5, D6-9) -----------------------------------------------------------------
+    // ONE overlay per document window, handed to every pane as the text selection is: the selected
+    // annotations, the drag, the nudge, delete and the pop-ups. Its store is the JOURNAL's document, and its
+    // every change is a command run through the journal -- so a refusal comes back by key, and is said in
+    // the status bar (`annotationRefused`). A companion window has none to change (no journal): inert.
+    AnnotationOverlay* annotations() const noexcept { return annotations_; }
+    // The properties bar `Ctrl+E` toggles -- hidden until asked for, above the page with the find bar.
+    PropertiesBar* propertiesBar() const noexcept { return propertiesBar_; }
+    bool propertiesBarShown() const;
+    void togglePropertiesBar();
+    // Shows what is in front of the person: the selection, else the armed tool's defaults, else nothing.
+    void refreshPropertiesBar();
+
     // THE FIND BAR (S5 T7, D5-14): one per tab, hidden until `Ctrl+F`. The `find.*` commands reach it
     // through this. Never null after `build()`.
     FindReplaceBar* findBar() const noexcept { return findBar_; }
@@ -347,6 +362,12 @@ signals:
 
     // S5 T11 -- Reflow view shown or left, so the chrome re-asks `view.reflow`'s checked state.
     void reflowChanged(bool reflowing);
+
+    // S6 T5 -- an annotation change was refused (a lock, a page that cannot be edited, a kind this build
+    // cannot draw), in the person's words; the selection or the properties bar changed, so the chrome
+    // re-asks the commands that depend on them.
+    void annotationRefused(const QString& reason);
+    void annotationStateChanged();
 
     // S5 T10 -- a snapshot from any pane of this tab reached the clipboard, or its raster failed;
     // forwarded from `PageView` for the same reason as the five above.
@@ -444,6 +465,10 @@ private:
 
     // S5 T7. A child, deleted EXPLICITLY in the destructor before the selection overlay it paints through.
     FindReplaceBar* findBar_ = nullptr;
+
+    // S6 T5. Both children, deleted EXPLICITLY in the destructor before the journal whose store the overlay reads.
+    AnnotationOverlay* annotations_ = nullptr;
+    PropertiesBar* propertiesBar_ = nullptr;
 
     // S5 T11. The page surface -- the split and its rulers -- and the reflow that takes its place. The reflow
     // is a child, deleted EXPLICITLY in the destructor before the handle leaves the index: it holds text

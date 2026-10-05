@@ -2,6 +2,7 @@
 
 #include "pdf/ops/MutationSinkImpl.h"
 
+#include "core/doc/AnnotationGeometry.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/AnnotationOps.h"
@@ -9,6 +10,7 @@
 #include "pdf/ops/EmbeddedFileReader.h"
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 
 namespace rawpage::pdf::ops {
@@ -94,6 +96,52 @@ bool sameListing(const std::vector<MutationSinkImpl::ListedEntry>& a, const std:
                          [](const MutationSinkImpl::ListedEntry& x, const MutationSinkImpl::ListedEntry& y) {
                              return x.sameEntry(y);
                          });
+}
+
+// T5 (D6-5): whether `now` is drawn exactly as `disk` is, but for where -- the same appearance carried into
+// another rectangle. The fields a reader never draws are taken from `disk` first: who wrote it and when,
+// its thread and state, its flags (a lock is not ink; `Hidden` hides the appearance it has), its pop-up --
+// and its text, except for free text, whose appearance IS its text.
+bool drawnTheSame(const core::Annotation& disk, const core::Annotation& now)
+{
+    core::Annotation probe = now;
+    probe.nm = disk.nm;
+    probe.author = disk.author;
+    probe.subject = disk.subject;
+    probe.created = disk.created;
+    probe.modified = disk.modified;
+    probe.flags = disk.flags;
+    probe.inReplyTo = disk.inReplyTo;
+    probe.replyType = disk.replyType;
+    probe.stateModel = disk.stateModel;
+    probe.state = disk.state;
+    probe.popup = disk.popup;
+    probe.parent = disk.parent;
+    probe.open = disk.open;
+    probe.hasAppearance = disk.hasAppearance;
+    if (disk.subtype != core::AnnotationSubtype::FreeText) {
+        probe.contents = disk.contents;
+        probe.richText = disk.richText;
+    }
+    return core::isMappedCopy(disk, probe);
+}
+
+bool sameSize(const core::PdfRect& a, const core::PdfRect& b)
+{
+    return std::abs(a.size.width - b.size.width) <= 1e-9 && std::abs(a.size.height - b.size.height) <= 1e-9;
+}
+
+// A `/Rect` read back as the four numbers written, within what a written real keeps.
+bool rectReadsBack(const cos::CosObject& dictionary, const core::PdfRect& rect)
+{
+    const cos::CosObject* written = dictionary.find("Rect");
+    if (written == nullptr || !written->isArray() || written->items().size() != 4) return false;
+    const double want[4] = {rect.left(), rect.bottom(), rect.right(), rect.top()};
+    for (std::size_t i = 0; i < 4; ++i) {
+        const cos::CosObject& n = written->items()[i];
+        if (!n.isNumber() || std::abs(n.numberValue() - want[i]) > 0.01) return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -302,9 +350,9 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
 
         ListedEntry entry;
         entry.id = annotation.id;
-        if (const auto removed = removedDirect_.find(annotation.id); removed != removedDirect_.end()) {
-            entry.kind = ListedEntry::Kind::Value;          // a direct entry, listed again as written
-            entry.value = removed->second;
+        if (const auto removed = removedEntries_.find(annotation.id); removed != removedEntries_.end()) {
+            entry = removed->second;                        // listed again exactly as it was written
+            entry.id = annotation.id;
         } else if (annotation.id.kind == core::AnnotationId::Kind::Object) {
             const cos::XrefEntry* placed = table_.find(annotation.id.object);
             if (placed == nullptr || placed->type == cos::XrefEntryType::Free)
@@ -339,7 +387,7 @@ core::Status MutationSinkImpl::removeAnnotations(const std::vector<core::Annotat
 {
     if (at.empty()) return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationPlacement", 0);
     std::map<int, std::vector<ListedEntry>> scratch;
-    std::vector<std::pair<core::AnnotationId, cos::CosObject>> removedDirect;
+    std::vector<std::pair<core::AnnotationId, ListedEntry>> removed;
     for (const core::AnnotationPlacement& place : at) {
         if (place.page < 0 || place.page >= pageCount()) return placementError(place);
         std::vector<ListedEntry>& listing = listingToChange(place.page, scratch);
@@ -347,12 +395,168 @@ core::Status MutationSinkImpl::removeAnnotations(const std::vector<core::Annotat
             return placementError(place);
         const ListedEntry& entry = listing[static_cast<std::size_t>(place.position)];
         if (!entry.id) return placementError(place);   // not an annotation: not the model's to drop
-        if (entry.kind == ListedEntry::Kind::Value) removedDirect.emplace_back(*entry.id, entry.value);
+        // Kept when nothing else could list it again: a direct entry, or one a save promoted (T5) -- an
+        // object number names itself, and a created annotation is the sink's own.
+        if (entry.kind != ListedEntry::Kind::Created && entry.id->kind == core::AnnotationId::Kind::Direct)
+            removed.emplace_back(*entry.id, entry);
         listing.erase(listing.begin() + place.position);
     }
-    for (auto& [id, value] : removedDirect) removedDirect_.insert_or_assign(id, std::move(value));
+    for (auto& [id, entry] : removed) removedEntries_.insert_or_assign(id, std::move(entry));
     commitListings(std::move(scratch));
     return core::Status{};
+}
+
+const MutationSinkImpl::Edit* MutationSinkImpl::editOf(const core::AnnotationId& id) const
+{
+    const auto found = edits_.find(id);
+    return found == edits_.end() ? nullptr : &found->second;
+}
+
+std::optional<cos::CosObject> MutationSinkImpl::dictionaryOnDisk(const core::AnnotationId& id)
+{
+    for (int page = 0; page < pageCount(); ++page) {
+        for (const ListedEntry& entry : disk_[static_cast<std::size_t>(page)].entries) {
+            if (!entry.id || !(*entry.id == id)) continue;
+            if (entry.kind == ListedEntry::Kind::Value) return entry.value;
+            if (entry.kind != ListedEntry::Kind::Reference) return std::nullopt;
+            auto fetched = table_.fetch(entry.reference.number);
+            if (!fetched || !fetched.value().object.isDictionary()) return std::nullopt;
+            cos::CosObject object = fetched.value().object;
+            object.clearSpansRecursively();
+            return object;
+        }
+    }
+    return std::nullopt;
+}
+
+core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annotation>& before,
+                                                  const std::vector<core::Annotation>& after)
+{
+    if (before.empty() || before.size() != after.size())
+        return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationUnknown",
+                         static_cast<long long>(after.size()));
+
+    // Everything on scratch copies: refused part-way, nothing has changed.
+    std::map<core::AnnotationId, Edit> edits = edits_;
+    std::map<QString, core::Annotation> created;
+    for (std::size_t i = 0; i < after.size(); ++i) {
+        const core::Annotation& was = before[i];
+        const core::Annotation& now = after[i];
+        const auto where = static_cast<long long>(i);
+        if (!(was.id == now.id) || was.subtype != now.subtype || !now.id.isValid())
+            return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationUnknown", where);
+
+        // A created annotation not yet saved is drawn anew from the model at compose: the change is the model's.
+        if (now.id.kind == core::AnnotationId::Kind::Created && created_.count(now.id.nm) != 0) {
+            auto appearance = AppearanceStreamBuilder::normal(now);
+            if (!appearance) return appearance.error();
+            created.insert_or_assign(now.id.nm, now);
+            continue;
+        }
+
+        // Anything else must be something the file holds that this sink can name.
+        bool known = false;
+        switch (now.id.kind) {
+        case core::AnnotationId::Kind::Object: {
+            const cos::XrefEntry* placed = table_.find(now.id.object);
+            known = placed != nullptr && placed->type != cos::XrefEntryType::Free;
+            break;
+        }
+        case core::AnnotationId::Kind::Created:
+            known = createdOnDisk_.count(now.id.nm) != 0;
+            break;
+        case core::AnnotationId::Kind::Direct:
+            for (int page = 0; page < pageCount() && !known; ++page) {
+                for (const ListedEntry& entry : desiredListing(page)) {
+                    if (entry.id && *entry.id == now.id) known = true;
+                }
+            }
+            known = known || removedEntries_.count(now.id) != 0;
+            break;
+        }
+        if (!known) return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", where);
+
+        const auto existing = edits.find(now.id);
+        const core::Annotation disk = existing != edits.end() ? existing->second.disk : was;
+        if (now == disk) {
+            edits.erase(now.id);   // back to the disk: nothing to write for it
+            continue;
+        }
+        // The dictionary on disk, remembered the first time it is edited (see the header).
+        if (existing == edits.end()) {
+            std::vector<std::pair<core::Annotation, cos::CosObject>>& held = versions_[now.id];
+            const bool seen = std::any_of(held.begin(), held.end(), [&disk](const auto& v) { return v.first == disk; });
+            if (!seen) {
+                if (std::optional<cos::CosObject> dictionary = dictionaryOnDisk(now.id))
+                    held.emplace_back(disk, std::move(*dictionary));
+            }
+        }
+        if (const auto remembered = versions_.find(now.id); remembered != versions_.end()) {
+            const auto version = std::find_if(remembered->second.begin(), remembered->second.end(),
+                                              [&now](const auto& v) { return v.first == now; });
+            if (version != remembered->second.end()) {
+                // A version the file has held: written again as it was, its own appearance with it.
+                Edit edit{disk, now, false, version->second};
+                edits.insert_or_assign(now.id, std::move(edit));
+                continue;
+            }
+        }
+        // REDRAWN only where what it draws changed -- or where it was scaled and this build can draw it,
+        // since a stretched border is the producer's line made wider than they drew it. One with no `/AP`
+        // keeps none: every reader draws it from the dictionary, which is rewritten.
+        Edit edit{disk, now, false, std::nullopt};
+        const bool carried = drawnTheSame(disk, now);
+        if (disk.hasAppearance && (!carried || !sameSize(disk.rect, now.rect))) {
+            if (AppearanceStreamBuilder::supports(now.subtype)) {
+                auto appearance = AppearanceStreamBuilder::normal(now);
+                if (!appearance) return appearance.error();
+                edit.redraw = true;
+            } else if (!carried) {
+                return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.pdf.appearanceUnsupported"),
+                                   QString(core::annotationSubtypeName(now.subtype))};
+            }
+        }
+        edits.insert_or_assign(now.id, std::move(edit));
+    }
+
+    edits_ = std::move(edits);
+    for (auto& [nm, annotation] : created) created_.insert_or_assign(nm, std::move(annotation));
+    return core::Status{};
+}
+
+std::vector<int> MutationSinkImpl::pagesToRewrite() const
+{
+    std::set<int> pages;
+    for (const auto& [page, listing] : desiredListings_) pages.insert(page);
+    if (!edits_.empty()) {
+        for (int page = 0; page < pageCount(); ++page) {
+            for (const ListedEntry& entry : desiredListing(page)) {
+                if (entry.kind == ListedEntry::Kind::Value && entry.id && edits_.count(*entry.id) != 0) {
+                    pages.insert(page);
+                    break;
+                }
+            }
+        }
+    }
+    return std::vector<int>(pages.begin(), pages.end());
+}
+
+core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& onDisk, const Edit& edit,
+                                                          cos::ObjectDelta& delta)
+{
+    if (!onDisk.isDictionary())
+        return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", edit.now.page);
+    if (edit.restore) return *edit.restore;   // a version the file held, verbatim
+    cos::CosObject edited = AnnotationOps::editedDictionary(onDisk, edit.disk, edit.now);
+    if (edit.redraw) {
+        auto appearance = AppearanceStreamBuilder::normal(edit.now);
+        if (!appearance) return appearance.error();
+        const long long number =
+            delta.add(std::move(appearance.value().dictionary), std::move(appearance.value().data));
+        edited = AnnotationOps::withEntry(edited, "AP",
+                                          cos::CosObject::makeDictionary({{"N", cos::CosObject::makeReference(number, 0)}}));
+    }
+    return edited;
 }
 
 long long MutationSinkImpl::referenceFloor()
@@ -364,14 +568,17 @@ long long MutationSinkImpl::referenceFloor()
 core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                                                   std::map<long long, cos::CosObject>& pageDictionaries)
 {
-    if (desiredListings_.empty()) return core::Status{};
+    const std::vector<int> rewrite = pagesToRewrite();
+    if (rewrite.empty() && edits_.empty()) return core::Status{};
     // Before the first number is handed out: a number the file references without defining must not
     // be given a meaning by an annotation (Stage 3 guide issue I-12 -- `protectOriginal` raises the same
     // floor, but only after the delta is built, which is too late for the objects added here).
     delta.reserveNumbersThrough(referenceFloor());
 
     std::map<QString, long long> written;   // nm -> the number this delta gave it
-    for (const auto& [page, listing] : desiredListings_) {
+    std::map<core::AnnotationId, long long> promoted;   // T5: a direct dictionary edited -> its new object
+    for (const int page : rewrite) {
+        const std::vector<ListedEntry>& listing = desiredListing(page);
         const PageEntry& pageEntry = walk_.pages[static_cast<std::size_t>(page)];
         const cos::CosRef pageRef{pageEntry.number, generationOf(table_, pageEntry.number)};
 
@@ -382,9 +589,22 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
             case ListedEntry::Kind::Reference:
                 items.push_back(cos::CosObject::makeReference(entry.reference.number, entry.reference.generation));
                 break;
-            case ListedEntry::Kind::Value:
-                items.push_back(entry.value);
+            case ListedEntry::Kind::Value: {
+                const auto edit = entry.id ? edits_.find(*entry.id) : edits_.end();
+                if (edit == edits_.end()) {
+                    items.push_back(entry.value);
+                    break;
+                }
+                // A direct dictionary first edited becomes an object (D6-4), and the page lists that.
+                auto number = promoted.find(*entry.id);
+                if (number == promoted.end()) {
+                    auto dictionary = editedFrom(entry.value, edit->second, delta);
+                    if (!dictionary) return dictionary.error();
+                    number = promoted.emplace(*entry.id, delta.add(std::move(dictionary).value())).first;
+                }
+                items.push_back(cos::CosObject::makeReference(number->second, 0));
                 break;
+            }
             case ListedEntry::Kind::Created: {
                 auto number = written.find(entry.nm);
                 if (number == written.end()) {
@@ -424,6 +644,22 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
         base->second = empty ? AnnotationOps::withoutEntry(base->second, "Annots")
                              : AnnotationOps::withEntry(base->second, "Annots", std::move(array));
     }
+
+    // T5: each edited annotation an object number names, rewritten ONCE however many pages list it -- and
+    // only while some page lists it: an edit to an annotation since deleted is not what the update needs.
+    std::set<core::AnnotationId> done;
+    for (int page = 0; page < pageCount() && !edits_.empty(); ++page) {
+        for (const ListedEntry& entry : desiredListing(page)) {
+            if (entry.kind != ListedEntry::Kind::Reference || !entry.id) continue;
+            const auto edit = edits_.find(*entry.id);
+            if (edit == edits_.end() || !done.insert(*entry.id).second) continue;
+            auto onDisk = table_.fetch(entry.reference.number);
+            if (!onDisk) return onDisk.error();
+            auto dictionary = editedFrom(onDisk.value().object, edit->second, delta);
+            if (!dictionary) return dictionary.error();
+            delta.replace(entry.reference.number, std::move(dictionary).value());
+        }
+    }
     return core::Status{};
 }
 
@@ -434,10 +670,11 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
     out.listings = readListings(written, walk);
     if (out.listings.size() != disk_.size()) return listingMismatch(static_cast<int>(out.listings.size()));
 
+    const std::vector<int> rewrite = pagesToRewrite();
     for (std::size_t index = 0; index < out.listings.size(); ++index) {
         const int page = static_cast<int>(index);
         std::vector<ListedEntry>& actual = out.listings[index].entries;
-        const bool touched = desiredListings_.count(page) != 0;
+        const bool touched = std::binary_search(rewrite.begin(), rewrite.end(), page);
         const std::vector<ListedEntry>& expected = desiredListing(page);
 
         if (!touched) {
@@ -454,6 +691,12 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
         for (std::size_t at = 0; at < actual.size(); ++at) {
             const ListedEntry& want = expected[at];
             ListedEntry& got = actual[at];
+            if (want.kind == ListedEntry::Kind::Value && want.id && edits_.count(*want.id) != 0) {
+                // T5: a direct dictionary edited -- listed now as the object it became.
+                if (got.kind != ListedEntry::Kind::Reference) return listingMismatch(page);
+                got.id = want.id;
+                continue;
+            }
             if (want.kind != ListedEntry::Kind::Created) {
                 if (!got.sameEntry(want)) return listingMismatch(page);
                 got.id = want.id;
@@ -485,6 +728,33 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
             out.created.insert_or_assign(want.nm, got.reference);
         }
     }
+
+    // T5: every edited annotation reads back edited -- the dictionary its listing names has its subtype and
+    // its new rectangle, and a well-formed appearance of our own where it was redrawn.
+    for (std::size_t index = 0; index < out.listings.size() && !edits_.empty(); ++index) {
+        for (const ListedEntry& entry : out.listings[index].entries) {
+            if (entry.kind != ListedEntry::Kind::Reference || !entry.id) continue;
+            const auto edit = edits_.find(*entry.id);
+            if (edit == edits_.end()) continue;
+            const int page = static_cast<int>(index);
+            auto object = written.fetch(entry.reference.number);
+            if (!object || !object.value().object.isDictionary()) return listingMismatch(page);
+            const cos::CosObject& d = object.value().object;
+            const cos::CosObject* subtype = d.find("Subtype");
+            if (subtype == nullptr || !subtype->isName()
+                || QString::fromStdString(subtype->text()) != QString(core::annotationSubtypeName(edit->second.now.subtype))
+                || !rectReadsBack(d, edit->second.now.rect))
+                return listingMismatch(page);
+            if (edit->second.redraw) {
+                const cos::CosObject& normal = d.get("AP").get("N");
+                if (!normal.isReference()) return listingMismatch(page);
+                auto stream = written.fetch(normal.reference().number);
+                if (!stream || !stream.value().object.isStream() || stream.value().object.has("Filter")
+                    || !cos::ContentStreamBuilder::check(stream.value().object.rawStreamData(written.source())))
+                    return listingMismatch(page);
+            }
+        }
+    }
     return out;
 }
 
@@ -514,6 +784,7 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     for (auto& [nm, reference] : reconciled.value().created) createdOnDisk_.insert_or_assign(nm, reference);
     desiredListings_.clear();
     created_.clear();
+    edits_.clear();
     referenceFloor_.reset();
     for (auto it = desired_.begin(); it != desired_.end();) {
         if (it->second == walk_.pages[static_cast<std::size_t>(it->first)].effectiveRotate())

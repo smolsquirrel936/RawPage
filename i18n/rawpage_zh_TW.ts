@@ -1615,6 +1615,58 @@
         <translation>無法轉譯快照。剪貼簿內容未變更。</translation>
     </message>
     <message>
+        <source>shell.status.annotationRefused</source>
+        <translation>未變更：%1</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolArmed</source>
+        <translation>已選取「%1」。可用它選取、移動、調整大小或刪除註解；用此工具建立新註解將在此版本稍後的步驟提供。</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.nothing</source>
+        <translation>未選取任何項目</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.selectionOne</source>
+        <translation>已選取 1 個註解</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.selectionMany</source>
+        <translation>已選取 %1 個註解</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.tool</source>
+        <translation>%1 — 預設值</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.colour</source>
+        <translation>色彩</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.opacity</source>
+        <translation>不透明度 %</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.width</source>
+        <translation>線寬</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.text</source>
+        <translation>文字</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.locked</source>
+        <translation>已鎖定</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.contentsLocked</source>
+        <translation>文字已鎖定</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.readOnly</source>
+        <translation>唯讀</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>淺色</translation>
     </message>
@@ -2472,6 +2524,18 @@
     <message>
         <source>error.edit.annotationsDisagree</source>
         <translation>此 PDF 第 %1 頁的註解儲存方式，RawPage 讀取與繪製的結果不一致，因此無法變更該頁的註解。</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationLocked</source>
+        <translation>第 %1 頁的此註解已鎖定，因此無法移動、調整大小、變更樣式或刪除。請先解除鎖定。</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationContentsLocked</source>
+        <translation>第 %1 頁此註解的文字已鎖定，因此無法變更。請先解除鎖定。</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationReadOnly</source>
+        <translation>第 %1 頁的此註解為唯讀：可以選取但無法變更。請先清除其唯讀鎖定。</translation>
     </message>
     <message>
         <source>error.edit.notShown</source>
@@ -3441,6 +3505,38 @@
     <message>
         <source>command.annot.deleteMany</source>
         <translation>刪除 %1 個註解</translation>
+    </message>
+    <message>
+        <source>command.annot.edit</source>
+        <translation>編輯註解</translation>
+    </message>
+    <message>
+        <source>command.annot.editMany</source>
+        <translation>編輯 %1 個註解</translation>
+    </message>
+    <message>
+        <source>command.annot.move</source>
+        <translation>移動註解</translation>
+    </message>
+    <message>
+        <source>command.annot.moveMany</source>
+        <translation>移動 %1 個註解</translation>
+    </message>
+    <message>
+        <source>command.annot.setAppearance</source>
+        <translation>變更註解外觀</translation>
+    </message>
+    <message>
+        <source>command.annot.setAppearanceMany</source>
+        <translation>變更 %1 個註解的外觀</translation>
+    </message>
+    <message>
+        <source>command.annot.lock</source>
+        <translation>變更註解鎖定</translation>
+    </message>
+    <message>
+        <source>command.annot.lockMany</source>
+        <translation>變更 %1 個註解的鎖定</translation>
     </message>
     <message>
         <source>command.page.rotate</source>

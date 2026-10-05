@@ -70,6 +70,18 @@ constexpr std::string_view keyContextName(KeyContext context)
     return "?";
 }
 
+// THE CONTEXT A CONTEXT FALLS BACK TO before `Common` -- Stage 6 T5, decision D6-9
+// (`Stage6-Annotations-Plan.md` §3). The FIRST context chain, and the only one: `AnnotationTools` is a
+// tool armed or an annotation selected ON THE PAGE, so a chord it does not bind means what the page
+// means -- `Ctrl+=` still zooms with the highlighter armed, `Page Down` still pages. Without it arming a
+// tool would take every Viewer chord away. Every other context keeps its single step (`Features.md` §8's
+// own text: "This context resolves through the Viewer").
+constexpr std::optional<KeyContext> keyContextFallback(KeyContext context)
+{
+    if (context == KeyContext::AnnotationTools) return KeyContext::Viewer;
+    return std::nullopt;
+}
+
 // The inverse, over the SAME table -- which is the only reason it is safe. Two callers need it
 // (`core/settings/Settings` reading a `shortcuts/<context>/<action>` key, and
 // `ui/shell/UiCustomization` reading an exported customization), and before T11 the first one

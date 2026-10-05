@@ -1,7 +1,27 @@
 // core/cmd/commands/AnnotationCommands -- commands over a SET of annotations. Stage 6 T3: the first two
 // of the eleven `Stage6-Annotations-Plan.md` §4 names, `AddAnnotationCommand` and
-// `DeleteAnnotationCommand`; edit, move, reply, status, appearance, lock and import arrive with the
-// tasks that need them.
+// `DeleteAnnotationCommand`; T5 the four that change annotations IN PLACE -- `EditAnnotationCommand`,
+// `MoveAnnotationCommand`, `SetAnnotationAppearanceCommand` and `LockAnnotationCommand`; reply, status
+// and import arrive with the tasks that need them.
+//
+// ===========================================================================================
+// A CHANGE IN PLACE IS A BEFORE AND AN AFTER (T5)
+// ===========================================================================================
+// The four are one shape: each works out, against the document it is applied to, what each named
+// annotation BECOMES, keeps what it WAS, and tells the sink and the store the same pair
+// (`MutationSink::replaceAnnotations`, `AnnotationStore::replace`). They differ only in what they carry --
+// whole annotations, an offset, appearance properties, lock bits -- because each is what a gesture says:
+// a drag says *this far*, not *these coordinates*, and a burst of nudges is one offset (D6-9). Each stamps
+// `/M` with the instant it carries, so a replay writes the same date (D6-4).
+//
+// ===========================================================================================
+// THE FLAGS ARE HONOURED BEFORE ANYTHING IS ASKED (D6-27)
+// ===========================================================================================
+// `permitted()` -- the journal's pre-flight -- refuses BY KEY: `Locked` refuses a move, a resize, any
+// property change and a delete (ISO 32000-1 Table 165: *"do not allow the annotation to be deleted or its
+// properties (including position and size) to be modified"*), and leaves the contents editable;
+// `LockedContents` refuses changing the contents; `ReadOnly` refuses every change. `LockAnnotationCommand`
+// alone is never refused for a flag -- it is how a lock comes off.
 //
 // ===========================================================================================
 // ONE COMMAND, MANY ANNOTATIONS, ONE UNDO STEP (D6-1)
@@ -34,7 +54,9 @@
 #include "core/doc/Annotation.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -51,6 +73,8 @@ inline constexpr std::size_t kMaxCoordinates = 200000;
 inline constexpr int kMaxPageIndex = 8'388'606;
 // A `/NM` RawPage writes is 32 characters; one an import brings is the producer's, and bounded here.
 inline constexpr int kMaxNameLength = 256;
+// A move's offset, in page units: past ISO 32000-1 Annex C's largest page (14,400 units) many times over.
+inline constexpr double kMaxOffset = 1.0e6;
 } // namespace AnnotationCommandLimits
 
 // ADDS annotations RawPage created (`core::newAnnotation`), each at the END of its page's listing, in
@@ -112,6 +136,164 @@ private:
     std::vector<std::pair<AnnotationPlacement, Annotation>> removed_;
     bool applied_ = false;
 };
+
+// What an in-place command worked out when it was applied: each annotation as it was and as it became,
+// in the order the command names them. Kept for `revert()`, and for `scope()` -- both rectangles repaint.
+struct AnnotationChange {
+    std::vector<Annotation> before;
+    std::vector<Annotation> after;
+};
+
+// REPLACES annotations with the given ones, matched by identity: any modelled field but the identity, the
+// subtype and the page -- a resize is one of these (the overlay's drag), and so is new text (the
+// properties bar). Each `after` must differ from the annotation it replaces.
+class EditAnnotationCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.edit"};
+
+    explicit EditAnnotationCommand(std::vector<Annotation> after);
+
+    const std::vector<Annotation>& annotations() const noexcept { return after_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.annot.edit, or command.annot.editMany: %1 count
+    // The pages, and the rectangles before and after, once applied; the whole document before.
+    Scope scope() const override;
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;   // + D6-27
+
+    std::optional<Error> refusal() const override { return refusal_; }
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    QJsonObject serialize() const override;   // {"type": "annot.edit", "annotations": [ {...}, ... ]}
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<Annotation> after_;
+    std::optional<AnnotationChange> change_;
+    std::optional<Error> refusal_;   // the sink's, when it refused the last apply
+};
+
+// MOVES annotations by one offset in page space -- a drag, or a burst of nudges (D6-9): every coordinate
+// of each, its rectangle included, plus (dx, dy), and `/M` stamped `at`.
+class MoveAnnotationCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.move"};
+
+    MoveAnnotationCommand(std::vector<AnnotationId> ids, double dx, double dy, std::int64_t at);
+
+    const std::vector<AnnotationId>& ids() const noexcept { return ids_; }
+    double dx() const noexcept { return dx_; }
+    double dy() const noexcept { return dy_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.annot.move, or command.annot.moveMany: %1 count
+    Scope scope() const override;
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;
+
+    std::optional<Error> refusal() const override { return refusal_; }
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    QJsonObject serialize() const override;   // {"type": "annot.move", "ids": [...], "dx": , "dy": , "at": }
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<AnnotationId> ids_;
+    double dx_ = 0.0;
+    double dy_ = 0.0;
+    std::int64_t at_ = 0;
+    std::optional<AnnotationChange> change_;
+    std::optional<Error> refusal_;   // the sink's, when it refused the last apply
+};
+
+// The properties the properties bar sets (D6-9): each one present is set on every annotation of the set.
+struct AnnotationAppearance {
+    std::optional<std::vector<double>> color;           // /C: 0, 1, 3 or 4 components
+    std::optional<std::vector<double>> interiorColor;   // /IC
+    std::optional<double> opacity;                      // /CA, 0 to 1
+    std::optional<double> borderWidth;                  // /BS /W, 0 or more
+
+    bool isEmpty() const noexcept { return !color && !interiorColor && !opacity && !borderWidth; }
+    Annotation appliedTo(const Annotation& a) const;
+    QJsonObject toJson() const;
+    // nullopt for a property out of its range or of the wrong type.
+    static std::optional<AnnotationAppearance> fromJson(const QJsonObject& json);
+};
+
+// SETS appearance properties on a set of annotations, `/M` stamped `at`.
+class SetAnnotationAppearanceCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.setAppearance"};
+
+    SetAnnotationAppearanceCommand(std::vector<AnnotationId> ids, AnnotationAppearance appearance, std::int64_t at);
+
+    const std::vector<AnnotationId>& ids() const noexcept { return ids_; }
+    const AnnotationAppearance& appearance() const noexcept { return appearance_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.annot.setAppearance, or …Many: %1 count
+    Scope scope() const override;
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;
+
+    std::optional<Error> refusal() const override { return refusal_; }
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "annot.setAppearance", "ids": [...], "appearance": {...}, "at": }
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<AnnotationId> ids_;
+    AnnotationAppearance appearance_;
+    std::int64_t at_ = 0;
+    std::optional<AnnotationChange> change_;
+    std::optional<Error> refusal_;   // the sink's, when it refused the last apply
+};
+
+// SETS and CLEARS the three lock flags -- `Locked`, `LockedContents`, `ReadOnly` (D6-27) -- on a set of
+// annotations, `/M` stamped `at`. Any other bit in either mask, or one bit in both, is malformed.
+class LockAnnotationCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.lock"};
+    static constexpr std::uint32_t kLockFlags =
+        AnnotationFlag::Locked | AnnotationFlag::LockedContents | AnnotationFlag::ReadOnly;
+
+    LockAnnotationCommand(std::vector<AnnotationId> ids, std::uint32_t set, std::uint32_t clear, std::int64_t at);
+
+    const std::vector<AnnotationId>& ids() const noexcept { return ids_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.annot.lock, or command.annot.lockMany: %1 count
+    Scope scope() const override;
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;   // never refused for a flag
+
+    std::optional<Error> refusal() const override { return refusal_; }
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "annot.lock", "ids": [...], "set": n, "clear": n, "at": }
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<AnnotationId> ids_;
+    std::uint32_t set_ = 0;
+    std::uint32_t clear_ = 0;
+    std::int64_t at_ = 0;
+    std::optional<AnnotationChange> change_;
+    std::optional<Error> refusal_;   // the sink's, when it refused the last apply
+};
+
+// D6-27, as `permitted()` asks it: may `annotation` be changed this way? `properties` is anything but its
+// text, `contents` its text. Refused by key, the page named (1-based): `error.edit.annotationReadOnly`,
+// `error.edit.annotationLocked`, `error.edit.annotationContentsLocked`.
+Status annotationChangeAllowed(const Annotation& annotation, bool properties, bool contents);
 
 } // namespace rawpage::core
 

@@ -89,6 +89,10 @@ TilePresenter::TilePresenter(core::render::RenderScheduler& scheduler, QObject* 
             // borrows it -- a deep copy of the header would not be enough, and a deep copy of the
             // pixels would double the resident bytes of every tile on screen to buy nothing.
             tiles_[request] = holdRaster(image);
+            // The superseded tile it replaces is let go (S6 T5): the fresh one now covers it.
+            for (auto it = stale_.begin(); it != stale_.end();) {
+                it = (twinOf(it->first) == request) ? stale_.erase(it) : std::next(it);
+            }
             emit tilesArrived();
         });
 }
@@ -106,6 +110,15 @@ void TilePresenter::setDocument(core::DocumentHandle document, core::Revision re
                                const core::PageTree* pages, const core::PageTree* enginePages)
 {
     if (document == document_ && revision == revision_ && pages == pages_ && enginePages == enginePages_) return;
+
+    if (document == document_ && pages == pages_ && enginePages == enginePages_ && document.isValid()) {
+        // THE SAME DOCUMENT AT A NEW REVISION: what is held is kept on screen until replaced (see the header).
+        cancelAll();
+        for (auto& [request, held] : tiles_) stale_.insert_or_assign(request, std::move(held));
+        tiles_.clear();
+        revision_ = revision;
+        return;
+    }
 
     clear();
     document_ = document;
@@ -153,6 +166,14 @@ void TilePresenter::clear()
 {
     cancelAll();
     tiles_.clear();
+    stale_.clear();
+}
+
+RenderRequest TilePresenter::twinOf(const RenderRequest& stale) const
+{
+    RenderRequest twin = stale;
+    twin.revision = revision_;
+    return twin;
 }
 
 void TilePresenter::cancelAll()
@@ -301,6 +322,12 @@ void TilePresenter::requestTiles(const core::render::PageLayout& layout,
     for (auto it = tiles_.begin(); it != tiles_.end();) {
         it = (wanted.count(it->first) != 0) ? std::next(it) : tiles_.erase(it);
     }
+    // A stale tile stays only while its twin is wanted AND still on its way: one served at once -- from the
+    // cache, re-keyed by the scheduler -- or one nobody asks for any more has nothing left to stand in for.
+    for (auto it = stale_.begin(); it != stale_.end();) {
+        const RenderRequest twin = twinOf(it->first);
+        it = (wanted.count(twin) != 0 && tickets_.count(twin) != 0) ? std::next(it) : stale_.erase(it);
+    }
 }
 
 void TilePresenter::paint(QPainter& painter, const core::render::PageLayout& layout,
@@ -334,6 +361,18 @@ void TilePresenter::paint(QPainter& painter, const core::render::PageLayout& lay
         painter.setPen(QColor(0x80, 0x80, 0x80));
         painter.drawRect(sheetWidget.adjusted(-0.5, -0.5, 0.5, 0.5));
         ++lastPaint_.pagesDrawn;
+
+        // THE SUPERSEDED TILES FIRST (S6 T5), so a fresh one that has arrived paints over them: what was on
+        // screen stays there until what replaces it is ready, instead of a white sheet in between.
+        for (const auto& [request, held] : stale_) {
+            if (request.pageIndex != slot.pageIndex || request.deviceScale != resolution.rasterScale()) continue;
+            if (tickets_.count(twinOf(request)) == 0) continue;
+            const QRectF content = contentRectFor(slot, request.tile, upscale);
+            if (!content.intersects(QRectF(viewport.left(), viewport.top(), viewport.size.width, viewport.size.height)))
+                continue;
+            painter.drawImage(toWidget(content), held.image);
+            ++lastPaint_.staleDrawn;
+        }
 
         for (const auto& [request, held] : tiles_) {
             if (request.pageIndex != slot.pageIndex) continue;

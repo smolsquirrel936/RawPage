@@ -308,6 +308,17 @@ public:
     virtual Status insertAnnotations(const std::vector<AnnotationPlacement>& at,
                                      const std::vector<Annotation>& annotations) = 0;
     virtual Status removeAnnotations(const std::vector<AnnotationPlacement>& at) = 0;
+
+    // A THIRD INTENT -- Stage 6 T5, decision D6-5: annotations CHANGED IN PLACE. `before[i]` is the model's
+    // annotation as it stands, `after[i]` what it becomes, same identity; every listing stays as it is.
+    // Which bytes that means is the sink's: an annotation the file holds is rewritten from its dictionary
+    // ON DISK with only the changed modelled keys overwritten, and its appearance redrawn only where what
+    // it draws changed -- a move or a resize carries the producer's appearance with the rectangle
+    // (ISO 32000-1 §12.5.5) -- so a kind the sink cannot draw yet can still be moved, locked or re-worded.
+    // All or nothing: refused, with nothing changed, for an annotation the sink cannot name, sizes that
+    // differ, or an appearance change it cannot draw.
+    virtual Status replaceAnnotations(const std::vector<Annotation>& before,
+                                      const std::vector<Annotation>& after) = 0;
 };
 
 // =======================================================================================
