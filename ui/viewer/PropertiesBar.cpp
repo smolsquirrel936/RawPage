@@ -98,6 +98,11 @@ AnnotationToolDefaults& sessionToolDefaults(AnnotationToolKind kind)
         set(AnnotationToolKind::MeasureDistance, {0.0, 0.0, 1.0}, 1.0, 1.0);
         set(AnnotationToolKind::MeasureArea, {0.0, 0.0, 1.0}, 1.0, 1.0);
         set(AnnotationToolKind::RedactMark, {0.0, 0.0, 0.0}, 1.0, 1.0);
+        // S6 T6. The squiggly green and the text edits blue, as Acrobat starts them; the note's yellow is
+        // the sticky note's own (above).
+        set(AnnotationToolKind::Squiggly, {0.0, 0.6, 0.0}, 1.0, 1.0);
+        set(AnnotationToolKind::ReplaceText, {0.0, 0.0, 1.0}, 1.0, 1.0);
+        set(AnnotationToolKind::InsertText, {0.0, 0.0, 1.0}, 1.0, 1.0);
         return t;
     }();
     return table[static_cast<std::size_t>(kind)];

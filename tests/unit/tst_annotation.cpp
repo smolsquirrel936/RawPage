@@ -191,12 +191,12 @@ TEST_CASE("an annotation of every subtype survives its JSON", "[annotation][A-20
         a.created = core::PdfDate::parse(QStringLiteral("D:20260901091500+08'00'"));
         a.modified = core::PdfDate::parse(QStringLiteral("D:20260902091500Z"));
         a.flags = 28;
-        a.inReplyTo = 1LL << 60;                     // beyond a double's 53 bits: kept exactly
+        a.inReplyTo = core::AnnotationId::ofObject(1LL << 60);                     // beyond a double's 53 bits: kept exactly
         a.replyType = core::ReplyType::Group;
         a.stateModel = QStringLiteral("Review");
         a.state = QStringLiteral("Accepted");
-        a.popup = 77;
-        a.parent = 76;
+        a.popup = core::AnnotationId::ofObject(77);
+        a.parent = core::AnnotationId::ofCreated(QStringLiteral("0123456789abcdef0123456789abcdef"));   // S6 T6: a created one
         a.open = false;
         a.rotate = 90;
         a.hasAppearance = true;

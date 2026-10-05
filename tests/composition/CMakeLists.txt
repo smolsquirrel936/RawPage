@@ -61,6 +61,11 @@ add_executable(rawpage_composition_tests
     # snapshot; an edit's superseded tiles shown until their replacements arrive. Here for tst_selectionink's reason.
     tst_annotink.cpp
 
+    # Stage 6 T6 -- guide cases A-49 ... A-53 and A-34/A-35 through the TOOLS: text markup, the two text edits
+    # and the sticky note made with mouse and key events, graded against the RENDERED INK and against the saved
+    # file reopened fresh. `AnnotProduct.h` is the fixture it shares with tst_annotink.
+    tst_markupink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

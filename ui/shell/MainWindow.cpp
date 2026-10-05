@@ -3212,13 +3212,32 @@ void MainWindow::registerMutationActions()
     }
 }
 
+namespace {
+
+// What the status bar says when a tool is armed (S6 T6): how to use a tool that makes something, and -- for one
+// whose task has not come -- that it does not make anything yet.
+QLatin1String armedStatusKey(AnnotationToolKind kind)
+{
+    switch (kind) {
+    case AnnotationToolKind::StickyNote: return catalog::key::StatusAnnotationToolNote;
+    case AnnotationToolKind::ReplaceText: return catalog::key::StatusAnnotationToolReplace;
+    case AnnotationToolKind::InsertText: return catalog::key::StatusAnnotationToolInsert;
+    default: break;
+    }
+    return markupSubtype(kind) ? catalog::key::StatusAnnotationToolMarkup : catalog::key::StatusAnnotationToolArmed;
+}
+
+} // namespace
+
 void MainWindow::registerAnnotationActions()
 {
     // STAGE 6 T5 (D6-9, `Stage6-Annotations-Plan.md` §3). The fourteen `Ctrl+Alt+` chords are Viewer rows
     // since Q1, and each ARMS its tool from the page with nothing armed; with one armed the page is in
     // Annotation tools, which resolves through the Viewer. What each tool creates is its own task's (T6 ...),
     // and the status bar says so when one is armed rather than leaving a person to find out by dragging.
-    // Every handler resolves the tab at dispatch time (convention 14). No id is minted.
+    // Every handler resolves the tab at dispatch time (convention 14). **Since T6** seventeen: the squiggly
+    // (declared since Stage 1) and the two text edits minted chordless, `annot.replaceText` and
+    // `annot.insertText`; the markup kinds and the note make, and text already selected is marked at once.
     const auto hasView = [] {
         MainWindow* window = activeShell();
         return window != nullptr && window->currentView() != nullptr && window->currentView()->pageCount() > 0;
@@ -3237,10 +3256,15 @@ void MainWindow::registerAnnotationActions()
             MainWindow* window = activeShell();
             PageView* view = window ? window->currentView() : nullptr;
             if (view == nullptr) return;
+            // S6 T6: TEXT ALREADY SELECTED is marked at once, as Acrobat's commands do -- a replace asks for its
+            // replacement -- and no tool is left armed. With nothing selected the command arms its tool.
+            if (view->markSelectedText(kind)) {
+                window->updateViewChrome();
+                return;
+            }
             view->tools().armAnnotation(kind);
             if (window->status_)
-                window->status_->setMessage(
-                    catalog::translate(catalog::key::StatusAnnotationToolArmed).arg(catalog::translateAction(id)));
+                window->status_->setMessage(catalog::translate(armedStatusKey(kind)).arg(catalog::translateAction(id)));
             window->updateViewChrome();
         };
         registration.checked = [kind] {

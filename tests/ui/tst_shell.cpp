@@ -157,10 +157,17 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `annot.properties` in Annotation tools, one bar. No id is minted. `annot.finishShape` and
     // `annot.setToolDefault` stay unregistered (T8), as `edit.cancel` does (Stage 4's I-06).
     //
+    // **Three more at Stage 6 T6** (D6-12): `annot.squiggly`, declared at Stage 1, and the two text edits
+    // MINTED chordless -- `annot.replaceText` and `annot.insertText` -- the three tools no §8 chord arms;
+    // 376 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 129);
+    CHECK(fixture.actions.registeredCount() == 132);
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotSquiggly));          // S6 T6
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotReplaceText));       // S6 T6
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotInsertText));        // S6 T6
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotHighlight));         // S6 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::RedactMark));             // S6 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewTogglePropertiesBar)); // S6 T5

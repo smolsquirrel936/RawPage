@@ -468,3 +468,63 @@ TEST_CASE("selection survives hostile geometry within its bounds", "[core][text]
     // A NaN rectangle is refused outright rather than stored.
     CHECK(TextSelection::column(0, PdfRect{PdfPoint{nan, 0}, PdfSize{10, 10}}).kind() == TextSelection::Kind::None);
 }
+
+// =====================================================================================================
+// Stage 6 T6 -- text markup's quadrilaterals and an insertion's boundary (`Stage6-Annotations-Plan.md` D6-12)
+// =====================================================================================================
+
+TEST_CASE("markup quadrilaterals are the selected runs in Acrobat's corner order one per line", "[core][text][selection][S6-T6]")
+{
+    PageTextModel model(0);
+    // Two columns; the drag from the foot of column 1 to the head of column 2, as A-45's.
+    const std::u32string left[] = {U"col one line a", U"col one line b"};
+    const std::u32string right[] = {U"col two line a", U"col two line b"};
+    for (int i = 0; i < 2; ++i) {
+        run(model, left[i], 50, 700.0 - 12.0 * i);
+        run(model, right[i], 250, 700.0 - 12.0 * i);
+    }
+    const auto page = read(std::move(model));
+    const TextPosition from{0, page->caretAt(charCentre(50, 8, 688.0))};
+    const TextPosition to{0, page->caretAt(charCentre(250, 2, 700.0))};
+    const TextSelection selection = TextSelection::flow(from, to);
+    const std::vector<double> quads = selection.markupQuadsOn(*page);
+    const std::vector<PdfRect> rects = selection.highlightOn(*page);
+    // ONE QUADRILATERAL PER RUN, and each is the run's highlight rectangle in Acrobat's order --
+    // top-left, top-right, bottom-left, bottom-right -- which every reader follows (guide A-20).
+    REQUIRE(quads.size() == rects.size() * 8);
+    REQUIRE(rects.size() == 2);   // the rest of column 1's last line, then column 2's first
+    for (std::size_t i = 0; i < rects.size(); ++i) {
+        const PdfRect& r = rects[i];
+        const std::vector<double> want{r.left(), r.top(), r.right(), r.top(), r.left(), r.bottom(), r.right(), r.bottom()};
+        CHECK(std::vector<double>(quads.begin() + static_cast<std::ptrdiff_t>(8 * i),
+                                  quads.begin() + static_cast<std::ptrdiff_t>(8 * i + 8))
+              == want);
+    }
+    // In reading order: column 1's run first.
+    CHECK(quads[0] < 250.0);
+    CHECK(quads[8] >= 250.0);
+    // An empty selection marks nothing.
+    CHECK(TextSelection::flow(from, from).markupQuadsOn(*page).empty());
+}
+
+TEST_CASE("an insertion point is on the boundary between two letters at the line's foot", "[core][text][selection][S6-T6]")
+{
+    PageTextModel model(0);
+    run(model, U"hello world", 100, 700);
+    const auto page = read(std::move(model));
+    // Between `e` (position 1) and `l` (position 2): where their boxes meet, 2 advances from the start.
+    const std::optional<InsertionPoint> between = insertionPointAt(*page, 2);
+    REQUIRE(between);
+    CHECK(std::abs(between->at.x - (100 + 2 * kAdvance * 10)) < 1e-9);
+    CHECK(std::abs(between->at.y - (700 - 0.21 * 10)) < 1e-9);   // the line's foot
+    CHECK(std::abs(between->across - 1.11 * 10) < 1e-9);         // the line's height
+    CHECK_FALSE(between->vertical);
+    // Before the first letter and after the last: their outer edges.
+    CHECK(std::abs(insertionPointAt(*page, 0)->at.x - 100) < 1e-9);
+    CHECK(std::abs(insertionPointAt(*page, page->size())->at.x - (100 + 11 * kAdvance * 10)) < 1e-9);
+    // From a point, as the tool asks: the caret nearest a click on the boundary.
+    const std::optional<InsertionPoint> clicked =
+        insertionPointAt(*page, page->caretAt(PdfPoint{100 + 2 * kAdvance * 10 + 0.4, 703}));
+    REQUIRE(clicked);
+    CHECK(std::abs(clicked->at.x - between->at.x) < 1e-9);
+}

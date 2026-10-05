@@ -48,6 +48,9 @@ const char* annotationToolKindName(AnnotationToolKind kind) noexcept
     case AnnotationToolKind::MeasureDistance: return "MeasureDistance";
     case AnnotationToolKind::MeasureArea:     return "MeasureArea";
     case AnnotationToolKind::RedactMark:      return "RedactMark";
+    case AnnotationToolKind::Squiggly:        return "Squiggly";
+    case AnnotationToolKind::ReplaceText:     return "ReplaceText";
+    case AnnotationToolKind::InsertText:      return "InsertText";
     }
     return "?";
 }
@@ -70,10 +73,17 @@ Tool& ToolController::toolFor(ToolKind kind)
     case ToolKind::MarqueeZoom: return marquee_;
     case ToolKind::Loupe:       return loupe_;
     case ToolKind::Snapshot:    return snapshot_;
-    case ToolKind::Annotate:    return annotation_;
+    case ToolKind::Annotate:    return annotationToolFor(annotationKind_);
     case ToolKind::Select:      break;
     }
     return select_;
+}
+
+Tool& ToolController::annotationToolFor(AnnotationToolKind which)
+{
+    if (which == AnnotationToolKind::StickyNote) return note_;
+    if (MarkupTool::handles(which)) return markup_;
+    return annotation_;
 }
 
 ToolKind ToolController::effective() const noexcept
@@ -124,14 +134,22 @@ void ToolController::arm(ToolKind kind)
 
 void ToolController::armAnnotation(AnnotationToolKind which)
 {
-    if (armed_ == ToolKind::Annotate && annotation_.which() == which) return;
+    if (armed_ == ToolKind::Annotate && annotationKind_ == which) return;
     if (armed_ == ToolKind::Annotate) {
+        // Another tool of the same family: whatever the outgoing one was doing is abandoned, as `arm` does.
+        Tool& outgoing = activeTool();
+        if (outgoing.isDragging()) outgoing.cancel(host_);
+        annotationKind_ = which;
         annotation_.setWhich(which);
+        markup_.setWhich(which);
         emit armedChanged(armed_);   // the same kind of tool, another tool: said all the same
+        emitCursor();
         host_.requestRepaint();
         return;
     }
+    annotationKind_ = which;
     annotation_.setWhich(which);
+    markup_.setWhich(which);
     arm(ToolKind::Annotate);
 }
 
@@ -157,6 +175,9 @@ constexpr Arming kArming[kAnnotationToolKindCount] = {
     {AnnotationToolKind::MeasureDistance, core::ActionId::AnnotMeasureDistance},
     {AnnotationToolKind::MeasureArea, core::ActionId::AnnotMeasureArea},
     {AnnotationToolKind::RedactMark, core::ActionId::RedactMark},
+    {AnnotationToolKind::Squiggly, core::ActionId::AnnotSquiggly},
+    {AnnotationToolKind::ReplaceText, core::ActionId::AnnotReplaceText},
+    {AnnotationToolKind::InsertText, core::ActionId::AnnotInsertText},
 };
 
 } // namespace
@@ -167,6 +188,23 @@ core::ActionId armingAction(AnnotationToolKind kind) noexcept
         if (row.kind == kind) return row.action;
     }
     return core::ActionId::AnnotHighlight;
+}
+
+bool createsAnnotations(AnnotationToolKind kind) noexcept
+{
+    return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
+           || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value();
+}
+
+std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept
+{
+    switch (kind) {
+    case AnnotationToolKind::Highlight: return core::AnnotationSubtype::Highlight;
+    case AnnotationToolKind::Underline: return core::AnnotationSubtype::Underline;
+    case AnnotationToolKind::Strikeout: return core::AnnotationSubtype::StrikeOut;
+    case AnnotationToolKind::Squiggly:  return core::AnnotationSubtype::Squiggly;
+    default: return std::nullopt;
+    }
 }
 
 std::optional<AnnotationToolKind> armedBy(core::ActionId action) noexcept
@@ -180,7 +218,7 @@ std::optional<AnnotationToolKind> armedBy(core::ActionId action) noexcept
 std::optional<AnnotationToolKind> ToolController::armedAnnotation() const noexcept
 {
     if (armed_ != ToolKind::Annotate) return std::nullopt;
-    return annotation_.which();
+    return annotationKind_;
 }
 
 void ToolController::setKeepToolSelected(bool keep)

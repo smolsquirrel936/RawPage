@@ -12,9 +12,14 @@
 //
 // **What each tool CREATES is its own task's** -- markup and notes T6, typed text T7, shapes and ink T8,
 // stamps T10, measurement T12, redaction marks T14 -- and arrives as the classes `Architecture-FileMap.md`
-// §3.14 names (`MarkupTool`, `NoteTool`, …) on this base. Until then a press on an empty part of the page
-// makes nothing: the tool is armed, says which it is, and creates nothing. That is the state T5 leaves,
-// recorded rather than hidden.
+// §3.14 names (`MarkupTool`, `NoteTool`, …). This class is what is armed for a kind whose task has not come:
+// a press on an empty part of the page makes nothing, the tool says which it is and that it creates
+// nothing yet. **Since T6** the text markup tools (`ui/viewer/tools/MarkupTool`) and the sticky note
+// (`ui/viewer/tools/NoteTool`) create; `createsAnnotations` says which kinds do.
+//
+// SEVENTEEN KINDS, FOURTEEN CHORDS. §8 arms fourteen by chord; T6 adds the three text-markup kinds no chord
+// names -- the squiggly (`annot.squiggly`, declared since Stage 1), replace text and insert text (minted at
+// T6, chordless) -- reached from the tool finder, the QAT and the batch runner like every chordless command.
 //
 // The kind is a value with an ASCII name, for the reason `ToolKind` carries one.
 
@@ -22,13 +27,14 @@
 #define RAWPAGE_UI_VIEWER_TOOLS_ANNOTATIONTOOL_H
 
 #include "core/cmd/ActionId.h"
+#include "core/doc/Annotation.h"
 #include "ui/viewer/tools/Tool.h"
 
 #include <optional>
 
 namespace rawpage::ui {
 
-// The fourteen tools §8's Viewer table arms, in its order.
+// The fourteen tools §8's Viewer table arms, in its order -- and T6's three after them.
 enum class AnnotationToolKind {
     StickyNote,
     Highlight,
@@ -44,9 +50,21 @@ enum class AnnotationToolKind {
     MeasureDistance,
     MeasureArea,
     RedactMark,
+    // Stage 6 T6: chordless (see the header).
+    Squiggly,
+    ReplaceText,
+    InsertText,
 };
 
-inline constexpr int kAnnotationToolKindCount = 14;
+inline constexpr int kAnnotationToolKindCount = 17;
+// The first fourteen are §8's Viewer rows, each with its `Ctrl+Alt+` chord.
+inline constexpr int kChordedAnnotationToolCount = 14;
+
+// Whether arming `kind` makes something by T6: the six text-markup kinds and the sticky note.
+bool createsAnnotations(AnnotationToolKind kind) noexcept;
+// The four kinds that MARK the text they are dragged across -- highlight, underline, strikeout, squiggly --
+// and the subtype each writes; nullopt for every other kind.
+std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept;
 
 const char* annotationToolKindName(AnnotationToolKind kind) noexcept;
 

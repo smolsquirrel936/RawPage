@@ -25,6 +25,16 @@
 //     `AppearanceStreamBuilder` must draw a new one -- is the sink's question; an annotation RawPage
 //     only reads keeps its producer's appearance.
 // Stage 6 T3 builds and tests this rule; `EditAnnotationCommand`, its first caller, is T5's.
+//
+// ===========================================================================================
+// A REFERENCE TO ANOTHER ANNOTATION IS RESOLVED BY THE CALLER (Stage 6 T6)
+// ===========================================================================================
+// `/IRT`, `/Popup` and `/Parent` name an annotation by identity (`core::Annotation`): an object read
+// from the file, or one RawPage created that has no number until the compose that writes it gives it
+// one. Which number that is, is the sink's knowledge -- this delta's, or the save that wrote it -- so
+// both functions take a `ReferenceResolver`. One that cannot resolve a reference (a created target
+// that is no longer listed anywhere, so nothing writes it) leaves the key out rather than point at
+// nothing. The default resolves object numbers only, at generation 0.
 
 #ifndef RAWPAGE_PDF_OPS_ANNOTATIONOPS_H
 #define RAWPAGE_PDF_OPS_ANNOTATIONOPS_H
@@ -35,13 +45,20 @@
 
 #include <QString>
 
+#include <functional>
 #include <optional>
 #include <string>
 
 namespace rawpage::pdf::ops {
 
+// The object a reference to an annotation is written as, or none to leave the key out.
+using ReferenceResolver = std::function<std::optional<cos::CosRef>(const core::AnnotationId&)>;
+
 class AnnotationOps {
 public:
+    // Object numbers as written, at generation 0; a created identity resolves to nothing.
+    static ReferenceResolver objectReferences();
+
     // A PDF text string (ISO 32000-1 §7.9.2.2): PDFDocEncoding's ASCII range as a literal when every
     // character is in it, else UTF-16BE behind its byte-order mark, as a hex string.
     static cos::CosObject textString(const QString& text);
@@ -50,12 +67,14 @@ public:
     // that is set. `page` is its page's reference; `appearance`, when present, becomes `/AP << /N … >>`.
     static core::Result<cos::CosObject> createdDictionary(const core::Annotation& annotation,
                                                           cos::CosRef page,
-                                                          std::optional<cos::CosRef> appearance);
+                                                          std::optional<cos::CosRef> appearance,
+                                                          const ReferenceResolver& resolve = objectReferences());
 
     // D6-5, as above: `onDisk` with only the keys of the fields that differ between `before` and `after`
     // overwritten -- or removed, where `after` no longer has the field. A stream stays a stream.
     static cos::CosObject editedDictionary(const cos::CosObject& onDisk, const core::Annotation& before,
-                                           const core::Annotation& after);
+                                           const core::Annotation& after,
+                                           const ReferenceResolver& resolve = objectReferences());
 
     // The `/RC` an edit writes for `contents`: a plain XHTML body, one `<p>` per line, escaped.
     static QString richTextFor(const QString& contents);

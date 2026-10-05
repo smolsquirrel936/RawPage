@@ -103,6 +103,15 @@ public:
     // A new object, numbered by the allocator. Returns the number, so a caller can reference it.
     long long add(CosObject object, std::optional<std::string> streamData = {});
 
+    // A NEW OBJECT'S NUMBER BEFORE ITS VALUE (Stage 6 T6): two new objects that name EACH OTHER -- a
+    // note and its pop-up, `/Popup` one way and `/Parent` the other -- cannot both be added first. A
+    // reserved number is the allocator's next, and `define` gives it its value exactly once. A number
+    // reserved and never defined is a caller's defect, and `IncrementalWriter` would write no row for
+    // it; the one caller (`MutationSinkImpl`) defines every number it reserves or discards the delta.
+    long long reserve() noexcept { return allocator_.allocate(); }
+    // False -- nothing recorded -- for a number this delta did not reserve, or one already defined.
+    bool define(long long number, CosObject object, std::optional<std::string> streamData = {});
+
     // True when `number` is already replaced or added by this delta.
     bool touches(long long number) const noexcept;
 

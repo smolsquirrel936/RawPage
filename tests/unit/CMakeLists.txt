@@ -60,6 +60,10 @@ add_executable(rawpage_tests
                                   #   the sink's listings, save, undo, identity, preservation, verify
     tst_annotedit.cpp             # Stage 6 T5 -- guide A-26 through the command, A-28/A-29 for the four
                                   #   in-place commands, A-43's headless half (D6-27), D6-30's geometry
+    tst_annotmarkup.cpp           # Stage 6 T6 -- what the markup tools and the note write: the appearances
+                                  #   in each quadrilateral's own frame, references between created
+                                  #   annotations across a save, and verify's reference check
+    tst_stage6settings.cpp        # Stage 6 T6 -- the three identity/* rows (D6-13) and convention 11's grep
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

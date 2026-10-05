@@ -324,8 +324,12 @@ struct ShellFixture {
     {
         return app::Services{settings,    recentFiles,     actions,     keyBindings,   logBuffer,
                              backend,     renderScheduler, renderCache, documentIndex, searchEngine,
-                             platform,    recoveryRoot};
+                             platform,    recoveryRoot,    loginName};
     }
+
+    // S6 T6: who a comment is by when `identity/author` is empty -- fixed, so a case never writes the name
+    // of whoever runs the suite (`app::Services::loginName`).
+    QString loginName = QStringLiteral("suite-login");
 
     // Runs queued work until every tile has been rasterized and delivered. Returns how many results
     // were handed to subscribers. See the header on what this back door does NOT cover.

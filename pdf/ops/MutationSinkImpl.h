@@ -60,6 +60,15 @@
 // the first time it is edited and its page lists that object (D6-4) -- keeping, across the save, the
 // (page, position) name the model gives it. A created annotation not yet saved is simply drawn anew.
 //
+// REFERENCES BETWEEN ANNOTATIONS -- Stage 6 T6. A note and its pop-up name each other (`/Popup`, `/Parent`),
+// and a replace edit's strikeout names its caret (`/IRT`), before either has an object number. So a compose
+// RESERVES a number for every created annotation it will write before it writes any of them, and every
+// reference -- in a created dictionary and in an edited one -- is resolved through `resolveReference`: an
+// object the file holds, a created annotation this delta writes, or one an earlier save wrote. A created
+// target listed nowhere any more is written by nothing, and the key is left out rather than point at nothing.
+// A `Popup` is written with no `/AP` (`AppearanceStreamBuilder::drawsNothing`). Verify reads every created
+// reference back as the object its target was written at.
+//
 // AN UNDO RETURNS THE DICTIONARY, NOT A REDRAWING OF IT. Every dictionary an edited annotation has had ON
 // DISK is remembered beside the model it read as, from the first edit on; when an edit's result IS one of
 // those models -- an undo after a save, a change put back -- that dictionary is written again verbatim, its
@@ -190,7 +199,11 @@ private:
     std::vector<int> pagesToRewrite() const;
     // T5: an edited annotation's dictionary as it will be written, from `onDisk`; its appearance added to
     // `delta` when it is redrawn.
-    core::Result<cos::CosObject> editedFrom(const cos::CosObject& onDisk, const Edit& edit, cos::ObjectDelta& delta);
+    core::Result<cos::CosObject> editedFrom(const cos::CosObject& onDisk, const Edit& edit, cos::ObjectDelta& delta,
+                                            const std::map<QString, long long>& written);
+    // T6: where a reference to `id` is written -- see the header. `written` is this compose's created numbers.
+    std::optional<cos::CosRef> resolveReference(const core::AnnotationId& id,
+                                                const std::map<QString, long long>& written) const;
 
     std::string_view bytes_;
     cos::XrefTable table_;

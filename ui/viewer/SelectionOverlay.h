@@ -98,6 +98,9 @@ public:
     // `Esc` under a live drag: back to what was selected before the press.
     void cancelGesture();
     bool isGestureActive() const noexcept { return gestureActive_; }
+    // Whether the selection is what the gesture made -- false while a page the gesture reached has not been
+    // read, when `selection()` is still the last answer (S6 T6: a mark made of it waits).
+    bool isResolved() const noexcept { return gestureResolved_; }
     // The page a live column gesture is on, or -1.
     int columnGesturePage() const noexcept;
 

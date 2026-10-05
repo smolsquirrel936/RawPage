@@ -270,6 +270,33 @@ TEST_CASE("cos writer appends a rotation after a classic table", "[cos][writer]"
     CHECK(after.table.notes().empty());
 }
 
+TEST_CASE("cos writer gives two new objects that name each other their numbers first", "[cos][writer][S6-T6]")
+{
+    // Stage 6 T6: a note and its pop-up reference EACH OTHER, so neither can be added before the other.
+    // A reserved number is defined once; a number not reserved, or defined twice, is refused.
+    Loaded before = load(readFile(corpus("ordinary/text-a4.pdf")));
+    ObjectDelta delta(before.table);
+    const long long note = delta.reserve();
+    const long long popup = delta.reserve();
+    CHECK(popup == note + 1);
+    CHECK_FALSE(delta.define(note - 1, CosObject::makeNull()));        // the file's, not reserved
+    CHECK_FALSE(delta.define(popup + 1, CosObject::makeNull()));       // not handed out yet
+    REQUIRE(delta.define(popup, CosObject::makeDictionary({{"Parent", CosObject::makeReference(note, 0)}})));
+    CHECK_FALSE(delta.define(popup, CosObject::makeNull()));           // defined once
+    REQUIRE(delta.define(note, CosObject::makeDictionary({{"Popup", CosObject::makeReference(popup, 0)}})));
+
+    auto update = IncrementalWriter::append(*before.bytes, before.table, delta);
+    REQUIRE(update);
+    CHECK(update.value().objectsWritten == std::vector<long long>{note, popup});
+    Loaded after = load(*before.bytes + update.value().bytes);
+    auto a = after.table.fetch(note);
+    auto b = after.table.fetch(popup);
+    REQUIRE(a);
+    REQUIRE(b);
+    CHECK(a.value().object.get("Popup").reference().number == popup);
+    CHECK(b.value().object.get("Parent").reference().number == note);
+}
+
 TEST_CASE("cos writer replaces a stream and writes its true Length", "[cos][writer]")
 {
     // A stream change carries its ENCODED data, and `/Length` is the data's -- never a value copied

@@ -93,6 +93,18 @@ ContentStreamBuilder& ContentStreamBuilder::lineWidth(double width)
     return op("w");
 }
 
+ContentStreamBuilder& ContentStreamBuilder::lineCap(int style)
+{
+    operand(static_cast<double>(style < 0 ? 0 : style > 2 ? 2 : style));
+    return op("J");
+}
+
+ContentStreamBuilder& ContentStreamBuilder::lineJoin(int style)
+{
+    operand(static_cast<double>(style < 0 ? 0 : style > 2 ? 2 : style));
+    return op("j");
+}
+
 ContentStreamBuilder& ContentStreamBuilder::graphicsState(std::string_view name)
 {
     separate();

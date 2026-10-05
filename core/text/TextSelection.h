@@ -52,6 +52,7 @@
 
 #include <climits>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace rawpage::core::text {
@@ -196,6 +197,17 @@ struct CopiedText {
     bool isEmpty() const noexcept { return characters == 0; }
 };
 
+// WHERE AN INSERTION MARK GOES (Stage 6 T6): the boundary between the characters either side of `caret`
+// (`PageReading::caretAt`) -- the midpoint of their facing box edges, so a caret sits between two letters
+// whichever way the line reads -- at the foot of its line. At a line's end, the far edge of its last
+// character. `across` is the line's extent across it (its height, or its width when vertical).
+struct InsertionPoint {
+    PdfPoint at;            // on the boundary, at the line's bottom (its left side when vertical)
+    double across = 0.0;
+    bool vertical = false;
+};
+std::optional<InsertionPoint> insertionPointAt(const PageReading& page, int caret);
+
 class TextSelection {
 public:
     enum class Kind { None, Flow, Column };
@@ -230,6 +242,13 @@ public:
     // along the line, the line's extent across it, so a highlight is the height of its line rather
     // than of each glyph's ascender.
     std::vector<PdfRect> highlightOn(const PageReading& page) const;
+
+    // THE SAME RUNS AS TEXT MARKUP'S QUADRILATERALS (Stage 6 T6, D6-12): eight numbers per run, in the
+    // corner order Acrobat writes and every reader follows -- top-left, top-right, bottom-left, bottom-right
+    // -- read in the LINE's own frame. A horizontal line's top is its top; a VERTICAL line (CJK written top
+    // to bottom) reads downwards, so its "top" edge is its right side and its "bottom" its left, which is
+    // where an underline goes in vertical writing. Empty for a page the selection does not touch.
+    std::vector<double> markupQuadsOn(const PageReading& page) const;
 
     std::vector<int> missingPages(const DocumentText& text) const;
 

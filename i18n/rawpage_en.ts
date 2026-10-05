@@ -812,6 +812,14 @@
         <translation>Squiggly</translation>
     </message>
     <message>
+        <source>action.annot.replaceText</source>
+        <translation>Replace Text</translation>
+    </message>
+    <message>
+        <source>action.annot.insertText</source>
+        <translation>Insert Text</translation>
+    </message>
+    <message>
         <source>action.annot.textBox</source>
         <translation>Text Box</translation>
     </message>
@@ -1621,6 +1629,22 @@
     <message>
         <source>shell.status.annotationToolArmed</source>
         <translation>%1 is selected. Select, move, resize or delete comments with it; making new ones with this tool comes in a later step of this version.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolMarkup</source>
+        <translation>%1 is selected. Drag across text to mark it.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolNote</source>
+        <translation>%1 is selected. Click where the note goes, then type it and press Enter.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolReplace</source>
+        <translation>%1 is selected. Drag across the text to replace, then type the new text and press Enter.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolInsert</source>
+        <translation>%1 is selected. Click where the text goes in, then type it and press Enter.</translation>
     </message>
     <message>
         <source>shell.propertiesBar.nothing</source>
@@ -3050,6 +3074,22 @@
     <message>
         <source>prefs.setting.fullScreen.showCursor</source>
         <translation>Show the pointer while presenting</translation>
+    </message>
+    <message>
+        <source>prefs.group.identity</source>
+        <translation>Identity</translation>
+    </message>
+    <message>
+        <source>prefs.setting.identity.author</source>
+        <translation>Name on comments (empty: your Windows sign-in name)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.identity.email</source>
+        <translation>Email</translation>
+    </message>
+    <message>
+        <source>prefs.setting.identity.organization</source>
+        <translation>Organization</translation>
     </message>
     <message>
         <source>prefs.group.search</source>

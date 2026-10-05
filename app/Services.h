@@ -113,6 +113,12 @@ struct Services {
     // every existing aggregate initialiser still compiles; a test points it at a temporary directory so
     // a suite never writes into the user's own recovery folder. `documents/recoveryDir` replaces it at T12.
     QString recoveryRoot = {};
+
+    // WHO THE PERSON AT THE KEYBOARD IS, as the operating system names them (Stage 6 T6, D6-13): what
+    // `identity/author` means when it is empty, through `core::identityAuthor`. A value the HOST supplies --
+    // `app/CompositionRoot` reads it -- so `core/` reads no environment (convention 11), and a case composing
+    // the product sets it, so a comment's `/T` never depends on who ran the suite.
+    QString loginName = {};
 };
 
 } // namespace rawpage::app

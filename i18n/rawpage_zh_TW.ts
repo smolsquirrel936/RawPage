@@ -812,6 +812,14 @@
         <translation>波浪底線</translation>
     </message>
     <message>
+        <source>action.annot.replaceText</source>
+        <translation>取代文字</translation>
+    </message>
+    <message>
+        <source>action.annot.insertText</source>
+        <translation>插入文字</translation>
+    </message>
+    <message>
         <source>action.annot.textBox</source>
         <translation>文字方塊</translation>
     </message>
@@ -1621,6 +1629,22 @@
     <message>
         <source>shell.status.annotationToolArmed</source>
         <translation>已選取「%1」。可用它選取、移動、調整大小或刪除註解；用此工具建立新註解將在此版本稍後的步驟提供。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolMarkup</source>
+        <translation>已選取「%1」。拖曳經過文字即可加上標記。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolNote</source>
+        <translation>已選取「%1」。在要放置附註的位置按一下，輸入內容後按 Enter。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolReplace</source>
+        <translation>已選取「%1」。拖曳經過要取代的文字，輸入新文字後按 Enter。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolInsert</source>
+        <translation>已選取「%1」。在要插入文字的位置按一下，輸入內容後按 Enter。</translation>
     </message>
     <message>
         <source>shell.propertiesBar.nothing</source>
@@ -3050,6 +3074,22 @@
     <message>
         <source>prefs.setting.fullScreen.showCursor</source>
         <translation>放映時顯示滑鼠指標</translation>
+    </message>
+    <message>
+        <source>prefs.group.identity</source>
+        <translation>身分</translation>
+    </message>
+    <message>
+        <source>prefs.setting.identity.author</source>
+        <translation>註解上的名稱（空白：使用您的 Windows 登入名稱）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.identity.email</source>
+        <translation>電子郵件</translation>
+    </message>
+    <message>
+        <source>prefs.setting.identity.organization</source>
+        <translation>組織</translation>
     </message>
     <message>
         <source>prefs.group.search</source>

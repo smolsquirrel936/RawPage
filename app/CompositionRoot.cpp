@@ -364,7 +364,16 @@ Services CompositionRoot::services()
 {
     return Services{*settings_,      *recentFiles_,  *actions_,         *keyBindings_,
                     *logBuffer_,     *backend_,      *renderScheduler_, *renderCache_,
-                    *documentIndex_, *searchEngine_, *platform_,        options_.recoveryRoot};
+                    *documentIndex_, *searchEngine_, *platform_,        options_.recoveryRoot,
+                    loginName()};
+}
+
+QString CompositionRoot::loginName() const
+{
+    if (!options_.loginName.isEmpty()) return options_.loginName;
+    // Windows' own name for the signed-in account, and the POSIX one for the portable builds of `app/`.
+    const QString windows = qEnvironmentVariable("USERNAME");
+    return windows.isEmpty() ? qEnvironmentVariable("USER") : windows;
 }
 
 void CompositionRoot::applySearchSettings()

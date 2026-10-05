@@ -270,7 +270,10 @@
             { "action": "annot.stickyNote", "size": "large" },
             { "action": "annot.highlight", "size": "small" },
             { "action": "annot.underline", "size": "small" },
-            { "action": "annot.strikeout", "size": "small" }
+            { "action": "annot.strikeout", "size": "small" },
+            { "action": "annot.squiggly", "size": "small" },
+            { "action": "annot.replaceText", "size": "small" },
+            { "action": "annot.insertText", "size": "small" }
           ]
         },
         {

@@ -524,6 +524,26 @@ RAWPAGE_SETTING(documents, compareIgnoreWhitespace, bool,
                 "documents/compareIgnoreWhitespace", false, Documents, true)
 
 // =============================================================================================
+// The three Stage 6 `identity/` rows -- S6 T6, `Stage6-Annotations-Plan.md` D6-13. They fill the
+// `Identity` group, declared in `SettingsGroup` since Stage 1 with no keys, and one line in
+// `PreferencesDialog::shippedPages()` is the rest of the page (convention 17). **Ten of 26 groups ship.**
+//
+// WHO A COMMENT IS BY: every annotation RawPage creates carries `identity/author` as its `/T` (D6-4) --
+// and when it is EMPTY, the login name `app/` supplies, through `core::identityAuthor` (convention 11:
+// the rule is the domain's, the name the host's). Empty by default, so a person who never opens the page
+// still signs their comments with a name. Email and organization are recorded for the comments and
+// stamps that will carry them (a dynamic stamp bakes them in, T10); nothing writes them before then.
+// =============================================================================================
+
+// --- Identity ----------------------------------------------------------------------------------------
+RAWPAGE_SETTING(identity, author, QString,
+                "identity/author", "", Identity, true)
+RAWPAGE_SETTING(identity, email, QString,
+                "identity/email", "", Identity, true)
+RAWPAGE_SETTING(identity, organization, QString,
+                "identity/organization", "", Identity, true)
+
+// =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================
 

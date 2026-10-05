@@ -5,6 +5,8 @@
 
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationGeometry.h"
+#include "core/text/TextSelection.h"
+#include "ui/viewer/SelectionOverlay.h"
 
 #include <QDateTime>
 #include <QFontMetricsF>
@@ -97,6 +99,16 @@ void AnnotationOverlay::setClock(Clock clock)
 std::int64_t AnnotationOverlay::now() const
 {
     return clock_ ? clock_() : QDateTime::currentSecsSinceEpoch();
+}
+
+void AnnotationOverlay::setAuthor(Author author)
+{
+    author_ = std::move(author);
+}
+
+QString AnnotationOverlay::author() const
+{
+    return author_ ? author_() : QString();
 }
 
 const Annotation* AnnotationOverlay::find(const AnnotationId& id) const
@@ -448,18 +460,21 @@ bool AnnotationOverlay::release(const Viewport& view, QPoint pos, Qt::KeyboardMo
         emit changed();
         if (!offset) return true;
         // THE COPIES, made new (D6-4): a fresh `/NM` and dates, everything drawn carried across, moved.
-        // A thread, a state, a pop-up and the author's name are the original's and stay with it -- the
-        // author until `identity/author` exists (T6), when a copy will carry the person's own.
+        // A thread, a state and a pop-up are the original's and stay with it; the author is whoever made
+        // the copy (`identity/author`, since T6).
         std::vector<Annotation> copies;
         std::vector<AnnotationId> ids;
         for (const Annotation& source : selected()) {
-            Annotation copy = core::newAnnotation(source.subtype, source.page, source.author, now());
+            // T6 (D6-31(f) closed): the copy is the PERSON's, as anything they make is.
+            Annotation copy = core::newAnnotation(source.subtype, source.page, author(), now());
             const AnnotationId id = copy.id;
             const QString nm = copy.nm;
             const core::PdfDate created = copy.created;
+            const QString madeBy = copy.author;
             copy = core::translated(source, offset->x, offset->y);
             copy.id = id;
             copy.nm = nm;
+            copy.author = madeBy;
             copy.created = created;
             copy.modified = created;
             copy.inReplyTo.reset();
@@ -576,7 +591,7 @@ core::Status AnnotationOverlay::deleteSelection()
     for (const AnnotationId& id : selection_) {
         const Annotation* a = find(id);
         if (a == nullptr || !a->popup || store_ == nullptr) continue;
-        if (const std::optional<std::size_t> popup = store_->findObject(*a->popup)) {
+        if (const std::optional<std::size_t> popup = store_->find(*a->popup)) {
             const AnnotationId popupId = store_->at(*popup).id;
             if (std::find(ids.begin(), ids.end(), popupId) == ids.end()) ids.push_back(popupId);
         }
@@ -612,6 +627,149 @@ core::Status AnnotationOverlay::setLocks(std::uint32_t set, std::uint32_t clear)
     (void)commitNudge();
     if (selection_.empty() || (set | clear) == 0) return core::Status{};
     return run(std::make_unique<core::LockAnnotationCommand>(selection_, set, clear, now()));
+}
+
+// ---- Making annotations (S6 T6) ------------------------------------------------------------------
+
+Annotation AnnotationOverlay::newAnnotation(core::AnnotationSubtype subtype, int page) const
+{
+    return core::newAnnotation(subtype, page, author(), now());
+}
+
+void AnnotationOverlay::applyStyle(Annotation& a, const Style& style) const
+{
+    if (style.colour.size() == 1 || style.colour.size() == 3 || style.colour.size() == 4) a.color = style.colour;
+    if (style.opacity < 1.0) a.opacity = std::clamp(style.opacity, 0.0, 1.0);
+}
+
+Annotation AnnotationOverlay::caretAt(int page, const core::text::InsertionPoint& place, const Style& style) const
+{
+    // Acrobat's proportions: a wedge about half the line's height wide and three fifths of it tall, standing
+    // on the line's foot -- and never so small a person cannot see or click it.
+    const double tall = std::max(6.0, 0.6 * place.across);
+    const double wide = std::max(4.0, 0.5 * place.across);
+    Annotation caret = newAnnotation(core::AnnotationSubtype::Caret, page);
+    caret.rect = place.vertical
+                     ? core::PdfRect{core::PdfPoint{place.at.x, place.at.y - wide / 2.0}, core::PdfSize{tall, wide}}
+                     : core::PdfRect{core::PdfPoint{place.at.x - wide / 2.0, place.at.y}, core::PdfSize{wide, tall}};
+    applyStyle(caret, style);
+    return caret;
+}
+
+AnnotationOverlay::MarkOutcome AnnotationOverlay::markText(SelectionOverlay& text, core::AnnotationSubtype subtype,
+                                                           const Style& style, std::optional<QString> replacement)
+{
+    if (!isActive()) return MarkOutcome::Refused;
+    if (pendingConnection_) disconnect(pendingConnection_);
+    pendingMark_.reset();
+
+    // NOT READY: the gesture has not met its pages' text, or a page it covers has not been read. Asked for
+    // at `Visible` -- it is on screen -- and finished when it arrives (see the header).
+    const core::text::TextSelection& selection = text.selection();
+    const std::vector<int> missing = selection.missingPages(text.text());
+    if (!text.isResolved() || !missing.empty()) {
+        for (const int page : missing) (void)text.ensurePage(page, core::render::RenderPriority::Visible);
+        pendingMark_ = PendingMark{QPointer<SelectionOverlay>(&text), subtype, style, std::move(replacement)};
+        pendingConnection_ = connect(&text, &SelectionOverlay::changed, this, [this] { retryPendingMark(); });
+        return MarkOutcome::Pending;
+    }
+    if (selection.isEmpty()) return MarkOutcome::Nothing;
+
+    // ONE ANNOTATION PER PAGE the selection touches, its runs as quadrilaterals.
+    std::vector<Annotation> made;
+    for (int page = selection.firstPage(); page <= selection.lastPage(); ++page) {
+        const core::text::PageReading* reading = text.text().page(page);
+        if (reading == nullptr) continue;
+        std::vector<double> quads = selection.markupQuadsOn(*reading);
+        const std::optional<core::PdfRect> rect = core::markupRect(quads);
+        if (!rect) continue;
+        Annotation a = newAnnotation(subtype, page);
+        a.quadPoints = std::move(quads);
+        a.rect = *rect;
+        applyStyle(a, style);
+        made.push_back(std::move(a));
+    }
+    if (made.empty()) return MarkOutcome::Nothing;
+
+    if (replacement) {
+        // THE CARET at the selection's end, on its last page -- the replacement's text -- and every strikeout
+        // in its group (D6-12): one item in the Comments pane, one command, one undo step.
+        const int lastPage = made.back().page;
+        const core::text::PageReading* reading = text.text().page(lastPage);
+        const core::text::TextPosition end = selection.end();
+        int caret = 0;
+        if (reading != nullptr) caret = end.page == lastPage ? std::min(end.caret, reading->size()) : reading->size();
+        const std::optional<core::text::InsertionPoint> place =
+            reading != nullptr ? core::text::insertionPointAt(*reading, caret) : std::nullopt;
+        if (!place) return MarkOutcome::Nothing;
+        Annotation mark = caretAt(lastPage, *place, style);
+        mark.contents = *replacement;
+        for (Annotation& strike : made) {
+            strike.inReplyTo = mark.id;
+            strike.replyType = core::ReplyType::Group;
+        }
+        made.insert(made.begin(), std::move(mark));   // the caret first, as Acrobat writes a replace
+    }
+    if (!run(std::make_unique<core::AddAnnotationCommand>(std::move(made)))) return MarkOutcome::Refused;
+    text.clear();
+    return MarkOutcome::Made;
+}
+
+void AnnotationOverlay::retryPendingMark()
+{
+    if (!pendingMark_) return;
+    if (pendingMark_->text.isNull()) {
+        pendingMark_.reset();
+        if (pendingConnection_) disconnect(pendingConnection_);
+        return;
+    }
+    // Only once the selection can be marked: a page still on its way leaves the mark waiting.
+    SelectionOverlay& text = *pendingMark_->text;
+    if (!text.isResolved() || !text.selection().missingPages(text.text()).empty()) return;
+    PendingMark mark = *pendingMark_;
+    (void)markText(text, mark.subtype, mark.style, std::move(mark.replacement));
+}
+
+core::Status AnnotationOverlay::insertText(SelectionOverlay& text, int page, core::PdfPoint at, const QString& inserted,
+                                           const Style& style)
+{
+    // THE BOUNDARY NEAREST THE CLICK when the page's text is here -- and the click itself when it is not, or
+    // the page has none: a caret is a mark on the page as well as between letters.
+    std::optional<core::text::InsertionPoint> place;
+    (void)text.ensurePage(page, core::render::RenderPriority::Visible);
+    if (const core::text::PageReading* reading = text.text().page(page); reading != nullptr && !reading->isEmpty())
+        place = core::text::insertionPointAt(*reading, reading->caretAt(at));
+    if (!place) place = core::text::InsertionPoint{at, 12.0, false};
+    Annotation caret = caretAt(page, *place, style);
+    caret.contents = inserted;
+    return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(caret)}));
+}
+
+core::Status AnnotationOverlay::addNote(int page, core::PdfPoint at, const QString& contents, const Style& style)
+{
+    // THE NOTE: Acrobat's -- the `Comment` icon, `NoZoom` and `NoRotate` so it stays an upright icon -- its
+    // top-left corner where the person clicked (a `NoRotate` icon is drawn from that corner, D6-30).
+    Annotation note = newAnnotation(core::AnnotationSubtype::Text, page);
+    note.rect = core::PdfRect{core::PdfPoint{at.x, at.y - kNoteSize}, core::PdfSize{kNoteSize, kNoteSize}};
+    note.icon = QStringLiteral("Comment");
+    note.contents = contents;
+    note.flags = core::AnnotationFlag::Print | core::AnnotationFlag::NoZoom | core::AnnotationFlag::NoRotate;
+    applyStyle(note, style);
+
+    // ITS POP-UP, written once and closed (D6-28): beside the icon, where a reader opens it. No appearance,
+    // no author and no dates of its own -- it is the note's window, not a comment.
+    Annotation popup = newAnnotation(core::AnnotationSubtype::Popup, page);
+    popup.rect = core::PdfRect{core::PdfPoint{at.x + kNoteSize + 4.0, at.y - kPopupHeightPoints},
+                               core::PdfSize{kPopupWidthPoints, kPopupHeightPoints}};
+    popup.author.clear();
+    popup.created = core::PdfDate{};
+    popup.modified = core::PdfDate{};
+    popup.flags = note.flags;
+    popup.open = false;
+    popup.hasAppearance = false;
+    popup.parent = note.id;
+    note.popup = popup.id;
+    return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(note), std::move(popup)}));
 }
 
 // ---- Pop-ups ------------------------------------------------------------------------------------
@@ -681,7 +839,7 @@ std::optional<QRectF> AnnotationOverlay::popupRect(const Viewport& view, const A
     std::optional<QRectF> box;
     // Its own `Popup` annotation's rectangle when it has one -- where the producer meant it to open.
     if (a->popup && store_ != nullptr) {
-        if (const std::optional<std::size_t> popup = store_->findObject(*a->popup))
+        if (const std::optional<std::size_t> popup = store_->find(*a->popup))
             box = widgetRectOf(view, store_->at(*popup).page, store_->at(*popup).rect);
     }
     if (!box || box->width() < 40 || box->height() < 30) {

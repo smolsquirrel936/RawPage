@@ -55,6 +55,14 @@ std::optional<QString> invalidShape(const Annotation& a)
     if (a.id.kind == AnnotationId::Kind::Created && a.id.nm.size() > Limits::kMaxNameLength)
         return QStringLiteral("annotation.id");
     if (a.page < 0 || a.page > Limits::kMaxPageIndex) return QStringLiteral("annotation.page");
+    // T6: a reference names an object, or an annotation RawPage created by a bounded `/NM` -- never a direct
+    // dictionary, which nothing can point at.
+    for (const std::optional<AnnotationId>& target : {a.inReplyTo, a.popup, a.parent}) {
+        if (!target) continue;
+        if (!target->isValid() || target->kind == AnnotationId::Kind::Direct
+            || (target->kind == AnnotationId::Kind::Created && target->nm.size() > Limits::kMaxNameLength))
+            return QStringLiteral("annotation.reference");
+    }
     if (!a.rectFinite || !std::isfinite(a.rect.left()) || !std::isfinite(a.rect.bottom())
         || !std::isfinite(a.rect.right()) || !std::isfinite(a.rect.top()))
         return QStringLiteral("annotation.rect");

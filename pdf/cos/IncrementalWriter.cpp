@@ -535,6 +535,14 @@ long long ObjectDelta::add(CosObject object, std::optional<std::string> streamDa
     return number;
 }
 
+bool ObjectDelta::define(long long number, CosObject object, std::optional<std::string> streamData)
+{
+    const bool reserved = number >= allocator_.firstNumber() && number < allocator_.nextNumber();
+    if (!reserved || touches(number)) return false;
+    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData)});
+    return true;
+}
+
 bool ObjectDelta::touches(long long number) const noexcept
 {
     return std::any_of(changes_.begin(), changes_.end(),

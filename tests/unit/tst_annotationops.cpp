@@ -923,7 +923,7 @@ TEST_CASE("an annotation command's scope is its annotations' rectangles and the 
     Annotation noRotate = highlight(3);
     noRotate.flags |= core::AnnotationFlag::NoRotate;
     Annotation withPopup = highlight(4);
-    withPopup.popup = 77;
+    withPopup.popup = core::AnnotationId::ofObject(77);
     Annotation popup = core::newAnnotation(AnnotationSubtype::Popup, 5, kAuthor, kNow);
     popup.rect = core::PdfRect{core::PdfPoint{0, 0}, core::PdfSize{100, 100}};
     Annotation empty = highlight(6);

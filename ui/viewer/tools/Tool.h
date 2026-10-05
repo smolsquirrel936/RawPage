@@ -44,11 +44,15 @@
 
 #include <Qt>
 
+#include <functional>
+
 class QPainter;
+class QString;
 class QPixmap;
 
 namespace rawpage::ui {
 
+class AnnotationOverlay;
 class SelectionOverlay;
 class ViewportController;
 
@@ -160,6 +164,26 @@ public:
         (void)band;
         return false;
     }
+
+    // ---- The annotation tools' three (S6 T6) ------------------------------------------------------
+    // The document window's annotations -- what a tool hands what it made to, and through which it runs the
+    // one command a gesture means (D6-1). Null for a host with no document, and in a case that has none.
+    virtual AnnotationOverlay* annotationOverlay() const { return nullptr; }
+
+    // A one-off text editor at `pos` (viewport logical pixels) for what a note, an insertion or a replacement
+    // says. `commit` runs with the typed text when the person finishes -- `Enter`, or the focus leaving with
+    // something typed -- and NOT when they abandon it (`Esc`, or leaving it empty). Returns whether an editor
+    // opened: false in a host that has none, where nothing is made.
+    virtual bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit)
+    {
+        (void)pos;
+        (void)commit;
+        return false;
+    }
+
+    // A tool made something: the host goes back to the Selection tool unless `K` keeps this one armed (§8's
+    // Annotation tools row, `annot.keepToolSelected`).
+    virtual void annotationToolUsed() {}
 };
 
 class Tool {

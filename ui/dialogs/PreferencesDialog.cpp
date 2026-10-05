@@ -60,6 +60,11 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
         // page-appearance pages rather than at the end.
         SettingsGroup::FullScreen,
 
+        // S6 T6. The `Identity` group, empty in `SettingsGroup` since Stage 1, filled by the three
+        // `identity/*` rows (D6-13): who a comment is by. **Ten of 26 groups ship.** After Full Screen,
+        // where `Features.md` §9.1 puts it (Commenting and Forms, between them there, ship later).
+        SettingsGroup::Identity,
+
         // S5 T6. The `Search` group, empty in `SettingsGroup` since Stage 1, filled by the ten
         // `search/*` rows (D5-20). **Nine of 26 groups ship.** After the page-appearance pages and
         // before Performance & Cache, which is where `Features.md` §9.1 puts it relative to both.

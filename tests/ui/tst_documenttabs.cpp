@@ -403,10 +403,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // (`find.advancedSearch`) and by 1 at T10 (`tool.snapshot`) and by 1 at T11 (`view.reflow`) and by 3 at
     // T13 (`compare.documents`, `nav.nextDifference`, `nav.prevDifference`), and by 1 on 2026-10-03
     // (`view.cycleRulerUnit`, the rulers' corner box, on the user's request), and by 18 at Stage 6 T5 (the
-    // fourteen annotation-tool arming chords, `K`, `Delete` and both `Ctrl+E` rows), and the
+    // fourteen annotation-tool arming chords, `K`, `Delete` and both `Ctrl+E` rows), and by 3 at T6
+    // (`annot.squiggly`, and the two minted text edits `annot.replaceText` and `annot.insertText`), and the
     // point of asserting it here is unchanged: this case is about registration happening once per
     // REGISTRY rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 129);
+    CHECK(fixture.actions.registeredCount() == 132);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

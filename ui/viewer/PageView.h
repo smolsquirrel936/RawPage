@@ -55,8 +55,10 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPoint>
+#include <QPointer>
 #include <QRectF>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -77,6 +79,7 @@ class QTimer;
 
 namespace rawpage::ui {
 
+class AnnotationTextEditor;
 class LoupeRaster;
 class SelectionOverlay;
 class TilePresenter;
@@ -298,6 +301,18 @@ public:
     // rather than selected through.
     void setAnnotationOverlay(AnnotationOverlay* annotations);
     AnnotationOverlay* annotations() const noexcept { return annotations_; }
+    AnnotationOverlay* annotationOverlay() const override { return annotations_; }
+
+    // ---- What the annotation tools make (S6 T6) -----------------------------------------------------
+    // `ToolHost`'s editor: an `AnnotationTextEditor` over the page at `pos`, one at a time -- asking for a
+    // second commits the first. The editor in front, or null, for a case.
+    bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit) override;
+    AnnotationTextEditor* annotationTextEditor() const;
+    // A tool made something: back to the Selection tool unless `K` keeps it (§8, `annot.keepToolSelected`).
+    void annotationToolUsed() override;
+    // A text-markup command with TEXT ALREADY SELECTED marks it at once, as Acrobat's do -- and a replace asks
+    // for its replacement beside the selection's end. False with nothing selected: the command arms its tool.
+    bool markSelectedText(AnnotationToolKind kind);
     // This pane's layout, scroll and device-pixel ratio, as the overlay is handed them.
     AnnotationOverlay::Viewport annotationViewport() const;
 
@@ -553,6 +568,13 @@ private:
         PagePoint pagePointOn(int page, QPoint pos) const override { return view_.pagePointOn(page, pos); }
         // A FROZEN PANE SNAPSHOTS WHAT IT SHOWS (S5 T10): the band is in this pane's coordinates.
         bool takeSnapshot(const QRect& band) override { return view_.takeSnapshot(band); }
+        // S6 T6: the annotation tools make into the window's overlay, and type into this pane's editor.
+        AnnotationOverlay* annotationOverlay() const override { return view_.annotationOverlay(); }
+        bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit) override
+        {
+            return view_.requestAnnotationText(pos, std::move(commit));
+        }
+        void annotationToolUsed() override { view_.annotationToolUsed(); }
 
     private:
         PageView& view_;
@@ -638,6 +660,8 @@ private:
     SelectionOverlay* selection_ = nullptr;
     // S6 T5: the window's annotations (not owned).
     AnnotationOverlay* annotations_ = nullptr;
+    // S6 T6: the editor a tool asked for, while it is open (a child of the viewport, so it goes with it).
+    QPointer<AnnotationTextEditor> editor_;
     // Whether the armed tool hands a press to the overlay first: the Selection tool and the annotation tools.
     bool overlayFirst() const;
 

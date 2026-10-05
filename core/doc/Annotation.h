@@ -152,13 +152,17 @@ struct Annotation {
     PdfDate modified;                           // /M
     std::uint32_t flags = 0;                    // /F
 
-    std::optional<long long> inReplyTo;         // /IRT's object number
+    // THE THREE REFERENCES TO ANOTHER ANNOTATION name it as identity does (Stage 6 T6): by object number
+    // when it was read from the file, by `/NM` when RawPage created it and it has no number yet -- a note
+    // and the pop-up made with it, a replace edit's strikeout and its caret. A reference is never `Direct`:
+    // PDF can only point at an indirect object. The number is the sink's to work out at compose.
+    std::optional<AnnotationId> inReplyTo;      // /IRT
     ReplyType replyType = ReplyType::Reply;     // /RT, /R when absent
     QString stateModel;                         // /StateModel -- set only on a state reply
     QString state;                              // /State
 
-    std::optional<long long> popup;             // /Popup's object number
-    std::optional<long long> parent;            // a Popup's /Parent
+    std::optional<AnnotationId> popup;          // /Popup
+    std::optional<AnnotationId> parent;         // a Popup's /Parent
     std::optional<bool> open;                   // /Open
     int rotate = 0;                             // /Rotate, a FreeText on a turned page
     bool hasAppearance = false;                 // /AP present
@@ -199,9 +203,21 @@ Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& aut
 // 32 lowercase hex digits from the system's random source.
 QString newAnnotationName();
 
+// WHO A COMMENT IS BY (D6-13, Stage 6 T6): `identity/author` when it says anything, else the login name
+// the HOST supplied -- the rule is the domain's, the name is the host's (convention 11), so `core/` reads
+// no environment and asks no operating system. Surrounding white space is not a name.
+QString identityAuthor(const QString& configured, const QString& loginName);
+
 // The smallest rectangle holding every point of `coordinates` (x y pairs); nullopt for none, or for a
 // non-finite one.
 std::optional<PdfRect> boundsOfPoints(const std::vector<double>& coordinates);
+
+// THE RECTANGLE OF TEXT MARKUP RawPage CREATES (Stage 6 T6): its quadrilaterals' bounds, grown so the lines
+// drawn on and just past their edges -- an underline's stroke, a squiggle's lower half -- lie inside it. The
+// appearance's box IS the rectangle (ISO 32000-1 Algorithm 8.1 would scale any other into it), so a stroke
+// past it is clipped in every reader. Grown by 15 % of the tallest quadrilateral, and never less than two
+// points. Nullopt for no whole quadrilateral, or a non-finite coordinate.
+std::optional<PdfRect> markupRect(const std::vector<double>& quadPoints);
 
 } // namespace rawpage::core
 

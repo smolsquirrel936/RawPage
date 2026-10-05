@@ -360,6 +360,10 @@ RAWPAGE_ACTION(AnnotHighlight,         "annot.highlight",         Viewer, "actio
 RAWPAGE_ACTION(AnnotUnderline,         "annot.underline",         Viewer, "action.annot.underline")
 RAWPAGE_ACTION(AnnotStrikeout,         "annot.strikeout",         Viewer, "action.annot.strikeout")
 RAWPAGE_ACTION(AnnotSquiggly,          "annot.squiggly",          Viewer, "action.annot.squiggly")
+// Stage 6 T6 (`Stage6-Annotations-Plan.md` §4's candidates): the two text EDITS of D6-12, minted chordless,
+// so `Features.md` §8 is untouched.
+RAWPAGE_ACTION(AnnotReplaceText,       "annot.replaceText",       Viewer, "action.annot.replaceText")
+RAWPAGE_ACTION(AnnotInsertText,        "annot.insertText",        Viewer, "action.annot.insertText")
 RAWPAGE_ACTION(AnnotTextBox,           "annot.textBox",           Viewer, "action.annot.textBox")
 RAWPAGE_ACTION(AnnotCallout,           "annot.callout",           Viewer, "action.annot.callout")
 RAWPAGE_ACTION(AnnotLine,              "annot.line",              Viewer, "action.annot.line")

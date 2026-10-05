@@ -101,23 +101,25 @@ TEST_CASE("the two new Preferences pages are built from the table, not laid out 
     ui::PreferencesDialog dialog(fixture.services());
     driveLayout(&dialog);
 
-    // NINE OF 26 GROUPS SHIP -- five when this case was written at Stage 2 T15, six since Stage 3
+    // TEN OF 26 GROUPS SHIP -- five when this case was written at Stage 2 T15, six since Stage 3
     // T12 added Documents (D3-9), seven since Stage 4 T8 added Units & Guides with its eleven
     // `units/*` rows, eight since Stage 4 T10 added Full Screen with its five `fullScreen/*` rows,
-    // and nine since Stage 5 T6 added Search with its ten `search/*` rows (D5-20); corrected in place
+    // nine since Stage 5 T6 added Search with its ten `search/*` rows (D5-20), and ten since Stage 6
+    // T6 added Identity with its three `identity/*` rows (D6-13, guide A-54); corrected in place
     // rather than loosened. The count is asserted as well as the members, because "two new pages
     // appear" is a claim about the list and a member check stays green when another is added by
     // accident.
     const std::vector<SettingsGroup>& pages = ui::PreferencesDialog::shippedPages();
-    CHECK(pages.size() == 9);
+    CHECK(pages.size() == 10);   // S6 T6: Identity
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::PageDisplay) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::PerformanceAndCache) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::FullScreen) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::Search) != pages.end());
+    CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::Identity) != pages.end());
 
     QListWidget* list = dialog.findChild<QListWidget*>(QStringLiteral("preferencesPageList"));
     REQUIRE(list != nullptr);
-    CHECK(list->count() == 9);
+    CHECK(list->count() == 10);
 
     // ONE EDITOR PER DECLARED KEY, and the count comes from the TABLE rather than from a literal --
     // a case that said "11" would be a second copy of the row count and would go stale the day a

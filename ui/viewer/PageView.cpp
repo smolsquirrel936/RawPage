@@ -5,12 +5,15 @@
 #include "core/doc/PageTree.h"
 #include "core/render/RenderScheduler.h"
 #include "ui/shell/ShortcutBinder.h"
+#include "ui/viewer/AnnotationTextEditor.h"
 #include "ui/viewer/LoupeRaster.h"
+#include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 
+#include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QFocusEvent>
@@ -754,6 +757,75 @@ void PageView::setAnnotationOverlay(AnnotationOverlay* annotations)
     updateKeyContext();
     updateMouseTracking();
     viewport()->update();
+}
+
+bool PageView::requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit)
+{
+    // ONE AT A TIME: asking again finishes the editor already open, as clicking away from it would.
+    if (editor_ != nullptr && !editor_->isFinished()) (void)editor_->commit();
+
+    auto* editor = new AnnotationTextEditor(viewport());
+    editor_ = editor;
+    // Below and right of the point it was asked for, kept inside the visible page area.
+    constexpr int kWidth = 240;
+    constexpr int kHeight = 72;
+    const QSize room = viewport()->size();
+    const int x = std::clamp(pos.x() + 8, 0, std::max(0, room.width() - kWidth));
+    const int y = std::clamp(pos.y() + 8, 0, std::max(0, room.height() - kHeight));
+    editor->setGeometry(x, y, kWidth, kHeight);
+
+    // THE FOCUS COMES BACK to the page when the editor finishes inside it -- `Enter` or `Esc` -- so the page's
+    // chords work again; a person who clicked somewhere else keeps the focus where they put it.
+    const auto refocus = [this] {
+        QWidget* focus = QApplication::focusWidget();
+        if (focus == nullptr || (focus != this && isAncestorOf(focus))) setFocus(Qt::OtherFocusReason);
+    };
+    connect(editor, &AnnotationTextEditor::committed, this, [refocus, commit](const QString& text) {
+        commit(text);
+        refocus();
+    });
+    connect(editor, &AnnotationTextEditor::abandoned, this, refocus);
+    editor->show();
+    editor->setFocus(Qt::OtherFocusReason);
+    return true;
+}
+
+AnnotationTextEditor* PageView::annotationTextEditor() const
+{
+    return editor_ != nullptr && !editor_->isFinished() ? editor_.data() : nullptr;
+}
+
+void PageView::annotationToolUsed()
+{
+    if (!tools_->keepToolSelected() && tools_->armed() == ToolKind::Annotate) tools_->arm(ToolKind::Select);
+}
+
+bool PageView::markSelectedText(AnnotationToolKind kind)
+{
+    if (selection_ == nullptr || annotations_ == nullptr || !selection_->hasSelection()) return false;
+    const AnnotationToolDefaults& defaults = sessionToolDefaults(kind);
+    const AnnotationOverlay::Style style{defaults.colour, defaults.opacity};
+    if (kind == AnnotationToolKind::ReplaceText) {
+        // The editor at the END of what is selected -- where the caret will go.
+        QPoint at(viewport()->width() / 2, viewport()->height() / 2);
+        const core::text::TextSelection& text = selection_->selection();
+        const std::vector<core::DeviceRect> runs = selection_->highlightRects(engine_.layout(), text.lastPage());
+        if (!runs.empty()) {
+            const core::DeviceRect visible = controller_->visibleRect();
+            const double dpr = devicePixelRatioF();
+            at = QPoint(static_cast<int>((runs.back().right() - visible.left()) / dpr),
+                        static_cast<int>((runs.back().bottom() - visible.top()) / dpr));
+        }
+        SelectionOverlay* selection = selection_;
+        AnnotationOverlay* annotations = annotations_;
+        return requestAnnotationText(at, [selection, annotations, style](const QString& replacement) {
+            (void)annotations->markText(*selection, core::AnnotationSubtype::StrikeOut, style, replacement);
+        });
+    }
+    const std::optional<core::AnnotationSubtype> subtype = markupSubtype(kind);
+    if (!subtype) return false;
+    (void)annotations_->markText(*selection_, *subtype, style);
+    return true;
 }
 
 AnnotationOverlay::Viewport PageView::annotationViewport() const

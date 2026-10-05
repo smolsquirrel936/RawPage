@@ -23,6 +23,20 @@
 // highlight black, and it is how Acrobat draws its own. The four corners are drawn AROUND their
 // centre, not in the order written: Acrobat writes top-left, top-right, bottom-left, bottom-right and
 // ISO's figure shows another order (guide A-20), and drawing either as written would be a bow tie.
+//
+// ===========================================================================================
+// UNDERLINE, STRIKEOUT, SQUIGGLY, CARET, NOTE -- Stage 6 T6
+// ===========================================================================================
+// The three text lines are drawn in each quadrilateral's OWN frame -- along its bottom edge and across
+// towards its top -- so a line of vertical text is underlined along its side, not across it. Which edge
+// is the bottom is read from the corner order itself: Acrobat's two horizontal edges run the same way,
+// ISO's opposite ways. An underline is PDFium's own generation's (a 1-point line one point above the bottom
+// edge, up to text 14 points tall, growing with the text past it). A strikeout and a squiggle are NOT where
+// PDFium puts them, because guide case A-50 measured PDFium's against the glyphs and found them wrong: a
+// strikeout through the box's middle sits above the x-height's middle third, and a 2-point squiggle spills out
+// of the descender band -- so the strikeout is 42 % of the way up the box and the squiggle between 7 % and
+// 16 % of it (D6-32). No blend: only a highlight multiplies. A caret is Acrobat's notched wedge; a note is the `Comment` speech bubble (or the
+// `Note` page, the default `/Name`) in `/C`, outlined in black. A `Popup` has no appearance at all.
 
 #ifndef RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
 #define RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
@@ -43,8 +57,14 @@ struct Appearance {
 
 class AppearanceStreamBuilder {
 public:
-    // Whether this build can draw `subtype`. Stage 6 T3: Highlight.
+    // Whether this build can draw `subtype`. Stage 6 T3: Highlight; T6: Underline, StrikeOut, Squiggly,
+    // Caret, and Text (a note, its `Comment` and `Note` icons -- another `/Name` is refused by `normal`).
     static bool supports(core::AnnotationSubtype subtype) noexcept;
+
+    // A kind that has NO appearance of its own: a `Popup` (ISO 32000-1 §12.5.6.14), which a reader draws as
+    // its own window -- RawPage's overlay draws it, and PDFium draws none (Stage 6 T6). One is written with no
+    // `/AP`, and verify asks it for none.
+    static bool drawsNothing(core::AnnotationSubtype subtype) noexcept;
 
     // The normal appearance of `annotation`. `error.pdf.appearanceUnsupported` for a subtype this build
     // cannot draw; `error.pdf.appearanceGeometry` for geometry it cannot draw from (a highlight with no

@@ -95,7 +95,9 @@ TEST_CASE("each arming chord arms its tool from the page with nothing armed", "[
         {Qt::Key_S, ui::AnnotationToolKind::Stamp},           {Qt::Key_D, ui::AnnotationToolKind::MeasureDistance},
         {Qt::Key_A, ui::AnnotationToolKind::MeasureArea},     {Qt::Key_K, ui::AnnotationToolKind::RedactMark},
     };
-    REQUIRE(std::size(chords) == ui::kAnnotationToolKindCount);
+    // Fourteen chords; the three T6 kinds after them -- squiggly, replace, insert -- have none (§8 untouched).
+    REQUIRE(std::size(chords) == ui::kChordedAnnotationToolCount);
+    REQUIRE(ui::kAnnotationToolKindCount == ui::kChordedAnnotationToolCount + 3);
     for (const auto& [key, kind] : chords) {
         Page page;
         INFO("Ctrl+Alt+" << QKeySequence(key).toString().toStdString());
@@ -104,7 +106,7 @@ TEST_CASE("each arming chord arms its tool from the page with nothing armed", "[
         page.key(key, kCtrlAlt);
         CHECK(page.view->tools().armedAnnotation() == kind);
         CHECK(ui::ShortcutBinder::declaredContext(page.view) == core::KeyContext::AnnotationTools);
-        // And the status bar says which, and that it does not yet create (the state T5 leaves).
+        // And the status bar says which -- and, since T6, how a tool that makes is used.
         CHECK_FALSE(page.window->statusBar()->message()->text().isEmpty());
     }
 }

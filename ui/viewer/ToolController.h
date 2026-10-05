@@ -56,7 +56,9 @@
 #include "ui/viewer/tools/AnnotationTool.h"
 #include "ui/viewer/tools/HandTool.h"
 #include "ui/viewer/tools/LoupeTool.h"
+#include "ui/viewer/tools/MarkupTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
+#include "ui/viewer/tools/NoteTool.h"
 #include "ui/viewer/tools/SelectTool.h"
 #include "ui/viewer/tools/SnapshotTool.h"
 #include "ui/viewer/tools/Tool.h"
@@ -95,7 +97,7 @@ public:
     // The annotation tool armed, or none when the armed tool is not one.
     std::optional<AnnotationToolKind> armedAnnotation() const noexcept;
     // `K` (§8, Annotation tools): keep the tool armed after it is used, or return to the Selection tool.
-    // Read by the tools that create, from T6; T5 keeps the switch and toggles it.
+    // Read since T6 by the host when a tool reports it made something (`ToolHost::annotationToolUsed`).
     bool keepToolSelected() const noexcept { return keepToolSelected_; }
     void setKeepToolSelected(bool keep);
 
@@ -169,6 +171,8 @@ signals:
 private:
     void       emitCursor();
     Tool&      toolFor(ToolKind kind);
+    // S6 T6: the tool object an annotation kind is -- the markup tool, the note, or T5's armed placeholder.
+    Tool&      annotationToolFor(AnnotationToolKind which);
     void       step(int milliseconds);
 
     ToolHost& host_;
@@ -179,6 +183,9 @@ private:
     LoupeTool       loupe_;
     SnapshotTool    snapshot_;
     AnnotationTool  annotation_;
+    MarkupTool      markup_;     // S6 T6
+    NoteTool        note_;       // S6 T6
+    AnnotationToolKind annotationKind_ = AnnotationToolKind::Highlight;
     bool            keepToolSelected_ = false;
 
     ToolKind armed_ = ToolKind::Select;

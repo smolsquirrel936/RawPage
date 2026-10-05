@@ -453,6 +453,11 @@ void DocumentWindow::build(const Recovery* recovery)
             // THE OVERLAY READS THIS DOCUMENT'S STORE AND RUNS THROUGH THIS JOURNAL (S6 T5, D6-1).
             annotations_->setStore(&journal_->document().annotations());
             annotations_->setRunner([this](std::unique_ptr<core::Command> command) { return journal_->run(std::move(command)); });
+            // WHO IT IS BY (S6 T6, D6-13): `identity/author`, else the login name `app/` supplied -- read when
+            // something is made, so a change on the Identity page applies to the next comment.
+            annotations_->setAuthor([this] {
+                return core::identityAuthor(services_.settings.get(core::keys::identity::author), services_.loginName);
+            });
 
             // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES (S6 T4, D6-2): every command, undo and redo is
             // composed, verified and handed to the engine before it counts -- one Save could not write

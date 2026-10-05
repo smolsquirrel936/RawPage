@@ -370,9 +370,14 @@ RAWPAGE_SHELL_STRING(PropertiesBarContentsLocked, "shell.propertiesBar.contentsL
 RAWPAGE_SHELL_STRING(PropertiesBarReadOnly,       "shell.propertiesBar.readOnly")
 // A refused annotation change, in the status bar (guide A-39's last clause): `%1` is the reason's own text.
 RAWPAGE_SHELL_STRING(StatusAnnotationRefused,     "shell.status.annotationRefused")
-// An annotation tool armed: `%1` is its name. What it creates arrives with its task (T6 ...); until then it
-// selects, moves and edits what is there.
+// An annotation tool armed that makes nothing yet: `%1` is its name. What it creates arrives with its task
+// (T7 ...); until then it selects, moves and edits what is there.
 RAWPAGE_SHELL_STRING(StatusAnnotationToolArmed,   "shell.status.annotationToolArmed")
+// S6 T6: a tool that MAKES, armed -- how it is used. `%1` is its name.
+RAWPAGE_SHELL_STRING(StatusAnnotationToolMarkup,  "shell.status.annotationToolMarkup")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolNote,    "shell.status.annotationToolNote")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolReplace, "shell.status.annotationToolReplace")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolInsert,  "shell.status.annotationToolInsert")
 
 // --- Advanced Search (S5 T9, D5-13) -- `ui/panes/SearchPane`, the same `search.` family ---------------
 RAWPAGE_SHELL_STRING(SearchPaneTitle,            "search.pane.title")

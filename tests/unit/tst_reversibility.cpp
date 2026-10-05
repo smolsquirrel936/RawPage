@@ -96,6 +96,35 @@ const Generators& registeredGenerators()
              };
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{make(36)}));
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{make(36), make(60)}));
+             // Stage 6 T6: a NOTE AND ITS POP-UP, which name each other, and a REPLACE -- a caret with an
+             // underline, squiggly and strikeout in its group -- each one command, as the tools make them.
+             core::Annotation note = core::newAnnotation(core::AnnotationSubtype::Text, page,
+                                                         QStringLiteral("Reversibility"), 1791504000);
+             note.rect = core::PdfRect{core::PdfPoint{36, 80}, core::PdfSize{20, 20}};
+             note.icon = QStringLiteral("Comment");
+             note.flags = core::AnnotationFlag::Print | core::AnnotationFlag::NoZoom | core::AnnotationFlag::NoRotate;
+             core::Annotation popup = core::newAnnotation(core::AnnotationSubtype::Popup, page, QString(), 1791504000);
+             popup.rect = core::PdfRect{core::PdfPoint{60, 0}, core::PdfSize{200, 100}};
+             popup.hasAppearance = false;
+             popup.open = false;
+             popup.parent = note.id;
+             note.popup = popup.id;
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{note, popup}));
+             core::Annotation caret = core::newAnnotation(core::AnnotationSubtype::Caret, page,
+                                                          QStringLiteral("Reversibility"), 1791504000);
+             caret.rect = core::PdfRect{core::PdfPoint{133, 36}, core::PdfSize{6, 8}};
+             caret.contents = QStringLiteral("replacement");
+             std::vector<core::Annotation> group{caret};
+             for (const core::AnnotationSubtype kind : {core::AnnotationSubtype::StrikeOut, core::AnnotationSubtype::Underline,
+                                                        core::AnnotationSubtype::Squiggly}) {
+                 core::Annotation mark = core::newAnnotation(kind, page, QStringLiteral("Reversibility"), 1791504000);
+                 mark.quadPoints = {36, 48, 136, 48, 36, 36, 136, 36};
+                 mark.rect = *core::markupRect(mark.quadPoints);
+                 mark.inReplyTo = caret.id;
+                 mark.replyType = core::ReplyType::Group;
+                 group.push_back(std::move(mark));
+             }
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(group)));
              return out;
          }},
         // Every annotation the page owns as ONE set, and its first alone -- including, on

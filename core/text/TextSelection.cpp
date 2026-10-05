@@ -632,6 +632,69 @@ std::vector<PdfRect> TextSelection::highlightOn(const PageReading& page) const
     return rects;
 }
 
+std::vector<double> TextSelection::markupQuadsOn(const PageReading& page) const
+{
+    std::vector<double> quads;
+    for (const Span& span : spansOn(page)) {
+        int runStart = span.begin;
+        for (int p = span.begin; p <= span.end; ++p) {
+            const bool lineEnds = p == span.end || page.lineOf(p) != page.lineOf(runStart);
+            if (!lineEnds) continue;
+            if (p > runStart) {
+                const PdfRect box = boxOfSpan(page, Span{runStart, p});
+                const double l = box.left(), r = box.right(), b = box.bottom(), t = box.top();
+                if (isVertical(page.layout().lines[static_cast<std::size_t>(page.lineOf(runStart))]))
+                    quads.insert(quads.end(), {r, t, r, b, l, t, l, b});   // reading down: right is the top
+                else
+                    quads.insert(quads.end(), {l, t, r, t, l, b, r, b});
+            }
+            runStart = p;
+        }
+    }
+    return quads;
+}
+
+std::optional<InsertionPoint> insertionPointAt(const PageReading& page, int caret)
+{
+    if (page.isEmpty()) return std::nullopt;
+    caret = std::clamp(caret, 0, page.size());
+    // The characters either side, kept only when they share a line.
+    const int before = caret - 1;
+    const int after = caret < page.size() ? caret : -1;
+    const int anchor = after >= 0 ? after : before;
+    const TextLine& line = page.layout().lines[static_cast<std::size_t>(page.lineOf(anchor))];
+    const bool vertical = isVertical(line);
+    const bool hasBefore = before >= 0 && page.lineOf(before) == page.lineOf(anchor);
+    const bool hasAfter = after >= 0 && page.lineOf(after) == page.lineOf(anchor);
+
+    // Along the line: x for a horizontal line, y for a vertical one.
+    const auto range = [vertical](const PdfRect& r) { return vertical ? yOf(r) : xOf(r); };
+    double along = 0.0;
+    if (hasBefore && hasAfter) {
+        const Interval a = range(page.charAt(before).box);
+        const Interval c = range(page.charAt(after).box);
+        // The FACING edges, whichever way the line reads.
+        along = (a.lo + a.hi) / 2.0 <= (c.lo + c.hi) / 2.0 ? (a.hi + c.lo) / 2.0 : (c.hi + a.lo) / 2.0;
+    } else {
+        const int only = hasAfter ? after : before;
+        const Interval o = range(page.charAt(only).box);
+        const bool forward = line.direction == WritingDirection::LeftToRight;
+        // Before the first character: its leading edge; after the last: its trailing edge.
+        if (vertical) along = hasAfter ? o.hi : o.lo;   // reading down: leading is the top
+        else along = (hasAfter == forward) ? o.lo : o.hi;
+    }
+    InsertionPoint out;
+    out.vertical = vertical;
+    if (vertical) {
+        out.at = PdfPoint{xOf(line.box).lo, along};
+        out.across = xOf(line.box).hi - xOf(line.box).lo;
+    } else {
+        out.at = PdfPoint{along, yOf(line.box).lo};
+        out.across = yOf(line.box).hi - yOf(line.box).lo;
+    }
+    return out;
+}
+
 std::vector<int> TextSelection::missingPages(const DocumentText& text) const
 {
     if (isEmpty()) return {};

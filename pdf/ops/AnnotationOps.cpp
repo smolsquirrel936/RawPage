@@ -22,18 +22,22 @@ CosObject numberArray(const std::vector<double>& values)
     return CosObject::makeArray(std::move(items));
 }
 
-CosObject reference(long long number)
-{
-    return CosObject::makeReference(number, 0);
-}
-
 // One modelled field: its key, and its value as written -- nullopt when the annotation does not set it.
 // The SAME table writes a created dictionary and decides which keys an edit overwrites, so the two can
 // never disagree about what a field means.
 struct Field {
     const char* key;
-    std::function<std::optional<CosObject>(const Annotation&)> value;
+    std::function<std::optional<CosObject>(const Annotation&, const ReferenceResolver&)> value;
 };
+
+// A reference field: the target resolved by the caller, or the key left out (see the header).
+std::optional<CosObject> referenceIfAny(const std::optional<core::AnnotationId>& target, const ReferenceResolver& resolve)
+{
+    if (!target) return std::nullopt;
+    const std::optional<cos::CosRef> at = resolve(*target);
+    if (!at) return std::nullopt;
+    return CosObject::makeReference(at->number, at->generation);
+}
 
 std::optional<CosObject> numbersIfAny(const std::vector<double>& values)
 {
@@ -56,21 +60,21 @@ std::optional<CosObject> nameIfAny(const QString& name)
 const std::vector<Field>& fields()
 {
     static const std::vector<Field> table{
-        {"Rect", [](const Annotation& a) -> std::optional<CosObject> {
+        {"Rect", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              return numberArray({a.rect.left(), a.rect.bottom(), a.rect.right(), a.rect.top()});
          }},
-        {"QuadPoints", [](const Annotation& a) { return numbersIfAny(a.quadPoints); }},
-        {"Vertices", [](const Annotation& a) { return numbersIfAny(a.vertices); }},
-        {"L", [](const Annotation& a) { return numbersIfAny(a.line); }},
-        {"InkList", [](const Annotation& a) -> std::optional<CosObject> {
+        {"QuadPoints", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.quadPoints); }},
+        {"Vertices", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.vertices); }},
+        {"L", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.line); }},
+        {"InkList", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              if (a.inkList.empty()) return std::nullopt;
              std::vector<CosObject> strokes;
              for (const std::vector<double>& stroke : a.inkList) strokes.push_back(numberArray(stroke));
              return CosObject::makeArray(std::move(strokes));
          }},
-        {"CL", [](const Annotation& a) { return numbersIfAny(a.callout); }},
-        {"RD", [](const Annotation& a) { return numbersIfAny(a.rectDifferences); }},
-        {"LE", [](const Annotation& a) -> std::optional<CosObject> {
+        {"CL", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.callout); }},
+        {"RD", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.rectDifferences); }},
+        {"LE", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              // A Line's /LE is an array of two names, a callout's one name (ISO 32000-1 Tables 176, 174).
              if (a.lineEndings.empty()) return std::nullopt;
              if (a.lineEndings.size() == 1) return CosObject::makeName(a.lineEndings.front().toStdString());
@@ -78,50 +82,41 @@ const std::vector<Field>& fields()
              for (const QString& ending : a.lineEndings) names.push_back(CosObject::makeName(ending.toStdString()));
              return CosObject::makeArray(std::move(names));
          }},
-        {"C", [](const Annotation& a) { return numbersIfAny(a.color); }},
-        {"IC", [](const Annotation& a) { return numbersIfAny(a.interiorColor); }},
-        {"CA", [](const Annotation& a) -> std::optional<CosObject> {
+        {"C", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.color); }},
+        {"IC", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.interiorColor); }},
+        {"CA", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              if (!a.opacity) return std::nullopt;
              return CosObject::makeReal(*a.opacity);
          }},
-        {"T", [](const Annotation& a) { return textIfAny(a.author); }},
-        {"Subj", [](const Annotation& a) { return textIfAny(a.subject); }},
-        {"Contents", [](const Annotation& a) { return textIfAny(a.contents); }},
-        {"NM", [](const Annotation& a) { return textIfAny(a.nm); }},
-        {"M", [](const Annotation& a) { return textIfAny(a.modified.raw); }},
-        {"CreationDate", [](const Annotation& a) { return textIfAny(a.created.raw); }},
-        {"F", [](const Annotation& a) -> std::optional<CosObject> {
+        {"T", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.author); }},
+        {"Subj", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.subject); }},
+        {"Contents", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.contents); }},
+        {"NM", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.nm); }},
+        {"M", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.modified.raw); }},
+        {"CreationDate", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.created.raw); }},
+        {"F", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              if (a.flags == 0) return std::nullopt;
              return CosObject::makeInteger(static_cast<long long>(a.flags));
          }},
-        {"IT", [](const Annotation& a) { return nameIfAny(a.intent); }},
-        {"Name", [](const Annotation& a) { return nameIfAny(a.icon); }},
-        {"DA", [](const Annotation& a) { return textIfAny(a.defaultAppearance); }},
-        {"RC", [](const Annotation& a) { return textIfAny(a.richText); }},
-        {"IRT", [](const Annotation& a) -> std::optional<CosObject> {
-             if (!a.inReplyTo) return std::nullopt;
-             return reference(*a.inReplyTo);
-         }},
-        {"RT", [](const Annotation& a) -> std::optional<CosObject> {
+        {"IT", [](const Annotation& a, const ReferenceResolver&) { return nameIfAny(a.intent); }},
+        {"Name", [](const Annotation& a, const ReferenceResolver&) { return nameIfAny(a.icon); }},
+        {"DA", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.defaultAppearance); }},
+        {"RC", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.richText); }},
+        {"IRT", [](const Annotation& a, const ReferenceResolver& resolve) { return referenceIfAny(a.inReplyTo, resolve); }},
+        {"RT", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              if (a.replyType != core::ReplyType::Group) return std::nullopt;   // /R is the default
              return CosObject::makeName("Group");
          }},
         // ISO 32000-1 Table 172: TEXT STRINGS, not names (Stage 6 guide I-03).
-        {"StateModel", [](const Annotation& a) { return textIfAny(a.stateModel); }},
-        {"State", [](const Annotation& a) { return textIfAny(a.state); }},
-        {"Popup", [](const Annotation& a) -> std::optional<CosObject> {
-             if (!a.popup) return std::nullopt;
-             return reference(*a.popup);
-         }},
-        {"Parent", [](const Annotation& a) -> std::optional<CosObject> {
-             if (!a.parent) return std::nullopt;
-             return reference(*a.parent);
-         }},
-        {"Open", [](const Annotation& a) -> std::optional<CosObject> {
+        {"StateModel", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.stateModel); }},
+        {"State", [](const Annotation& a, const ReferenceResolver&) { return textIfAny(a.state); }},
+        {"Popup", [](const Annotation& a, const ReferenceResolver& resolve) { return referenceIfAny(a.popup, resolve); }},
+        {"Parent", [](const Annotation& a, const ReferenceResolver& resolve) { return referenceIfAny(a.parent, resolve); }},
+        {"Open", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              if (!a.open) return std::nullopt;
              return CosObject::makeBoolean(*a.open);
          }},
-        {"Rotate", [](const Annotation& a) -> std::optional<CosObject> {
+        {"Rotate", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
              if (a.rotate == 0) return std::nullopt;
              return CosObject::makeInteger(a.rotate);
          }},
@@ -144,6 +139,14 @@ QString escapeXml(const QString& text)
 }
 
 } // namespace
+
+ReferenceResolver AnnotationOps::objectReferences()
+{
+    return [](const core::AnnotationId& id) -> std::optional<cos::CosRef> {
+        if (id.kind != core::AnnotationId::Kind::Object) return std::nullopt;
+        return cos::CosRef{id.object, 0};
+    };
+}
 
 CosObject AnnotationOps::textString(const QString& text)
 {
@@ -168,7 +171,8 @@ CosObject AnnotationOps::textString(const QString& text)
 }
 
 core::Result<CosObject> AnnotationOps::createdDictionary(const Annotation& annotation, cos::CosRef page,
-                                                         std::optional<cos::CosRef> appearance)
+                                                         std::optional<cos::CosRef> appearance,
+                                                         const ReferenceResolver& resolve)
 {
     const QLatin1String known = core::annotationSubtypeName(annotation.subtype);
     const QString subtype = annotation.subtype == core::AnnotationSubtype::Unknown ? annotation.subtypeName
@@ -181,7 +185,7 @@ core::Result<CosObject> AnnotationOps::createdDictionary(const Annotation& annot
         {"Subtype", CosObject::makeName(subtype.toStdString())},
     };
     for (const Field& field : fields()) {
-        if (std::optional<CosObject> value = field.value(annotation)) entries.push_back({field.key, std::move(*value)});
+        if (std::optional<CosObject> value = field.value(annotation, resolve)) entries.push_back({field.key, std::move(*value)});
     }
     if (annotation.borderWidth) {
         entries.push_back({"BS", CosObject::makeDictionary({{"W", CosObject::makeReal(*annotation.borderWidth)},
@@ -195,12 +199,13 @@ core::Result<CosObject> AnnotationOps::createdDictionary(const Annotation& annot
     return CosObject::makeDictionary(std::move(entries));
 }
 
-CosObject AnnotationOps::editedDictionary(const CosObject& onDisk, const Annotation& before, const Annotation& after)
+CosObject AnnotationOps::editedDictionary(const CosObject& onDisk, const Annotation& before, const Annotation& after,
+                                         const ReferenceResolver& resolve)
 {
     CosObject edited = onDisk;
     for (const Field& field : fields()) {
-        const std::optional<CosObject> was = field.value(before);
-        const std::optional<CosObject> now = field.value(after);
+        const std::optional<CosObject> was = field.value(before, resolve);
+        const std::optional<CosObject> now = field.value(after, resolve);
         if (was == now) continue;   // unchanged: the key on disk stays exactly as it was written
         edited = now ? withEntry(edited, field.key, *now) : withoutEntry(edited, field.key);
     }

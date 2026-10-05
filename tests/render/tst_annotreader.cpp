@@ -144,14 +144,17 @@ void compareEntry(const QJsonObject& want, const core::Annotation& got, const QS
 
     const QJsonObject irt = want.value(QStringLiteral("inReplyTo")).toObject();
     if (irt.isEmpty() ? got.inReplyTo.has_value()
-                      : (!got.inReplyTo || *got.inReplyTo != irt.value(QStringLiteral("object")).toInteger()))
+                      : (!got.inReplyTo
+                         || *got.inReplyTo != core::AnnotationId::ofObject(irt.value(QStringLiteral("object")).toInteger())))
         bad(QStringLiteral("inReplyTo"));
     const bool group = want.value(QStringLiteral("replyType")).toString() == QLatin1String("Group");
     if ((got.replyType == core::ReplyType::Group) != group) bad(QStringLiteral("replyType"));
 
-    auto object = [&](const char* key, const std::optional<long long>& ours) {
+    auto object = [&](const char* key, const std::optional<core::AnnotationId>& ours) {
         const QJsonValue value = want.value(QLatin1String(key));
-        if (value.isUndefined() ? ours.has_value() : (!ours || *ours != value.toInteger())) bad(QLatin1String(key));
+        if (value.isUndefined() ? ours.has_value()
+                                : (!ours || *ours != core::AnnotationId::ofObject(value.toInteger())))
+            bad(QLatin1String(key));
     };
     object("popup", got.popup);
     object("parent", got.parent);

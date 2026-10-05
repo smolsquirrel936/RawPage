@@ -37,6 +37,20 @@
 // A note's pop-up is painted here -- the note's author and text in a box -- and opening, moving and
 // closing it constructs no command and changes no byte. `commenting/popupBehaviour` says when they show.
 //
+// ---------------------------------------------------------------------------------------------
+// WHAT THE TOOLS MAKE (Stage 6 T6) -- one command each, D6-1
+// ---------------------------------------------------------------------------------------------
+// Text markup is made FROM THE TEXT SELECTION (`ui/viewer/SelectionOverlay`): one annotation per page the
+// selection touches, its quadrilaterals the selected runs of each line (`TextSelection::markupQuadsOn`),
+// all of them ONE `AddAnnotationCommand`. A selection whose pages' text has not arrived yet -- or a gesture
+// not yet resolved against it -- is marked when it arrives: `markText` answers `Pending` and finishes the
+// mark itself. A REPLACE is the same strikeout grouped under a caret holding the replacement (`/IRT` the
+// caret, `/RT /Group`, D6-12) -- caret and strikeouts one command, one undo step (guide A-51). An INSERTION
+// is a caret on the boundary between the two characters nearest the click (`core::text::insertionPointAt`).
+// A NOTE is a `Text` annotation with the `Comment` icon and its `Popup`, which name each other (D6-28: the
+// pop-up is written once, closed, when the note is made). Each carries the person's name (`setAuthor`,
+// D6-13) and the instant from the clock.
+//
 // It holds no catalog key (`ui/viewer/` holds none): a refusal is reported by signal, with its key.
 
 #ifndef RAWPAGE_UI_VIEWER_ANNOTATIONOVERLAY_H
@@ -50,6 +64,7 @@
 
 #include <QObject>
 #include <QPoint>
+#include <QPointer>
 #include <QPointF>
 #include <QRectF>
 #include <QString>
@@ -64,11 +79,17 @@
 class QPainter;
 class QTimer;
 
+namespace rawpage::core::text {
+struct InsertionPoint;
+}
+
 namespace rawpage::core {
 class Command;
 }
 
 namespace rawpage::ui {
+
+class SelectionOverlay;
 
 class AnnotationOverlay : public QObject {
     Q_OBJECT
@@ -83,6 +104,7 @@ public:
 
     using Runner = std::function<core::Status(std::unique_ptr<core::Command>)>;
     using Clock = std::function<std::int64_t()>;
+    using Author = std::function<QString()>;
 
     // When pop-ups show -- `commenting/popupBehaviour`'s three values (D6-28).
     enum class PopupBehaviour { Always, OnHover, Never };
@@ -106,6 +128,10 @@ public:
     void setStore(const core::AnnotationStore* store);
     void setRunner(Runner runner);
     void setClock(Clock clock);
+    // WHO a made annotation is by (S6 T6, D6-13): `identity/author`, else the login name -- asked each time
+    // something is made, so a change on the Identity page applies to the next comment.
+    void setAuthor(Author author);
+    QString author() const;
     const core::AnnotationStore* store() const noexcept { return store_; }
     bool isActive() const noexcept { return store_ != nullptr && store_->status() && static_cast<bool>(runner_); }
 
@@ -145,6 +171,30 @@ public:
     core::Status setAppearance(const core::AnnotationAppearance& appearance);
     core::Status setContents(const QString& text);
     core::Status setLocks(std::uint32_t set, std::uint32_t clear);
+
+    // ---- Making annotations (S6 T6) -- see the header ---------------------------------------------
+    struct Style {
+        std::vector<double> colour;   // /C: 1, 3 or 4 components; empty for the kind's own
+        double opacity = 1.0;         // /CA, written only below 1
+    };
+    // A new annotation of `subtype` on `page`: its `/NM`, the person's name, the instant.
+    core::Annotation newAnnotation(core::AnnotationSubtype subtype, int page) const;
+
+    enum class MarkOutcome { Made, Pending, Nothing, Refused };
+    // Marks what `text` has selected with `subtype` -- or, with a `replacement`, strikes it out under a caret
+    // holding the replacement. The text selection is cleared once the mark is made.
+    MarkOutcome markText(SelectionOverlay& text, core::AnnotationSubtype subtype, const Style& style,
+                         std::optional<QString> replacement = std::nullopt);
+    bool hasPendingMark() const noexcept { return pendingMark_.has_value(); }
+    // An insertion mark at the boundary nearest `at` on `page`, holding `inserted`.
+    core::Status insertText(SelectionOverlay& text, int page, core::PdfPoint at, const QString& inserted,
+                            const Style& style);
+    // A sticky note whose icon's top-left corner is `at`, holding `contents`, and its pop-up.
+    core::Status addNote(int page, core::PdfPoint at, const QString& contents, const Style& style);
+    // The size of the note icon, and of its pop-up, in page units.
+    static constexpr double kNoteSize = 20.0;
+    static constexpr double kPopupWidthPoints = 200.0;
+    static constexpr double kPopupHeightPoints = 100.0;
 
     // ---- Pop-ups (D6-28) --------------------------------------------------------------------------
     void setPopupBehaviour(PopupBehaviour behaviour);
@@ -211,10 +261,25 @@ private:
     std::int64_t now() const;
     // D6-27, asked before a gesture starts so a locked annotation is not even picked up.
     bool movable(const core::Annotation& a) const;
+    // S6 T6: a caret over `place`, styled.
+    core::Annotation caretAt(int page, const core::text::InsertionPoint& place, const Style& style) const;
+    void applyStyle(core::Annotation& a, const Style& style) const;
+    void retryPendingMark();
 
     const core::AnnotationStore* store_ = nullptr;
     Runner runner_;
     Clock clock_;
+    Author author_;
+
+    // S6 T6: a mark waiting for its selection's text.
+    struct PendingMark {
+        QPointer<SelectionOverlay> text;
+        core::AnnotationSubtype subtype = core::AnnotationSubtype::Highlight;
+        Style style;
+        std::optional<QString> replacement;
+    };
+    std::optional<PendingMark> pendingMark_;
+    QMetaObject::Connection pendingConnection_;
     std::vector<core::AnnotationId> selection_;
 
     Drag drag_;

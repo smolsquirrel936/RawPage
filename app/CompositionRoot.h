@@ -80,6 +80,11 @@ public:
         // would, on its next run, reopen and then REPLACE the documents of whoever ran it. Guide
         // case **A-79** is written against exactly that.
         QString sessionPath;
+
+        // WHO A COMMENT IS BY when `identity/author` is empty (S6 T6, D6-13). EMPTY MEANS THE LOGIN NAME,
+        // read from the environment here -- `USERNAME` on Windows, `USER` elsewhere -- the one place the
+        // product asks; a test passes a fixed name, so what it writes does not depend on who runs it.
+        QString loginName;
     };
 
     explicit CompositionRoot(Options options);
@@ -91,6 +96,9 @@ public:
     // The aggregate handed downward. Valid for the lifetime of this object, which is the lifetime
     // of the process: main.cpp keeps it on the stack around `exec()`.
     Services services();
+
+    // `Options::loginName`, or the environment's when that is empty (S6 T6).
+    QString loginName() const;
 
     core::Settings&        settings() { return *settings_; }
     core::RecentFiles&     recentFiles() { return *recentFiles_; }

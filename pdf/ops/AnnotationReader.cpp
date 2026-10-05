@@ -41,6 +41,14 @@ std::optional<long long> referenceOf(const CosObject& dictionary, std::string_vi
     return value->reference().number;
 }
 
+// A reference to another annotation, as the model names one read from the file: its object (S6 T6).
+std::optional<core::AnnotationId> annotationReferenceOf(const CosObject& dictionary, std::string_view key)
+{
+    const std::optional<long long> number = referenceOf(dictionary, key);
+    if (!number) return std::nullopt;
+    return core::AnnotationId::ofObject(*number);
+}
+
 // A text string as Unicode -- or, leniently, a NAME written where ISO 32000-1 asks for a text
 // string, which producers do for `/StateModel` and `/State`.
 QString textOf(const CosObject& dictionary, std::string_view key)
@@ -193,13 +201,13 @@ Parsed parse(cos::XrefTable& table, const CosObject& d)
         if (value >= 0 && value <= 4294967295.0) a.flags = static_cast<std::uint32_t>(value);
     }
 
-    a.inReplyTo = referenceOf(d, "IRT");
+    a.inReplyTo = annotationReferenceOf(d, "IRT");
     if (nameOf(d, "RT") == QLatin1String("Group")) a.replyType = core::ReplyType::Group;
     a.stateModel = textOf(d, "StateModel");
     if (!a.stateModel.isEmpty()) a.state = textOf(d, "State");
 
-    a.popup = referenceOf(d, "Popup");
-    a.parent = referenceOf(d, "Parent");
+    a.popup = annotationReferenceOf(d, "Popup");
+    a.parent = annotationReferenceOf(d, "Parent");
     if (const CosObject* open = d.find("Open"); open != nullptr && open->isBoolean())
         a.open = open->booleanValue();
     // Range-checked BEFORE the cast: converting a double outside int's range is undefined behaviour,
@@ -304,8 +312,9 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
     // page, and PDFium draws it nowhere.
     std::set<long long> pointedAt;
     for (const Annotation& a : reading.annotations) {
-        for (const std::optional<long long>& target : {a.inReplyTo, a.popup, a.parent}) {
-            if (target && seen.find(*target) == seen.end()) pointedAt.insert(*target);
+        for (const std::optional<core::AnnotationId>& target : {a.inReplyTo, a.popup, a.parent}) {
+            if (target && target->kind == core::AnnotationId::Kind::Object && seen.find(target->object) == seen.end())
+                pointedAt.insert(target->object);
         }
     }
     for (const long long number : pointedAt) {

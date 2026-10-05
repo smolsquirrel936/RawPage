@@ -144,7 +144,7 @@ void AnnotationStore::buildThreads()
         if (!reply.inReplyTo) continue;
         const long long object =
             reply.id.kind == AnnotationId::Kind::Object ? reply.id.object : -1;
-        const std::optional<std::size_t> target = findObject(*reply.inReplyTo);
+        const std::optional<std::size_t> target = find(*reply.inReplyTo);
         if (!target || *target == index) {
             notes_.push_back({AnnotationNoteKind::MissingParent, reply.page, object});
             continue;

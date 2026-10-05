@@ -40,6 +40,10 @@ public:
     ContentStreamBuilder& restore();                                // Q
     ContentStreamBuilder& concat(double a, double b, double c, double d, double e, double f);   // cm
     ContentStreamBuilder& lineWidth(double width);                  // w
+    // 0 butt, 1 round, 2 projecting square; anything else clamped into that range (Stage 6 T6).
+    ContentStreamBuilder& lineCap(int style);                       // J
+    // 0 miter, 1 round, 2 bevel; likewise.
+    ContentStreamBuilder& lineJoin(int style);                      // j
     ContentStreamBuilder& graphicsState(std::string_view name);     // /name gs
 
     // Colour, by component count: 1 is gray, 3 RGB, 4 CMYK -- ISO 32000-1's three device spaces, which

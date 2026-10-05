@@ -126,6 +126,12 @@ add_library(rawpage_ui STATIC
     viewer/tools/Tool.h
     # Stage 6 T5 (D6-9): the fourteen annotation tools, armed; each creates from its own task (T6 ...).
     viewer/tools/AnnotationTool.h
+    # Stage 6 T6 (D6-12): the tools that MAKE -- text markup and the two text edits over the selection, and
+    # the sticky note -- each gesture one command, its text asked for first by the editor below.
+    viewer/tools/MarkupTool.h
+    viewer/tools/MarkupTool.cpp
+    viewer/tools/NoteTool.h
+    viewer/tools/NoteTool.cpp
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
@@ -172,6 +178,9 @@ add_library(rawpage_ui STATIC
     viewer/AnnotationOverlay.cpp
     viewer/PropertiesBar.h
     viewer/PropertiesBar.cpp
+    # S6 T6 -- the one-off editor a note, an insertion or a replacement is typed into before it is made.
+    viewer/AnnotationTextEditor.h
+    viewer/AnnotationTextEditor.cpp
 
     # write/ -- S5 T7. The find half of the find-and-replace bar (D5-14), at the path the FileMap gives it
     # although the rest of write/ is Stage 13's: Write mode's find is this bar with replace switched on.

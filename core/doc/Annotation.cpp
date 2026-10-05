@@ -322,11 +322,19 @@ QJsonObject Annotation::toJson() const
     text("state", state);
 
     // Object numbers as 64-bit INTEGERS, not doubles: a file may name object 2^60, and a double would
-    // round it to a different object.
-    if (inReplyTo) json.insert(QStringLiteral("inReplyTo"), static_cast<qint64>(*inReplyTo));
+    // round it to a different object. A reference to an annotation RawPage created is its identity's
+    // text, `nm:<nm>` (Stage 6 T6), so the two can never be mistaken for each other.
+    const auto reference = [&json](const char* key, const std::optional<AnnotationId>& target) {
+        if (!target) return;
+        if (target->kind == AnnotationId::Kind::Object)
+            json.insert(QLatin1String(key), static_cast<qint64>(target->object));
+        else
+            json.insert(QLatin1String(key), target->toString());
+    };
+    reference("inReplyTo", inReplyTo);
     if (replyType == ReplyType::Group) json.insert(QStringLiteral("replyType"), QStringLiteral("Group"));
-    if (popup) json.insert(QStringLiteral("popup"), static_cast<qint64>(*popup));
-    if (parent) json.insert(QStringLiteral("parent"), static_cast<qint64>(*parent));
+    reference("popup", popup);
+    reference("parent", parent);
     if (open) json.insert(QStringLiteral("open"), *open);
     if (rotate != 0) json.insert(QStringLiteral("rotate"), rotate);
     if (hasAppearance) json.insert(QStringLiteral("hasAppearance"), true);
@@ -381,14 +389,26 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
     a.stateModel = json.value(QStringLiteral("stateModel")).toString();
     a.state = json.value(QStringLiteral("state")).toString();
 
-    if (json.contains(QStringLiteral("inReplyTo")))
-        a.inReplyTo = json.value(QStringLiteral("inReplyTo")).toInteger();
+    // A reference: an integer is an object number, a string a created identity -- and anything else, a
+    // `direct:` identity among them (PDF points only at indirect objects), is malformed.
+    const auto reference = [&json](const char* key, std::optional<AnnotationId>& target) -> bool {
+        const QJsonValue value = json.value(QLatin1String(key));
+        if (value.isUndefined()) return true;
+        if (value.isString()) {
+            const std::optional<AnnotationId> named = AnnotationId::fromString(value.toString());
+            if (!named || named->kind == AnnotationId::Kind::Direct || !named->isValid()) return false;
+            target = *named;
+            return true;
+        }
+        if (!value.isDouble()) return false;
+        target = AnnotationId::ofObject(value.toInteger());
+        return true;
+    };
+    if (!reference("inReplyTo", a.inReplyTo)) return malformed(QStringLiteral("annotation inReplyTo"));
     if (json.value(QStringLiteral("replyType")).toString() == QLatin1String("Group"))
         a.replyType = ReplyType::Group;
-    if (json.contains(QStringLiteral("popup")))
-        a.popup = json.value(QStringLiteral("popup")).toInteger();
-    if (json.contains(QStringLiteral("parent")))
-        a.parent = json.value(QStringLiteral("parent")).toInteger();
+    if (!reference("popup", a.popup)) return malformed(QStringLiteral("annotation popup"));
+    if (!reference("parent", a.parent)) return malformed(QStringLiteral("annotation parent"));
     if (json.contains(QStringLiteral("open"))) a.open = json.value(QStringLiteral("open")).toBool();
     a.rotate = json.value(QStringLiteral("rotate")).toInt();
     a.hasAppearance = json.value(QStringLiteral("hasAppearance")).toBool();
@@ -419,6 +439,27 @@ Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& aut
     a.flags = AnnotationFlag::Print;
     a.hasAppearance = true;   // RawPage writes the /AP of everything it creates (D6-6)
     return a;
+}
+
+std::optional<PdfRect> markupRect(const std::vector<double>& quadPoints)
+{
+    if (quadPoints.size() < 8 || quadPoints.size() % 8 != 0) return std::nullopt;
+    const std::optional<PdfRect> bounds = boundsOfPoints(quadPoints);
+    if (!bounds) return std::nullopt;
+    double tallest = 0.0;
+    for (std::size_t at = 0; at + 8 <= quadPoints.size(); at += 8) {
+        // The first corner to the third: the quadrilateral's side, top to bottom, in Acrobat's order.
+        tallest = std::max(tallest, std::hypot(quadPoints[at] - quadPoints[at + 4], quadPoints[at + 1] - quadPoints[at + 5]));
+    }
+    const double grow = std::max(2.0, 0.15 * tallest);
+    return PdfRect{PdfPoint{bounds->left() - grow, bounds->bottom() - grow},
+                   PdfSize{bounds->size.width + 2 * grow, bounds->size.height + 2 * grow}};
+}
+
+QString identityAuthor(const QString& configured, const QString& loginName)
+{
+    const QString name = configured.trimmed();
+    return name.isEmpty() ? loginName.trimmed() : name;
 }
 
 std::optional<PdfRect> boundsOfPoints(const std::vector<double>& coordinates)
