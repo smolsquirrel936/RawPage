@@ -24,7 +24,7 @@ clause, T9's) and A-39 (all but the status bar, T5's) in part** -- sixteen plant
 > T6's shapes; A-27, A-32, A-34 and A-35 extended to every kind T6 makes, each through its TOOL** -- planted controls listed
 > in the T6 row. **T7 (2026-10-07): A-55, A-56 and A-57 ✅; A-28 re-run ✅ with T7's shapes; A-26, A-27, A-29, A-32,
 > A-34 and A-35 extended to free text, A-34/A-35 through the typed TOOLS** -- fifteen planted controls, all fired, one
-> only after its case was strengthened (the T7 row says which). §8 logs **I-01 … I-10**, all closed: I-01 … I-06 S3, **I-07 (S2) and I-08 (S1)
+> only after its case was strengthened (the T7 row says which). §8 logs **I-01 … I-11**, all closed (I-11, S3, T7's push not building under ASan, by CI on 2026-10-08): I-01 … I-06 S3, **I-07 (S2) and I-08 (S1)
 > found by T5's own cases before any commit, I-09 (S2) by T6's A-50 before any commit, I-10 (S2) by T7's A-56
 > engine case before any commit**. **M-06 is walkable since T7.** **108
 > automated** (A-01 … A-108) and **13 manual** (M-01 … M-13). **The cases written against Q1 … Q5 were
@@ -1108,6 +1108,7 @@ uses.
 | **I-08** | S1 | An undo after a save redrew a file's highlight with our builder instead of restoring the producer's appearance | **Closed** at T5, 2026-10-05 |
 | **I-09** | S2 | A strikeout drawn through the middle of the line's box sat above the x-height's middle third, and a squiggly 2 points tall spilled out of the descender band | **Closed** at T6, 2026-10-05 |
 | **I-10** | S2 | The CJK coverage table claimed a character -- U+223C in Traditional Chinese -- that the engine reads back and draws as nothing on this machine | **Closed** at T7, 2026-10-07 |
+| **I-11** | S3 | T7's push did not build in `portable-asan`: GCC 13 under ASan at `-O2` read a one-element initializer list as out of bounds, and `-Werror` made it fatal (CI run 37648525480) | **Closed** 2026-10-08 |
 
 **I-01 (S3) — an incomplete length-limited Huffman code in the corpus encoder.** *Found* generating
 `annots-900.pdf` at T1: `deflate.compress`'s own self-check stopped the run with zlib's *"invalid
@@ -1242,6 +1243,21 @@ visible ink after eight hairline glyphs (box-drawing bars, `∣`, `∥`) read as
 the two characters blank by definition (U+3000, U+3164) exempted. *Bound:* the measurement is of THIS
 machine's faces; another machine's substitution may differ, and M-06 is where Acrobat's faces are seen.
 *Control:* planted P5 put the character back in the table, and the engine case failed on it.
+
+**I-11 (S3) -- T7 did not build where the sanitizers run.** *Found* by CI run 37648525480 on `99b636f`, T7's push:
+four of five jobs green (`gates`, Windows, `portable-fuzz`, the coverage summary) and **`portable-asan` red at its
+build step** -- so the headless suite, and A-31's `qpdf` step after it, never ran. *Mechanism:*
+`pdf/ops/AppearanceStreamBuilder.cpp`'s free text reset an unusable text colour with `textColour = {0.0}`; GCC 13 at
+`-O2` with `-fsanitize=address,undefined` inlines the initializer list's copy into a `memmove` it then judges to read
+past the one-`double` array (`-Warray-bounds`, a false positive), and the portable presets' `-Werror` made it an
+error. *Why nothing here saw it:* no Windows build sanitizes (MinGW has no ASan runtime), and the warning appears
+only with the sanitizer flags -- Stage 3 guide I-08's shape, a different header. *Reproduced on this machine*,
+which it can be: MinGW's GCC 13.1 COMPILES with `-fsanitize=address,undefined` even though it cannot link it, so
+the object's own command (`ninja -t commands <object>`) with those flags and `-Werror` added gave the same error, and
+every other portable file T7 touched -- and its three unit test files -- compiled clean the same way. *Fix:*
+`textColour.assign(1, 0.0)`, after which the probe compiles; the Windows suites are unchanged (`unit.` 737/737 on
+`x64-release`, both presets building with 0 warnings). *Owed:* the `portable-asan` log of the next run, which is
+the first to run T3's … T7's headless cases under ASan and `qpdf` over their files.
 
 ---
 

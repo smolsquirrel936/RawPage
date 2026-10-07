@@ -768,6 +768,11 @@ guides' §8 logs. They survive their stage, so they live here rather than in a s
   logical offset, as A-123's case does.
 - **A hidden window's page views still ask for tiles.** A hidden comparison window's panes held 65
   tiles each (S5 T14), so hiding a window is not a way to keep its requests out of a measurement.
+- **The `portable-asan` job's `-Werror` build can be reproduced here, though its sanitizers cannot.** MinGW's GCC 13.1
+  COMPILES with `-fsanitize=address,undefined` (it cannot link it), and the sanitizer flags change what `-O2` warns about
+  -- a one-element initializer list read as out of bounds (S6 guide **I-11**), `<regex>` before it (S3 guide I-08). Take
+  an object's command from `ninja -t commands <object>` in `buildd-release`, add `-O2 -fsanitize=address,undefined
+  -Werror`, and compile it before pushing a change to `core/`, `pdf/cos/` or `pdf/ops/`.
 - **A warning census from an incremental build is inherited, not measured** — a built tree compiles
   nothing and prints *"ninja: no work to do"*. Use `--clean-first` when the claim is about warnings
   (S3 guide A-01, which measured 232 objects per preset then; **303 release and 292 debug on

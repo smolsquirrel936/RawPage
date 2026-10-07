@@ -352,7 +352,9 @@ core::Result<Appearance> freeText(const core::Annotation& a, AppearanceObjects& 
     const std::optional<std::vector<double>> lineColour = colourOf(a, {0.0});
     if (!lineColour) return appearanceError("error.pdf.appearanceGeometry", name);
     std::vector<double> textColour = style.textColour;
-    if (textColour.size() != 1 && textColour.size() != 3 && textColour.size() != 4) textColour = {0.0};
+    // `assign`, not `= {0.0}`: GCC 13 at -O2 under ASan reads a one-element initializer list's copy as
+    // out of bounds (-Warray-bounds, a false positive) and `-Werror` makes it fatal -- CI run 37648525480.
+    if (textColour.size() != 1 && textColour.size() != 3 && textColour.size() != 4) textColour.assign(1, 0.0);
     for (const double v : textColour) {
         if (!std::isfinite(v)) return appearanceError("error.pdf.appearanceGeometry", name);
     }
