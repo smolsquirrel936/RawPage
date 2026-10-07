@@ -33,10 +33,11 @@ CosObject numbers(std::initializer_list<double> values)
 // is empty: `IncrementalWriter` writes the data it is handed beside it, and writes an object that is
 // not a stream as a bare dictionary, data dropped. (That was this function's first defect, caught by
 // `RevisionWriter::verify`'s new check before any case asserted the stream: guide case A-30's mechanism.)
-CosObject formDictionary(const core::PdfRect& bbox, CosObject extGState)
+CosObject formDictionary(const core::PdfRect& bbox, CosObject extGState, std::vector<CosObject::Entry> fonts = {})
 {
     std::vector<CosObject::Entry> states{{"GS0", std::move(extGState)}};
     std::vector<CosObject::Entry> resources{{"ExtGState", CosObject::makeDictionary(std::move(states))}};
+    if (!fonts.empty()) resources.push_back({"Font", CosObject::makeDictionary(std::move(fonts))});
     return CosObject::makeStream(std::vector<CosObject::Entry>{
         {"Type", CosObject::makeName("XObject")},
         {"Subtype", CosObject::makeName("Form")},
@@ -305,7 +306,237 @@ core::Result<Appearance> note(const core::Annotation& a)
     return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), false)), content.bytes()};
 }
 
+// ---- Stage 6 T7: free text ----------------------------------------------------------------------------
+
+CosObject integers(const std::vector<int>& values)
+{
+    std::vector<CosObject> items;
+    items.reserve(values.size());
+    for (const int v : values) items.push_back(CosObject::makeInteger(v));
+    return CosObject::makeArray(std::move(items));
+}
+
+// An arrowhead at `tip`, pointing away from `from`: two strokes (open) or a filled wedge (closed), each
+// side `core::kCalloutHead` long and 25 degrees off the shaft.
+void arrowhead(cos::ContentStreamBuilder& content, double tipX, double tipY, double fromX, double fromY, bool closed)
+{
+    const double dx = tipX - fromX, dy = tipY - fromY;
+    const double length = std::hypot(dx, dy);
+    if (!(length > 1e-9)) return;
+    const double ux = dx / length, uy = dy / length;
+    const double spread = 25.0 * 3.14159265358979323846 / 180.0;
+    const double c = std::cos(spread), s = std::sin(spread);
+    const double h = core::kCalloutHead;
+    const double ax = tipX - h * (ux * c - uy * s), ay = tipY - h * (uy * c + ux * s);
+    const double bx = tipX - h * (ux * c + uy * s), by = tipY - h * (uy * c - ux * s);
+    if (closed) {
+        content.moveTo(ax, ay).lineTo(tipX, tipY).lineTo(bx, by).closePath().fillAndStroke();
+    } else {
+        content.moveTo(ax, ay).lineTo(tipX, tipY).lineTo(bx, by).stroke();
+    }
+}
+
+core::Result<Appearance> freeText(const core::Annotation& a, AppearanceObjects& objects)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    const std::optional<core::FreeTextFrame> frame = core::freeTextFrame(a);
+    if (!frame || !finiteRect(a)) return appearanceError("error.pdf.appearanceGeometry", name);
+    const core::FreeTextStyle style = core::freeTextStyle(a);
+    // `/DA` names the face; one this build does not draw is refused, never set in another (see the header).
+    std::optional<core::TypedFont> daFace;
+    if (!style.font.isEmpty()) {
+        daFace = core::typedFontByResource(style.font);
+        if (!daFace) return appearanceError("error.pdf.appearanceUnsupported", name);
+    }
+    const core::FreeTextKind kind = core::freeTextKind(a);
+    const std::optional<std::vector<double>> lineColour = colourOf(a, {0.0});
+    if (!lineColour) return appearanceError("error.pdf.appearanceGeometry", name);
+    std::vector<double> textColour = style.textColour;
+    if (textColour.size() != 1 && textColour.size() != 3 && textColour.size() != 4) textColour = {0.0};
+    for (const double v : textColour) {
+        if (!std::isfinite(v)) return appearanceError("error.pdf.appearanceGeometry", name);
+    }
+
+    const double inset = frame->inset;
+    const std::optional<double> wrap = kind == core::FreeTextKind::Typewriter
+                                           ? std::nullopt
+                                           : std::optional<double>(std::max(frame->width - 2.0 * inset, 0.0));
+    core::Result<core::TypedLayout> laid =
+        core::layoutTypedText(a.contents, style.size, wrap, style.han.value_or(core::TypedFont::Simplified));
+    if (!laid) return laid.error();
+    const core::TypedLayout& layout = laid.value();
+
+    // The fonts: every face the text uses, and the one `/DA` names -- under its own name, so `/DA` resolves
+    // against the appearance's resources as written (`Helvetica` as well as `Helv`).
+    std::vector<CosObject::Entry> fonts;
+    std::vector<std::string> named;
+    const auto addFont = [&](core::TypedFont face, const std::string& resource) {
+        if (std::find(named.begin(), named.end(), resource) != named.end()) return;
+        named.push_back(resource);
+        const cos::CosRef at = AppearanceStreamBuilder::fontObject(face, objects);
+        fonts.push_back({resource, CosObject::makeReference(at.number, at.generation)});
+    };
+    if (daFace) addFont(*daFace, style.font.toStdString());
+    for (const core::TypedLine& line : layout.lines) {
+        for (const core::TypedRun& run : line.runs) addFont(run.font, core::typedFontSpec(run.font).resource);
+    }
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    const core::PdfRect& box = frame->box;
+    const double border = core::freeTextBorderWidth(a);
+    if (!a.interiorColor.empty()) {
+        if (a.interiorColor.size() != 1 && a.interiorColor.size() != 3 && a.interiorColor.size() != 4)
+            return appearanceError("error.pdf.appearanceGeometry", name);
+        content.fillColor(a.interiorColor.data(), static_cast<int>(a.interiorColor.size()));
+        content.rectangle(box.left(), box.bottom(), box.size.width, box.size.height).fill();
+    }
+    if (border > 0.0 && box.size.width > border && box.size.height > border) {
+        content.strokeColor(lineColour->data(), static_cast<int>(lineColour->size())).lineWidth(border);
+        content.rectangle(box.left() + border / 2.0, box.bottom() + border / 2.0, box.size.width - border,
+                          box.size.height - border).stroke();
+    }
+    if (kind == core::FreeTextKind::Callout && a.callout.size() >= 4 && a.callout.size() % 2 == 0) {
+        for (const double v : a.callout) {
+            if (!std::isfinite(v)) return appearanceError("error.pdf.appearanceGeometry", name);
+        }
+        const QString ending = a.lineEndings.empty() ? QStringLiteral("None") : a.lineEndings.front();
+        const bool open = ending == QLatin1String("OpenArrow");
+        const bool closed = ending == QLatin1String("ClosedArrow");
+        if (!open && !closed && ending != QLatin1String("None")) return appearanceError("error.pdf.appearanceUnsupported", name);
+        content.strokeColor(lineColour->data(), static_cast<int>(lineColour->size()));
+        content.fillColor(lineColour->data(), static_cast<int>(lineColour->size()));
+        content.lineWidth(border > 0.0 ? border : 1.0).lineJoin(1);
+        content.moveTo(a.callout[0], a.callout[1]);
+        for (std::size_t k = 2; k + 1 < a.callout.size(); k += 2) content.lineTo(a.callout[k], a.callout[k + 1]);
+        content.stroke();
+        if (open || closed) arrowhead(content, a.callout[0], a.callout[1], a.callout[2], a.callout[3], closed);
+    }
+
+    // THE TEXT, in the frame: turned with `/Rotate`, clipped to the box.
+    const auto& m = frame->toPage;
+    content.save().concat(m[0], m[1], m[2], m[3], m[4], m[5]);
+    content.rectangle(0.0, 0.0, frame->width, frame->height).clip().endPath();
+    content.beginText().fillColor(textColour.data(), static_cast<int>(textColour.size()));
+    const double available = std::max(frame->width - 2.0 * inset, 0.0);
+    std::optional<core::TypedFont> current;
+    for (std::size_t i = 0; i < layout.lines.size(); ++i) {
+        const core::TypedLine& line = layout.lines[i];
+        if (line.runs.empty()) continue;
+        double x = inset;
+        if (a.justification == 1) x += (available - line.width) / 2.0;
+        else if (a.justification == 2) x += available - line.width;
+        const double y = frame->height - inset - core::kTypedAscent * layout.size
+                         - static_cast<double>(i) * core::kTypedLeading * layout.size;
+        content.textMatrix(1.0, 0.0, 0.0, 1.0, x, y);
+        for (const core::TypedRun& run : line.runs) {
+            if (current != run.font) {
+                content.font(core::typedFontSpec(run.font).resource, layout.size);
+                current = run.font;
+            }
+            const std::string codes = AppearanceStreamBuilder::encodeText(run.font, run.text);
+            if (codes.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+            content.showText(codes);
+        }
+    }
+    content.endText().restore().restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), false), std::move(fonts)), content.bytes()};
+}
+
+class DryRun final : public AppearanceObjects {
+public:
+    cos::CosRef shared(const std::string&, cos::CosObject) override { return cos::CosRef{0, 0}; }
+};
+
 } // namespace
+
+cos::CosRef CollectedAppearanceObjects::shared(const std::string& key, cos::CosObject object)
+{
+    for (const Entry& entry : entries_) {
+        if (entry.key == key) return entry.at;
+    }
+    const cos::CosRef at{first_ + static_cast<long long>(entries_.size()), 0};
+    entries_.push_back(Entry{key, at, std::move(object)});
+    return at;
+}
+
+const cos::CosObject* CollectedAppearanceObjects::find(cos::CosRef at) const
+{
+    for (const Entry& entry : entries_) {
+        if (entry.at == at) return &entry.object;
+    }
+    return nullptr;
+}
+
+cos::CosRef AppearanceStreamBuilder::fontObject(core::TypedFont font, AppearanceObjects& objects)
+{
+    const core::TypedFontSpec& spec = core::typedFontSpec(font);
+    const std::string resource = spec.resource;
+    if (font == core::TypedFont::Helvetica) {
+        // NOT EMBEDDED, and its advances written: a reader sets the text on the advances layout used.
+        std::vector<int> widths;
+        for (int code = 32; code <= 255; ++code) widths.push_back(core::helveticaWidth(static_cast<std::uint8_t>(code)));
+        return objects.shared("font:" + resource, CosObject::makeDictionary({
+            {"Type", CosObject::makeName("Font")},
+            {"Subtype", CosObject::makeName("Type1")},
+            {"BaseFont", CosObject::makeName(spec.baseFont)},
+            {"Encoding", CosObject::makeName(spec.encoding)},
+            {"FirstChar", CosObject::makeInteger(32)},
+            {"LastChar", CosObject::makeInteger(255)},
+            {"Widths", integers(widths)},
+        }));
+    }
+    // A predefined CJK collection, NOT EMBEDDED: Type0 over a CIDFontType0, every CID 1,000 units wide.
+    // `/Flags` 6 -- symbolic (its glyphs are not the standard Latin set) and serif (Song, Ming, Mincho and
+    // Myeongjo all are), which is what a reader's substitution matches on.
+    const cos::CosRef descriptor = objects.shared("font:" + resource + ":descriptor", CosObject::makeDictionary({
+        {"Type", CosObject::makeName("FontDescriptor")},
+        {"FontName", CosObject::makeName(spec.baseFont)},
+        {"Flags", CosObject::makeInteger(6)},
+        {"FontBBox", integers({-25, -254, 1000, 880})},
+        {"ItalicAngle", CosObject::makeInteger(0)},
+        {"Ascent", CosObject::makeInteger(880)},
+        {"Descent", CosObject::makeInteger(-120)},
+        {"CapHeight", CosObject::makeInteger(880)},
+        {"StemV", CosObject::makeInteger(93)},
+    }));
+    const cos::CosRef cid = objects.shared("font:" + resource + ":cid", CosObject::makeDictionary({
+        {"Type", CosObject::makeName("Font")},
+        {"Subtype", CosObject::makeName("CIDFontType0")},
+        {"BaseFont", CosObject::makeName(spec.baseFont)},
+        {"CIDSystemInfo", CosObject::makeDictionary({{"Registry", CosObject::makeString("Adobe")},
+                                                     {"Ordering", CosObject::makeString(spec.ordering)},
+                                                     {"Supplement", CosObject::makeInteger(spec.supplement)}})},
+        {"FontDescriptor", CosObject::makeReference(descriptor.number, descriptor.generation)},
+        {"DW", CosObject::makeInteger(1000)},
+    }));
+    return objects.shared("font:" + resource, CosObject::makeDictionary({
+        {"Type", CosObject::makeName("Font")},
+        {"Subtype", CosObject::makeName("Type0")},
+        {"BaseFont", CosObject::makeName(spec.baseFont)},
+        {"Encoding", CosObject::makeName(spec.encoding)},
+        {"DescendantFonts", CosObject::makeArray({CosObject::makeReference(cid.number, cid.generation)})},
+    }));
+}
+
+std::string AppearanceStreamBuilder::encodeText(core::TypedFont font, QStringView text)
+{
+    std::string out;
+    out.reserve(static_cast<std::size_t>(text.size()) * 2);
+    for (const QChar c : text) {
+        const char32_t u = c == QLatin1Char('\t') ? U' ' : static_cast<char32_t>(c.unicode());
+        if (font == core::TypedFont::Helvetica) {
+            const std::optional<std::uint8_t> code = core::winAnsiCode(u);
+            if (!code) return {};
+            out += static_cast<char>(*code);
+        } else {
+            if (!core::cjkCovers(font, u)) return {};
+            out += static_cast<char>((u >> 8) & 0xFF);
+            out += static_cast<char>(u & 0xFF);
+        }
+    }
+    return out;
+}
 
 bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
 {
@@ -316,6 +547,7 @@ bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
     case core::AnnotationSubtype::Squiggly:
     case core::AnnotationSubtype::Caret:
     case core::AnnotationSubtype::Text:
+    case core::AnnotationSubtype::FreeText:
         return true;
     default:
         return false;
@@ -329,6 +561,12 @@ bool AppearanceStreamBuilder::drawsNothing(core::AnnotationSubtype subtype) noex
 
 core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation& annotation)
 {
+    DryRun nowhere;
+    return normal(annotation, nowhere);
+}
+
+core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation& annotation, AppearanceObjects& objects)
+{
     core::Result<Appearance> built = [&]() -> core::Result<Appearance> {
         switch (annotation.subtype) {
         case core::AnnotationSubtype::Highlight: return highlight(annotation);
@@ -337,6 +575,7 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::Squiggly: return textLine(annotation);
         case core::AnnotationSubtype::Caret: return caret(annotation);
         case core::AnnotationSubtype::Text: return note(annotation);
+        case core::AnnotationSubtype::FreeText: return freeText(annotation, objects);
         default:
             return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
         }

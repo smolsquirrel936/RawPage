@@ -132,6 +132,9 @@ add_library(rawpage_ui STATIC
     viewer/tools/MarkupTool.cpp
     viewer/tools/NoteTool.h
     viewer/tools/NoteTool.cpp
+    # Stage 6 T7 (D6-7, D6-8): the text box, the callout and the typewriter -- typed text, one FreeText each.
+    viewer/tools/TypewriterTool.h
+    viewer/tools/TypewriterTool.cpp
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h

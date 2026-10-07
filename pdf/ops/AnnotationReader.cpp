@@ -216,6 +216,11 @@ Parsed parse(cos::XrefTable& table, const CosObject& d)
         const double value = rotate->numberValue();
         if (std::fabs(value) <= 360000.0) a.rotate = static_cast<int>(value);
     }
+    // /Q (Stage 6 T7): ISO 32000-1 Table 174's three values; any other is read as the default, left.
+    if (const CosObject* q = d.find("Q"); q != nullptr && q->isNumber()) {
+        const double value = q->numberValue();
+        if (value == 1.0 || value == 2.0) a.justification = static_cast<int>(value);
+    }
     a.hasAppearance = d.find("AP") != nullptr;
 
     out.pageReference = referenceOf(d, "P");

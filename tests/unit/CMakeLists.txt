@@ -64,6 +64,12 @@ add_executable(rawpage_tests
                                   #   in each quadrilateral's own frame, references between created
                                   #   annotations across a save, and verify's reference check
     tst_stage6settings.cpp        # Stage 6 T6 -- the three identity/* rows (D6-13) and convention 11's grep
+    tst_typedtext.cpp             # Stage 6 T7 -- typed text below the widgets: which face draws each
+                                  #   character, what is refused by name, the lines, /DA, the free-text
+                                  #   frame and its fitting (D6-7, D6-34; A-56's rule half)
+    tst_annotfreetext.cpp         # Stage 6 T7 -- guide A-55 and A-57 below the tools: the three typed kinds
+                                  #   made, edited and saved, no content stream changed, and the /AP
+                                  #   decoded first-party to what was typed
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

@@ -2,7 +2,9 @@
 
 #include "core/Log.h"
 #include "core/cmd/KeyContext.h"
+#include "core/cmd/commands/AnnotationCommands.h"
 #include "core/doc/PageTree.h"
+#include "core/doc/TypedText.h"
 #include "core/render/RenderScheduler.h"
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/viewer/AnnotationTextEditor.h"
@@ -17,6 +19,8 @@
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QFocusEvent>
+#include <QInputMethod>
+#include <QLocale>
 #include <QDateTime>
 #include <QGuiApplication>
 #include <QStyleHints>
@@ -759,20 +763,52 @@ void PageView::setAnnotationOverlay(AnnotationOverlay* annotations)
     viewport()->update();
 }
 
-bool PageView::requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit)
+bool PageView::requestAnnotationText(const AnnotationTextRequest& request, std::function<void(const QString&)> commit)
 {
     // ONE AT A TIME: asking again finishes the editor already open, as clicking away from it would.
     if (editor_ != nullptr && !editor_->isFinished()) (void)editor_->commit();
 
     auto* editor = new AnnotationTextEditor(viewport());
     editor_ = editor;
-    // Below and right of the point it was asked for, kept inside the visible page area.
-    constexpr int kWidth = 240;
-    constexpr int kHeight = 72;
     const QSize room = viewport()->size();
-    const int x = std::clamp(pos.x() + 8, 0, std::max(0, room.width() - kWidth));
-    const int y = std::clamp(pos.y() + 8, 0, std::max(0, room.height() - kHeight));
-    editor->setGeometry(x, y, kWidth, kHeight);
+    if (request.box) {
+        // S6 T7: OVER THE BOX the text will be drawn in, at its size -- so it wraps where the appearance
+        // will, and the person types where the comment goes (M-06). Never smaller than a line.
+        QRect box = *request.box;
+        const int line = request.fontPixels ? static_cast<int>(std::ceil(*request.fontPixels * core::kTypedLeading)) : 16;
+        box.setWidth(std::max(box.width(), line * 2));
+        box.setHeight(std::max(box.height(), line + 8));
+        editor->setGeometry(box);
+    } else {
+        // Below and right of the point it was asked for, kept inside the visible page area.
+        constexpr int kWidth = 240;
+        constexpr int kHeight = 72;
+        const int x = std::clamp(request.at.x() + 8, 0, std::max(0, room.width() - kWidth));
+        const int y = std::clamp(request.at.y() + 8, 0, std::max(0, room.height() - kHeight));
+        editor->setGeometry(x, y, kWidth, kHeight);
+    }
+    if (request.fontPixels) {
+        // Arial is drawn to Helvetica's advances, so the editor breaks lines where the appearance will.
+        QFont font(QStringLiteral("Arial"));
+        font.setPixelSize(std::max(6, static_cast<int>(std::lround(*request.fontPixels))));
+        editor->setFont(font);
+    }
+    editor->setLineWrapMode(request.wrap ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+    editor->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    if (!request.initial.isEmpty()) {
+        editor->setPlainText(request.initial);
+        editor->moveCursor(QTextCursor::End);
+    }
+    if (request.typed) {
+        // D6-7: a character no face can show is refused AS IT IS TYPED, and the status bar names it.
+        editor->setRefusesUnshowable(true);
+        connect(editor, &AnnotationTextEditor::characterRefused, this, [this](uint character) {
+            if (annotations_ != nullptr)
+                annotations_->reportRefusal(core::Error{core::ErrorCode::InvalidArgument,
+                                                        QLatin1String("error.edit.typedCharacterRefused"),
+                                                        core::describeCharacter(static_cast<char32_t>(character))});
+        });
+    }
 
     // THE FOCUS COMES BACK to the page when the editor finishes inside it -- `Enter` or `Esc` -- so the page's
     // chords work again; a person who clicked somewhere else keeps the focus where they put it.
@@ -793,6 +829,62 @@ bool PageView::requestAnnotationText(QPoint pos, std::function<void(const QStrin
 AnnotationTextEditor* PageView::annotationTextEditor() const
 {
     return editor_ != nullptr && !editor_->isFinished() ? editor_.data() : nullptr;
+}
+
+int PageView::displayedRotation(int page) const
+{
+    const core::render::PageSlot* slot = engine_.layout().slotForPage(page);
+    return slot != nullptr ? static_cast<int>(slot->rotation) : 0;
+}
+
+core::TypedFont PageView::hanPreference() const
+{
+    // The INPUT language first -- the keyboard a person is typing Chinese with says which Chinese -- then the
+    // system's. The rule is core's (convention 11); these are only the languages.
+    QStringList languages;
+    if (const QInputMethod* input = QGuiApplication::inputMethod()) languages << input->locale().bcp47Name();
+    languages << QLocale::system().bcp47Name() << QLocale::system().name();
+    return core::hanPreference(languages);
+}
+
+double PageView::pixelsPerPoint() const
+{
+    const double dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
+    return engine_.layout().presentedScale() / dpr;
+}
+
+bool PageView::editTypedTextAt(QPoint pos)
+{
+    if (annotations_ == nullptr || !annotations_->isActive()) return false;
+    const AnnotationOverlay::Viewport view = annotationViewport();
+    const std::optional<core::AnnotationId> hit = annotations_->annotationAt(view, pos);
+    if (!hit) return false;
+    const std::optional<std::size_t> index = annotations_->store()->find(*hit);
+    if (!index) return false;
+    const core::Annotation& a = annotations_->store()->at(*index);
+    if (a.subtype != core::AnnotationSubtype::FreeText) return false;
+    // D6-27: text that may not be changed is not opened for changing; the status bar says why.
+    if (const core::Status allowed = core::annotationChangeAllowed(a, false, true); !allowed) {
+        annotations_->reportRefusal(allowed.error());
+        return true;
+    }
+    const std::optional<core::FreeTextFrame> frame = core::freeTextFrame(a);
+    const std::optional<QRectF> box = frame ? AnnotationOverlay::widgetRectOf(view, a.page, frame->box) : std::nullopt;
+    if (!box) return false;
+
+    AnnotationTextRequest request;
+    request.box = box->toAlignedRect();
+    request.fontPixels = core::freeTextStyle(a).size * pixelsPerPoint();
+    request.wrap = core::freeTextKind(a) != core::FreeTextKind::Typewriter;
+    request.initial = a.contents;
+    request.typed = true;
+    const core::AnnotationId id = a.id;
+    AnnotationOverlay* annotations = annotations_;
+    const core::TypedFont han = hanPreference();
+    annotations_->select({id});
+    return requestAnnotationText(request, [annotations, id, han](const QString& text) {
+        (void)annotations->editFreeText(id, text, han);
+    });
 }
 
 void PageView::annotationToolUsed()
@@ -994,6 +1086,11 @@ void PageView::mousePressEvent(QMouseEvent* event)
     // on an annotation, one of its handles or a pop-up is the overlay's -- a pick, a drag, a resize. A press
     // anywhere else is the tool's, as it always was. A temporary hand still reaches the overlay first:
     // `Shift` over an annotation constrains its drag (§8), and over the page pans.
+    // S6 T7: A DOUBLE CLICK ON FREE TEXT EDITS IT IN PLACE -- before the overlay, which would pick it up.
+    if (event->button() == Qt::LeftButton && overlayFirst() && clicks_ == 2 && editTypedTextAt(event->pos())) {
+        event->accept();
+        return;
+    }
     if (event->button() == Qt::LeftButton && overlayFirst()
         && annotations_->press(annotationViewport(), event->pos(), event->modifiers(), clicks_)) {
         event->accept();

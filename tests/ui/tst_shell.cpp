@@ -161,10 +161,15 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // MINTED chordless -- `annot.replaceText` and `annot.insertText` -- the three tools no §8 chord arms;
     // 376 ids are declared.
     //
+    // **Two more at Stage 6 T7** (D6-8): `annot.callout`, declared at Stage 1, and the typewriter MINTED
+    // chordless -- `annot.typewriter` -- the two typed kinds beside the text box; 377 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 132);
+    CHECK(fixture.actions.registeredCount() == 134);
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCallout));           // S6 T7
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotTypewriter));        // S6 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotSquiggly));          // S6 T6
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotReplaceText));       // S6 T6
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotInsertText));        // S6 T6

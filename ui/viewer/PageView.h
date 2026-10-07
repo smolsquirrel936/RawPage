@@ -306,8 +306,17 @@ public:
     // ---- What the annotation tools make (S6 T6) -----------------------------------------------------
     // `ToolHost`'s editor: an `AnnotationTextEditor` over the page at `pos`, one at a time -- asking for a
     // second commits the first. The editor in front, or null, for a case.
-    bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit) override;
+    // S6 T7: described in full -- a typed comment's editor covers the box it will be drawn in, at its size,
+    // and refuses at input what no face can show, saying which character (D6-7).
+    using ToolHost::requestAnnotationText;
+    bool requestAnnotationText(const AnnotationTextRequest& request, std::function<void(const QString&)> commit) override;
     AnnotationTextEditor* annotationTextEditor() const;
+    int displayedRotation(int page) const override;
+    core::TypedFont hanPreference() const override;
+    double pixelsPerPoint() const override;
+    // S6 T7: a double click on free text edits it IN PLACE -- its text in an editor over its box, the change
+    // ONE command when it is committed (D6-1). False when `pos` is on no free text that may be edited.
+    bool editTypedTextAt(QPoint pos);
     // A tool made something: back to the Selection tool unless `K` keeps it (§8, `annot.keepToolSelected`).
     void annotationToolUsed() override;
     // A text-markup command with TEXT ALREADY SELECTED marks it at once, as Acrobat's do -- and a replace asks
@@ -570,11 +579,16 @@ private:
         bool takeSnapshot(const QRect& band) override { return view_.takeSnapshot(band); }
         // S6 T6: the annotation tools make into the window's overlay, and type into this pane's editor.
         AnnotationOverlay* annotationOverlay() const override { return view_.annotationOverlay(); }
-        bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit) override
+        using ToolHost::requestAnnotationText;
+        bool requestAnnotationText(const AnnotationTextRequest& request, std::function<void(const QString&)> commit) override
         {
-            return view_.requestAnnotationText(pos, std::move(commit));
+            return view_.requestAnnotationText(request, std::move(commit));
         }
         void annotationToolUsed() override { view_.annotationToolUsed(); }
+        // S6 T7.
+        int displayedRotation(int page) const override { return view_.displayedRotation(page); }
+        core::TypedFont hanPreference() const override { return view_.hanPreference(); }
+        double pixelsPerPoint() const override { return view_.pixelsPerPoint(); }
 
     private:
         PageView& view_;

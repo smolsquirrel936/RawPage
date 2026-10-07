@@ -337,6 +337,7 @@ QJsonObject Annotation::toJson() const
     reference("parent", parent);
     if (open) json.insert(QStringLiteral("open"), *open);
     if (rotate != 0) json.insert(QStringLiteral("rotate"), rotate);
+    if (justification != 0) json.insert(QStringLiteral("justification"), justification);
     if (hasAppearance) json.insert(QStringLiteral("hasAppearance"), true);
     return json;
 }
@@ -411,6 +412,8 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
     if (!reference("parent", a.parent)) return malformed(QStringLiteral("annotation parent"));
     if (json.contains(QStringLiteral("open"))) a.open = json.value(QStringLiteral("open")).toBool();
     a.rotate = json.value(QStringLiteral("rotate")).toInt();
+    a.justification = json.value(QStringLiteral("justification")).toInt();
+    if (a.justification < 0 || a.justification > 2) return malformed(QStringLiteral("annotation justification"));
     a.hasAppearance = json.value(QStringLiteral("hasAppearance")).toBool();
     return a;
 }

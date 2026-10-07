@@ -3222,6 +3222,9 @@ QLatin1String armedStatusKey(AnnotationToolKind kind)
     case AnnotationToolKind::StickyNote: return catalog::key::StatusAnnotationToolNote;
     case AnnotationToolKind::ReplaceText: return catalog::key::StatusAnnotationToolReplace;
     case AnnotationToolKind::InsertText: return catalog::key::StatusAnnotationToolInsert;
+    case AnnotationToolKind::TextBox: return catalog::key::StatusAnnotationToolTextBox;
+    case AnnotationToolKind::Callout: return catalog::key::StatusAnnotationToolCallout;
+    case AnnotationToolKind::Typewriter: return catalog::key::StatusAnnotationToolTypewriter;
     default: break;
     }
     return markupSubtype(kind) ? catalog::key::StatusAnnotationToolMarkup : catalog::key::StatusAnnotationToolArmed;
@@ -3238,6 +3241,8 @@ void MainWindow::registerAnnotationActions()
     // Every handler resolves the tab at dispatch time (convention 14). **Since T6** seventeen: the squiggly
     // (declared since Stage 1) and the two text edits minted chordless, `annot.replaceText` and
     // `annot.insertText`; the markup kinds and the note make, and text already selected is marked at once.
+    // **Since T7** nineteen: the callout (`annot.callout`, declared since Stage 1) and the typewriter minted
+    // chordless (`annot.typewriter`, D6-8); the text box, the callout and the typewriter make typed text.
     const auto hasView = [] {
         MainWindow* window = activeShell();
         return window != nullptr && window->currentView() != nullptr && window->currentView()->pageCount() > 0;

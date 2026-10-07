@@ -162,6 +162,8 @@ void compareEntry(const QJsonObject& want, const core::Annotation& got, const QS
         || (got.open && *got.open != want.value(QStringLiteral("open")).toBool()))
         bad(QStringLiteral("open"));
     if (want.value(QStringLiteral("rotate")).toInt() != got.rotate) bad(QStringLiteral("rotate"));
+    // Stage 6 T7: /Q, which the labels have always carried and the model now holds.
+    if (want.value(QStringLiteral("justification")).toInt() != got.justification) bad(QStringLiteral("justification"));
     if (want.value(QStringLiteral("hasAppearance")).toBool() != got.hasAppearance) bad(QStringLiteral("hasAppearance"));
 }
 

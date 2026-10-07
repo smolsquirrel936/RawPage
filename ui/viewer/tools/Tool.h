@@ -36,18 +36,20 @@
 #define RAWPAGE_UI_VIEWER_TOOLS_TOOL_H
 
 #include "core/Geometry.h"
+#include "core/doc/TypedText.h"
 
 #include <QPoint>
 #include <QRect>
 #include <QRectF>
 #include <QSize>
+#include <QString>
 
 #include <Qt>
 
 #include <functional>
+#include <optional>
 
 class QPainter;
-class QString;
 class QPixmap;
 
 namespace rawpage::ui {
@@ -69,6 +71,18 @@ struct PagePoint {
 struct PressContext {
     Qt::KeyboardModifiers modifiers = Qt::NoModifier;
     int clicks = 1;
+};
+
+// WHAT A TYPED COMMENT'S EDITOR IS (S6 T7): where it sits, how big its text is, whether it wraps, what it
+// starts holding, and which characters it refuses at input (D6-7). A note's, an insertion's and a
+// replacement's editor is the default: beside the click, wrapping, refusing nothing.
+struct AnnotationTextRequest {
+    QPoint at;                         // the editor's top-left, viewport logical pixels, when there is no box
+    std::optional<QRect> box;          // where the text will be drawn: the editor covers it exactly
+    std::optional<double> fontPixels;  // the text's size on screen, logical pixels: what it will be drawn at
+    bool wrap = true;                  // false: a line breaks only where the person breaks it
+    QString initial;                   // what it starts holding -- the text of a comment edited in place
+    bool typed = false;                // drawn in an appearance: refuses what `core::firstRefusedCharacter` refuses
 };
 
 // The four Stage 4 tools and Stage 5's Snapshot (T10, D5-11), as a value. Named rather than numbered, and with an ASCII name beside
@@ -174,12 +188,35 @@ public:
     // says. `commit` runs with the typed text when the person finishes -- `Enter`, or the focus leaving with
     // something typed -- and NOT when they abandon it (`Esc`, or leaving it empty). Returns whether an editor
     // opened: false in a host that has none, where nothing is made.
-    virtual bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit)
+    // Not virtual (S6 T7): the request below is what a host implements, and this is its default form.
+    bool requestAnnotationText(QPoint pos, std::function<void(const QString&)> commit)
     {
-        (void)pos;
+        AnnotationTextRequest request;
+        request.at = pos;
+        return requestAnnotationText(request, std::move(commit));
+    }
+    // S6 T7: the same, described in full -- a typed comment's editor over the box it will be drawn in.
+    virtual bool requestAnnotationText(const AnnotationTextRequest& request, std::function<void(const QString&)> commit)
+    {
+        (void)request;
         (void)commit;
         return false;
     }
+
+    // S6 T7: the quarter turns page `page` is SHOWN at -- its own `/Rotate` and the view's -- so typed text is
+    // written turned the same way and reads upright where it was typed (D6-34).
+    virtual int displayedRotation(int page) const
+    {
+        (void)page;
+        return 0;
+    }
+
+    // S6 T7: the CJK face an ideograph typed now is drawn in when nothing else decides it -- the person's input
+    // language, else the system's (D6-34). The rule is core's (`core::hanPreference`); the languages are the host's.
+    virtual core::TypedFont hanPreference() const { return core::TypedFont::Simplified; }
+
+    // S6 T7: logical pixels per page unit at the current zoom -- what an editor sizes typed text by.
+    virtual double pixelsPerPoint() const { return 1.0; }
 
     // A tool made something: the host goes back to the Selection tool unless `K` keeps this one armed (§8's
     // Annotation tools row, `annot.keepToolSelected`).

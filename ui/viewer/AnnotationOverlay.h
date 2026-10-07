@@ -49,7 +49,8 @@
 // is a caret on the boundary between the two characters nearest the click (`core::text::insertionPointAt`).
 // A NOTE is a `Text` annotation with the `Comment` icon and its `Popup`, which name each other (D6-28: the
 // pop-up is written once, closed, when the note is made). Each carries the person's name (`setAuthor`,
-// D6-13) and the instant from the clock.
+// D6-13) and the instant from the clock. TYPED TEXT (T7) -- a box, a callout, a typewriter -- is a `FreeText`
+// fitted to its text by `core::fittedFreeText`, made and edited in place as one command each.
 //
 // It holds no catalog key (`ui/viewer/` holds none): a refusal is reported by signal, with its key.
 
@@ -60,6 +61,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/TypedText.h"
 #include "core/render/PagePresentation.h"
 
 #include <QObject>
@@ -191,6 +193,32 @@ public:
                             const Style& style);
     // A sticky note whose icon's top-left corner is `at`, holding `contents`, and its pop-up.
     core::Status addNote(int page, core::PdfPoint at, const QString& contents, const Style& style);
+    // ---- Typed text (S6 T7, D6-8) ---------------------------------------------------------------------
+    struct TypedStyle {
+        std::vector<double> colour{0.0};   // the text's, its outline's and a callout's leader's
+        double opacity = 1.0;
+        double borderWidth = 1.0;          // a typewriter has no outline, whatever this says
+        double fontSize = core::kFreeTextDefaultSize;
+        core::TypedFont han = core::TypedFont::Simplified;   // the person's language (D6-34)
+    };
+    // A box, a callout or a typewriter on `page`, holding `text`, FITTED to it and made as ONE command: its
+    // frame's top-left corner -- as the text reads, turned `rotate` -- at `topLeft`, `width` points wide (a
+    // box and a callout; a typewriter fits its text), a callout's leader pointing at `target`. A character
+    // no face can show is refused by name and nothing is made (D6-7).
+    core::Status addFreeText(int page, core::FreeTextKind kind, core::PdfPoint topLeft, std::optional<double> width,
+                             std::optional<core::PdfPoint> target, int rotate, const QString& text,
+                             const TypedStyle& style);
+    // Free text `id` given `text`, refitted -- a box keeps its width, a typewriter fits both ways, a callout
+    // keeps its target -- as ONE `EditAnnotationCommand`. A `Locked` one keeps its size (D6-27: its text
+    // may change, its size may not). `hanFallback` decides an ideograph only when `/DA` names no CJK face.
+    core::Status editFreeText(const core::AnnotationId& id, const QString& text, core::TypedFont hanFallback);
+    // A text box made with a click rather than a drag is this wide, in page units.
+    static constexpr double kFreeTextWidthPoints = 180.0;
+
+    // A refusal the page found before any command -- a character typed that no face can show, a comment
+    // whose text is locked -- said the way a refused command is: as `refused`.
+    void reportRefusal(const core::Error& error);
+
     // The size of the note icon, and of its pop-up, in page units.
     static constexpr double kNoteSize = 20.0;
     static constexpr double kPopupWidthPoints = 200.0;

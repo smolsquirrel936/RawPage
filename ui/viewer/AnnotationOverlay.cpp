@@ -772,6 +772,70 @@ core::Status AnnotationOverlay::addNote(int page, core::PdfPoint at, const QStri
     return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(note), std::move(popup)}));
 }
 
+// ---- Typed text (S6 T7) --------------------------------------------------------------------------
+
+core::Status AnnotationOverlay::addFreeText(int page, core::FreeTextKind kind, core::PdfPoint topLeft,
+                                            std::optional<double> width, std::optional<core::PdfPoint> target, int rotate,
+                                            const QString& text, const TypedStyle& style)
+{
+    Annotation a = newAnnotation(AnnotationSubtype::FreeText, page);
+    a.intent = QString(core::freeTextIntent(kind));
+    a.rotate = ((rotate % 360) + 360) % 360 / 90 * 90;
+    a.contents = text;
+    const std::vector<double> colour =
+        style.colour.size() == 1 || style.colour.size() == 3 || style.colour.size() == 4 ? style.colour : std::vector<double>{0.0};
+    a.color = colour;
+    if (style.opacity < 1.0) a.opacity = std::clamp(style.opacity, 0.0, 1.0);
+    a.borderWidth = kind == core::FreeTextKind::Typewriter ? 0.0 : std::max(0.0, style.borderWidth);
+    const double size = style.fontSize > 0.0 ? style.fontSize : core::kFreeTextDefaultSize;
+    a.defaultAppearance = core::freeTextDefaultAppearance(core::TypedFont::Helvetica, size, colour);
+    // Where the text will start: a box of one line, which the fitting below grows to what was typed.
+    const double inset = *a.borderWidth + core::kFreeTextPadding;
+    const double w = kind == core::FreeTextKind::Typewriter ? size + 2.0 * inset : width.value_or(kFreeTextWidthPoints);
+    a.rect = core::freeTextBoxAt(topLeft, std::max(w, size + 2.0 * inset), size * core::kTypedLeading + 2.0 * inset, a.rotate);
+    if (kind == core::FreeTextKind::Callout) {
+        a.lineEndings = {QStringLiteral("OpenArrow")};
+        a.callout = core::calloutLeader(target.value_or(core::PdfPoint{a.rect.left(), a.rect.bottom()}), a.rect);
+    }
+    core::Result<Annotation> fitted = core::fittedFreeText(a, style.han);
+    if (!fitted) {
+        emit refused(fitted.error());
+        return fitted.error();
+    }
+    return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(fitted).value()}));
+}
+
+core::Status AnnotationOverlay::editFreeText(const AnnotationId& id, const QString& text, core::TypedFont hanFallback)
+{
+    (void)commitNudge();
+    const Annotation* a = find(id);
+    if (a == nullptr || a->subtype != AnnotationSubtype::FreeText)
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.pdf.annotationUnknown"), id.toString()};
+    if (a->contents == text) return core::Status{};
+    Annotation after = *a;
+    after.contents = text;
+    after.modified = core::PdfDate::fromUtcSeconds(now());
+    if (!a->hasFlag(core::AnnotationFlag::Locked)) {
+        core::Result<Annotation> fitted = core::fittedFreeText(after, hanFallback);
+        if (!fitted) {
+            emit refused(fitted.error());
+            return fitted.error();
+        }
+        after = std::move(fitted).value();
+    } else if (const std::optional<char32_t> refusedCharacter = core::firstRefusedCharacter(text)) {
+        const core::Error error{core::ErrorCode::InvalidArgument, QLatin1String("error.edit.typedCharacterRefused"),
+                                core::describeCharacter(*refusedCharacter)};
+        emit refused(error);
+        return error;
+    }
+    return run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{std::move(after)}));
+}
+
+void AnnotationOverlay::reportRefusal(const core::Error& error)
+{
+    emit refused(error);
+}
+
 // ---- Pop-ups ------------------------------------------------------------------------------------
 
 void AnnotationOverlay::setPopupBehaviour(PopupBehaviour behaviour)

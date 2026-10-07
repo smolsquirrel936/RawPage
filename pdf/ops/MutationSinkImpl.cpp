@@ -131,6 +131,25 @@ bool sameSize(const core::PdfRect& a, const core::PdfRect& b)
     return std::abs(a.size.width - b.size.width) <= 1e-9 && std::abs(a.size.height - b.size.height) <= 1e-9;
 }
 
+// Stage 6 T7: the objects appearances share -- a font -- written into THIS update, once per key however many
+// appearances name them. One per compose: a font written by an earlier save is not reused, so an update is
+// read whole without its predecessor's objects being assumed (a later save could be of a file that lost it).
+class DeltaAppearanceObjects final : public AppearanceObjects {
+public:
+    explicit DeltaAppearanceObjects(cos::ObjectDelta& delta) : delta_(delta) {}
+    cos::CosRef shared(const std::string& key, cos::CosObject object) override
+    {
+        if (const auto found = written_.find(key); found != written_.end()) return found->second;
+        const cos::CosRef at{delta_.add(std::move(object)), 0};
+        written_.emplace(key, at);
+        return at;
+    }
+
+private:
+    cos::ObjectDelta& delta_;
+    std::map<std::string, cos::CosRef> written_;
+};
+
 // A `/Rect` read back as the four numbers written, within what a written real keeps.
 bool rectReadsBack(const cos::CosObject& dictionary, const core::PdfRect& rect)
 {
@@ -564,7 +583,8 @@ std::optional<cos::CosRef> MutationSinkImpl::resolveReference(const core::Annota
 
 core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& onDisk, const Edit& edit,
                                                           cos::ObjectDelta& delta,
-                                                          const std::map<QString, long long>& written)
+                                                          const std::map<QString, long long>& written,
+                                                          AppearanceObjects& shared)
 {
     if (!onDisk.isDictionary())
         return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", edit.now.page);
@@ -572,7 +592,7 @@ core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& 
     const ReferenceResolver resolve = [this, &written](const core::AnnotationId& id) { return resolveReference(id, written); };
     cos::CosObject edited = AnnotationOps::editedDictionary(onDisk, edit.disk, edit.now, resolve);
     if (edit.redraw) {
-        auto appearance = AppearanceStreamBuilder::normal(edit.now);
+        auto appearance = AppearanceStreamBuilder::normal(edit.now, shared);
         if (!appearance) return appearance.error();
         const long long number =
             delta.add(std::move(appearance.value().dictionary), std::move(appearance.value().data));
@@ -599,6 +619,7 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
     delta.reserveNumbersThrough(referenceFloor());
 
     std::map<QString, long long> written;   // nm -> the number this delta gave it
+    DeltaAppearanceObjects shared(delta);   // T7: fonts, once each
     std::map<core::AnnotationId, long long> promoted;   // T5: a direct dictionary edited -> its new object
 
     // T6: EVERY created annotation's number first, so two that name each other can both be written -- each
@@ -633,7 +654,7 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                 // A direct dictionary first edited becomes an object (D6-4), and the page lists that.
                 auto number = promoted.find(*entry.id);
                 if (number == promoted.end()) {
-                    auto dictionary = editedFrom(entry.value, edit->second, delta, written);
+                    auto dictionary = editedFrom(entry.value, edit->second, delta, written, shared);
                     if (!dictionary) return dictionary.error();
                     number = promoted.emplace(*entry.id, delta.add(std::move(dictionary).value())).first;
                 }
@@ -650,7 +671,7 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                         return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
                     std::optional<cos::CosRef> appearanceRef;
                     if (!AppearanceStreamBuilder::drawsNothing(annotation->subtype)) {
-                        auto appearance = AppearanceStreamBuilder::normal(*annotation);
+                        auto appearance = AppearanceStreamBuilder::normal(*annotation, shared);
                         if (!appearance) return appearance.error();
                         appearanceRef = cos::CosRef{
                             delta.add(std::move(appearance.value().dictionary), std::move(appearance.value().data)), 0};
@@ -696,7 +717,7 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
             if (edit == edits_.end() || !done.insert(*entry.id).second) continue;
             auto onDisk = table_.fetch(entry.reference.number);
             if (!onDisk) return onDisk.error();
-            auto dictionary = editedFrom(onDisk.value().object, edit->second, delta, written);
+            auto dictionary = editedFrom(onDisk.value().object, edit->second, delta, written, shared);
             if (!dictionary) return dictionary.error();
             delta.replace(entry.reference.number, std::move(dictionary).value());
         }

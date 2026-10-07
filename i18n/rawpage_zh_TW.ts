@@ -828,6 +828,10 @@
         <translation>圖說文字</translation>
     </message>
     <message>
+        <source>action.annot.typewriter</source>
+        <translation>打字機</translation>
+    </message>
+    <message>
         <source>action.annot.line</source>
         <translation>直線</translation>
     </message>
@@ -1645,6 +1649,18 @@
     <message>
         <source>shell.status.annotationToolInsert</source>
         <translation>已選取「%1」。在要插入文字的位置按一下，輸入內容後按 Enter。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolTextBox</source>
+        <translation>已選取「%1」。拖曳出方塊的位置或按一下，輸入文字後按 Enter（Shift+Enter 換行）。按兩下文字方塊可修改其文字。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolCallout</source>
+        <translation>已選取「%1」。在要指向的位置按下並拖曳到文字的位置（或按一下），輸入文字後按 Enter。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolTypewriter</source>
+        <translation>已選取「%1」。在文字開始的位置按一下，輸入文字後按 Enter（Shift+Enter 換行）。</translation>
     </message>
     <message>
         <source>shell.propertiesBar.nothing</source>
@@ -2556,6 +2572,10 @@
     <message>
         <source>error.edit.annotationContentsLocked</source>
         <translation>第 %1 頁此註解的文字已鎖定，因此無法變更。請先解除鎖定。</translation>
+    </message>
+    <message>
+        <source>error.edit.typedCharacterRefused</source>
+        <translation>輸入的註解無法顯示 %1。RawPage 只能以拉丁字母（Windows-1252）以及中文、日文和韓文字元繪製輸入的文字。</translation>
     </message>
     <message>
         <source>error.edit.annotationReadOnly</source>

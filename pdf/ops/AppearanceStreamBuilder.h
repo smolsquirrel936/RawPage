@@ -37,15 +37,36 @@
 // of the descender band -- so the strikeout is 42 % of the way up the box and the squiggle between 7 % and
 // 16 % of it (D6-32). No blend: only a highlight multiplies. A caret is Acrobat's notched wedge; a note is the `Comment` speech bubble (or the
 // `Note` page, the default `/Name`) in `/C`, outlined in black. A `Popup` has no appearance at all.
+//
+// ===========================================================================================
+// FREE TEXT -- Stage 6 T7 (D6-7, D6-8)
+// ===========================================================================================
+// A box, a callout and a typewriter are one subtype, `FreeText`, told apart by `/IT`. The text is set by
+// `core::layoutTypedText` -- the same lines the editor and the box's fitting see -- in the faces it chose
+// (Helvetica in WinAnsi, the four CJK collections through their UCS-2 CMaps), each line placed with its own
+// `Tm` so no rounding accumulates down a box, in the frame `core::freeTextFrame` gives: the rectangle less
+// `/RD`, turned by `/Rotate` so the text reads upright on a turned page, and clipped to it. Behind the text:
+// `/IC` filled, an outline `/BS /W` wide in `/C` (none for a typewriter); a callout's leader `/CL` in `/C`,
+// with `/LE`'s ending at its first point -- `OpenArrow`, `ClosedArrow` or none, and any other ending refused
+// by key until T8 draws line endings. Text in `/DA`'s colour and size. A character no face can show is
+// refused BY NAME (`error.edit.typedCharacterRefused`), and so is a `/DA` font this build does not draw
+// (`Courier`, …) -- never drawn in another face. A font is not embedded (D6-7): Helvetica is written with its
+// `/Widths`, so every reader sets the text on the same advances, and a CJK font as a `Type0` over a
+// `CIDFontType0` with `/DW 1000` and a `/FontDescriptor`, which ISO 32000-1 Table 117 requires indirect --
+// so free text is the first appearance with objects BESIDE its form, asked for through `AppearanceObjects`.
 
 #ifndef RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
 #define RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
 
 #include "core/Result.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/TypedText.h"
 #include "pdf/cos/CosObject.h"
 
+#include <QStringView>
+
 #include <string>
+#include <vector>
 
 namespace rawpage::pdf::ops {
 
@@ -55,10 +76,41 @@ struct Appearance {
     std::string data;            // the content stream, unencoded
 };
 
+// THE OBJECTS AN APPEARANCE'S FORM REFERS TO -- a font, and what a font refers to (Stage 6 T7). Each is asked
+// for by a KEY, and the same key twice is one object: a compose that draws ten comments in Helvetica writes
+// Helvetica once. `pdf/ops/MutationSinkImpl` writes them into the update.
+class AppearanceObjects {
+public:
+    virtual ~AppearanceObjects() = default;
+    // The reference `object` is written at. A key already asked for returns its object's reference, and
+    // `object` is not written again.
+    virtual cos::CosRef shared(const std::string& key, cos::CosObject object) = 0;
+};
+
+// Keeps what it is handed, numbered from `first` up -- for a dry run, and for a case that reads the objects.
+class CollectedAppearanceObjects final : public AppearanceObjects {
+public:
+    explicit CollectedAppearanceObjects(long long first = 1) : first_(first) {}
+    cos::CosRef shared(const std::string& key, cos::CosObject object) override;
+
+    struct Entry {
+        std::string key;
+        cos::CosRef at;
+        cos::CosObject object;
+    };
+    const std::vector<Entry>& entries() const noexcept { return entries_; }
+    const cos::CosObject* find(cos::CosRef at) const;
+
+private:
+    long long first_;
+    std::vector<Entry> entries_;
+};
+
 class AppearanceStreamBuilder {
 public:
     // Whether this build can draw `subtype`. Stage 6 T3: Highlight; T6: Underline, StrikeOut, Squiggly,
-    // Caret, and Text (a note, its `Comment` and `Note` icons -- another `/Name` is refused by `normal`).
+    // Caret, and Text (a note, its `Comment` and `Note` icons -- another `/Name` is refused by `normal`); T7:
+    // FreeText -- a box, a callout, a typewriter.
     static bool supports(core::AnnotationSubtype subtype) noexcept;
 
     // A kind that has NO appearance of its own: a `Popup` (ISO 32000-1 §12.5.6.14), which a reader draws as
@@ -66,10 +118,22 @@ public:
     // `/AP`, and verify asks it for none.
     static bool drawsNothing(core::AnnotationSubtype subtype) noexcept;
 
-    // The normal appearance of `annotation`. `error.pdf.appearanceUnsupported` for a subtype this build
-    // cannot draw; `error.pdf.appearanceGeometry` for geometry it cannot draw from (a highlight with no
-    // whole quadrilateral, a non-finite coordinate, a colour of 2 components).
+    // The normal appearance of `annotation`, the objects its form refers to handed to `objects`.
+    // `error.pdf.appearanceUnsupported` for a subtype this build cannot draw; `error.pdf.appearanceGeometry`
+    // for geometry it cannot draw from (a highlight with no whole quadrilateral, a non-finite coordinate, a
+    // colour of 2 components); `error.edit.typedCharacterRefused` for free text holding a character no face
+    // can show.
+    static core::Result<Appearance> normal(const core::Annotation& annotation, AppearanceObjects& objects);
+    // The same, its objects kept nowhere: whether `annotation` can be drawn, and its stream.
     static core::Result<Appearance> normal(const core::Annotation& annotation);
+
+    // The font object for `font` -- and, for a CJK one, its CIDFont and descriptor -- through `objects`, keyed
+    // so each is written once. What free text's `/Font` resources name; public so a case can set text in
+    // exactly the objects an appearance writes (`tests/render/tst_typedtext.cpp`).
+    static cos::CosRef fontObject(core::TypedFont font, AppearanceObjects& objects);
+    // `text` (in `font`'s faces only) as the codes `font`'s encoding gives it: WinAnsi bytes, or UCS-2,
+    // big-endian. Empty for a character the font has no code for.
+    static std::string encodeText(core::TypedFont font, QStringView text);
 };
 
 } // namespace rawpage::pdf::ops

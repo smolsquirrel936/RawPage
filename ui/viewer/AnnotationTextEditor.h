@@ -16,6 +16,13 @@
 // keep-the-tool (§8's Annotation tools row). `Enter` and `Esc` are claimed too: Annotation tools binds both,
 // and `edit.cancel` stays unregistered (Stage 4's I-06) so the editor's `Esc` reaches it either way.
 //
+// A TYPED COMMENT REFUSES WHAT CANNOT BE DRAWN, AS IT IS TYPED (S6 T7, D6-7). Free text is drawn in an
+// appearance, in five faces; a character none of them holds would be drawn as a box or as nothing. With
+// `setRefusesUnshowable`, every way text enters -- a key, an input method's commit, a paste, a drop -- is
+// checked BEFORE it reaches the document (`core::firstRefusedCharacter`), refused whole, and the first refused
+// character reported (`characterRefused`) so the page can name it. A note's text is never drawn, and refuses
+// nothing.
+//
 // It holds no catalog key: what it shows is what the person types.
 
 #ifndef RAWPAGE_UI_VIEWER_ANNOTATIONTEXTEDITOR_H
@@ -38,17 +45,29 @@ public:
     bool abandon();
     bool isFinished() const noexcept { return finished_; }
 
+    // S6 T7: refuse at input what no face can show -- see the header.
+    void setRefusesUnshowable(bool refuses) noexcept { refuses_ = refuses; }
+    bool refusesUnshowable() const noexcept { return refuses_; }
+
 signals:
     void committed(const QString& text);
     void abandoned();
+    // The first character of something refused, as a code point.
+    void characterRefused(uint character);
 
 protected:
     bool event(QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void focusOutEvent(QFocusEvent* event) override;
+    void inputMethodEvent(QInputMethodEvent* event) override;
+    void insertFromMimeData(const QMimeData* source) override;
 
 private:
+    // Whether `text` may enter; when not, says which character, once.
+    bool admits(const QString& text);
+
     bool finished_ = false;
+    bool refuses_ = false;
 };
 
 } // namespace rawpage::ui

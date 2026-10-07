@@ -366,6 +366,8 @@ RAWPAGE_ACTION(AnnotReplaceText,       "annot.replaceText",       Viewer, "actio
 RAWPAGE_ACTION(AnnotInsertText,        "annot.insertText",        Viewer, "action.annot.insertText")
 RAWPAGE_ACTION(AnnotTextBox,           "annot.textBox",           Viewer, "action.annot.textBox")
 RAWPAGE_ACTION(AnnotCallout,           "annot.callout",           Viewer, "action.annot.callout")
+// Stage 6 T7 (D6-8): typewriter text is a FreeText annotation, `/IT /FreeTextTypeWriter` -- minted chordless.
+RAWPAGE_ACTION(AnnotTypewriter,        "annot.typewriter",        Viewer, "action.annot.typewriter")
 RAWPAGE_ACTION(AnnotLine,              "annot.line",              Viewer, "action.annot.line")
 RAWPAGE_ACTION(AnnotArrow,             "annot.arrow",             Viewer, "action.annot.arrow")
 RAWPAGE_ACTION(AnnotRectangle,         "annot.rectangle",         Viewer, "action.annot.rectangle")

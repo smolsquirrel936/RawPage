@@ -132,14 +132,21 @@ HarfBuzz arrives with Stage 13's `shaping` feature. Offered on 2026-10-04 with t
 embedding whole fonts, **the user approved the proposal**: refuse such characters at input, by name, and
 record the gap here (`Stage6-Annotations-Plan.md` D6-7).
 
-**What exists today** (checked 2026-10-04, before any Stage 6 code):
+**What exists today** (checked 2026-10-04, before any Stage 6 code; **re-checked 2026-10-07 at Stage 6 T7**):
 
-- **No typed annotation exists yet**; Stage 6 T7 builds them, with the refusal.
+- **Since Stage 6 T7, typed annotations exist and the refusal is built** (`Stage6-Annotations-Plan.md`
+  D6-34): `core/doc/TypedText`'s `firstRefusedCharacter` names the first character no face can show, the
+  editor refuses it at input -- a key, an input method's commit, a paste, a drop -- and the builder refuses
+  an appearance holding one (`error.edit.typedCharacterRefused`). Which CJK characters are shown is a
+  generated table (`core/doc/CjkCoverage.inc`) restricted to CJK scripts -- GB 2312's Greek is refused all
+  the same -- and held to PDFium character by character (`tests/render/tst_typedtext.cpp`). The editor's
+  refusal is what a person meets of this entry.
 - Stage 5 T1 measured PDFium drawing a non-embedded `STSong-Light` through `UniGB-UCS2-H` with this
   machine's face (`STSong -> SimSun`, `corpus/ordinary/cjk-readable.pdf`) — the path D6-7 relies on for
   CJK.
 - `vcpkg.json`'s `shaping` feature (HarfBuzz and ICU) is **off** (`Stage5-TextSearch-Plan.md` D5-5).
-- No first-party code reads, subsets or writes a font program.
+- No first-party code reads, subsets or writes a font program -- T7 writes font DICTIONARIES naming the
+  base-14 Helvetica and the four CJK collections, and no program.
 
 **What is absent:** a font subsetter; a policy for choosing a system face per script and checking its
 embedding permission (`OS/2.fsType`); `/ToUnicode` generation for an embedded subset; and any measurement

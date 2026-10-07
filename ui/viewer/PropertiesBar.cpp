@@ -103,6 +103,10 @@ AnnotationToolDefaults& sessionToolDefaults(AnnotationToolKind kind)
         set(AnnotationToolKind::Squiggly, {0.0, 0.6, 0.0}, 1.0, 1.0);
         set(AnnotationToolKind::ReplaceText, {0.0, 0.0, 1.0}, 1.0, 1.0);
         set(AnnotationToolKind::InsertText, {0.0, 0.0, 1.0}, 1.0, 1.0);
+        // S6 T7. Typed text starts black, as a person's own writing does; a callout red, as Acrobat starts
+        // it -- its text, outline and leader one colour (D6-34). A typewriter has no outline at all.
+        set(AnnotationToolKind::Callout, {1.0, 0.0, 0.0}, 1.0, 1.0);
+        set(AnnotationToolKind::Typewriter, {0.0, 0.0, 0.0}, 1.0, 0.0);
         return t;
     }();
     return table[static_cast<std::size_t>(kind)];

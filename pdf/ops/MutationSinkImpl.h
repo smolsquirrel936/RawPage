@@ -87,6 +87,7 @@
 #include "core/doc/Annotation.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefTable.h"
+#include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/PageOps.h"
 
 #include <map>
@@ -199,8 +200,9 @@ private:
     std::vector<int> pagesToRewrite() const;
     // T5: an edited annotation's dictionary as it will be written, from `onDisk`; its appearance added to
     // `delta` when it is redrawn.
+    // T7: its appearance's shared objects (a font) through `shared`, one per compose.
     core::Result<cos::CosObject> editedFrom(const cos::CosObject& onDisk, const Edit& edit, cos::ObjectDelta& delta,
-                                            const std::map<QString, long long>& written);
+                                            const std::map<QString, long long>& written, AppearanceObjects& shared);
     // T6: where a reference to `id` is written -- see the header. `written` is this compose's created numbers.
     std::optional<cos::CosRef> resolveReference(const core::AnnotationId& id,
                                                 const std::map<QString, long long>& written) const;

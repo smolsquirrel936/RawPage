@@ -20,6 +20,7 @@
 
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/TypedText.h"
 #include "ui/viewer/tools/AnnotationTool.h"
 
 #include <QString>
@@ -43,6 +44,8 @@ struct AnnotationToolDefaults {
     std::vector<double> colour{1.0, 1.0, 0.0};
     double opacity = 1.0;
     double borderWidth = 1.0;
+    // S6 T7: typed text's size, in points -- the session's, unedited by the bar until T8's family (D6-13).
+    double fontSize = core::kFreeTextDefaultSize;
 
     bool operator==(const AnnotationToolDefaults&) const = default;
 };

@@ -120,6 +120,11 @@ const std::vector<Field>& fields()
              if (a.rotate == 0) return std::nullopt;
              return CosObject::makeInteger(a.rotate);
          }},
+        // Stage 6 T7: free text's alignment, left (the default) written as nothing.
+        {"Q", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.justification == 0) return std::nullopt;
+             return CosObject::makeInteger(a.justification);
+         }},
     };
     return table;
 }

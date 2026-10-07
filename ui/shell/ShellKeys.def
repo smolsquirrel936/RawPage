@@ -378,6 +378,10 @@ RAWPAGE_SHELL_STRING(StatusAnnotationToolMarkup,  "shell.status.annotationToolMa
 RAWPAGE_SHELL_STRING(StatusAnnotationToolNote,    "shell.status.annotationToolNote")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolReplace, "shell.status.annotationToolReplace")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolInsert,  "shell.status.annotationToolInsert")
+// S6 T7: the three typed tools, likewise.
+RAWPAGE_SHELL_STRING(StatusAnnotationToolTextBox,    "shell.status.annotationToolTextBox")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolCallout,    "shell.status.annotationToolCallout")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolTypewriter, "shell.status.annotationToolTypewriter")
 
 // --- Advanced Search (S5 T9, D5-13) -- `ui/panes/SearchPane`, the same `search.` family ---------------
 RAWPAGE_SHELL_STRING(SearchPaneTitle,            "search.pane.title")

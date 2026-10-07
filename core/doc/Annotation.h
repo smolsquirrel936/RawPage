@@ -165,6 +165,7 @@ struct Annotation {
     std::optional<AnnotationId> parent;         // a Popup's /Parent
     std::optional<bool> open;                   // /Open
     int rotate = 0;                             // /Rotate, a FreeText on a turned page
+    int justification = 0;                      // /Q, free text: 0 left, 1 centred, 2 right (Stage 6 T7)
     bool hasAppearance = false;                 // /AP present
 
     bool hasFlag(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }

@@ -942,6 +942,19 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/corpus/make-compare.py --self-test
         EXPECT_EXIT 0 EXPECT_MATCH "14 pairs checked, 4 of 4 controls fired")
 
+    # Stage 6 T7 (Stage6-Annotations-Plan.md D6-7, D6-34): core/doc/CjkCoverage.inc -- the characters each CJK
+    # collection can show in a typed comment -- is GENERATED, and is held to its generator the way the corpus is:
+    # it regenerates byte-identically, and its rows read back as the codecs' sets less what the engine
+    # measurement removed, with one changed bit as the control and Greek absent. Whether the ENGINE honours each
+    # claim is tests/render/tst_typedtext.cpp's; these two only say the file is the generator's.
+    set(CJK_COVERAGE "${CMAKE_SOURCE_DIR}/tools/cjk-coverage/make-cjk-coverage.py")
+    rawpage_add_gate_test(NAME gates.cjk_coverage.reproducible
+        COMMAND ${Python3_EXECUTABLE} ${CJK_COVERAGE} --verify
+        EXPECT_EXIT 0 EXPECT_MATCH "4 collections regenerate byte-identically")
+    rawpage_add_gate_test(NAME gates.cjk_coverage.self_test
+        COMMAND ${Python3_EXECUTABLE} ${CJK_COVERAGE} --self-test
+        EXPECT_EXIT 0 EXPECT_MATCH "1 of 1 control fired; Greek refused")
+
     # ----------------------------------------------------------------------------------
     # corpus/signed/ (Stage 3 T1, decision D3-2) -- the instrument A4's verdict will read.
     #
@@ -993,6 +1006,10 @@ else()
     foreach(case reproducible provenance self_test faults compare signed signed_accepting_validator_stops
                  signed_rejecting_validator_fails signed_shapes signed_shapes_self_test)
         add_test(NAME gates.corpus.${case}
+            COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RequirePython.cmake")
+    endforeach()
+    foreach(case reproducible self_test)
+        add_test(NAME gates.cjk_coverage.${case}
             COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RequirePython.cmake")
     endforeach()
 endif()

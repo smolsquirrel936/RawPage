@@ -6,6 +6,7 @@
 #include "core/backend.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/Document.h"
+#include "core/doc/TypedText.h"
 
 #include <QJsonArray>
 #include <QJsonValue>
@@ -723,6 +724,13 @@ Annotation AnnotationAppearance::appliedTo(const Annotation& a) const
 {
     Annotation out = a;
     if (color) out.color = *color;
+    // Stage 6 T7: free text's colour is its TEXT's as well as its outline's and leader's -- one colour, as the
+    // tools make it -- and the text's lives in `/DA`, which the redrawn appearance reads (D6-34).
+    if (color && a.subtype == AnnotationSubtype::FreeText && !color->empty()) {
+        DefaultAppearance da = DefaultAppearance::parse(a.defaultAppearance).value_or(DefaultAppearance{});
+        da.colour = *color;
+        out.defaultAppearance = da.toString();
+    }
     if (interiorColor) out.interiorColor = *interiorColor;
     if (opacity) out.opacity = *opacity;
     if (borderWidth) out.borderWidth = *borderWidth;

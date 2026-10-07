@@ -159,6 +159,39 @@ ContentStreamBuilder& ContentStreamBuilder::fill() { return op("f"); }
 ContentStreamBuilder& ContentStreamBuilder::stroke() { return op("S"); }
 ContentStreamBuilder& ContentStreamBuilder::fillAndStroke() { return op("B"); }
 ContentStreamBuilder& ContentStreamBuilder::endPath() { return op("n"); }
+ContentStreamBuilder& ContentStreamBuilder::clip() { return op("W"); }
+
+ContentStreamBuilder& ContentStreamBuilder::beginText() { return op("BT"); }
+ContentStreamBuilder& ContentStreamBuilder::endText() { return op("ET"); }
+
+ContentStreamBuilder& ContentStreamBuilder::font(std::string_view resource, double size)
+{
+    separate();
+    bytes_ += '/';
+    bytes_ += resource;
+    operand(size);
+    return op("Tf");
+}
+
+ContentStreamBuilder& ContentStreamBuilder::textMatrix(double a, double b, double c, double d, double e, double f)
+{
+    for (const double v : {a, b, c, d, e, f}) operand(v);
+    return op("Tm");
+}
+
+ContentStreamBuilder& ContentStreamBuilder::showText(std::string_view bytes)
+{
+    static constexpr char kHex[] = "0123456789ABCDEF";
+    separate();
+    bytes_ += '<';
+    for (const char c : bytes) {
+        const auto b = static_cast<unsigned char>(c);
+        bytes_ += kHex[b >> 4];
+        bytes_ += kHex[b & 0x0F];
+    }
+    bytes_ += '>';
+    return op("Tj");
+}
 
 core::Status ContentStreamBuilder::check(std::string_view stream)
 {
@@ -190,6 +223,9 @@ core::Status ContentStreamBuilder::check(std::string_view stream)
             if (token.text == "true" || token.text == "false" || token.text == "null") break;
             if (nesting > 0) return invalid("operator " + token.text + " inside an operand", token.offset);
             if (!isOperator(token.text)) return invalid("unknown operator " + token.text, token.offset);
+            // Stage 6 T7: a text object holds no `q` or `Q` (ISO 32000-1 Figure 9 and Table 51).
+            if (inText && (token.text == "q" || token.text == "Q"))
+                return invalid(token.text + " inside a text object", token.offset);
             if (token.text == "q" && ++saveDepth > kMaxSaveDepth)
                 return invalid("q nested deeper than 28", token.offset);
             if (token.text == "Q" && --saveDepth < 0) return invalid("Q with no q", token.offset);

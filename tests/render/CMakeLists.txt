@@ -78,7 +78,10 @@ add_executable(rawpage_render_tests
     tst_annotdisplay.cpp          # Stage 6 T4 -- guide A-34 (through commands), A-35, A-36, A-37, A-39 (D6-2,
                                   #   D6-10): what the live engine draws after an edit is what the saved file
                                   #   draws; the reload on the render thread, between jobs, with no copy
-    tst_saveengine.cpp            # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
+    tst_typedtext.cpp             # Stage 6 T7 -- guide A-56's engine half (D6-7): every character the CJK
+                                  #   coverage table claims read back and drawn by PDFium in its face, and
+                                  #   Helvetica's advance table held to the engine's own metrics
+    tst_saveengine.cpp           # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it
     # Stage 5 T12: A-97's bound is LIVE heap (Stage 2 I-35), and this walk of the heaps is the bench's

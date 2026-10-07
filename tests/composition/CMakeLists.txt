@@ -66,6 +66,11 @@ add_executable(rawpage_composition_tests
     # file reopened fresh. `AnnotProduct.h` is the fixture it shares with tst_annotink.
     tst_markupink.cpp
 
+    # Stage 6 T7 -- guide A-55 and A-56 through the TOOLS, and A-34/A-35's typed halves: the text box, the callout
+    # and the typewriter made with mouse and key events, edited in place, a refused character, a turned page,
+    # graded against the engine's pixels and the saved file reopened fresh.
+    tst_typedink.cpp
+
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp
     ${CMAKE_SOURCE_DIR}/app/CrashHandler.cpp

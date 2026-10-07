@@ -51,6 +51,8 @@ const char* annotationToolKindName(AnnotationToolKind kind) noexcept
     case AnnotationToolKind::Squiggly:        return "Squiggly";
     case AnnotationToolKind::ReplaceText:     return "ReplaceText";
     case AnnotationToolKind::InsertText:      return "InsertText";
+    case AnnotationToolKind::Callout:         return "Callout";
+    case AnnotationToolKind::Typewriter:      return "Typewriter";
     }
     return "?";
 }
@@ -83,6 +85,7 @@ Tool& ToolController::annotationToolFor(AnnotationToolKind which)
 {
     if (which == AnnotationToolKind::StickyNote) return note_;
     if (MarkupTool::handles(which)) return markup_;
+    if (TypewriterTool::handles(which)) return typed_;
     return annotation_;
 }
 
@@ -142,6 +145,7 @@ void ToolController::armAnnotation(AnnotationToolKind which)
         annotationKind_ = which;
         annotation_.setWhich(which);
         markup_.setWhich(which);
+        typed_.setWhich(which);
         emit armedChanged(armed_);   // the same kind of tool, another tool: said all the same
         emitCursor();
         host_.requestRepaint();
@@ -150,6 +154,7 @@ void ToolController::armAnnotation(AnnotationToolKind which)
     annotationKind_ = which;
     annotation_.setWhich(which);
     markup_.setWhich(which);
+    typed_.setWhich(which);
     arm(ToolKind::Annotate);
 }
 
@@ -178,6 +183,8 @@ constexpr Arming kArming[kAnnotationToolKindCount] = {
     {AnnotationToolKind::Squiggly, core::ActionId::AnnotSquiggly},
     {AnnotationToolKind::ReplaceText, core::ActionId::AnnotReplaceText},
     {AnnotationToolKind::InsertText, core::ActionId::AnnotInsertText},
+    {AnnotationToolKind::Callout, core::ActionId::AnnotCallout},
+    {AnnotationToolKind::Typewriter, core::ActionId::AnnotTypewriter},
 };
 
 } // namespace
@@ -193,7 +200,8 @@ core::ActionId armingAction(AnnotationToolKind kind) noexcept
 bool createsAnnotations(AnnotationToolKind kind) noexcept
 {
     return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
-           || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value();
+           || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value()
+           || TypewriterTool::handles(kind);
 }
 
 std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept

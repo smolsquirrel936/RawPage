@@ -62,6 +62,19 @@ public:
     ContentStreamBuilder& stroke();                                 // S
     ContentStreamBuilder& fillAndStroke();                          // B
     ContentStreamBuilder& endPath();                                // n
+    // Stage 6 T7: the current path becomes the clip, nonzero winding -- followed by a painting operator,
+    // usually `endPath()`, as ISO 32000-1 §8.5.4 requires.
+    ContentStreamBuilder& clip();                                   // W
+
+    // Text (Stage 6 T7). `BT`/`ET` are balanced by the caller and checked by `check()`; nothing inside them
+    // saves or restores the graphics state, which ISO 32000-1 Table 51 does not allow in a text object.
+    ContentStreamBuilder& beginText();                              // BT
+    ContentStreamBuilder& endText();                                // ET
+    ContentStreamBuilder& font(std::string_view resource, double size);   // /resource size Tf
+    ContentStreamBuilder& textMatrix(double a, double b, double c, double d, double e, double f);   // Tm
+    // Shows `bytes` -- codes in the current font's encoding -- written as a hexadecimal string, which no
+    // byte can break out of.
+    ContentStreamBuilder& showText(std::string_view bytes);         // <…> Tj
 
     const std::string& bytes() const noexcept { return bytes_; }
 

@@ -32,6 +32,8 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
+#include "core/doc/TypedText.h"
+#include "pdf/ops/AppearanceStreamBuilder.h"
 
 #include <QJsonDocument>
 
@@ -125,6 +127,28 @@ const Generators& registeredGenerators()
                  group.push_back(std::move(mark));
              }
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(group)));
+             // Stage 6 T7: TYPED TEXT -- a box, a callout and a typewriter, Latin and CJK, as one set and fitted
+             // as the overlay fits them (a box and its fonts, written once per compose).
+             std::vector<core::Annotation> typedSet;
+             for (const auto& [intent, text] : {std::pair{QString(), QStringLiteral("A text box")},
+                                               std::pair{QStringLiteral("FreeTextCallout"), QStringLiteral("\u4E2D\u6587 callout")},
+                                               std::pair{QStringLiteral("FreeTextTypeWriter"), QStringLiteral("typed")}}) {
+                 core::Annotation a = core::newAnnotation(core::AnnotationSubtype::FreeText, page,
+                                                          QStringLiteral("Reversibility"), 1791504000);
+                 a.intent = intent;
+                 a.contents = text;
+                 a.color = {1, 0, 0};
+                 a.borderWidth = intent == QLatin1String("FreeTextTypeWriter") ? 0.0 : 1.0;
+                 a.defaultAppearance = core::freeTextDefaultAppearance(core::TypedFont::Helvetica, 12, a.color);
+                 a.rect = core::freeTextBoxAt(core::PdfPoint{200, 300.0 - 60 * static_cast<double>(typedSet.size())}, 150, 20, 0);
+                 if (intent == QLatin1String("FreeTextCallout")) {
+                     a.lineEndings = {QStringLiteral("OpenArrow")};
+                     a.callout = core::calloutLeader(core::PdfPoint{120, 200}, a.rect);
+                 }
+                 const core::Result<core::Annotation> fitted = core::fittedFreeText(a, core::TypedFont::Traditional);
+                 if (fitted) typedSet.push_back(fitted.value());
+             }
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(typedSet)));
              return out;
          }},
         // Every annotation the page owns as ONE set, and its first alone -- including, on
@@ -155,7 +179,8 @@ const Generators& registeredGenerators()
                                                                          -3.0, 0.0, kEditInstant));
              return out;
          }},
-        // NEW TEXT on every annotation whose text it does not draw -- free text draws its own (T7's).
+        // NEW TEXT on every annotation -- and, since T7, on free text, which is REDRAWN with it: each one this
+        // build can draw (a `/DA` in a face it does not draw is refused, and is not what this sweep is about).
         {"annot.edit",
          [](const core::Document& document, int page) {
              std::vector<std::unique_ptr<Command>> out;
@@ -164,9 +189,9 @@ const Generators& registeredGenerators()
              std::vector<core::Annotation> after;
              for (const std::size_t index : store.onPage(page)) {
                  core::Annotation a = store.at(index);
-                 if (a.subtype == core::AnnotationSubtype::FreeText) continue;
                  a.contents = a.contents + QStringLiteral(" (edited)");
                  a.modified = core::PdfDate::fromUtcSeconds(kEditInstant);
+                 if (a.subtype == core::AnnotationSubtype::FreeText && !pdf::ops::AppearanceStreamBuilder::normal(a)) continue;
                  after.push_back(std::move(a));
              }
              if (after.empty()) return out;

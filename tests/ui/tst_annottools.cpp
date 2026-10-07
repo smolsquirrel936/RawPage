@@ -18,14 +18,18 @@
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/shell/StatusBar.h"
+#include "ui/viewer/AnnotationTextEditor.h"
 #include "ui/viewer/PageView.h"
+#include "ui/viewer/ToolController.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
+#include <QMimeData>
 
 using namespace rawpage;
 
@@ -95,9 +99,10 @@ TEST_CASE("each arming chord arms its tool from the page with nothing armed", "[
         {Qt::Key_S, ui::AnnotationToolKind::Stamp},           {Qt::Key_D, ui::AnnotationToolKind::MeasureDistance},
         {Qt::Key_A, ui::AnnotationToolKind::MeasureArea},     {Qt::Key_K, ui::AnnotationToolKind::RedactMark},
     };
-    // Fourteen chords; the three T6 kinds after them -- squiggly, replace, insert -- have none (§8 untouched).
+    // Fourteen chords; the three T6 kinds after them -- squiggly, replace, insert -- and T7's two -- callout,
+    // typewriter -- have none (§8 untouched).
     REQUIRE(std::size(chords) == ui::kChordedAnnotationToolCount);
-    REQUIRE(ui::kAnnotationToolKindCount == ui::kChordedAnnotationToolCount + 3);
+    REQUIRE(ui::kAnnotationToolKindCount == ui::kChordedAnnotationToolCount + 5);
     for (const auto& [key, kind] : chords) {
         Page page;
         INFO("Ctrl+Alt+" << QKeySequence(key).toString().toStdString());
@@ -149,4 +154,75 @@ TEST_CASE("with a tool armed the page's chords still act and another arming chor
     CHECK(ui::ShortcutBinder::declaredContext(page.view) == core::KeyContext::Viewer);
     page.key(Qt::Key_K);
     CHECK_FALSE(page.view->tools().keepToolSelected());
+}
+
+// ==========================================================================================
+// Stage 6 T7: a typed comment's editor refuses at input what no face can show (D6-7, guide A-56)
+// ==========================================================================================
+// Every way text enters a QPlainTextEdit but the key -- which `tests/composition/tst_typedink.cpp` presses --
+// is held here: an input method's COMMIT, a paste, and the note's editor, which refuses nothing.
+
+TEST_CASE("a typed editor refuses an input method's commit and a paste it cannot show and names the character",
+          "[annottools][A-56]")
+{
+    // A paste arrives as `insertFromMimeData`, which a person reaches by `Ctrl+V` or a drop; made reachable here.
+    struct OpenEditor : ui::AnnotationTextEditor {
+        using ui::AnnotationTextEditor::insertFromMimeData;
+    };
+    OpenEditor editor;
+    editor.setRefusesUnshowable(true);
+    std::vector<uint> refused;
+    QObject::connect(&editor, &ui::AnnotationTextEditor::characterRefused, [&refused](uint c) { refused.push_back(c); });
+    editor.show();
+    QCoreApplication::processEvents();
+
+    // An input method commits CJK -- accepted -- then Greek, which leaves nothing behind, not even its preedit.
+    QInputMethodEvent preedit(QStringLiteral("\u03B1"), {});
+    QCoreApplication::sendEvent(&editor, &preedit);
+    QInputMethodEvent greek(QString(), {});
+    greek.setCommitString(QStringLiteral("\u03B1\u03B2"));
+    QCoreApplication::sendEvent(&editor, &greek);
+    CHECK(editor.toPlainText().isEmpty());
+    REQUIRE(refused == std::vector<uint>{0x03B1});
+    QInputMethodEvent cjk(QString(), {});
+    cjk.setCommitString(QStringLiteral("\u4E2D\u6587"));
+    QCoreApplication::sendEvent(&editor, &cjk);
+    CHECK(editor.toPlainText() == QStringLiteral("\u4E2D\u6587"));
+
+    // A paste of mixed text is refused WHOLE -- none of it goes in -- and the first refused character named.
+    QMimeData mixed;
+    mixed.setText(QStringLiteral(" ok \u05E9\u05DC\u05D5\u05DD"));
+    editor.insertFromMimeData(&mixed);
+    CHECK(editor.toPlainText() == QStringLiteral("\u4E2D\u6587"));
+    REQUIRE(refused.size() == 2u);
+    CHECK(refused.back() == 0x05E9u);
+    QMimeData latin;
+    latin.setText(QStringLiteral(" caf\u00E9"));
+    editor.insertFromMimeData(&latin);
+    CHECK(editor.toPlainText() == QStringLiteral("\u4E2D\u6587 caf\u00E9"));
+
+    // A NOTE's editor draws nothing, so it refuses nothing.
+    ui::AnnotationTextEditor note;
+    CHECK_FALSE(note.refusesUnshowable());
+    note.show();
+    QInputMethodEvent any(QString(), {});
+    any.setCommitString(QStringLiteral("\u03A9"));
+    QCoreApplication::sendEvent(&note, &any);
+    CHECK(note.toPlainText() == QStringLiteral("\u03A9"));
+}
+
+TEST_CASE("the callout and the typewriter arm from their commands and say how they are used", "[annottools][D6-8]")
+{
+    Page page;
+    for (const auto& [id, kind] : {std::pair{core::ActionId::AnnotCallout, ui::AnnotationToolKind::Callout},
+                                   std::pair{core::ActionId::AnnotTypewriter, ui::AnnotationToolKind::Typewriter},
+                                   std::pair{core::ActionId::AnnotTextBox, ui::AnnotationToolKind::TextBox}}) {
+        INFO(ui::annotationToolKindName(kind));
+        REQUIRE(page.fixture.actions.dispatch(id, core::KeyContext::Viewer));
+        CHECK(page.view->tools().armedAnnotation() == kind);
+        CHECK(ui::createsAnnotations(kind));
+        CHECK(ui::armedBy(id) == std::optional<ui::AnnotationToolKind>(kind));
+        CHECK(ui::armingAction(kind) == id);
+        CHECK(page.view->tools().cursor() == (kind == ui::AnnotationToolKind::Typewriter ? Qt::IBeamCursor : Qt::CrossCursor));
+    }
 }

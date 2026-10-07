@@ -59,6 +59,7 @@
 #include "ui/viewer/tools/MarkupTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 #include "ui/viewer/tools/NoteTool.h"
+#include "ui/viewer/tools/TypewriterTool.h"
 #include "ui/viewer/tools/SelectTool.h"
 #include "ui/viewer/tools/SnapshotTool.h"
 #include "ui/viewer/tools/Tool.h"
@@ -185,6 +186,7 @@ private:
     AnnotationTool  annotation_;
     MarkupTool      markup_;     // S6 T6
     NoteTool        note_;       // S6 T6
+    TypewriterTool  typed_;      // S6 T7: the text box, the callout, the typewriter
     AnnotationToolKind annotationKind_ = AnnotationToolKind::Highlight;
     bool            keepToolSelected_ = false;
 

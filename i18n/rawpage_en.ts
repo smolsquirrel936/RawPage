@@ -828,6 +828,10 @@
         <translation>Callout</translation>
     </message>
     <message>
+        <source>action.annot.typewriter</source>
+        <translation>Typewriter</translation>
+    </message>
+    <message>
         <source>action.annot.line</source>
         <translation>Line</translation>
     </message>
@@ -1645,6 +1649,18 @@
     <message>
         <source>shell.status.annotationToolInsert</source>
         <translation>%1 is selected. Click where the text goes in, then type it and press Enter.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolTextBox</source>
+        <translation>%1 is selected. Drag where the box goes, or click, then type and press Enter (Shift+Enter starts a new line). Double-click a text box to change its text.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolCallout</source>
+        <translation>%1 is selected. Press on what it points at and drag to where the text goes, or click, then type and press Enter.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolTypewriter</source>
+        <translation>%1 is selected. Click where the text starts, then type and press Enter (Shift+Enter starts a new line).</translation>
     </message>
     <message>
         <source>shell.propertiesBar.nothing</source>
@@ -2556,6 +2572,10 @@
     <message>
         <source>error.edit.annotationContentsLocked</source>
         <translation>The text of this comment on page %1 is locked, so it cannot be changed. Unlock it first.</translation>
+    </message>
+    <message>
+        <source>error.edit.typedCharacterRefused</source>
+        <translation>%1 cannot be shown in a typed comment. RawPage draws typed text in Latin letters (Windows-1252) and in Chinese, Japanese and Korean characters only.</translation>
     </message>
     <message>
         <source>error.edit.annotationReadOnly</source>
