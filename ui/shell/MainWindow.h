@@ -44,6 +44,7 @@
 #include "app/Services.h"
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
+#include "core/doc/Annotation.h"
 #include "core/text/SearchEngine.h"
 #include "ui/dialogs/CompareDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
@@ -70,7 +71,9 @@ class ActionFactory;
 class DocumentTabBar;
 class DocumentWindow;
 class FullScreenController;
+class AnnotationOverlay;
 class BookmarksPane;
+class CommentsPane;
 class ComparisonView;
 class DestinationsPane;
 class LogPane;
@@ -287,6 +290,8 @@ public:
     FullScreenController* fullScreen() const noexcept { return fullScreen_.get(); }
     BookmarksPane*      bookmarksPane() const { return bookmarks_; }
     DestinationsPane*   destinationsPane() const { return destinations_; }
+    // S6 T9 (D6-12): the Comments pane, one per window like the others, over the store of the tab in front.
+    CommentsPane*       commentsPane() const { return comments_; }
 
     // ---- THE SIDEBAR AS ONE OPAQUE STRING (S4 T13, D4-9) -------------------------------------
     // What `core::SessionWindow::paneLayout` holds, encoded and decoded HERE because it is a Qt
@@ -375,6 +380,10 @@ private:
     void buildCentralSurface();
     void buildAutoHideStrips();
     void registerActions();
+    // S6 T9: the Comments pane's half of `registerActions` and of the document wiring.
+    void registerCommentActions();
+    void updateCommentNumbers();
+    void revealComment(const core::AnnotationId& id, int page, const core::PdfRect& rect);
     void updateAutoHideStrips();
 
     // The Quick Access Toolbar's two placements (`Features.md` §1.1) are two positions in the
@@ -502,6 +511,9 @@ private:
     ThumbnailsPane*   thumbnails_ = nullptr;
     BookmarksPane*    bookmarks_ = nullptr;
     DestinationsPane* destinations_ = nullptr;
+    CommentsPane*     comments_ = nullptr;
+    // S6 T9: the overlay the pane's sequence numbers were last given -- cleared when the tab in front changes.
+    QPointer<AnnotationOverlay> numberedOverlay_;
     LogPane*          logPane_ = nullptr;
     SearchPane*       searchPane_ = nullptr;
     // S5 T13: an owned window, deleted on close -- so a guarded pointer, never a raw one.

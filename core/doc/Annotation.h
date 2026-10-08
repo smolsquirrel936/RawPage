@@ -212,6 +212,26 @@ Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& aut
 // 32 lowercase hex digits from the system's random source.
 QString newAnnotationName();
 
+// ---- Replies and states (Stage 6 T9, D6-12, D6-36) -------------------------------------------------
+// A REPLY to `parent`: a `Text` annotation with the `Comment` icon, `/IRT` the parent, `/RT /R` (the default,
+// so nothing is written for it), flags `Print | NoZoom | NoRotate` as a note's -- and its rectangle the
+// generator's convention (`corpus/make-annots.py`): the parent's own when the parent is a note, so the reply's
+// icon sits under it; otherwise a note-sized square in the right margin at the parent's height, 52 points in
+// from `pageBox`'s right edge. `colour` is used where the parent is not a note (a note's reply takes its
+// colour). No pop-up: the Comments pane is where a reply is read and written.
+Annotation newReply(const Annotation& parent, const PdfRect& pageBox, const QString& contents,
+                    const std::vector<double>& colour, const QString& author, std::int64_t utcNow);
+
+// A STATE REPLY to `parent` -- a review status or a checkmark (ISO 32000-1 §12.5.6.3): a `Text` with `/IRT` the
+// parent, `/StateModel` `model` and `/State` `state`, at the parent's rectangle, HIDDEN (flags 30, Acrobat's)
+// and with no `/AP` and no `/Contents` -- it is a status, not a comment, and its words are the reader's to show.
+Annotation newStateReply(const Annotation& parent, const QString& model, const QString& state, const QString& author,
+                         std::int64_t utcNow);
+
+// The two state models ISO 32000-1 Table 172 names, and the states each allows.
+bool isStateModelName(const QString& model);
+bool isStateOfModel(const QString& model, const QString& state);
+
 // Stage 6 T8: whether `name` is one of ISO 32000-1 Table 166's border styles -- S, D, B, I, U -- and whether it
 // is one of the blend modes ISO 32000-2 Table 136 names (`Normal` … `Luminosity`, and the deprecated
 // `Compatible`, which means `Normal`).

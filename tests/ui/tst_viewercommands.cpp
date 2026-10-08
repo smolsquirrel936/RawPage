@@ -170,7 +170,9 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     CHECK(viewer.fixture.actions.isRegistered(core::ActionId::PageRotate));
     CHECK(ui::ShortcutBinder::consumes(viewer.press("Ctrl+R")));
 
-    // THE CENSUS, re-counted from the table: 50 dispatched Viewer rows registered, 3 not, since Stage 6 T5,
+    // THE CENSUS, re-counted from the table: 52 dispatched Viewer rows registered, 1 not, since Stage 6 T9, which
+    // registered `Ctrl+.` and `Ctrl+,` (`nav.nextComment`, `nav.prevComment`, D6-12); the one left is `Ctrl+B`
+    // (Stage 7). 50 and 3 from Stage 6 T5,
     // which registered the fourteen annotation-tool arming chords and `Ctrl+E` (`view.togglePropertiesBar`,
     // D6-9). 35 and 18 from 2026-10-04, when the fourteen (`Ctrl+Alt+M`, `H`, `U`, `X`, `T`, `L`,
     // `R`, `O`, `N`, `P`, `S`, `D`, `A`, `K`) moved here from Annotation tools (`Stage6-Annotations-Plan.md`
@@ -180,8 +182,8 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     // `Ctrl+[` (the comparison, D5-18) at Stage 5 T13. The four left are `Ctrl+B`, `Ctrl+E`, `Ctrl+.` and
     // `Ctrl+,` -- the figure the guide's A-108 names. A change to either is a registration or a table edit,
     // and belongs in the same change as this.
-    CHECK(registered == 50);
-    CHECK(unregistered == 3);
+    CHECK(registered == 52);
+    CHECK(unregistered == 1);
 }
 
 // =============================================================================================

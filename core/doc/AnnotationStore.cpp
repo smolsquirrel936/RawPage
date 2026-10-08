@@ -4,7 +4,9 @@
 #include "core/doc/AnnotationStore.h"
 
 #include <QCryptographicHash>
+#include <QDate>
 #include <QJsonDocument>
+#include <QStringList>
 
 #include <algorithm>
 #include <limits>
@@ -66,9 +68,11 @@ AnnotationStore AnnotationStore::fromReading(Reading reading)
 void AnnotationStore::reindex()
 {
     byObject_.clear();
+    byCreated_.clear();
     for (std::size_t index = 0; index < annotations_.size(); ++index) {
         const AnnotationId& id = annotations_[index].id;
         if (id.kind == AnnotationId::Kind::Object) byObject_.emplace(id.object, index);
+        if (id.kind == AnnotationId::Kind::Created) byCreated_.emplace(id.nm, index);
     }
     // The thread notes are recomputed with the threads; the reading's are what the file held at open.
     notes_ = readingNotes_;
@@ -91,6 +95,11 @@ Status AnnotationStore::status() const
 std::optional<std::size_t> AnnotationStore::find(const AnnotationId& id) const
 {
     if (id.kind == AnnotationId::Kind::Object) return findObject(id.object);
+    if (id.kind == AnnotationId::Kind::Created) {
+        const auto found = byCreated_.find(id.nm);
+        if (found == byCreated_.end()) return std::nullopt;
+        return found->second;
+    }
     for (std::size_t index = 0; index < annotations_.size(); ++index) {
         if (annotations_[index].id == id) return index;
     }
@@ -279,6 +288,24 @@ bool AnnotationStore::isMarkedBy(std::size_t index, const QString& author) const
 
 std::vector<std::size_t> AnnotationStore::query(const Filter& filter, SortKey key) const
 {
+    // T9: an item's text is found in it or in any reply under it -- the descendants walked iteratively, as
+    // the threads are built, and state replies skipped (their text is a status, not a comment).
+    const auto textMatches = [this, &filter](std::size_t index) {
+        std::vector<std::size_t> pending{index};
+        while (!pending.empty()) {
+            const std::size_t at = pending.back();
+            pending.pop_back();
+            const Annotation& a = annotations_[at];
+            if (containsCaseless(a.contents, filter.text) || containsCaseless(a.subject, filter.text)
+                || containsCaseless(a.author, filter.text))
+                return true;
+            for (const std::size_t child : children_[at]) {
+                if (!annotations_[child].isStateReply()) pending.push_back(child);
+            }
+        }
+        return false;
+    };
+
     std::vector<std::size_t> out;
     for (const std::size_t index : topLevel()) {
         const Annotation& a = annotations_[index];
@@ -291,12 +318,20 @@ std::vector<std::size_t> AnnotationStore::query(const Filter& filter, SortKey ke
         if (!filter.subtypes.empty()
             && std::find(filter.subtypes.begin(), filter.subtypes.end(), a.subtype) == filter.subtypes.end())
             continue;
-        if (!filter.text.isEmpty() && !containsCaseless(a.contents, filter.text)
-            && !containsCaseless(a.subject, filter.text) && !containsCaseless(a.author, filter.text))
-            continue;
+        if (!filter.text.isEmpty() && !textMatches(index)) continue;
         if (!filter.includeHidden
             && (a.hasFlag(AnnotationFlag::Hidden) || a.hasFlag(AnnotationFlag::NoView)))
             continue;
+        if (!filter.statuses.empty()
+            && std::find(filter.statuses.begin(), filter.statuses.end(), reviewStatus(index)) == filter.statuses.end())
+            continue;
+        if (filter.checked && isMarkedBy(index, filter.identity) != *filter.checked) continue;
+        if (filter.from || filter.to) {
+            const std::int64_t at = when(a);
+            if (at == std::numeric_limits<std::int64_t>::min()) continue;
+            if (filter.from && at < *filter.from) continue;
+            if (filter.to && at > *filter.to) continue;
+        }
         out.push_back(index);
     }
 
@@ -339,6 +374,158 @@ std::vector<QString> AnnotationStore::authors() const
     }
     std::sort(out.begin(), out.end());
     return out;
+}
+
+// --- The Comments pane (Stage 6 T9) -----------------------------------------------------------
+
+QString AnnotationStore::reviewStatus(std::size_t index) const
+{
+    const std::optional<AnnotationStateChange> current = currentReview(index);
+    if (!current || current->state.isEmpty()) return QStringLiteral("None");
+    return current->state;
+}
+
+std::vector<AnnotationStore::Group> AnnotationStore::grouped(const Filter& filter, GroupKey group, SortKey sort,
+                                                             int utcOffsetSeconds) const
+{
+    const std::vector<std::size_t> items = query(filter, sort);
+    if (group == GroupKey::None) return {Group{QString(), items}};
+
+    const auto keyOf = [&](std::size_t index) -> QString {
+        const Annotation& a = annotations_[index];
+        switch (group) {
+        case GroupKey::None: return QString();
+        case GroupKey::Page: return QString::number(a.page);
+        case GroupKey::Author: return a.author;
+        case GroupKey::Date: {
+            const std::int64_t at = when(a);
+            if (at == std::numeric_limits<std::int64_t>::min()) return QString();
+            // The calendar day at the host's offset: whole days since 1970-01-01, floored for an instant
+            // before it, counted from that day's Julian day number (2440588).
+            const std::int64_t local = at + utcOffsetSeconds;
+            const std::int64_t days = local >= 0 ? local / 86400 : -((-local + 86399) / 86400);
+            return QDate::fromJulianDay(2440588 + days).toString(Qt::ISODate);
+        }
+        case GroupKey::Type: return QString(annotationSubtypeName(a.subtype));
+        case GroupKey::ReviewStatus: return reviewStatus(index);
+        case GroupKey::Checkmark:
+            return isMarkedBy(index, filter.identity) ? QStringLiteral("Marked") : QStringLiteral("Unmarked");
+        }
+        return QString();
+    };
+
+    // The groups in first-seen order, each keeping `query`'s sort; then the groups put in their key's order.
+    std::vector<Group> groups;
+    std::map<QString, std::size_t> at;
+    for (const std::size_t index : items) {
+        const QString key = keyOf(index);
+        auto found = at.find(key);
+        if (found == at.end()) {
+            found = at.emplace(key, groups.size()).first;
+            groups.push_back(Group{key, {}});
+        }
+        groups[found->second].items.push_back(index);
+    }
+
+    static const QStringList kStatusOrder{QStringLiteral("Accepted"), QStringLiteral("Rejected"),
+                                          QStringLiteral("Cancelled"), QStringLiteral("Completed"),
+                                          QStringLiteral("None")};
+    const auto rank = [&](const Group& g) -> std::pair<int, QString> {
+        switch (group) {
+        case GroupKey::Page: return {g.key.toInt(), QString()};
+        case GroupKey::Author: return {g.key.isEmpty() ? 1 : 0, g.key.toCaseFolded()};
+        case GroupKey::Date: return {g.key.isEmpty() ? 1 : 0, QString()};
+        case GroupKey::ReviewStatus: {
+            const int position = static_cast<int>(kStatusOrder.indexOf(g.key));
+            // A state no model names (a producer's own) after the five, by name.
+            return {position < 0 ? static_cast<int>(kStatusOrder.size()) : position, g.key};
+        }
+        case GroupKey::Checkmark: return {g.key == QLatin1String("Marked") ? 0 : 1, QString()};
+        case GroupKey::Type:
+        case GroupKey::None: return {0, g.key};
+        }
+        return {0, g.key};
+    };
+    std::stable_sort(groups.begin(), groups.end(), [&](const Group& a, const Group& b) {
+        const auto ra = rank(a);
+        const auto rb = rank(b);
+        if (ra.first != rb.first) return ra.first < rb.first;
+        if (group == GroupKey::Date) return a.key > b.key;   // newest first: ISO dates compare as text
+        return ra.second < rb.second;
+    });
+    return groups;
+}
+
+std::vector<std::size_t> AnnotationStore::threadOf(std::size_t index) const
+{
+    std::vector<std::size_t> out;
+    if (index >= annotations_.size()) return out;
+    std::vector<bool> taken(annotations_.size(), false);
+    std::vector<std::size_t> pending{index};
+    while (!pending.empty()) {
+        const std::size_t at = pending.back();
+        pending.pop_back();
+        if (taken[at]) continue;
+        taken[at] = true;
+        for (const std::size_t child : children_[at]) pending.push_back(child);
+    }
+    // The pop-up of each, by its `/Popup` or by a pop-up's `/Parent` naming it.
+    for (std::size_t at = 0; at < annotations_.size(); ++at) {
+        if (!taken[at]) continue;
+        if (const std::optional<AnnotationId>& popup = annotations_[at].popup) {
+            if (const std::optional<std::size_t> found = find(*popup)) taken[*found] = true;
+        }
+    }
+    for (std::size_t at = 0; at < annotations_.size(); ++at) {
+        const Annotation& a = annotations_[at];
+        if (a.subtype != AnnotationSubtype::Popup || !a.parent || taken[at]) continue;
+        if (const std::optional<std::size_t> owner = find(*a.parent); owner && taken[*owner]) taken[at] = true;
+    }
+    for (std::size_t at = 0; at < annotations_.size(); ++at) {
+        if (taken[at]) out.push_back(at);
+    }
+    return out;
+}
+
+std::vector<int> AnnotationStore::sequenceNumbers(const std::vector<int>& rotations) const
+{
+    std::vector<int> numbers(annotations_.size(), 0);
+    struct Place {
+        int page;
+        double row;
+        double column;
+        std::size_t index;
+    };
+    std::vector<Place> places;
+    for (const std::size_t index : topLevel()) {
+        const Annotation& a = annotations_[index];
+        const int rotation = a.page >= 0 && static_cast<std::size_t>(a.page) < rotations.size()
+                                 ? ((rotations[static_cast<std::size_t>(a.page)] % 360) + 360) % 360
+                                 : 0;
+        const PdfRect& r = a.rect;
+        // The corner of the rectangle that is shown top-left, as a row (down the screen) and a column (across).
+        double row = -r.top();
+        double column = r.left();
+        if (rotation == 90) {
+            row = r.left();
+            column = r.bottom();
+        } else if (rotation == 180) {
+            row = r.bottom();
+            column = -r.right();
+        } else if (rotation == 270) {
+            row = -r.right();
+            column = -r.top();
+        }
+        places.push_back(Place{a.page, row, column, index});
+    }
+    std::stable_sort(places.begin(), places.end(), [](const Place& a, const Place& b) {
+        if (a.page != b.page) return a.page < b.page;
+        if (a.row != b.row) return a.row < b.row;
+        return a.column < b.column;
+    });
+    int next = 1;
+    for (const Place& place : places) numbers[place.index] = next++;
+    return numbers;
 }
 
 // --- Changes (Stage 6 T3) ---------------------------------------------------------------------
@@ -396,6 +583,7 @@ Status AnnotationStore::insert(const std::vector<std::pair<AnnotationPlacement, 
             annotations_.push_back(annotation);
             digests_.emplace_back();
             if (annotation.id.kind == AnnotationId::Kind::Object) byObject_.emplace(annotation.id.object, *index);
+            if (annotation.id.kind == AnnotationId::Kind::Created) byCreated_.emplace(annotation.id.nm, *index);
         }
         AnnotationListingEntry entry;
         entry.fact = factOf(annotations_[*index]);

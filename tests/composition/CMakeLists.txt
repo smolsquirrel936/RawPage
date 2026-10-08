@@ -73,6 +73,10 @@ add_executable(rawpage_composition_tests
     # S6 T8 -- guide A-34/A-35's drawing halves and A-63 in pixels: the shapes, the cloud and a pencil stroke
     # made with mouse and key events, saved and reopened fresh, undone to the page; a highlight's multiply.
     tst_drawink.cpp
+    # S6 T9 -- guide A-73 (the pane over annots-900.pdf's 9,000 comments, timed, its store's live heap), A-74
+    # through the REAL find bar (an unsaved comment found from the store, and selected), A-72's tile half.
+    tst_commentscale.cpp
+    ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp

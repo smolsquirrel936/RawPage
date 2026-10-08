@@ -1,5 +1,7 @@
 #include "core/text/SearchEngine.h"
 
+#include "core/doc/AnnotationStore.h"
+
 #include <QChar>
 
 #include <algorithm>
@@ -9,6 +11,34 @@
 
 namespace rawpage::core::text {
 namespace {
+
+// T9 (D6-11): what a comment is, for a search -- the subtypes `pdf/render/PdfiumDocument`'s reader calls
+// comments, so a document's comments are the same set whichever of the two readers gave them.
+bool isCommentSubtype(AnnotationSubtype subtype)
+{
+    switch (subtype) {
+    case AnnotationSubtype::Text:
+    case AnnotationSubtype::FreeText:
+    case AnnotationSubtype::Line:
+    case AnnotationSubtype::Square:
+    case AnnotationSubtype::Circle:
+    case AnnotationSubtype::Polygon:
+    case AnnotationSubtype::PolyLine:
+    case AnnotationSubtype::Highlight:
+    case AnnotationSubtype::Underline:
+    case AnnotationSubtype::Squiggly:
+    case AnnotationSubtype::StrikeOut:
+    case AnnotationSubtype::Stamp:
+    case AnnotationSubtype::Caret:
+    case AnnotationSubtype::Ink:
+    case AnnotationSubtype::FileAttachment:
+    case AnnotationSubtype::Sound:
+    case AnnotationSubtype::Redact:
+        return true;
+    default:
+        return false;
+    }
+}
 
 // A worker takes this many pages at a time, so the first search of a long document -- every page laid
 // out and normalized -- spreads over every worker rather than landing on one.
@@ -256,8 +286,38 @@ SearchEngine::~SearchEngine()
     for (std::thread& worker : workers_) worker.join();
 }
 
+std::shared_ptr<const SearchEngine::CommentUnits> SearchEngine::commentUnits(const AnnotationStore& store)
+{
+    auto out = std::make_shared<CommentUnits>();
+    if (!store.status()) return out;
+    for (int page = 0; page < store.pageCount(); ++page) {
+        auto part = std::make_shared<SearchUnitPart>();
+        part->part = kStoreCommentsPart;
+        for (const std::size_t index : store.onPage(page)) {
+            const Annotation& a = store.at(index);
+            if (!isCommentSubtype(a.subtype) || a.isStateReply()) continue;
+            SearchUnit base;
+            base.contentClass = ContentClass::Comments;
+            base.page = page;
+            base.rect = a.rect;
+            base.hasRect = a.rectFinite;
+            base.locator = a.id.toString();
+            for (const auto& [field, text] : {std::pair{SearchUnit::Field::CommentContents, &a.contents},
+                                              std::pair{SearchUnit::Field::CommentSubject, &a.subject}}) {
+                if (text->isEmpty()) continue;
+                SearchUnit unit = base;
+                unit.field = field;
+                unit.text = *text;
+                part->units.push_back(std::move(unit));
+            }
+        }
+        if (!part->units.empty()) out->emplace(page, std::move(part));
+    }
+    return out;
+}
+
 Result<SearchEngine::SearchId> SearchEngine::start(DocumentIndex::EntryId entry, const SearchQuery& query,
-                                                   Handlers handlers)
+                                                   Handlers handlers, std::shared_ptr<const CommentUnits> comments)
 {
     Result<CompiledQuery> compiled = compile(query);
     if (!compiled) {
@@ -305,7 +365,9 @@ Result<SearchEngine::SearchId> SearchEngine::start(DocumentIndex::EntryId entry,
     const SearchClasses& classes = query.classes;
     const bool selection = query.scope.kind == SearchScope::Kind::Selection;
     const bool wholeDocument = query.scope.kind == SearchScope::Kind::WholeDocument;
-    run.pageUnits = !selection && (classes.comments || classes.fields);
+    // T9 (D6-11): comments from the store, when given, and the engine's page parts then only for fields.
+    if (!selection && classes.comments && comments) run.comments = std::move(comments);
+    run.pageUnits = !selection && (classes.fields || (classes.comments && !run.comments));
     if (wholeDocument && classes.bookmarks) run.docParts.push_back(kOutlinePart);
     if (wholeDocument && classes.attachments) run.docParts.push_back(kAttachmentsPart);
     run.docSlots = run.docParts.empty() ? 0 : 1;
@@ -354,6 +416,9 @@ std::optional<SearchEngine::Piece> SearchEngine::collect(Run& run, int slot, boo
             if (ask) (void)index_.request(run.owner, run.entry, page, render::RenderPriority::Background);
         }
         if (run.pageUnits) needPart(page);
+        if (run.comments) {
+            if (const auto held = run.comments->find(page); held != run.comments->end()) piece.units.push_back(held->second);
+        }
     } else {
         for (const int part : run.docParts) needPart(part);
     }
@@ -390,6 +455,7 @@ void SearchEngine::submit(Run& run, std::vector<Piece> pieces)
             // One more than the bound, per page: a page cannot put more than that into the first N+1 hits,
             // and N+1 is what says there were more than N.
             job.limitPerPage = maxResults > 0 ? maxResults + 1 : 0;
+            job.storeComments = static_cast<bool>(run.comments);
             const std::size_t end = std::min(pieces.size(), at + kPagesPerJob);
             job.pieces.assign(std::make_move_iterator(pieces.begin() + static_cast<std::ptrdiff_t>(at)),
                               std::make_move_iterator(pieces.begin() + static_cast<std::ptrdiff_t>(end)));
@@ -513,8 +579,11 @@ void SearchEngine::workerLoop()
                     ++result.failedUnitParts;
                     continue;
                 }
+                // T9: with the store's comments in the job, an engine part's are the file's -- not what is open.
+                const bool engineComments = job.storeComments && part->part != kStoreCommentsPart;
                 for (std::size_t i = 0; i < part->units.size(); ++i) {
                     if (!classes.includes(part->units[i].contentClass)) continue;
+                    if (engineComments && part->units[i].contentClass == ContentClass::Comments) continue;
                     const int room = job.limitPerPage > 0
                                          ? job.limitPerPage - static_cast<int>(result.hits.size())
                                          : 0;
@@ -716,12 +785,13 @@ bool SearchEngine::waitForIdle(int milliseconds)
 // SearchSession
 // =====================================================================================================
 
-Status SearchSession::start(DocumentIndex::EntryId entry, const SearchQuery& query, SearchEngine::Handlers handlers)
+Status SearchSession::start(DocumentIndex::EntryId entry, const SearchQuery& query, SearchEngine::Handlers handlers,
+                            std::shared_ptr<const SearchEngine::CommentUnits> comments)
 {
     // THE NEW RUN ASKS FIRST, THEN THE OLD ONE LETS GO (the class comment): the pages both want keep their
     // tickets instead of being cancelled and asked again.
     const SearchEngine::SearchId previous = current_;
-    const Result<SearchEngine::SearchId> started = engine_.start(entry, query, std::move(handlers));
+    const Result<SearchEngine::SearchId> started = engine_.start(entry, query, std::move(handlers), std::move(comments));
     current_ = started ? started.value() : 0;
     if (previous != 0) engine_.cancel(previous);
     if (!started) return started.error();

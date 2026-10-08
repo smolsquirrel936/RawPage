@@ -119,6 +119,10 @@ public:
     void setDocument(core::text::DocumentIndex::EntryId entry, int pageCount, SelectionOverlay* overlay);
     // Which page the reader is on, so a search's current hit is the first at or after it.
     void setCurrentPageProvider(std::function<int()> provider) { currentPage_ = std::move(provider); }
+    // S6 T9 (D6-11): the comments of the document as it is NOW -- its store's, unsaved ones included -- asked for
+    // at each search; with none set, comments are read from the file through the engine.
+    using CommentSource = std::function<std::shared_ptr<const core::text::SearchEngine::CommentUnits>()>;
+    void setCommentSource(CommentSource source) { commentSource_ = std::move(source); }
 
     // ---- The five things its commands do ------------------------------------------------------------
     void open();             // `find.find`: shown, focused, its text selected
@@ -167,6 +171,8 @@ public:
 signals:
     // The document window reveals it in the pane a person is in.
     void hitActivated(int page, core::PdfRect rect);
+    // S6 T9 (D6-11): a comment hit names the annotation it is in (its unit's locator), and the window selects it.
+    void annotationHitActivated(const QString& locator);
     // A bookmark hit (T8): the document window goes to the bookmark's destination, as the Bookmarks pane does.
     void destinationActivated(const core::Destination& destination);
     // Closed by `Esc` or its button: the window gives the focus back to the page.
@@ -206,6 +212,7 @@ private:
     int pageCount_ = 0;
     QPointer<SelectionOverlay> overlay_;
     std::function<int()> currentPage_;
+    CommentSource commentSource_;
 
     QHBoxLayout* row_ = nullptr;
     QWidget* options_ = nullptr;          // the toggles, Highlight all, the scope and the range

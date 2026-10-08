@@ -323,6 +323,8 @@
             { "action": "pane.comments", "size": "large" },
             { "action": "comment.filter", "size": "small" },
             { "action": "comment.summarize", "size": "small" },
+            { "action": "comment.numbering", "size": "small" },
+            { "action": "comment.deleteMatching", "size": "small" },
             { "action": "comment.deleteAll", "size": "small" }
           ]
         },

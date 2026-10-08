@@ -1515,6 +1515,14 @@
         <source>action.ui.qatPlacement</source>
         <translation>Quick Access Toolbar Placement</translation>
     </message>
+    <message>
+        <source>action.comment.deleteMatching</source>
+        <translation>Delete the Filtered Comments</translation>
+    </message>
+    <message>
+        <source>action.comment.numbering</source>
+        <translation>Number Comments</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2262,6 +2270,10 @@
         <source>shell.toolFinder.unavailable</source>
         <translation>%1 — not built yet</translation>
     </message>
+    <message>
+        <source>shell.tooltip.needsComment</source>
+        <translation>Needs a comment selected in the Comments pane</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -2824,6 +2836,14 @@
     <message>
         <source>error.repair.wholeXref</source>
         <translation>This PDF's index was rebuilt from scratch (%1 objects). Save a copy to keep the repair.</translation>
+    </message>
+    <message>
+        <source>error.edit.noComment</source>
+        <translation>Select a comment in the Comments pane first</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationDirect</source>
+        <translation>This comment is stored inside its page, so it cannot be answered (page %1)</translation>
     </message>
 </context>
 <context>
@@ -3786,6 +3806,30 @@
         <source>command.page.rotateAll</source>
         <translation>Rotate all %1 pages by %2 degrees</translation>
     </message>
+    <message>
+        <source>command.annot.reply</source>
+        <translation>Reply to a comment</translation>
+    </message>
+    <message>
+        <source>command.annot.replyMany</source>
+        <translation>Reply to %1 comments</translation>
+    </message>
+    <message>
+        <source>command.annot.setStatus</source>
+        <translation>Set the review status</translation>
+    </message>
+    <message>
+        <source>command.annot.setStatusMany</source>
+        <translation>Set the review status of %1 comments</translation>
+    </message>
+    <message>
+        <source>command.annot.checkmark</source>
+        <translation>Change a checkmark</translation>
+    </message>
+    <message>
+        <source>command.annot.checkmarkMany</source>
+        <translation>Change %1 checkmarks</translation>
+    </message>
 </context>
 <context>
     <name>panes</name>
@@ -3824,6 +3868,18 @@
     <message>
         <source>panes.destinations.unresolved</source>
         <translation>Goes nowhere — its page is not in this document</translation>
+    </message>
+    <message>
+        <source>panes.comments.title</source>
+        <translation>Comments</translation>
+    </message>
+    <message>
+        <source>panes.comments.empty</source>
+        <translation>No document is open.</translation>
+    </message>
+    <message>
+        <source>panes.comments.unreadable</source>
+        <translation>This document's comments cannot be read: %1</translation>
     </message>
 </context>
 <context>
@@ -4246,6 +4302,297 @@
     <message>
         <source>compare.kind.pageReplaced</source>
         <translation>Page replaced</translation>
+    </message>
+</context>
+<context>
+    <name>comments</name>
+    <message>
+        <source>comments.search.placeholder</source>
+        <translation>Search comments</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.label</source>
+        <translation>Group</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.none</source>
+        <translation>No grouping</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.page</source>
+        <translation>By page</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.author</source>
+        <translation>By author</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.date</source>
+        <translation>By date</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.type</source>
+        <translation>By type</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.status</source>
+        <translation>By status</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.checkmark</source>
+        <translation>By checkmark</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.label</source>
+        <translation>Sort</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.page</source>
+        <translation>Page</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.date</source>
+        <translation>Date</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.author</source>
+        <translation>Author</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.type</source>
+        <translation>Type</translation>
+    </message>
+    <message>
+        <source>comments.column.comment</source>
+        <translation>Comment</translation>
+    </message>
+    <message>
+        <source>comments.column.author</source>
+        <translation>Author</translation>
+    </message>
+    <message>
+        <source>comments.column.page</source>
+        <translation>Page</translation>
+    </message>
+    <message>
+        <source>comments.column.date</source>
+        <translation>Date</translation>
+    </message>
+    <message>
+        <source>comments.column.status</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <source>comments.filter.button</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <source>comments.filter.authors</source>
+        <translation>Author</translation>
+    </message>
+    <message>
+        <source>comments.filter.types</source>
+        <translation>Type</translation>
+    </message>
+    <message>
+        <source>comments.filter.statuses</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <source>comments.filter.checkmark</source>
+        <translation>Checkmark</translation>
+    </message>
+    <message>
+        <source>comments.filter.any</source>
+        <translation>Any</translation>
+    </message>
+    <message>
+        <source>comments.filter.checked</source>
+        <translation>Checked by me</translation>
+    </message>
+    <message>
+        <source>comments.filter.unchecked</source>
+        <translation>Not checked by me</translation>
+    </message>
+    <message>
+        <source>comments.filter.dateRange</source>
+        <translation>Date range…</translation>
+    </message>
+    <message>
+        <source>comments.filter.from</source>
+        <translation>From</translation>
+    </message>
+    <message>
+        <source>comments.filter.to</source>
+        <translation>To</translation>
+    </message>
+    <message>
+        <source>comments.filter.clearDates</source>
+        <translation>Any date</translation>
+    </message>
+    <message>
+        <source>comments.filter.showAll</source>
+        <translation>Show all comments</translation>
+    </message>
+    <message>
+        <source>comments.more.button</source>
+        <translation>More</translation>
+    </message>
+    <message>
+        <source>comments.group.page</source>
+        <translation>Page %1</translation>
+    </message>
+    <message>
+        <source>comments.group.noAuthor</source>
+        <translation>No author</translation>
+    </message>
+    <message>
+        <source>comments.group.undated</source>
+        <translation>No date</translation>
+    </message>
+    <message>
+        <source>comments.group.count</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>comments.check.marked</source>
+        <translation>Checked</translation>
+    </message>
+    <message>
+        <source>comments.check.unmarked</source>
+        <translation>Not checked</translation>
+    </message>
+    <message>
+        <source>comments.hidden</source>
+        <translation>(hidden)</translation>
+    </message>
+    <message>
+        <source>comments.item</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>comments.numbered</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>comments.editor.reply</source>
+        <translation>Reply to %1 — Enter to post, Esc to cancel</translation>
+    </message>
+    <message>
+        <source>comments.editor.edit</source>
+        <translation>Edit the comment — Enter to save, Esc to cancel</translation>
+    </message>
+    <message>
+        <source>comments.count</source>
+        <translation>%1 of %2 comments</translation>
+    </message>
+    <message>
+        <source>comments.historyEntry</source>
+        <translation>%1 — %2, %3</translation>
+    </message>
+    <message>
+        <source>comments.wrappedToFirst</source>
+        <translation>Reached the last comment; continued from the first</translation>
+    </message>
+    <message>
+        <source>comments.wrappedToLast</source>
+        <translation>Reached the first comment; continued from the last</translation>
+    </message>
+    <message>
+        <source>comments.none</source>
+        <translation>There is no comment to go to</translation>
+    </message>
+    <message>
+        <source>comments.status.Accepted</source>
+        <translation>Accepted</translation>
+    </message>
+    <message>
+        <source>comments.status.Rejected</source>
+        <translation>Rejected</translation>
+    </message>
+    <message>
+        <source>comments.status.Cancelled</source>
+        <translation>Cancelled</translation>
+    </message>
+    <message>
+        <source>comments.status.Completed</source>
+        <translation>Completed</translation>
+    </message>
+    <message>
+        <source>comments.status.None</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>comments.type.Text</source>
+        <translation>Note</translation>
+    </message>
+    <message>
+        <source>comments.type.FreeText</source>
+        <translation>Text box</translation>
+    </message>
+    <message>
+        <source>comments.type.Line</source>
+        <translation>Line</translation>
+    </message>
+    <message>
+        <source>comments.type.Square</source>
+        <translation>Rectangle</translation>
+    </message>
+    <message>
+        <source>comments.type.Circle</source>
+        <translation>Oval</translation>
+    </message>
+    <message>
+        <source>comments.type.Polygon</source>
+        <translation>Polygon</translation>
+    </message>
+    <message>
+        <source>comments.type.PolyLine</source>
+        <translation>Polyline</translation>
+    </message>
+    <message>
+        <source>comments.type.Highlight</source>
+        <translation>Highlight</translation>
+    </message>
+    <message>
+        <source>comments.type.Underline</source>
+        <translation>Underline</translation>
+    </message>
+    <message>
+        <source>comments.type.Squiggly</source>
+        <translation>Squiggly</translation>
+    </message>
+    <message>
+        <source>comments.type.StrikeOut</source>
+        <translation>Strikeout</translation>
+    </message>
+    <message>
+        <source>comments.type.Stamp</source>
+        <translation>Stamp</translation>
+    </message>
+    <message>
+        <source>comments.type.Caret</source>
+        <translation>Insertion</translation>
+    </message>
+    <message>
+        <source>comments.type.Ink</source>
+        <translation>Drawing</translation>
+    </message>
+    <message>
+        <source>comments.type.FileAttachment</source>
+        <translation>Attachment</translation>
+    </message>
+    <message>
+        <source>comments.type.Sound</source>
+        <translation>Sound</translation>
+    </message>
+    <message>
+        <source>comments.type.Redact</source>
+        <translation>Redaction mark</translation>
+    </message>
+    <message>
+        <source>comments.type.other</source>
+        <translation>Annotation</translation>
     </message>
 </context>
 </TS>

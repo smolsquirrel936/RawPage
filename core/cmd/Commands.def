@@ -35,5 +35,7 @@ RAWPAGE_COMMAND(EditAnnotationCommand, "annot.edit", "core/cmd/commands/Annotati
 RAWPAGE_COMMAND(MoveAnnotationCommand, "annot.move", "core/cmd/commands/AnnotationCommands.h")
 RAWPAGE_COMMAND(SetAnnotationAppearanceCommand, "annot.setAppearance", "core/cmd/commands/AnnotationCommands.h")
 RAWPAGE_COMMAND(LockAnnotationCommand, "annot.lock", "core/cmd/commands/AnnotationCommands.h")
+RAWPAGE_COMMAND(ReplyToAnnotationCommand, "annot.reply", "core/cmd/commands/AnnotationCommands.h")
+RAWPAGE_COMMAND(SetAnnotationStatusCommand, "annot.setStatus", "core/cmd/commands/AnnotationCommands.h")
 
 #undef RAWPAGE_COMMAND

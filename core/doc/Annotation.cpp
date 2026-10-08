@@ -453,6 +453,57 @@ Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& aut
     return a;
 }
 
+Annotation newReply(const Annotation& parent, const PdfRect& pageBox, const QString& contents,
+                    const std::vector<double>& colour, const QString& author, std::int64_t utcNow)
+{
+    constexpr double kNote = 20.0;          // a note's icon, `ui/viewer/AnnotationOverlay::kNoteSize`
+    constexpr double kMarginInset = 52.0;   // 540 on a 612-point page: the generator's margin column
+    Annotation a = newAnnotation(AnnotationSubtype::Text, parent.page, author, utcNow);
+    a.icon = QStringLiteral("Comment");
+    a.contents = contents;
+    a.flags = AnnotationFlag::Print | AnnotationFlag::NoZoom | AnnotationFlag::NoRotate;
+    a.inReplyTo = parent.id;
+    a.replyType = ReplyType::Reply;
+    if (parent.subtype == AnnotationSubtype::Text) {
+        a.rect = parent.rect;
+        a.color = parent.color;
+    } else {
+        a.rect = PdfRect{PdfPoint{pageBox.right() - kMarginInset, parent.rect.bottom() - 4.0}, PdfSize{kNote, kNote}};
+        a.color = colour;
+    }
+    return a;
+}
+
+Annotation newStateReply(const Annotation& parent, const QString& model, const QString& state, const QString& author,
+                         std::int64_t utcNow)
+{
+    Annotation a = newAnnotation(AnnotationSubtype::Text, parent.page, author, utcNow);
+    a.icon = QStringLiteral("Comment");
+    a.flags = AnnotationFlag::Hidden | AnnotationFlag::Print | AnnotationFlag::NoZoom | AnnotationFlag::NoRotate;
+    a.rect = parent.rect;
+    a.inReplyTo = parent.id;
+    a.replyType = ReplyType::Reply;
+    a.stateModel = model;
+    a.state = state;
+    a.hasAppearance = false;   // a status is drawn by no reader (Acrobat writes none)
+    return a;
+}
+
+bool isStateModelName(const QString& model)
+{
+    return model == QLatin1String("Review") || model == QLatin1String("Marked");
+}
+
+bool isStateOfModel(const QString& model, const QString& state)
+{
+    if (model == QLatin1String("Review"))
+        return state == QLatin1String("Accepted") || state == QLatin1String("Rejected")
+               || state == QLatin1String("Cancelled") || state == QLatin1String("Completed")
+               || state == QLatin1String("None");
+    if (model == QLatin1String("Marked")) return state == QLatin1String("Marked") || state == QLatin1String("Unmarked");
+    return false;
+}
+
 std::optional<PdfRect> markupRect(const std::vector<double>& quadPoints)
 {
     if (quadPoints.size() < 8 || quadPoints.size() % 8 != 0) return std::nullopt;

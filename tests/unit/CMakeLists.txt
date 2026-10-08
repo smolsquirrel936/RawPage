@@ -75,6 +75,9 @@ add_executable(rawpage_tests
     tst_annotdrawing.cpp          # Stage 6 T8 -- what the drawing tools write: every kind saved and read back
                                   #   (A-58, A-27, A-32), every appearance well-formed (A-66), blends (A-63),
                                   #   a file's shapes redrawn (A-26), an erase's command (A-60), A-29
+    tst_annotthreads.cpp          # Stage 6 T9 -- the Comments pane below the widgets: group, sort and filter
+                                  #   graded against the threads label (A-67), replies and statuses saved and
+                                  #   read back (A-68, A-69), a thread deleted as one step (A-71), numbers (A-72)
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

@@ -69,6 +69,22 @@ std::vector<core::AnnotationId> ownedIds(const core::Document& document, int pag
     return ids;
 }
 
+// Stage 6 T9: what page `page` owns that a reply or a status may answer -- not a pop-up, not a state reply, not a
+// `ReadOnly` one (D6-27), not a direct dictionary (D6-36) -- as the store holds them.
+std::vector<core::Annotation> answerable(const core::Document& document, int page)
+{
+    std::vector<core::Annotation> out;
+    const core::AnnotationStore& store = document.annotations();
+    if (!store.status()) return out;
+    for (const std::size_t index : store.onPage(page)) {
+        const core::Annotation& a = store.at(index);
+        if (a.subtype == core::AnnotationSubtype::Popup || a.isStateReply() || a.hasFlag(core::AnnotationFlag::ReadOnly)) continue;
+        if (a.id.kind == core::AnnotationId::Kind::Direct) continue;   // no object for /IRT to name (D6-36)
+        out.push_back(a);
+    }
+    return out;
+}
+
 // Makes the commands to try on page `page` of `document`.
 using Generator = std::function<std::vector<std::unique_ptr<Command>>(const core::Document& document, int page)>;
 using Generators = std::map<std::string, Generator>;
@@ -301,6 +317,40 @@ const Generators& registeredGenerators()
                  out.push_back(std::make_unique<core::LockAnnotationCommand>(ids, core::LockAnnotationCommand::kLockFlags, 0, kEditInstant));
              if (anyLocked)
                  out.push_back(std::make_unique<core::LockAnnotationCommand>(ids, 0, core::LockAnnotationCommand::kLockFlags, kEditInstant));
+             return out;
+         }},
+        // Stage 6 T9 (D6-12): a REPLY to the first comment the page owns, and one to each of its first two as one
+        // set -- not to a pop-up, a state reply or a ReadOnly one (D6-27), which the command refuses.
+        {"annot.reply",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const std::vector<core::Annotation> parents = answerable(document, page);
+             if (parents.empty()) return out;
+             const core::Page* sheet = document.pages().at(page);
+             const core::PdfRect box = sheet ? sheet->cropBox() : core::PdfRect{core::PdfPoint{0, 0}, core::PdfSize{612, 792}};
+             const auto make = [&](const core::Annotation& parent) {
+                 return core::newReply(parent, box, QStringLiteral("A reply (Zoë)"), {1, 1, 0},
+                                       QStringLiteral("Reversibility"), kEditInstant);
+             };
+             out.push_back(std::make_unique<core::ReplyToAnnotationCommand>(std::vector<core::Annotation>{make(parents.front())}));
+             if (parents.size() > 1)
+                 out.push_back(std::make_unique<core::ReplyToAnnotationCommand>(
+                     std::vector<core::Annotation>{make(parents[0]), make(parents[1])}));
+             return out;
+         }},
+        // A REVIEW STATUS on the first, and a CHECKMARK on every one the page owns as one set.
+        {"annot.setStatus",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const std::vector<core::Annotation> parents = answerable(document, page);
+             if (parents.empty()) return out;
+             out.push_back(std::make_unique<core::SetAnnotationStatusCommand>(std::vector<core::Annotation>{core::newStateReply(
+                 parents.front(), QStringLiteral("Review"), QStringLiteral("Accepted"), QStringLiteral("Reversibility"), kEditInstant)}));
+             std::vector<core::Annotation> marks;
+             for (const core::Annotation& parent : parents)
+                 marks.push_back(core::newStateReply(parent, QStringLiteral("Marked"), QStringLiteral("Marked"),
+                                                     QStringLiteral("Reversibility"), kEditInstant));
+             out.push_back(std::make_unique<core::SetAnnotationStatusCommand>(std::move(marks)));
              return out;
          }},
     };
@@ -568,7 +618,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
     SECTION("a registered type id with no generator")
     {
         CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete", "annot.edit",
-                                                                          "annot.move", "annot.setAppearance", "annot.lock"});
+                                                                          "annot.move", "annot.setAppearance", "annot.lock",
+                                                                          "annot.reply", "annot.setStatus"});
     }
 }
 
@@ -576,7 +627,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

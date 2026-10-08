@@ -438,7 +438,7 @@ void FindReplaceBar::startSearch()
     SearchEngine::Handlers handlers;
     handlers.progress = [this](const SearchEngine::Progress& progress) { onProgress(progress); };
     handlers.finished = [this](const SearchEngine::Outcome& outcome) { onFinished(outcome); };
-    const core::Status started = session_.start(entry_, query, std::move(handlers));
+    const core::Status started = session_.start(entry_, query, std::move(handlers), commentSource_ ? commentSource_() : nullptr);
     if (!started) {
         // AN INVALID PATTERN SEARCHES NOTHING AND SAYS SO (guide A-57): the error, never an empty list.
         error_ = catalog::translateError(QString(started.error().messageKey), started.error().context);
@@ -502,6 +502,8 @@ void FindReplaceBar::showCurrent(bool reveal)
         default:
             // Page text, a comment, a field: the page and the rectangle.
             if (const std::optional<core::PdfRect> rect = overlay_->searchHitRect(hit)) emit hitActivated(hit.page, *rect);
+            // A COMMENT HIT SELECTS ITS COMMENT (S6 T9, D6-11) -- once revealed, so the page is where it is.
+            if (hit.contentClass() == core::text::ContentClass::Comments) emit annotationHitActivated(hit.unit->locator);
             break;
         }
     }

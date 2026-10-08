@@ -169,10 +169,16 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // two Annotation tools rows T5 left for T8, `annot.finishShape` (`Enter`) and `annot.setToolDefault`
     // (`Ctrl+Alt+Enter`); 378 ids are declared.
     //
+    // **Fifteen more at Stage 6 T9** (D6-12): the Comments pane -- `pane.comments` (`Ctrl+Shift+C`), the eight
+    // Comments pane rows (`comment.openEditor`, `comment.editInPlace`, `comment.reply`, `comment.delete`,
+    // `comment.toggleCheckmark`, `comment.setStatus`, `find.inComments`), `nav.nextComment` and
+    // `nav.prevComment` (Viewer and Comments rows), `comment.deleteAll`, `comment.filter`, `comment.sort`, and the
+    // two MINTED chordless -- `comment.deleteMatching` and `comment.numbering`; 380 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 140);
+    CHECK(fixture.actions.registeredCount() == 155);
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotArrow));             // S6 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotPolyline));          // S6 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCloud));             // S6 T8
@@ -287,7 +293,8 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSave));
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveAs));
     CHECK(fixture.actions.isRegistered(core::ActionId::ToolSnapshot));            // S5 T10 (D5-11)
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));    // S6
+    CHECK(fixture.actions.isRegistered(core::ActionId::NavNextComment));          // S6 T9 (D6-12)
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::CommentSummarize));  // S8 (Q4, D6-19)
 
     // S4 T5's FOUR: the Thumbnails pane and the three §8 Page Thumbnails rows it services. The
     // other nine rows in that table need a `Command` and are Stage 7's, so they stay unregistered
@@ -299,10 +306,12 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageSelectAll));     // S7
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageDelete));        // S7
 
-    // And the seven panes whose MODELS do not exist are not registered either (D4-2): a pane
+    // And the six panes whose MODELS do not exist are not registered either (D4-2): a pane
     // cannot precede its model, and a chord that opened an empty dock would be indistinguishable
-    // from a pane that is broken. `pane.bookmarks` and `pane.destinations` arrive at T6.
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneComments));      // S6
+    // from a pane that is broken. `pane.bookmarks` and `pane.destinations` arrive at T6, `pane.comments`
+    // at Stage 6 T9.
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneComments));            // S6 T9
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneAttachments));   // S6 T11
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneLayers));        // S7
 
     // S4 T6's SEVEN: the two navigation panes and the five §8 Bookmarks rows that navigate.

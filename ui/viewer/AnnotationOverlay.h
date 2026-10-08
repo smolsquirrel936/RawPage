@@ -252,6 +252,12 @@ public:
     // Where a shown pop-up is drawn, in viewport logical pixels; empty when it is not shown.
     std::optional<QRectF> popupRect(const Viewport& view, const core::AnnotationId& id) const;
 
+    // ---- Sequence numbers (S6 T9, guide A-72) -------------------------------------------------------
+    // The Comments pane's numbers, painted beside each numbered annotation -- over the tiles, never in them, and
+    // never written. Empty: none shown.
+    void setNumbers(std::map<core::AnnotationId, int> numbers);
+    const std::map<core::AnnotationId, int>& numbers() const noexcept { return numbers_; }
+
     // ---- Painting ---------------------------------------------------------------------------------
     // The selection's outline and handles, a gesture's preview and the pop-ups -- over the tiles, never
     // in them (D4-11).
@@ -337,6 +343,7 @@ private:
     std::vector<core::AnnotationId> pinned_;               // shown by a double click
     std::optional<core::AnnotationId> hovered_;
     std::map<core::AnnotationId, QPointF> popupOffset_;    // moved by a drag of its title, logical px
+    std::map<core::AnnotationId, int> numbers_;            // S6 T9: the Comments pane's, while numbering is on
 };
 
 } // namespace rawpage::ui

@@ -409,6 +409,10 @@ RAWPAGE_ACTION(CommentFilter,          "comment.filter",          Comments, "act
 RAWPAGE_ACTION(CommentSort,            "comment.sort",            Comments, "action.comment.sort")
 RAWPAGE_ACTION(CommentDelete,          "comment.delete",          Comments, "action.comment.delete")
 RAWPAGE_ACTION(CommentEditInPlace,     "comment.editInPlace",     Comments, "action.comment.editInPlace")
+// MINTED at Stage 6 T9 (`Stage6-Annotations-Plan.md` §4's candidates), chordless, so §8 is untouched: *delete
+// everything matching the current filter* (`Features.md` §4.2) and *number comments sequentially*.
+RAWPAGE_ACTION(CommentDeleteMatching,  "comment.deleteMatching",  Global,   "action.comment.deleteMatching")
+RAWPAGE_ACTION(CommentNumbering,       "comment.numbering",       Global,   "action.comment.numbering")
 
 // =============================================================================================
 // Features.md §5 -- Assemble

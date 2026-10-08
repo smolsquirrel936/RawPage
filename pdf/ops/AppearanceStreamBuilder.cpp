@@ -891,6 +891,11 @@ bool AppearanceStreamBuilder::drawsNothing(core::AnnotationSubtype subtype) noex
     return subtype == core::AnnotationSubtype::Popup;
 }
 
+bool AppearanceStreamBuilder::drawsNothing(const core::Annotation& annotation) noexcept
+{
+    return drawsNothing(annotation.subtype) || annotation.isStateReply();
+}
+
 core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation& annotation)
 {
     DryRun nowhere;

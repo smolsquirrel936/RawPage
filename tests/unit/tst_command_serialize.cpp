@@ -126,6 +126,35 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  std::vector<core::AnnotationId>{core::AnnotationId::ofObject(12)}, 0, core::LockAnnotationCommand::kLockFlags, 1791504000));
              return out;
          }},
+        // Stage 6 T9: a reply to an annotation from the file and one to a reply RawPage made; statuses in both
+        // models, as a set (D6-12).
+        {"annot.reply",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::Annotation parent = sampleHighlight(0);
+             parent.id = core::AnnotationId::ofObject(12);
+             const core::PdfRect page{core::PdfPoint{0, 0}, core::PdfSize{612, 792}};
+             core::Annotation first = core::newReply(parent, page, QStringLiteral("Agreed."), {1, 1, 0}, QStringLiteral("Ana"), 1791504000);
+             core::Annotation second = core::newReply(first, page, QStringLiteral("Zoë too"), {1, 1, 0}, QStringLiteral("Zoë"), 1791504060);
+             out.push_back(std::make_unique<core::ReplyToAnnotationCommand>(std::vector<core::Annotation>{first}));
+             out.push_back(std::make_unique<core::ReplyToAnnotationCommand>(std::vector<core::Annotation>{first, second}));
+             return out;
+         }},
+        {"annot.setStatus",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::Annotation parent = sampleHighlight(0);
+             parent.id = core::AnnotationId::ofObject(12);
+             out.push_back(std::make_unique<core::SetAnnotationStatusCommand>(std::vector<core::Annotation>{
+                 core::newStateReply(parent, QStringLiteral("Review"), QStringLiteral("Accepted"), QStringLiteral("Ben"), 1791504000)}));
+             out.push_back(std::make_unique<core::SetAnnotationStatusCommand>(std::vector<core::Annotation>{
+                 core::newStateReply(parent, QStringLiteral("Marked"), QStringLiteral("Marked"), QStringLiteral("Ben"), 1791504000),
+                 core::newStateReply(parent, QStringLiteral("Marked"), QStringLiteral("Unmarked"), QStringLiteral("Ana"), 1791504001)}));
+             out.push_back(std::make_unique<core::SetAnnotationStatusCommand>(std::vector<core::Annotation>{
+                 core::newStateReply(parent, QStringLiteral("Review"), QStringLiteral("None"), QStringLiteral("Ana"), 1791504002),
+                 core::newStateReply(parent, QStringLiteral("Marked"), QStringLiteral("Marked"), QStringLiteral("Ana"), 1791504003)}));
+             return out;
+         }},
     };
     return table;
 }
@@ -154,7 +183,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -189,7 +218,7 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2);
+    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3);
 }
 
 TEST_CASE("CommandRegistry returns NotFound for a type id it does not register", "[cmd][serialize]")
@@ -373,6 +402,53 @@ TEST_CASE("CommandRegistry refuses every malformed annotation command by Result"
     CHECK(CommandRegistry::deserialize(withAnnotation("opacity", 0.0)));
     CHECK(CommandRegistry::deserialize(
         QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"obj:1", "direct:0:0", "nm:x"}}}));
+}
+
+TEST_CASE("CommandRegistry refuses a malformed reply or status by Result", "[cmd][serialize][hostile][annotops][T9]")
+{
+    // Stage 6 T9 (D6-12). Each entry breaks ONE thing about a good reply or a good status -- what each promises
+    // about its annotations is checked in the parser too, so a hostile journal cannot add a visible comment
+    // under the name of a status.
+    core::Annotation parent = sampleHighlight(0);
+    parent.id = core::AnnotationId::ofObject(12);
+    const core::PdfRect page{core::PdfPoint{0, 0}, core::PdfSize{612, 792}};
+    const QJsonObject reply = core::newReply(parent, page, QStringLiteral("Agreed."), {1, 1, 0}, QStringLiteral("Ana"), 1791504000).toJson();
+    const QJsonObject status =
+        core::newStateReply(parent, QStringLiteral("Review"), QStringLiteral("Accepted"), QStringLiteral("Ben"), 1791504000).toJson();
+    QJsonObject stated = reply;
+    stated.insert(QStringLiteral("stateModel"), QStringLiteral("Review"));
+    const auto with = [](const char* type, QJsonObject annotation, const char* key, const QJsonValue& value) {
+        if (value.isUndefined()) annotation.remove(QLatin1String(key));
+        else annotation.insert(QLatin1String(key), value);
+        return QJsonObject{{"type", QLatin1String(type)}, {"annotations", QJsonArray{annotation}}};
+    };
+    const std::vector<std::pair<const char*, QJsonObject>> hostile{
+        {"reply: a highlight", with("annot.reply", reply, "subtype", "Highlight")},
+        {"reply: no parent", with("annot.reply", reply, "inReplyTo", QJsonValue::Undefined)},
+        {"reply: a group member", with("annot.reply", reply, "replyType", "Group")},
+        {"reply: a state", with("annot.reply", stated, "state", "Accepted")},
+        {"reply: a parent that is a direct dictionary", with("annot.reply", reply, "inReplyTo", "direct:0:1")},
+        {"reply: an object id", with("annot.reply", reply, "id", "obj:40")},
+        {"status: no model", with("annot.setStatus", status, "stateModel", QJsonValue::Undefined)},
+        {"status: an unknown model", with("annot.setStatus", status, "stateModel", "Approval")},
+        {"status: a state its model does not allow", with("annot.setStatus", status, "state", "Marked")},
+        {"status: an unknown state", with("annot.setStatus", status, "state", "Maybe")},
+        {"status: not hidden", with("annot.setStatus", status, "flags", 28)},
+        {"status: no parent", with("annot.setStatus", status, "inReplyTo", QJsonValue::Undefined)},
+        {"status: a square", with("annot.setStatus", status, "subtype", "Square")},
+    };
+    for (const auto& [label, json] : hostile) {
+        INFO("input: " << label);
+        auto result = CommandRegistry::deserialize(json);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().code == core::ErrorCode::ParseFailure);
+        CHECK(keyOf(result.error()) == "error.command.malformed");
+    }
+    // THE CONTROL: both good ones are accepted, and a reply is not a status nor a status a reply.
+    CHECK(CommandRegistry::deserialize(QJsonObject{{"type", "annot.reply"}, {"annotations", QJsonArray{reply}}}));
+    CHECK(CommandRegistry::deserialize(QJsonObject{{"type", "annot.setStatus"}, {"annotations", QJsonArray{status}}}));
+    CHECK_FALSE(CommandRegistry::deserialize(QJsonObject{{"type", "annot.reply"}, {"annotations", QJsonArray{status}}}));
+    CHECK_FALSE(CommandRegistry::deserialize(QJsonObject{{"type", "annot.setStatus"}, {"annotations", QJsonArray{reply}}}));
 }
 
 TEST_CASE("RotatePageCommand normalizes a counter-clockwise turn and marks a non-quarter turn invalid", "[cmd][serialize]")

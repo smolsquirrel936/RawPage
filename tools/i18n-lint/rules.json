@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -66,7 +66,11 @@
     "the tool.",
     "",
     "`compare` JOINED AT Stage 5 T13 (`Stage5-TextSearch-Plan.md` D5-20), with its first keys: the",
-    "comparison's dialog, view and Differences pane. A new namespace, as `search` was at T7."
+    "comparison's dialog, view and Differences pane. A new namespace, as `search` was at T7.",
+    "",
+    "`comments` JOINED AT Stage 6 T9 (`Stage6-Annotations-Plan.md` D6-12), with the Comments pane's words. Its",
+    "plural is not the action ids' singular -- `comment.reply` is an ActionId, never a key -- so the family",
+    "reads no action id as a missing key (Stage 5's I-08). Its pane title stays `panes.comments.title`."
   ],
 
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],

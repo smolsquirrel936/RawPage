@@ -1,6 +1,7 @@
 // core/doc/AnnotationStore -- every annotation of an open document, its threads, its states and the
 // queries the Comments pane is a view of. Stage 6 T2 builds the READ side (decisions D6-3, D6-12,
-// `Stage6-Annotations-Plan.md` §3); the commands that change it arrive from T3.
+// `Stage6-Annotations-Plan.md` §3); the commands that change it arrive from T3, and T9 the pane's
+// grouping, filters, thread sets and sequence numbers.
 //
 // ===========================================================================================
 // TWO VIEWS OF ONE READING, BECAUSE THE FILE HAS TWO
@@ -136,12 +137,26 @@ public:
     bool isMarkedBy(std::size_t index, const QString& author) const;
 
     // --- Queries -------------------------------------------------------------------------------
+    // Stage 6 T9 widened the filter to `Features.md` §4.2's five -- author, type, status, checkmark, date
+    // range -- and the text to the replies under an item: a thread is found by what anyone in it wrote.
     struct Filter {
         std::vector<int> pages;                      // empty: every page
         std::vector<QString> authors;                // empty: every author
         std::vector<AnnotationSubtype> subtypes;     // empty: every subtype
-        QString text;                                // in /Contents, /Subj or /T, case-insensitive
+        QString text;                                // in /Contents, /Subj or /T -- of the item or a reply
+                                                     // under it, at any depth -- case-insensitive
         bool includeHidden = true;                   // Hidden and NoView (D6-27)
+        // T9: the review status each item has NOW (`reviewStatus`): any of these, `None` for an item no
+        // one has set one on. Empty: every status.
+        std::vector<QString> statuses;
+        // T9: checked (true) or unchecked (false) by `identity` -- a checkmark is personal (D6-12). None:
+        // either.
+        std::optional<bool> checked;
+        QString identity;
+        // T9: the instant an item is dated by (`/M`, else `/CreationDate`), in UTC seconds, both bounds
+        // inclusive. An undated item is outside every range.
+        std::optional<std::int64_t> from;
+        std::optional<std::int64_t> to;
     };
     enum class SortKey { Page, Date, Author, Subtype };
 
@@ -149,6 +164,39 @@ public:
     std::vector<std::size_t> query(const Filter& filter, SortKey key) const;
     // Every author of a top-level item, sorted.
     std::vector<QString> authors() const;
+
+    // --- The Comments pane (Stage 6 T9, D6-12) -------------------------------------------------
+    // GROUPED: `query`'s items, each in exactly one group, the groups in their key's natural order and the
+    // items in each sorted by `sort`. A group's `key` is a stable value the pane words, never words:
+    //   Page      -- the 0-based page, as a number (`3`), ascending;
+    //   Author    -- `/T`, case-insensitively ascending, an item with none in a last group keyed empty;
+    //   Date      -- the CALENDAR DAY of the item's instant at `utcOffsetSeconds` from UTC (`2026-09-01`),
+    //                newest first, undated last under an empty key -- the offset is the host's to give
+    //                (convention 11), so a case reads the same day on every machine;
+    //   Type      -- the subtype's PDF name (`Highlight`), ascending;
+    //   Status    -- `Accepted`, `Rejected`, `Cancelled`, `Completed`, then `None`;
+    //   Checkmark -- `Marked` (by `filter.identity`) first, then `Unmarked`.
+    // `None` is one group with an empty key holding every item.
+    enum class GroupKey { None, Page, Author, Date, Type, ReviewStatus, Checkmark };
+    struct Group {
+        QString key;
+        std::vector<std::size_t> items;
+    };
+    std::vector<Group> grouped(const Filter& filter, GroupKey group, SortKey sort, int utcOffsetSeconds = 0) const;
+
+    // The review status an item has now: its latest Review-model state reply's `/State`, else `None`.
+    QString reviewStatus(std::size_t index) const;
+
+    // WHAT A PERSON DELETES WITH A COMMENT (A-71): the item, every reply under it at any depth, the group
+    // members and state replies of each, and the pop-up of every one of them -- once each, in document order.
+    // Walked iteratively, so a 10,000-deep thread is a loop.
+    std::vector<std::size_t> threadOf(std::size_t index) const;
+
+    // SEQUENCE NUMBERS FOR REFERENCE IN DISCUSSION (`Features.md` §4.2), shown and NEVER written (guide A-72):
+    // one per top-level item, from 1, in READING order -- by page, then on each page top to bottom and left to
+    // right AS THE PAGE IS SHOWN, `rotations[page]` (0, 90, 180, 270; missing means 0) turning its rectangle.
+    // Parallel to `all()`; 0 for an item that is not numbered (a reply, a pop-up, a state reply).
+    std::vector<int> sequenceNumbers(const std::vector<int>& rotations) const;
 
     // --- Changes (Stage 6 T3) ------------------------------------------------------------------
     // Called by a command's `apply()` and `revert()` and by nothing else (D6-1): the store is the
@@ -195,6 +243,9 @@ private:
     std::vector<AnnotationNote> notes_;          // the reading's notes, then the threads' (rebuilt)
     std::vector<AnnotationNote> readingNotes_;   // the reading's alone: what a change never recomputes
     std::map<long long, std::size_t> byObject_;
+    // T9: a created identity found as fast as an object's -- `find` is asked for every reply's parent at every
+    // rebuild of the threads, and a comment RawPage made is named by its `/NM`.
+    std::map<QString, std::size_t> byCreated_;
     std::vector<std::optional<std::size_t>> parent_;
     std::vector<std::vector<std::size_t>> children_;
 };

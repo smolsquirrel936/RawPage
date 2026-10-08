@@ -16,6 +16,7 @@
 #include "ui/panes/LogPane.h"
 #include "ui/panes/SearchPane.h"
 #include "ui/panes/BookmarksPane.h"
+#include "ui/panes/CommentsPane.h"
 #include "ui/panes/DestinationsPane.h"
 #include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/ActionFactory.h"
@@ -24,7 +25,9 @@
 #include "ui/dialogs/PasswordDialog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MessageBar.h"
+#include "ui/viewer/AnnotationOverlay.h"
 #include "ui/viewer/ComparisonView.h"
+#include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/FullScreenController.h"
@@ -49,6 +52,7 @@
 
 #include <QCloseEvent>
 #include <QCursor>
+#include <QDateTime>
 #include <QDir>
 #include <QEvent>
 #include <QFileDialog>
@@ -59,6 +63,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QShowEvent>
 #include <QStackedWidget>
@@ -71,6 +76,8 @@
 #include <string_view>
 
 namespace rawpage::ui {
+
+static std::pair<std::vector<core::PdfRect>, std::vector<int>> commentPageGeometry(const core::CommandJournal& journal);
 namespace {
 
 using core::ActionId;
@@ -265,6 +272,42 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     };
     connect(bookmarks_, &BookmarksPane::activated, this, goToDestination);
     connect(destinations_, &DestinationsPane::activated, this, goToDestination);
+
+    // S6 T9 -- THE COMMENTS PANE (D6-12), over the store of the tab in front; its commands are registered in
+    // `registerCommentActions`. The page FOLLOWS the list: a comment a person makes current is revealed and
+    // selected on the page; a selection made on the page comes back to the list silently (the document wiring).
+    comments_ = new CommentsPane(sidebar_);
+    sidebar_->addPane(core::ActionId::PaneComments, catalog::translate(catalog::key::PanesCommentsTitle), comments_);
+    comments_->setIdentity([this] {
+        return core::identityAuthor(services_.settings.get(core::keys::identity::author), services_.loginName);
+    });
+    comments_->setUtcOffset(QDateTime::currentDateTime().offsetFromUtc());
+    connect(comments_, &CommentsPane::activated, this,
+            [this](const core::AnnotationId& id, int page, const core::PdfRect& rect) { revealComment(id, page, rect); });
+    // `Enter`: the comment's own editor -- the properties bar's text, on the page (A-70).
+    connect(comments_, &CommentsPane::openEditorRequested, this, [this](const core::AnnotationId& id) {
+        DocumentWindow* document = currentDocument();
+        const core::AnnotationStore* store = comments_->store();
+        if (document == nullptr || store == nullptr) return;
+        const std::optional<std::size_t> at = store->find(id);
+        if (!at) return;
+        revealComment(id, store->at(*at).page, store->at(*at).rect);
+        if (!document->propertiesBarShown()) document->togglePropertiesBar();
+        if (PropertiesBar* bar = document->propertiesBar()) {
+            if (QLineEdit* field = bar->textField(); field != nullptr && field->isEnabled()) {
+                field->setFocus(Qt::OtherFocusReason);
+                field->selectAll();
+            }
+        }
+    });
+    connect(comments_, &CommentsPane::actionRequested, this,
+            [this](core::ActionId id) { (void)services_.actions.dispatch(id, core::KeyContext::Comments); });
+    connect(comments_, &CommentsPane::refused, this, [this](const core::Error& error) {
+        if (status_)
+            status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
+                                    .arg(catalog::translateError(QString(error.messageKey), error.context)));
+    });
+    connect(comments_, &CommentsPane::numbersChanged, this, [this] { updateCommentNumbers(); });
 
     // THE LOG PANE -- T14. Its own dock along the bottom rather than a pane in the sidebar: the
     // sidebar's subject is the document and the log's is the application. Hidden, because a shell
@@ -674,6 +717,14 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
             if (const core::CommandJournal* journal = document->journal())
                 thumbnails_->modelChanged(journal->revision());
         }
+        // S6 T9: the Comments pane re-asks its query, keeping the comment it had current.
+        if (comments_ && document == currentDocument()) {
+            if (const core::CommandJournal* journal = document->journal()) {
+                auto [boxes, rotations] = commentPageGeometry(*journal);
+                comments_->setPages(std::move(boxes), std::move(rotations));
+            }
+            comments_->refresh();
+        }
         updateViewChrome();
     });
     connect(document, &DocumentWindow::guideMenuRequested, this,
@@ -730,7 +781,13 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (document != currentDocument() || !status_) return;
         status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused).arg(reason));
     });
-    connect(document, &DocumentWindow::annotationStateChanged, this, [this] {
+    connect(document, &DocumentWindow::annotationStateChanged, this, [this, document] {
+        // S6 T9: one annotation selected on the page is made current in the Comments pane -- SILENTLY, so the
+        // pane does not send the page anywhere in return.
+        if (comments_ && document == currentDocument()) {
+            if (const AnnotationOverlay* overlay = document->annotations(); overlay != nullptr && overlay->selection().size() == 1)
+                (void)comments_->selectComment(overlay->selection().front());
+        }
         if (actionFactory_) actionFactory_->refresh();
     });
     connect(document, &DocumentWindow::reflowChanged, this, [this](bool) {
@@ -2205,6 +2262,18 @@ PageView* MainWindow::currentView() const
     return document ? document->view() : nullptr;
 }
 
+// S6 T9: what the Comments pane needs of a document's pages -- each crop box (where a reply's icon goes) and the
+// rotation it is shown at (the order its numbers follow) -- as the MODEL holds them, an unsaved rotation included.
+static std::pair<std::vector<core::PdfRect>, std::vector<int>> commentPageGeometry(const core::CommandJournal& journal)
+{
+    std::pair<std::vector<core::PdfRect>, std::vector<int>> out;
+    for (const core::Page& page : journal.document().pages().pages()) {
+        out.first.push_back(page.cropBox());
+        out.second.push_back(static_cast<int>(page.rotation()));
+    }
+    return out;
+}
+
 void MainWindow::updateDocumentPanes()
 {
     if (!thumbnails_) return;
@@ -2214,7 +2283,30 @@ void MainWindow::updateDocumentPanes()
         thumbnails_->setDocument({}, {}, nullptr);
         if (bookmarks_) bookmarks_->setDocument({}, nullptr);
         if (destinations_) destinations_->setDocument({}, nullptr);
+        if (comments_) comments_->setDocument(nullptr, {}, {}, {});
+        updateCommentNumbers();
         return;
+    }
+
+    // S6 T9: THE COMMENTS PANE, over the DOCUMENT'S store -- the one every command changes -- and the tab's
+    // journal as its runner, resolved when it runs (the tab may have closed). A tab with no journal (a
+    // companion window's view) lists nothing: its comments are its leader's.
+    if (comments_) {
+        if (const core::CommandJournal* journal = current->journal()) {
+            const QPointer<DocumentWindow> tab = current;
+            auto [boxes, rotations] = commentPageGeometry(*journal);
+            comments_->setDocument(&journal->document().annotations(),
+                                   [tab](std::unique_ptr<core::Command> command) -> core::Status {
+                                       if (!tab || tab->journal() == nullptr)
+                                           return core::Error{core::ErrorCode::Unavailable,
+                                                              QLatin1String("error.edit.notAssessed"), QString()};
+                                       return tab->journal()->run(std::move(command));
+                                   },
+                                   std::move(boxes), std::move(rotations));
+        } else {
+            comments_->setDocument(nullptr, {}, {}, {});
+        }
+        updateCommentNumbers();
     }
 
     // THE BACKEND'S OWN MODELS, hydrated ONCE at open (D4-3, guide case A-30) and handed out by
@@ -2767,6 +2859,7 @@ void MainWindow::registerActions()
     // --- The §8 Viewer commands (S2 T14) ----------------------------------------------------
     registerViewerActions();
     registerAnnotationActions();
+    registerCommentActions();
 
     // --- Undo, redo, rotate, save (Stage 3 T10) -----------------------------------------------
     registerMutationActions();
@@ -3882,6 +3975,148 @@ void MainWindow::openSearchResult(const QString& path, const QString& pattern,
     if (index < 0) return;   // refused, and `openFiles` said why
     activateDocument(index);
     if (DocumentWindow* document = documentAt(index)) document->presentSearchHits(pattern, hits, current);
+}
+
+// ==========================================================================================
+// The Comments pane (Stage 6 T9, D6-11, D6-12)
+// ==========================================================================================
+
+void MainWindow::revealComment(const core::AnnotationId& id, int page, const core::PdfRect& rect)
+{
+    DocumentWindow* document = currentDocument();
+    if (document == nullptr) return;
+    // A comment is a place ON A PAGE: reflow is left first, as a find hit leaves it (S5 T11).
+    document->setReflowing(false);
+    if (PageView* view = currentView()) view->revealPageRect(page, rect);
+    if (AnnotationOverlay* overlay = document->annotations()) overlay->select({id});
+}
+
+void MainWindow::updateCommentNumbers()
+{
+    DocumentWindow* document = currentDocument();
+    AnnotationOverlay* overlay = document ? document->annotations() : nullptr;
+    // The tab left behind shows none: its numbers are no longer the list's.
+    if (numberedOverlay_ && numberedOverlay_ != overlay) numberedOverlay_->setNumbers({});
+    numberedOverlay_ = overlay;
+    if (overlay == nullptr) return;
+    std::map<core::AnnotationId, int> numbers;
+    if (comments_ != nullptr && comments_->numbering() && comments_->store() != nullptr) {
+        const std::vector<int>& list = comments_->numbers();
+        for (std::size_t at = 0; at < list.size() && at < comments_->store()->size(); ++at) {
+            if (list[at] > 0) numbers.emplace(comments_->store()->at(at).id, list[at]);
+        }
+    }
+    overlay->setNumbers(std::move(numbers));
+}
+
+void MainWindow::registerCommentActions()
+{
+    // TWENTY-TWO IDS, three of them §8 Global or Viewer rows -- `pane.comments` (`Ctrl+Shift+C`), and
+    // `nav.nextComment` / `nav.prevComment` (`Ctrl+.` / `Ctrl+,`, in the Viewer AND the Comments pane) -- the
+    // nine Comments pane rows, and the pane's commands beside them: delete all, delete what the filter shows
+    // (`comment.deleteMatching`, minted), number the comments (`comment.numbering`, minted), the filter and the
+    // sort. Every handler resolves the window at dispatch time (convention 14); each command that needs a comment
+    // is DISABLED where there is none (convention 16), so a key over an empty list does nothing visibly.
+    const auto pane = []() -> CommentsPane* {
+        MainWindow* window = activeShell();
+        return window ? window->comments_ : nullptr;
+    };
+    const auto say = [](const QString& text) {
+        if (MainWindow* window = activeShell(); window != nullptr && window->status_ != nullptr) window->status_->setMessage(text);
+    };
+    const auto sayRefused = [say](const core::Status& status) {
+        if (!status) say(catalog::translate(catalog::key::StatusAnnotationRefused)
+                             .arg(catalog::translateError(QString(status.error().messageKey), status.error().context)));
+    };
+    const auto registerOne = [this](ActionId id, core::ActionRegistry::Handler handler, core::ActionRegistry::Enable enable,
+                                    const char* unavailable, core::ActionRegistry::Checked checked = {}) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = std::move(handler);
+        registration.enable = std::move(enable);
+        registration.checked = std::move(checked);
+        if (unavailable != nullptr) registration.unavailableKey = unavailable;
+        services_.actions.register_(id, std::move(registration));
+    };
+
+    // OPEN, the way every pane opens: show, select, FOCUS -- the focus is what makes §8's Comments table live.
+    const auto open = [] {
+        MainWindow* window = activeShell();
+        if (window == nullptr || window->sidebar_ == nullptr) return static_cast<CommentsPane*>(nullptr);
+        window->sidebar_->setAutoHidden(false);
+        window->sidebar_->show();
+        window->sidebar_->showPane(ActionId::PaneComments);
+        if (window->comments_) window->comments_->setFocus(Qt::OtherFocusReason);
+        if (window->comments_ && window->comments_->view()) window->comments_->view()->setFocus(Qt::OtherFocusReason);
+        return window->comments_;
+    };
+    const auto always = [] { return activeShell() != nullptr; };
+    const auto hasStore = [pane] {
+        const CommentsPane* p = pane();
+        return p != nullptr && p->store() != nullptr && p->store()->status();
+    };
+    const auto canChange = [pane] {
+        const CommentsPane* p = pane();
+        return p != nullptr && p->canChange();
+    };
+    const auto hasCurrent = [pane] {
+        const CommentsPane* p = pane();
+        return p != nullptr && p->canChange() && p->currentComment().has_value();
+    };
+
+    registerOne(ActionId::PaneComments, [open](KeyContext) { (void)open(); }, always, nullptr);
+
+    // The nine rows of §8's Comments pane table (`Up`/`Down` are the item view's own).
+    registerOne(ActionId::CommentOpenEditor, [pane](KeyContext) { if (CommentsPane* p = pane()) p->openEditor(); },
+                hasCurrent, "shell.tooltip.needsComment");
+    registerOne(ActionId::CommentEditInPlace, [pane](KeyContext) { if (CommentsPane* p = pane()) (void)p->editInPlace(); },
+                hasCurrent, "shell.tooltip.needsComment");
+    registerOne(ActionId::CommentReply, [pane](KeyContext) { if (CommentsPane* p = pane()) (void)p->reply(); },
+                hasCurrent, "shell.tooltip.needsComment");
+    registerOne(ActionId::CommentDelete, [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->deleteCurrent()); },
+                hasCurrent, "shell.tooltip.needsComment");
+    registerOne(ActionId::CommentToggleCheckmark,
+                [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->toggleCheckmark()); },
+                hasCurrent, "shell.tooltip.needsComment");
+    registerOne(ActionId::CommentSetStatus, [pane](KeyContext) { if (CommentsPane* p = pane()) (void)p->showStatusMenu(); },
+                hasCurrent, "shell.tooltip.needsComment");
+    registerOne(ActionId::FindInComments, [open](KeyContext) { if (CommentsPane* p = open()) p->focusSearch(); }, always, nullptr);
+
+    // NEXT AND PREVIOUS COMMENT -- one command each for the Viewer's row and the pane's: the list's order, from the
+    // comment current in it (which follows the page's selection) or, with none, from the page the reader is on.
+    // The page follows; past the end it wraps, and says so.
+    const auto stepper = [pane, say](int direction) {
+        return [pane, say, direction](KeyContext) {
+            MainWindow* window = activeShell();
+            CommentsPane* p = pane();
+            if (window == nullptr || p == nullptr) return;
+            const PageView* view = window->currentView();
+            const int from = view ? view->controller().currentPage() : 0;
+            switch (p->step(direction, from)) {
+            case CommentsPane::Step::Nothing: say(catalog::translate(catalog::key::CommentsNone)); break;
+            case CommentsPane::Step::Wrapped:
+                say(catalog::translate(direction > 0 ? catalog::key::CommentsWrappedToFirst : catalog::key::CommentsWrappedToLast));
+                break;
+            case CommentsPane::Step::Moved: break;
+            }
+        };
+    };
+    registerOne(ActionId::NavNextComment, stepper(1), hasStore, "shell.tooltip.needsDocument");
+    registerOne(ActionId::NavPrevComment, stepper(-1), hasStore, "shell.tooltip.needsDocument");
+
+    // The pane's commands beside the table.
+    registerOne(ActionId::CommentDeleteAll, [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->deleteAll()); },
+                canChange, "shell.tooltip.needsDocument");
+    registerOne(ActionId::CommentDeleteMatching,
+                [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->deleteMatching()); },
+                canChange, "shell.tooltip.needsDocument");
+    registerOne(ActionId::CommentNumbering, [pane](KeyContext) { if (CommentsPane* p = pane()) p->setNumbering(!p->numbering()); },
+                always, nullptr, [pane] {
+                    const CommentsPane* p = pane();
+                    return p != nullptr && p->numbering();
+                });
+    registerOne(ActionId::CommentFilter, [open](KeyContext) { if (CommentsPane* p = open()) p->showFilterMenu(); }, always, nullptr);
+    registerOne(ActionId::CommentSort, [open](KeyContext) { if (CommentsPane* p = open()) p->showSortMenu(); }, always, nullptr);
 }
 
 } // namespace rawpage::ui

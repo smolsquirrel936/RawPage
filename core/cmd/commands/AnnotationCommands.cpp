@@ -358,30 +358,34 @@ Status AddAnnotationCommand::permitted(const Document& document) const
     return Status{};
 }
 
-bool AddAnnotationCommand::apply(Document& document, MutationSink& sink)
+namespace {
+
+// THE ADD PATH THE THREE ADDING COMMANDS SHARE (T9 took it out of `AddAnnotationCommand`): every annotation a
+// created one no annotation of the document already has, listed at the END of its page's listing in the order
+// given -- checked against the model, then the sink, then the model.
+bool addCreated(Document& document, MutationSink& sink, const std::vector<Annotation>& annotations,
+                std::vector<AnnotationPlacement>& placed)
 {
     const AnnotationStore& store = document.annotations();
-    if (!store.status() || annotations_.empty() || annotations_.size() > Limits::kMaxAnnotations)
-        return false;
+    if (!store.status() || annotations.empty() || annotations.size() > Limits::kMaxAnnotations) return false;
 
     // Everything checked against the model before the sink hears of it.
     std::vector<AnnotationPlacement> placements;
-    placements.reserve(annotations_.size());
+    placements.reserve(annotations.size());
     std::set<QString> names;
     std::map<int, int> addedOnPage;
-    for (const Annotation& a : annotations_) {
-        if (invalidCreated(a) || a.page >= store.pageCount() || store.find(a.id)
-            || !names.insert(a.id.nm).second)
+    for (const Annotation& a : annotations) {
+        if (invalidCreated(a) || a.page >= store.pageCount() || store.find(a.id) || !names.insert(a.id.nm).second)
             return false;
         const int position = static_cast<int>(store.listing(a.page).size()) + addedOnPage[a.page]++;
         placements.push_back(AnnotationPlacement{a.page, position});
     }
 
-    if (!sink.insertAnnotations(placements, annotations_)) return false;   // the model is untouched
+    if (!sink.insertAnnotations(placements, annotations)) return false;   // the model is untouched
 
     std::vector<std::pair<AnnotationPlacement, Annotation>> entries;
-    entries.reserve(annotations_.size());
-    for (std::size_t i = 0; i < annotations_.size(); ++i) entries.emplace_back(placements[i], annotations_[i]);
+    entries.reserve(annotations.size());
+    for (std::size_t i = 0; i < annotations.size(); ++i) entries.emplace_back(placements[i], annotations[i]);
     if (!document.annotations().insert(entries)) {
         // Cannot happen for a set validated above. If it ever could, the sink is put back, so a false
         // here still means nothing changed.
@@ -389,61 +393,245 @@ bool AddAnnotationCommand::apply(Document& document, MutationSink& sink)
         (void)sink.removeAnnotations(back);
         return false;
     }
-    placed_ = std::move(placements);
+    placed = std::move(placements);
     return true;
 }
 
-bool AddAnnotationCommand::revert(Document& document, MutationSink& sink)
+bool removeCreated(Document& document, MutationSink& sink, const std::vector<Annotation>& annotations,
+                   const std::vector<AnnotationPlacement>& placed)
 {
-    if (placed_.size() != annotations_.size()) return false;
+    if (placed.size() != annotations.size()) return false;
     const AnnotationStore& store = document.annotations();
     // The listing must be the one apply() left: each placement names this command's annotation.
-    for (std::size_t i = 0; i < placed_.size(); ++i) {
-        const std::vector<AnnotationListingEntry>& listing = store.listing(placed_[i].page);
-        const std::size_t position = static_cast<std::size_t>(placed_[i].position);
+    for (std::size_t i = 0; i < placed.size(); ++i) {
+        const std::vector<AnnotationListingEntry>& listing = store.listing(placed[i].page);
+        const std::size_t position = static_cast<std::size_t>(placed[i].position);
         if (position >= listing.size() || !listing[position].annotation
-            || store.at(*listing[position].annotation).id != annotations_[i].id)
+            || store.at(*listing[position].annotation).id != annotations[i].id)
             return false;
     }
-    const std::vector<AnnotationPlacement> back(placed_.rbegin(), placed_.rend());
+    const std::vector<AnnotationPlacement> back(placed.rbegin(), placed.rend());
     if (!sink.removeAnnotations(back)) return false;
     if (!document.annotations().remove(back)) {
-        (void)sink.insertAnnotations(placed_, annotations_);
+        (void)sink.insertAnnotations(placed, annotations);
         return false;
     }
     return true;
 }
 
-QJsonObject AddAnnotationCommand::serialize() const
+QJsonObject annotationsJson(QLatin1String typeId, const std::vector<Annotation>& annotations)
 {
-    QJsonArray annotations;
-    for (const Annotation& a : annotations_) annotations.append(a.toJson());
-    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
-                       {QStringLiteral("annotations"), annotations}};
+    QJsonArray array;
+    for (const Annotation& a : annotations) array.append(a.toJson());
+    return QJsonObject{{QStringLiteral("type"), QLatin1String(typeId)}, {QStringLiteral("annotations"), array}};
 }
 
-Result<std::unique_ptr<Command>> AddAnnotationCommand::deserialize(const QJsonObject& json)
+// The "annotations" member of a serialized adding command: a non-empty, bounded array, each one an annotation
+// RawPage created (`invalidCreated`) and then whatever `wrong` says of its kind.
+Result<std::vector<Annotation>> parseCreated(const QJsonObject& json, QLatin1String typeId,
+                                             const std::function<std::optional<QString>(const Annotation&)>& wrong)
 {
-    const QJsonValue type = json.value(QStringLiteral("type"));
-    if (!type.isString() || type.toString() != QLatin1String(kTypeId))
-        return badCommand(kTypeId, QStringLiteral("type"));
+    if (!typeIs(json, typeId)) return badCommand(typeId, QStringLiteral("type"));
     const QJsonValue list = json.value(QStringLiteral("annotations"));
-    if (!list.isArray()) return badCommand(kTypeId, QStringLiteral("annotations"));
+    if (!list.isArray()) return badCommand(typeId, QStringLiteral("annotations"));
     const QJsonArray array = list.toArray();
     if (array.isEmpty() || static_cast<std::size_t>(array.size()) > Limits::kMaxAnnotations)
-        return badCommand(kTypeId, QStringLiteral("annotations"));
+        return badCommand(typeId, QStringLiteral("annotations"));
 
     std::vector<Annotation> annotations;
     annotations.reserve(static_cast<std::size_t>(array.size()));
     for (const QJsonValue item : array) {
-        if (!item.isObject()) return badCommand(kTypeId, QStringLiteral("annotation"));
+        if (!item.isObject()) return badCommand(typeId, QStringLiteral("annotation"));
         auto annotation = Annotation::fromJson(item.toObject());
-        if (!annotation) return badCommand(kTypeId, QStringLiteral("annotation"));
-        if (const std::optional<QString> wrong = invalidCreated(annotation.value()))
-            return badCommand(kTypeId, *wrong);
+        if (!annotation) return badCommand(typeId, QStringLiteral("annotation"));
+        if (const std::optional<QString> invalid = invalidCreated(annotation.value())) return badCommand(typeId, *invalid);
+        if (wrong) {
+            if (const std::optional<QString> invalid = wrong(annotation.value())) return badCommand(typeId, *invalid);
+        }
         annotations.push_back(std::move(annotation).value());
     }
-    return std::unique_ptr<Command>(new AddAnnotationCommand(std::move(annotations)));
+    return annotations;
+}
+
+// What a reply must be, of itself (T9): a `Text` with an `/IRT`, `/RT /R`, and no state.
+std::optional<QString> notAReply(const Annotation& a)
+{
+    if (a.subtype != AnnotationSubtype::Text) return QStringLiteral("annotation.subtype");
+    if (!a.inReplyTo || a.replyType != ReplyType::Reply) return QStringLiteral("annotation.inReplyTo");
+    if (a.isStateReply()) return QStringLiteral("annotation.stateModel");
+    return std::nullopt;
+}
+
+// What a state reply must be, of itself (T9): a hidden `Text` with an `/IRT`, `/RT /R`, and a state its model
+// allows.
+std::optional<QString> notAState(const Annotation& a)
+{
+    if (a.subtype != AnnotationSubtype::Text) return QStringLiteral("annotation.subtype");
+    if (!a.inReplyTo || a.replyType != ReplyType::Reply) return QStringLiteral("annotation.inReplyTo");
+    if (!isStateModelName(a.stateModel) || !isStateOfModel(a.stateModel, a.state)) return QStringLiteral("annotation.state");
+    if (!a.hasFlag(AnnotationFlag::Hidden)) return QStringLiteral("annotation.flags");
+    return std::nullopt;
+}
+
+// The parent each answer names, held by the document, ON THE ANSWER'S PAGE, and not itself a pop-up or a state
+// -- or none, and the answer is not one the store would hang where it was meant to.
+bool parentsHeld(const AnnotationStore& store, const std::vector<Annotation>& answers)
+{
+    for (const Annotation& a : answers) {
+        if (!a.inReplyTo) return false;
+        const std::optional<std::size_t> parent = store.find(*a.inReplyTo);
+        if (!parent) return false;
+        const Annotation& p = store.at(*parent);
+        if (p.page != a.page || p.subtype == AnnotationSubtype::Popup || p.isStateReply()) return false;
+    }
+    return true;
+}
+
+// `permitted()` for an answer: editing at all, the page, and a parent that is not `ReadOnly` (D6-27).
+Status answerPermitted(const Document& document, const std::vector<Annotation>& answers)
+{
+    if (Status allowed = document.permissions().may(Operation::Annotate); !allowed) return allowed;
+    for (const Annotation& a : answers) {
+        if (Status page = document.permissions().mayAnnotate(a.page); !page) return page;
+        if (!a.inReplyTo) continue;
+        // A DIRECT dictionary in `/Annots` is no object, and `/IRT` can only name an object (ISO 32000-1 Table 170):
+        // it cannot be answered -- said by key, where `apply()` would only have answered false (D6-36).
+        if (a.inReplyTo->kind == AnnotationId::Kind::Direct)
+            return Error{ErrorCode::Unavailable, QLatin1String("error.edit.annotationDirect"), QString::number(a.page + 1)};
+        if (const std::optional<std::size_t> parent = document.annotations().find(*a.inReplyTo)) {
+            const Annotation& p = document.annotations().at(*parent);
+            if (p.hasFlag(AnnotationFlag::ReadOnly)) return refusalFor("error.edit.annotationReadOnly", p);
+        }
+    }
+    return Status{};
+}
+
+Scope addedScope(const std::vector<Annotation>& annotations)
+{
+    std::vector<std::pair<int, const Annotation*>> changed;
+    for (const Annotation& a : annotations) changed.emplace_back(a.page, &a);
+    return annotationsScope(changed);
+}
+
+} // namespace
+
+bool AddAnnotationCommand::apply(Document& document, MutationSink& sink)
+{
+    return addCreated(document, sink, annotations_, placed_);
+}
+
+bool AddAnnotationCommand::revert(Document& document, MutationSink& sink)
+{
+    return removeCreated(document, sink, annotations_, placed_);
+}
+
+QJsonObject AddAnnotationCommand::serialize() const
+{
+    return annotationsJson(kTypeId, annotations_);
+}
+
+Result<std::unique_ptr<Command>> AddAnnotationCommand::deserialize(const QJsonObject& json)
+{
+    auto annotations = parseCreated(json, kTypeId, {});
+    if (!annotations) return annotations.error();
+    return std::unique_ptr<Command>(new AddAnnotationCommand(std::move(annotations).value()));
+}
+
+// ==========================================================================================
+// ReplyToAnnotationCommand (T9)
+// ==========================================================================================
+
+ReplyToAnnotationCommand::ReplyToAnnotationCommand(std::vector<Annotation> replies) : replies_(std::move(replies)) {}
+
+CatalogText ReplyToAnnotationCommand::name() const
+{
+    return countedName("command.annot.reply", "command.annot.replyMany", replies_.size());
+}
+
+Scope ReplyToAnnotationCommand::scope() const
+{
+    return addedScope(replies_);
+}
+
+Status ReplyToAnnotationCommand::permitted(const Document& document) const
+{
+    return answerPermitted(document, replies_);
+}
+
+bool ReplyToAnnotationCommand::apply(Document& document, MutationSink& sink)
+{
+    for (const Annotation& a : replies_) {
+        if (notAReply(a)) return false;
+    }
+    if (!parentsHeld(document.annotations(), replies_)) return false;
+    return addCreated(document, sink, replies_, placed_);
+}
+
+bool ReplyToAnnotationCommand::revert(Document& document, MutationSink& sink)
+{
+    return removeCreated(document, sink, replies_, placed_);
+}
+
+QJsonObject ReplyToAnnotationCommand::serialize() const
+{
+    return annotationsJson(kTypeId, replies_);
+}
+
+Result<std::unique_ptr<Command>> ReplyToAnnotationCommand::deserialize(const QJsonObject& json)
+{
+    auto replies = parseCreated(json, kTypeId, notAReply);
+    if (!replies) return replies.error();
+    return std::unique_ptr<Command>(new ReplyToAnnotationCommand(std::move(replies).value()));
+}
+
+// ==========================================================================================
+// SetAnnotationStatusCommand (T9)
+// ==========================================================================================
+
+SetAnnotationStatusCommand::SetAnnotationStatusCommand(std::vector<Annotation> states) : states_(std::move(states)) {}
+
+CatalogText SetAnnotationStatusCommand::name() const
+{
+    const bool checkmarks = std::all_of(states_.begin(), states_.end(),
+                                        [](const Annotation& a) { return a.stateModel == QLatin1String("Marked"); });
+    if (checkmarks) return countedName("command.annot.checkmark", "command.annot.checkmarkMany", states_.size());
+    return countedName("command.annot.setStatus", "command.annot.setStatusMany", states_.size());
+}
+
+Scope SetAnnotationStatusCommand::scope() const
+{
+    return addedScope(states_);
+}
+
+Status SetAnnotationStatusCommand::permitted(const Document& document) const
+{
+    return answerPermitted(document, states_);
+}
+
+bool SetAnnotationStatusCommand::apply(Document& document, MutationSink& sink)
+{
+    for (const Annotation& a : states_) {
+        if (notAState(a)) return false;
+    }
+    if (!parentsHeld(document.annotations(), states_)) return false;
+    return addCreated(document, sink, states_, placed_);
+}
+
+bool SetAnnotationStatusCommand::revert(Document& document, MutationSink& sink)
+{
+    return removeCreated(document, sink, states_, placed_);
+}
+
+QJsonObject SetAnnotationStatusCommand::serialize() const
+{
+    return annotationsJson(kTypeId, states_);
+}
+
+Result<std::unique_ptr<Command>> SetAnnotationStatusCommand::deserialize(const QJsonObject& json)
+{
+    auto states = parseCreated(json, kTypeId, notAState);
+    if (!states) return states.error();
+    return std::unique_ptr<Command>(new SetAnnotationStatusCommand(std::move(states).value()));
 }
 
 // ==========================================================================================

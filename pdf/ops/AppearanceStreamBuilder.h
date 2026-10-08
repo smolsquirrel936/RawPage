@@ -130,6 +130,9 @@ public:
     // its own window -- RawPage's overlay draws it, and PDFium draws none (Stage 6 T6). One is written with no
     // `/AP`, and verify asks it for none.
     static bool drawsNothing(core::AnnotationSubtype subtype) noexcept;
+    // Stage 6 T9: and an annotation that has none -- a pop-up, or a STATE REPLY (D6-12): a hidden `Text`
+    // carrying `/StateModel`, which Acrobat writes with no `/AP` and no reader draws.
+    static bool drawsNothing(const core::Annotation& annotation) noexcept;
 
     // The normal appearance of `annotation`, the objects its form refers to handed to `objects`.
     // `error.pdf.appearanceUnsupported` for a subtype this build cannot draw; `error.pdf.appearanceGeometry`

@@ -402,7 +402,7 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
             } else {
                 // Written new -- so it must be a kind this build can draw (D6-6), asked now, not at save. A
                 // pop-up is drawn by no appearance at all (T6).
-                if (!AppearanceStreamBuilder::drawsNothing(annotation.subtype)) {
+                if (!AppearanceStreamBuilder::drawsNothing(annotation)) {
                     auto appearance = AppearanceStreamBuilder::normal(annotation);
                     if (!appearance) return appearance.error();
                 }
@@ -487,7 +487,7 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
 
         // A created annotation not yet saved is drawn anew from the model at compose: the change is the model's.
         if (now.id.kind == core::AnnotationId::Kind::Created && created_.count(now.id.nm) != 0) {
-            if (!AppearanceStreamBuilder::drawsNothing(now.subtype)) {
+            if (!AppearanceStreamBuilder::drawsNothing(now)) {
                 auto appearance = AppearanceStreamBuilder::normal(now);
                 if (!appearance) return appearance.error();
             }
@@ -687,7 +687,7 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                     if (annotation == nullptr)
                         return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
                     std::optional<cos::CosRef> appearanceRef;
-                    if (!AppearanceStreamBuilder::drawsNothing(annotation->subtype)) {
+                    if (!AppearanceStreamBuilder::drawsNothing(*annotation)) {
                         auto appearance = AppearanceStreamBuilder::normal(*annotation, shared);
                         if (!appearance) return appearance.error();
                         appearanceRef = cos::CosRef{
@@ -799,7 +799,7 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
                 || QString::fromStdString(subtype->text()) != QString(core::annotationSubtypeName(annotation->subtype))
                 || owner == nullptr || !owner->isReference() || owner->reference().number != walk.pages[index].number)
                 return listingMismatch(page);
-            if (AppearanceStreamBuilder::drawsNothing(annotation->subtype)) {
+            if (AppearanceStreamBuilder::drawsNothing(*annotation)) {
                 if (d.has("AP")) return listingMismatch(page);   // T6: a pop-up is written with none
             } else {
                 const cos::CosObject& normal = d.get("AP").get("N");

@@ -918,6 +918,13 @@ void AnnotationOverlay::setPopupBehaviour(PopupBehaviour behaviour)
     emit changed();
 }
 
+void AnnotationOverlay::setNumbers(std::map<AnnotationId, int> numbers)
+{
+    if (numbers_ == numbers) return;
+    numbers_ = std::move(numbers);
+    emit changed();
+}
+
 void AnnotationOverlay::hover(const Viewport& view, std::optional<QPoint> pos)
 {
     if (popupBehaviour_ != PopupBehaviour::OnHover || drag_.kind != DragKind::None) return;
@@ -1041,6 +1048,35 @@ void AnnotationOverlay::paint(QPainter& painter, const Viewport& view) const
     }
     if (hasPendingNudge()) {
         for (const Annotation& a : selected()) preview(a.page, core::translated(a, nudgeX_, nudgeY_).rect);
+    }
+
+    // THE SEQUENCE NUMBERS (S6 T9, guide A-72): a badge at the top-left of where each numbered annotation is
+    // drawn -- the selection's accent, so it reads as the product's and not the document's.
+    if (!numbers_.empty()) {
+        const QFont before = painter.font();
+        QFont badgeFont = before;
+        badgeFont.setBold(true);
+        const QFontMetricsF metrics(badgeFont);
+        painter.setFont(badgeFont);
+        for (const core::render::PageSlot& slot : view.layout->slotsIntersecting(view.visible)) {
+            for (const std::size_t index : store_->onPage(slot.pageIndex)) {
+                const Annotation& a = store_->at(index);
+                const auto number = numbers_.find(a.id);
+                if (number == numbers_.end()) continue;
+                const std::optional<core::PdfRect> drawn = drawnRect(view, a);
+                const std::optional<QRectF> r = drawn ? widgetRectOf(view, a.page, *drawn) : std::nullopt;
+                if (!r) continue;
+                const QString text = QString::number(number->second);
+                const double width = std::max(metrics.height(), metrics.horizontalAdvance(text) + 6.0);
+                const QRectF badge(r->left() - width / 2, r->top() - metrics.height() / 2, width, metrics.height());
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(accent);
+                painter.drawRoundedRect(badge, metrics.height() / 2, metrics.height() / 2);
+                painter.setPen(Qt::white);
+                painter.drawText(badge, Qt::AlignCenter, text);
+            }
+        }
+        painter.setFont(before);
     }
 
     // THE POP-UPS (D6-28): the note's author and text, never a tile and never a command.

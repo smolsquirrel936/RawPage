@@ -1,8 +1,8 @@
 // core/cmd/commands/AnnotationCommands -- commands over a SET of annotations. Stage 6 T3: the first two
 // of the eleven `Stage6-Annotations-Plan.md` §4 names, `AddAnnotationCommand` and
 // `DeleteAnnotationCommand`; T5 the four that change annotations IN PLACE -- `EditAnnotationCommand`,
-// `MoveAnnotationCommand`, `SetAnnotationAppearanceCommand` and `LockAnnotationCommand`; reply, status
-// and import arrive with the tasks that need them.
+// `MoveAnnotationCommand`, `SetAnnotationAppearanceCommand` and `LockAnnotationCommand`; T9 the two that
+// answer one -- `ReplyToAnnotationCommand` and `SetAnnotationStatusCommand` -- and import arrives with T13.
 //
 // ===========================================================================================
 // A CHANGE IN PLACE IS A BEFORE AND AN AFTER (T5)
@@ -302,6 +302,70 @@ private:
     std::int64_t at_ = 0;
     std::optional<AnnotationChange> change_;
     std::optional<Error> refusal_;   // the sink's, when it refused the last apply
+};
+
+// ---- Stage 6 T9: threads and statuses (D6-12) -------------------------------------------------------
+// Both ADD annotations RawPage created, as `AddAnnotationCommand` does -- each at the end of its page's listing,
+// one undo step for the set -- and each is a command of its own because each is a different promise about WHAT
+// is added, checked against the document before the sink hears of it: a reply hangs under an annotation the
+// document holds, ON ITS PAGE (a reply across pages is one the store would show top-level, D6-12); a state is a
+// hidden state reply in a model ISO names. Neither changes the annotation it answers, so a `Locked` one may be
+// answered; a `ReadOnly` one refuses every interaction but selection (D6-27) and is not.
+
+// REPLIES -- `core::newReply`'s, each an `/IRT` `/RT /R` `Text` with text, under a parent the document holds on
+// the same page. A reply to a reply is a reply: its parent is the reply.
+class ReplyToAnnotationCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.reply"};
+
+    explicit ReplyToAnnotationCommand(std::vector<Annotation> replies);
+
+    const std::vector<Annotation>& replies() const noexcept { return replies_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.annot.reply, or command.annot.replyMany: %1 count
+    Scope scope() const override;
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;   // + the parent's ReadOnly
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    QJsonObject serialize() const override;   // {"type": "annot.reply", "annotations": [ {...}, ... ]}
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<Annotation> replies_;
+    std::vector<AnnotationPlacement> placed_;
+};
+
+// A REVIEW STATUS or a CHECKMARK -- `core::newStateReply`'s, each a hidden state reply in the `Review` or the
+// `Marked` model with a state that model allows, under a parent the document holds on the same page. The
+// history is the list of them (D6-12): a status is never changed in place, it is answered again.
+class SetAnnotationStatusCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.setStatus"};
+
+    explicit SetAnnotationStatusCommand(std::vector<Annotation> states);
+
+    const std::vector<Annotation>& states() const noexcept { return states_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    // command.annot.setStatus (…Many: %1), or command.annot.checkmark (…Many: %1) when every one is `Marked`'s.
+    CatalogText name() const override;
+    Scope scope() const override;
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    QJsonObject serialize() const override;   // {"type": "annot.setStatus", "annotations": [ {...}, ... ]}
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<Annotation> states_;
+    std::vector<AnnotationPlacement> placed_;
 };
 
 // D6-27, as `permitted()` asks it: may `annotation` be changed this way? `properties` is anything but its

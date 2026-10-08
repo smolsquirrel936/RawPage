@@ -66,7 +66,7 @@
 // reference -- in a created dictionary and in an edited one -- is resolved through `resolveReference`: an
 // object the file holds, a created annotation this delta writes, or one an earlier save wrote. A created
 // target listed nowhere any more is written by nothing, and the key is left out rather than point at nothing.
-// A `Popup` is written with no `/AP` (`AppearanceStreamBuilder::drawsNothing`). Verify reads every created
+// A `Popup` and a state reply (T9) are written with no `/AP` (`AppearanceStreamBuilder::drawsNothing`). Verify reads every created
 // reference back as the object its target was written at.
 //
 // AN UNDO RETURNS THE DICTIONARY, NOT A REDRAWING OF IT. Every dictionary an edited annotation has had ON

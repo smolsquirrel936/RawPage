@@ -500,14 +500,15 @@ TEST_CASE("a disabled control says WHICH kind of disabled it is", "[chrome]")
     window.raiseToForeground();
 
     const QString zoomIn = ui::catalog::translateAction(core::ActionId::ViewZoomIn);
-    // `nav.nextComment` (Stage 6's) since Stage 5 T11 registered `view.reflow`, this case's example until then.
-    const QString notYet = ui::catalog::translateAction(core::ActionId::NavNextComment);
+    // `comment.summarize` (Stage 8's, Q4) since Stage 6 T9 registered `nav.nextComment`, this case's example until
+    // then -- itself the example since Stage 5 T11 registered `view.reflow`.
+    const QString notYet = ui::catalog::translateAction(core::ActionId::CommentSummarize);
 
     // 1. DECLARED AND NOT REGISTERED -- about this BUILD. The only one of the three Stage 1 ever
     //    produced, and it is unchanged.
-    REQUIRE_FALSE(fixture.actions.isRegistered(core::ActionId::NavNextComment));
+    REQUIRE_FALSE(fixture.actions.isRegistered(core::ActionId::CommentSummarize));
     const QString notBuilt =
-        ui::ActionFactory::tooltipFor(fixture.actions, core::ActionId::NavNextComment, notYet);
+        ui::ActionFactory::tooltipFor(fixture.actions, core::ActionId::CommentSummarize, notYet);
     CHECK(notBuilt
           == ui::catalog::translate(ui::catalog::key::RibbonTooltipUnregistered).arg(notYet));
 

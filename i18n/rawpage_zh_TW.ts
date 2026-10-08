@@ -1515,6 +1515,14 @@
         <source>action.ui.qatPlacement</source>
         <translation>快速存取工具列位置</translation>
     </message>
+    <message>
+        <source>action.comment.deleteMatching</source>
+        <translation>刪除篩選出的註解</translation>
+    </message>
+    <message>
+        <source>action.comment.numbering</source>
+        <translation>為註解編號</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2262,6 +2270,10 @@
         <source>shell.toolFinder.unavailable</source>
         <translation type="unfinished">%1 — 尚未實作</translation>
     </message>
+    <message>
+        <source>shell.tooltip.needsComment</source>
+        <translation>需要先在註解窗格中選取註解</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -2824,6 +2836,14 @@
     <message>
         <source>error.repair.wholeXref</source>
         <translation>此 PDF 的索引已完全重建（%1 個物件）。請另存新檔以保留修復結果。</translation>
+    </message>
+    <message>
+        <source>error.edit.noComment</source>
+        <translation>請先在註解窗格中選取註解</translation>
+    </message>
+    <message>
+        <source>error.edit.annotationDirect</source>
+        <translation>此註解儲存在頁面內，無法回覆（第 %1 頁）</translation>
     </message>
 </context>
 <context>
@@ -3786,6 +3806,30 @@
         <source>command.page.rotateAll</source>
         <translation>將全部 %1 頁旋轉 %2 度</translation>
     </message>
+    <message>
+        <source>command.annot.reply</source>
+        <translation>回覆註解</translation>
+    </message>
+    <message>
+        <source>command.annot.replyMany</source>
+        <translation>回覆 %1 則註解</translation>
+    </message>
+    <message>
+        <source>command.annot.setStatus</source>
+        <translation>設定審閱狀態</translation>
+    </message>
+    <message>
+        <source>command.annot.setStatusMany</source>
+        <translation>設定 %1 則註解的審閱狀態</translation>
+    </message>
+    <message>
+        <source>command.annot.checkmark</source>
+        <translation>變更核取記號</translation>
+    </message>
+    <message>
+        <source>command.annot.checkmarkMany</source>
+        <translation>變更 %1 個核取記號</translation>
+    </message>
 </context>
 <context>
     <name>panes</name>
@@ -3824,6 +3868,18 @@
     <message>
         <source>panes.destinations.unresolved</source>
         <translation>無法到達 — 其頁面不在本文件中</translation>
+    </message>
+    <message>
+        <source>panes.comments.title</source>
+        <translation>註解</translation>
+    </message>
+    <message>
+        <source>panes.comments.empty</source>
+        <translation>沒有開啟的文件。</translation>
+    </message>
+    <message>
+        <source>panes.comments.unreadable</source>
+        <translation>無法讀取此文件的註解：%1</translation>
     </message>
 </context>
 <context>
@@ -4246,6 +4302,297 @@
     <message>
         <source>compare.kind.pageReplaced</source>
         <translation>取代頁面</translation>
+    </message>
+</context>
+<context>
+    <name>comments</name>
+    <message>
+        <source>comments.search.placeholder</source>
+        <translation>搜尋註解</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.label</source>
+        <translation>分組</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.none</source>
+        <translation>不分組</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.page</source>
+        <translation>依頁面</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.author</source>
+        <translation>依作者</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.date</source>
+        <translation>依日期</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.type</source>
+        <translation>依類型</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.status</source>
+        <translation>依狀態</translation>
+    </message>
+    <message>
+        <source>comments.groupBy.checkmark</source>
+        <translation>依核取記號</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.label</source>
+        <translation>排序</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.page</source>
+        <translation>頁面</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.date</source>
+        <translation>日期</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.author</source>
+        <translation>作者</translation>
+    </message>
+    <message>
+        <source>comments.sortBy.type</source>
+        <translation>類型</translation>
+    </message>
+    <message>
+        <source>comments.column.comment</source>
+        <translation>註解</translation>
+    </message>
+    <message>
+        <source>comments.column.author</source>
+        <translation>作者</translation>
+    </message>
+    <message>
+        <source>comments.column.page</source>
+        <translation>頁</translation>
+    </message>
+    <message>
+        <source>comments.column.date</source>
+        <translation>日期</translation>
+    </message>
+    <message>
+        <source>comments.column.status</source>
+        <translation>狀態</translation>
+    </message>
+    <message>
+        <source>comments.filter.button</source>
+        <translation>篩選</translation>
+    </message>
+    <message>
+        <source>comments.filter.authors</source>
+        <translation>作者</translation>
+    </message>
+    <message>
+        <source>comments.filter.types</source>
+        <translation>類型</translation>
+    </message>
+    <message>
+        <source>comments.filter.statuses</source>
+        <translation>狀態</translation>
+    </message>
+    <message>
+        <source>comments.filter.checkmark</source>
+        <translation>核取記號</translation>
+    </message>
+    <message>
+        <source>comments.filter.any</source>
+        <translation>全部</translation>
+    </message>
+    <message>
+        <source>comments.filter.checked</source>
+        <translation>我已核取</translation>
+    </message>
+    <message>
+        <source>comments.filter.unchecked</source>
+        <translation>我未核取</translation>
+    </message>
+    <message>
+        <source>comments.filter.dateRange</source>
+        <translation>日期範圍…</translation>
+    </message>
+    <message>
+        <source>comments.filter.from</source>
+        <translation>從</translation>
+    </message>
+    <message>
+        <source>comments.filter.to</source>
+        <translation>到</translation>
+    </message>
+    <message>
+        <source>comments.filter.clearDates</source>
+        <translation>任何日期</translation>
+    </message>
+    <message>
+        <source>comments.filter.showAll</source>
+        <translation>顯示全部註解</translation>
+    </message>
+    <message>
+        <source>comments.more.button</source>
+        <translation>更多</translation>
+    </message>
+    <message>
+        <source>comments.group.page</source>
+        <translation>第 %1 頁</translation>
+    </message>
+    <message>
+        <source>comments.group.noAuthor</source>
+        <translation>無作者</translation>
+    </message>
+    <message>
+        <source>comments.group.undated</source>
+        <translation>無日期</translation>
+    </message>
+    <message>
+        <source>comments.group.count</source>
+        <translation>%1（%2）</translation>
+    </message>
+    <message>
+        <source>comments.check.marked</source>
+        <translation>已核取</translation>
+    </message>
+    <message>
+        <source>comments.check.unmarked</source>
+        <translation>未核取</translation>
+    </message>
+    <message>
+        <source>comments.hidden</source>
+        <translation>（隱藏）</translation>
+    </message>
+    <message>
+        <source>comments.item</source>
+        <translation>%1：%2</translation>
+    </message>
+    <message>
+        <source>comments.numbered</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>comments.editor.reply</source>
+        <translation>回覆 %1 — 按 Enter 送出，Esc 取消</translation>
+    </message>
+    <message>
+        <source>comments.editor.edit</source>
+        <translation>編輯註解 — 按 Enter 儲存，Esc 取消</translation>
+    </message>
+    <message>
+        <source>comments.count</source>
+        <translation>%2 則註解中的 %1 則</translation>
+    </message>
+    <message>
+        <source>comments.historyEntry</source>
+        <translation>%1 — %2，%3</translation>
+    </message>
+    <message>
+        <source>comments.wrappedToFirst</source>
+        <translation>已到最後一則註解，從第一則繼續</translation>
+    </message>
+    <message>
+        <source>comments.wrappedToLast</source>
+        <translation>已到第一則註解，從最後一則繼續</translation>
+    </message>
+    <message>
+        <source>comments.none</source>
+        <translation>沒有可前往的註解</translation>
+    </message>
+    <message>
+        <source>comments.status.Accepted</source>
+        <translation>已接受</translation>
+    </message>
+    <message>
+        <source>comments.status.Rejected</source>
+        <translation>已拒絕</translation>
+    </message>
+    <message>
+        <source>comments.status.Cancelled</source>
+        <translation>已取消</translation>
+    </message>
+    <message>
+        <source>comments.status.Completed</source>
+        <translation>已完成</translation>
+    </message>
+    <message>
+        <source>comments.status.None</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <source>comments.type.Text</source>
+        <translation>附註</translation>
+    </message>
+    <message>
+        <source>comments.type.FreeText</source>
+        <translation>文字方塊</translation>
+    </message>
+    <message>
+        <source>comments.type.Line</source>
+        <translation>直線</translation>
+    </message>
+    <message>
+        <source>comments.type.Square</source>
+        <translation>矩形</translation>
+    </message>
+    <message>
+        <source>comments.type.Circle</source>
+        <translation>橢圓</translation>
+    </message>
+    <message>
+        <source>comments.type.Polygon</source>
+        <translation>多邊形</translation>
+    </message>
+    <message>
+        <source>comments.type.PolyLine</source>
+        <translation>折線</translation>
+    </message>
+    <message>
+        <source>comments.type.Highlight</source>
+        <translation>醒目提示</translation>
+    </message>
+    <message>
+        <source>comments.type.Underline</source>
+        <translation>底線</translation>
+    </message>
+    <message>
+        <source>comments.type.Squiggly</source>
+        <translation>波浪底線</translation>
+    </message>
+    <message>
+        <source>comments.type.StrikeOut</source>
+        <translation>刪除線</translation>
+    </message>
+    <message>
+        <source>comments.type.Stamp</source>
+        <translation>圖章</translation>
+    </message>
+    <message>
+        <source>comments.type.Caret</source>
+        <translation>插入</translation>
+    </message>
+    <message>
+        <source>comments.type.Ink</source>
+        <translation>手繪</translation>
+    </message>
+    <message>
+        <source>comments.type.FileAttachment</source>
+        <translation>附件</translation>
+    </message>
+    <message>
+        <source>comments.type.Sound</source>
+        <translation>聲音</translation>
+    </message>
+    <message>
+        <source>comments.type.Redact</source>
+        <translation>修訂標記</translation>
+    </message>
+    <message>
+        <source>comments.type.other</source>
+        <translation>註記</translation>
     </message>
 </context>
 </TS>

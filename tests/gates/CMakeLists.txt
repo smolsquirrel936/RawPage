@@ -612,11 +612,11 @@ set(ML $<TARGET_FILE:mutation-lint>)
 set(ML_FIX "${FIXTURES}/mutation-lint")
 
 # A-11, the real tree: every command, named -- and so the roster D6-1 closes is pinned here, not
-# remembered. Seven since Stage 6 T5 (three since T3, one until then); `Stage6-Annotations-Plan.md` §4
-# ends at twelve.
+# remembered. Nine since Stage 6 T9 (seven since T5, three since T3, one until then);
+# `Stage6-Annotations-Plan.md` §4 ends at twelve.
 rawpage_add_gate_test(NAME gates.mutation_lint.clean_tree
     COMMAND ${ML} --root ${CMAKE_SOURCE_DIR}
-    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 7 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand RotatePageCommand;")
+    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 9 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand RotatePageCommand;")
 
 # A-11, THE CONTROL: three spellings of "derives from Command" (plain, qualified across two lines,
 # second of two bases), each complete -- and a CommandHistory base and an `enum class X : int`,

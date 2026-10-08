@@ -153,6 +153,8 @@ add_executable(rawpage_ui_tests
     tst_annotoverlay.cpp
     tst_annottools.cpp
     tst_drawtools.cpp
+    tst_commentspane.cpp       # Stage 6 T9 -- the Comments pane: its table from key events (A-70), the list as
+                               #   the query (A-67), the identity's checkmark (A-69), deletes (A-71), numbers (A-72)
 
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the

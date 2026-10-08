@@ -26,6 +26,11 @@
 #include "core/text/SearchQuery.h"
 #include "core/text/SearchResults.h"
 #include "pdf/DocumentBackendImpl.h"
+#include "core/cmd/CommandJournal.h"
+#include "core/cmd/commands/AnnotationCommands.h"
+#include "core/doc/Document.h"
+#include "core/doc/SaveCoordinator.h"
+#include "tests/unit/FakeDurableFiles.h"
 #include "tests/render/TextOracle.h"
 
 #include <QDir>
@@ -487,4 +492,53 @@ TEST_CASE("a 900-page file's open never holds the engine longer than one page's 
     // EVERY PIECE THE ENGINE HELD is no longer than the longest page extraction in the same run -- the
     // job D5-3 already accepts a visible tile waiting behind.
     CHECK(pieceMax <= extractionMax);
+}
+
+// ==========================================================================================
+// Stage 6 T9 (D6-11, guide A-74's folder clause) -- a closed file is searched as SAVED
+// ==========================================================================================
+
+TEST_CASE("a folder search finds a comment only once it is saved", "[foldersearch][A-74][D6-11]")
+{
+    // Comments of an OPEN document are its store's (the find bar's run); a folder search opens files of its own
+    // and reads what the FILE holds -- so a comment made and not saved is not there, and once saved it is.
+    QTemporaryDir folder;
+    REQUIRE(folder.isValid());
+    const QString path = QDir(folder.path()).filePath(QStringLiteral("text-a4.pdf"));
+    REQUIRE(QFile::copy(QStringLiteral(RAWPAGE_CORPUS_DIR "/ordinary/text-a4.pdf"), path));
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+
+    pdf::DocumentBackendImpl editor;
+    tests::FakeDurableFiles durable;
+    auto handle = editor.open(path, nullptr);
+    REQUIRE(handle);
+    core::Document document;
+    REQUIRE(document.hydrate(editor, handle.value()));
+    core::CommandJournal journal(std::move(document), editor.mutationSink(handle.value()));
+    core::Annotation note = core::newAnnotation(core::AnnotationSubtype::Text, 0, QStringLiteral("Ana"), 1791590400);
+    note.rect = core::PdfRect{core::PdfPoint{500, 700}, core::PdfSize{20, 20}};
+    note.icon = QStringLiteral("Comment");
+    note.flags = core::AnnotationFlag::Print | core::AnnotationFlag::NoZoom | core::AnnotationFlag::NoRotate;
+    note.contents = QStringLiteral("A marmoset was here");
+    REQUIRE(journal.run(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{note})));
+
+    const auto marmosets = [&] {
+        Rig rig;
+        FolderSearch::Request request;
+        request.folder = folder.path();
+        request.query = literal(QStringLiteral("marmoset"));
+        request.query.classes.comments = true;
+        const Rig::Run run = rig.search(std::move(request));
+        int hits = 0;
+        for (const FileResult& file : run.files) hits += static_cast<int>(file.hits.size());
+        return hits;
+    };
+    CHECK(marmosets() == 0);   // made, NOT saved
+
+    core::SaveCoordinator coordinator(editor, &durable);
+    auto saved = coordinator.save(journal, path);
+    REQUIRE(saved);
+    REQUIRE(saved.value().kind == core::SaveOutcome::Kind::Saved);
+    (void)editor.close(handle.value());
+    CHECK(marmosets() == 1);   // saved: in the file, and found there
 }

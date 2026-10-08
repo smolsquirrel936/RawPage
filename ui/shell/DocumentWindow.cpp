@@ -319,6 +319,17 @@ void DocumentWindow::build(const Recovery* recovery)
         setReflowing(false);
         if (PageView* pane = view()) pane->revealPageRect(page, rect);
     });
+    // S6 T9 (D6-11): COMMENTS ARE SEARCHED FROM THE STORE -- so one not saved yet is found -- and a hit on one selects
+    // it on the page as well as revealing it. A tab with no journal searches the file's, through the engine.
+    findBar_->setCommentSource([this]() -> std::shared_ptr<const core::text::SearchEngine::CommentUnits> {
+        if (!journal_) return nullptr;
+        return core::text::SearchEngine::commentUnits(journal_->document().annotations());
+    });
+    connect(findBar_, &FindReplaceBar::annotationHitActivated, this, [this](const QString& locator) {
+        const std::optional<core::AnnotationId> id = core::AnnotationId::fromString(locator);
+        if (!id || annotations_ == nullptr || annotations_->store() == nullptr || !annotations_->store()->find(*id)) return;
+        annotations_->select({*id});
+    });
     // A BOOKMARK HIT (S5 T8, D5-12) goes where the bookmark goes -- the Bookmarks pane's own path.
     connect(findBar_, &FindReplaceBar::destinationActivated, this, [this](const core::Destination& destination) {
         setReflowing(false);

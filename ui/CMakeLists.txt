@@ -235,6 +235,8 @@ add_library(rawpage_ui STATIC
     # table stays unregistered and leaves its key alone, which is T6's control.
     panes/BookmarksPane.h
     panes/BookmarksPane.cpp
+    panes/CommentsPane.h
+    panes/CommentsPane.cpp
     panes/DestinationsPane.h
     panes/DestinationsPane.cpp
     # S5 T9 (D5-13) -- Advanced Search, a dock of its own like the log pane: core/text/FolderSearch does the

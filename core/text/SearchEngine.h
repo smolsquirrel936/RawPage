@@ -92,6 +92,10 @@
 #include <thread>
 #include <vector>
 
+namespace rawpage::core {
+class AnnotationStore;
+}
+
 namespace rawpage::core::text {
 
 // One match. IN PAGE TEXT: a page and the READING positions it covers, [begin, end) -- what a highlight and
@@ -190,10 +194,25 @@ public:
     static std::vector<SearchHit> findInUnit(const CompiledQuery& query, std::shared_ptr<const SearchUnit> unit,
                                              int limit = 0);
 
+    // ---- Comments from the store (Stage 6 T9, D6-11) ----------------------------------------------
+    // THE COMMENTS OF AN OPEN DOCUMENT ARE ITS STORE'S, so a comment nobody has saved yet is found: a run
+    // given them takes every Comments-class unit from them and none from the engine's page parts -- which it
+    // then asks for only where the query includes FIELDS. They are made on the pumping thread, from the store
+    // a document window holds, and are immutable after, so every worker reads them as it reads a part. A run
+    // not given them -- a folder search, a file no tab holds -- reads comments through the engine as before.
+    // Keyed by page; each part's `part` is `kStoreCommentsPart`, which no engine part is.
+    static constexpr int kStoreCommentsPart = -3;
+    using CommentUnits = std::map<int, std::shared_ptr<const SearchUnitPart>>;
+    // One unit for the `/Contents` and one for the `/Subj` of every comment -- the subtypes the engine's
+    // reader calls comments (`pdf/render/PdfiumDocument`), state replies left out -- in each page's listing
+    // order, its `locator` the annotation's identity (`AnnotationId::toString`), so a hit names what to select.
+    static std::shared_ptr<const CommentUnits> commentUnits(const AnnotationStore& store);
+
     // ---- The run (asynchronous) ------------------------------------------------------------------
     // Nothing is delivered from inside `start`: even a search whose every page is already indexed
     // delivers from the next `deliverReady()`. An error means NO run was started.
-    Result<SearchId> start(DocumentIndex::EntryId entry, const SearchQuery& query, Handlers handlers);
+    Result<SearchId> start(DocumentIndex::EntryId entry, const SearchQuery& query, Handlers handlers,
+                           std::shared_ptr<const CommentUnits> comments = nullptr);
     void cancel(SearchId id);
     bool isRunning(SearchId id) const;
 
@@ -245,6 +264,7 @@ private:
         std::shared_ptr<const CompiledQuery> query;
         std::vector<Piece> pieces;
         int limitPerPage = 0;
+        bool storeComments = false;   // T9: the engine parts' comments are skipped, the store's matched
     };
 
     struct Completion {
@@ -265,6 +285,7 @@ private:
         // fields included); `docParts` -- the outline's and the attachments' (a whole-document search
         // including bookmarks or attachments), in the one document slot, slot 0, when it is not empty.
         bool pageUnits = false;
+        std::shared_ptr<const CommentUnits> comments;   // T9 (D6-11): the store's, when the query includes them
         std::vector<int> docParts;
         int docSlots = 0;                // 0 or 1
         // Per slot: the document's first, then the pages in scope by offset from `firstPage`.
@@ -328,7 +349,8 @@ public:
     SearchSession& operator=(const SearchSession&) = delete;
 
     // An error cancels the previous run too: its results would answer a pattern nobody is asking for.
-    Result<void> start(DocumentIndex::EntryId entry, const SearchQuery& query, SearchEngine::Handlers handlers);
+    Result<void> start(DocumentIndex::EntryId entry, const SearchQuery& query, SearchEngine::Handlers handlers,
+                       std::shared_ptr<const SearchEngine::CommentUnits> comments = nullptr);
     void cancel();
     bool isRunning() const { return current_ != 0 && engine_.isRunning(current_); }
     SearchEngine::SearchId current() const noexcept { return current_; }
