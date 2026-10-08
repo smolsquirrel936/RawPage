@@ -856,6 +856,10 @@
         <translation>Polyline</translation>
     </message>
     <message>
+        <source>action.annot.cloud</source>
+        <translation>Cloud</translation>
+    </message>
+    <message>
         <source>action.annot.pencil</source>
         <translation>Pencil</translation>
     </message>
@@ -1663,6 +1667,26 @@
         <translation>%1 is selected. Click where the text starts, then type and press Enter (Shift+Enter starts a new line).</translation>
     </message>
     <message>
+        <source>shell.status.annotationToolShape</source>
+        <translation>%1 armed. Drag on the page to draw it; hold Shift to keep it square or at 45 degrees.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolPolygon</source>
+        <translation>%1 armed. Click each corner; press Enter or double-click to finish, Esc to abandon.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolPencil</source>
+        <translation>%1 armed. Drag on the page to draw a stroke.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolEraser</source>
+        <translation>%1 armed. Drag across a pencil stroke to erase it.</translation>
+    </message>
+    <message>
+        <source>shell.status.toolDefaultsWritten</source>
+        <translation>The current properties are now the tool's defaults.</translation>
+    </message>
+    <message>
         <source>shell.propertiesBar.nothing</source>
         <translation>Nothing selected</translation>
     </message>
@@ -1707,6 +1731,118 @@
         <translation>Read-only</translation>
     </message>
     <message>
+        <source>shell.propertiesBar.fill</source>
+        <translation>Fill</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.fillNone</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyleLabel</source>
+        <translation>Line style</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyle.solid</source>
+        <translation>Solid</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyle.dashed</source>
+        <translation>Dashed</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyle.dotted</source>
+        <translation>Dotted</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend</source>
+        <translation>Blend</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.normal</source>
+        <translation>Normal</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.multiply</source>
+        <translation>Multiply</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.screen</source>
+        <translation>Screen</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.overlay</source>
+        <translation>Overlay</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.darken</source>
+        <translation>Darken</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.lighten</source>
+        <translation>Lighten</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.difference</source>
+        <translation>Difference</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.exclusion</source>
+        <translation>Exclusion</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.fontSize</source>
+        <translation>Font size</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.endings</source>
+        <translation>Ends</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.None</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.OpenArrow</source>
+        <translation>Open arrow</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.ClosedArrow</source>
+        <translation>Closed arrow</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.ROpenArrow</source>
+        <translation>Reversed open arrow</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.RClosedArrow</source>
+        <translation>Reversed closed arrow</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Square</source>
+        <translation>Square</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Circle</source>
+        <translation>Circle</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Diamond</source>
+        <translation>Diamond</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Butt</source>
+        <translation>Butt</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Slash</source>
+        <translation>Slash</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.cloud</source>
+        <translation>Cloud size</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>Light</translation>
     </message>
@@ -1741,6 +1877,14 @@
     <message>
         <source>shell.tooltip.needsSelection</source>
         <translation>%1 needs some text to be selected.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsShapeInProgress</source>
+        <translation>Needs a polygon, polyline or cloud being drawn</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsToolOrSelection</source>
+        <translation>Needs an annotation tool armed or an annotation selected</translation>
     </message>
     <message>
         <source>shell.tooltip.needsComparison</source>
@@ -3076,6 +3220,10 @@
         <translation>Full Screen</translation>
     </message>
     <message>
+        <source>prefs.group.commenting</source>
+        <translation>Commenting</translation>
+    </message>
+    <message>
         <source>prefs.setting.fullScreen.transition</source>
         <translation>Default page transition</translation>
     </message>
@@ -3110,6 +3258,26 @@
     <message>
         <source>prefs.setting.identity.organization</source>
         <translation>Organization</translation>
+    </message>
+    <message>
+        <source>prefs.setting.commenting.stickyTool</source>
+        <translation>Keep a tool selected after use</translation>
+    </message>
+    <message>
+        <source>prefs.setting.commenting.popupBehaviour</source>
+        <translation>Show note pop-ups</translation>
+    </message>
+    <message>
+        <source>prefs.choice.popupBehaviour.always</source>
+        <translation>Always</translation>
+    </message>
+    <message>
+        <source>prefs.choice.popupBehaviour.onHover</source>
+        <translation>On hover</translation>
+    </message>
+    <message>
+        <source>prefs.choice.popupBehaviour.never</source>
+        <translation>Never</translation>
     </message>
     <message>
         <source>prefs.group.search</source>
@@ -3502,6 +3670,18 @@
     <message>
         <source>prefs.shortcuts.reset</source>
         <translation>Reset</translation>
+    </message>
+    <message>
+        <source>prefs.toolDefaults.title</source>
+        <translation>Tool defaults</translation>
+    </message>
+    <message>
+        <source>prefs.toolDefaults.tool</source>
+        <translation>Tool</translation>
+    </message>
+    <message>
+        <source>prefs.toolDefaults.reset</source>
+        <translation>Reset this tool</translation>
     </message>
     <message>
         <source>prefs.shortcuts.noShadows</source>

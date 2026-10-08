@@ -3,6 +3,7 @@
 #include "core/Log.h"
 #include "ui/dialogs/SettingsPage.h"
 #include "ui/dialogs/ShortcutsPage.h"
+#include "ui/dialogs/ToolDefaultsEditor.h"
 #include "ui/shell/Catalog.h"
 
 #include <QDialogButtonBox>
@@ -60,6 +61,12 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
         // page-appearance pages rather than at the end.
         SettingsGroup::FullScreen,
 
+        // S6 T8. The `Commenting` group, empty in `SettingsGroup` since Stage 1, filled by `commenting/stickyTool`
+        // and `commenting/popupBehaviour` (D6-13) -- and, below their rows, the per-tool editor of the
+        // `commenting/default<Property>.<tool>` family, which is a family and not rows. **Eleven of 26 groups
+        // ship.** Between Full Screen and Identity, where `Features.md` §9.1 puts it.
+        SettingsGroup::Commenting,
+
         // S6 T6. The `Identity` group, empty in `SettingsGroup` since Stage 1, filled by the three
         // `identity/*` rows (D6-13): who a comment is by. **Ten of 26 groups ship.** After Full Screen,
         // where `Features.md` §9.1 puts it (Commenting and Forms, between them there, ship later).
@@ -111,6 +118,19 @@ PreferencesDialog::PreferencesDialog(const app::Services& services, QWidget* par
 
         auto* page = new SettingsPage(services_.settings, group, this);
         pages_.emplace(group, page);
+
+        // S6 T8: the Commenting page is its generated rows AND the tools' defaults, one under the other.
+        if (group == SettingsGroup::Commenting) {
+            auto* holder = new QWidget(this);
+            auto* stack = new QVBoxLayout(holder);
+            stack->setContentsMargins(0, 0, 0, 0);
+            stack->addWidget(page);
+            toolDefaults_ = new ToolDefaultsEditor(services_.settings, holder);
+            stack->addWidget(toolDefaults_);
+            stack->addStretch(1);
+            pageStack_->addWidget(holder);
+            continue;
+        }
         pageStack_->addWidget(page);
     }
 
@@ -176,6 +196,7 @@ void PreferencesDialog::restoreCurrentPageDefaults()
         return;
     }
     if (SettingsPage* page = settingsPage(group)) page->restoreDefaults();
+    if (group == SettingsGroup::Commenting && toolDefaults_ != nullptr) toolDefaults_->restoreDefaults();
 }
 
 } // namespace rawpage::ui

@@ -304,6 +304,8 @@ QJsonObject Annotation::toJson() const
     }
     if (opacity) json.insert(QStringLiteral("opacity"), *opacity);
     if (borderWidth) json.insert(QStringLiteral("borderWidth"), *borderWidth);
+    numbers("dashPattern", dashPattern);
+    if (cloudIntensity) json.insert(QStringLiteral("cloudIntensity"), *cloudIntensity);
 
     auto text = [&json](const char* key, const QString& value) {
         if (!value.isEmpty()) json.insert(QLatin1String(key), value);
@@ -320,6 +322,8 @@ QJsonObject Annotation::toJson() const
     text("modified", modified.raw);
     text("stateModel", stateModel);
     text("state", state);
+    text("borderStyle", borderStyle);
+    text("blendMode", blendMode);
 
     // Object numbers as 64-bit INTEGERS, not doubles: a file may name object 2^60, and a double would
     // round it to a different object. A reference to an annotation RawPage created is its identity's
@@ -374,6 +378,11 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
     if (json.contains(QStringLiteral("opacity"))) a.opacity = json.value(QStringLiteral("opacity")).toDouble();
     if (json.contains(QStringLiteral("borderWidth")))
         a.borderWidth = json.value(QStringLiteral("borderWidth")).toDouble();
+    a.dashPattern = numbersFromJson(json.value(QStringLiteral("dashPattern")));
+    if (json.contains(QStringLiteral("cloudIntensity")))
+        a.cloudIntensity = json.value(QStringLiteral("cloudIntensity")).toDouble();
+    a.borderStyle = json.value(QStringLiteral("borderStyle")).toString();
+    a.blendMode = json.value(QStringLiteral("blendMode")).toString();
 
     a.nm = json.value(QStringLiteral("nm")).toString();
     a.author = json.value(QStringLiteral("author")).toString();
@@ -457,6 +466,24 @@ std::optional<PdfRect> markupRect(const std::vector<double>& quadPoints)
     const double grow = std::max(2.0, 0.15 * tallest);
     return PdfRect{PdfPoint{bounds->left() - grow, bounds->bottom() - grow},
                    PdfSize{bounds->size.width + 2 * grow, bounds->size.height + 2 * grow}};
+}
+
+bool isBorderStyleName(const QString& name)
+{
+    return name == QLatin1String("S") || name == QLatin1String("D") || name == QLatin1String("B")
+           || name == QLatin1String("I") || name == QLatin1String("U");
+}
+
+bool isBlendModeName(const QString& name)
+{
+    static const char* const kNames[] = {"Normal",     "Compatible", "Multiply",  "Screen",     "Overlay",
+                                         "Darken",     "Lighten",    "ColorDodge", "ColorBurn", "HardLight",
+                                         "SoftLight",  "Difference", "Exclusion", "Hue",        "Saturation",
+                                         "Color",      "Luminosity"};
+    for (const char* known : kNames) {
+        if (name == QLatin1String(known)) return true;
+    }
+    return false;
 }
 
 QString identityAuthor(const QString& configured, const QString& loginName)

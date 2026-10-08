@@ -54,6 +54,19 @@
 // `/Widths`, so every reader sets the text on the same advances, and a CJK font as a `Type0` over a
 // `CIDFontType0` with `/DW 1000` and a `/FontDescriptor`, which ISO 32000-1 Table 117 requires indirect --
 // so free text is the first appearance with objects BESIDE its form, asked for through `AppearanceObjects`.
+//
+// ===========================================================================================
+// LINE, SQUARE, CIRCLE, POLYGON, POLYLINE, INK -- Stage 6 T8 (D6-15, D6-35)
+// ===========================================================================================
+// Each in `/C` at `/BS /W` (ISO's 1 when absent; no `/C` is no stroke, ISO's transparent), dashed when `/BS /S`
+// is `D`, filled with `/IC` where the kind has an inside, and through the blend `/BM` names (a highlight's own is
+// `Multiply`, everything else's `Normal`). A Square's or a Circle's outline is inset by half its width inside the
+// rectangle less `/RD`, so the whole line shows; a Polygon whose `/BE` is cloudy is drawn as bumps round its
+// vertices, and so is a cloudy Square round its box. A Line's and a PolyLine's `/LE` endings -- all ten of ISO
+// 32000-1 Table 176, and a callout's too since T8 -- are drawn solid, a closed one filled with `/IC`. INK draws
+// each stroke as the centripetal Catmull-Rom curve through its samples, round-capped. The geometry of a cloud's
+// bumps, an ending and an ink curve is `core/doc/DrawnShapes`', which the hit test and the rectangle a tool writes
+// read too. A measurement (`/IT /LineDimension` …) is refused by key until T12 draws its readout.
 
 #ifndef RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
 #define RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
@@ -110,7 +123,7 @@ class AppearanceStreamBuilder {
 public:
     // Whether this build can draw `subtype`. Stage 6 T3: Highlight; T6: Underline, StrikeOut, Squiggly,
     // Caret, and Text (a note, its `Comment` and `Note` icons -- another `/Name` is refused by `normal`); T7:
-    // FreeText -- a box, a callout, a typewriter.
+    // FreeText -- a box, a callout, a typewriter; T8: Line, Square, Circle, Polygon, PolyLine and Ink.
     static bool supports(core::AnnotationSubtype subtype) noexcept;
 
     // A kind that has NO appearance of its own: a `Popup` (ISO 32000-1 §12.5.6.14), which a reader draws as

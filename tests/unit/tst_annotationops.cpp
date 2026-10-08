@@ -259,12 +259,14 @@ TEST_CASE("a highlight's appearance is a multiply form over its rectangle whatev
 
 TEST_CASE("the appearance builder refuses what it cannot draw by key", "[annotops][appearance]")
 {
-    Annotation ink = core::newAnnotation(AnnotationSubtype::Ink, 0, kAuthor, kNow);
-    ink.inkList = {{1, 2, 3, 4}};
-    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(ink);
+    // A STAMP since T8, which draws ink.
+    Annotation stamp = core::newAnnotation(AnnotationSubtype::Stamp, 0, kAuthor, kNow);
+    stamp.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
+    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(stamp);
     REQUIRE_FALSE(unsupported);
     CHECK(keyOf(unsupported.error()) == "error.pdf.appearanceUnsupported");
-    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Ink));
+    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Stamp));
+    CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Ink));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Highlight));
 
     Annotation partial = highlight(0);
@@ -644,11 +646,11 @@ TEST_CASE("an annotation the sink cannot write is refused by the journal with no
     auto session = tests::openCopy("ordinary/text-a4.pdf");
     REQUIRE(session);
     const QByteArray hash = session->journal->document().modelHash();
-    Annotation ink = core::newAnnotation(AnnotationSubtype::Ink, 0, kAuthor, kNow);
-    ink.inkList = {{10, 10, 20, 20}};
-    ink.rect = *core::boundsOfPoints(ink.inkList.front());
+    // A STAMP since T8, which draws ink: a kind this build cannot draw yet (T10's).
+    Annotation stamp = core::newAnnotation(AnnotationSubtype::Stamp, 0, kAuthor, kNow);
+    stamp.rect = core::PdfRect{core::PdfPoint{10, 10}, core::PdfSize{60, 20}};
     // A set: one the sink can write and one it cannot -- the whole set is refused.
-    CHECK_FALSE(add(*session, {highlight(0), ink}));
+    CHECK_FALSE(add(*session, {highlight(0), stamp}));
     CHECK(session->journal->document().modelHash() == hash);
     CHECK(session->journal->historySize() == 0);
     auto delta = session->sink()->delta();

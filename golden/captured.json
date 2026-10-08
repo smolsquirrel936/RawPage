@@ -32,6 +32,232 @@
             "width": 1588
         },
         {
+            "dpi": 144,
+            "file": "appearance/arrow",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/blend-multiply",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/blend-screen",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/callout-diamond",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/caret-notes",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/cloud-1",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/cloud-2",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/cloud-square",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/freetext-box",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/highlight",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/highlight-normal",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/ink-thick",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/ink-thin",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/line-dashed",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/line-endings-1",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/line-endings-2",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/line-solid",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/norotate-note",
+            "height": 400,
+            "page": 0,
+            "width": 300
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/opacity",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/oval-dashed",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/oval-fill",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/polygon-fill",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/polyline-endings",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/rect-dashed",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/rect-dotted",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/rect-fill",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/rotated-90",
+            "height": 400,
+            "page": 0,
+            "width": 300
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/squiggly",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/strikeout",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/typewriter",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/underline",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
             "dpi": 96,
             "file": "compare/base.pdf",
             "height": 1123,
@@ -3704,7 +3930,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-04T17:20:24Z",
+    "capturedUtc": "2026-10-08T07:13:46Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 6 T1: 11 corpus files added (ordinary/annots-every-type, annots-no-ap, annots-threads, annots-flags, annots-rotated, annots-direct, annots-unknown-keys, annots-900, attachments, measure-scale, annots-report-v1). Additions only -- no existing baseline is regenerated, and the filter names only the new files. Every image was looked at in a scratch capture first."
+    "reason": "Stage 6 T8: polyline-endings recaptured -- its first capture was looked at and found to have NO endings: the case spec never set /LE (a defect in the spec, caught by looking, never kept)."
 }

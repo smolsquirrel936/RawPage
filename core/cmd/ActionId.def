@@ -374,6 +374,9 @@ RAWPAGE_ACTION(AnnotRectangle,         "annot.rectangle",         Viewer, "actio
 RAWPAGE_ACTION(AnnotOval,              "annot.oval",              Viewer, "action.annot.oval")
 RAWPAGE_ACTION(AnnotPolygon,           "annot.polygon",           Viewer, "action.annot.polygon")
 RAWPAGE_ACTION(AnnotPolyline,          "annot.polyline",          Viewer, "action.annot.polyline")
+// Stage 6 T8 (`Stage6-Annotations-Plan.md` §4's candidates): a polygon whose border is cloudy (`/BE /S /C`) --
+// minted chordless, so `Features.md` §8 is untouched.
+RAWPAGE_ACTION(AnnotCloud,             "annot.cloud",             Viewer, "action.annot.cloud")
 RAWPAGE_ACTION(AnnotPencil,            "annot.pencil",            Viewer, "action.annot.pencil")
 RAWPAGE_ACTION(AnnotEraser,            "annot.eraser",            Viewer, "action.annot.eraser")
 RAWPAGE_ACTION(AnnotStamp,             "annot.stamp",             Viewer, "action.annot.stamp")

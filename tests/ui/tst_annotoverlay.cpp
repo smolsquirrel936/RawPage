@@ -30,6 +30,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/TilePresenter.h"
+#include "ui/viewer/ToolDefaults.h"
 #include "ui/write/FindReplaceBar.h"
 
 #include <QApplication>
@@ -450,11 +451,13 @@ TEST_CASE("Ctrl+E toggles one bar that shows the tool's defaults then the select
     REQUIRE(a.view->tools().armedAnnotation() == ui::AnnotationToolKind::Highlight);
     CHECK(ui::ShortcutBinder::declaredContext(a.view) == core::KeyContext::AnnotationTools);
     CHECK(bar->subject() == ui::PropertiesBar::Subject::ToolDefaults);
-    // Changing a default is the session's and constructs nothing.
+    // Changing a tool's property is the session's and constructs nothing (since T8 a session CHANGE over the
+    // settings family, `ui/viewer/ToolDefaults`).
     bar->opacityBox()->setValue(40);
-    CHECK(ui::sessionToolDefaults(ui::AnnotationToolKind::Highlight).opacity == 0.4);
+    REQUIRE(ui::sessionToolChange(ui::AnnotationToolKind::Highlight));
+    CHECK(ui::sessionToolChange(ui::AnnotationToolKind::Highlight)->opacity == 0.4);
     CHECK(a.steps() == 0);
-    ui::sessionToolDefaults(ui::AnnotationToolKind::Highlight).opacity = 1.0;   // the session is shared
+    ui::clearSessionToolChanges();   // the session is shared
 
     // A selection: the bar shows it, and a colour is ONE `SetAnnotationAppearance`.
     a.click(a.onBorderOf(10));

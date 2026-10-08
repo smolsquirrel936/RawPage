@@ -37,8 +37,10 @@
 
 #include "core/Geometry.h"
 #include "core/doc/TypedText.h"
+#include "core/settings/CommentingTypes.h"
 
 #include <QPoint>
+#include <QPointF>
 #include <QRect>
 #include <QRectF>
 #include <QSize>
@@ -221,6 +223,20 @@ public:
     // A tool made something: the host goes back to the Selection tool unless `K` keeps this one armed (§8's
     // Annotation tools row, `annot.keepToolSelected`).
     virtual void annotationToolUsed() {}
+
+    // ---- The drawing tools' two (S6 T8) ---------------------------------------------------------------
+    // What `tool` draws with now: the session's change, else the settings family (`ui/viewer/ToolDefaults`).
+    // A host with no settings answers the table's defaults.
+    virtual core::ToolDefaults toolDefaults(core::CommentingTool tool) const { return core::builtInToolDefaults(tool); }
+
+    // Where a page-space point is in the viewport, logical pixels -- what a preview is painted at, so a polygon
+    // in progress stays on its page when the view scrolls. Nullopt for a page not laid out.
+    virtual std::optional<QPointF> widgetPointOf(int page, core::PdfPoint point) const
+    {
+        (void)page;
+        (void)point;
+        return std::nullopt;
+    }
 };
 
 class Tool {
@@ -244,6 +260,10 @@ public:
     // followed the cursor only while dragging would be a magnifier nobody could aim.
     virtual bool tracksHover() const { return false; }
 
+    // S6 T8: `Shift` is this tool's -- a drawing tool's constraint (§8) -- and not the temporary hand's
+    // (`ToolController::kTemporaryHandModifier`), which would otherwise take the press and pan.
+    virtual bool usesShift() const { return false; }
+
     virtual void press(ToolHost& host, QPoint pos) = 0;
     // The press with what it carries (S5 T5). Every tool but the Selection tool ignores both, which is
     // what the default says.
@@ -253,6 +273,13 @@ public:
         press(host, pos);
     }
     virtual void move(ToolHost& host, QPoint pos) = 0;
+    // The move with its modifiers (S6 T8): a drawing tool constrains its drag while `Shift` is held. Every other
+    // tool ignores them, which is what the default says.
+    virtual void moveWith(ToolHost& host, QPoint pos, Qt::KeyboardModifiers modifiers)
+    {
+        (void)modifiers;
+        move(host, pos);
+    }
     virtual void release(ToolHost& host, QPoint pos) = 0;
 
     // Abandon whatever is in progress and leave the view as it was before it started. Called by

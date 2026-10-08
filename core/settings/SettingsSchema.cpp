@@ -78,6 +78,9 @@ bool isDeclaredPath(const QString& path, std::span<const ActionAlias> aliases)
 {
     if (findKey(path) != nullptr) return true;
 
+    // S6 T8: the tool-defaults family, resolved -- a tool and a property `ToolDefaults.def` pairs, nothing else.
+    if (ToolDefaultKey::fromPath(path)) return true;
+
     // The shortcuts family. Membership is decided by RESOLVING the two components, not by matching
     // the prefix: `shortcuts/Nowhere/file.open` and `shortcuts/Viewer/file.notAnAction` both look
     // like family members and are not, and the difference is what lets a stale key be dropped with

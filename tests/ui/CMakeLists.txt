@@ -152,6 +152,7 @@ add_executable(rawpage_ui_tests
     # the same gestures against the INK are tests/composition/tst_annotink.cpp's (A-41).
     tst_annotoverlay.cpp
     tst_annottools.cpp
+    tst_drawtools.cpp
 
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the

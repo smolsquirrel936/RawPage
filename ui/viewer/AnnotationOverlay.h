@@ -178,6 +178,7 @@ public:
     struct Style {
         std::vector<double> colour;   // /C: 1, 3 or 4 components; empty for the kind's own
         double opacity = 1.0;         // /CA, written only below 1
+        QString blendMode;            // /BM (S6 T8): empty for the kind's own -- see `ui::blendNameFor`
     };
     // A new annotation of `subtype` on `page`: its `/NM`, the person's name, the instant.
     core::Annotation newAnnotation(core::AnnotationSubtype subtype, int page) const;
@@ -200,6 +201,7 @@ public:
         double borderWidth = 1.0;          // a typewriter has no outline, whatever this says
         double fontSize = core::kFreeTextDefaultSize;
         core::TypedFont han = core::TypedFont::Simplified;   // the person's language (D6-34)
+        std::vector<double> fill;          // /IC (S6 T8): a box's and a callout's fill; empty for none
     };
     // A box, a callout or a typewriter on `page`, holding `text`, FITTED to it and made as ONE command: its
     // frame's top-left corner -- as the text reads, turned `rotate` -- at `topLeft`, `width` points wide (a
@@ -214,6 +216,19 @@ public:
     core::Status editFreeText(const core::AnnotationId& id, const QString& text, core::TypedFont hanFallback);
     // A text box made with a click rather than a drag is this wide, in page units.
     static constexpr double kFreeTextWidthPoints = 180.0;
+
+    // S6 T8: the selected free text set in `size` points and refitted to its lines -- ONE `EditAnnotationCommand`
+    // (the properties bar's font size; D6-34(g) left it to T8).
+    core::Status setFontSize(double size);
+
+    // ---- The drawing tools (S6 T8) ------------------------------------------------------------------
+    // Annotations a tool made -- their identity, author and instant from `newAnnotation`, their geometry, style
+    // and rectangle the tool's -- as ONE `AddAnnotationCommand` (D6-1).
+    core::Status addMade(std::vector<core::Annotation> annotations);
+    // THE ERASER (D6-15): the topmost ink on `page` that `path` (page space, x y pairs) comes within `radius` of,
+    // its covered samples removed and its strokes split -- ONE `EditAnnotationCommand`, or ONE
+    // `DeleteAnnotationCommand` when nothing of it is left. Nothing touched makes nothing.
+    core::Status eraseInk(int page, const std::vector<double>& path, double radius);
 
     // A refusal the page found before any command -- a character typed that no face can show, a comment
     // whose text is locked -- said the way a refused command is: as `refused`.

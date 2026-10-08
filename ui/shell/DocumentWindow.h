@@ -320,6 +320,8 @@ public:
     // the two groups are subscribed to separately and a `pageDisplay/` change must not repaint a
     // grid it did not move.
     void applyGuideSettings();
+    // S6 T8: `commenting/stickyTool` onto every pane's tools and `commenting/popupBehaviour` onto the overlay.
+    void applyCommentingSettings();
 
     RulerWidget* horizontalRuler() const noexcept { return horizontalRuler_; }
     RulerWidget* verticalRuler() const noexcept { return verticalRuler_; }

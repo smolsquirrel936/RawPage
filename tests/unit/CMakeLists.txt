@@ -70,6 +70,11 @@ add_executable(rawpage_tests
     tst_annotfreetext.cpp         # Stage 6 T7 -- guide A-55 and A-57 below the tools: the three typed kinds
                                   #   made, edited and saved, no content stream changed, and the /AP
                                   #   decoded first-party to what was typed
+    tst_drawnshapes.cpp           # Stage 6 T8 -- the drawing kinds' geometry: the ink curve read back from the
+                                  #   builder's stream (A-59), the eraser (A-60), endings, clouds, Shift
+    tst_annotdrawing.cpp          # Stage 6 T8 -- what the drawing tools write: every kind saved and read back
+                                  #   (A-58, A-27, A-32), every appearance well-formed (A-66), blends (A-63),
+                                  #   a file's shapes redrawn (A-26), an erase's command (A-60), A-29
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,
@@ -297,6 +302,12 @@ rawpage_add_compile_case(NAME unit.settings.compile.string_key
 
 rawpage_add_compile_case(NAME unit.settings.compile.wrong_type
     SOURCE wrong-type.cpp EXPECT_FAIL 1 EXPECT_MATCH "set")
+
+# S6 T8 (D6-13, guide A-61): a (tool, property) pair `core/settings/ToolDefaults.def` does not declare is a
+# name that does not exist -- the static_assert in `ToolDefaultKey::of` refuses it. The control below names a
+# declared one.
+rawpage_add_compile_case(NAME unit.settings.compile.undeclared_tool_default
+    SOURCE undeclared-tool-default.cpp EXPECT_FAIL 1 EXPECT_MATCH "ToolDefaults.def")
 
 # THE CONTROL. Without it every case above is satisfied by a header nobody can include.
 rawpage_add_compile_case(NAME unit.settings.compile.declared_key_control

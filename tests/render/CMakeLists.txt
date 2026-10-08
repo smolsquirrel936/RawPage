@@ -81,6 +81,11 @@ add_executable(rawpage_render_tests
     tst_typedtext.cpp             # Stage 6 T7 -- guide A-56's engine half (D6-7): every character the CJK
                                   #   coverage table claims read back and drawn by PDFium in its face, and
                                   #   Helvetica's advance table held to the engine's own metrics
+    tst_appearance.cpp            # Stage 6 T8 -- guide A-65 (D6-6): our appearance against the one PDFium
+                                  #   generates for the same dictionary with no /AP, ink IoU >= 0.90
+    # The appearance cases' spec and page builder (tests/golden/AppearanceCases), compiled in -- the golden
+    # suite and golden-update read the same one.
+    ${CMAKE_SOURCE_DIR}/tests/golden/AppearanceCases.cpp
     tst_saveengine.cpp           # Stage 3 T8 -- guide cases A-54's real half, A-57's writing half, A-58:
                                   #   the shipped backend, the real WinDurableFiles, PDFium re-reading
                                   #   the saved file and drawing it as the unsaved delta drew it

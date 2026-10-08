@@ -70,6 +70,9 @@ add_executable(rawpage_composition_tests
     # and the typewriter made with mouse and key events, edited in place, a refused character, a turned page,
     # graded against the engine's pixels and the saved file reopened fresh.
     tst_typedink.cpp
+    # S6 T8 -- guide A-34/A-35's drawing halves and A-63 in pixels: the shapes, the cloud and a pencil stroke
+    # made with mouse and key events, saved and reopened fresh, undone to the page; a highlight's multiply.
+    tst_drawink.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
     ${CMAKE_SOURCE_DIR}/app/CompositionRoot.cpp

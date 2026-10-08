@@ -16,7 +16,9 @@
 //   * **Insert** is a CLICK: the caret goes on the boundary between the two characters nearest it (guide
 //     case A-52), holding what is typed.
 //
-// Colour and opacity are the tool's defaults (`sessionToolDefaults`, D6-31(c)) when the mark is made. After
+// Colour, opacity and -- since T8 -- the highlighter's blend are the tool's defaults when the mark is made
+// (`ToolHost::toolDefaults`: the settings family under the session's change, D6-13; T5 to T7 held them for the
+// session only, D6-31(c)). After
 // it, `ToolHost::annotationToolUsed` returns to the Selection tool unless `K` keeps this one.
 //
 // A press on an annotation is the overlay's first (`ui/viewer/PageView`); a press on a highlight starts a

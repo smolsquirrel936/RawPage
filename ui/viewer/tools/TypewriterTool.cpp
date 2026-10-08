@@ -73,12 +73,14 @@ void TypewriterTool::release(ToolHost& host, QPoint pos)
     if (annotations == nullptr || !pressed.isValid()) return;
     const int page = pressed.page;
     const core::FreeTextKind kind = freeTextKindOf(which_);
-    const AnnotationToolDefaults& defaults = sessionToolDefaults(which_);
+    // S6 T8: the tool's defaults are the settings family under the session's change (`ui/viewer/ToolDefaults`).
+    const core::ToolDefaults defaults = host.toolDefaults(which_);
     AnnotationOverlay::TypedStyle style;
     style.colour = defaults.colour;
     style.opacity = defaults.opacity;
-    style.borderWidth = kind == core::FreeTextKind::Typewriter ? 0.0 : defaults.borderWidth;
+    style.borderWidth = kind == core::FreeTextKind::Typewriter ? 0.0 : defaults.thickness;
     style.fontSize = defaults.fontSize;
+    style.fill = kind == core::FreeTextKind::Typewriter ? std::vector<double>{} : defaults.fillColour;
     style.han = host.hanPreference();
 
     const double ppp = host.pixelsPerPoint() > 0.0 ? host.pixelsPerPoint() : 1.0;

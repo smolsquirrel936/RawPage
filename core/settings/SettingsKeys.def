@@ -544,6 +544,23 @@ RAWPAGE_SETTING(identity, organization, QString,
                 "identity/organization", "", Identity, true)
 
 // =============================================================================================
+// The two Stage 6 `commenting/` rows -- S6 T8, `Stage6-Annotations-Plan.md` D6-13. They fill the
+// `Commenting` group with the tool-defaults FAMILY beside them (`commenting/default<Property>.<tool>`,
+// declared in `core/settings/ToolDefaults.def` and edited by the page's per-tool editor). **Eleven of 26
+// groups ship.**
+//
+// `stickyTool` is `K` (§8, Annotation tools): a tool that made something stays armed rather than going back to
+// the Selection tool -- off by default, Acrobat's default. `popupBehaviour` is WHEN a note's pop-up shows --
+// always, on hover, or never -- ONE fact in one key (D6-28; D4-5: a second key for one fact is two truths).
+// =============================================================================================
+
+// --- Commenting --------------------------------------------------------------------------------------
+RAWPAGE_SETTING(commenting, stickyTool, bool,
+                "commenting/stickyTool", false, Commenting, true)
+RAWPAGE_SETTING(commenting, popupBehaviour, PopupBehaviour,
+                "commenting/popupBehaviour", PopupBehaviour::OnHover, Commenting, true)
+
+// =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).
 // =============================================================================================
 

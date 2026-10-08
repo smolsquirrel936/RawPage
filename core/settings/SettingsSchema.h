@@ -32,6 +32,7 @@
 #include "core/Units.h"
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
+#include "core/settings/CommentingTypes.h"
 #include "core/text/CompareSensitivity.h"
 
 // THE SETTINGS TABLE NAMES `core/render/` VOCABULARY as of Stage 2 T15 -- `pageDisplay/layoutMode`
@@ -397,6 +398,20 @@ template <> struct SettingsCodec<text::CompareSensitivity> {
     static text::CompareSensitivity fromDefault(text::CompareSensitivity value) { return value; }
 };
 
+// The S6 T8 enum -- `commenting/popupBehaviour` (D6-28). The token is `core/settings/CommentingTypes.h`'s name.
+template <> struct SettingsCodec<PopupBehaviour> {
+    static QVariant toVariant(PopupBehaviour value)
+    {
+        const std::string_view name = popupBehaviourName(value);
+        return QVariant(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+    }
+    static std::optional<PopupBehaviour> fromVariant(const QVariant& variant)
+    {
+        return popupBehaviourFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static PopupBehaviour fromDefault(PopupBehaviour value) { return value; }
+};
+
 template <> struct SettingsCodec<LogLevel> {
     static QVariant toVariant(LogLevel value) { return QVariant(QString::fromUtf8(logLevelName(value))); }
     static std::optional<LogLevel> fromVariant(const QVariant& variant)
@@ -625,6 +640,19 @@ template <> struct SettingsEditorTraits<text::CompareSensitivity> {
     }
 };
 
+template <> struct SettingsEditorTraits<PopupBehaviour> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const PopupBehaviour behaviour : {PopupBehaviour::Always, PopupBehaviour::OnHover, PopupBehaviour::Never}) {
+            const std::string token(popupBehaviourName(behaviour));
+            out.push_back(SettingsChoice{token, "prefs.choice.popupBehaviour." + token});
+        }
+        return out;
+    }
+};
+
 template <> struct SettingsEditorTraits<LogSubsystemMask> {
     static constexpr SettingsEditor editor = SettingsEditor::Flags;
     static std::vector<SettingsChoice> choices()
@@ -718,7 +746,8 @@ const std::vector<SettingsKeyInfo>& allKeys();
 
 const SettingsKeyInfo* findKey(const QString& path);
 
-// Nothing outside `allKeys()` and the shortcuts family is a declared key. Used at load to tell a
+// Nothing outside `allKeys()`, the shortcuts family and -- since S6 T8 -- the tool-defaults family
+// (`commenting/default<Property>.<tool>`, `core/settings/CommentingTypes.h`) is a declared key. Used at load to tell a
 // key we never had from a key a NEWER build wrote -- D1-16 treats the two differently.
 //
 // The alias table is a parameter for one reason, and it is a testing one (Stage 2 I-39): the

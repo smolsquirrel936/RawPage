@@ -135,6 +135,11 @@ add_library(rawpage_ui STATIC
     # Stage 6 T7 (D6-7, D6-8): the text box, the callout and the typewriter -- typed text, one FreeText each.
     viewer/tools/TypewriterTool.h
     viewer/tools/TypewriterTool.cpp
+    # Stage 6 T8 (D6-15, D6-35): the shapes, and the pencil and the eraser.
+    viewer/tools/DrawingTool.h
+    viewer/tools/DrawingTool.cpp
+    viewer/tools/InkTool.h
+    viewer/tools/InkTool.cpp
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
@@ -181,6 +186,9 @@ add_library(rawpage_ui STATIC
     viewer/AnnotationOverlay.cpp
     viewer/PropertiesBar.h
     viewer/PropertiesBar.cpp
+    # Stage 6 T8 (D6-13): what a tool draws with -- the settings family under the session's change.
+    viewer/ToolDefaults.h
+    viewer/ToolDefaults.cpp
     # S6 T6 -- the one-off editor a note, an insertion or a replacement is typed into before it is made.
     viewer/AnnotationTextEditor.h
     viewer/AnnotationTextEditor.cpp
@@ -243,6 +251,9 @@ add_library(rawpage_ui STATIC
     dialogs/ShortcutsPage.cpp
     dialogs/PreferencesDialog.h
     dialogs/PreferencesDialog.cpp
+    # Stage 6 T8 (D6-13): the Commenting page's editor of each tool's defaults.
+    dialogs/ToolDefaultsEditor.h
+    dialogs/ToolDefaultsEditor.cpp
 
     # S2 T14. The password prompt is a DIALOG and the protected banner is not: the prompt is a
     # question the engine asks mid-open and cannot continue without, the banner is a statement about

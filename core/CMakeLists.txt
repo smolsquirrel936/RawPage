@@ -85,6 +85,12 @@ add_library(rawpage_core STATIC
     settings/SettingsSchema.cpp
     settings/Settings.h
     settings/Settings.cpp
+    # Stage 6 T8 (D6-13): the Commenting vocabulary and the `commenting/default<Property>.<tool>` family --
+    # two tables, #included, never compiled -- and the key that cannot name a pair they do not declare.
+    settings/CommentingTools.def
+    settings/ToolDefaults.def
+    settings/CommentingTypes.h
+    settings/CommentingTypes.cpp
     settings/RecentFiles.h
     settings/RecentFiles.cpp
 
@@ -147,6 +153,10 @@ add_library(rawpage_core STATIC
     doc/TypedText.h
     doc/TypedText.cpp
     doc/CjkCoverage.inc
+    # Stage 6 T8 (D6-15, D6-35): line endings, a cloud's bumps, an ink stroke's curve, the eraser and each
+    # drawn shape's rectangle -- read by the builder, the hit test and the tools alike. Pure.
+    doc/DrawnShapes.h
+    doc/DrawnShapes.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

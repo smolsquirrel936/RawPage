@@ -283,8 +283,13 @@
           "controls": [
             { "action": "annot.pencil", "size": "large" },
             { "action": "annot.line", "size": "small" },
+            { "action": "annot.arrow", "size": "small" },
             { "action": "annot.rectangle", "size": "small" },
-            { "action": "annot.oval", "size": "small" }
+            { "action": "annot.oval", "size": "small" },
+            { "action": "annot.polygon", "size": "small" },
+            { "action": "annot.polyline", "size": "small" },
+            { "action": "annot.cloud", "size": "small" },
+            { "action": "annot.eraser", "size": "small" }
           ]
         },
         {

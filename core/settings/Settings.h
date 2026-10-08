@@ -132,6 +132,18 @@ public:
     // move.
     std::size_t droppedShortcutKeyCount() const { return droppedShortcutKeys_; }
 
+    // --- The tool-defaults key family (S6 T8, D6-13) -------------------------------------------
+    // `commenting/default<Property>.<tool>`, typed at the boundary as the shortcuts family is: a tool's every
+    // declared property as the FILE holds it where its validator accepts it, else its row's default (a refused
+    // value is logged); a property the tool has no row for carries `builtInToolDefaults`' value.
+    ToolDefaults toolDefaults(CommentingTool tool) const;
+    // Writes every property `ToolDefaults.def` declares for `tool` -- and nothing else.
+    void setToolDefaults(CommentingTool tool, const ToolDefaults& values);
+    // Removes every one of `tool`'s rows from the file: it reads as the table's defaults again.
+    void resetToolDefaults(CommentingTool tool);
+    // One key's text as the file holds it, or nullopt when it is not set.
+    std::optional<QString> toolDefaultText(const ToolDefaultKey& key) const;
+
     // --- Change notification -------------------------------------------------------------------
     // The plan writes this as `Signal<Key> changed`. There is no Signal type in core/ yet and
     // inventing a core-wide one for a single user would be speculative infrastructure, so it is a

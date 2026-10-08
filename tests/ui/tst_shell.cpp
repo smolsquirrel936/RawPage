@@ -164,10 +164,19 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **Two more at Stage 6 T7** (D6-8): `annot.callout`, declared at Stage 1, and the typewriter MINTED
     // chordless -- `annot.typewriter` -- the two typed kinds beside the text box; 377 ids are declared.
     //
+    // **Six more at Stage 6 T8** (D6-13, D6-35): `annot.arrow`, `annot.polyline` and `annot.eraser`, declared
+    // at Stage 1, and the cloud MINTED chordless -- `annot.cloud` -- the four tools no §8 chord arms; and the
+    // two Annotation tools rows T5 left for T8, `annot.finishShape` (`Enter`) and `annot.setToolDefault`
+    // (`Ctrl+Alt+Enter`); 378 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 134);
+    CHECK(fixture.actions.registeredCount() == 140);
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotArrow));             // S6 T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotPolyline));          // S6 T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCloud));             // S6 T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotEraser));            // S6 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCallout));           // S6 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotTypewriter));        // S6 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotSquiggly));          // S6 T6
@@ -179,8 +188,8 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotProperties));        // S6 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotDeleteSelected));    // S6 T5
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotKeepToolSelected));  // S6 T5
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::AnnotFinishShape));    // T8
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::AnnotSetToolDefault)); // T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotFinishShape));       // S6 T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotSetToolDefault));    // S6 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::ViewCycleRulerUnit));  // 2026-10-03
     CHECK(fixture.actions.isRegistered(core::ActionId::CompareDocuments));    // S5 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::NavNextDifference));   // S5 T13

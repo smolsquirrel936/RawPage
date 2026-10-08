@@ -65,6 +65,7 @@
 
 namespace rawpage::core {
 class PageTree;
+class Settings;
 }
 
 namespace rawpage::core::render {
@@ -314,6 +315,12 @@ public:
     int displayedRotation(int page) const override;
     core::TypedFont hanPreference() const override;
     double pixelsPerPoint() const override;
+    // S6 T8: what an annotation tool draws with -- the session's change, else `settings`' family
+    // (`ui/viewer/ToolDefaults`) -- and where a page point is on screen, for a shape's preview. The settings are
+    // the shell's, handed in by `ui/shell/DocumentWindow`; with none the table's defaults are used.
+    void setToolSettings(const core::Settings* settings) { toolSettings_ = settings; }
+    core::ToolDefaults toolDefaults(core::CommentingTool tool) const override;
+    std::optional<QPointF> widgetPointOf(int page, core::PdfPoint point) const override;
     // S6 T7: a double click on free text edits it IN PLACE -- its text in an editor over its box, the change
     // ONE command when it is committed (D6-1). False when `pos` is on no free text that may be edited.
     bool editTypedTextAt(QPoint pos);
@@ -589,11 +596,18 @@ private:
         int displayedRotation(int page) const override { return view_.displayedRotation(page); }
         core::TypedFont hanPreference() const override { return view_.hanPreference(); }
         double pixelsPerPoint() const override { return view_.pixelsPerPoint(); }
+        // S6 T8.
+        core::ToolDefaults toolDefaults(core::CommentingTool tool) const override { return view_.toolDefaults(tool); }
+        std::optional<QPointF> widgetPointOf(int page, core::PdfPoint point) const override
+        {
+            return view_.widgetPointOf(page, point);
+        }
 
     private:
         PageView& view_;
     };
     ToolTarget toolTarget_{*this};
+    const core::Settings* toolSettings_ = nullptr;   // S6 T8: the shell's, for the tools' defaults
 
     // S4 T7: the tool state machine, and the frame the LOUPE magnifies. The frame is captured
     // only while the armed tool asks for one (`Tool::needsFrame()`), so an unarmed loupe costs

@@ -481,12 +481,16 @@ TEST_CASE("free text in a face this build does not draw is refused and never set
     auto built = pdf::ops::AppearanceStreamBuilder::normal(courier);
     REQUIRE_FALSE(built);
     CHECK(keyOf(built.error()) == "error.pdf.appearanceUnsupported");
-    // A callout ending this build does not draw yet (T8 draws line endings) is refused likewise.
-    Annotation diamond = typed(FreeTextKind::Callout, QStringLiteral("Here"), core::PdfPoint{300, 700});
-    diamond.lineEndings = {QStringLiteral("Diamond")};
-    auto ending = pdf::ops::AppearanceStreamBuilder::normal(diamond);
+    // A callout ending ISO does not name is refused likewise. (Since T8 every one it does name is drawn: a
+    // Diamond, which T7 refused, is drawn -- `tst_annotdrawing`'s endings case.)
+    Annotation wavy = typed(FreeTextKind::Callout, QStringLiteral("Here"), core::PdfPoint{300, 700});
+    wavy.lineEndings = {QStringLiteral("Wavy")};
+    auto ending = pdf::ops::AppearanceStreamBuilder::normal(wavy);
     REQUIRE_FALSE(ending);
     CHECK(keyOf(ending.error()) == "error.pdf.appearanceUnsupported");
+    Annotation diamond = wavy;
+    diamond.lineEndings = {QStringLiteral("Diamond")};
+    CHECK(pdf::ops::AppearanceStreamBuilder::normal(diamond));
 }
 
 TEST_CASE("text on a turned page is set upright in its frame and one Helvetica serves ten comments", "[annotfreetext][D6-34]")

@@ -54,7 +54,9 @@
 #define RAWPAGE_UI_VIEWER_TOOLCONTROLLER_H
 
 #include "ui/viewer/tools/AnnotationTool.h"
+#include "ui/viewer/tools/DrawingTool.h"
 #include "ui/viewer/tools/HandTool.h"
+#include "ui/viewer/tools/InkTool.h"
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarkupTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
@@ -98,9 +100,17 @@ public:
     // The annotation tool armed, or none when the armed tool is not one.
     std::optional<AnnotationToolKind> armedAnnotation() const noexcept;
     // `K` (§8, Annotation tools): keep the tool armed after it is used, or return to the Selection tool.
-    // Read since T6 by the host when a tool reports it made something (`ToolHost::annotationToolUsed`).
+    // Read since T6 by the host when a tool reports it made something (`ToolHost::annotationToolUsed`). Since
+    // T8 it is `commenting/stickyTool`: the shell sets it from the key on every view, and `K` writes the key.
     bool keepToolSelected() const noexcept { return keepToolSelected_; }
     void setKeepToolSelected(bool keep);
+
+    // `Enter` (§8's Annotation tools row, `annot.finishShape`, S6 T8): the polygon, polyline or cloud in progress
+    // made from its vertices. False when none is in progress.
+    bool finishShape();
+    bool shapeInProgress() const noexcept;
+    // The drawing tool, for the cases that assert a polygon's vertices (S6 T8). Read-only: driven by events.
+    const DrawingTool& drawing() const noexcept { return drawing_; }
 
     // What input is actually going to -- `armed()`, or `Hand` while the temporary modifier is
     // held. The distinction is the whole of behaviour 2 above, and it is why a case must read this
@@ -187,6 +197,8 @@ private:
     MarkupTool      markup_;     // S6 T6
     NoteTool        note_;       // S6 T6
     TypewriterTool  typed_;      // S6 T7: the text box, the callout, the typewriter
+    DrawingTool     drawing_;    // S6 T8: line, arrow, rectangle, oval, polygon, polyline, cloud
+    InkTool         ink_;        // S6 T8: the pencil and the eraser
     AnnotationToolKind annotationKind_ = AnnotationToolKind::Highlight;
     bool            keepToolSelected_ = false;
 

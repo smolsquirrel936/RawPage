@@ -45,6 +45,9 @@ public:
     // 0 miter, 1 round, 2 bevel; likewise.
     ContentStreamBuilder& lineJoin(int style);                      // j
     ContentStreamBuilder& graphicsState(std::string_view name);     // /name gs
+    // Stage 6 T8: the dash pattern -- `count` lengths, on and off in turn, and where in it the line starts.
+    // An empty array is a solid line. The caller refuses a pattern no reader can draw (negative, all zero).
+    ContentStreamBuilder& dash(const double* values, int count, double phase);   // [ … ] phase d
 
     // Colour, by component count: 1 is gray, 3 RGB, 4 CMYK -- ISO 32000-1's three device spaces, which
     // is what an annotation's `/C` and `/IC` arrays mean. Any other count sets nothing and is refused

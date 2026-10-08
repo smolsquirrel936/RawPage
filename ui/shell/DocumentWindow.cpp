@@ -15,6 +15,7 @@
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/PropertiesBar.h"
+#include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/ReflowView.h"
 #include "ui/viewer/RulerWidget.h"
 #include "ui/viewer/SelectionOverlay.h"
@@ -303,10 +304,14 @@ void DocumentWindow::build(const Recovery* recovery)
             [this](const QString& text) { (void)annotations_->setContents(text); });
     connect(propertiesBar_, &PropertiesBar::locksRequested, this,
             [this](std::uint32_t set, std::uint32_t clear) { (void)annotations_->setLocks(set, clear); });
-    connect(propertiesBar_, &PropertiesBar::toolDefaultsChanged, this, [this](const AnnotationToolDefaults& defaults) {
+    connect(propertiesBar_, &PropertiesBar::fontSizeRequested, this,
+            [this](double size) { (void)annotations_->setFontSize(size); });
+    // A TOOL'S PROPERTIES CHANGED ON THE BAR are the session's (S6 T8, `ui/viewer/ToolDefaults`): what the tool
+    // draws with from now on, in every window, until `Ctrl+Alt+Enter` makes them its defaults.
+    connect(propertiesBar_, &PropertiesBar::toolDefaultsChanged, this, [this](const core::ToolDefaults& values) {
         if (PageView* pane = view()) {
             if (const std::optional<AnnotationToolKind> armed = pane->tools().armedAnnotation())
-                sessionToolDefaults(*armed) = defaults;
+                setSessionToolChange(*armed, values);
         }
     });
     // A HIT LEAVES REFLOW FIRST (S5 T11, D5-16): find does not run inside it, and a hit is a place ON A PAGE.
@@ -501,7 +506,33 @@ void DocumentWindow::build(const Recovery* recovery)
         // S4 T8, and it reaches every open tab for the reason above: a person who turns the grid
         // on expects it on, not on in the tab they happened to be looking at.
         if (change.group == core::SettingsGroup::UnitsAndGuides) applyGuideSettings();
+
+        // S6 T8: `K` and the pop-ups, and a tool default the Commenting page changed -- every pane, every tab.
+        if (change.group == core::SettingsGroup::Commenting) applyCommentingSettings();
     });
+    applyCommentingSettings();
+}
+
+void DocumentWindow::applyCommentingSettings()
+{
+    // S6 T8 (D6-13). `commenting/stickyTool` IS `K`: every pane's tool controller keeps its tool after a use
+    // when it is on. `commenting/popupBehaviour` is when a note's pop-up shows (D6-28). The tools read their
+    // defaults through the pane, from these settings (`PageView::setToolSettings`).
+    const bool sticky = services_.settings.get(core::keys::commenting::stickyTool);
+    if (split_ != nullptr) {
+        for (PageView* pane : split_->views()) {
+            pane->setToolSettings(&services_.settings);
+            pane->tools().setKeepToolSelected(sticky);
+        }
+    }
+    if (annotations_ != nullptr) {
+        switch (services_.settings.get(core::keys::commenting::popupBehaviour)) {
+        case core::PopupBehaviour::Always: annotations_->setPopupBehaviour(AnnotationOverlay::PopupBehaviour::Always); break;
+        case core::PopupBehaviour::OnHover: annotations_->setPopupBehaviour(AnnotationOverlay::PopupBehaviour::OnHover); break;
+        case core::PopupBehaviour::Never: annotations_->setPopupBehaviour(AnnotationOverlay::PopupBehaviour::Never); break;
+        }
+    }
+    refreshPropertiesBar();
 }
 
 PageView* DocumentWindow::view() const noexcept
@@ -693,6 +724,7 @@ void DocumentWindow::adoptView(PageView* pane)
     // so they have to be in place before there is a document to open at them.
     applyViewSettings();
     applyGuideSettings();
+    applyCommentingSettings();
     handDocumentTo(pane);
 
     // AND THEN IT IS PUT WHERE THE PERSON IS LOOKING. `setDocument` starts a view at page 1 with
@@ -1099,7 +1131,7 @@ void DocumentWindow::refreshPropertiesBar()
     }
     if (PageView* pane = view()) {
         if (const std::optional<AnnotationToolKind> armed = pane->tools().armedAnnotation()) {
-            propertiesBar_->showToolDefaults(catalog::translateAction(armingAction(*armed)), sessionToolDefaults(*armed));
+            propertiesBar_->showToolDefaults(catalog::translateAction(armingAction(*armed)), *armed, pane->toolDefaults(*armed));
             return;
         }
     }

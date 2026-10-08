@@ -12,6 +12,7 @@
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/TilePresenter.h"
+#include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 
@@ -847,6 +848,20 @@ core::TypedFont PageView::hanPreference() const
     return core::hanPreference(languages);
 }
 
+core::ToolDefaults PageView::toolDefaults(core::CommentingTool tool) const
+{
+    return effectiveToolDefaults(tool, toolSettings_);
+}
+
+std::optional<QPointF> PageView::widgetPointOf(int page, core::PdfPoint point) const
+{
+    const std::optional<core::DevicePoint> device = engine_.layout().toContent(page, point);
+    if (!device) return std::nullopt;
+    const core::DeviceRect visible = controller_->visibleRect();
+    const double dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
+    return QPointF((device->x - visible.left()) / dpr, (device->y - visible.top()) / dpr);
+}
+
 double PageView::pixelsPerPoint() const
 {
     const double dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
@@ -895,8 +910,10 @@ void PageView::annotationToolUsed()
 bool PageView::markSelectedText(AnnotationToolKind kind)
 {
     if (selection_ == nullptr || annotations_ == nullptr || !selection_->hasSelection()) return false;
-    const AnnotationToolDefaults& defaults = sessionToolDefaults(kind);
-    const AnnotationOverlay::Style style{defaults.colour, defaults.opacity};
+    const core::ToolDefaults defaults = toolDefaults(kind);
+    const std::optional<core::AnnotationSubtype> marked = markupSubtype(kind);
+    const AnnotationOverlay::Style style{defaults.colour, defaults.opacity,
+                                         marked ? blendNameFor(*marked, defaults.blendMode) : QString()};
     if (kind == AnnotationToolKind::ReplaceText) {
         // The editor at the END of what is selected -- where the caret will go.
         QPoint at(viewport()->width() / 2, viewport()->height() / 2);
@@ -927,7 +944,15 @@ AnnotationOverlay::Viewport PageView::annotationViewport() const
 
 bool PageView::overlayFirst() const
 {
-    return annotations_ != nullptr && (tools_->armed() == ToolKind::Select || tools_->armed() == ToolKind::Annotate);
+    if (annotations_ == nullptr) return false;
+    if (tools_->armed() == ToolKind::Select) return true;
+    if (tools_->armed() != ToolKind::Annotate) return false;
+    // S6 T8: A SHAPE IN PROGRESS takes every click -- a polygon's next vertex may fall on an annotation -- and the
+    // pencil and the eraser draw and erase OVER what is there: picking up the stroke under the pen would make a
+    // second stroke across the first impossible.
+    if (tools_->shapeInProgress()) return false;
+    const std::optional<AnnotationToolKind> armed = tools_->armedAnnotation();
+    return !(armed && InkTool::handles(*armed));
 }
 
 void PageView::updateKeyContext()

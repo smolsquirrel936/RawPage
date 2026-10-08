@@ -30,6 +30,8 @@ add_executable(golden-update
     # Architecture-FileMap.md 3.17 already declares -- tools/golden-update depends on tests/golden,
     # and nothing depends the other way.
     "${CMAKE_SOURCE_DIR}/tests/golden/GoldenSuite.cpp"
+    # Stage 6 T8 (D6-6): the appearance cases' spec, so `--appearance` captures exactly what the suite compares.
+    "${CMAKE_SOURCE_DIR}/tests/golden/AppearanceCases.cpp"
 )
 
 target_include_directories(golden-update PRIVATE "${CMAKE_SOURCE_DIR}")
@@ -41,6 +43,7 @@ target_compile_definitions(golden-update PRIVATE
 target_link_libraries(golden-update PRIVATE
     rawpage_core
     rawpage_cos
+    rawpage_ops
     rawpage_pdfium
     rawpage_platform
 )

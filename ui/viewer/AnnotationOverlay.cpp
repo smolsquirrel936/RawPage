@@ -5,6 +5,7 @@
 
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationGeometry.h"
+#include "core/doc/DrawnShapes.h"
 #include "core/text/TextSelection.h"
 #include "ui/viewer/SelectionOverlay.h"
 
@@ -640,6 +641,7 @@ void AnnotationOverlay::applyStyle(Annotation& a, const Style& style) const
 {
     if (style.colour.size() == 1 || style.colour.size() == 3 || style.colour.size() == 4) a.color = style.colour;
     if (style.opacity < 1.0) a.opacity = std::clamp(style.opacity, 0.0, 1.0);
+    if (!style.blendMode.isEmpty() && core::isBlendModeName(style.blendMode)) a.blendMode = style.blendMode;   // S6 T8
 }
 
 Annotation AnnotationOverlay::caretAt(int page, const core::text::InsertionPoint& place, const Style& style) const
@@ -786,6 +788,10 @@ core::Status AnnotationOverlay::addFreeText(int page, core::FreeTextKind kind, c
         style.colour.size() == 1 || style.colour.size() == 3 || style.colour.size() == 4 ? style.colour : std::vector<double>{0.0};
     a.color = colour;
     if (style.opacity < 1.0) a.opacity = std::clamp(style.opacity, 0.0, 1.0);
+    // S6 T8: the tool's fill, a box's and a callout's -- a typewriter has none (D6-8).
+    if (kind != core::FreeTextKind::Typewriter
+        && (style.fill.size() == 1 || style.fill.size() == 3 || style.fill.size() == 4))
+        a.interiorColor = style.fill;
     a.borderWidth = kind == core::FreeTextKind::Typewriter ? 0.0 : std::max(0.0, style.borderWidth);
     const double size = style.fontSize > 0.0 ? style.fontSize : core::kFreeTextDefaultSize;
     a.defaultAppearance = core::freeTextDefaultAppearance(core::TypedFont::Helvetica, size, colour);
@@ -829,6 +835,72 @@ core::Status AnnotationOverlay::editFreeText(const AnnotationId& id, const QStri
         return error;
     }
     return run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{std::move(after)}));
+}
+
+core::Status AnnotationOverlay::setFontSize(double size)
+{
+    (void)commitNudge();
+    if (!(size >= core::kToolFontSizeMin && size <= core::kToolFontSizeMax))
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QStringLiteral("fontSize")};
+    std::vector<Annotation> after;
+    for (const Annotation& a : selected()) {
+        if (a.subtype != AnnotationSubtype::FreeText) continue;
+        core::DefaultAppearance da = core::DefaultAppearance::parse(a.defaultAppearance).value_or(core::DefaultAppearance{});
+        if (std::abs(da.size - size) < 1e-9) continue;
+        if (da.font.isEmpty()) da.font = QStringLiteral("Helv");
+        if (da.colour.empty()) da.colour = a.color.empty() ? std::vector<double>{0.0} : a.color;
+        da.size = size;
+        Annotation changed = a;
+        changed.defaultAppearance = da.toString();
+        changed.modified = core::PdfDate::fromUtcSeconds(now());
+        // Refitted to its lines at the new size -- a locked one keeps its size, and `permitted` refuses it anyway.
+        if (!a.hasFlag(core::AnnotationFlag::Locked)) {
+            core::Result<Annotation> fitted = core::fittedFreeText(changed, core::TypedFont::Simplified);
+            if (!fitted) {
+                emit refused(fitted.error());
+                return fitted.error();
+            }
+            changed = std::move(fitted).value();
+        }
+        after.push_back(std::move(changed));
+    }
+    if (after.empty()) return core::Status{};
+    return run(std::make_unique<core::EditAnnotationCommand>(std::move(after)));
+}
+
+// ---- The drawing tools (S6 T8) ------------------------------------------------------------------------
+
+core::Status AnnotationOverlay::addMade(std::vector<Annotation> annotations)
+{
+    if (annotations.empty())
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pdf.annotationPlacement"), QString()};
+    return run(std::make_unique<core::AddAnnotationCommand>(std::move(annotations)));
+}
+
+core::Status AnnotationOverlay::eraseInk(int page, const std::vector<double>& path, double radius)
+{
+    if (store_ == nullptr || page < 0) return core::Status{};
+    // THE INK THE ERASER TOUCHED, topmost first -- the last of the page's listing is the last drawn -- and only
+    // that one (see the header of `ui/viewer/tools/InkTool`): one gesture, one command.
+    const std::vector<core::AnnotationListingEntry>& listing = store_->listing(page);
+    for (auto it = listing.rbegin(); it != listing.rend(); ++it) {
+        if (!it->annotation) continue;
+        const Annotation& a = store_->at(*it->annotation);
+        if (a.subtype != AnnotationSubtype::Ink || a.hasFlag(core::AnnotationFlag::Hidden)
+            || a.hasFlag(core::AnnotationFlag::NoView))
+            continue;
+        const core::ErasedInk erased = core::erasedStrokes(a.inkList, path, radius);
+        if (!erased.changed) continue;
+        if (erased.strokes.empty())
+            return run(std::make_unique<core::DeleteAnnotationCommand>(std::vector<AnnotationId>{a.id}));
+        Annotation after = a;
+        after.inkList = erased.strokes;
+        after.modified = core::PdfDate::fromUtcSeconds(now());
+        // The rectangle shrinks to what is left: our builder redraws the ink, and its box is the rectangle.
+        if (const std::optional<Annotation> fitted = core::fittedShape(after)) after = *fitted;
+        return run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{std::move(after)}));
+    }
+    return core::Status{};
 }
 
 void AnnotationOverlay::reportRefusal(const core::Error& error)

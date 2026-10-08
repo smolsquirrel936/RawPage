@@ -52,6 +52,7 @@
 #include "core/Result.h"
 #include "core/cmd/Command.h"
 #include "core/doc/Annotation.h"
+#include "core/settings/CommentingTypes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -210,13 +211,26 @@ private:
 };
 
 // The properties the properties bar sets (D6-9): each one present is set on every annotation of the set.
+// Stage 6 T8 adds four, each applied only where the kind has it: the line style (`/BS /S` and `/D`, a dash
+// scaled to the width), the blend (`/BM` -- the kind's own written as nothing), a Line's, a PolyLine's or a
+// callout's endings (`/LE`), and a cloud's intensity (`/BE /I`). A drawn shape whose extent they change -- a
+// wider line, a bigger head, larger bumps -- has its rectangle refitted (`core::fittedShape`), so nothing it
+// draws is clipped.
 struct AnnotationAppearance {
     std::optional<std::vector<double>> color;           // /C: 0, 1, 3 or 4 components
     std::optional<std::vector<double>> interiorColor;   // /IC
     std::optional<double> opacity;                      // /CA, 0 to 1
     std::optional<double> borderWidth;                  // /BS /W, 0 or more
+    std::optional<LineStyle> lineStyle;                 // /BS /S, /D (T8)
+    std::optional<ToolBlend> blendMode;                 // /BM (T8)
+    std::optional<std::vector<QString>> lineEndings;    // /LE: two for a line or a polyline, one for a callout (T8)
+    std::optional<double> cloudIntensity;               // /BE /I, above 0 and at most 2: a cloudy polygon's (T8)
 
-    bool isEmpty() const noexcept { return !color && !interiorColor && !opacity && !borderWidth; }
+    bool isEmpty() const noexcept
+    {
+        return !color && !interiorColor && !opacity && !borderWidth && !lineStyle && !blendMode && !lineEndings
+               && !cloudIntensity;
+    }
     Annotation appliedTo(const Annotation& a) const;
     QJsonObject toJson() const;
     // nullopt for a property out of its range or of the wrong type.

@@ -276,9 +276,14 @@ TEST_CASE("only the declared machine-dependent baselines resolved a face off thi
     REQUIRE_FALSE(captureLog().records.empty());
 
     for (const golden::CaptureRecord& record : captureLog().records) {
-        const golden::Case* item = manifest().find(record.file);
-        REQUIRE(item != nullptr);
-        if (item->machineDependent) continue;
+        // S6 T8: an APPEARANCE baseline is declared by `tests/golden/AppearanceCases`, not the manifest, and none
+        // is machine-dependent -- its only text is base-14 Helvetica, PDFium's own -- so it is held to the rule
+        // below like any undeclared case.
+        if (!record.file.startsWith(QLatin1String("appearance/"))) {
+            const golden::Case* item = manifest().find(record.file);
+            REQUIRE(item != nullptr);
+            if (item->machineDependent) continue;
+        }
 
         for (const QString& row : record.substitutions) {
             INFO(record.file.toStdString() << " p" << record.page << " @" << record.dpi << ": "

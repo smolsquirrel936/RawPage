@@ -142,6 +142,9 @@ RAWPAGE_SHELL_STRING(TooltipNeedsWindows,       "shell.tooltip.needsWindows")
 // S5 T5. What `edit.copy` says with nothing selected -- DISABLED there, and still consuming `Ctrl+C`
 // where it falls through to Common, which is §8's row doing its job (D5-9).
 RAWPAGE_SHELL_STRING(TooltipNeedsSelection,     "shell.tooltip.needsSelection")
+// S6 T8: `Enter` with no polygon in progress; `Ctrl+Alt+Enter` with no tool armed and nothing selected.
+RAWPAGE_SHELL_STRING(TooltipNeedsShapeInProgress, "shell.tooltip.needsShapeInProgress")
+RAWPAGE_SHELL_STRING(TooltipNeedsToolOrSelection, "shell.tooltip.needsToolOrSelection")
 // S5 T13. What `nav.nextDifference` and `nav.prevDifference` say with no comparison open, or one that found
 // nothing: DISABLED there, and still consuming `Ctrl+]` and `Ctrl+[`, which §8 binds in the Viewer.
 RAWPAGE_SHELL_STRING(TooltipNeedsComparison,    "shell.tooltip.needsComparison")
@@ -230,6 +233,11 @@ RAWPAGE_SHELL_STRING(PrefsShortcutsSourceWidget,  "prefs.shortcuts.sourceWidget"
 RAWPAGE_SHELL_STRING(PrefsShortcutsCapture,       "prefs.shortcuts.capture")
 RAWPAGE_SHELL_STRING(PrefsShortcutsAssign,        "prefs.shortcuts.assign")
 RAWPAGE_SHELL_STRING(PrefsShortcutsReset,         "prefs.shortcuts.reset")
+// S6 T8 (D6-13): the Commenting page's per-tool editor of the `commenting/default<Property>.<tool>` family. Its
+// property labels are the properties bar's own (`shell.propertiesBar.*`): one word for one property.
+RAWPAGE_SHELL_STRING(PrefsToolDefaultsTitle,      "prefs.toolDefaults.title")
+RAWPAGE_SHELL_STRING(PrefsToolDefaultsTool,       "prefs.toolDefaults.tool")
+RAWPAGE_SHELL_STRING(PrefsToolDefaultsReset,      "prefs.toolDefaults.reset")
 RAWPAGE_SHELL_STRING(PrefsShortcutsNoShadows,     "prefs.shortcuts.noShadows")
 RAWPAGE_SHELL_STRING(PrefsShortcutsShadowsHeading, "prefs.shortcuts.shadowsHeading")
 RAWPAGE_SHELL_STRING(PrefsShortcutsShadowLine,    "prefs.shortcuts.shadowLine")
@@ -368,6 +376,16 @@ RAWPAGE_SHELL_STRING(PropertiesBarText,           "shell.propertiesBar.text")
 RAWPAGE_SHELL_STRING(PropertiesBarLocked,         "shell.propertiesBar.locked")
 RAWPAGE_SHELL_STRING(PropertiesBarContentsLocked, "shell.propertiesBar.contentsLocked")
 RAWPAGE_SHELL_STRING(PropertiesBarReadOnly,       "shell.propertiesBar.readOnly")
+// S6 T8: the drawing kinds' properties. The line styles, blends and endings are keys BUILT from a table --
+// `shell.propertiesBar.lineStyle.`, `shell.propertiesBar.blend.` and `shell.propertiesBar.ending.` -- whole in no
+// source, so each family is named here as a namespace (`tools/i18n-lint`'s rule, Stage 1's I-27).
+RAWPAGE_SHELL_STRING(PropertiesBarFill,           "shell.propertiesBar.fill")
+RAWPAGE_SHELL_STRING(PropertiesBarLineStyle,      "shell.propertiesBar.lineStyleLabel")
+RAWPAGE_SHELL_STRING(PropertiesBarFillNone,       "shell.propertiesBar.fillNone")
+RAWPAGE_SHELL_STRING(PropertiesBarBlend,          "shell.propertiesBar.blend")
+RAWPAGE_SHELL_STRING(PropertiesBarFontSize,       "shell.propertiesBar.fontSize")
+RAWPAGE_SHELL_STRING(PropertiesBarEndings,        "shell.propertiesBar.endings")
+RAWPAGE_SHELL_STRING(PropertiesBarCloud,          "shell.propertiesBar.cloud")
 // A refused annotation change, in the status bar (guide A-39's last clause): `%1` is the reason's own text.
 RAWPAGE_SHELL_STRING(StatusAnnotationRefused,     "shell.status.annotationRefused")
 // An annotation tool armed that makes nothing yet: `%1` is its name. What it creates arrives with its task
@@ -382,6 +400,13 @@ RAWPAGE_SHELL_STRING(StatusAnnotationToolInsert,  "shell.status.annotationToolIn
 RAWPAGE_SHELL_STRING(StatusAnnotationToolTextBox,    "shell.status.annotationToolTextBox")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolCallout,    "shell.status.annotationToolCallout")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolTypewriter, "shell.status.annotationToolTypewriter")
+// S6 T8: the drawing tools, likewise -- a dragged shape, a clicked one, the pencil, the eraser -- and what
+// `Ctrl+Alt+Enter` did.
+RAWPAGE_SHELL_STRING(StatusAnnotationToolShape,      "shell.status.annotationToolShape")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolPolygon,    "shell.status.annotationToolPolygon")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolPencil,     "shell.status.annotationToolPencil")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolEraser,     "shell.status.annotationToolEraser")
+RAWPAGE_SHELL_STRING(StatusToolDefaultsWritten,      "shell.status.toolDefaultsWritten")
 
 // --- Advanced Search (S5 T9, D5-13) -- `ui/panes/SearchPane`, the same `search.` family ---------------
 RAWPAGE_SHELL_STRING(SearchPaneTitle,            "search.pane.title")

@@ -20,4 +20,6 @@ void write(Settings& settings)
     settings.set(keys::logging::retainFiles, 7);
     settings.setShortcutOverride(ShortcutKey::forAction(KeyContext::Viewer, ActionId::FileOpen),
                                  QStringLiteral("Ctrl+Shift+O"));
+    // S6 T8: a DECLARED tool default compiles -- the control for `undeclared-tool-default.cpp`.
+    (void)settings.toolDefaultText(ToolDefaultKey::of<CommentingTool::Pencil, ToolProperty::Thickness>());
 }

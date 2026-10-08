@@ -29,6 +29,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/FullScreenController.h"
 #include "ui/viewer/PresentationSurface.h"
+#include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/ReflowView.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/write/FindReplaceBar.h"
@@ -3225,6 +3226,16 @@ QLatin1String armedStatusKey(AnnotationToolKind kind)
     case AnnotationToolKind::TextBox: return catalog::key::StatusAnnotationToolTextBox;
     case AnnotationToolKind::Callout: return catalog::key::StatusAnnotationToolCallout;
     case AnnotationToolKind::Typewriter: return catalog::key::StatusAnnotationToolTypewriter;
+    // S6 T8.
+    case AnnotationToolKind::Line:
+    case AnnotationToolKind::Arrow:
+    case AnnotationToolKind::Rectangle:
+    case AnnotationToolKind::Oval: return catalog::key::StatusAnnotationToolShape;
+    case AnnotationToolKind::Polygon:
+    case AnnotationToolKind::Polyline:
+    case AnnotationToolKind::Cloud: return catalog::key::StatusAnnotationToolPolygon;
+    case AnnotationToolKind::Pencil: return catalog::key::StatusAnnotationToolPencil;
+    case AnnotationToolKind::Eraser: return catalog::key::StatusAnnotationToolEraser;
     default: break;
     }
     return markupSubtype(kind) ? catalog::key::StatusAnnotationToolMarkup : catalog::key::StatusAnnotationToolArmed;
@@ -3243,6 +3254,8 @@ void MainWindow::registerAnnotationActions()
     // `annot.insertText`; the markup kinds and the note make, and text already selected is marked at once.
     // **Since T7** nineteen: the callout (`annot.callout`, declared since Stage 1) and the typewriter minted
     // chordless (`annot.typewriter`, D6-8); the text box, the callout and the typewriter make typed text.
+    // **Since T8** twenty-three: the arrow, the polyline and the eraser (declared since Stage 1) and the cloud
+    // minted chordless (`annot.cloud`); the shapes, the pencil and the eraser make and unmake.
     const auto hasView = [] {
         MainWindow* window = activeShell();
         return window != nullptr && window->currentView() != nullptr && window->currentView()->pageCount() > 0;
@@ -3282,16 +3295,17 @@ void MainWindow::registerAnnotationActions()
         services_.actions.register_(id, std::move(registration));
     }
 
-    // `K`: keep the tool armed after a use. The switch is the tool controller's (Stage 4 T7 left it there);
-    // the tools that read it create from T6.
+    // `K`: keep the tool armed after a use. Since T8 it IS `commenting/stickyTool` (D6-13): the key is written, and
+    // every pane of every window takes it from there (`DocumentWindow::applyCommentingSettings`) -- so `K` in one
+    // window keeps the tool in all of them, and the choice outlives the session, as the Commenting page shows it.
     if (!services_.actions.isRegistered(ActionId::AnnotKeepToolSelected)) {
         core::ActionRegistry::Registration keep;
         keep.handler = [](KeyContext) {
             MainWindow* window = activeShell();
-            if (PageView* view = window ? window->currentView() : nullptr) {
-                view->tools().setKeepToolSelected(!view->tools().keepToolSelected());
-                window->updateViewChrome();
-            }
+            if (window == nullptr || window->currentView() == nullptr) return;
+            core::Settings& settings = window->services_.settings;
+            settings.set(core::keys::commenting::stickyTool, !settings.get(core::keys::commenting::stickyTool));
+            window->updateViewChrome();
         };
         keep.checked = [] {
             MainWindow* window = activeShell();
@@ -3337,10 +3351,67 @@ void MainWindow::registerAnnotationActions()
         services_.actions.register_(id, std::move(bar));
     }
 
-    // NOT REGISTERED, on purpose, each with its owner: `annot.finishShape` (`Enter`, a polygon in progress --
-    // T8), `annot.setToolDefault` (`Ctrl+Alt+Enter`, a default needs the settings family -- T8),
-    // `annot.duplicate` and `annot.nudge` (`Alt`+drag and the arrows are gestures the overlay handles; a
-    // direction is an argument and dispatch carries none -- O11), and `edit.cancel` (Stage 4's I-06).
+    // `Enter` in Annotation tools (S6 T8): the polygon, polyline or cloud in progress, finished. DISABLED with none
+    // in progress -- and a disabled registration consumes the key (Stage 4's I-06), which is right here: in
+    // Annotation tools no other widget of the page wants a bare `Enter`, and a text editor claims its own first.
+    if (!services_.actions.isRegistered(ActionId::AnnotFinishShape)) {
+        core::ActionRegistry::Registration finish;
+        finish.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (PageView* view = window ? window->currentView() : nullptr) {
+                (void)view->tools().finishShape();
+                window->updateViewChrome();
+            }
+        };
+        finish.enable = [] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->tools().shapeInProgress();
+        };
+        finish.unavailableKey = "shell.tooltip.needsShapeInProgress";
+        services_.actions.register_(ActionId::AnnotFinishShape, std::move(finish));
+    }
+
+    // `Ctrl+Alt+Enter` in Annotation tools (S6 T8, D6-13): the armed tool's current properties -- the bar's changes
+    // over its defaults -- WRITTEN as its defaults, `commenting/default<Property>.<tool>`; with an annotation
+    // selected and no tool armed, the selection's properties become its kind's tool's defaults, Acrobat's
+    // "use current properties as new default".
+    if (!services_.actions.isRegistered(ActionId::AnnotSetToolDefault)) {
+        core::ActionRegistry::Registration setDefault;
+        setDefault.handler = [documentInFront](KeyContext) {
+            MainWindow* window = activeShell();
+            PageView* view = window ? window->currentView() : nullptr;
+            if (view == nullptr) return;
+            core::Settings& settings = window->services_.settings;
+            if (const std::optional<AnnotationToolKind> armed = view->tools().armedAnnotation()) {
+                writeToolDefaults(*armed, settings);
+            } else if (DocumentWindow* document = documentInFront()) {
+                const std::vector<core::Annotation> selected =
+                    document->annotations() != nullptr ? document->annotations()->selected() : std::vector<core::Annotation>{};
+                if (selected.empty()) return;
+                const std::optional<AnnotationToolKind> tool = toolOfAnnotation(selected.front());
+                if (!tool) return;
+                settings.setToolDefaults(*tool, toolDefaultsFrom(selected.front(), view->toolDefaults(*tool)));
+                clearSessionToolChange(*tool);
+            }
+            if (window->status_) window->status_->setMessage(catalog::translate(catalog::key::StatusToolDefaultsWritten));
+            window->updateViewChrome();
+        };
+        setDefault.enable = [documentInFront] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            if (view == nullptr) return false;
+            if (view->tools().armedAnnotation()) return true;
+            const DocumentWindow* document = documentInFront();
+            return document != nullptr && document->annotations() != nullptr && document->annotations()->hasSelection();
+        };
+        setDefault.unavailableKey = "shell.tooltip.needsToolOrSelection";
+        services_.actions.register_(ActionId::AnnotSetToolDefault, std::move(setDefault));
+    }
+
+    // NOT REGISTERED, on purpose, each with its owner: `annot.duplicate` and `annot.nudge` (`Alt`+drag and the
+    // arrows are gestures the overlay handles; a direction is an argument and dispatch carries none -- O11), and
+    // `edit.cancel` (Stage 4's I-06).
 }
 
 PreferencesDialog* MainWindow::showPreferences()

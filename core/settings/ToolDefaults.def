@@ -1,0 +1,128 @@
+// -*- C++ -*-  THE TOOL DEFAULTS -- the `commenting/default<Property>.<tool>` key family. Stage 6 T8, D6-13
+// (`Stage6-Annotations-Plan.md` §3).
+//
+// This file is #included repeatedly with different macro definitions. No include guard, on purpose.
+//
+//   RAWPAGE_TOOL_DEFAULT(Tool, Property, "default")
+//
+// ONE ROW PER (TOOL, PROPERTY) A TOOL HAS -- and only where it has it: a pencil has no fill and no font size, a
+// highlighter no thickness. A pair with no row is NOT A KEY: `core::ToolDefaultKey::of<Tool, Property>()` does
+// not compile for it (guide case A-61's fixture), as an undeclared `Key<T>` does not (D1-10). The family is
+// declared here once, with a validator per property (`core/settings/CommentingTypes.h`), as
+// `shortcuts/<context>/<action>` is -- `SettingsKeys.def`'s rules apply: the path is a permanent public name,
+// the default lives HERE and nowhere else, and a value a file holds that the validator refuses reads as this
+// default and is logged.
+//
+// The default is the value's TEXT as the file holds it: a colour is 1, 3 or 4 components from 0 to 1 -- `1 1 0`
+// -- and a fill colour may be empty (no fill); an opacity 0 to 1; a thickness 0 to 24 points; a line style
+// `solid`, `dashed` or `dotted`; a blend mode `normal`, `multiply`, `screen`, `overlay`, `darken`, `lighten`,
+// `difference` or `exclusion`; a font size 4 to 144 points.
+//
+// Each default is what the tool started as when the session held it (T5 to T7, `sessionToolDefaults`): the
+// highlighter yellow under multiply, the pens red, typed text black at 12 points, a callout red -- as Acrobat
+// starts them. The eraser has no property: it makes nothing.
+
+#ifndef RAWPAGE_TOOL_DEFAULT
+#define RAWPAGE_TOOL_DEFAULT(Tool, Property, Default)
+#endif
+
+RAWPAGE_TOOL_DEFAULT(StickyNote,      Colour,     "1 1 0")
+RAWPAGE_TOOL_DEFAULT(StickyNote,      Opacity,    "1")
+
+RAWPAGE_TOOL_DEFAULT(Highlight,       Colour,     "1 1 0")
+RAWPAGE_TOOL_DEFAULT(Highlight,       Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Highlight,       BlendMode,  "multiply")
+
+RAWPAGE_TOOL_DEFAULT(Underline,       Colour,     "0 0.5 0")
+RAWPAGE_TOOL_DEFAULT(Underline,       Opacity,    "1")
+
+RAWPAGE_TOOL_DEFAULT(Strikeout,       Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Strikeout,       Opacity,    "1")
+
+RAWPAGE_TOOL_DEFAULT(TextBox,         Colour,     "0 0 0")
+RAWPAGE_TOOL_DEFAULT(TextBox,         FillColour, "")
+RAWPAGE_TOOL_DEFAULT(TextBox,         Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(TextBox,         Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(TextBox,         FontSize,   "12")
+
+RAWPAGE_TOOL_DEFAULT(Line,            Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Line,            Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Line,            Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Line,            LineStyle,  "solid")
+RAWPAGE_TOOL_DEFAULT(Line,            BlendMode,  "normal")
+
+RAWPAGE_TOOL_DEFAULT(Rectangle,       Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Rectangle,       FillColour, "")
+RAWPAGE_TOOL_DEFAULT(Rectangle,       Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Rectangle,       Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Rectangle,       LineStyle,  "solid")
+RAWPAGE_TOOL_DEFAULT(Rectangle,       BlendMode,  "normal")
+
+RAWPAGE_TOOL_DEFAULT(Oval,            Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Oval,            FillColour, "")
+RAWPAGE_TOOL_DEFAULT(Oval,            Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Oval,            Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Oval,            LineStyle,  "solid")
+RAWPAGE_TOOL_DEFAULT(Oval,            BlendMode,  "normal")
+
+RAWPAGE_TOOL_DEFAULT(Polygon,         Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Polygon,         FillColour, "")
+RAWPAGE_TOOL_DEFAULT(Polygon,         Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Polygon,         Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Polygon,         LineStyle,  "solid")
+RAWPAGE_TOOL_DEFAULT(Polygon,         BlendMode,  "normal")
+
+RAWPAGE_TOOL_DEFAULT(Pencil,          Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Pencil,          Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Pencil,          Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Pencil,          BlendMode,  "normal")
+
+// The stamp, the two measurements and the redaction mark make nothing yet (T10, T12, T14); their rows are the
+// colour and opacity their tools are armed with, and each task adds what it needs.
+RAWPAGE_TOOL_DEFAULT(Stamp,           Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Stamp,           Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(MeasureDistance, Colour,     "0 0 1")
+RAWPAGE_TOOL_DEFAULT(MeasureDistance, Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(MeasureArea,     Colour,     "0 0 1")
+RAWPAGE_TOOL_DEFAULT(MeasureArea,     Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      Colour,     "0 0 0")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      Opacity,    "1")
+
+RAWPAGE_TOOL_DEFAULT(Squiggly,        Colour,     "0 0.6 0")
+RAWPAGE_TOOL_DEFAULT(Squiggly,        Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(ReplaceText,     Colour,     "0 0 1")
+RAWPAGE_TOOL_DEFAULT(ReplaceText,     Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(InsertText,      Colour,     "0 0 1")
+RAWPAGE_TOOL_DEFAULT(InsertText,      Opacity,    "1")
+
+RAWPAGE_TOOL_DEFAULT(Callout,         Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Callout,         FillColour, "")
+RAWPAGE_TOOL_DEFAULT(Callout,         Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Callout,         Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Callout,         FontSize,   "12")
+
+// A typewriter has no outline and no fill: its text is all there is (D6-8).
+RAWPAGE_TOOL_DEFAULT(Typewriter,      Colour,     "0 0 0")
+RAWPAGE_TOOL_DEFAULT(Typewriter,      Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Typewriter,      FontSize,   "12")
+
+RAWPAGE_TOOL_DEFAULT(Arrow,           Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Arrow,           Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Arrow,           Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Arrow,           LineStyle,  "solid")
+RAWPAGE_TOOL_DEFAULT(Arrow,           BlendMode,  "normal")
+
+RAWPAGE_TOOL_DEFAULT(Polyline,        Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Polyline,        Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Polyline,        Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Polyline,        LineStyle,  "solid")
+RAWPAGE_TOOL_DEFAULT(Polyline,        BlendMode,  "normal")
+
+// A cloud's border IS its style -- cloudy -- so it has no line style of its own.
+RAWPAGE_TOOL_DEFAULT(Cloud,           Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(Cloud,           FillColour, "")
+RAWPAGE_TOOL_DEFAULT(Cloud,           Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(Cloud,           Thickness,  "1")
+RAWPAGE_TOOL_DEFAULT(Cloud,           BlendMode,  "normal")
+
+#undef RAWPAGE_TOOL_DEFAULT

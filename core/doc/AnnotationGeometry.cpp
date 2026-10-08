@@ -3,6 +3,8 @@
 
 #include "core/doc/AnnotationGeometry.h"
 
+#include "core/doc/DrawnShapes.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -118,12 +120,14 @@ bool insideExpanded(const PdfRect& r, PdfPoint p, double by)
     return p.x >= r.left() - by && p.x <= r.right() + by && p.y >= r.bottom() - by && p.y <= r.top() + by;
 }
 
-// HOW FAR A CLOUD'S BUMPS REACH past the edges they are drawn along: the `/RD` a producer writes for a
-// cloudy border is exactly that reach (ISO 32000-1 Table 177, 178), and a plain border has none. The bumps
-// themselves are drawn from `/BE`, which the model does not hold -- so a cloud is hit over the whole band its
-// bumps may occupy, a decision (D6-30) rather than its ink, and the T8 builder that draws clouds owns the rest.
-double cloudReach(const Annotation& a)
+// HOW FAR A CLOUD'S BUMPS REACH past the edges they are drawn along. Since T8 the model holds `/BE`, and a
+// cloud of a known intensity reaches exactly as far as `core::cloudPath` draws its bumps -- the builder's own
+// geometry (`core/doc/DrawnShapes`). A producer's cloud whose `/BE` says nothing, or a border that is not
+// cloudy, falls back to the `/RD` a producer writes for one (ISO 32000-1 Table 177): the whole band its bumps
+// may occupy, a decision (D6-30) rather than its ink.
+double cloudReachOf(const Annotation& a)
 {
+    if (a.cloudIntensity && a.vertices.size() >= 6) return core::cloudReach(a.vertices, *a.cloudIntensity);
     if (a.rectDifferences.size() != 4) return 0.0;
     return std::max({a.rectDifferences[0], a.rectDifferences[1], a.rectDifferences[2], a.rectDifferences[3], 0.0});
 }
@@ -136,7 +140,7 @@ bool hitsEnding(PdfPoint p, double tipX, double tipY, double fromX, double fromY
                 double band)
 {
     if (ending.isEmpty() || ending == QLatin1String("None")) return false;
-    const double size = std::max(9.0, 4.5 * border);
+    const double size = lineEndingSize(border);   // the builder's head (`core/doc/DrawnShapes`)
     const double length = std::hypot(fromX - tipX, fromY - tipY);
     if (length <= 0.0) return std::hypot(p.x - tipX, p.y - tipY) <= size / 2.0 + band;
     const double ux = (fromX - tipX) / length;
@@ -313,7 +317,7 @@ bool hitsAnnotation(const Annotation& a, PdfPoint p, double tolerance)
         if (a.vertices.size() < 4) return insideExpanded(a.rect, p, tolerance);
         const bool closed = a.subtype == AnnotationSubtype::Polygon;
         if (closed && !a.interiorColor.empty() && insidePolygon(p, a.vertices)) return true;
-        if (distanceToPolyline(p, a.vertices, closed) <= band + cloudReach(a)) return true;
+        if (distanceToPolyline(p, a.vertices, closed) <= band + cloudReachOf(a)) return true;
         if (closed || a.lineEndings.empty()) return false;
         const std::size_t n = a.vertices.size();
         const QString start = a.lineEndings.size() > 0 ? a.lineEndings[0] : QString();

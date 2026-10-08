@@ -1,0 +1,46 @@
+// -*- C++ -*-  THE COMMENTING TOOLS -- one row per annotation tool a person arms. Stage 6 T8, D6-13
+// (`Stage6-Annotations-Plan.md` §3).
+//
+// This file is #included repeatedly with different macro definitions. No include guard, on purpose.
+//
+//   RAWPAGE_COMMENTING_TOOL(Enum, "token")
+//
+// THE TOKEN IS A PERMANENT PUBLIC NAME: it is the `<tool>` of `commenting/default<Property>.<tool>`, written
+// into a person's settings.ini (`SettingsKeys.def` rule 1). The ORDER is `ui/viewer/tools/AnnotationTool.h`'s
+// `AnnotationToolKind`, which is this enum (an alias, since T8): §8's fourteen `Ctrl+Alt+` tools first, in its
+// Viewer table's order, then the chordless ones in the order their tasks added them -- T6's three, T7's two,
+// T8's four. A row is appended, never inserted, so a number a test or a log once printed keeps its meaning.
+
+#ifndef RAWPAGE_COMMENTING_TOOL
+#define RAWPAGE_COMMENTING_TOOL(Enum, Token)
+#endif
+
+// Features.md §8's Viewer table, in its order.
+RAWPAGE_COMMENTING_TOOL(StickyNote,      "stickyNote")
+RAWPAGE_COMMENTING_TOOL(Highlight,       "highlight")
+RAWPAGE_COMMENTING_TOOL(Underline,       "underline")
+RAWPAGE_COMMENTING_TOOL(Strikeout,       "strikeout")
+RAWPAGE_COMMENTING_TOOL(TextBox,         "textBox")
+RAWPAGE_COMMENTING_TOOL(Line,            "line")
+RAWPAGE_COMMENTING_TOOL(Rectangle,       "rectangle")
+RAWPAGE_COMMENTING_TOOL(Oval,            "oval")
+RAWPAGE_COMMENTING_TOOL(Polygon,         "polygon")
+RAWPAGE_COMMENTING_TOOL(Pencil,          "pencil")
+RAWPAGE_COMMENTING_TOOL(Stamp,           "stamp")
+RAWPAGE_COMMENTING_TOOL(MeasureDistance, "measureDistance")
+RAWPAGE_COMMENTING_TOOL(MeasureArea,     "measureArea")
+RAWPAGE_COMMENTING_TOOL(RedactMark,      "redactMark")
+// Stage 6 T6: chordless.
+RAWPAGE_COMMENTING_TOOL(Squiggly,        "squiggly")
+RAWPAGE_COMMENTING_TOOL(ReplaceText,     "replaceText")
+RAWPAGE_COMMENTING_TOOL(InsertText,      "insertText")
+// Stage 6 T7: chordless.
+RAWPAGE_COMMENTING_TOOL(Callout,         "callout")
+RAWPAGE_COMMENTING_TOOL(Typewriter,      "typewriter")
+// Stage 6 T8: chordless -- the arrow, the polyline and the eraser declared since Stage 1, the cloud minted.
+RAWPAGE_COMMENTING_TOOL(Arrow,           "arrow")
+RAWPAGE_COMMENTING_TOOL(Polyline,        "polyline")
+RAWPAGE_COMMENTING_TOOL(Cloud,           "cloud")
+RAWPAGE_COMMENTING_TOOL(Eraser,          "eraser")
+
+#undef RAWPAGE_COMMENTING_TOOL

@@ -856,6 +856,10 @@
         <translation>折線</translation>
     </message>
     <message>
+        <source>action.annot.cloud</source>
+        <translation>雲朵</translation>
+    </message>
+    <message>
         <source>action.annot.pencil</source>
         <translation>鉛筆</translation>
     </message>
@@ -1663,6 +1667,26 @@
         <translation>已選取「%1」。在文字開始的位置按一下，輸入文字後按 Enter（Shift+Enter 換行）。</translation>
     </message>
     <message>
+        <source>shell.status.annotationToolShape</source>
+        <translation>已選取「%1」。在頁面上拖曳即可繪製；按住 Shift 可保持正方形或 45 度角。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolPolygon</source>
+        <translation>已選取「%1」。逐一按下每個頂點；按 Enter 或按兩下完成，按 Esc 放棄。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolPencil</source>
+        <translation>已選取「%1」。在頁面上拖曳即可畫出筆劃。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolEraser</source>
+        <translation>已選取「%1」。拖曳經過鉛筆筆劃即可擦除。</translation>
+    </message>
+    <message>
+        <source>shell.status.toolDefaultsWritten</source>
+        <translation>目前的屬性已設為此工具的預設值。</translation>
+    </message>
+    <message>
         <source>shell.propertiesBar.nothing</source>
         <translation>未選取任何項目</translation>
     </message>
@@ -1707,6 +1731,118 @@
         <translation>唯讀</translation>
     </message>
     <message>
+        <source>shell.propertiesBar.fill</source>
+        <translation>填色</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.fillNone</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyleLabel</source>
+        <translation>線條樣式</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyle.solid</source>
+        <translation>實線</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyle.dashed</source>
+        <translation>虛線</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.lineStyle.dotted</source>
+        <translation>點線</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend</source>
+        <translation>混合模式</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.normal</source>
+        <translation>一般</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.multiply</source>
+        <translation>色彩增值</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.screen</source>
+        <translation>濾色</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.overlay</source>
+        <translation>覆蓋</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.darken</source>
+        <translation>變暗</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.lighten</source>
+        <translation>變亮</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.difference</source>
+        <translation>差異化</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.blend.exclusion</source>
+        <translation>排除</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.fontSize</source>
+        <translation>字型大小</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.endings</source>
+        <translation>線端</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.None</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.OpenArrow</source>
+        <translation>開放箭頭</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.ClosedArrow</source>
+        <translation>封閉箭頭</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.ROpenArrow</source>
+        <translation>反向開放箭頭</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.RClosedArrow</source>
+        <translation>反向封閉箭頭</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Square</source>
+        <translation>方形</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Circle</source>
+        <translation>圓形</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Diamond</source>
+        <translation>菱形</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Butt</source>
+        <translation>平頭</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.ending.Slash</source>
+        <translation>斜線</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.cloud</source>
+        <translation>雲朵大小</translation>
+    </message>
+    <message>
         <source>shell.theme.light</source>
         <translation>淺色</translation>
     </message>
@@ -1741,6 +1877,14 @@
     <message>
         <source>shell.tooltip.needsSelection</source>
         <translation>%1 需要先選取文字。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsShapeInProgress</source>
+        <translation>需要正在繪製的多邊形、折線或雲朵</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsToolOrSelection</source>
+        <translation>需要選取註解工具或註解</translation>
     </message>
     <message>
         <source>shell.tooltip.needsComparison</source>
@@ -3076,6 +3220,10 @@
         <translation>全螢幕</translation>
     </message>
     <message>
+        <source>prefs.group.commenting</source>
+        <translation>註解</translation>
+    </message>
+    <message>
         <source>prefs.setting.fullScreen.transition</source>
         <translation>預設換頁效果</translation>
     </message>
@@ -3110,6 +3258,26 @@
     <message>
         <source>prefs.setting.identity.organization</source>
         <translation>組織</translation>
+    </message>
+    <message>
+        <source>prefs.setting.commenting.stickyTool</source>
+        <translation>使用後保持工具選取</translation>
+    </message>
+    <message>
+        <source>prefs.setting.commenting.popupBehaviour</source>
+        <translation>顯示附註快顯視窗</translation>
+    </message>
+    <message>
+        <source>prefs.choice.popupBehaviour.always</source>
+        <translation>一律</translation>
+    </message>
+    <message>
+        <source>prefs.choice.popupBehaviour.onHover</source>
+        <translation>滑鼠停留時</translation>
+    </message>
+    <message>
+        <source>prefs.choice.popupBehaviour.never</source>
+        <translation>永不</translation>
     </message>
     <message>
         <source>prefs.group.search</source>
@@ -3502,6 +3670,18 @@
     <message>
         <source>prefs.shortcuts.reset</source>
         <translation>重設</translation>
+    </message>
+    <message>
+        <source>prefs.toolDefaults.title</source>
+        <translation>工具預設值</translation>
+    </message>
+    <message>
+        <source>prefs.toolDefaults.tool</source>
+        <translation>工具</translation>
+    </message>
+    <message>
+        <source>prefs.toolDefaults.reset</source>
+        <translation>重設此工具</translation>
     </message>
     <message>
         <source>prefs.shortcuts.noShadows</source>

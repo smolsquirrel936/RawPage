@@ -27,6 +27,11 @@ find_package(Catch2 3 REQUIRED)
 add_executable(rawpage_golden_tests
     GoldenSuite.cpp
     tst_golden.cpp
+    # Stage 6 T8 (D6-6, guide A-64): the appearance baselines -- a declarative spec of pages our builder draws,
+    # compared with golden/appearance/. AppearanceCases.cpp is compiled into golden-update and
+    # rawpage_render_tests too, so the three read one spec.
+    AppearanceCases.cpp
+    tst_appearancegolden.cpp
 )
 
 target_include_directories(rawpage_golden_tests PRIVATE "${CMAKE_SOURCE_DIR}")
@@ -47,6 +52,7 @@ target_compile_definitions(rawpage_golden_tests PRIVATE
 target_link_libraries(rawpage_golden_tests PRIVATE
     rawpage_core
     rawpage_cos
+    rawpage_ops
     rawpage_pdfium
     rawpage_platform
     Catch2::Catch2WithMain

@@ -139,6 +139,14 @@ struct Annotation {
     std::vector<double> interiorColor;          // /IC
     std::optional<double> opacity;              // /CA
     std::optional<double> borderWidth;          // /BS /W, else /Border's third number
+    // Stage 6 T8: the rest of how an outline is drawn. `/BS /S` as written -- S, D, B, I or U -- and empty when
+    // absent (ISO 32000-1 Table 166: solid); `/BS /D`, the dash array a `D` border is drawn with; `/BE /I` when
+    // `/BE /S` is `/C`, a CLOUDY border of that intensity (Table 167) -- nullopt for none; and `/BM`, the blend
+    // mode ISO 32000-2 Table 166 lets an annotation name for its appearance -- empty for the kind's own.
+    QString borderStyle;
+    std::vector<double> dashPattern;
+    std::optional<double> cloudIntensity;
+    QString blendMode;
 
     QString nm;                                 // /NM
     QString author;                             // /T
@@ -203,6 +211,12 @@ Annotation newAnnotation(AnnotationSubtype subtype, int page, const QString& aut
 
 // 32 lowercase hex digits from the system's random source.
 QString newAnnotationName();
+
+// Stage 6 T8: whether `name` is one of ISO 32000-1 Table 166's border styles -- S, D, B, I, U -- and whether it
+// is one of the blend modes ISO 32000-2 Table 136 names (`Normal` … `Luminosity`, and the deprecated
+// `Compatible`, which means `Normal`).
+bool isBorderStyleName(const QString& name);
+bool isBlendModeName(const QString& name);
 
 // WHO A COMMENT IS BY (D6-13, Stage 6 T6): `identity/author` when it says anything, else the login name
 // the HOST supplied -- the rule is the domain's, the name is the host's (convention 11), so `core/` reads

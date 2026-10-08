@@ -6,6 +6,7 @@
 #include "core/backend.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/Document.h"
+#include "core/doc/DrawnShapes.h"
 #include "core/doc/TypedText.h"
 
 #include <QJsonArray>
@@ -82,6 +83,19 @@ std::optional<QString> invalidShape(const Annotation& a)
         return QStringLiteral("annotation.opacity");
     if (a.borderWidth && (!std::isfinite(*a.borderWidth) || *a.borderWidth < 0.0))
         return QStringLiteral("annotation.borderWidth");
+    // Stage 6 T8: how the outline is drawn -- a style ISO 32000-1 Table 166 names, a dash array a reader can
+    // draw (finite, none negative, not all zero, no longer than sixteen), a cloud's intensity in its 0-2 range
+    // (Table 167), and a blend mode ISO 32000-2 Table 136 names.
+    if (!a.borderStyle.isEmpty() && !isBorderStyleName(a.borderStyle)) return QStringLiteral("annotation.borderStyle");
+    if (!a.dashPattern.empty()) {
+        const bool drawable = a.dashPattern.size() <= 16 && allFinite(a.dashPattern)
+                              && std::none_of(a.dashPattern.begin(), a.dashPattern.end(), [](double v) { return v < 0.0; })
+                              && std::any_of(a.dashPattern.begin(), a.dashPattern.end(), [](double v) { return v > 0.0; });
+        if (!drawable) return QStringLiteral("annotation.dashPattern");
+    }
+    if (a.cloudIntensity && (!std::isfinite(*a.cloudIntensity) || *a.cloudIntensity < 0.0 || *a.cloudIntensity > 2.0))
+        return QStringLiteral("annotation.cloudIntensity");
+    if (!a.blendMode.isEmpty() && !isBlendModeName(a.blendMode)) return QStringLiteral("annotation.blendMode");
     return std::nullopt;
 }
 
@@ -734,6 +748,38 @@ Annotation AnnotationAppearance::appliedTo(const Annotation& a) const
     if (interiorColor) out.interiorColor = *interiorColor;
     if (opacity) out.opacity = *opacity;
     if (borderWidth) out.borderWidth = *borderWidth;
+
+    // ---- Stage 6 T8 -------------------------------------------------------------------------------
+    const bool stroked = a.subtype == AnnotationSubtype::Square || a.subtype == AnnotationSubtype::Circle
+                         || a.subtype == AnnotationSubtype::Line || a.subtype == AnnotationSubtype::Polygon
+                         || a.subtype == AnnotationSubtype::PolyLine || a.subtype == AnnotationSubtype::Ink
+                         || a.subtype == AnnotationSubtype::FreeText;
+    if (lineStyle && stroked && !(a.subtype == AnnotationSubtype::Polygon && a.cloudIntensity)) {
+        out.borderStyle = *lineStyle == LineStyle::Solid ? QStringLiteral("S") : QStringLiteral("D");
+        out.dashPattern = dashFor(*lineStyle, drawnBorderWidth(out));
+    } else if (borderWidth && out.borderStyle == QLatin1String("D")) {
+        // A dash made for one width, kept in proportion at another -- as the line style it was chosen as.
+        out.dashPattern = dashFor(lineStyleOf(out.borderStyle, a.dashPattern), drawnBorderWidth(out));
+    }
+    if (blendMode && a.subtype != AnnotationSubtype::Popup)
+        out.blendMode = blendNameFor(a.subtype == AnnotationSubtype::Highlight, *blendMode);
+    if (lineEndings) {
+        const bool callout = a.subtype == AnnotationSubtype::FreeText && freeTextKind(a) == FreeTextKind::Callout;
+        if ((a.subtype == AnnotationSubtype::Line || a.subtype == AnnotationSubtype::PolyLine) && lineEndings->size() == 2)
+            out.lineEndings = *lineEndings;
+        else if (callout && lineEndings->size() == 1)
+            out.lineEndings = *lineEndings;
+    }
+    if (cloudIntensity && (a.subtype == AnnotationSubtype::Polygon || a.subtype == AnnotationSubtype::Square)
+        && a.cloudIntensity)
+        out.cloudIntensity = *cloudIntensity;
+    // What a drawn shape's extent depends on changed: its rectangle holds what is drawn now.
+    const bool reaches = out.borderWidth != a.borderWidth || out.lineEndings != a.lineEndings
+                         || out.cloudIntensity != a.cloudIntensity;
+    if (reaches && (a.subtype == AnnotationSubtype::Line || a.subtype == AnnotationSubtype::PolyLine
+                    || a.subtype == AnnotationSubtype::Polygon || a.subtype == AnnotationSubtype::Ink)) {
+        if (std::optional<Annotation> fitted = fittedShape(out)) out = std::move(*fitted);
+    }
     return out;
 }
 
@@ -744,6 +790,15 @@ QJsonObject AnnotationAppearance::toJson() const
     if (interiorColor) json.insert(QStringLiteral("interiorColor"), numberArray(*interiorColor));
     if (opacity) json.insert(QStringLiteral("opacity"), *opacity);
     if (borderWidth) json.insert(QStringLiteral("borderWidth"), *borderWidth);
+    const auto token = [](std::string_view name) { return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())); };
+    if (lineStyle) json.insert(QStringLiteral("lineStyle"), token(lineStyleName(*lineStyle)));
+    if (blendMode) json.insert(QStringLiteral("blendMode"), token(toolBlendName(*blendMode)));
+    if (lineEndings) {
+        QJsonArray names;
+        for (const QString& name : *lineEndings) names.append(name);
+        json.insert(QStringLiteral("lineEndings"), names);
+    }
+    if (cloudIntensity) json.insert(QStringLiteral("cloudIntensity"), *cloudIntensity);
     return json;
 }
 
@@ -768,6 +823,27 @@ std::optional<AnnotationAppearance> AnnotationAppearance::fromJson(const QJsonOb
             const double v = it.value().toDouble(-1.0);
             if (!it.value().isDouble() || !std::isfinite(v) || v < 0.0 || v > kMaxBorder) return std::nullopt;
             out.borderWidth = v;
+        } else if (key == QLatin1String("lineStyle")) {   // Stage 6 T8, and the three below
+            if (!it.value().isString()) return std::nullopt;
+            out.lineStyle = lineStyleFromName(it.value().toString().toStdString());
+            if (!out.lineStyle) return std::nullopt;
+        } else if (key == QLatin1String("blendMode")) {
+            if (!it.value().isString()) return std::nullopt;
+            out.blendMode = toolBlendFromName(it.value().toString().toStdString());
+            if (!out.blendMode) return std::nullopt;
+        } else if (key == QLatin1String("lineEndings")) {
+            const QJsonArray names = it.value().toArray();
+            if (!it.value().isArray() || names.isEmpty() || names.size() > 2) return std::nullopt;
+            std::vector<QString> endings;
+            for (const QJsonValue name : names) {
+                if (!name.isString() || !isLineEndingName(name.toString())) return std::nullopt;
+                endings.push_back(name.toString());
+            }
+            out.lineEndings = std::move(endings);
+        } else if (key == QLatin1String("cloudIntensity")) {
+            const double v = it.value().toDouble(-1.0);
+            if (!it.value().isDouble() || !std::isfinite(v) || v <= 0.0 || v > 2.0) return std::nullopt;
+            out.cloudIntensity = v;
         } else {
             return std::nullopt;   // an unknown property is a journal this build cannot replay faithfully
         }

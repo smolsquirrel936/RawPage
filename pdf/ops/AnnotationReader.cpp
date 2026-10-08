@@ -178,12 +178,42 @@ Parsed parse(cos::XrefTable& table, const CosObject& d)
             if (const CosObject* w = bs->find("W");
                 w != nullptr && w->isNumber() && std::isfinite(w->numberValue()))
                 a.borderWidth = w->numberValue();
+            // Stage 6 T8: the style and the dash array, as written -- a dash array of finite numbers only,
+            // bounded as a content stream's is never longer than a reader would draw.
+            if (const CosObject* style = bs->find("S"); style != nullptr && style->isName())
+                a.borderStyle = QString::fromStdString(style->text());
+            std::optional<cos::IndirectObject> dashHolder;
+            if (const CosObject* dash = resolve(table, bs->find("D"), dashHolder); dash != nullptr && dash->isArray()
+                && dash->items().size() <= 16) {
+                for (const CosObject& v : dash->items()) {
+                    if (!v.isNumber() || !std::isfinite(v.numberValue())) {
+                        a.dashPattern.clear();
+                        break;
+                    }
+                    a.dashPattern.push_back(v.numberValue());
+                }
+            }
         }
         if (!a.borderWidth) {
             const std::vector<double> border = smallNumbersOf(table, d, "Border");
             if (border.size() >= 3) a.borderWidth = border[2];
         }
     }
+    {
+        // A cloudy border (ISO 32000-1 Table 167): `/BE << /S /C /I n >>`, the intensity 0 when absent.
+        std::optional<cos::IndirectObject> holder;
+        const CosObject* be = resolve(table, d.find("BE"), holder);
+        if (be != nullptr && be->isDictionary()) {
+            const CosObject* style = be->find("S");
+            if (style != nullptr && style->isName() && style->text() == "C") {
+                const CosObject* intensity = be->find("I");
+                a.cloudIntensity = intensity != nullptr && intensity->isNumber() && std::isfinite(intensity->numberValue())
+                                       ? intensity->numberValue()
+                                       : 0.0;
+            }
+        }
+    }
+    a.blendMode = nameOf(d, "BM");
 
     a.nm = textOf(d, "NM");
     a.author = textOf(d, "T");

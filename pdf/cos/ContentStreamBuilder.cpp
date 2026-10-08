@@ -105,6 +105,19 @@ ContentStreamBuilder& ContentStreamBuilder::lineJoin(int style)
     return op("j");
 }
 
+ContentStreamBuilder& ContentStreamBuilder::dash(const double* values, int count, double phase)
+{
+    separate();
+    bytes_ += '[';
+    for (int i = 0; i < count; ++i) {
+        if (i > 0) bytes_ += ' ';
+        bytes_ += number(values[i]);
+    }
+    bytes_ += ']';
+    operand(phase);
+    return op("d");
+}
+
 ContentStreamBuilder& ContentStreamBuilder::graphicsState(std::string_view name)
 {
     separate();

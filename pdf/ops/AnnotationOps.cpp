@@ -125,8 +125,39 @@ const std::vector<Field>& fields()
              if (a.justification == 0) return std::nullopt;
              return CosObject::makeInteger(a.justification);
          }},
+        // Stage 6 T8: a cloudy border (ISO 32000-1 Table 167) and the blend its appearance uses (ISO 32000-2
+        // Table 166). `/BS` -- width, style and dash together -- is not a field: it is one dictionary three
+        // modelled values share, written by `borderStyleDictionary` below.
+        {"BE", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (!a.cloudIntensity) return std::nullopt;
+             return CosObject::makeDictionary({{"S", CosObject::makeName("C")},
+                                               {"I", CosObject::makeReal(*a.cloudIntensity)}});
+         }},
+        {"BM", [](const Annotation& a, const ReferenceResolver&) { return nameIfAny(a.blendMode); }},
     };
     return table;
+}
+
+// `/BS` as the model holds it, ON TOP OF `base` (the dictionary on disk, or none): `/W`, `/S` and `/D` set from
+// `after` where they differ from `before` -- each written, or removed when the model no longer has it -- and
+// every other key `base` carries kept (D6-5). Nullopt when nothing would be left in it.
+std::optional<CosObject> borderStyleDictionary(const CosObject* base, const Annotation& before, const Annotation& after)
+{
+    CosObject bs = base != nullptr && base->type() == cos::CosType::Dictionary ? *base : CosObject::makeDictionary({});
+    if (before.borderWidth != after.borderWidth) {
+        bs = after.borderWidth ? AnnotationOps::withEntry(bs, "W", CosObject::makeReal(*after.borderWidth))
+                               : AnnotationOps::withoutEntry(bs, "W");
+    }
+    if (before.borderStyle != after.borderStyle) {
+        bs = !after.borderStyle.isEmpty() ? AnnotationOps::withEntry(bs, "S", CosObject::makeName(after.borderStyle.toStdString()))
+                                          : AnnotationOps::withoutEntry(bs, "S");
+    }
+    if (before.dashPattern != after.dashPattern) {
+        bs = !after.dashPattern.empty() ? AnnotationOps::withEntry(bs, "D", numberArray(after.dashPattern))
+                                        : AnnotationOps::withoutEntry(bs, "D");
+    }
+    if (bs.entries().empty()) return std::nullopt;
+    return bs;
 }
 
 QString escapeXml(const QString& text)
@@ -192,10 +223,9 @@ core::Result<CosObject> AnnotationOps::createdDictionary(const Annotation& annot
     for (const Field& field : fields()) {
         if (std::optional<CosObject> value = field.value(annotation, resolve)) entries.push_back({field.key, std::move(*value)});
     }
-    if (annotation.borderWidth) {
-        entries.push_back({"BS", CosObject::makeDictionary({{"W", CosObject::makeReal(*annotation.borderWidth)},
-                                                            {"S", CosObject::makeName("S")}})});
-    }
+    // `/BS`: the width, and -- since T8 -- the style and the dash array, each only where the model has it.
+    if (std::optional<CosObject> bs = borderStyleDictionary(nullptr, Annotation{}, annotation))
+        entries.push_back({"BS", std::move(*bs)});
     entries.push_back({"P", CosObject::makeReference(page.number, page.generation)});
     if (appearance) {
         entries.push_back({"AP", CosObject::makeDictionary(
@@ -221,18 +251,16 @@ CosObject AnnotationOps::editedDictionary(const CosObject& onDisk, const Annotat
                                           : withEntry(edited, "RC", textString(richTextFor(after.contents)));
     }
 
-    // The border width lives inside /BS when there is one written inline; otherwise a /BS is added,
-    // which takes precedence over a legacy /Border (ISO 32000-1 Table 164).
-    if (before.borderWidth != after.borderWidth) {
+    // The border lives inside /BS when there is one written inline; otherwise a /BS is added, which takes
+    // precedence over a legacy /Border (ISO 32000-1 Table 164). Since T8 its style and dash array too.
+    if (before.borderWidth != after.borderWidth || before.borderStyle != after.borderStyle
+        || before.dashPattern != after.dashPattern) {
         const CosObject* bs = edited.find("BS");
-        if (!after.borderWidth) {
-            if (bs != nullptr && bs->type() == cos::CosType::Dictionary)
-                edited = withEntry(edited, "BS", withoutEntry(*bs, "W"));
-        } else if (bs != nullptr && bs->type() == cos::CosType::Dictionary) {
-            edited = withEntry(edited, "BS", withEntry(*bs, "W", CosObject::makeReal(*after.borderWidth)));
-        } else {
-            edited = withEntry(edited, "BS", CosObject::makeDictionary({{"W", CosObject::makeReal(*after.borderWidth)}}));
-        }
+        const CosObject* inline_ = bs != nullptr && bs->type() == cos::CosType::Dictionary ? bs : nullptr;
+        if (std::optional<CosObject> rewritten = borderStyleDictionary(inline_, before, after))
+            edited = withEntry(edited, "BS", std::move(*rewritten));
+        else if (inline_ != nullptr)
+            edited = withoutEntry(edited, "BS");
     }
     return edited;
 }

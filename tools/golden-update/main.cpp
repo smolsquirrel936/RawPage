@@ -31,6 +31,7 @@
 // cases drives this executable to prove the refusal above actually happens (guide case A-50). A
 // mechanism whose only evidence is its own source comment is the shape Stage 1 kept finding.
 
+#include "tests/golden/AppearanceCases.h"
 #include "tests/golden/GoldenSuite.h"
 
 #include "pdf/render/PdfiumInit.h"
@@ -42,6 +43,7 @@
 #include <QFileInfo>
 #include <QString>
 #include <QStringList>
+#include <QTemporaryDir>
 #include <QTextStream>
 
 #include <algorithm>
@@ -68,6 +70,7 @@ struct Options {
     QString corpusRoot = QStringLiteral(RAWPAGE_CORPUS_DIR);
     QString goldenRoot = QStringLiteral(RAWPAGE_GOLDEN_DIR);
     bool    survey = false;
+    bool    appearance = false;   // S6 T8: the appearance cases, not the corpus
     bool    checkManifest = false;
     bool    explain = false;
     bool    help = false;
@@ -96,6 +99,7 @@ Options parse(const QStringList& arguments)
         else if (argument == QLatin1String("--corpus"))       options.corpusRoot = takeValue("--corpus");
         else if (argument == QLatin1String("--golden"))       options.goldenRoot = takeValue("--golden");
         else if (argument == QLatin1String("--survey"))       options.survey = true;
+        else if (argument == QLatin1String("--appearance"))   options.appearance = true;
         else if (argument == QLatin1String("--check-manifest")) options.checkManifest = true;
         else if (argument == QLatin1String("--explain"))      options.explain = true;
         else if (argument == QLatin1String("--help") || argument == QLatin1String("-h"))
@@ -117,6 +121,8 @@ void printUsage()
           << "  --filter <text>     only cases whose corpus path contains <text>; repeatable,\n"
           << "                      and a case matches when any of them does\n"
           << "  --survey            measure corpus/ and print a manifest skeleton; writes nothing\n"
+          << "  --appearance        the APPEARANCE baselines (tests/golden/AppearanceCases), not the corpus;\n"
+          << "                      --filter matches a case's name. Still needs --reason.\n"
           << "  --check-manifest    every corpus file is a case or an excluded-with-a-reason row\n"
           << "  --explain           the thresholds, the case census, and where the baselines live\n"
           << "  --corpus <dir>      override the corpus root\n"
@@ -420,6 +426,112 @@ int regenerate(const Options& options)
     return 0;
 }
 
+// S6 T8 (D6-6, guide A-64): the appearance cases -- pages our builder draws, from the spec in
+// `tests/golden/AppearanceCases` -- written to `golden/appearance/<name>.png` at `kAppearanceDpi`, recorded in
+// `captured.json` as `appearance/<name>` and in `UPDATES.md` with the reason. LOOK at each before keeping it:
+// a baseline captured from a wrong builder is green for ever.
+int regenerateAppearance(const Options& options)
+{
+    golden::EngineSession session;
+    if (!session.isReady()) {
+        err() << "golden-update: " << session.error() << "\n";
+        err().flush();
+        return 1;
+    }
+    QTemporaryDir scratch;
+    if (!scratch.isValid()) {
+        err() << "golden-update: no scratch directory\n";
+        err().flush();
+        return 1;
+    }
+    golden::CaptureLog log = golden::loadCaptureLog(capturePath(options));
+    log.error.clear();
+    const QString stamp = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    log.pdfiumVersion = pdf::render::version();
+    log.capturedUtc = stamp;
+    log.reason = options.reason;
+
+    int written = 0;
+    for (const golden::AppearanceCase& item : golden::appearanceCases()) {
+        if (!options.filters.isEmpty()
+            && std::none_of(options.filters.begin(), options.filters.end(),
+                            [&item](const QString& filter) { return item.name.contains(filter, Qt::CaseInsensitive); }))
+            continue;
+        const std::string bytes = golden::appearancePdf(item.annotations, item.rotate, true);
+        if (bytes.empty()) {
+            err() << "golden-update: our builder refused case " << item.name << "; nothing was recorded\n";
+            err().flush();
+            return 1;
+        }
+        const QString name = item.name + QStringLiteral(".pdf");
+        QFile file(QDir(scratch.path()).filePath(name));
+        if (!file.open(QIODevice::WriteOnly)
+            || file.write(bytes.data(), static_cast<qint64>(bytes.size())) != static_cast<qint64>(bytes.size())) {
+            err() << "golden-update: cannot write " << file.fileName() << "\n";
+            err().flush();
+            return 1;
+        }
+        file.close();
+        golden::Case probe;
+        probe.file = name;
+        probe.pages = {0};
+        probe.dpi = {golden::kAppearanceDpi};
+        const golden::RenderOutcome outcome = golden::renderPage(scratch.path(), probe, 0, golden::kAppearanceDpi);
+        if (!outcome.ok) {
+            err() << "golden-update: " << outcome.error << "\n";
+            err().flush();
+            return 1;
+        }
+        const QString relative = golden::appearanceBaselinePath(item);
+        QString error;
+        if (!golden::writePng(QDir(options.goldenRoot).filePath(relative), outcome.image, &error)) {
+            err() << "golden-update: " << error << "\n";
+            err().flush();
+            return 1;
+        }
+        golden::CaptureRecord record;
+        record.file = QStringLiteral("appearance/") + item.name;
+        record.page = 0;
+        record.dpi = golden::kAppearanceDpi;
+        record.width = outcome.image.width;
+        record.height = outcome.image.height;
+        record.substitutions = golden::describeSubstitutions(outcome.substitutions);
+        auto existing = std::find_if(log.records.begin(), log.records.end(),
+                                     [&record](const golden::CaptureRecord& row) { return row.file == record.file; });
+        if (existing == log.records.end()) log.records.push_back(std::move(record));
+        else *existing = std::move(record);
+        ++written;
+        out() << "  wrote " << relative << " -- " << item.note << "\n";
+        out().flush();
+    }
+    if (written == 0) {
+        err() << "golden-update: no appearance case matched\n";
+        err().flush();
+        return 1;
+    }
+    std::sort(log.records.begin(), log.records.end(), [](const golden::CaptureRecord& a, const golden::CaptureRecord& b) {
+        if (a.file != b.file) return a.file < b.file;
+        if (a.page != b.page) return a.page < b.page;
+        return a.dpi < b.dpi;
+    });
+    QString error;
+    if (!golden::writeCaptureLog(capturePath(options), log, &error)) {
+        err() << "golden-update: " << error << "\n";
+        err().flush();
+        return 1;
+    }
+    Options logged = options;
+    logged.filters = options.filters.isEmpty() ? QStringList{QStringLiteral("appearance/")} : options.filters;
+    if (!appendUpdateLog(logged, stamp, written)) {
+        err().flush();
+        return 1;
+    }
+    out() << "\ngolden-update: " << written << " appearance baseline(s) written against PDFium " << pdf::render::version()
+          << " -- LOOK at each before it is kept\n";
+    out().flush();
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -455,5 +567,6 @@ int main(int argc, char** argv)
         err().flush();
         return 2;
     }
+    if (options.appearance) return regenerateAppearance(options);
     return regenerate(options);
 }

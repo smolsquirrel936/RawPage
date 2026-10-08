@@ -53,6 +53,10 @@ const char* annotationToolKindName(AnnotationToolKind kind) noexcept
     case AnnotationToolKind::InsertText:      return "InsertText";
     case AnnotationToolKind::Callout:         return "Callout";
     case AnnotationToolKind::Typewriter:      return "Typewriter";
+    case AnnotationToolKind::Arrow:           return "Arrow";
+    case AnnotationToolKind::Polyline:        return "Polyline";
+    case AnnotationToolKind::Cloud:           return "Cloud";
+    case AnnotationToolKind::Eraser:          return "Eraser";
     }
     return "?";
 }
@@ -86,6 +90,8 @@ Tool& ToolController::annotationToolFor(AnnotationToolKind which)
     if (which == AnnotationToolKind::StickyNote) return note_;
     if (MarkupTool::handles(which)) return markup_;
     if (TypewriterTool::handles(which)) return typed_;
+    if (DrawingTool::handles(which)) return drawing_;
+    if (InkTool::handles(which)) return ink_;
     return annotation_;
 }
 
@@ -146,6 +152,8 @@ void ToolController::armAnnotation(AnnotationToolKind which)
         annotation_.setWhich(which);
         markup_.setWhich(which);
         typed_.setWhich(which);
+        drawing_.setWhich(which);
+        ink_.setWhich(which);
         emit armedChanged(armed_);   // the same kind of tool, another tool: said all the same
         emitCursor();
         host_.requestRepaint();
@@ -155,6 +163,8 @@ void ToolController::armAnnotation(AnnotationToolKind which)
     annotation_.setWhich(which);
     markup_.setWhich(which);
     typed_.setWhich(which);
+    drawing_.setWhich(which);
+    ink_.setWhich(which);
     arm(ToolKind::Annotate);
 }
 
@@ -185,6 +195,10 @@ constexpr Arming kArming[kAnnotationToolKindCount] = {
     {AnnotationToolKind::InsertText, core::ActionId::AnnotInsertText},
     {AnnotationToolKind::Callout, core::ActionId::AnnotCallout},
     {AnnotationToolKind::Typewriter, core::ActionId::AnnotTypewriter},
+    {AnnotationToolKind::Arrow, core::ActionId::AnnotArrow},
+    {AnnotationToolKind::Polyline, core::ActionId::AnnotPolyline},
+    {AnnotationToolKind::Cloud, core::ActionId::AnnotCloud},
+    {AnnotationToolKind::Eraser, core::ActionId::AnnotEraser},
 };
 
 } // namespace
@@ -201,7 +215,7 @@ bool createsAnnotations(AnnotationToolKind kind) noexcept
 {
     return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
            || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value()
-           || TypewriterTool::handles(kind);
+           || TypewriterTool::handles(kind) || DrawingTool::handles(kind) || InkTool::handles(kind);
 }
 
 std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept
@@ -238,7 +252,9 @@ void ToolController::setKeepToolSelected(bool keep)
 
 void ToolController::setModifiers(Qt::KeyboardModifiers modifiers)
 {
-    const bool wanted = modifiers.testFlag(kTemporaryHandModifier);
+    // S6 T8: A DRAWING TOOL KEEPS `Shift` -- it is the constraint of its drag (§8), and a temporary hand that
+    // took the press would pan instead of drawing a square.
+    const bool wanted = modifiers.testFlag(kTemporaryHandModifier) && !toolFor(armed_).usesShift();
     if (wanted == temporaryHand_) return;
 
     // A DRAG IN PROGRESS KEEPS ITS TOOL. Swapping the effective tool under a live gesture would
@@ -281,7 +297,7 @@ bool ToolController::move(QPoint pos, Qt::KeyboardModifiers modifiers)
     Tool& tool = activeTool();
     if (!tool.isDragging() && !tool.tracksHover()) return false;
 
-    tool.move(host_, pos);
+    tool.moveWith(host_, pos, modifiers);
     emitCursor();
     return true;
 }
@@ -325,8 +341,11 @@ bool ToolController::cancel()
     }
 
     // AN ANNOTATION TOOL GOES BACK TO THE SELECTION TOOL (§8's Annotation tools `Esc`, Stage 6 T5): the
-    // tool is what is in front of the person, so putting it away is what `Esc` cancelled.
-    if (armed_ == ToolKind::Annotate && !tool.isDragging()) {
+    // tool is what is in front of the person, so putting it away is what `Esc` cancelled. Since T8 a gesture in
+    // progress -- a polygon's clicks, a drag -- is abandoned FIRST, nothing made, and the tool put away with it
+    // (guide A-46): one `Esc`, as a person presses it to stop.
+    if (armed_ == ToolKind::Annotate) {
+        if (tool.isDragging()) tool.cancel(host_);
         arm(ToolKind::Select);
         return true;
     }
@@ -337,6 +356,19 @@ bool ToolController::cancel()
     shiftClickFrom_.reset();
     emitCursor();
     return true;
+}
+
+bool ToolController::finishShape()
+{
+    if (armed_ != ToolKind::Annotate || !drawing_.inProgress()) return false;
+    const bool finished = drawing_.finish(host_);
+    emitCursor();
+    return finished;
+}
+
+bool ToolController::shapeInProgress() const noexcept
+{
+    return armed_ == ToolKind::Annotate && drawing_.inProgress();
 }
 
 bool ToolController::stepLoupeMagnification(int steps)

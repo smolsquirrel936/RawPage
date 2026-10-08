@@ -453,6 +453,57 @@ std::vector<KeyBindingStore::OverrideEntry> Settings::shortcutOverrides() const
 }
 
 // ---------------------------------------------------------------------------------------
+// The tool-defaults family (S6 T8)
+// ---------------------------------------------------------------------------------------
+std::optional<QString> Settings::toolDefaultText(const ToolDefaultKey& key) const
+{
+    const auto it = values_.find(key.path());
+    if (it == values_.end()) return std::nullopt;
+    return settingsVariantText(it->second);
+}
+
+ToolDefaults Settings::toolDefaults(CommentingTool tool) const
+{
+    ToolDefaults values = builtInToolDefaults(tool);
+    for (int p = 0; p < kToolPropertyCount; ++p) {
+        const std::optional<ToolDefaultKey> key = ToolDefaultKey::find(tool, static_cast<ToolProperty>(p));
+        if (!key) continue;
+        const std::optional<QString> text = toolDefaultText(*key);
+        if (!text) continue;
+        if (!parseToolProperty(key->property(), *text, values)) {
+            // The row's default stands, as a clamped key's does: a hand-edited file must not stop a tool.
+            RAWPAGE_LOG_WARNING(LogSubsystem::Ui)
+                << "settings:" << key->path() << "holds" << *text << "which is not a value it can have -- its default is used";
+        }
+    }
+    return values;
+}
+
+void Settings::setToolDefaults(CommentingTool tool, const ToolDefaults& values)
+{
+    for (int p = 0; p < kToolPropertyCount; ++p) {
+        const std::optional<ToolDefaultKey> key = ToolDefaultKey::find(tool, static_cast<ToolProperty>(p));
+        if (!key) continue;
+        setVariant(key->path(), SettingsGroup::Commenting, QVariant(formatToolProperty(key->property(), values)));
+    }
+}
+
+void Settings::resetToolDefaults(CommentingTool tool)
+{
+    for (int p = 0; p < kToolPropertyCount; ++p) {
+        const std::optional<ToolDefaultKey> key = ToolDefaultKey::find(tool, static_cast<ToolProperty>(p));
+        if (!key) continue;
+        const QString path = key->path();
+        const auto it = values_.find(path);
+        if (it == values_.end()) continue;
+        values_.erase(it);
+        removed_.push_back(path);
+        autoFlush();
+        notify(Change{path, SettingsGroup::Commenting});
+    }
+}
+
+// ---------------------------------------------------------------------------------------
 // Writing
 // ---------------------------------------------------------------------------------------
 Result<void> Settings::sync()

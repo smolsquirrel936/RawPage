@@ -33,8 +33,8 @@ void NoteTool::release(ToolHost& host, QPoint pos)
     const PagePoint at = host.pagePointAt(pos);
     if (annotations == nullptr || !at.isValid()) return;
 
-    const AnnotationToolDefaults& defaults = sessionToolDefaults(AnnotationToolKind::StickyNote);
-    const AnnotationOverlay::Style style{defaults.colour, defaults.opacity};
+    const core::ToolDefaults defaults = host.toolDefaults(AnnotationToolKind::StickyNote);
+    const AnnotationOverlay::Style style{defaults.colour, defaults.opacity, QString()};
     ToolHost* const where = &host;
     (void)host.requestAnnotationText(pos, [where, annotations, at, style](const QString& text) {
         if (annotations->addNote(at.page, at.point, text, style)) where->annotationToolUsed();

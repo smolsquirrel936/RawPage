@@ -32,6 +32,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
+#include "core/doc/DrawnShapes.h"
 #include "core/doc/TypedText.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
@@ -149,6 +150,55 @@ const Generators& registeredGenerators()
                  if (fitted) typedSet.push_back(fitted.value());
              }
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(typedSet)));
+             // Stage 6 T8: THE DRAWING KINDS -- a line, an arrow, a dashed rectangle, a filled oval under a blend, a
+             // polygon, a polyline with heads, a cloud and an ink of two strokes -- as one set, fitted as the tools
+             // fit them.
+             std::vector<core::Annotation> drawn;
+             const auto shape = [page](core::AnnotationSubtype kind) {
+                 core::Annotation a = core::newAnnotation(kind, page, QStringLiteral("Reversibility"), 1791504000);
+                 a.color = {0, 0, 1};
+                 a.borderWidth = 2.0;
+                 a.borderStyle = QStringLiteral("S");
+                 return a;
+             };
+             core::Annotation line = shape(core::AnnotationSubtype::Line);
+             line.line = {40, 400, 140, 420};
+             drawn.push_back(line);
+             core::Annotation arrow = line;
+             arrow.nm = core::newAnnotationName();
+             arrow.id = core::AnnotationId::ofCreated(arrow.nm);
+             arrow.lineEndings = {QStringLiteral("None"), QStringLiteral("OpenArrow")};
+             drawn.push_back(arrow);
+             core::Annotation rectangle = shape(core::AnnotationSubtype::Square);
+             rectangle.rect = core::PdfRect{core::PdfPoint{160, 380}, core::PdfSize{60, 40}};
+             rectangle.borderStyle = QStringLiteral("D");
+             rectangle.dashPattern = core::dashFor(core::LineStyle::Dashed, 2.0);
+             drawn.push_back(rectangle);
+             core::Annotation oval = shape(core::AnnotationSubtype::Circle);
+             oval.rect = core::PdfRect{core::PdfPoint{240, 380}, core::PdfSize{60, 40}};
+             oval.interiorColor = {1, 1, 0.8};
+             oval.blendMode = QStringLiteral("Multiply");
+             drawn.push_back(oval);
+             core::Annotation polygon = shape(core::AnnotationSubtype::Polygon);
+             polygon.vertices = {40, 300, 100, 340, 120, 290};
+             drawn.push_back(polygon);
+             core::Annotation polyline = shape(core::AnnotationSubtype::PolyLine);
+             polyline.vertices = {140, 300, 180, 340, 220, 300};
+             polyline.lineEndings = {QStringLiteral("Circle"), QStringLiteral("ClosedArrow")};
+             drawn.push_back(polyline);
+             core::Annotation cloud = shape(core::AnnotationSubtype::Polygon);
+             cloud.vertices = {240, 290, 320, 290, 320, 340, 240, 340};
+             cloud.cloudIntensity = 1.0;
+             cloud.intent = QStringLiteral("PolygonCloud");
+             drawn.push_back(cloud);
+             core::Annotation ink = shape(core::AnnotationSubtype::Ink);
+             ink.borderStyle.clear();
+             ink.inkList = {{40, 200, 50, 220, 70, 210, 80, 240}, {40, 180, 120, 190}};
+             drawn.push_back(ink);
+             for (core::Annotation& a : drawn) {
+                 if (const std::optional<core::Annotation> fitted = core::fittedShape(a)) a = *fitted;
+             }
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(drawn)));
              return out;
          }},
         // Every annotation the page owns as ONE set, and its first alone -- including, on
@@ -205,15 +255,32 @@ const Generators& registeredGenerators()
              const core::AnnotationStore& store = document.annotations();
              if (!store.status()) return out;
              std::vector<core::AnnotationId> ids;
+             std::vector<core::AnnotationId> shapes;
              for (const std::size_t index : store.onPage(page)) {
                  const core::Annotation& a = store.at(index);
                  if (a.subtype == core::AnnotationSubtype::Highlight && a.quadPoints.size() >= 8) ids.push_back(a.id);
+                 // Stage 6 T8: the drawing kinds this build redraws -- not a measurement, whose readout is T12's.
+                 const bool drawing = a.subtype == core::AnnotationSubtype::Square || a.subtype == core::AnnotationSubtype::Circle
+                                      || a.subtype == core::AnnotationSubtype::Line || a.subtype == core::AnnotationSubtype::Polygon
+                                      || a.subtype == core::AnnotationSubtype::PolyLine || a.subtype == core::AnnotationSubtype::Ink;
+                 if (drawing && !a.intent.endsWith(QLatin1String("Dimension")) && pdf::ops::AppearanceStreamBuilder::normal(a))
+                     shapes.push_back(a.id);
              }
-             if (ids.empty()) return out;
-             core::AnnotationAppearance appearance;
-             appearance.color = std::vector<double>{0.25, 0.5, 0.75};
-             appearance.opacity = 0.3;
-             out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(ids, appearance, kEditInstant));
+             if (!ids.empty()) {
+                 core::AnnotationAppearance appearance;
+                 appearance.color = std::vector<double>{0.25, 0.5, 0.75};
+                 appearance.opacity = 0.3;
+                 out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(ids, appearance, kEditInstant));
+             }
+             // T8: a dashed, wider, multiplied outline in a new colour on every shape the page owns, as one set.
+             if (!shapes.empty()) {
+                 core::AnnotationAppearance appearance;
+                 appearance.color = std::vector<double>{0.6, 0.1, 0.1};
+                 appearance.borderWidth = 3.0;
+                 appearance.lineStyle = core::LineStyle::Dashed;
+                 appearance.blendMode = core::ToolBlend::Multiply;
+                 out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(shapes, appearance, kEditInstant));
+             }
              return out;
          }},
         // EVERY LOCK set on what the page owns, and every lock cleared -- whichever changes something.

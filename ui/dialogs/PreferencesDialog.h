@@ -26,8 +26,10 @@
 // ---------------------------------------------------------------------------------------------
 // WHICH PAGES SHIP. Three at Stage 1, the argument below; Page Display and Performance at Stage 2 T15;
 // Documents at Stage 3 T12, when its two keys arrived beside the two Stage 1 had declared there with no
-// page; Units & Guides at Stage 4 T8 and Full Screen at T10; Search at Stage 5 T6, with its ten keys.
-// **Nine of 26.** The rule each addition followed is the last paragraph: a page arrives with keys.
+// page; Units & Guides at Stage 4 T8 and Full Screen at T10; Search at Stage 5 T6, with its ten keys;
+// Identity at Stage 6 T6; Commenting at Stage 6 T8, its two rows and the per-tool editor of the
+// `commenting/default<Property>.<tool>` family (`ToolDefaultsEditor`). **Eleven of 26.** The rule each
+// addition followed is the last paragraph: a page arrives with keys.
 //
 // `Features.md` §9.1 lists 26 preference groups and `Stage1-AppShell-Plan.md` §11 says three ship
 // in Stage 1. The plan's T14 row names two of them -- General and Shortcuts -- and Logging is the
@@ -57,6 +59,7 @@ namespace rawpage::ui {
 
 class SettingsPage;
 class ShortcutsPage;
+class ToolDefaultsEditor;
 
 class PreferencesDialog : public QDialog {
     Q_OBJECT
@@ -75,6 +78,8 @@ public:
     // Null for a group with no page, which is 23 of the 26.
     SettingsPage*  settingsPage(core::SettingsGroup group) const;
     ShortcutsPage* shortcutsPage() const { return shortcuts_; }
+    // S6 T8: the Commenting page's per-tool editor, below its generated rows.
+    ToolDefaultsEditor* toolDefaultsEditor() const { return toolDefaults_; }
 
 private:
     void restoreCurrentPageDefaults();
@@ -84,6 +89,7 @@ private:
     QListWidget*    pageList_ = nullptr;
     QStackedWidget* pageStack_ = nullptr;
     ShortcutsPage*  shortcuts_ = nullptr;
+    ToolDefaultsEditor* toolDefaults_ = nullptr;
 
     std::map<core::SettingsGroup, SettingsPage*> pages_;
     std::vector<core::SettingsGroup>             order_;

@@ -1,8 +1,11 @@
 // pdf/ops/AppearanceStreamBuilder -- implementation. Stage 6 T3 (Highlight); T6 the rest of the text
-// markup, the caret and the note. See the header for why we draw every appearance, and how each is drawn.
+// markup, the caret and the note; T7 free text; T8 the drawing kinds and ink. See the header for why we draw
+// every appearance, and how each is drawn.
 
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
+#include "core/doc/AnnotationGeometry.h"
+#include "core/doc/DrawnShapes.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 
 #include <QLatin1String>
@@ -47,10 +50,12 @@ CosObject formDictionary(const core::PdfRect& bbox, CosObject extGState, std::ve
     }, cos::CosStreamData{});
 }
 
-CosObject opacityState(double opacity, bool multiply)
+// The ExtGState every appearance draws through: its opacity as `/ca` and `/CA`, and -- when it is not `Normal` --
+// its blend mode as `/BM` (Stage 6 T8: any of ISO 32000-2 Table 136's, where T3 had only a highlight's multiply).
+CosObject opacityState(double opacity, const QString& blend)
 {
     std::vector<CosObject::Entry> entries{{"Type", CosObject::makeName("ExtGState")}};
-    if (multiply) entries.push_back({"BM", CosObject::makeName("Multiply")});
+    if (!blend.isEmpty()) entries.push_back({"BM", CosObject::makeName(blend.toStdString())});
     entries.push_back({"ca", CosObject::makeReal(opacity)});
     entries.push_back({"CA", CosObject::makeReal(opacity)});
     return CosObject::makeDictionary(std::move(entries));
@@ -66,6 +71,18 @@ std::optional<std::vector<double>> colourOf(const core::Annotation& a, std::vect
         if (!std::isfinite(v)) return std::nullopt;
     }
     return colour;
+}
+
+// The blend an appearance is drawn with: the annotation's `/BM` when it names one, else the kind's own --
+// `Multiply` for a highlight, which keeps the text under it black, and `Normal` for everything else. `Normal`
+// (and the deprecated `Compatible`) is written as nothing. Nullopt for a name ISO does not give.
+std::optional<QString> blendOf(const core::Annotation& a)
+{
+    QString blend = a.blendMode;
+    if (blend.isEmpty() && a.subtype == core::AnnotationSubtype::Highlight) blend = QStringLiteral("Multiply");
+    if (blend.isEmpty() || blend == QLatin1String("Normal") || blend == QLatin1String("Compatible")) return QString();
+    if (!core::isBlendModeName(blend)) return std::nullopt;
+    return blend;
 }
 
 double opacityOf(const core::Annotation& a)
@@ -93,6 +110,8 @@ core::Result<Appearance> highlight(const core::Annotation& a)
     if (!quadsDrawable(a)) return appearanceError("error.pdf.appearanceGeometry", name);
     const std::optional<std::vector<double>> color = colourOf(a, {1.0, 1.0, 0.0});
     if (!color) return appearanceError("error.pdf.appearanceGeometry", name);
+    const std::optional<QString> blend = blendOf(a);
+    if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
 
     cos::ContentStreamBuilder content;
     content.save().graphicsState("GS0").fillColor(color->data(), static_cast<int>(color->size()));
@@ -113,7 +132,7 @@ core::Result<Appearance> highlight(const core::Annotation& a)
         content.closePath();
     }
     content.fill().restore();
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), true)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
 }
 
 // ---- Stage 6 T6: a quadrilateral as the TEXT's own frame ----------------------------------------------
@@ -230,7 +249,7 @@ core::Result<Appearance> textLine(const core::Annotation& a)
     // The form's box IS the rectangle (ISO 32000-1 Algorithm 8.1 scales any other box into it), so a stroke
     // past the rectangle is clipped: RawPage's markup tools make the rectangle the quadrilaterals' bounds,
     // grown (`core::markupRect`), and a producer's rectangle is the producer's.
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), false)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
 }
 
 // A caret: Acrobat's filled wedge, its point at the top centre of the rectangle and its foot notched.
@@ -246,7 +265,7 @@ core::Result<Appearance> caret(const core::Annotation& a)
     content.save().graphicsState("GS0").fillColor(color->data(), static_cast<int>(color->size()));
     content.moveTo(l, b).lineTo(l + w / 2.0, b + h).lineTo(l + w, b).lineTo(l + w / 2.0, b + h * 0.3).closePath();
     content.fill().restore();
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), false)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
 }
 
 // A sticky note's icon, drawn into its rectangle on a 20-unit grid. Two of ISO 32000-1 Table 172's names:
@@ -282,11 +301,19 @@ core::Result<Appearance> note(const core::Annotation& a)
         }
     };
     if (icon == QLatin1String("Comment")) {
-        path({p(1, 5), p(1, 19), p(19, 19), p(19, 5), p(9, 5), p(5, 1), p(6, 5)});
+        // A SPEECH BUBBLE ON PDFium's PROPORTIONS (Stage 6 T8, guide I-12): a box a unit in from the top and the sides
+        // and four and a half up from the foot, its tail from 4.5 to 8.5 down to 6.5 at the foot, three lines at its
+        // quarters two units in from each side, all in a one-unit stroke -- what PDFium generates for a note with no
+        // `/AP` (measured against its raster at T8), in `/C` rather than its fixed yellow. T6's bubble, drawn
+        // from the corpus generator's, overlapped PDFium's at ink IoU 0.877 against D6-6's 0.90 (A-65). Its top-left
+        // ink corner is the rectangle's, where the note was clicked.
+        content.lineWidth(1.0 * scale);
+        path({p(0.5, 4.5), p(0.5, 19.5), p(19.5, 19.5), p(19.5, 4.5), p(8.5, 4.5), p(6.5, 0.5), p(4.5, 4.5)});
         content.closePath().fillAndStroke();
-        content.lineWidth(0.8 * scale);
-        for (const auto& [from, to] : {std::pair{p(4, 15), p(16, 15)}, std::pair{p(4, 11.5), p(16, 11.5)},
-                                       std::pair{p(4, 8), p(12, 8)}}) {
+        const double step = (19.5 - 4.5) / 4.0;
+        for (int line = 1; line <= 3; ++line) {
+            const auto from = p(2.5, 19.5 - line * step);
+            const auto to = p(17.5, 19.5 - line * step);
             content.moveTo(from.first, from.second).lineTo(to.first, to.second).stroke();
         }
     } else {
@@ -303,7 +330,7 @@ core::Result<Appearance> note(const core::Annotation& a)
         }
     }
     content.restore();
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), false)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
 }
 
 // ---- Stage 6 T7: free text ----------------------------------------------------------------------------
@@ -316,24 +343,317 @@ CosObject integers(const std::vector<int>& values)
     return CosObject::makeArray(std::move(items));
 }
 
-// An arrowhead at `tip`, pointing away from `from`: two strokes (open) or a filled wedge (closed), each
-// side `core::kCalloutHead` long and 25 degrees off the shaft.
-void arrowhead(cos::ContentStreamBuilder& content, double tipX, double tipY, double fromX, double fromY, bool closed)
+// ---- Stage 6 T8: paths, endings, outlines ------------------------------------------------------------
+
+void polylinePath(cos::ContentStreamBuilder& content, const std::vector<double>& xy, bool close)
 {
-    const double dx = tipX - fromX, dy = tipY - fromY;
-    const double length = std::hypot(dx, dy);
-    if (!(length > 1e-9)) return;
-    const double ux = dx / length, uy = dy / length;
-    const double spread = 25.0 * 3.14159265358979323846 / 180.0;
-    const double c = std::cos(spread), s = std::sin(spread);
-    const double h = core::kCalloutHead;
-    const double ax = tipX - h * (ux * c - uy * s), ay = tipY - h * (uy * c + ux * s);
-    const double bx = tipX - h * (ux * c + uy * s), by = tipY - h * (uy * c - ux * s);
-    if (closed) {
-        content.moveTo(ax, ay).lineTo(tipX, tipY).lineTo(bx, by).closePath().fillAndStroke();
-    } else {
-        content.moveTo(ax, ay).lineTo(tipX, tipY).lineTo(bx, by).stroke();
+    content.moveTo(xy[0], xy[1]);
+    for (std::size_t at = 2; at + 1 < xy.size(); at += 2) content.lineTo(xy[at], xy[at + 1]);
+    if (close) content.closePath();
+}
+
+void cubicPath(cos::ContentStreamBuilder& content, const std::vector<core::CubicSegment>& segments, bool close)
+{
+    content.moveTo(segments.front().p0.x, segments.front().p0.y);
+    for (const core::CubicSegment& s : segments) content.curveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p3.x, s.p3.y);
+    if (close) content.closePath();
+}
+
+// An ellipse inscribed in `box`, as four quarter-circle cubics -- counter-clockwise from its right-hand point.
+void ellipsePath(cos::ContentStreamBuilder& content, const core::PdfRect& box)
+{
+    constexpr double kKappa = 0.5522847498307936;
+    const double rx = box.size.width / 2.0, ry = box.size.height / 2.0;
+    const double cx = box.left() + rx, cy = box.bottom() + ry;
+    const double kx = rx * kKappa, ky = ry * kKappa;
+    content.moveTo(cx + rx, cy);
+    content.curveTo(cx + rx, cy + ky, cx + kx, cy + ry, cx, cy + ry);
+    content.curveTo(cx - kx, cy + ry, cx - rx, cy + ky, cx - rx, cy);
+    content.curveTo(cx - rx, cy - ky, cx - kx, cy - ry, cx, cy - ry);
+    content.curveTo(cx + kx, cy - ry, cx + rx, cy - ky, cx + rx, cy);
+    content.closePath();
+}
+
+// An ENDING (ISO 32000-1 Table 176) at `tip` of a line from `from`: an open shape stroked, a closed one filled
+// with `fill` when there is one and stroked (`core::lineEnding` is its geometry, the hit test's and the
+// rectangle's too). The caller has set the stroke colour, the width and a solid line.
+void drawEnding(cos::ContentStreamBuilder& content, const QString& ending, core::PdfPoint tip, core::PdfPoint from,
+                double size, double spreadDegrees, bool fill)
+{
+    const std::optional<core::EndingShape> shape = core::lineEnding(ending, tip, from, size, spreadDegrees);
+    if (!shape) return;
+    switch (shape->kind) {
+    case core::EndingShape::Kind::Open:
+        polylinePath(content, shape->points, false);
+        content.stroke();
+        return;
+    case core::EndingShape::Kind::Closed:
+        polylinePath(content, shape->points, true);
+        if (fill) content.fillAndStroke();
+        else content.stroke();
+        return;
+    case core::EndingShape::Kind::Circle: {
+        const double r = shape->radius;
+        ellipsePath(content, core::PdfRect{core::PdfPoint{shape->centre.x - r, shape->centre.y - r}, core::PdfSize{2 * r, 2 * r}});
+        if (fill) content.fillAndStroke();
+        else content.stroke();
+        return;
     }
+    }
+}
+
+// A colour that may be absent -- ISO 32000-1's "no colour", transparent -- and nullopt-inside-ok for a count no
+// device space has, which is refused.
+struct OptionalColour {
+    bool valid = true;
+    std::vector<double> colour;   // empty: none
+};
+
+OptionalColour optionalColour(const std::vector<double>& colour)
+{
+    OptionalColour out;
+    if (colour.empty()) return out;
+    if (colour.size() != 1 && colour.size() != 3 && colour.size() != 4) {
+        out.valid = false;
+        return out;
+    }
+    for (const double v : colour) {
+        if (!std::isfinite(v)) {
+            out.valid = false;
+            return out;
+        }
+    }
+    out.colour = colour;
+    return out;
+}
+
+// The width, the stroke colour, and a DASHED line for a `/BS /S /D` border (its `/D`, or ISO's default `[3]`).
+// False for a dash array no reader can draw.
+bool strokeStyle(cos::ContentStreamBuilder& content, const core::Annotation& a, double width)
+{
+    content.lineWidth(width);
+    if (a.borderStyle != QLatin1String("D")) return true;
+    std::vector<double> dash = a.dashPattern.empty() ? std::vector<double>{3.0} : a.dashPattern;
+    if (dash.size() > 16) return false;
+    bool any = false;
+    for (const double v : dash) {
+        if (!std::isfinite(v) || v < 0.0) return false;
+        any = any || v > 0.0;
+    }
+    if (!any) return false;
+    content.dash(dash.data(), static_cast<int>(dash.size()), 0.0);
+    return true;
+}
+
+// Endings are drawn SOLID whatever the line's dash: a dashed arrowhead is not an arrowhead.
+void solidLine(cos::ContentStreamBuilder& content, const core::Annotation& a)
+{
+    if (a.borderStyle == QLatin1String("D")) content.dash(nullptr, 0, 0.0);
+}
+
+// What a T8 kind refuses before it draws: a measurement (T12 draws its readout), and a width that is not one.
+std::optional<core::Error> refusedShape(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (a.intent.endsWith(QLatin1String("Dimension"))) return appearanceError("error.pdf.appearanceUnsupported", name);
+    if (!finiteRect(a)) return appearanceError("error.pdf.appearanceGeometry", name);
+    return std::nullopt;
+}
+
+// A Line: its stroke from `/L`'s first point to its second, and `/LE`'s two endings -- an ending's closed shape
+// filled with `/IC` when there is one (ISO 32000-1 Table 175).
+core::Result<Appearance> line(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
+    if (a.line.size() != 4 || !std::all_of(a.line.begin(), a.line.end(), [](double v) { return std::isfinite(v); }))
+        return appearanceError("error.pdf.appearanceGeometry", name);
+    for (const QString& ending : a.lineEndings) {
+        if (!core::isLineEndingName(ending)) return appearanceError("error.pdf.appearanceUnsupported", name);
+    }
+    const OptionalColour stroke = optionalColour(a.color);
+    const OptionalColour fill = optionalColour(a.interiorColor);
+    const std::optional<QString> blend = blendOf(a);
+    if (!stroke.valid || !fill.valid) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
+
+    const double width = core::drawnBorderWidth(a);
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    if (!stroke.colour.empty() && width > 0.0) {
+        content.strokeColor(stroke.colour.data(), static_cast<int>(stroke.colour.size()));
+        if (!fill.colour.empty()) content.fillColor(fill.colour.data(), static_cast<int>(fill.colour.size()));
+        if (!strokeStyle(content, a, width)) return appearanceError("error.pdf.appearanceGeometry", name);
+        content.lineJoin(1);
+        content.moveTo(a.line[0], a.line[1]).lineTo(a.line[2], a.line[3]).stroke();
+        solidLine(content, a);
+        const core::PdfPoint start{a.line[0], a.line[1]}, end{a.line[2], a.line[3]};
+        const double size = core::lineEndingSize(width);
+        drawEnding(content, a.lineEndings.size() > 0 ? a.lineEndings[0] : QString(), start, end, size,
+                   core::kArrowSpreadDegrees, !fill.colour.empty());
+        drawEnding(content, a.lineEndings.size() > 1 ? a.lineEndings[1] : QString(), end, start, size,
+                   core::kArrowSpreadDegrees, !fill.colour.empty());
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
+}
+
+// The box a Square's or a Circle's outline is drawn round: the rectangle less `/RD` (ISO 32000-1 Table 177).
+core::PdfRect lessDifferences(const core::Annotation& a)
+{
+    double left = a.rect.left(), bottom = a.rect.bottom(), right = a.rect.right(), top = a.rect.top();
+    if (a.rectDifferences.size() == 4) {
+        left += a.rectDifferences[0];
+        bottom += a.rectDifferences[1];
+        right -= a.rectDifferences[2];
+        top -= a.rectDifferences[3];
+    }
+    if (right < left) left = right = (left + right) / 2.0;
+    if (top < bottom) bottom = top = (bottom + top) / 2.0;
+    return core::PdfRect{core::PdfPoint{left, bottom}, core::PdfSize{right - left, top - bottom}};
+}
+
+// A Square or a Circle: filled with `/IC`, outlined in `/C` -- inside the rectangle less `/RD`, the outline
+// inset by half its width so the whole of it shows. A cloudy Square's bumps go round that box; a cloudy Circle
+// is refused (no reader agrees on one, and RawPage makes none).
+core::Result<Appearance> squareOrCircle(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
+    const bool circle = a.subtype == core::AnnotationSubtype::Circle;
+    if (circle && a.cloudIntensity) return appearanceError("error.pdf.appearanceUnsupported", name);
+    const OptionalColour stroke = optionalColour(a.color);
+    const OptionalColour fill = optionalColour(a.interiorColor);
+    const std::optional<QString> blend = blendOf(a);
+    if (!stroke.valid || !fill.valid) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
+
+    const double width = core::drawnBorderWidth(a);
+    const bool outlined = !stroke.colour.empty() && width > 0.0;
+    const core::PdfRect outer = lessDifferences(a);
+    const double inset = outlined && !a.cloudIntensity ? width / 2.0 : 0.0;
+    const core::PdfRect box{core::PdfPoint{outer.left() + inset, outer.bottom() + inset},
+                            core::PdfSize{std::max(outer.size.width - 2 * inset, 0.0), std::max(outer.size.height - 2 * inset, 0.0)}};
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    if (!fill.colour.empty()) content.fillColor(fill.colour.data(), static_cast<int>(fill.colour.size()));
+    if (outlined) {
+        content.strokeColor(stroke.colour.data(), static_cast<int>(stroke.colour.size()));
+        if (!strokeStyle(content, a, width)) return appearanceError("error.pdf.appearanceGeometry", name);
+    }
+    if (outlined || !fill.colour.empty()) {
+        if (a.cloudIntensity) {
+            const std::vector<double> corners{box.left(), box.bottom(), box.right(), box.bottom(),
+                                              box.right(), box.top(), box.left(), box.top()};
+            const std::vector<core::CubicSegment> cloud = core::cloudPath(corners, *a.cloudIntensity);
+            if (cloud.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+            content.lineJoin(1);
+            cubicPath(content, cloud, true);
+        } else if (circle) {
+            ellipsePath(content, box);
+        } else {
+            content.rectangle(box.left(), box.bottom(), box.size.width, box.size.height);
+        }
+        if (outlined && !fill.colour.empty()) content.fillAndStroke();
+        else if (outlined) content.stroke();
+        else content.fill();
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
+}
+
+// A Polygon (closed, filled with `/IC`, its border cloudy when `/BE` says so) or a PolyLine (open, with `/LE`'s
+// endings): the vertices joined round, in `/C`.
+core::Result<Appearance> polygon(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
+    const bool closed = a.subtype == core::AnnotationSubtype::Polygon;
+    const std::size_t n = a.vertices.size() / 2;
+    if (a.vertices.size() % 2 != 0 || n < (closed ? 3u : 2u)
+        || !std::all_of(a.vertices.begin(), a.vertices.end(), [](double v) { return std::isfinite(v); }))
+        return appearanceError("error.pdf.appearanceGeometry", name);
+    for (const QString& ending : a.lineEndings) {
+        if (!core::isLineEndingName(ending)) return appearanceError("error.pdf.appearanceUnsupported", name);
+    }
+    const OptionalColour stroke = optionalColour(a.color);
+    const OptionalColour fill = optionalColour(a.interiorColor);
+    const std::optional<QString> blend = blendOf(a);
+    if (!stroke.valid || !fill.valid) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
+
+    const double width = core::drawnBorderWidth(a);
+    const bool outlined = !stroke.colour.empty() && width > 0.0;
+    const bool filled = closed && !fill.colour.empty();
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    if (!fill.colour.empty()) content.fillColor(fill.colour.data(), static_cast<int>(fill.colour.size()));
+    if (outlined) {
+        content.strokeColor(stroke.colour.data(), static_cast<int>(stroke.colour.size()));
+        if (!strokeStyle(content, a, width)) return appearanceError("error.pdf.appearanceGeometry", name);
+    }
+    content.lineJoin(1);
+    if (outlined || filled) {
+        if (closed && a.cloudIntensity) {
+            const std::vector<core::CubicSegment> cloud = core::cloudPath(a.vertices, *a.cloudIntensity);
+            if (cloud.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+            cubicPath(content, cloud, true);
+        } else {
+            polylinePath(content, a.vertices, closed);
+        }
+        if (outlined && filled) content.fillAndStroke();
+        else if (outlined) content.stroke();
+        else content.fill();
+    }
+    if (!closed && outlined) {
+        solidLine(content, a);
+        const double size = core::lineEndingSize(width);
+        drawEnding(content, a.lineEndings.size() > 0 ? a.lineEndings[0] : QString(), core::PdfPoint{a.vertices[0], a.vertices[1]},
+                   core::PdfPoint{a.vertices[2], a.vertices[3]}, size, core::kArrowSpreadDegrees, !fill.colour.empty());
+        drawEnding(content, a.lineEndings.size() > 1 ? a.lineEndings[1] : QString(),
+                   core::PdfPoint{a.vertices[2 * n - 2], a.vertices[2 * n - 1]},
+                   core::PdfPoint{a.vertices[2 * n - 4], a.vertices[2 * n - 3]}, size, core::kArrowSpreadDegrees,
+                   !fill.colour.empty());
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
+}
+
+// Ink (D6-15): each stroke as the centripetal Catmull-Rom curve through its samples (`core::inkCurve`), with
+// round caps and joins -- a stroke of one sample is a dot. The samples themselves stay as written in `/InkList`.
+core::Result<Appearance> ink(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
+    if (a.inkList.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+    for (const std::vector<double>& stroke : a.inkList) {
+        if (stroke.size() < 2 || stroke.size() % 2 != 0
+            || !std::all_of(stroke.begin(), stroke.end(), [](double v) { return std::isfinite(v); }))
+            return appearanceError("error.pdf.appearanceGeometry", name);
+    }
+    const OptionalColour stroke = optionalColour(a.color);
+    const std::optional<QString> blend = blendOf(a);
+    if (!stroke.valid) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
+
+    const double width = core::drawnBorderWidth(a);
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    if (!stroke.colour.empty() && width > 0.0) {
+        content.strokeColor(stroke.colour.data(), static_cast<int>(stroke.colour.size()));
+        if (!strokeStyle(content, a, width)) return appearanceError("error.pdf.appearanceGeometry", name);
+        content.lineCap(1).lineJoin(1);
+        for (const std::vector<double>& samples : a.inkList) {
+            if (samples.size() == 2) {
+                content.moveTo(samples[0], samples[1]).lineTo(samples[0], samples[1]).stroke();
+                continue;
+            }
+            cubicPath(content, core::inkCurve(samples), false);
+            content.stroke();
+        }
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
 }
 
 core::Result<Appearance> freeText(const core::Annotation& a, AppearanceObjects& objects)
@@ -402,17 +722,20 @@ core::Result<Appearance> freeText(const core::Annotation& a, AppearanceObjects& 
         for (const double v : a.callout) {
             if (!std::isfinite(v)) return appearanceError("error.pdf.appearanceGeometry", name);
         }
+        // Stage 6 T8: every ending ISO names, drawn by the line kinds' own drawer -- T7 drew two arrows and
+        // refused the rest.
         const QString ending = a.lineEndings.empty() ? QStringLiteral("None") : a.lineEndings.front();
-        const bool open = ending == QLatin1String("OpenArrow");
-        const bool closed = ending == QLatin1String("ClosedArrow");
-        if (!open && !closed && ending != QLatin1String("None")) return appearanceError("error.pdf.appearanceUnsupported", name);
+        if (!core::isLineEndingName(ending)) return appearanceError("error.pdf.appearanceUnsupported", name);
         content.strokeColor(lineColour->data(), static_cast<int>(lineColour->size()));
         content.fillColor(lineColour->data(), static_cast<int>(lineColour->size()));
         content.lineWidth(border > 0.0 ? border : 1.0).lineJoin(1);
         content.moveTo(a.callout[0], a.callout[1]);
         for (std::size_t k = 2; k + 1 < a.callout.size(); k += 2) content.lineTo(a.callout[k], a.callout[k + 1]);
         content.stroke();
-        if (open || closed) arrowhead(content, a.callout[0], a.callout[1], a.callout[2], a.callout[3], closed);
+        // A callout's head is its own size, 25 degrees off the leader (T7), and a closed one is filled in the line's
+        // colour, as T7 drew its arrow.
+        drawEnding(content, ending, core::PdfPoint{a.callout[0], a.callout[1]}, core::PdfPoint{a.callout[2], a.callout[3]},
+                   core::kCalloutHead, 25.0, true);
     }
 
     // THE TEXT, in the frame: turned with `/Rotate`, clipped to the box.
@@ -442,7 +765,7 @@ core::Result<Appearance> freeText(const core::Annotation& a, AppearanceObjects& 
         }
     }
     content.endText().restore().restore();
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), false), std::move(fonts)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString())), std::move(fonts)), content.bytes()};
 }
 
 class DryRun final : public AppearanceObjects {
@@ -550,6 +873,13 @@ bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
     case core::AnnotationSubtype::Caret:
     case core::AnnotationSubtype::Text:
     case core::AnnotationSubtype::FreeText:
+    // Stage 6 T8: the drawing kinds.
+    case core::AnnotationSubtype::Line:
+    case core::AnnotationSubtype::Square:
+    case core::AnnotationSubtype::Circle:
+    case core::AnnotationSubtype::Polygon:
+    case core::AnnotationSubtype::PolyLine:
+    case core::AnnotationSubtype::Ink:
         return true;
     default:
         return false;
@@ -578,6 +908,12 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::Caret: return caret(annotation);
         case core::AnnotationSubtype::Text: return note(annotation);
         case core::AnnotationSubtype::FreeText: return freeText(annotation, objects);
+        case core::AnnotationSubtype::Line: return line(annotation);
+        case core::AnnotationSubtype::Square:
+        case core::AnnotationSubtype::Circle: return squareOrCircle(annotation);
+        case core::AnnotationSubtype::Polygon:
+        case core::AnnotationSubtype::PolyLine: return polygon(annotation);
+        case core::AnnotationSubtype::Ink: return ink(annotation);
         default:
             return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
         }

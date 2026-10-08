@@ -150,6 +150,23 @@ private:
     std::map<std::string, cos::CosRef> written_;
 };
 
+// Stage 6 T8: whether a dictionary on disk DRAWS something the model does not hold, so that our builder -- which
+// draws from the model -- would lose it: a Line's leader lines, its caption or its leader offset (ISO 32000-1
+// Table 175's `/LL`, `/LLE`, `/LLO`, `/Cap`), and a measurement's `/Measure` (T12's). Such an annotation is never
+// redrawn: an edit that would need it redrawn is refused by key, and a move carries its producer's appearance.
+bool drawsUnmodelled(const std::optional<cos::CosObject>& dictionary, core::AnnotationSubtype subtype)
+{
+    if (!dictionary || !dictionary->isDictionary()) return false;
+    if (dictionary->has("Measure")) return true;
+    if (subtype != core::AnnotationSubtype::Line) return false;
+    for (const char* key : {"LL", "LLE", "LLO"}) {
+        const cos::CosObject* value = dictionary->find(key);
+        if (value != nullptr && (!value->isNumber() || value->numberValue() != 0.0)) return true;
+    }
+    const cos::CosObject* cap = dictionary->find("Cap");
+    return cap != nullptr && cap->isBoolean() && cap->booleanValue();
+}
+
 // A `/Rect` read back as the four numbers written, within what a written real keeps.
 bool rectReadsBack(const cos::CosObject& dictionary, const core::PdfRect& rect)
 {
@@ -531,7 +548,7 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
         Edit edit{disk, now, false, std::nullopt};
         const bool carried = drawnTheSame(disk, now);
         if (disk.hasAppearance && (!carried || !sameSize(disk.rect, now.rect))) {
-            if (AppearanceStreamBuilder::supports(now.subtype)) {
+            if (AppearanceStreamBuilder::supports(now.subtype) && !drawsUnmodelled(dictionaryOnDisk(now.id), now.subtype)) {
                 auto appearance = AppearanceStreamBuilder::normal(now);
                 if (!appearance) return appearance.error();
                 edit.redraw = true;

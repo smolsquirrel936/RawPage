@@ -3,6 +3,7 @@
 #include "ui/viewer/tools/MarkupTool.h"
 
 #include "ui/viewer/AnnotationOverlay.h"
+#include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/SelectionOverlay.h"
 
@@ -30,10 +31,13 @@ int clickSlop()
     return hints != nullptr ? hints->startDragDistance() : 4;
 }
 
-AnnotationOverlay::Style styleFor(AnnotationToolKind kind)
+// S6 T8: the tool's defaults as the host has them -- the settings family under the session's change.
+AnnotationOverlay::Style styleFor(const ToolHost& host, AnnotationToolKind kind)
 {
-    const AnnotationToolDefaults& defaults = sessionToolDefaults(kind);
-    return AnnotationOverlay::Style{defaults.colour, defaults.opacity};
+    const core::ToolDefaults defaults = host.toolDefaults(kind);
+    const std::optional<core::AnnotationSubtype> marked = markupSubtype(kind);
+    return AnnotationOverlay::Style{defaults.colour, defaults.opacity,
+                                    marked ? blendNameFor(*marked, defaults.blendMode) : QString()};
 }
 
 } // namespace
@@ -81,7 +85,7 @@ void MarkupTool::release(ToolHost& host, QPoint pos)
     if (selection == nullptr || annotations == nullptr) return;
     ToolHost* const where = &host;
     const AnnotationToolKind kind = which_;
-    const AnnotationOverlay::Style style = styleFor(kind);
+    const AnnotationOverlay::Style style = styleFor(host, kind);
 
     if (kind == AnnotationToolKind::InsertText) {
         // A CLICK, not a drag: the caret goes where the person pointed.
