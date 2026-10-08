@@ -1593,7 +1593,7 @@ thirteen collisions and `tst_viewercommands`' unregistered Viewer rows 4 → 18 
 Windows 1422, `portable-asan` 742). **CI run 37250978598 on `133a046` (T2): four of five jobs green**
 (Windows 1457, `gates` 121, `portable-fuzz` with `fuzz_annot_pipeline` clean) **and `portable-asan` red on
 A-22's clock**, 1 of 768 -- guide **I-05**, fixed in the test the same day. **CI run 37648525480 on `99b636f` (T7): four of five jobs green and `portable-asan` red at its BUILD** -- a GCC 13
-false positive under ASan, `-Werror` fatal, so its suite never ran -- guide **I-11**, fixed 2026-10-08.
+false positive under ASan, `-Werror` fatal, so its suite never ran -- guide **I-11**, fixed 2026-10-08 (`4e2f53c`). **CI run 37653328339 on `4e2f53c`: the four build-and-test jobs green, its summary job never given a runner and the run not retriable; CI run 37655927348 (dispatched on `4e2f53c`): all five jobs green** -- Windows 1591, `gates` 123, `portable-asan` 860 with no sanitizer report and A-31's `qpdf` 44 files 0 failed, `portable-fuzz` five targets clean.
 **T1 to T6 are done (2026-10-05) and T7 (2026-10-07); the next step is the plan's T8** -- drawing, ink, the eraser and the tool defaults (D6-13, D6-15).
 
 | Task | State | What landed, what was measured, and what deviated |
