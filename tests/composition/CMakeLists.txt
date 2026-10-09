@@ -76,6 +76,9 @@ add_executable(rawpage_composition_tests
     # S6 T9 -- guide A-73 (the pane over annots-900.pdf's 9,000 comments, timed, its store's live heap), A-74
     # through the REAL find bar (an unsaved comment found from the store, and selected), A-72's tile half.
     tst_commentscale.cpp
+    # S6 T10 -- guide A-34/A-35 through the stamp tool, A-77's ink (each image against its source at one pixel a
+    # pixel, on the golden thresholds) and A-80's (a resized and turned stamp's ink inside its rectangle).
+    tst_stampink.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp

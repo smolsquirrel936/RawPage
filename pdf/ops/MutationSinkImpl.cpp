@@ -3,6 +3,7 @@
 #include "pdf/ops/MutationSinkImpl.h"
 
 #include "core/doc/AnnotationGeometry.h"
+#include "core/doc/Stamps.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/AnnotationOps.h"
@@ -101,7 +102,7 @@ bool sameListing(const std::vector<MutationSinkImpl::ListedEntry>& a, const std:
 // T5 (D6-5): whether `now` is drawn exactly as `disk` is, but for where -- the same appearance carried into
 // another rectangle. The fields a reader never draws are taken from `disk` first: who wrote it and when,
 // its thread and state, its flags (a lock is not ink; `Hidden` hides the appearance it has), its pop-up --
-// and its text, except for free text, whose appearance IS its text.
+// and its text, except for free text and a dynamic stamp, whose appearances draw their text.
 bool drawnTheSame(const core::Annotation& disk, const core::Annotation& now)
 {
     core::Annotation probe = now;
@@ -119,7 +120,9 @@ bool drawnTheSame(const core::Annotation& disk, const core::Annotation& now)
     probe.parent = disk.parent;
     probe.open = disk.open;
     probe.hasAppearance = disk.hasAppearance;
-    if (disk.subtype != core::AnnotationSubtype::FreeText) {
+    // Stage 6 T10: and a DYNAMIC stamp's, whose appearance draws its `/Contents` -- the lines it baked -- as free text
+    // draws its text (`core/doc/Stamps`).
+    if (disk.subtype != core::AnnotationSubtype::FreeText && core::stampKind(disk) != core::StampKind::Dynamic) {
         probe.contents = disk.contents;
         probe.richText = disk.richText;
     }
@@ -131,7 +134,7 @@ bool sameSize(const core::PdfRect& a, const core::PdfRect& b)
     return std::abs(a.size.width - b.size.width) <= 1e-9 && std::abs(a.size.height - b.size.height) <= 1e-9;
 }
 
-// Stage 6 T7: the objects appearances share -- a font -- written into THIS update, once per key however many
+// Stage 6 T7: the objects appearances share -- a font, and since T10 an image -- written into THIS update, once per key however many
 // appearances name them. One per compose: a font written by an earlier save is not reused, so an update is
 // read whole without its predecessor's objects being assumed (a later save could be of a file that lost it).
 class DeltaAppearanceObjects final : public AppearanceObjects {
@@ -141,6 +144,14 @@ public:
     {
         if (const auto found = written_.find(key); found != written_.end()) return found->second;
         const cos::CosRef at{delta_.add(std::move(object)), 0};
+        written_.emplace(key, at);
+        return at;
+    }
+    // Stage 6 T10: an image stamp's picture and its mask -- one object per image however many stamps paint it.
+    cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) override
+    {
+        if (const auto found = written_.find(key); found != written_.end()) return found->second;
+        const cos::CosRef at{delta_.add(std::move(dictionary), std::move(data)), 0};
         written_.emplace(key, at);
         return at;
     }
@@ -544,10 +555,14 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
         }
         // REDRAWN only where what it draws changed -- or where it was scaled and this build can draw it,
         // since a stretched border is the producer's line made wider than they drew it. One with no `/AP`
-        // keeps none: every reader draws it from the dictionary, which is rewritten.
+        // keeps none: every reader draws it from the dictionary, which is rewritten. A STAMP scaled is not
+        // redrawn (T10): it is a picture, drawn at its natural size and mapped onto whatever rectangle it has
+        // (`core/doc/Stamps`), so the producer's own is carried -- an image stamp read from a file, whose pixels
+        // the model does not hold, resizes like any other.
         Edit edit{disk, now, false, std::nullopt};
         const bool carried = drawnTheSame(disk, now);
-        if (disk.hasAppearance && (!carried || !sameSize(disk.rect, now.rect))) {
+        const bool picture = now.subtype == core::AnnotationSubtype::Stamp;
+        if (disk.hasAppearance && (!carried || (!picture && !sameSize(disk.rect, now.rect)))) {
             if (AppearanceStreamBuilder::supports(now.subtype) && !drawsUnmodelled(dictionaryOnDisk(now.id), now.subtype)) {
                 auto appearance = AppearanceStreamBuilder::normal(now);
                 if (!appearance) return appearance.error();

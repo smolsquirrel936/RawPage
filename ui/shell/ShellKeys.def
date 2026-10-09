@@ -148,6 +148,10 @@ RAWPAGE_SHELL_STRING(TooltipNeedsSelection,     "shell.tooltip.needsSelection")
 RAWPAGE_SHELL_STRING(TooltipNeedsComment, "shell.tooltip.needsComment")
 // S6 T8: `Enter` with no polygon in progress; `Ctrl+Alt+Enter` with no tool armed and nothing selected.
 RAWPAGE_SHELL_STRING(TooltipNeedsShapeInProgress, "shell.tooltip.needsShapeInProgress")
+// S6 T10: `annot.customStamp` in a window composed with no stamp library; `edit.paste` with no image
+// on the clipboard.
+RAWPAGE_SHELL_STRING(TooltipNeedsStampLibrary, "shell.tooltip.needsStampLibrary")
+RAWPAGE_SHELL_STRING(TooltipNeedsClipboardImage, "shell.tooltip.needsClipboardImage")
 RAWPAGE_SHELL_STRING(TooltipNeedsToolOrSelection, "shell.tooltip.needsToolOrSelection")
 // S5 T13. What `nav.nextDifference` and `nav.prevDifference` say with no comparison open, or one that found
 // nothing: DISABLED there, and still consuming `Ctrl+]` and `Ctrl+[`, which §8 binds in the Viewer.
@@ -390,6 +394,8 @@ RAWPAGE_SHELL_STRING(PropertiesBarBlend,          "shell.propertiesBar.blend")
 RAWPAGE_SHELL_STRING(PropertiesBarFontSize,       "shell.propertiesBar.fontSize")
 RAWPAGE_SHELL_STRING(PropertiesBarEndings,        "shell.propertiesBar.endings")
 RAWPAGE_SHELL_STRING(PropertiesBarCloud,          "shell.propertiesBar.cloud")
+// S6 T10: a stamp's turn, any angle (D6-37).
+RAWPAGE_SHELL_STRING(PropertiesBarRotation,       "shell.propertiesBar.rotation")
 // A refused annotation change, in the status bar (guide A-39's last clause): `%1` is the reason's own text.
 RAWPAGE_SHELL_STRING(StatusAnnotationRefused,     "shell.status.annotationRefused")
 // An annotation tool armed that makes nothing yet: `%1` is its name. What it creates arrives with its task
@@ -585,5 +591,53 @@ RAWPAGE_SHELL_STRING(CommentsTypeOther, "comments.type.other")
 // A new namespace, as `search.` and `compare.` were, added to `tools/i18n-lint/rules.json` in the same change.
 // Its STATUS and TYPE words are looked up at run time from a state or a subtype name (`comments.status.`,
 // `comments.type.`), and every one of them is a row here so `--dump-ui-strings` covers it.
+
+
+// --- The stamp palette and the custom-stamp dialog (S6 T10, D6-16) -- a new family, `stamps.` -------------
+// A new namespace, as `comments.` was at T9, added to `tools/i18n-lint/rules.json` in the same change. A
+// built-in stamp's NAME in the person's language is looked up at run time from its `/Name`
+// (`stamps.name.`), and every one is a row here so `--dump-ui-strings` covers it; the words the stamp DRAWS
+// are the name's own, in every language (`core/doc/Stamps`).
+RAWPAGE_SHELL_STRING(StampsPaletteTitle, "stamps.palette.title")
+RAWPAGE_SHELL_STRING(StampsCategoryFavourites, "stamps.category.favourites")
+RAWPAGE_SHELL_STRING(StampsCategoryStandard, "stamps.category.standard")
+RAWPAGE_SHELL_STRING(StampsCategoryDynamic, "stamps.category.dynamic")
+RAWPAGE_SHELL_STRING(StampsCategorySignatures, "stamps.category.signatures")
+RAWPAGE_SHELL_STRING(StampsCategoryDefault, "stamps.category.default")
+RAWPAGE_SHELL_STRING(StampsFavourite, "stamps.favourite")
+RAWPAGE_SHELL_STRING(StampsRefile, "stamps.refile")
+RAWPAGE_SHELL_STRING(StampsRefilePrompt, "stamps.refile.prompt")
+RAWPAGE_SHELL_STRING(StampsDelete, "stamps.delete")
+RAWPAGE_SHELL_STRING(StampsDialogTitle, "stamps.dialog.title")
+RAWPAGE_SHELL_STRING(StampsDialogBrowse, "stamps.dialog.browse")
+RAWPAGE_SHELL_STRING(StampsDialogImageFilter, "stamps.dialog.imageFilter")
+RAWPAGE_SHELL_STRING(StampsDialogSourceImage, "stamps.dialog.source.image")
+RAWPAGE_SHELL_STRING(StampsDialogSourceDrawn, "stamps.dialog.source.drawn")
+RAWPAGE_SHELL_STRING(StampsDialogSourceTyped, "stamps.dialog.source.typed")
+RAWPAGE_SHELL_STRING(StampsDialogClear, "stamps.dialog.clear")
+RAWPAGE_SHELL_STRING(StampsDialogName, "stamps.dialog.name")
+RAWPAGE_SHELL_STRING(StampsDialogCategory, "stamps.dialog.category")
+RAWPAGE_SHELL_STRING(StampsDialogNeedImage, "stamps.dialog.need.image")
+RAWPAGE_SHELL_STRING(StampsDialogNeedDrawing, "stamps.dialog.need.drawing")
+RAWPAGE_SHELL_STRING(StampsDialogNeedText, "stamps.dialog.need.text")
+RAWPAGE_SHELL_STRING(StampsDialogNeedName, "stamps.dialog.need.name")
+RAWPAGE_SHELL_STRING(StampsDialogNeedCategory, "stamps.dialog.need.category")
+RAWPAGE_SHELL_STRING(StampsNameApproved, "stamps.name.Approved")
+RAWPAGE_SHELL_STRING(StampsNameExperimental, "stamps.name.Experimental")
+RAWPAGE_SHELL_STRING(StampsNameNotApproved, "stamps.name.NotApproved")
+RAWPAGE_SHELL_STRING(StampsNameAsIs, "stamps.name.AsIs")
+RAWPAGE_SHELL_STRING(StampsNameExpired, "stamps.name.Expired")
+RAWPAGE_SHELL_STRING(StampsNameNotForPublicRelease, "stamps.name.NotForPublicRelease")
+RAWPAGE_SHELL_STRING(StampsNameConfidential, "stamps.name.Confidential")
+RAWPAGE_SHELL_STRING(StampsNameFinal, "stamps.name.Final")
+RAWPAGE_SHELL_STRING(StampsNameSold, "stamps.name.Sold")
+RAWPAGE_SHELL_STRING(StampsNameDepartmental, "stamps.name.Departmental")
+RAWPAGE_SHELL_STRING(StampsNameForComment, "stamps.name.ForComment")
+RAWPAGE_SHELL_STRING(StampsNameTopSecret, "stamps.name.TopSecret")
+RAWPAGE_SHELL_STRING(StampsNameDraft, "stamps.name.Draft")
+RAWPAGE_SHELL_STRING(StampsNameForPublicRelease, "stamps.name.ForPublicRelease")
+RAWPAGE_SHELL_STRING(StampsNameReviewed, "stamps.name.Reviewed")
+RAWPAGE_SHELL_STRING(StampsNameReceived, "stamps.name.Received")
+RAWPAGE_SHELL_STRING(StampsNameRevised, "stamps.name.Revised")
 
 #undef RAWPAGE_SHELL_STRING

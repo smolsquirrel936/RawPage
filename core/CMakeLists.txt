@@ -98,6 +98,11 @@ add_library(rawpage_core STATIC
     settings/ComparePairs.h
     settings/ComparePairs.cpp
 
+    # Stage 6 T10 (D6-16): the custom-stamp library -- one file per stamp under the stamps root, so a damaged
+    # one loses only itself. In core/settings/ because it WRITES files, that directory's one added privilege.
+    settings/ProfileStore.h
+    settings/ProfileStore.cpp
+
     # S4 T3 -- session state: the open-document set, per-arrangement window geometry, and guides.
     # In core/settings/ because it WRITES a file, which is that directory's one added privilege.
     settings/SessionState.h
@@ -157,6 +162,10 @@ add_library(rawpage_core STATIC
     # drawn shape's rectangle -- read by the builder, the hit test and the tools alike. Pure.
     doc/DrawnShapes.h
     doc/DrawnShapes.cpp
+    # Stage 6 T10 (D6-16, D6-37): what a stamp is -- its kind, its words, its natural size and turn, a dynamic
+    # stamp's baked lines and an image stamp's pixels. Pure; pdf/ops/AppearanceStreamBuilder draws it.
+    doc/Stamps.h
+    doc/Stamps.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

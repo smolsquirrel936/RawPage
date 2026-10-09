@@ -306,6 +306,8 @@ void DocumentWindow::build(const Recovery* recovery)
             [this](std::uint32_t set, std::uint32_t clear) { (void)annotations_->setLocks(set, clear); });
     connect(propertiesBar_, &PropertiesBar::fontSizeRequested, this,
             [this](double size) { (void)annotations_->setFontSize(size); });
+    connect(propertiesBar_, &PropertiesBar::rotationRequested, this,
+            [this](int degrees) { (void)annotations_->setRotation(degrees); });
     // A TOOL'S PROPERTIES CHANGED ON THE BAR are the session's (S6 T8, `ui/viewer/ToolDefaults`): what the tool
     // draws with from now on, in every window, until `Ctrl+Alt+Enter` makes them its defaults.
     connect(propertiesBar_, &PropertiesBar::toolDefaultsChanged, this, [this](const core::ToolDefaults& values) {

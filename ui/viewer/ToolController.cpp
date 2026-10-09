@@ -92,6 +92,7 @@ Tool& ToolController::annotationToolFor(AnnotationToolKind which)
     if (TypewriterTool::handles(which)) return typed_;
     if (DrawingTool::handles(which)) return drawing_;
     if (InkTool::handles(which)) return ink_;
+    if (StampTool::handles(which)) return stamp_;
     return annotation_;
 }
 
@@ -215,7 +216,8 @@ bool createsAnnotations(AnnotationToolKind kind) noexcept
 {
     return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
            || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value()
-           || TypewriterTool::handles(kind) || DrawingTool::handles(kind) || InkTool::handles(kind);
+           || TypewriterTool::handles(kind) || DrawingTool::handles(kind) || InkTool::handles(kind)
+           || StampTool::handles(kind);
 }
 
 std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept

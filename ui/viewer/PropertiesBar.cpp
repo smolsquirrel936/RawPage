@@ -5,6 +5,7 @@
 
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Stamps.h"
 #include "ui/shell/Catalog.h"
 
 #include <QCheckBox>
@@ -212,6 +213,17 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
     cloud_->setRange(1, 2);
     row->addWidget(cloud_);
 
+    // S6 T10: a STAMP's turn, in degrees counter-clockwise -- a stamp is the one kind drawn at its natural size and
+    // turned by its form's matrix (`core/doc/Stamps`), so any angle, not only the quarter turns.
+    row->addWidget(new QLabel(catalog::translate(catalog::key::PropertiesBarRotation), this));
+    rotation_ = new QSpinBox(this);
+    rotation_->setObjectName(QStringLiteral("propertiesRotation"));
+    rotation_->setRange(0, 359);
+    rotation_->setWrapping(true);
+    rotation_->setKeyboardTracking(false);   // one command when the number is finished, not one per digit
+    rotation_->setSuffix(QStringLiteral("\u00B0"));
+    row->addWidget(rotation_);
+
     row->addWidget(new QLabel(catalog::translate(catalog::key::PropertiesBarText), this));
     text_ = new QLineEdit(this);
     text_->setObjectName(QStringLiteral("propertiesText"));
@@ -282,6 +294,10 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
         core::AnnotationAppearance appearance;
         appearance.cloudIntensity = static_cast<double>(intensity);
         emitAppearance(appearance);
+    });
+    connect(rotation_, &QSpinBox::valueChanged, this, [this](int degrees) {
+        if (refreshing_ || subject_ != Subject::Selection) return;
+        emit rotationRequested(degrees);
     });
     connect(text_, &QLineEdit::returnPressed, this, [this] {
         if (refreshing_ || subject_ != Subject::Selection || text_->text() == shownText_) return;
@@ -378,7 +394,7 @@ void PropertiesBar::lockToggled(std::uint32_t flag, bool on)
 void PropertiesBar::enableAll(bool enabled)
 {
     for (QWidget* control : std::initializer_list<QWidget*>{colour_, fill_, opacity_, width_, lineStyle_, blend_, fontSize_,
-                                                            startEnding_, endEnding_, cloud_, text_, locked_,
+                                                            startEnding_, endEnding_, cloud_, rotation_, text_, locked_,
                                                             contentsLocked_, readOnly_})
         control->setEnabled(enabled);
 }
@@ -426,6 +442,7 @@ void PropertiesBar::showSelection(const std::vector<core::Annotation>& selection
     startEnding_->setCurrentIndex(endingIndex(first.lineEndings, 0));
     endEnding_->setCurrentIndex(endingIndex(first.lineEndings, 1));
     cloud_->setValue(static_cast<int>(std::lround(std::clamp(first.cloudIntensity.value_or(1.0), 1.0, 2.0))));
+    rotation_->setValue(first.subtype == AnnotationSubtype::Stamp ? core::stampRotation(first) : 0);
 
     // WHAT APPLIES (T8): each control only where every annotation selected has the property.
     width_->setEnabled(every([](const core::Annotation& a) { return hasBorder(a.subtype); }));
@@ -444,10 +461,12 @@ void PropertiesBar::showSelection(const std::vector<core::Annotation>& selection
     cloud_->setEnabled(every([](const core::Annotation& a) {
         return (a.subtype == AnnotationSubtype::Polygon || a.subtype == AnnotationSubtype::Square) && a.cloudIntensity;
     }));
+    // S6 T10: a turn where every one selected is a stamp RawPage can redraw -- a foreign one keeps its producer's.
+    rotation_->setEnabled(every([](const core::Annotation& a) { return core::stampKind(a) != core::StampKind::Foreign; }));
     // D6-27 shown where it applies: a lock greys what it forbids, and a read-only one everything but its locks.
     if (anyLocked || anyReadOnly) {
         for (QWidget* control : std::initializer_list<QWidget*>{colour_, fill_, opacity_, width_, lineStyle_, blend_,
-                                                                fontSize_, startEnding_, endEnding_, cloud_})
+                                                                fontSize_, startEnding_, endEnding_, cloud_, rotation_})
             control->setEnabled(false);
     }
 

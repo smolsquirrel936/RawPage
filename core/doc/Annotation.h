@@ -39,6 +39,7 @@
 #include "core/Geometry.h"
 #include "core/Result.h"
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QLatin1String>
 #include <QString>
@@ -117,6 +118,26 @@ struct AnnotationId {
 
 enum class ReplyType : std::uint8_t { Reply, Group };
 
+// THE PIXELS AN IMAGE STAMP DRAWS (Stage 6 T10, D6-16) -- held by the model for a stamp RawPage made from an
+// image, and by the command that made it, so a redraw, a replay and an undo all draw the same image. A stamp
+// READ from a file has none: its pixels are in its own appearance, which is carried and never redrawn
+// (`core/doc/Stamps`). A JPEG is kept as the file's own bytes and written as `/DCTDecode` byte for byte; any
+// other image arrives as 8-bit samples, already zlib-compressed -- what `/FlateDecode` reads -- with its
+// alpha, when it has any, as a second compressed plane for an `/SMask`. `core/doc/Stamps` makes both.
+struct StampImage {
+    enum class Encoding : std::uint8_t { None, Jpeg, Flate };
+
+    Encoding encoding = Encoding::None;
+    int width = 0;
+    int height = 0;
+    int components = 0;   // 1 gray, 3 RGB
+    QByteArray data;      // Jpeg: the file as it is; Flate: the samples, row by row, zlib-compressed
+    QByteArray alpha;     // Flate only: 8-bit alpha, zlib-compressed; empty when every pixel is opaque
+
+    bool isEmpty() const noexcept { return encoding == Encoding::None; }
+    bool operator==(const StampImage&) const = default;
+};
+
 struct Annotation {
     AnnotationId id;
     AnnotationSubtype subtype = AnnotationSubtype::Unknown;
@@ -172,9 +193,10 @@ struct Annotation {
     std::optional<AnnotationId> popup;          // /Popup
     std::optional<AnnotationId> parent;         // a Popup's /Parent
     std::optional<bool> open;                   // /Open
-    int rotate = 0;                             // /Rotate, a FreeText on a turned page
+    int rotate = 0;                             // /Rotate, a FreeText on a turned page; a Stamp's turn (T10)
     int justification = 0;                      // /Q, free text: 0 left, 1 centred, 2 right (Stage 6 T7)
     bool hasAppearance = false;                 // /AP present
+    StampImage image;                           // Stage 6 T10: an image stamp's pixels -- never read from a file
 
     bool hasFlag(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }
     // A reply that carries a review or marked state rather than text (ISO 32000-1 §12.5.6.3).

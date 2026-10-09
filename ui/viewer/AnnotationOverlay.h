@@ -221,6 +221,11 @@ public:
     // (the properties bar's font size; D6-34(g) left it to T8).
     core::Status setFontSize(double size);
 
+    // S6 T10: the selected stamps turned to `degrees` (counter-clockwise, any integer), each about its centre at
+    // its scale (`core::rotatedStamp`) -- ONE `EditAnnotationCommand`. A stamp RawPage cannot redraw is refused by
+    // key and nothing changes; anything that is not a stamp is left as it is.
+    core::Status setRotation(int degrees);
+
     // ---- The drawing tools (S6 T8) ------------------------------------------------------------------
     // Annotations a tool made -- their identity, author and instant from `newAnnotation`, their geometry, style
     // and rectangle the tool's -- as ONE `AddAnnotationCommand` (D6-1).

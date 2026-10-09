@@ -2274,6 +2274,18 @@
         <source>shell.tooltip.needsComment</source>
         <translation>需要先在註解窗格中選取註解</translation>
     </message>
+    <message>
+        <source>shell.propertiesBar.rotation</source>
+        <translation>旋轉</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsStampLibrary</source>
+        <translation>需要印章庫</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsClipboardImage</source>
+        <translation>請先複製影像</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -2844,6 +2856,54 @@
     <message>
         <source>error.edit.annotationDirect</source>
         <translation>此註解儲存在頁面內，無法回覆（第 %1 頁）</translation>
+    </message>
+    <message>
+        <source>error.edit.stampNotRedrawable</source>
+        <translation>此印章的圖樣來自其製作者：可移動與縮放，無法旋轉或改色（%1）</translation>
+    </message>
+    <message>
+        <source>error.edit.stampImageUnsupported</source>
+        <translation>此影像無法製成印章（%1）</translation>
+    </message>
+    <message>
+        <source>error.edit.stampUnknown</source>
+        <translation>沒有名為 %1 的印章</translation>
+    </message>
+    <message>
+        <source>error.stamps.badName</source>
+        <translation>印章需要名稱與類別，且類別不可以冒號開頭（%1）</translation>
+    </message>
+    <message>
+        <source>error.stamps.builtIn</source>
+        <translation>內建印章無法移動或刪除</translation>
+    </message>
+    <message>
+        <source>error.stamps.damaged</source>
+        <translation>印章的影像檔已損毀（%1）</translation>
+    </message>
+    <message>
+        <source>error.stamps.full</source>
+        <translation>印章庫已滿</translation>
+    </message>
+    <message>
+        <source>error.stamps.noDocument</source>
+        <translation>請先開啟文件再放置印章</translation>
+    </message>
+    <message>
+        <source>error.stamps.noLibrary</source>
+        <translation>此視窗沒有印章庫</translation>
+    </message>
+    <message>
+        <source>error.stamps.notAnImage</source>
+        <translation>%1 不是影像：印章需以 PNG、JPEG、BMP 或 GIF 製作</translation>
+    </message>
+    <message>
+        <source>error.stamps.unknown</source>
+        <translation>該印章已不在印章庫中（%1）</translation>
+    </message>
+    <message>
+        <source>error.stamps.writeFailed</source>
+        <translation>無法寫入印章庫（%1）</translation>
     </message>
 </context>
 <context>
@@ -4593,6 +4653,173 @@
     <message>
         <source>comments.type.other</source>
         <translation>註記</translation>
+    </message>
+</context>
+<context>
+    <name>stamps</name>
+    <message>
+        <source>stamps.palette.title</source>
+        <translation>印章</translation>
+    </message>
+    <message>
+        <source>stamps.category.favourites</source>
+        <translation>我的最愛</translation>
+    </message>
+    <message>
+        <source>stamps.category.standard</source>
+        <translation>標準</translation>
+    </message>
+    <message>
+        <source>stamps.category.dynamic</source>
+        <translation>動態</translation>
+    </message>
+    <message>
+        <source>stamps.category.signatures</source>
+        <translation>簽名</translation>
+    </message>
+    <message>
+        <source>stamps.category.default</source>
+        <translation>我的印章</translation>
+    </message>
+    <message>
+        <source>stamps.favourite</source>
+        <translation>最愛</translation>
+    </message>
+    <message>
+        <source>stamps.refile</source>
+        <translation>移至…</translation>
+    </message>
+    <message>
+        <source>stamps.refile.prompt</source>
+        <translation>類別：</translation>
+    </message>
+    <message>
+        <source>stamps.delete</source>
+        <translation>刪除</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.title</source>
+        <translation>自訂印章</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.browse</source>
+        <translation>瀏覽…</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.imageFilter</source>
+        <translation>影像</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.image</source>
+        <translation>影像檔</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.drawn</source>
+        <translation>手繪縮寫</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.typed</source>
+        <translation>輸入縮寫</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.clear</source>
+        <translation>清除</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.name</source>
+        <translation>名稱：</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.category</source>
+        <translation>類別：</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.image</source>
+        <translation>請選擇影像檔</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.drawing</source>
+        <translation>請在板上手繪縮寫</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.text</source>
+        <translation>請輸入縮寫</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.name</source>
+        <translation>請為印章命名</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.category</source>
+        <translation>請選擇或輸入類別</translation>
+    </message>
+    <message>
+        <source>stamps.name.Approved</source>
+        <translation>核准</translation>
+    </message>
+    <message>
+        <source>stamps.name.Experimental</source>
+        <translation>實驗性</translation>
+    </message>
+    <message>
+        <source>stamps.name.NotApproved</source>
+        <translation>未核准</translation>
+    </message>
+    <message>
+        <source>stamps.name.AsIs</source>
+        <translation>現況</translation>
+    </message>
+    <message>
+        <source>stamps.name.Expired</source>
+        <translation>已過期</translation>
+    </message>
+    <message>
+        <source>stamps.name.NotForPublicRelease</source>
+        <translation>不得公開發布</translation>
+    </message>
+    <message>
+        <source>stamps.name.Confidential</source>
+        <translation>機密</translation>
+    </message>
+    <message>
+        <source>stamps.name.Final</source>
+        <translation>定稿</translation>
+    </message>
+    <message>
+        <source>stamps.name.Sold</source>
+        <translation>已售出</translation>
+    </message>
+    <message>
+        <source>stamps.name.Departmental</source>
+        <translation>部門內部</translation>
+    </message>
+    <message>
+        <source>stamps.name.ForComment</source>
+        <translation>供審閱</translation>
+    </message>
+    <message>
+        <source>stamps.name.TopSecret</source>
+        <translation>最高機密</translation>
+    </message>
+    <message>
+        <source>stamps.name.Draft</source>
+        <translation>草稿</translation>
+    </message>
+    <message>
+        <source>stamps.name.ForPublicRelease</source>
+        <translation>可公開發布</translation>
+    </message>
+    <message>
+        <source>stamps.name.Reviewed</source>
+        <translation>已審閱</translation>
+    </message>
+    <message>
+        <source>stamps.name.Received</source>
+        <translation>已收到</translation>
+    </message>
+    <message>
+        <source>stamps.name.Revised</source>
+        <translation>已修訂</translation>
     </message>
 </context>
 </TS>

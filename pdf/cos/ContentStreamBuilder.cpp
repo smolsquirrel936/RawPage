@@ -177,6 +177,14 @@ ContentStreamBuilder& ContentStreamBuilder::clip() { return op("W"); }
 ContentStreamBuilder& ContentStreamBuilder::beginText() { return op("BT"); }
 ContentStreamBuilder& ContentStreamBuilder::endText() { return op("ET"); }
 
+ContentStreamBuilder& ContentStreamBuilder::paintXObject(std::string_view resource)
+{
+    separate();
+    bytes_ += '/';
+    bytes_ += resource;
+    return op("Do");
+}
+
 ContentStreamBuilder& ContentStreamBuilder::font(std::string_view resource, double size)
 {
     separate();

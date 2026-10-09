@@ -6,6 +6,7 @@
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Stamps.h"
 #include "core/text/TextSelection.h"
 #include "ui/viewer/SelectionOverlay.h"
 
@@ -863,6 +864,24 @@ core::Status AnnotationOverlay::setFontSize(double size)
             changed = std::move(fitted).value();
         }
         after.push_back(std::move(changed));
+    }
+    if (after.empty()) return core::Status{};
+    return run(std::make_unique<core::EditAnnotationCommand>(std::move(after)));
+}
+
+core::Status AnnotationOverlay::setRotation(int degrees)
+{
+    (void)commitNudge();
+    std::vector<Annotation> after;
+    for (const Annotation& a : selected()) {
+        if (a.subtype != AnnotationSubtype::Stamp || core::stampRotation(a) == ((degrees % 360) + 360) % 360) continue;
+        core::Result<Annotation> turned = core::rotatedStamp(a, degrees);
+        if (!turned) {
+            emit refused(turned.error());
+            return turned.error();
+        }
+        turned.value().modified = core::PdfDate::fromUtcSeconds(now());
+        after.push_back(std::move(turned).value());
     }
     if (after.empty()) return core::Status{};
     return run(std::make_unique<core::EditAnnotationCommand>(std::move(after)));

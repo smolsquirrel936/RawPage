@@ -235,6 +235,83 @@
         },
         {
             "dpi": 144,
+            "file": "appearance/stamp-image",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-dynamic",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-standard-1",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-standard-2",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-standard-3",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-standard-4",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-standard-5",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/stamps-turned",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
             "file": "appearance/strikeout",
             "height": 300,
             "page": 0,
@@ -3930,7 +4007,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-08T07:13:46Z",
+    "capturedUtc": "2026-10-09T08:11:38Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 6 T8: polyline-endings recaptured -- its first capture was looked at and found to have NO endings: the case spec never set /LE (a defect in the spec, caught by looking, never kept)."
+    "reason": "Stage 6 T10: stamp appearances, first capture (guide A-75)"
 }

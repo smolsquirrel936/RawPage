@@ -36,6 +36,46 @@ QJsonArray numbersToJson(const std::vector<double>& values)
     return out;
 }
 
+// Stage 6 T10: an image stamp's pixels, the bytes as base64. Read leniently, like every field here -- the
+// command's parser is where a hostile size or a mismatched header is refused (`core/doc/Stamps`).
+QJsonObject imageToJson(const StampImage& image)
+{
+    QJsonObject json;
+    json.insert(QStringLiteral("encoding"),
+                image.encoding == StampImage::Encoding::Jpeg ? QStringLiteral("jpeg") : QStringLiteral("flate"));
+    json.insert(QStringLiteral("width"), image.width);
+    json.insert(QStringLiteral("height"), image.height);
+    json.insert(QStringLiteral("components"), image.components);
+    json.insert(QStringLiteral("data"), QString::fromLatin1(image.data.toBase64()));
+    if (!image.alpha.isEmpty()) json.insert(QStringLiteral("alpha"), QString::fromLatin1(image.alpha.toBase64()));
+    return json;
+}
+
+std::optional<StampImage> imageFromJson(const QJsonValue& value)
+{
+    if (!value.isObject()) return std::nullopt;
+    const QJsonObject json = value.toObject();
+    StampImage image;
+    const QString encoding = json.value(QStringLiteral("encoding")).toString();
+    if (encoding == QLatin1String("jpeg")) image.encoding = StampImage::Encoding::Jpeg;
+    else if (encoding == QLatin1String("flate")) image.encoding = StampImage::Encoding::Flate;
+    else return std::nullopt;
+    image.width = json.value(QStringLiteral("width")).toInt();
+    image.height = json.value(QStringLiteral("height")).toInt();
+    image.components = json.value(QStringLiteral("components")).toInt();
+    const auto bytes = [&json](const char* key, QByteArray& out) {
+        const QJsonValue v = json.value(QLatin1String(key));
+        if (v.isUndefined()) return true;
+        if (!v.isString()) return false;
+        auto decoded = QByteArray::fromBase64Encoding(v.toString().toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+        if (!decoded) return false;
+        out = std::move(*decoded);
+        return true;
+    };
+    if (!bytes("data", image.data) || !bytes("alpha", image.alpha) || image.data.isEmpty()) return std::nullopt;
+    return image;
+}
+
 std::vector<double> numbersFromJson(const QJsonValue& value)
 {
     std::vector<double> out;
@@ -343,6 +383,7 @@ QJsonObject Annotation::toJson() const
     if (rotate != 0) json.insert(QStringLiteral("rotate"), rotate);
     if (justification != 0) json.insert(QStringLiteral("justification"), justification);
     if (hasAppearance) json.insert(QStringLiteral("hasAppearance"), true);
+    if (!image.isEmpty()) json.insert(QStringLiteral("image"), imageToJson(image));
     return json;
 }
 
@@ -424,6 +465,11 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
     a.justification = json.value(QStringLiteral("justification")).toInt();
     if (a.justification < 0 || a.justification > 2) return malformed(QStringLiteral("annotation justification"));
     a.hasAppearance = json.value(QStringLiteral("hasAppearance")).toBool();
+    if (json.contains(QStringLiteral("image"))) {
+        const std::optional<StampImage> image = imageFromJson(json.value(QStringLiteral("image")));
+        if (!image) return malformed(QStringLiteral("annotation image"));
+        a.image = *image;
+    }
     return a;
 }
 

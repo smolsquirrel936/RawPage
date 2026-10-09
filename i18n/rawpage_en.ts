@@ -2274,6 +2274,18 @@
         <source>shell.tooltip.needsComment</source>
         <translation>Needs a comment selected in the Comments pane</translation>
     </message>
+    <message>
+        <source>shell.propertiesBar.rotation</source>
+        <translation>Turn</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsStampLibrary</source>
+        <translation>Needs a stamp library</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsClipboardImage</source>
+        <translation>Copy an image first</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -2844,6 +2856,54 @@
     <message>
         <source>error.edit.annotationDirect</source>
         <translation>This comment is stored inside its page, so it cannot be answered (page %1)</translation>
+    </message>
+    <message>
+        <source>error.edit.stampNotRedrawable</source>
+        <translation>This stamp's picture is its maker's: it can be moved and resized, not turned or recoloured (%1)</translation>
+    </message>
+    <message>
+        <source>error.edit.stampImageUnsupported</source>
+        <translation>This image cannot be made into a stamp (%1)</translation>
+    </message>
+    <message>
+        <source>error.edit.stampUnknown</source>
+        <translation>There is no stamp called %1</translation>
+    </message>
+    <message>
+        <source>error.stamps.badName</source>
+        <translation>A stamp needs a name and a category, and a category cannot start with a colon (%1)</translation>
+    </message>
+    <message>
+        <source>error.stamps.builtIn</source>
+        <translation>A built-in stamp cannot be moved or deleted</translation>
+    </message>
+    <message>
+        <source>error.stamps.damaged</source>
+        <translation>The stamp's image file is damaged (%1)</translation>
+    </message>
+    <message>
+        <source>error.stamps.full</source>
+        <translation>The stamp library is full</translation>
+    </message>
+    <message>
+        <source>error.stamps.noDocument</source>
+        <translation>Open a document to place a stamp</translation>
+    </message>
+    <message>
+        <source>error.stamps.noLibrary</source>
+        <translation>There is no stamp library in this window</translation>
+    </message>
+    <message>
+        <source>error.stamps.notAnImage</source>
+        <translation>%1 is not an image: a stamp is made from a PNG, JPEG, BMP or GIF</translation>
+    </message>
+    <message>
+        <source>error.stamps.unknown</source>
+        <translation>That stamp is no longer in the library (%1)</translation>
+    </message>
+    <message>
+        <source>error.stamps.writeFailed</source>
+        <translation>The stamp library could not be written (%1)</translation>
     </message>
 </context>
 <context>
@@ -4593,6 +4653,173 @@
     <message>
         <source>comments.type.other</source>
         <translation>Annotation</translation>
+    </message>
+</context>
+<context>
+    <name>stamps</name>
+    <message>
+        <source>stamps.palette.title</source>
+        <translation>Stamps</translation>
+    </message>
+    <message>
+        <source>stamps.category.favourites</source>
+        <translation>Favourites</translation>
+    </message>
+    <message>
+        <source>stamps.category.standard</source>
+        <translation>Standard</translation>
+    </message>
+    <message>
+        <source>stamps.category.dynamic</source>
+        <translation>Dynamic</translation>
+    </message>
+    <message>
+        <source>stamps.category.signatures</source>
+        <translation>Signatures</translation>
+    </message>
+    <message>
+        <source>stamps.category.default</source>
+        <translation>My stamps</translation>
+    </message>
+    <message>
+        <source>stamps.favourite</source>
+        <translation>Favourite</translation>
+    </message>
+    <message>
+        <source>stamps.refile</source>
+        <translation>Move to…</translation>
+    </message>
+    <message>
+        <source>stamps.refile.prompt</source>
+        <translation>Category:</translation>
+    </message>
+    <message>
+        <source>stamps.delete</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.title</source>
+        <translation>Custom Stamp</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.browse</source>
+        <translation>Browse…</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.imageFilter</source>
+        <translation>Images</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.image</source>
+        <translation>Image File</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.drawn</source>
+        <translation>Draw Initials</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.typed</source>
+        <translation>Type Initials</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.clear</source>
+        <translation>Clear</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.name</source>
+        <translation>Name:</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.category</source>
+        <translation>Category:</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.image</source>
+        <translation>Choose an image file</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.drawing</source>
+        <translation>Draw your initials on the pad</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.text</source>
+        <translation>Type your initials</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.name</source>
+        <translation>Give the stamp a name</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.category</source>
+        <translation>Choose or type a category</translation>
+    </message>
+    <message>
+        <source>stamps.name.Approved</source>
+        <translation>Approved</translation>
+    </message>
+    <message>
+        <source>stamps.name.Experimental</source>
+        <translation>Experimental</translation>
+    </message>
+    <message>
+        <source>stamps.name.NotApproved</source>
+        <translation>Not Approved</translation>
+    </message>
+    <message>
+        <source>stamps.name.AsIs</source>
+        <translation>As Is</translation>
+    </message>
+    <message>
+        <source>stamps.name.Expired</source>
+        <translation>Expired</translation>
+    </message>
+    <message>
+        <source>stamps.name.NotForPublicRelease</source>
+        <translation>Not for Public Release</translation>
+    </message>
+    <message>
+        <source>stamps.name.Confidential</source>
+        <translation>Confidential</translation>
+    </message>
+    <message>
+        <source>stamps.name.Final</source>
+        <translation>Final</translation>
+    </message>
+    <message>
+        <source>stamps.name.Sold</source>
+        <translation>Sold</translation>
+    </message>
+    <message>
+        <source>stamps.name.Departmental</source>
+        <translation>Departmental</translation>
+    </message>
+    <message>
+        <source>stamps.name.ForComment</source>
+        <translation>For Comment</translation>
+    </message>
+    <message>
+        <source>stamps.name.TopSecret</source>
+        <translation>Top Secret</translation>
+    </message>
+    <message>
+        <source>stamps.name.Draft</source>
+        <translation>Draft</translation>
+    </message>
+    <message>
+        <source>stamps.name.ForPublicRelease</source>
+        <translation>For Public Release</translation>
+    </message>
+    <message>
+        <source>stamps.name.Reviewed</source>
+        <translation>Reviewed</translation>
+    </message>
+    <message>
+        <source>stamps.name.Received</source>
+        <translation>Received</translation>
+    </message>
+    <message>
+        <source>stamps.name.Revised</source>
+        <translation>Revised</translation>
     </message>
 </context>
 </TS>

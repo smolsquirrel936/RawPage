@@ -77,9 +77,11 @@ RAWPAGE_TOOL_DEFAULT(Pencil,          Opacity,    "1")
 RAWPAGE_TOOL_DEFAULT(Pencil,          Thickness,  "1")
 RAWPAGE_TOOL_DEFAULT(Pencil,          BlendMode,  "normal")
 
-// The stamp, the two measurements and the redaction mark make nothing yet (T10, T12, T14); their rows are the
-// colour and opacity their tools are armed with, and each task adds what it needs.
-RAWPAGE_TOOL_DEFAULT(Stamp,           Colour,     "1 0 0")
+// The STAMP has an opacity and NO colour (Stage 6 T10, D6-37): a built-in stamp is drawn in its own colour -- an
+// approval green, a restriction red (`core::stampColour`) -- and an image stamp in its pixels', so a colour the
+// tool started every stamp in would be one nobody could see; a placed stamp is recoloured from the properties bar.
+// The two measurements and the redaction mark make nothing yet (T12, T14); their rows are the colour and opacity
+// their tools are armed with, and each task adds what it needs.
 RAWPAGE_TOOL_DEFAULT(Stamp,           Opacity,    "1")
 RAWPAGE_TOOL_DEFAULT(MeasureDistance, Colour,     "0 0 1")
 RAWPAGE_TOOL_DEFAULT(MeasureDistance, Opacity,    "1")

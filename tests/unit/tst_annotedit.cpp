@@ -440,22 +440,22 @@ TEST_CASE("an edit undone after its save writes back the dictionary the file hel
 TEST_CASE("a change of what a kind draws is refused by key when this build cannot draw that kind",
           "[annotedit][A-26][refuse]")
 {
-    // A STAMP since T8, which draws the Square this case recoloured until then (`tst_annotdrawing` holds the
-    // Square redrawn). Stamps are T10's.
+    // A FILE ATTACHMENT since T10, which draws the stamp this case recoloured from T8 (`tst_stamps` holds a stamp
+    // redrawn) -- as T8 moved it off the Square. Attachments are T11's.
     auto session = tests::openCopy("ordinary/annots-every-type.pdf");
     REQUIRE(session);
-    const std::optional<AnnotationId> stamp = firstOf(storeOf(*session), AnnotationSubtype::Stamp);
-    REQUIRE(stamp);
+    const std::optional<AnnotationId> pin = firstOf(storeOf(*session), AnnotationSubtype::FileAttachment);
+    REQUIRE(pin);
     const QByteArray hash = session->journal->document().modelHash();
-    const core::Status status = recolour(*session, {*stamp}, {0, 0, 1});
+    const core::Status status = recolour(*session, {*pin}, {0, 0, 1});
     REQUIRE_FALSE(status);
     CHECK(keyOf(status.error()) == "error.pdf.appearanceUnsupported");   // the sink's reason, not "it failed"
-    CHECK(status.error().context == QStringLiteral("Stamp"));
+    CHECK(status.error().context == QStringLiteral("FileAttachment"));
     CHECK(session->journal->document().modelHash() == hash);
     CHECK_FALSE(session->journal->canUndo());
     CHECK(deltaIsEmpty(*session));
-    // The same stamp MOVED is not a change of what it draws: its appearance goes with its rectangle.
-    REQUIRE(move(*session, {*stamp}, 10, -10));
+    // The same pushpin MOVED is not a change of what it draws: its appearance goes with its rectangle.
+    REQUIRE(move(*session, {*pin}, 10, -10));
 }
 
 // ==========================================================================================

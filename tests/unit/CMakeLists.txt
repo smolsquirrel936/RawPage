@@ -78,6 +78,12 @@ add_executable(rawpage_tests
     tst_annotthreads.cpp          # Stage 6 T9 -- the Comments pane below the widgets: group, sort and filter
                                   #   graded against the threads label (A-67), replies and statuses saved and
                                   #   read back (A-68, A-69), a thread deleted as one step (A-71), numbers (A-72)
+    tst_stamps.cpp                # Stage 6 T10 -- what a stamp is and what the writer makes of it: Table 181,
+                                  #   the baked dynamic lines (A-76), a JPEG byte for byte and pixels with their
+                                  #   mask (A-77), one image written once (A-78), a resize carried and a turn
+                                  #   redrawn (A-80), a foreign stamp refused, A-29's image line
+    tst_profilestore.cpp          # Stage 6 T10 -- the custom-stamp library: two files a stamp, damage reported
+                                  #   and the rest loaded (A-79), what is not an image refused
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,
@@ -274,6 +280,18 @@ add_test(NAME unit.search_settings.restart
             -P "${CMAKE_CURRENT_SOURCE_DIR}/RunSettingsRestart.cmake")
 if(WIN32)
     set_tests_properties(unit.search_settings.restart PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin")
+endif()
+
+# Stage 6 T10 -- guide case A-79: the stamp library survives a RESTART, as two processes, with an empty-root
+# control. The scratch root is in the BUILD tree, never the tester's %APPDATA%.
+add_test(NAME unit.profile_store.restart
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_tests>"
+            "-DROOT=${CMAKE_BINARY_DIR}/profile-restart/stamps"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunProfileRestart.cmake")
+if(WIN32)
+    set_tests_properties(unit.profile_store.restart PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin")
 endif()
 

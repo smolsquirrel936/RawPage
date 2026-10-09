@@ -175,10 +175,16 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `nav.prevComment` (Viewer and Comments rows), `comment.deleteAll`, `comment.filter`, `comment.sort`, and the
     // two MINTED chordless -- `comment.deleteMatching` and `comment.numbering`; 380 ids are declared.
     //
+    // **Two more at Stage 6 T10** (D6-16, D6-22): `annot.customStamp` -- the custom-stamp dialog, declared at
+    // Stage 1 -- and `edit.paste`, §8's Common `Ctrl+V`, an image on the clipboard placed as an image stamp (its
+    // annotation half T13's); nothing minted, 380 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 155);
+    CHECK(fixture.actions.registeredCount() == 157);
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCustomStamp));       // S6 T10
+    CHECK(fixture.actions.isRegistered(core::ActionId::EditPaste));              // S6 T10
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotArrow));             // S6 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotPolyline));          // S6 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCloud));             // S6 T8

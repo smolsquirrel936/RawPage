@@ -123,6 +123,16 @@ CompositionRoot::CompositionRoot(Options options)
     // fact logged twice -- which is how a log stops being read.
     static_cast<void>(sessionState_->load());
 
+    // THE CUSTOM-STAMP LIBRARY (S6 T10, D6-16), loaded here for the session file's reason: one log line at
+    // startup names each stamp file that could not be read, and the rest of the library loads.
+    if (!options_.stampRoot.isEmpty()) {
+        stamps_ = std::make_unique<core::ProfileStore>(options_.stampRoot);
+        stamps_->load();
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "stamps:" << stamps_->root() << static_cast<int>(stamps_->stamps().size()) << "custom";
+        for (const QString& damaged : stamps_->damaged())
+            RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "stamps: could not read" << damaged << "-- skipped";
+    }
+
     actions_     = std::make_unique<core::ActionRegistry>();
 
     // Defaults come from KeyBindingDefaults.def, which is Features.md §8 in machine-readable form;
@@ -365,7 +375,7 @@ Services CompositionRoot::services()
     return Services{*settings_,      *recentFiles_,  *actions_,         *keyBindings_,
                     *logBuffer_,     *backend_,      *renderScheduler_, *renderCache_,
                     *documentIndex_, *searchEngine_, *platform_,        options_.recoveryRoot,
-                    loginName()};
+                    loginName(),     stamps_.get()};
 }
 
 QString CompositionRoot::loginName() const

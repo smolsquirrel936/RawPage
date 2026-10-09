@@ -7,6 +7,7 @@
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
 
 #include <QJsonArray>
@@ -96,6 +97,13 @@ std::optional<QString> invalidShape(const Annotation& a)
     if (a.cloudIntensity && (!std::isfinite(*a.cloudIntensity) || *a.cloudIntensity < 0.0 || *a.cloudIntensity > 2.0))
         return QStringLiteral("annotation.cloudIntensity");
     if (!a.blendMode.isEmpty() && !isBlendModeName(a.blendMode)) return QStringLiteral("annotation.blendMode");
+    // Stage 6 T10: a turn no larger than the reader keeps (`pdf/ops/AnnotationReader`), and pixels only on a stamp
+    // that says it draws them -- each the size its header says, within the image bounds (`core/doc/Stamps`).
+    if (a.rotate < -360000 || a.rotate > 360000) return QStringLiteral("annotation.rotate");
+    if (!a.image.isEmpty()) {
+        if (a.subtype != AnnotationSubtype::Stamp || a.intent != stampImageIntent()) return QStringLiteral("annotation.image");
+        if (const std::optional<QString> invalid = invalidStampImage(a.image)) return QStringLiteral("annotation.") + *invalid;
+    }
     return std::nullopt;
 }
 

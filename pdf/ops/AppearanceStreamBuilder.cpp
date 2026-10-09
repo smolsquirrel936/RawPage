@@ -1,11 +1,12 @@
 // pdf/ops/AppearanceStreamBuilder -- implementation. Stage 6 T3 (Highlight); T6 the rest of the text
-// markup, the caret and the note; T7 free text; T8 the drawing kinds and ink. See the header for why we draw
+// markup, the caret and the note; T7 free text; T8 the drawing kinds and ink; T10 stamps. See the header for why we draw
 // every appearance, and how each is drawn.
 
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Stamps.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 
 #include <QLatin1String>
@@ -768,9 +769,203 @@ core::Result<Appearance> freeText(const core::Annotation& a, AppearanceObjects& 
     return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString())), std::move(fonts)), content.bytes()};
 }
 
+// ---- Stage 6 T10: stamps (D6-16, D6-37) ------------------------------------------------------------------
+
+// A rounded rectangle, counter-clockwise from its bottom edge: four straight sides and four quarter circles.
+void roundedRect(cos::ContentStreamBuilder& content, double x, double y, double w, double h, double r)
+{
+    r = std::clamp(r, 0.0, std::min(w, h) / 2.0);
+    constexpr double k = 0.5523;   // a quarter circle's cubic handle, as a fraction of its radius
+    content.moveTo(x + r, y).lineTo(x + w - r, y);
+    content.curveTo(x + w - r + k * r, y, x + w, y + r - k * r, x + w, y + r);
+    content.lineTo(x + w, y + h - r);
+    content.curveTo(x + w, y + h - r + k * r, x + w - r + k * r, y + h, x + w - r, y + h);
+    content.lineTo(x + r, y + h);
+    content.curveTo(x + r - k * r, y + h, x, y + h - r + k * r, x, y + h - r);
+    content.lineTo(x, y + r);
+    content.curveTo(x, y + r - k * r, x + r - k * r, y, x + r, y);
+    content.closePath();
+}
+
+// The form of a stamp: its NATURAL box as `/BBox`, its turn as `/Matrix` (none at 0), counter-clockwise -- exact
+// at the quarter turns -- and its resources: GS0, and the fonts and XObjects it paints.
+CosObject stampForm(const core::PdfSize& natural, int degrees, CosObject extGState, std::vector<CosObject::Entry> fonts,
+                    std::vector<CosObject::Entry> xobjects)
+{
+    std::vector<CosObject::Entry> states{{"GS0", std::move(extGState)}};
+    std::vector<CosObject::Entry> resources{{"ExtGState", CosObject::makeDictionary(std::move(states))}};
+    if (!fonts.empty()) resources.push_back({"Font", CosObject::makeDictionary(std::move(fonts))});
+    if (!xobjects.empty()) resources.push_back({"XObject", CosObject::makeDictionary(std::move(xobjects))});
+    std::vector<CosObject::Entry> entries{
+        {"Type", CosObject::makeName("XObject")},
+        {"Subtype", CosObject::makeName("Form")},
+        {"FormType", CosObject::makeInteger(1)},
+        {"BBox", numbers({0.0, 0.0, natural.width, natural.height})},
+    };
+    if (degrees != 0) {
+        const double radians = static_cast<double>(degrees) * 3.14159265358979323846 / 180.0;
+        const auto snapped = [](double v) {
+            const double r = std::round(v);
+            return std::abs(v - r) < 1e-12 ? r : v;
+        };
+        const double c = snapped(std::cos(radians));
+        const double s = snapped(std::sin(radians));
+        entries.push_back({"Matrix", numbers({c, s, -s, c, 0.0, 0.0})});
+    }
+    entries.push_back({"Resources", CosObject::makeDictionary(std::move(resources))});
+    return CosObject::makeStream(std::move(entries), cos::CosStreamData{});
+}
+
+// Base-14 Helvetica-Bold, NOT EMBEDDED, written with its advances for the codes a title holds (D6-34(d)'s rule).
+cos::CosRef helveticaBoldObject(AppearanceObjects& objects)
+{
+    std::vector<int> widths;
+    for (int code = core::kHelveticaBoldFirst; code <= core::kHelveticaBoldLast; ++code)
+        widths.push_back(core::helveticaBoldWidth(code));
+    return objects.shared("font:HeBo", CosObject::makeDictionary({
+        {"Type", CosObject::makeName("Font")},
+        {"Subtype", CosObject::makeName("Type1")},
+        {"BaseFont", CosObject::makeName("Helvetica-Bold")},
+        {"Encoding", CosObject::makeName("WinAnsiEncoding")},
+        {"FirstChar", CosObject::makeInteger(core::kHelveticaBoldFirst)},
+        {"LastChar", CosObject::makeInteger(core::kHelveticaBoldLast)},
+        {"Widths", integers(widths)},
+    }));
+}
+
+constexpr double kHelveticaBoldCapHeight = 0.718;   // the AFM's CapHeight, in ems
+
+// A standard or a dynamic stamp: a rounded border in its colour round its tint, the title, and a dynamic stamp's
+// lines -- every line centred.
+core::Result<Appearance> wordStamp(const core::Annotation& a, AppearanceObjects& objects, const core::PdfSize& natural)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    const std::optional<std::vector<double>> colour = colourOf(a, core::stampColour(a.icon));
+    if (!colour) return appearanceError("error.pdf.appearanceGeometry", name);
+    std::vector<double> tint = *colour;
+    // A twelfth of the colour on white: in gray and RGB white is 1, in CMYK it is 0.
+    for (double& v : tint) v = tint.size() == 4 ? std::clamp(v, 0.0, 1.0) * 0.12 : 1.0 - (1.0 - std::clamp(v, 0.0, 1.0)) * 0.12;
+
+    const bool dynamic = core::stampKind(a) == core::StampKind::Dynamic;
+    const double titleSize = dynamic ? core::kDynamicTitleSize : core::kStampTitleSize;
+    const QString title = core::stampTitle(a.icon);
+    const std::optional<double> titleWidth = core::helveticaBoldTextWidth(title, titleSize);
+    if (!titleWidth) return appearanceError("error.edit.stampNotRedrawable", name);
+
+    std::vector<CosObject::Entry> fonts;
+    std::vector<std::string> named;
+    const auto addFont = [&](const std::string& resource, cos::CosRef at) {
+        if (std::find(named.begin(), named.end(), resource) != named.end()) return;
+        named.push_back(resource);
+        fonts.push_back({resource, CosObject::makeReference(at.number, at.generation)});
+    };
+    addFont("HeBo", helveticaBoldObject(objects));
+
+    std::vector<core::TypedLayout> lines;
+    if (dynamic) {
+        for (const QString& line : a.contents.split(QLatin1Char('\n'))) {
+            core::Result<core::TypedLayout> laid =
+                core::layoutTypedText(line, core::kDynamicLineSize, std::nullopt, core::TypedFont::Simplified);
+            if (!laid) return laid.error();
+            for (const core::TypedLine& typed : laid.value().lines) {
+                for (const core::TypedRun& run : typed.runs)
+                    addFont(core::typedFontSpec(run.font).resource, AppearanceStreamBuilder::fontObject(run.font, objects));
+            }
+            lines.push_back(std::move(laid).value());
+        }
+    }
+
+    const double border = core::kStampBorder;
+    const double inner = core::kStampBorder + core::kStampPadding;
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    content.fillColor(tint.data(), static_cast<int>(tint.size()));
+    content.strokeColor(colour->data(), static_cast<int>(colour->size())).lineWidth(border).lineJoin(1);
+    roundedRect(content, border / 2.0, border / 2.0, natural.width - border, natural.height - border, core::kStampCorner);
+    content.fillAndStroke();
+
+    content.beginText().fillColor(colour->data(), static_cast<int>(colour->size()));
+    const double titleBaseline = dynamic ? natural.height - inner - titleSize * 0.8
+                                         : (natural.height - kHelveticaBoldCapHeight * titleSize) / 2.0;
+    content.font("HeBo", titleSize).textMatrix(1.0, 0.0, 0.0, 1.0, (natural.width - *titleWidth) / 2.0, titleBaseline);
+    std::string titleCodes;
+    for (const QChar c : title) titleCodes += static_cast<char>(c.unicode());
+    content.showText(titleCodes);
+    double top = natural.height - inner - titleSize - core::kStampPadding / 2.0;
+    for (const core::TypedLayout& layout : lines) {
+        for (const core::TypedLine& line : layout.lines) {
+            const double baseline = top - core::kTypedAscent * layout.size;
+            top -= core::kTypedLeading * layout.size;
+            if (line.runs.empty()) continue;
+            content.textMatrix(1.0, 0.0, 0.0, 1.0, (natural.width - line.width) / 2.0, baseline);
+            for (const core::TypedRun& run : line.runs) {
+                content.font(core::typedFontSpec(run.font).resource, layout.size);
+                const std::string codes = AppearanceStreamBuilder::encodeText(run.font, run.text);
+                if (codes.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+                content.showText(codes);
+            }
+        }
+    }
+    content.endText().restore();
+    return Appearance{stampForm(natural, core::stampRotation(a), opacityState(opacityOf(a), blendOf(a).value_or(QString())),
+                                std::move(fonts), {}),
+                      content.bytes()};
+}
+
+// An image stamp: its picture painted over the whole natural box, through one image XObject shared by key.
+core::Result<Appearance> imageStamp(const core::Annotation& a, AppearanceObjects& objects, const core::PdfSize& natural)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    const core::StampImage& image = a.image;
+    if (core::invalidStampImage(image)) return appearanceError("error.edit.stampImageUnsupported", name);
+    const std::string key = core::stampImageKey(image).toStdString();
+    const char* space = image.components == 1 ? "DeviceGray" : "DeviceRGB";
+    std::vector<CosObject::Entry> entries{
+        {"Type", CosObject::makeName("XObject")},
+        {"Subtype", CosObject::makeName("Image")},
+        {"Width", CosObject::makeInteger(image.width)},
+        {"Height", CosObject::makeInteger(image.height)},
+        {"ColorSpace", CosObject::makeName(space)},
+        {"BitsPerComponent", CosObject::makeInteger(8)},
+        {"Filter", CosObject::makeName(image.encoding == core::StampImage::Encoding::Jpeg ? "DCTDecode" : "FlateDecode")},
+    };
+    if (!image.alpha.isEmpty()) {
+        const cos::CosRef mask = objects.sharedStream("smask:" + key, CosObject::makeStream({
+            {"Type", CosObject::makeName("XObject")},
+            {"Subtype", CosObject::makeName("Image")},
+            {"Width", CosObject::makeInteger(image.width)},
+            {"Height", CosObject::makeInteger(image.height)},
+            {"ColorSpace", CosObject::makeName("DeviceGray")},
+            {"BitsPerComponent", CosObject::makeInteger(8)},
+            {"Filter", CosObject::makeName("FlateDecode")},
+        }, cos::CosStreamData{}), image.alpha.toStdString());
+        entries.push_back({"SMask", CosObject::makeReference(mask.number, mask.generation)});
+    }
+    const cos::CosRef picture =
+        objects.sharedStream("image:" + key, CosObject::makeStream(std::move(entries), cos::CosStreamData{}), image.data.toStdString());
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0").concat(natural.width, 0.0, 0.0, natural.height, 0.0, 0.0).paintXObject("Im0").restore();
+    return Appearance{stampForm(natural, core::stampRotation(a), opacityState(opacityOf(a), blendOf(a).value_or(QString())), {},
+                                {{"Im0", CosObject::makeReference(picture.number, picture.generation)}}),
+                      content.bytes()};
+}
+
+core::Result<Appearance> stamp(const core::Annotation& a, AppearanceObjects& objects)
+{
+    const core::StampKind kind = core::stampKind(a);
+    if (kind == core::StampKind::Foreign)
+        return appearanceError("error.edit.stampNotRedrawable", core::annotationSubtypeName(a.subtype));
+    core::Result<core::PdfSize> natural = core::stampNaturalSize(a);
+    if (!natural) return natural.error();
+    if (kind == core::StampKind::Image) return imageStamp(a, objects, natural.value());
+    return wordStamp(a, objects, natural.value());
+}
+
 class DryRun final : public AppearanceObjects {
 public:
     cos::CosRef shared(const std::string&, cos::CosObject) override { return cos::CosRef{0, 0}; }
+    cos::CosRef sharedStream(const std::string&, cos::CosObject, std::string) override { return cos::CosRef{0, 0}; }
 };
 
 } // namespace
@@ -781,7 +976,17 @@ cos::CosRef CollectedAppearanceObjects::shared(const std::string& key, cos::CosO
         if (entry.key == key) return entry.at;
     }
     const cos::CosRef at{first_ + static_cast<long long>(entries_.size()), 0};
-    entries_.push_back(Entry{key, at, std::move(object)});
+    entries_.push_back(Entry{key, at, std::move(object), std::nullopt});
+    return at;
+}
+
+cos::CosRef CollectedAppearanceObjects::sharedStream(const std::string& key, cos::CosObject dictionary, std::string data)
+{
+    for (const Entry& entry : entries_) {
+        if (entry.key == key) return entry.at;
+    }
+    const cos::CosRef at{first_ + static_cast<long long>(entries_.size()), 0};
+    entries_.push_back(Entry{key, at, std::move(dictionary), std::move(data)});
     return at;
 }
 
@@ -880,6 +1085,9 @@ bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
     case core::AnnotationSubtype::Polygon:
     case core::AnnotationSubtype::PolyLine:
     case core::AnnotationSubtype::Ink:
+    // Stage 6 T10: stamps -- a foreign one is refused by `normal`, not here: whether one can be drawn is the
+    // annotation's question, not its kind's.
+    case core::AnnotationSubtype::Stamp:
         return true;
     default:
         return false;
@@ -919,6 +1127,7 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::Polygon:
         case core::AnnotationSubtype::PolyLine: return polygon(annotation);
         case core::AnnotationSubtype::Ink: return ink(annotation);
+        case core::AnnotationSubtype::Stamp: return stamp(annotation, objects);
         default:
             return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
         }

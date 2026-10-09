@@ -35,6 +35,7 @@ class ActionRegistry;
 class IDocumentBackend;
 class KeyBindingStore;
 class LogBuffer;
+class ProfileStore;
 class RecentFiles;
 class Settings;
 
@@ -119,6 +120,12 @@ struct Services {
     // `app/CompositionRoot` reads it -- so `core/` reads no environment (convention 11), and a case composing
     // the product sets it, so a comment's `/T` never depends on who ran the suite.
     QString loginName = {};
+
+    // THE CUSTOM-STAMP LIBRARY (Stage 6 T10, D6-16): ONE per process, so every window's palette shows the same
+    // stamps and a stamp made in one is in all of them. NULL when the composition was given no root
+    // (`CompositionRoot::Options::stampRoot`) -- a test, a diagnostic run -- and the palette then offers the
+    // built-in stamps alone.
+    core::ProfileStore* stamps = nullptr;
 };
 
 } // namespace rawpage::app

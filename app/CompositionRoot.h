@@ -32,6 +32,7 @@
 #include "core/render/DiskTileStore.h"
 #include "core/render/RenderCache.h"
 #include "core/render/RenderScheduler.h"
+#include "core/settings/ProfileStore.h"
 #include "core/settings/RecentFiles.h"
 #include "core/settings/SessionState.h"
 #include "core/settings/Settings.h"
@@ -85,6 +86,12 @@ public:
         // read from the environment here -- `USERNAME` on Windows, `USER` elsewhere -- the one place the
         // product asks; a test passes a fixed name, so what it writes does not depend on who runs it.
         QString loginName;
+
+        // WHERE THE CUSTOM-STAMP LIBRARY IS (S6 T10, D6-16). EMPTY MEANS NONE -- the palette offers the built-in
+        // stamps and no custom one -- and that is the default ON PURPOSE, as `logDirectory`'s is: only `main.cpp`
+        // passes `core::ProfileStore::defaultRoot()`, so a case composing the product can never read or write the
+        // stamps of whoever runs the suite; one that needs a library passes a scratch directory.
+        QString stampRoot;
     };
 
     explicit CompositionRoot(Options options);
@@ -172,6 +179,7 @@ private:
     std::unique_ptr<core::Settings>        settings_;
     std::unique_ptr<core::RecentFiles>     recentFiles_;
     std::unique_ptr<core::SessionState>    sessionState_;
+    std::unique_ptr<core::ProfileStore>    stamps_;   // S6 T10: null without `Options::stampRoot`
     std::unique_ptr<core::ActionRegistry>  actions_;
     std::unique_ptr<core::KeyBindingStore> keyBindings_;
 

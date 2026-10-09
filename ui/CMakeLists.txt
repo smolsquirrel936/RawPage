@@ -140,6 +140,9 @@ add_library(rawpage_ui STATIC
     viewer/tools/DrawingTool.cpp
     viewer/tools/InkTool.h
     viewer/tools/InkTool.cpp
+    # Stage 6 T10 (D6-16): places the palette's stamp -- a click at its natural size, a drag fitted.
+    viewer/tools/StampTool.h
+    viewer/tools/StampTool.cpp
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
@@ -247,6 +250,9 @@ add_library(rawpage_ui STATIC
     # S5 T13 -- a comparison's differences, listed and counted: the summary at Stage 5 (D5-17, Q4).
     panes/DifferencesPane.h
     panes/DifferencesPane.cpp
+    # Stage 6 T10 (D6-16) -- the stamp palette, a dock like Advanced Search's: the person's stamps by category.
+    panes/StampPalettePane.h
+    panes/StampPalettePane.cpp
     dialogs/SettingsPage.h
     dialogs/SettingsPage.cpp
     dialogs/ShortcutsPage.h
@@ -256,6 +262,9 @@ add_library(rawpage_ui STATIC
     # Stage 6 T8 (D6-13): the Commenting page's editor of each tool's defaults.
     dialogs/ToolDefaultsEditor.h
     dialogs/ToolDefaultsEditor.cpp
+    # Stage 6 T10 (D6-16): a custom stamp from an image, or initials drawn or typed, for the library.
+    dialogs/CustomStampDialog.h
+    dialogs/CustomStampDialog.cpp
 
     # S2 T14. The password prompt is a DIALOG and the protected banner is not: the prompt is a
     # question the engine asks mid-open and cannot continue without, the banner is a statement about

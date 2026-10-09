@@ -3,6 +3,7 @@
 #include "tests/golden/AppearanceCases.h"
 
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
 #include "core/settings/CommentingTypes.h"
 #include "pdf/cos/IncrementalWriter.h"
@@ -108,6 +109,27 @@ Annotation typed(const QString& name, core::FreeTextKind kind, PdfPoint topLeft,
     }
     const core::Result<Annotation> fitted = core::fittedFreeText(a, core::TypedFont::Simplified);
     return fitted ? fitted.value() : a;
+}
+
+// S6 T10: a stamp made as the stamp tool makes it, given a FIXED identity and fitted into `into` -- turned first
+// when `degrees` says so, as the properties bar turns one.
+Annotation stamp(Annotation a, const QString& name, int index, PdfRect into, int degrees = 0)
+{
+    const Annotation fixed = made(AnnotationSubtype::Stamp, name, index);
+    a.nm = fixed.nm;
+    a.id = fixed.id;
+    if (degrees != 0) {
+        if (core::Result<Annotation> turned = core::rotatedStamp(a, degrees)) a = turned.value();
+    }
+    core::Result<Annotation> fitted = core::stampFittedTo(a, into);
+    return fitted ? fitted.value() : a;   // the suite's case fails on it, loudly
+}
+
+Annotation standardStamp(const QString& caseName, int index, const char* stampName, PdfRect into, int degrees = 0)
+{
+    core::Result<Annotation> a = core::newStandardStamp(QString::fromLatin1(stampName), 0, PdfPoint{100, 75},
+                                                         QStringLiteral("Appearance"), kInstant);
+    return stamp(a ? a.value() : Annotation{}, caseName, index, into, degrees);
 }
 
 std::vector<AppearanceCase> buildCases()
@@ -247,6 +269,61 @@ std::vector<AppearanceCase> buildCases()
                QStringLiteral("Diamond"))});
     add("typewriter", "typewriter text: no border, no fill",
         {typed(n("typewriter"), core::FreeTextKind::Typewriter, PdfPoint{30, 90}, QStringLiteral("Typewriter"))});
+
+    // ---- S6 T10: stamps (D6-16, guide A-75) -----------------------------------------------------------------
+    // Every one of ISO 32000-1 Table 181's fourteen, three to a page, each fitted into a band of the page -- its
+    // words in Helvetica-Bold, in its colour, inside its rounded border.
+    {
+        const std::vector<QLatin1String>& names = core::standardStampNames();
+        const PdfRect bands[3] = {PdfRect{PdfPoint{15, 102}, PdfSize{170, 38}}, PdfRect{PdfPoint{15, 56}, PdfSize{170, 38}},
+                                  PdfRect{PdfPoint{15, 10}, PdfSize{170, 38}}};
+        static const char* const pageNames[5] = {"stamps-standard-1", "stamps-standard-2", "stamps-standard-3",
+                                                 "stamps-standard-4", "stamps-standard-5"};
+        static const char* const pageNotes[5] = {"Approved, Experimental, NotApproved", "AsIs, Expired, NotForPublicRelease",
+                                                 "Confidential, Final, Sold", "Departmental, ForComment, TopSecret",
+                                                 "Draft, ForPublicRelease"};
+        for (int page = 0; page < 5; ++page) {
+            std::vector<Annotation> three;
+            for (int k = 0; k < 3 && page * 3 + k < static_cast<int>(names.size()); ++k)
+                three.push_back(standardStamp(n(pageNames[page]), k, names[static_cast<std::size_t>(page * 3 + k)].data(), bands[k]));
+            add(pageNames[page], pageNotes[page], std::move(three));
+        }
+    }
+    {
+        // Two DYNAMIC stamps, their lines baked at the cases' fixed instant -- the identity and the minute, at UTC.
+        std::vector<Annotation> dynamic;
+        int k = 0;
+        for (const char* name : {"DynamicApproved", "DynamicConfidential"}) {
+            core::Result<Annotation> a = core::newDynamicStamp(QString::fromLatin1(name), 0, PdfPoint{100, 75},
+                                                               QStringLiteral("Appearance Tester"), kInstant, 0);
+            dynamic.push_back(stamp(a ? a.value() : Annotation{}, n("stamps-dynamic"), k,
+                                    k == 0 ? PdfRect{PdfPoint{20, 80}, PdfSize{160, 60}} : PdfRect{PdfPoint{20, 10}, PdfSize{160, 60}}));
+            ++k;
+        }
+        add("stamps-dynamic", "DynamicApproved and DynamicConfidential: the words, the author and the minute baked", std::move(dynamic));
+    }
+    add("stamps-turned", "Approved turned 30 degrees, Draft turned 90: each inside its rectangle",
+        {standardStamp(n("stamps-turned"), 0, "Approved", PdfRect{PdfPoint{10, 40}, PdfSize{110, 100}}, 30),
+         standardStamp(n("stamps-turned"), 1, "Draft", PdfRect{PdfPoint{140, 10}, PdfSize{50, 130}}, 90)});
+    {
+        // An IMAGE stamp: 32 by 16 pixels, a red-to-blue ramp under an alpha that is clear on the left and opaque on
+        // the right -- the grey band shows through where it is clear (the pixels are code, so the case is too).
+        QByteArray rgb, alpha;
+        for (int y = 0; y < 16; ++y) {
+            for (int x = 0; x < 32; ++x) {
+                rgb.append(static_cast<char>(255 - x * 8));
+                rgb.append(static_cast<char>(y * 12));
+                rgb.append(static_cast<char>(x * 8));
+                alpha.append(static_cast<char>(x * 8 + 7));
+            }
+        }
+        const core::Result<core::StampImage> pixels = core::stampImageFromPixels(32, 16, rgb, alpha);
+        core::Result<Annotation> a = pixels ? core::newImageStamp(pixels.value(), QStringLiteral("Ramp"), 0, PdfPoint{100, 75},
+                                                                 QStringLiteral("Appearance"), kInstant)
+                                            : core::Result<Annotation>(pixels.error());
+        add("stamp-image", "a 32 x 16 image with an alpha ramp, over the band: its own pixels, translucent at the left",
+            {stamp(a ? a.value() : Annotation{}, n("stamp-image"), 0, PdfRect{PdfPoint{20, 20}, PdfSize{160, 80}})});
+    }
     return cases;
 }
 
@@ -290,7 +367,7 @@ std::string appearancePdf(const std::vector<core::Annotation>& annotations, int 
         }
     }
     for (const pdf::ops::CollectedAppearanceObjects::Entry& entry : shared.entries())
-        bodies.push_back(serialized(entry.object, nullptr));
+        bodies.push_back(serialized(entry.object, entry.data ? &*entry.data : nullptr));
     std::string annots;
     for (std::size_t i = 0; i < annotations.size(); ++i) {
         std::optional<pdf::cos::CosRef> appearance;

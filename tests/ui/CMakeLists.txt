@@ -155,6 +155,8 @@ add_executable(rawpage_ui_tests
     tst_drawtools.cpp
     tst_commentspane.cpp       # Stage 6 T9 -- the Comments pane: its table from key events (A-70), the list as
                                #   the query (A-67), the identity's checkmark (A-69), deletes (A-71), numbers (A-72)
+    tst_stamps.cpp             # Stage 6 T10 -- Ctrl+Alt+S, the palette over a SCRATCH library, the custom-stamp
+                               #   dialog (A-78), the bar's turn (A-80), an image pasted and Ctrl+V kept (A-81)
 
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the
@@ -164,6 +166,8 @@ add_executable(rawpage_ui_tests
 )
 
 target_include_directories(rawpage_ui_tests PRIVATE "${CMAKE_SOURCE_DIR}")
+# Stage 6 T10: tst_stamps reads the corpus's stamp images and a PDF the custom-stamp dialog must refuse -- READ only.
+target_compile_definitions(rawpage_ui_tests PRIVATE RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
 
 # Catch2::Catch2 without WithMain -- main.cpp supplies one, because these tests need a QApplication
 # on the offscreen platform before any of them runs. See the comment there.

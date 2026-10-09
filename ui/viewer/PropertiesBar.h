@@ -75,6 +75,7 @@ public:
     QComboBox* startEndingBox() const noexcept { return startEnding_; }
     QComboBox* endEndingBox() const noexcept { return endEnding_; }
     QSpinBox* cloudBox() const noexcept { return cloud_; }
+    QSpinBox* rotationBox() const noexcept { return rotation_; }
     QLineEdit* textField() const noexcept { return text_; }
     QCheckBox* lockedBox() const noexcept { return locked_; }
     QCheckBox* contentsLockedBox() const noexcept { return contentsLocked_; }
@@ -86,6 +87,8 @@ signals:
     void appearanceRequested(const core::AnnotationAppearance& appearance);
     void contentsRequested(const QString& text);
     void fontSizeRequested(double size);
+    // S6 T10: the selected stamps turned to this many degrees.
+    void rotationRequested(int degrees);
     void locksRequested(std::uint32_t set, std::uint32_t clear);
     // The armed tool's current properties, changed.
     void toolDefaultsChanged(const core::ToolDefaults& values);
@@ -121,6 +124,7 @@ private:
     QComboBox* startEnding_ = nullptr;
     QComboBox* endEnding_ = nullptr;
     QSpinBox* cloud_ = nullptr;
+    QSpinBox* rotation_ = nullptr;   // S6 T10: a stamp's turn
     QLineEdit* text_ = nullptr;
     QCheckBox* locked_ = nullptr;
     QCheckBox* contentsLocked_ = nullptr;

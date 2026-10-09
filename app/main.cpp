@@ -33,6 +33,7 @@
 #include "core/Log.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
+#include "core/settings/ProfileStore.h"
 #include "core/settings/SettingsSchema.h"
 
 #include "pdf/render/PdfiumInit.h"
@@ -294,6 +295,8 @@ int main(int argc, char** argv)
     // above since T1. Only this call site asks for one: an empty directory means no file, so a
     // test or a diagnostic tool that builds a CompositionRoot does not write into a profile.
     options.logDirectory = app::LogFile::defaultDirectory();
+    // S6 T10: the custom-stamp library, likewise asked for here alone (`Options::stampRoot`).
+    options.stampRoot = core::ProfileStore::defaultRoot();
     app::CompositionRoot root(std::move(options));
 
     // --- One instance, or two? ---------------------------------------------------------------

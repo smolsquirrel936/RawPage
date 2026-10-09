@@ -46,3 +46,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 1 (filtered on `polyline-endings`)
 - **Reason** Stage 6 T8: polyline-endings recaptured -- its first capture was looked at and found to have NO endings: the case spec never set /LE (a defect in the spec, caught by looking, never kept).
+
+## 2026-10-09T08:11:38Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 8 (filtered on `stamp`)
+- **Reason** Stage 6 T10: the first capture of the STAMP appearance baselines (guide A-75, D6-16) -- 8 new cases of tests/golden/AppearanceCases: every one of ISO 32000-1 Table 181's fourteen standard stamps, three to a page (stamps-standard-1 … 5), two dynamic stamps with their baked lines (stamps-dynamic), a stamp turned 30 degrees and one turned 90 (stamps-turned), and an image stamp with an alpha ramp over the band (stamp-image). Additions only -- no corpus baseline and none of T8's 31 is regenerated. Each image was looked at before it was kept.

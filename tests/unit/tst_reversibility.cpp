@@ -33,6 +33,7 @@
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
@@ -215,6 +216,32 @@ const Generators& registeredGenerators()
                  if (const std::optional<core::Annotation> fitted = core::fittedShape(a)) a = *fitted;
              }
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(drawn)));
+             // Stage 6 T10 (D6-16): STAMPS -- a standard one, a dynamic one with its lines baked, one turned 30
+             // degrees, and the same IMAGE twice (one picture in the update) -- as one set, as the tool makes them.
+             std::vector<core::Annotation> stamps;
+             if (core::Result<core::Annotation> a = core::newStandardStamp(QStringLiteral("Confidential"), page,
+                                                                           core::PdfPoint{120, 520}, QStringLiteral("Reversibility"), 1791504000))
+                 stamps.push_back(a.value());
+             if (core::Result<core::Annotation> a = core::newDynamicStamp(QStringLiteral("DynamicReceived"), page,
+                                                                          core::PdfPoint{320, 520}, QStringLiteral("Reversibility"), 1791504000, 3600))
+                 stamps.push_back(a.value());
+             if (core::Result<core::Annotation> a = core::newStandardStamp(QStringLiteral("Draft"), page,
+                                                                           core::PdfPoint{120, 460}, QStringLiteral("Reversibility"), 1791504000)) {
+                 if (core::Result<core::Annotation> turned = core::rotatedStamp(a.value(), 30)) stamps.push_back(turned.value());
+             }
+             QByteArray rgb, alpha;
+             for (int i = 0; i < 12 * 8; ++i) {
+                 rgb.append(static_cast<char>(i * 2)).append(static_cast<char>(200)).append(static_cast<char>(255 - i * 2));
+                 alpha.append(static_cast<char>(i % 2 == 0 ? 255 : 90));
+             }
+             if (const core::Result<core::StampImage> image = core::stampImageFromPixels(12, 8, rgb, alpha)) {
+                 for (const double x : {320.0, 420.0}) {
+                     if (core::Result<core::Annotation> a = core::newImageStamp(image.value(), QStringLiteral("Swatch"), page,
+                                                                                core::PdfPoint{x, 460}, QStringLiteral("Reversibility"), 1791504000))
+                         stamps.push_back(a.value());
+                 }
+             }
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(stamps)));
              return out;
          }},
         // Every annotation the page owns as ONE set, and its first alone -- including, on
@@ -272,6 +299,7 @@ const Generators& registeredGenerators()
              if (!store.status()) return out;
              std::vector<core::AnnotationId> ids;
              std::vector<core::AnnotationId> shapes;
+             std::vector<core::AnnotationId> stamps;
              for (const std::size_t index : store.onPage(page)) {
                  const core::Annotation& a = store.at(index);
                  if (a.subtype == core::AnnotationSubtype::Highlight && a.quadPoints.size() >= 8) ids.push_back(a.id);
@@ -281,6 +309,9 @@ const Generators& registeredGenerators()
                                       || a.subtype == core::AnnotationSubtype::PolyLine || a.subtype == core::AnnotationSubtype::Ink;
                  if (drawing && !a.intent.endsWith(QLatin1String("Dimension")) && pdf::ops::AppearanceStreamBuilder::normal(a))
                      shapes.push_back(a.id);
+                 // Stage 6 T10: a stamp RawPage can redraw -- the corpus's /Approved among them -- recoloured as one set.
+                 if (a.subtype == core::AnnotationSubtype::Stamp && core::stampKind(a) != core::StampKind::Foreign)
+                     stamps.push_back(a.id);
              }
              if (!ids.empty()) {
                  core::AnnotationAppearance appearance;
@@ -296,6 +327,12 @@ const Generators& registeredGenerators()
                  appearance.lineStyle = core::LineStyle::Dashed;
                  appearance.blendMode = core::ToolBlend::Multiply;
                  out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(shapes, appearance, kEditInstant));
+             }
+             if (!stamps.empty()) {
+                 core::AnnotationAppearance appearance;
+                 appearance.color = std::vector<double>{0.4, 0.1, 0.6};
+                 appearance.opacity = 0.6;
+                 out.push_back(std::make_unique<core::SetAnnotationAppearanceCommand>(stamps, appearance, kEditInstant));
              }
              return out;
          }},

@@ -47,10 +47,12 @@
 #include "core/doc/Annotation.h"
 #include "core/text/SearchEngine.h"
 #include "ui/dialogs/CompareDialog.h"
+#include "ui/dialogs/CustomStampDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 
+#include <QImage>
 #include <QMainWindow>
 #include <QPointer>
 #include <QStringList>
@@ -78,6 +80,7 @@ class ComparisonView;
 class DestinationsPane;
 class LogPane;
 class SearchPane;
+class StampPalettePane;
 class ThumbnailsPane;
 class MessageBar;
 class PageView;
@@ -262,6 +265,17 @@ public:
     LogPane*            logPane() const { return logPane_; }
     // S5 T9 (D5-13): Advanced Search, its own dock along the right; `Ctrl+Shift+F` shows it.
     SearchPane*         searchPane() const { return searchPane_; }
+
+    // ---- STAMPS (S6 T10, D6-16) ---------------------------------------------------------------------
+    // The stamp palette, its own dock along the right; `Ctrl+Alt+S` arms the stamp tool and shows it.
+    StampPalettePane*   stampPalette() const { return stampPalette_; }
+    void showStampPalette();
+    // A custom stamp, as the dialog made it, added to the library -- marked a favourite when asked -- listed,
+    // chosen and its tool armed. `error.stamps.noLibrary` in a window composed with none.
+    core::Status addCustomStamp(const CustomStampDialog::Made& made);
+    // D6-22's image half: `image` placed as an image stamp at the middle of what the tab in front shows -- ONE
+    // command. What `edit.paste` does with an image on the clipboard.
+    core::Status pasteImage(const QImage& image);
     // An Advanced Search result, shown: its file opened through `openFiles` -- or its tab brought forward,
     // so a file already open is not opened twice (guide A-87) -- and its hits shown in that tab's find bar,
     // this one current and revealed.
@@ -516,6 +530,7 @@ private:
     QPointer<AnnotationOverlay> numberedOverlay_;
     LogPane*          logPane_ = nullptr;
     SearchPane*       searchPane_ = nullptr;
+    StampPalettePane* stampPalette_ = nullptr;   // S6 T10
     // S5 T13: an owned window, deleted on close -- so a guarded pointer, never a raw one.
     QPointer<ComparisonView> comparison_;
     StatusBar*   status_ = nullptr;

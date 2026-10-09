@@ -79,6 +79,9 @@ public:
     // byte can break out of.
     ContentStreamBuilder& showText(std::string_view bytes);         // <…> Tj
 
+    // Stage 6 T10: paints the XObject the resources name `resource` -- an image stamp's picture.
+    ContentStreamBuilder& paintXObject(std::string_view resource);   // /resource Do
+
     const std::string& bytes() const noexcept { return bytes_; }
 
     // A number as this builder writes it. Public so a case can hold the spelling to its rule.

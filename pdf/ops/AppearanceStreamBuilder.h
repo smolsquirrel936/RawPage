@@ -67,6 +67,19 @@
 // each stroke as the centripetal Catmull-Rom curve through its samples, round-capped. The geometry of a cloud's
 // bumps, an ending and an ink curve is `core/doc/DrawnShapes`', which the hit test and the rectangle a tool writes
 // read too. A measurement (`/IT /LineDimension` …) is refused by key until T12 draws its readout.
+//
+// ===========================================================================================
+// STAMPS -- Stage 6 T10 (D6-16, D6-37)
+// ===========================================================================================
+// The one kind NOT drawn into its `/Rect`: the form's `/BBox` is the stamp's natural box and its `/Matrix` its
+// turn (`core/doc/Stamps` says why), so a reader's Algorithm 8.1 scales it onto the rectangle. A STANDARD or
+// DYNAMIC stamp is a rounded border in `/C` round a fill of its tint, its words in base-14 Helvetica-Bold (written
+// with its `/Widths`), centred -- and a dynamic stamp's baked lines under them, set as typed text is (Helvetica
+// and the CJK collections). An IMAGE stamp paints one image XObject over its box: a JPEG's bytes as they are,
+// `/DCTDecode`; anything else `/FlateDecode`, its alpha an `/SMask`. The image and its mask are asked for
+// through `AppearanceObjects` by the image's SHA-256 (`core::stampImageKey`), so one image placed many times is
+// ONE object in a save (guide A-78). A stamp RawPage cannot redraw -- a foreign one, or an image stamp read from
+// a file, whose pixels the model does not hold -- is refused by key (`error.edit.stampNotRedrawable`).
 
 #ifndef RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
 #define RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
@@ -78,6 +91,7 @@
 
 #include <QStringView>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -98,6 +112,9 @@ public:
     // The reference `object` is written at. A key already asked for returns its object's reference, and
     // `object` is not written again.
     virtual cos::CosRef shared(const std::string& key, cos::CosObject object) = 0;
+    // Stage 6 T10: the same for a STREAM -- `dictionary` with an empty data descriptor, `data` its bytes as they
+    // are to be written (already encoded: the writer adds `/Length` and nothing else). An image stamp's picture.
+    virtual cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) = 0;
 };
 
 // Keeps what it is handed, numbered from `first` up -- for a dry run, and for a case that reads the objects.
@@ -105,11 +122,13 @@ class CollectedAppearanceObjects final : public AppearanceObjects {
 public:
     explicit CollectedAppearanceObjects(long long first = 1) : first_(first) {}
     cos::CosRef shared(const std::string& key, cos::CosObject object) override;
+    cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) override;
 
     struct Entry {
         std::string key;
         cos::CosRef at;
         cos::CosObject object;
+        std::optional<std::string> data;   // a stream's bytes (T10)
     };
     const std::vector<Entry>& entries() const noexcept { return entries_; }
     const cos::CosObject* find(cos::CosRef at) const;
@@ -123,7 +142,8 @@ class AppearanceStreamBuilder {
 public:
     // Whether this build can draw `subtype`. Stage 6 T3: Highlight; T6: Underline, StrikeOut, Squiggly,
     // Caret, and Text (a note, its `Comment` and `Note` icons -- another `/Name` is refused by `normal`); T7:
-    // FreeText -- a box, a callout, a typewriter; T8: Line, Square, Circle, Polygon, PolyLine and Ink.
+    // FreeText -- a box, a callout, a typewriter; T8: Line, Square, Circle, Polygon, PolyLine and Ink; T10: Stamp
+    // (a foreign one refused by `normal`, `error.edit.stampNotRedrawable`).
     static bool supports(core::AnnotationSubtype subtype) noexcept;
 
     // A kind that has NO appearance of its own: a `Popup` (ISO 32000-1 §12.5.6.14), which a reader draws as

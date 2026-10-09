@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -70,7 +70,11 @@
     "",
     "`comments` JOINED AT Stage 6 T9 (`Stage6-Annotations-Plan.md` D6-12), with the Comments pane's words. Its",
     "plural is not the action ids' singular -- `comment.reply` is an ActionId, never a key -- so the family",
-    "reads no action id as a missing key (Stage 5's I-08). Its pane title stays `panes.comments.title`."
+    "reads no action id as a missing key (Stage 5's I-08). Its pane title stays `panes.comments.title`.",
+    "",
+    "`stamps` JOINED AT Stage 6 T10 (`Stage6-Annotations-Plan.md` D6-16), with the stamp palette's and the",
+    "custom-stamp dialog's words and each built-in stamp's name (`stamps.name.`). The action ids stay",
+    "`annot.stamp` and `annot.customStamp`, which no `stamps.` key can be mistaken for."
   ],
 
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],

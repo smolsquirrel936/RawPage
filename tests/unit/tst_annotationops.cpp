@@ -259,13 +259,14 @@ TEST_CASE("a highlight's appearance is a multiply form over its rectangle whatev
 
 TEST_CASE("the appearance builder refuses what it cannot draw by key", "[annotops][appearance]")
 {
-    // A STAMP since T8, which draws ink.
-    Annotation stamp = core::newAnnotation(AnnotationSubtype::Stamp, 0, kAuthor, kNow);
-    stamp.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
-    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(stamp);
+    // A FILE ATTACHMENT since T10, which draws stamps (T8 moved it here from ink). Attachments are T11's.
+    Annotation pin = core::newAnnotation(AnnotationSubtype::FileAttachment, 0, kAuthor, kNow);
+    pin.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
+    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(pin);
     REQUIRE_FALSE(unsupported);
     CHECK(keyOf(unsupported.error()) == "error.pdf.appearanceUnsupported");
-    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Stamp));
+    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::FileAttachment));
+    CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Stamp));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Ink));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Highlight));
 

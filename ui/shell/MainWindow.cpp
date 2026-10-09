@@ -15,6 +15,7 @@
 #include "ui/dialogs/PreferencesDialog.h"
 #include "ui/panes/LogPane.h"
 #include "ui/panes/SearchPane.h"
+#include "ui/panes/StampPalettePane.h"
 #include "ui/panes/BookmarksPane.h"
 #include "ui/panes/CommentsPane.h"
 #include "ui/panes/DestinationsPane.h"
@@ -38,6 +39,9 @@
 #include "ui/write/FindReplaceBar.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
+#include "ui/viewer/tools/StampTool.h"
+#include "core/doc/Stamps.h"
+#include "core/settings/ProfileStore.h"
 #include "ui/shell/QuickAccessToolbar.h"
 #include "ui/shell/Ribbon.h"
 #include "ui/shell/RibbonModel.h"
@@ -50,6 +54,7 @@
 #include "ui/shell/UiCustomization.h"
 #include "ui/shell/WindowArranger.h"
 
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
 #include <QDateTime>
@@ -57,6 +62,7 @@
 #include <QEvent>
 #include <QFileDialog>
 #include <QInputDialog>
+#include <QMimeData>
 #include <QGuiApplication>
 #include <QFileInfo>
 #include <QFont>
@@ -326,6 +332,26 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
                    int current) { openSearchResult(path, pattern, hits, current); });
     connect(searchPane_, &SearchPane::closed, this, [this] {
         if (PageView* view = currentView()) view->setFocus(Qt::OtherFocusReason);
+    });
+
+    // THE STAMP PALETTE -- S6 T10 (D6-16). A dock along the right, for Advanced Search's reason: its subject is the
+    // person's stamps, not the document in front. Hidden until `Ctrl+Alt+S`. Over the process's ONE library
+    // (`Services::stamps`, null in a composition given none), so a stamp made in one window is in every palette.
+    stampPalette_ = new StampPalettePane(services_.stamps, this);
+    addDockWidget(Qt::RightDockWidgetArea, stampPalette_);
+    stampPalette_->hide();
+    connect(stampPalette_, &StampPalettePane::chosen, this, [this] {
+        if (PageView* view = currentView()) {
+            view->tools().armAnnotation(AnnotationToolKind::Stamp);
+            updateViewChrome();
+        }
+    });
+    connect(stampPalette_, &StampPalettePane::customRequested, this,
+            [this] { (void)services_.actions.dispatch(ActionId::AnnotCustomStamp, core::KeyContext::Viewer); });
+    connect(stampPalette_, &StampPalettePane::refused, this, [this](const core::Error& error) {
+        if (status_)
+            status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
+                                    .arg(catalog::translateError(QString(error.messageKey), error.context)));
     });
 
     // ORDER MATTERS, and not for a cosmetic reason. `ActionFactory` reads each action's
@@ -3374,6 +3400,8 @@ void MainWindow::registerAnnotationActions()
                 return;
             }
             view->tools().armAnnotation(kind);
+            // S6 T10: the stamp tool places what the palette chose, so arming it shows the palette.
+            if (kind == AnnotationToolKind::Stamp) window->showStampPalette();
             if (window->status_)
                 window->status_->setMessage(catalog::translate(armedStatusKey(kind)).arg(catalog::translateAction(id)));
             window->updateViewChrome();
@@ -3502,9 +3530,108 @@ void MainWindow::registerAnnotationActions()
         services_.actions.register_(ActionId::AnnotSetToolDefault, std::move(setDefault));
     }
 
+    // `annot.customStamp` (S6 T10, D6-16): a custom stamp made in `CustomStampDialog` -- from an image, or initials
+    // drawn or typed -- and added to the library; nothing in a document changes until the stamp is placed.
+    // DISABLED in a window composed with no library (convention 16).
+    if (!services_.actions.isRegistered(ActionId::AnnotCustomStamp)) {
+        core::ActionRegistry::Registration custom;
+        custom.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (window == nullptr || window->services_.stamps == nullptr) return;
+            CustomStampDialog dialog(window->services_.stamps->categories(), window);
+            if (dialog.exec() != QDialog::Accepted) return;
+            if (const std::optional<CustomStampDialog::Made> made = dialog.made()) {
+                if (const core::Status added = window->addCustomStamp(*made); !added && window->status_)
+                    window->status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
+                                                    .arg(catalog::translateError(QString(added.error().messageKey), added.error().context)));
+            }
+        };
+        custom.enable = [] {
+            MainWindow* window = activeShell();
+            return window != nullptr && window->services_.stamps != nullptr;
+        };
+        custom.unavailableKey = "shell.tooltip.needsStampLibrary";
+        services_.actions.register_(ActionId::AnnotCustomStamp, std::move(custom));
+    }
+
+    // `edit.paste` (S6 T10, D6-22's image half): an IMAGE on the clipboard placed as an image stamp in the middle
+    // of what the tab in front shows -- one command. A Common row, so it consumes `Ctrl+V` wherever the key falls
+    // through to Common, and every text widget keeps its own: `ShortcutBinder` offers the key to the focused widget
+    // first, and an editable one claims Paste (guide A-81, Stage 5's I-04 turned round). DISABLED with no image on
+    // the clipboard; annotations copied there are T13's.
+    if (!services_.actions.isRegistered(ActionId::EditPaste)) {
+        core::ActionRegistry::Registration paste;
+        paste.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            const QClipboard* clipboard = QGuiApplication::clipboard();
+            const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
+            if (window == nullptr || held == nullptr || !held->hasImage()) return;
+            if (const core::Status pasted = window->pasteImage(qvariant_cast<QImage>(held->imageData())); !pasted && window->status_)
+                window->status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
+                                                .arg(catalog::translateError(QString(pasted.error().messageKey), pasted.error().context)));
+        };
+        paste.enable = [hasView] {
+            const QClipboard* clipboard = QGuiApplication::clipboard();
+            const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
+            return hasView() && held != nullptr && held->hasImage();
+        };
+        paste.unavailableKey = "shell.tooltip.needsClipboardImage";
+        services_.actions.register_(ActionId::EditPaste, std::move(paste));
+    }
+
     // NOT REGISTERED, on purpose, each with its owner: `annot.duplicate` and `annot.nudge` (`Alt`+drag and the
     // arrows are gestures the overlay handles; a direction is an argument and dispatch carries none -- O11), and
     // `edit.cancel` (Stage 4's I-06).
+}
+
+void MainWindow::showStampPalette()
+{
+    if (stampPalette_ == nullptr) return;
+    stampPalette_->show();
+    stampPalette_->raise();
+}
+
+core::Status MainWindow::addCustomStamp(const CustomStampDialog::Made& made)
+{
+    core::ProfileStore* library = services_.stamps;
+    if (library == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.stamps.noLibrary"), QString()};
+    core::Result<core::CustomStamp> added =
+        library->add(made.name, made.category, made.image, QDateTime::currentSecsSinceEpoch(), made.sourceName);
+    if (!added) return added.error();
+    if (made.favourite) {
+        if (const core::Status marked = library->setFavourite(added.value().id, true); !marked) return marked;
+    }
+    if (stampPalette_ == nullptr) return core::Status{};
+    stampPalette_->reload();
+    showStampPalette();
+    if (stampPalette_->choose(QStringLiteral("custom:") + added.value().id)) {
+        if (PageView* view = currentView()) {
+            view->tools().armAnnotation(AnnotationToolKind::Stamp);
+            updateViewChrome();
+        }
+    }
+    return core::Status{};
+}
+
+core::Status MainWindow::pasteImage(const QImage& image)
+{
+    DocumentWindow* document = currentDocument();
+    PageView* view = currentView();
+    AnnotationOverlay* annotations = document != nullptr ? document->annotations() : nullptr;
+    if (view == nullptr || annotations == nullptr)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.stamps.noDocument"), QString()};
+    if (image.isNull()) return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.stamps.notAnImage"), QString()};
+    // Through the same conversion a custom stamp's picture takes: compressed RGB and its alpha.
+    core::Result<core::StampImage> pixels = stampImageOf(image);
+    if (!pixels) return pixels.error();
+    // THE MIDDLE OF WHAT IS SHOWN, on the page it is over (or the nearest).
+    const PagePoint centre = view->pagePointAt(view->viewport()->rect().center());
+    if (!centre.isValid()) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.stamps.noDocument"), QString()};
+    const core::Annotation who = annotations->newAnnotation(core::AnnotationSubtype::Stamp, centre.page);
+    core::Result<core::Annotation> stamp = core::newImageStamp(pixels.value(), QString(), centre.page, centre.point, who.author,
+                                                               who.created.utcSeconds.value_or(0));
+    if (!stamp) return stamp.error();
+    return annotations->addMade({stamp.value()});
 }
 
 PreferencesDialog* MainWindow::showPreferences()
