@@ -3,32 +3,34 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stage 0 complete; Stage 1's code complete — all fifteen tasks done (2026-08-25).**
-> The commands below work. What they build is still mostly *scaffolding*: a pinned toolchain, three
-> enforcement gates, the domain vocabulary, the entry point with its crash handler, the action layer
-> (`ActionId`, `ActionRegistry`, `KeyBindingStore`), the typed settings store, the `en`/`zh-TW`
-> string catalogs, the OS boundary with its single-instance bus, and the composition root that wires
-> all of it together. **`rawpage.exe` now opens a window with a working ribbon** — 9 tabs, 49 groups
-> and 192 controls, every one built from `res/ribbon.json` and dispatched through the action registry,
-> above a sidebar, a status bar and a live theme — plus a **customizable Quick Access Toolbar**, a
-> **tool finder** that searches every declared command, and **document tabs** that open a stub per
-> file and can be reordered, torn off into a new window and re-docked. **The keyboard works**: every
-> one of the key bindings in the design's §8 resolves through `KeyBindingStore` and dispatches through
-> the same registry call the ribbon makes. **Preferences opens** — three pages, every row of them
-> generated from the settings schema rather than laid out by hand, including a Shortcuts page that
-> remaps a chord with nothing rebuilt — and there is a **log pane** over a rolling log file. Most of
-> those ribbon controls are **disabled and say why**: Stage 1 declares 358 commands and registers the
-> nineteen this window can actually service.
-> **No PDF is parsed or rendered** until Stage 2 — a document tab is a stub that names its file.
-> Risk **A3** (can Qt Widgets host a real ribbon without a commercial control library?) is settled:
-> **go, with named custom work.**
-> What is left of Stage 1 is not code: a manual walk on real hardware for the things an offscreen test
-> cannot judge — how the ribbon looks, and how it behaves across two monitors at different scale
-> factors. **CI is green on all four jobs**, Windows included.
-> The design lives in [`claude-plan/`](./claude-plan/README.md); live status is the Stage 1 block in
-> [`Implementation-Plan.md`](./claude-plan/Implementation-Plan.md).
+> **Status: Stages 0 to 5 are complete and signed off, the last (Stage 5) on 2026-10-04. Stage 6,
+> annotations and review, is in progress: T1 … T10 done, the last on 2026-10-09.**
+> `rawpage.exe` opens real PDFs into tabs and draws their pages through the pinned PDFium behind our
+> own facade, over a first-party COS reader. What a person can do with it today:
 >
-> This section is walked literally by testing-guide case **M-01** on a clean machine, so a step that
+> - **View and navigate** (Stage 4): zoom, fit, rotate the view, four layout modes, thumbnails,
+>   bookmarks and named destinations, rulers, a grid and guides, split views, several windows,
+>   full screen and presentation, reading mode, and a session restored at the next launch.
+> - **Edit and save** (Stage 3): every change is a journalled command, undone and redone with
+>   `Ctrl+Z`/`Ctrl+Y`, saved incrementally through our own writer and recovered after a crash.
+> - **Read the text** (Stage 5): select and copy, a find bar, Advanced Search over a folder, a
+>   Snapshot, Reflow view, and a side-by-side or overlaid document comparison.
+> - **Annotate** (Stage 6, so far): highlight, underline, strikeout and squiggly; replace and
+>   insert text; notes; text boxes, callouts and typewriter text; lines, arrows, shapes, clouds,
+>   ink and the eraser; a Comments pane with replies, statuses and checkmarks; and stamps (standard,
+>   dynamic, image and custom). Each one is drawn by our own appearance builder and saved as written.
+>
+> **Not built yet:** attachments, measurement, FDF/XFDF exchange and audio comments (the rest of
+> Stage 6), then document assembly, export and optimization, forms, security and redaction,
+> signatures, creation and import, Write mode, batch and the CLI, packaging and release (Stages 7 to
+> 15), and the post-v1 subsystems (Stage 16).
+> **This section carries no counts on purpose.** Live status is [`CLAUDE.md`](./CLAUDE.md) →
+> *Where the work is right now* and each stage's block in
+> [`Implementation-Plan.md`](./claude-plan/Implementation-Plan.md) §4. The design lives in
+> [`claude-plan/`](./claude-plan/README.md).
+>
+> This section is walked literally by Stage 0's clean-machine case **M-01**
+> (`claude-plan/Stage0-Toolchain-Testing-Guide.md` §6) on a clean machine, so a step that
 > is missing here is a defect in the project, not in the tester.
 
 ---
@@ -87,7 +89,8 @@ which is what keeps the build from depending on machine state.
 Needed to clone the repository, and `scripts\bootstrap.ps1` checks for it. Any recent version;
 nothing about it is pinned.
 
-Nothing else is required. No Visual Studio, no MSYS2, no Python.
+Nothing else is required to build. No Visual Studio, no MSYS2, no Python — Python is a
+verification dependency only, for the corpus and coverage checks the `gates` preset runs.
 
 ---
 
@@ -111,7 +114,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned   # once pe
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks            # the gates -- always first
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure                # 250 tests
+ctest --preset x64-release --output-on-failure                # 1678/1678 at Stage 6 T10, 2026-10-09
 ```
 
 A stock Windows install runs no scripts at all: without the first line, both `.ps1` files fail with
@@ -137,8 +140,8 @@ process that immediately exits; the script detects this and tells you.
 | `x64-release` | Windows | Optimized build, the release configuration |
 | `gates` | any | **tools/ and tests/gates/ only — no Qt, no vcpkg.** What CI runs first; ~4 s |
 | `arm64-release` | Windows | **Placeholder — does not configure.** Fails with an explanation: the pin is x86_64 GCC 13.1.0, and whether arm64 means moving to LLVM-MinGW is open decision O6 |
-| `portable-asan` | Linux | `core/` + `pdf/cos/` under ASan+UBSan — MinGW GCC has no sanitizer runtime |
-| `portable-fuzz` | Linux | libFuzzer over the COS parser. **No targets until Stage 2** |
+| `portable-asan` | Linux | `core/` + `pdf/cos/` + `pdf/ops/` under ASan+UBSan — MinGW GCC has no sanitizer runtime |
+| `portable-fuzz` | Linux | libFuzzer over five targets: the COS lexer and parser, the reader-writer round trip, the text pipeline and the annotation pipeline. CI only; `.github/workflows/fuzz-soak.yml` is the nightly ten-minute soak |
 
 The two portable presets are not a portability aspiration: `core/` must build with no display and no
 PDF engine linked, and those jobs are what prove it mechanically rather than by assertion.
@@ -153,7 +156,6 @@ survive CTest's filter round trip and the case then "fails" with a passing body.
 ctest --preset x64-debug -R "distinct error codes" --output-on-failure
 ctest --preset x64-debug -R "thirteen Write-mode collisions" --output-on-failure
 
-# Suites that do not exist yet, named here so the shape is on record:
 ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash (Stage 3)
 ctest --preset x64-release -R roundtrip         # incremental save keeps untouched bytes (Stage 3)
 ```
@@ -169,10 +171,12 @@ core/       the domain. Builds and tests headless: no display, no PDF engine
 pdf/        the only layer that may emit PDF bytes or call FPDF_*
 platform/   platform.h interfaces + win/, the only OS-specific code
 cmake/      the pinned toolchain and shared build modules
-tools/      layer-lint + license-audit + i18n-lint (live); mutation-lint (Stage 3)
+tools/      the four gates: layer-lint, license-audit, i18n-lint, mutation-lint
             ribbon-validate -- res/ribbon.json's build-time check. NOT a gate: `checks`
-            runs three and says three; this one is a build step ui/ depends on
-tests/      unit, gates, ui, platform, bench (live); golden, roundtrip, fuzz (later stages)
+            runs four and says four; this one is a build step ui/ depends on
+            golden-update -- the only producer of golden/; cjk-coverage -- a checked generator
+tests/      unit, platform, ui, render, golden, composition, roundtrip, gates, fuzz, bench
+            (Implementation-Plan.md §2.1 says why each test target is separate)
             a bench REPORTS a figure -- its exit code says whether the measurement was
             possible, never whether the machine was fast
 corpus/     test PDFs (data)          golden/  reference rasters (data)
