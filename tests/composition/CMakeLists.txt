@@ -79,6 +79,10 @@ add_executable(rawpage_composition_tests
     # S6 T10 -- guide A-34/A-35 through the stamp tool, A-77's ink (each image against its source at one pixel a
     # pixel, on the golden thresholds) and A-80's (a resized and turned stamp's ink inside its rectangle).
     tst_stampink.cpp
+    # S6 T11 -- guide A-85 (an attached PDF opened from its bytes, a text file asked first and landing in the session
+    # folder, an executable refused, the folder emptied at the clean quit), A-83 through the pane and the pushpin
+    # tool, A-74's attachment clause through the REAL find bar.
+    tst_attachmentproduct.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp

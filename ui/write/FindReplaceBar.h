@@ -173,6 +173,8 @@ signals:
     void hitActivated(int page, core::PdfRect rect);
     // S6 T9 (D6-11): a comment hit names the annotation it is in (its unit's locator), and the window selects it.
     void annotationHitActivated(const QString& locator);
+    // S6 T11 (D6-11): an attachment hit is current -- `name` is the embedded file's name, its search locator.
+    void attachmentHitActivated(const QString& name);
     // A bookmark hit (T8): the document window goes to the bookmark's destination, as the Bookmarks pane does.
     void destinationActivated(const core::Destination& destination);
     // Closed by `Esc` or its button: the window gives the focus back to the page.

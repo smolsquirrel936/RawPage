@@ -76,6 +76,67 @@ std::optional<StampImage> imageFromJson(const QJsonValue& value)
     return image;
 }
 
+} // namespace
+
+// ---- Stage 6 T11: an embedded file ------------------------------------------------------------------
+
+QJsonObject EmbeddedFile::toJson() const
+{
+    QJsonObject json;
+    json.insert(QStringLiteral("name"), name);
+    if (!description.isEmpty()) json.insert(QStringLiteral("description"), description);
+    if (!mime.isEmpty()) json.insert(QStringLiteral("mime"), mime);
+    if (size >= 0) json.insert(QStringLiteral("size"), static_cast<qint64>(size));
+    if (!created.raw.isEmpty()) json.insert(QStringLiteral("created"), created.raw);
+    if (!modified.raw.isEmpty()) json.insert(QStringLiteral("modified"), modified.raw);
+    if (!checksum.isEmpty()) json.insert(QStringLiteral("checksum"), QString::fromLatin1(checksum.toHex()));
+    if (carried) json.insert(QStringLiteral("data"), QString::fromLatin1(data.toBase64()));
+    return json;
+}
+
+Result<EmbeddedFile> EmbeddedFile::fromJson(const QJsonObject& json)
+{
+    EmbeddedFile file;
+    const auto text = [&json](const char* key, QString& out) {
+        const QJsonValue value = json.value(QLatin1String(key));
+        if (value.isUndefined()) return true;
+        if (!value.isString()) return false;
+        out = value.toString();
+        return true;
+    };
+    QString created, modified, checksum;
+    if (!text("name", file.name) || file.name.isEmpty() || !text("description", file.description)
+        || !text("mime", file.mime) || !text("created", created) || !text("modified", modified) || !text("checksum", checksum))
+        return malformed(QStringLiteral("attachment fields"));
+    if (!created.isEmpty()) file.created = PdfDate::parse(created);
+    if (!modified.isEmpty()) file.modified = PdfDate::parse(modified);
+    if (!checksum.isEmpty()) {
+        const QByteArray hex = checksum.toLatin1();
+        file.checksum = QByteArray::fromHex(hex);
+        if (hex.size() != 32 || file.checksum.size() != 16 || file.checksum.toHex() != hex.toLower())
+            return malformed(QStringLiteral("attachment checksum"));
+    }
+    if (const QJsonValue size = json.value(QStringLiteral("size")); !size.isUndefined()) {
+        // A whole number of bytes a double holds exactly -- a hostile line's 1e300 is not a size.
+        const double value = size.toDouble(-1.0);
+        if (!size.isDouble() || value < 0.0 || value > 9.0e15 || value != std::floor(value))
+            return malformed(QStringLiteral("attachment size"));
+        file.size = static_cast<long long>(value);
+    }
+    if (const QJsonValue data = json.value(QStringLiteral("data")); !data.isUndefined()) {
+        if (!data.isString()) return malformed(QStringLiteral("attachment data"));
+        auto decoded = QByteArray::fromBase64Encoding(data.toString().toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+        if (!decoded) return malformed(QStringLiteral("attachment data"));
+        file.data = std::move(*decoded);
+        file.carried = true;
+        // A file RawPage attached says its own length, and a line that disagrees is not one RawPage wrote.
+        if (file.size != static_cast<long long>(file.data.size())) return malformed(QStringLiteral("attachment size"));
+    }
+    return file;
+}
+
+namespace {
+
 std::vector<double> numbersFromJson(const QJsonValue& value)
 {
     std::vector<double> out;
@@ -384,6 +445,7 @@ QJsonObject Annotation::toJson() const
     if (justification != 0) json.insert(QStringLiteral("justification"), justification);
     if (hasAppearance) json.insert(QStringLiteral("hasAppearance"), true);
     if (!image.isEmpty()) json.insert(QStringLiteral("image"), imageToJson(image));
+    if (attachment) json.insert(QStringLiteral("attachment"), attachment->toJson());
     return json;
 }
 
@@ -469,6 +531,13 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
         const std::optional<StampImage> image = imageFromJson(json.value(QStringLiteral("image")));
         if (!image) return malformed(QStringLiteral("annotation image"));
         a.image = *image;
+    }
+    if (json.contains(QStringLiteral("attachment"))) {
+        const QJsonValue value = json.value(QStringLiteral("attachment"));
+        if (!value.isObject()) return malformed(QStringLiteral("annotation attachment"));
+        Result<EmbeddedFile> file = EmbeddedFile::fromJson(value.toObject());
+        if (!file) return file.error();
+        a.attachment = std::move(file).value();
     }
     return a;
 }

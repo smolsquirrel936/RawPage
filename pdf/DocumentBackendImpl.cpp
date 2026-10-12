@@ -2,10 +2,13 @@
 
 #include "core/Log.h"
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/Attachments.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/Permissions.h"
 #include "core/text/SearchUnit.h"
 #include "pdf/ops/AnnotationReader.h"
+#include "pdf/ops/AttachmentFiles.h"
+#include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/TransitionReader.h"
@@ -85,6 +88,10 @@ struct DocumentBackendImpl::Open {
     // S6 T2 (D6-3). Every annotation, read first-party off the same walk; refused, with the reason, for
     // a document that walk could not read.
     core::AnnotationStore annotations;
+    // S6 T11 (D6-17). The files attached to the document as a whole, read off the same walk -- never their bytes.
+    core::Attachments attachments;
+    // S6 T11: opened from bytes (`openBytes`) -- an attached PDF, read-only until it is saved as a file of its own.
+    bool fromBytes = false;
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
@@ -143,6 +150,9 @@ struct DocumentBackendImpl::Opening {
     Stage stage = Stage::Read;
     std::unique_ptr<render::PdfiumDocument::Opening> engine;
     std::unique_ptr<render::PdfiumDocument> document;   // taken from `engine` when it is done
+    // S6 T11: `openBytes` -- the bytes are given, so the read is no read, and the document names no file.
+    std::optional<QByteArray> bytes;
+    bool fromBytes = false;
 };
 
 core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path,
@@ -214,6 +224,15 @@ core::Result<core::OpenProgress> DocumentBackendImpl::continueOpen(core::Opening
 
     switch (opening->stage) {
     case Opening::Stage::Read: {
+        if (opening->bytes) {
+            // S6 T11: bytes already in hand -- an attached PDF -- and `path` is the name it is shown by.
+            opening->engine = std::make_unique<render::PdfiumDocument::Opening>(std::move(*opening->bytes), opening->path,
+                                                                                opening->password);
+            opening->bytes.reset();
+            opening->stage = Opening::Stage::Engine;
+            progress.nextNeedsEngine = opening->engine->nextNeedsEngine();
+            return progress;
+        }
         const QFileInfo info(opening->path);
         if (!info.exists() || !info.isFile())
             return refuse(core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), opening->path});
@@ -261,10 +280,36 @@ core::Result<core::OpenProgress> DocumentBackendImpl::continueOpen(core::Opening
     return refuse(core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument")});
 }
 
+core::Result<core::DocumentHandle> DocumentBackendImpl::openBytes(const QByteArray& bytes, const QString& name,
+                                                                  const core::PasswordCallback& password)
+{
+    // `open()`'s pieces, the read skipped: one open, as `open()` itself is (S5 T9).
+    auto opening = std::make_unique<Opening>();
+    opening->path = name;
+    opening->password = password;
+    opening->bytes = bytes;
+    opening->fromBytes = true;
+    core::OpeningId id = 0;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        id = nextOpening_++;
+        openings_.emplace(id, std::move(opening));
+    }
+    core::OpenProgress progress;
+    progress.opening = id;
+    while (!progress.done) {
+        const core::Result<core::OpenProgress> next = continueOpen(id);
+        if (!next) return next.error();
+        progress = next.value();
+    }
+    return progress.handle;
+}
+
 core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& opening)
 {
     const QString& path = opening.path;
     auto entry = std::make_unique<Open>();
+    entry->fromBytes = opening.fromBytes;
     entry->document = std::move(opening.document);
     entry->rasterizer = std::make_unique<render::PdfiumRasterizer>(*entry->document);
 
@@ -274,8 +319,8 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
     // and a file rewritten between the read and the stat would carry the new time with the old hash --
     // which makes the pair disagree with the disk, the conservative direction for D3-16's check.
     entry->bytes = entry->document->bytes();
-    entry->id = core::DocumentId::of(
-        path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);
+    entry->id = entry->fromBytes ? core::DocumentId::of(QString(), 0, entry->bytes)
+                                 : core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);
 
     // The FIRST-PARTY reading of the same bytes, through the sink that would carry any edit. Its page
     // walk and the engine's page tree must agree before editing is allowed: a rotation lands on the
@@ -316,6 +361,15 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
         // a document that has none.
         for (ops::EmbeddedFileEntry& file : ops::EmbeddedFileReader::read(sink.value()->table()))
             entry->attachmentDescriptions.emplace_back(std::move(file.name), std::move(file.description));
+        // S6 T11 (D6-17): the same tree as the model holds it -- names, types, sizes and dates, never the bytes.
+        entry->attachments = core::Attachments::fromReading(ops::EmbeddedFileReader::attachments(sink.value()->table()));
+    }
+    if (!sink) {
+        // S6 T11: a document the first-party reader declines has no attachments to list -- and says why.
+        entry->attachments = core::Attachments::refused(core::Error{
+            core::ErrorCode::PermissionDenied,
+            reading == core::CosReading::Encrypted ? QLatin1String("error.edit.encrypted") : QLatin1String("error.edit.noPageMap"),
+            QString()});
     }
     entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
 
@@ -334,7 +388,11 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
                                                     : QLatin1String("error.edit.noPageMap"),
             QString()});
     }
-    if (sink && entry->permissions.canEditPages())
+    // S6 T11: a document from bytes is never edited -- its permissions say so by key -- and keeps its sink all the
+    // same, so a Save As writes it, unchanged, to a file of its own (`RevisionWriter`: a save of an unchanged file
+    // is a copy).
+    if (entry->fromBytes) entry->permissions = core::Permissions::readOnly("error.edit.attachmentCopy");
+    if (sink && (entry->permissions.canEditPages() || entry->fromBytes))
         entry->sink = std::move(sink).value();
 
     const std::lock_guard<std::mutex> guard(mutex_);
@@ -356,6 +414,49 @@ const core::AnnotationStore* DocumentBackendImpl::annotations(core::DocumentHand
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
     return entry != nullptr ? &entry->annotations : nullptr;
+}
+
+const core::Attachments* DocumentBackendImpl::attachments(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry != nullptr ? &entry->attachments : nullptr;
+}
+
+// THE LOCK IS HELD ONLY TO FIND THE ENTRY, `writeRevision`'s arrangement: decoding a large attachment is the
+// caller's thread's work, and the entry is destroyed only by `close()`, which the same thread calls.
+core::Result<QByteArray> DocumentBackendImpl::attachmentData(core::DocumentHandle document,
+                                                             const core::AttachmentRef& attachment)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr) {
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                           QString::number(static_cast<qulonglong>(document.id))};
+    }
+    // With a sink, the document as it stands now -- an attachment not yet saved included.
+    if (entry->sink) return entry->sink->attachmentData(attachment);
+    // Without one, the bytes it was opened from, through a table loaded for the call: the first-party reader is
+    // what reads an embedded file's stream, and a document it declines (encrypted) has none to give.
+    auto opened = cos::openWithRepair(std::string_view(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size())));
+    if (!opened) return opened.error();
+    return ops::AttachmentFiles::read(opened.value().table, attachment);
+}
+
+core::Status DocumentBackendImpl::extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,
+                                                    const QString& path, bool overwrite)
+{
+    core::Result<QByteArray> bytes = attachmentData(document, attachment);
+    if (!bytes) return bytes.error();
+    if (const core::Status written = ops::AttachmentFiles::write(bytes.value(), path, overwrite); !written)
+        return written;
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+        << "backend: wrote an attachment of handle" << static_cast<int>(document.id) << "to" << path << "("
+        << bytes.value().size() << "bytes)";
+    return core::Status{};
 }
 
 // THE CALLER'S PROTOCOL, because a mutex cannot express it: before closing, cancel the document's

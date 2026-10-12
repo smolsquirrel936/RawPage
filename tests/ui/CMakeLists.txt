@@ -157,6 +157,8 @@ add_executable(rawpage_ui_tests
                                #   the query (A-67), the identity's checkmark (A-69), deletes (A-71), numbers (A-72)
     tst_stamps.cpp             # Stage 6 T10 -- Ctrl+Alt+S, the palette over a SCRATCH library, the custom-stamp
                                #   dialog (A-78), the bar's turn (A-80), an image pasted and Ctrl+V kept (A-81)
+    tst_attachments.cpp        # Stage 6 T11 -- the Attachments pane: Ctrl+Shift+A, both kinds listed, a pane that
+                               #   never widens its window, convention 16's disabling, a pushpin deleted with its pop-up
 
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the

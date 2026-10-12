@@ -1523,6 +1523,22 @@
         <source>action.comment.numbering</source>
         <translation>為註解編號</translation>
     </message>
+    <message>
+        <source>action.attachment.open</source>
+        <translation>開啟附件</translation>
+    </message>
+    <message>
+        <source>action.attachment.extract</source>
+        <translation>另存附件...</translation>
+    </message>
+    <message>
+        <source>action.attachment.add</source>
+        <translation>新增附件...</translation>
+    </message>
+    <message>
+        <source>action.attachment.delete</source>
+        <translation>刪除附件</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2286,6 +2302,14 @@
         <source>shell.tooltip.needsClipboardImage</source>
         <translation>請先複製影像</translation>
     </message>
+    <message>
+        <source>shell.tooltip.needsAttachment</source>
+        <translation>請先在「附件」窗格中選取附件。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolAttachFile</source>
+        <translation>%1：按一下要釘上檔案的位置，再選擇檔案。</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -2904,6 +2928,74 @@
     <message>
         <source>error.stamps.writeFailed</source>
         <translation>無法寫入印章庫（%1）</translation>
+    </message>
+    <message>
+        <source>error.attachment.notRead</source>
+        <translation>此文件的附件尚未讀取。</translation>
+    </message>
+    <message>
+        <source>error.attachment.noName</source>
+        <translation>附加檔案必須有名稱。</translation>
+    </message>
+    <message>
+        <source>error.attachment.duplicateKey</source>
+        <translation>文件中已有名為 %1 的附件。</translation>
+    </message>
+    <message>
+        <source>error.attachment.unknown</source>
+        <translation>文件中沒有此附件：%1</translation>
+    </message>
+    <message>
+        <source>error.attachment.noData</source>
+        <translation>附件 %1 不含任何檔案。</translation>
+    </message>
+    <message>
+        <source>error.attachment.notEmbedded</source>
+        <translation>此附件指向文件外部的檔案，因此沒有可開啟的內容。</translation>
+    </message>
+    <message>
+        <source>error.attachment.undecodable</source>
+        <translation>附加檔案已損毀，無法讀取 (%1)。</translation>
+    </message>
+    <message>
+        <source>error.attachment.exists</source>
+        <translation>%1 已有檔案。</translation>
+    </message>
+    <message>
+        <source>error.attachment.writeFailed</source>
+        <translation>無法將附件寫入 %1。</translation>
+    </message>
+    <message>
+        <source>error.attachment.executable</source>
+        <translation>%1 是程式或指令碼，RawPage 不會開啟此類檔案。</translation>
+    </message>
+    <message>
+        <source>error.attachment.cancelled</source>
+        <translation>已取消。</translation>
+    </message>
+    <message>
+        <source>error.attachment.noSessionFolder</source>
+        <translation>本工作階段沒有可供開啟 %1 的資料夾。</translation>
+    </message>
+    <message>
+        <source>error.attachment.noShell</source>
+        <translation>Windows 無法開啟 %1。</translation>
+    </message>
+    <message>
+        <source>error.attachment.tooLarge</source>
+        <translation>%1 超過 256 MB，這是 RawPage 可附加的最大檔案。</translation>
+    </message>
+    <message>
+        <source>error.attachment.unreadable</source>
+        <translation>無法讀取 %1。</translation>
+    </message>
+    <message>
+        <source>error.edit.attachmentCopy</source>
+        <translation>此附加的 PDF 以唯讀方式開啟。請另存為獨立檔案後再修改。</translation>
+    </message>
+    <message>
+        <source>error.recovery.sideFile</source>
+        <translation>復原日誌所指的檔案遺失或已損毀 (%1)。</translation>
     </message>
 </context>
 <context>
@@ -3890,6 +3982,22 @@
         <source>command.annot.checkmarkMany</source>
         <translation>變更 %1 個核取記號</translation>
     </message>
+    <message>
+        <source>command.attachment.add</source>
+        <translation>新增附件</translation>
+    </message>
+    <message>
+        <source>command.attachment.addMany</source>
+        <translation>新增 %1 個附件</translation>
+    </message>
+    <message>
+        <source>command.attachment.delete</source>
+        <translation>刪除附件</translation>
+    </message>
+    <message>
+        <source>command.attachment.deleteMany</source>
+        <translation>刪除 %1 個附件</translation>
+    </message>
 </context>
 <context>
     <name>panes</name>
@@ -3940,6 +4048,10 @@
     <message>
         <source>panes.comments.unreadable</source>
         <translation>無法讀取此文件的註解：%1</translation>
+    </message>
+    <message>
+        <source>panes.attachments.title</source>
+        <translation>附件</translation>
     </message>
 </context>
 <context>
@@ -4820,6 +4932,105 @@
     <message>
         <source>stamps.name.Revised</source>
         <translation>已修訂</translation>
+    </message>
+</context>
+<context>
+    <name>attachments</name>
+    <message>
+        <source>attachments.column.name</source>
+        <translation>名稱</translation>
+    </message>
+    <message>
+        <source>attachments.column.description</source>
+        <translation>描述</translation>
+    </message>
+    <message>
+        <source>attachments.column.size</source>
+        <translation>大小</translation>
+    </message>
+    <message>
+        <source>attachments.column.modified</source>
+        <translation>修改日期</translation>
+    </message>
+    <message>
+        <source>attachments.column.where</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>attachments.where.document</source>
+        <translation>文件</translation>
+    </message>
+    <message>
+        <source>attachments.where.page</source>
+        <translation>第 %1 頁</translation>
+    </message>
+    <message>
+        <source>attachments.size.unknown</source>
+        <translation>未知</translation>
+    </message>
+    <message>
+        <source>attachments.noDocument</source>
+        <translation>開啟文件以檢視其附件。</translation>
+    </message>
+    <message>
+        <source>attachments.unavailable</source>
+        <translation>無法讀取附件：%1</translation>
+    </message>
+    <message>
+        <source>attachments.empty</source>
+        <translation>此文件沒有附加檔案。</translation>
+    </message>
+    <message>
+        <source>attachments.count</source>
+        <translation>%1 個附加檔案</translation>
+    </message>
+    <message>
+        <source>attachments.add.title</source>
+        <translation>附加檔案</translation>
+    </message>
+    <message>
+        <source>attachments.filter.any</source>
+        <translation>所有檔案 (*)</translation>
+    </message>
+    <message>
+        <source>attachments.refused.executable</source>
+        <translation>%1 是程式或指令碼。RawPage 不會開啟可執行的檔案。</translation>
+    </message>
+    <message>
+        <source>attachments.opened.copy</source>
+        <translation>%1 已以唯讀方式開啟。另存新檔後即成為獨立的檔案。</translation>
+    </message>
+    <message>
+        <source>attachments.ask.title</source>
+        <translation>開啟附加檔案</translation>
+    </message>
+    <message>
+        <source>attachments.ask.body</source>
+        <translation>%1 將寫入暫存資料夾，並以 Windows 為其指定的程式開啟。請只在您信任此文件時開啟。</translation>
+    </message>
+    <message>
+        <source>attachments.extract.title</source>
+        <translation>另存附件</translation>
+    </message>
+    <message>
+        <source>attachments.extracted</source>
+        <translation>已儲存 %1</translation>
+    </message>
+    <message>
+        <source>attachments.button.open</source>
+        <translation>開啟</translation>
+    </message>
+    <message>
+        <source>attachments.button.extract</source>
+        <translation>儲存</translation>
+    </message>
+    <message>
+        <source>attachments.button.add</source>
+        <translation>新增</translation>
+    </message>
+    <message>
+        <source>attachments.button.delete</source>
+        <translation>刪除</translation>
     </message>
 </context>
 </TS>

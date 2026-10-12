@@ -138,6 +138,36 @@ struct StampImage {
     bool operator==(const StampImage&) const = default;
 };
 
+// ONE EMBEDDED FILE AS THE MODEL HOLDS IT (Stage 6 T11, D6-17) -- what a file specification with an `/EF` says
+// about the file it carries: its name, description, type, size, dates and checksum. Declared HERE rather than in
+// `core/doc/Attachments` because a `FileAttachment` annotation carries one too (its `/FS`), and the annotation is
+// the more basic of the two. **`data` is held only for a file RawPage ATTACHES** -- the command that attaches it
+// carries the bytes, so a replay and an undo attach the same file; one READ from a document is the document's,
+// and its bytes are read from the file when they are asked for (`IDocumentBackend::attachmentData`), never
+// copied into the model: a 50 MB attachment nobody opens costs nothing.
+struct EmbeddedFile {
+    QString name;                        // the file specification's /UF, else /F
+    QString description;                 // /Desc
+    QString mime;                        // the embedded stream's /Subtype, as a MIME type; empty when absent
+    long long size = -1;                 // /Params /Size, -1 when absent -- an attached file's own length
+    PdfDate created;                     // /Params /CreationDate
+    PdfDate modified;                    // /Params /ModDate
+    QByteArray checksum;                 // /Params /CheckSum: the bytes' MD5, raw; empty when absent
+    // The bytes, for a file RawPage attaches -- see above. `carried` says they are held: a file RawPage attaches may
+    // be empty. A flag and a plain array rather than `std::optional<QByteArray>`, on which GCC 13.1 reports a
+    // `maybe-uninitialized` copy that cannot happen, fatal under `-Werror`.
+    QByteArray data;
+    bool carried = false;
+
+    // `{"name", "description", "mime", "size", "created", "modified", "checksum" (hex), "data" (base64)}`, each
+    // only when set. `fromJson(toJson(f)) == f`. Refused: no name, a size that disagrees with the bytes, a
+    // checksum that is not sixteen bytes, bytes that are not base64.
+    QJsonObject toJson() const;
+    static Result<EmbeddedFile> fromJson(const QJsonObject& json);
+
+    bool operator==(const EmbeddedFile&) const = default;
+};
+
 struct Annotation {
     AnnotationId id;
     AnnotationSubtype subtype = AnnotationSubtype::Unknown;
@@ -197,6 +227,8 @@ struct Annotation {
     int justification = 0;                      // /Q, free text: 0 left, 1 centred, 2 right (Stage 6 T7)
     bool hasAppearance = false;                 // /AP present
     StampImage image;                           // Stage 6 T10: an image stamp's pixels -- never read from a file
+    // Stage 6 T11: a FileAttachment's `/FS` -- the file it carries, its bytes only when RawPage attached it.
+    std::optional<EmbeddedFile> attachment;
 
     bool hasFlag(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }
     // A reply that carries a review or marked state rather than text (ISO 32000-1 §12.5.6.3).

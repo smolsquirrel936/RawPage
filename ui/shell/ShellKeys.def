@@ -73,6 +73,7 @@ RAWPAGE_SHELL_STRING(PanesDestinationsUnresolved, "panes.destinations.unresolved
 RAWPAGE_SHELL_STRING(PanesCommentsTitle, "panes.comments.title")
 RAWPAGE_SHELL_STRING(PanesCommentsEmpty, "panes.comments.empty")
 RAWPAGE_SHELL_STRING(PanesCommentsUnreadable, "panes.comments.unreadable")
+RAWPAGE_SHELL_STRING(PanesAttachmentsTitle, "panes.attachments.title")   // S6 T11
 
 // --- The status bar ----------------------------------------------------------------------------
 RAWPAGE_SHELL_STRING(StatusReady,            "shell.status.ready")
@@ -146,6 +147,7 @@ RAWPAGE_SHELL_STRING(TooltipNeedsWindows,       "shell.tooltip.needsWindows")
 // where it falls through to Common, which is §8's row doing its job (D5-9).
 RAWPAGE_SHELL_STRING(TooltipNeedsSelection,     "shell.tooltip.needsSelection")
 RAWPAGE_SHELL_STRING(TooltipNeedsComment, "shell.tooltip.needsComment")
+RAWPAGE_SHELL_STRING(TooltipNeedsAttachment, "shell.tooltip.needsAttachment")   // S6 T11
 // S6 T8: `Enter` with no polygon in progress; `Ctrl+Alt+Enter` with no tool armed and nothing selected.
 RAWPAGE_SHELL_STRING(TooltipNeedsShapeInProgress, "shell.tooltip.needsShapeInProgress")
 // S6 T10: `annot.customStamp` in a window composed with no stamp library; `edit.paste` with no image
@@ -416,6 +418,7 @@ RAWPAGE_SHELL_STRING(StatusAnnotationToolShape,      "shell.status.annotationToo
 RAWPAGE_SHELL_STRING(StatusAnnotationToolPolygon,    "shell.status.annotationToolPolygon")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolPencil,     "shell.status.annotationToolPencil")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolEraser,     "shell.status.annotationToolEraser")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolAttachFile, "shell.status.annotationToolAttachFile")   // S6 T11
 RAWPAGE_SHELL_STRING(StatusToolDefaultsWritten,      "shell.status.toolDefaultsWritten")
 
 // --- Advanced Search (S5 T9, D5-13) -- `ui/panes/SearchPane`, the same `search.` family ---------------
@@ -639,5 +642,33 @@ RAWPAGE_SHELL_STRING(StampsNameForPublicRelease, "stamps.name.ForPublicRelease")
 RAWPAGE_SHELL_STRING(StampsNameReviewed, "stamps.name.Reviewed")
 RAWPAGE_SHELL_STRING(StampsNameReceived, "stamps.name.Received")
 RAWPAGE_SHELL_STRING(StampsNameRevised, "stamps.name.Revised")
+
+// --- The Attachments pane and its questions (S6 T11, D6-17) -- a new family, `attachments.` ---------------------
+// A new namespace, as `stamps.` was at T10, added to `tools/i18n-lint/rules.json` in the same change. Its plural is
+// not the action ids' singular -- `attachment.open` is an ActionId and never a key (Stage 5's I-08).
+RAWPAGE_SHELL_STRING(AttachmentsColumnName, "attachments.column.name")
+RAWPAGE_SHELL_STRING(AttachmentsColumnDescription, "attachments.column.description")
+RAWPAGE_SHELL_STRING(AttachmentsColumnSize, "attachments.column.size")
+RAWPAGE_SHELL_STRING(AttachmentsColumnModified, "attachments.column.modified")
+RAWPAGE_SHELL_STRING(AttachmentsColumnWhere, "attachments.column.where")
+RAWPAGE_SHELL_STRING(AttachmentsWhereDocument, "attachments.where.document")
+RAWPAGE_SHELL_STRING(AttachmentsWherePage, "attachments.where.page")
+RAWPAGE_SHELL_STRING(AttachmentsSizeUnknown, "attachments.size.unknown")
+RAWPAGE_SHELL_STRING(AttachmentsNoDocument, "attachments.noDocument")
+RAWPAGE_SHELL_STRING(AttachmentsUnavailable, "attachments.unavailable")
+RAWPAGE_SHELL_STRING(AttachmentsEmpty, "attachments.empty")
+RAWPAGE_SHELL_STRING(AttachmentsCount, "attachments.count")
+RAWPAGE_SHELL_STRING(AttachmentsAddTitle, "attachments.add.title")
+RAWPAGE_SHELL_STRING(AttachmentsAnyFileFilter, "attachments.filter.any")
+RAWPAGE_SHELL_STRING(AttachmentsRefusedExecutable, "attachments.refused.executable")
+RAWPAGE_SHELL_STRING(AttachmentsOpenedCopy, "attachments.opened.copy")
+RAWPAGE_SHELL_STRING(AttachmentsAskOpenTitle, "attachments.ask.title")
+RAWPAGE_SHELL_STRING(AttachmentsAskOpenBody, "attachments.ask.body")
+RAWPAGE_SHELL_STRING(AttachmentsExtractTitle, "attachments.extract.title")
+RAWPAGE_SHELL_STRING(AttachmentsExtracted, "attachments.extracted")
+RAWPAGE_SHELL_STRING(AttachmentsButtonOpen, "attachments.button.open")
+RAWPAGE_SHELL_STRING(AttachmentsButtonExtract, "attachments.button.extract")
+RAWPAGE_SHELL_STRING(AttachmentsButtonAdd, "attachments.button.add")
+RAWPAGE_SHELL_STRING(AttachmentsButtonDelete, "attachments.button.delete")
 
 #undef RAWPAGE_SHELL_STRING

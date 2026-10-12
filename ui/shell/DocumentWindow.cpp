@@ -4,6 +4,7 @@
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
 #include "core/cmd/RecoveryJournal.h"
+#include "core/doc/Attachments.h"
 #include "core/doc/Document.h"
 #include "core/doc/PageTree.h"
 #include "core/settings/Settings.h"
@@ -29,6 +30,7 @@
 #include <QGridLayout>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QStandardPaths>
 #include <QVBoxLayout>
 
 #include <optional>
@@ -93,6 +95,16 @@ DocumentWindow::DocumentWindow(app::Services services, core::DocumentHandle hand
     sourcePath_ = recovery.sourcePath;
     path_ = recovery.untitled ? QString() : recovery.sourcePath;
     build(&recovery);
+}
+
+DocumentWindow::DocumentWindow(app::Services services, core::DocumentHandle handle, const AttachmentCopy& copy,
+                               QWidget* parent)
+    : QWidget(parent), services_(services), handle_(handle)
+{
+    // No path and no source: no file stands behind it. Its journal refuses every command by the backend's
+    // permissions, so `isEditable()` is false and no recovery journal is opened (`build`).
+    attachmentName_ = copy.name;
+    build(nullptr);
 }
 
 DocumentWindow::DocumentWindow(app::Services services, QString path, core::DocumentHandle handle,
@@ -332,6 +344,8 @@ void DocumentWindow::build(const Recovery* recovery)
         if (!id || annotations_ == nullptr || annotations_->store() == nullptr || !annotations_->store()->find(*id)) return;
         annotations_->select({*id});
     });
+    // AN ATTACHMENT HIT (S6 T11, D6-11) is the window's to select in its Attachments pane.
+    connect(findBar_, &FindReplaceBar::attachmentHitActivated, this, &DocumentWindow::attachmentHitActivated);
     // A BOOKMARK HIT (S5 T8, D5-12) goes where the bookmark goes -- the Bookmarks pane's own path.
     connect(findBar_, &FindReplaceBar::destinationActivated, this, [this](const core::Destination& destination) {
         setReflowing(false);
@@ -452,7 +466,8 @@ void DocumentWindow::build(const Recovery* recovery)
                 const QString root = core::RecoveryJournal::resolveRoot(
                     services_.settings.get(core::keys::documents::recoveryDir), services_.recoveryRoot);
                 recovery_ = core::RecoveryJournal::open(root, sourcePath_, journal_->document().id(),
-                                                        services_.platform.durableFiles.get(), seedLines, isUntitled());
+                                                        services_.platform.durableFiles.get(), seedLines, isUntitled(),
+                                                        recovery ? recovery->directory : QString());   // S6 T11: side files
                 journal_->setRecorder(recovery_.get());
             }
             journal_->subscribeMutated([this](const core::Scope& scope) {
@@ -1180,6 +1195,10 @@ core::Result<core::SaveOutcome> DocumentWindow::saveAs(const QString& target)
 
 QString DocumentWindow::suggestedSavePath() const
 {
+    // S6 T11: an attached PDF is proposed under its own name in the person's documents folder -- it has no file to
+    // stand beside.
+    if (isAttachmentCopy())
+        return QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath(core::safeFileName(attachmentName_));
     if (!isUntitled())
         return path_;
     const QFileInfo source(sourcePath_);
@@ -1206,6 +1225,7 @@ QString DocumentWindow::title() const
 {
     const QFileInfo info(path_);
     const QString name = info.fileName();
+    if (name.isEmpty() && !attachmentName_.isEmpty()) return attachmentName_;   // S6 T11
     return name.isEmpty() ? catalog::translate(catalog::key::DocumentUntitled) : name;
 }
 

@@ -495,9 +495,11 @@ void FindReplaceBar::showCurrent(bool reveal)
             if (hit.unit->destination.pageIndex >= 0) emit destinationActivated(hit.unit->destination);
             break;
         case core::text::ContentClass::Attachments:
-            // SELECTED, AND NOTHING OPENS (D5-12): the status line names the file; opening it is Stage 6's.
-            // (Until T14 this `break` sat at the end of the comment line above, so the case fell through to
+            // SELECTED, AND NOTHING OPENS (D5-12): the status line names the file. Since S6 T11 (D6-11) the hit
+            // selects the file in the Attachments pane -- its locator is the file's name -- and still opens nothing.
+            // (Until S5 T14 this `break` sat at the end of the comment line above, so the case fell through to
             // `default:` -- harmless only because an attachment hit has no rectangle on any page.)
+            emit attachmentHitActivated(hit.unit->locator);
             break;
         default:
             // Page text, a comment, a field: the page and the rectangle.

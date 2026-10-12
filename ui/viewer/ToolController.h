@@ -62,6 +62,7 @@
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 #include "ui/viewer/tools/NoteTool.h"
 #include "ui/viewer/tools/StampTool.h"
+#include "ui/viewer/tools/AttachFileTool.h"
 #include "ui/viewer/tools/TypewriterTool.h"
 #include "ui/viewer/tools/SelectTool.h"
 #include "ui/viewer/tools/SnapshotTool.h"
@@ -201,6 +202,7 @@ private:
     DrawingTool     drawing_;    // S6 T8: line, arrow, rectangle, oval, polygon, polyline, cloud
     InkTool         ink_;        // S6 T8: the pencil and the eraser
     StampTool       stamp_;      // S6 T10: places the palette's stamp
+    AttachFileTool  attach_;     // S6 T11: a pushpin carrying a file
     AnnotationToolKind annotationKind_ = AnnotationToolKind::Highlight;
     bool            keepToolSelected_ = false;
 

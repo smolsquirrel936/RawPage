@@ -70,6 +70,8 @@ add_library(rawpage_core STATIC
     # first; the rest of the eleven arrive with the tasks that need them (Stage6-Annotations-Plan.md §4).
     cmd/commands/AnnotationCommands.h
     cmd/commands/AnnotationCommands.cpp
+    cmd/commands/AttachmentCommands.h
+    cmd/commands/AttachmentCommands.cpp
 
     # Stage 3 T9 (D3-11): what the journal tells a durable recorder, and the recorder -- the recovery
     # directory, one flushed line per operation, discovery and replay by undo step.
@@ -166,6 +168,8 @@ add_library(rawpage_core STATIC
     # stamp's baked lines and an image stamp's pixels. Pure; pdf/ops/AppearanceStreamBuilder draws it.
     doc/Stamps.h
     doc/Stamps.cpp
+    doc/Attachments.h
+    doc/Attachments.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

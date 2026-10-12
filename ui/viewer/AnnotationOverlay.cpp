@@ -3,6 +3,8 @@
 
 #include "ui/viewer/AnnotationOverlay.h"
 
+#include "core/doc/Attachments.h"
+
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/DrawnShapes.h"
@@ -10,6 +12,8 @@
 #include "core/text/TextSelection.h"
 #include "ui/viewer/SelectionOverlay.h"
 
+#include <QFileInfo>
+#include <QFile>
 #include <QDateTime>
 #include <QFontMetricsF>
 #include <QGuiApplication>
@@ -773,6 +777,42 @@ core::Status AnnotationOverlay::addNote(int page, core::PdfPoint at, const QStri
     popup.parent = note.id;
     note.popup = popup.id;
     return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(note), std::move(popup)}));
+}
+
+// ---- A file attached on the page (S6 T11) -----------------------------------------------------------
+
+bool AnnotationOverlay::attachFileAt(int page, core::PdfPoint at)
+{
+    if (!fileChooser_) return false;
+    const std::optional<QString> path = fileChooser_();
+    if (!path || path->isEmpty()) return false;
+    if (const core::Status made = addFileAttachment(page, at, *path); !made) {
+        reportRefusal(made.error());
+        return false;
+    }
+    return true;
+}
+
+core::Status AnnotationOverlay::addFileAttachment(int page, core::PdfPoint at, const QString& path)
+{
+    // READ ONCE, NOW: the bytes are the command's (D6-17). The size is asked before the read, so a file too large
+    // to carry is refused without reading it.
+    QFile file(path);
+    const QString name = QFileInfo(path).fileName();
+    if (file.size() > core::kMaxAttachmentBytes)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.tooLarge"), name};
+    if (!file.open(QIODevice::ReadOnly))
+        return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.attachment.unreadable"), name};
+    QByteArray bytes = file.readAll();
+    file.close();
+    if (bytes.size() > core::kMaxAttachmentBytes)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.tooLarge"), name};
+
+    const core::PdfRect rect{core::PdfPoint{at.x - kPushPinWidth / 2.0, at.y}, core::PdfSize{kPushPinWidth, kPushPinHeight}};
+    core::EmbeddedFile embedded = core::newEmbeddedFile(name, std::move(bytes), QString(), now());
+    // Acrobat's pushpin blue, the colour the corpus generator gives one -- a file attachment has no tool default.
+    Annotation pin = core::newFileAttachment(page, rect, std::move(embedded), {0.13, 0.4, 0.86}, author(), now());
+    return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(pin)}));
 }
 
 // ---- Typed text (S6 T7) --------------------------------------------------------------------------

@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -50,7 +51,9 @@ struct Product {
     ui::PageView*                         view = nullptr;
     QString                               openedPath;
 
-    Product()
+    // `customize` (Stage 6 T11) adds what a case needs to the options -- an attachment folder, a shell recorder --
+    // after the four every case gets, all of them inside this product's scratch directory.
+    explicit Product(const std::function<void(app::CompositionRoot::Options&, const QString& scratch)>& customize = {})
     {
         REQUIRE(scratch.isValid());
         app::CompositionRoot::Options options;
@@ -58,6 +61,7 @@ struct Product {
         options.sessionPath = QDir(scratch.path()).filePath(QStringLiteral("session.json"));
         options.recoveryRoot = QDir(scratch.path()).filePath(QStringLiteral("recovery"));
         options.loginName = QString::fromLatin1(kLoginName);
+        if (customize) customize(options, scratch.path());
         root = std::make_unique<app::CompositionRoot>(std::move(options));
         window = std::make_unique<ui::MainWindow>(root->services());
         window->resize(1100, 1000);

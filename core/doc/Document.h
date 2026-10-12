@@ -23,6 +23,7 @@
 #include "core/Result.h"
 #include "core/backend.h"
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/Attachments.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Permissions.h"
@@ -59,6 +60,13 @@ public:
     const AnnotationStore& annotations() const noexcept { return annotations_; }
     AnnotationStore& annotations() noexcept { return annotations_; }
 
+    // THE FILES ATTACHED TO THE DOCUMENT AS A WHOLE -- Stage 6 T11 (D6-17). Copied from the backend's reading
+    // at hydration, and from then on changed ONLY by an attachment command, as the annotations are. A file
+    // attached by an annotation is that annotation's. A backend that supplies none leaves them unassessed,
+    // which refuses every change.
+    const Attachments& attachments() const noexcept { return attachments_; }
+    Attachments& attachments() noexcept { return attachments_; }
+
     const RepairReport& repairReport() const noexcept { return repair_; }
     const Permissions& permissions() const noexcept { return permissions_; }
 
@@ -70,7 +78,7 @@ public:
 
     // A SHA-256 over the MODEL -- every page's index, boxes, rotation and label, in order, and since
     // Stage 6 T3 every page's annotation LISTING, entry by entry, with each annotation's every
-    // modelled field -- and nothing else: not the revision, which only goes up, and not the handle or identity, which no
+    // modelled field, and since Stage 6 T11 every document-level attachment, every field -- and nothing else: not the revision, which only goes up, and not the handle or identity, which no
     // command changes. Stage 3 T5. Two properties are measured with it: apply-then-revert restores it
     // exactly (guide case A-43), and a refused or failed command leaves it unchanged (A-40). Stage 6
     // and later extend it as the model grows; a model part a command can change and this hash cannot
@@ -82,6 +90,7 @@ private:
     DocumentId id_;
     PageTree pages_;
     AnnotationStore annotations_;
+    Attachments attachments_;
     RepairReport repair_;
     Permissions permissions_;
     Revision revision_ = Revision::invalid();

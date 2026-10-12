@@ -1523,6 +1523,22 @@
         <source>action.comment.numbering</source>
         <translation>Number Comments</translation>
     </message>
+    <message>
+        <source>action.attachment.open</source>
+        <translation>Open Attachment</translation>
+    </message>
+    <message>
+        <source>action.attachment.extract</source>
+        <translation>Save Attachment As...</translation>
+    </message>
+    <message>
+        <source>action.attachment.add</source>
+        <translation>Add Attachment...</translation>
+    </message>
+    <message>
+        <source>action.attachment.delete</source>
+        <translation>Delete Attachment</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2286,6 +2302,14 @@
         <source>shell.tooltip.needsClipboardImage</source>
         <translation>Copy an image first</translation>
     </message>
+    <message>
+        <source>shell.tooltip.needsAttachment</source>
+        <translation>Select an attachment in the Attachments pane first.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolAttachFile</source>
+        <translation>%1: click where the file should be pinned, then choose the file.</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -2904,6 +2928,74 @@
     <message>
         <source>error.stamps.writeFailed</source>
         <translation>The stamp library could not be written (%1)</translation>
+    </message>
+    <message>
+        <source>error.attachment.notRead</source>
+        <translation>The attachments of this document were not read.</translation>
+    </message>
+    <message>
+        <source>error.attachment.noName</source>
+        <translation>An attached file needs a name.</translation>
+    </message>
+    <message>
+        <source>error.attachment.duplicateKey</source>
+        <translation>The document already has an attachment named %1.</translation>
+    </message>
+    <message>
+        <source>error.attachment.unknown</source>
+        <translation>The document has no such attachment: %1</translation>
+    </message>
+    <message>
+        <source>error.attachment.noData</source>
+        <translation>The attachment %1 carries no file.</translation>
+    </message>
+    <message>
+        <source>error.attachment.notEmbedded</source>
+        <translation>The attachment names a file outside the document, so it has nothing to open.</translation>
+    </message>
+    <message>
+        <source>error.attachment.undecodable</source>
+        <translation>The attached file is damaged and cannot be read (%1).</translation>
+    </message>
+    <message>
+        <source>error.attachment.exists</source>
+        <translation>A file already exists at %1.</translation>
+    </message>
+    <message>
+        <source>error.attachment.writeFailed</source>
+        <translation>The attachment could not be written to %1.</translation>
+    </message>
+    <message>
+        <source>error.attachment.executable</source>
+        <translation>%1 is a program or a script, and RawPage does not open those.</translation>
+    </message>
+    <message>
+        <source>error.attachment.cancelled</source>
+        <translation>Cancelled.</translation>
+    </message>
+    <message>
+        <source>error.attachment.noSessionFolder</source>
+        <translation>There is no folder to open %1 from in this session.</translation>
+    </message>
+    <message>
+        <source>error.attachment.noShell</source>
+        <translation>Windows could not open %1.</translation>
+    </message>
+    <message>
+        <source>error.attachment.tooLarge</source>
+        <translation>%1 is larger than 256 MB, the largest file RawPage attaches.</translation>
+    </message>
+    <message>
+        <source>error.attachment.unreadable</source>
+        <translation>%1 could not be read.</translation>
+    </message>
+    <message>
+        <source>error.edit.attachmentCopy</source>
+        <translation>This attached PDF is open read-only. Save it as a file of its own to change it.</translation>
+    </message>
+    <message>
+        <source>error.recovery.sideFile</source>
+        <translation>A file the recovery journal names is missing or damaged (%1).</translation>
     </message>
 </context>
 <context>
@@ -3890,6 +3982,22 @@
         <source>command.annot.checkmarkMany</source>
         <translation>Change %1 checkmarks</translation>
     </message>
+    <message>
+        <source>command.attachment.add</source>
+        <translation>Add Attachment</translation>
+    </message>
+    <message>
+        <source>command.attachment.addMany</source>
+        <translation>Add %1 Attachments</translation>
+    </message>
+    <message>
+        <source>command.attachment.delete</source>
+        <translation>Delete Attachment</translation>
+    </message>
+    <message>
+        <source>command.attachment.deleteMany</source>
+        <translation>Delete %1 Attachments</translation>
+    </message>
 </context>
 <context>
     <name>panes</name>
@@ -3940,6 +4048,10 @@
     <message>
         <source>panes.comments.unreadable</source>
         <translation>This document's comments cannot be read: %1</translation>
+    </message>
+    <message>
+        <source>panes.attachments.title</source>
+        <translation>Attachments</translation>
     </message>
 </context>
 <context>
@@ -4820,6 +4932,105 @@
     <message>
         <source>stamps.name.Revised</source>
         <translation>Revised</translation>
+    </message>
+</context>
+<context>
+    <name>attachments</name>
+    <message>
+        <source>attachments.column.name</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>attachments.column.description</source>
+        <translation>Description</translation>
+    </message>
+    <message>
+        <source>attachments.column.size</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <source>attachments.column.modified</source>
+        <translation>Modified</translation>
+    </message>
+    <message>
+        <source>attachments.column.where</source>
+        <translation>Location</translation>
+    </message>
+    <message>
+        <source>attachments.where.document</source>
+        <translation>Document</translation>
+    </message>
+    <message>
+        <source>attachments.where.page</source>
+        <translation>Page %1</translation>
+    </message>
+    <message>
+        <source>attachments.size.unknown</source>
+        <translation>Unknown</translation>
+    </message>
+    <message>
+        <source>attachments.noDocument</source>
+        <translation>Open a document to see its attachments.</translation>
+    </message>
+    <message>
+        <source>attachments.unavailable</source>
+        <translation>The attachments cannot be read: %1</translation>
+    </message>
+    <message>
+        <source>attachments.empty</source>
+        <translation>This document has no attached files.</translation>
+    </message>
+    <message>
+        <source>attachments.count</source>
+        <translation>%1 attached files</translation>
+    </message>
+    <message>
+        <source>attachments.add.title</source>
+        <translation>Attach a File</translation>
+    </message>
+    <message>
+        <source>attachments.filter.any</source>
+        <translation>All files (*)</translation>
+    </message>
+    <message>
+        <source>attachments.refused.executable</source>
+        <translation>%1 is a program or a script. RawPage does not open files that can run.</translation>
+    </message>
+    <message>
+        <source>attachments.opened.copy</source>
+        <translation>%1 is open read-only. Save As makes it a file of its own.</translation>
+    </message>
+    <message>
+        <source>attachments.ask.title</source>
+        <translation>Open an Attached File</translation>
+    </message>
+    <message>
+        <source>attachments.ask.body</source>
+        <translation>%1 will be written to a temporary folder and opened with the program Windows uses for it. Open it only if you trust this document.</translation>
+    </message>
+    <message>
+        <source>attachments.extract.title</source>
+        <translation>Save Attachment As</translation>
+    </message>
+    <message>
+        <source>attachments.extracted</source>
+        <translation>Saved %1</translation>
+    </message>
+    <message>
+        <source>attachments.button.open</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <source>attachments.button.extract</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>attachments.button.add</source>
+        <translation>Add</translation>
+    </message>
+    <message>
+        <source>attachments.button.delete</source>
+        <translation>Delete</translation>
     </message>
 </context>
 </TS>

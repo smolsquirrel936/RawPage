@@ -259,13 +259,14 @@ TEST_CASE("a highlight's appearance is a multiply form over its rectangle whatev
 
 TEST_CASE("the appearance builder refuses what it cannot draw by key", "[annotops][appearance]")
 {
-    // A FILE ATTACHMENT since T10, which draws stamps (T8 moved it here from ink). Attachments are T11's.
-    Annotation pin = core::newAnnotation(AnnotationSubtype::FileAttachment, 0, kAuthor, kNow);
-    pin.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
-    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(pin);
+    // A SOUND since T11, which draws file attachments (T10 moved it here from stamps, T8 from ink). Sounds are T14's.
+    Annotation sound = core::newAnnotation(AnnotationSubtype::Sound, 0, kAuthor, kNow);
+    sound.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
+    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(sound);
     REQUIRE_FALSE(unsupported);
     CHECK(keyOf(unsupported.error()) == "error.pdf.appearanceUnsupported");
-    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::FileAttachment));
+    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Sound));
+    CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::FileAttachment));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Stamp));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Ink));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Highlight));

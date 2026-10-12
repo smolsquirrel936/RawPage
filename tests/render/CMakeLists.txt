@@ -83,6 +83,9 @@ add_executable(rawpage_render_tests
                                   #   Helvetica's advance table held to the engine's own metrics
     tst_appearance.cpp            # Stage 6 T8 -- guide A-65 (D6-6): our appearance against the one PDFium
                                   #   generates for the same dictionary with no /AP, ink IoU >= 0.90
+    tst_attachments.cpp           # Stage 6 T11 -- guide A-82, A-84, A-85's backend half (D6-17): the shipped
+                                  #   backend's listing held to the label and to the engine, an extract that writes
+                                  #   its bytes and nothing else, an attached PDF opened from its bytes read-only
     # The appearance cases' spec and page builder (tests/golden/AppearanceCases), compiled in -- the golden
     # suite and golden-update read the same one.
     ${CMAKE_SOURCE_DIR}/tests/golden/AppearanceCases.cpp

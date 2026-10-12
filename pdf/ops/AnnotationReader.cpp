@@ -252,6 +252,10 @@ Parsed parse(cos::XrefTable& table, const CosObject& d)
         if (value == 1.0 || value == 2.0) a.justification = static_cast<int>(value);
     }
     a.hasAppearance = d.find("AP") != nullptr;
+    // Stage 6 T11 (D6-17): the file a FileAttachment carries -- what it says about it, never its bytes, which
+    // are read when they are asked for (`IDocumentBackend::attachmentData`).
+    if (a.subtype == core::AnnotationSubtype::FileAttachment)
+        a.attachment = EmbeddedFileReader::fileOf(table, d.find("FS"));
 
     out.pageReference = referenceOf(d, "P");
     return out;

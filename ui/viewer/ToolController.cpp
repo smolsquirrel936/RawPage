@@ -57,6 +57,7 @@ const char* annotationToolKindName(AnnotationToolKind kind) noexcept
     case AnnotationToolKind::Polyline:        return "Polyline";
     case AnnotationToolKind::Cloud:           return "Cloud";
     case AnnotationToolKind::Eraser:          return "Eraser";
+    case AnnotationToolKind::AttachFile:      return "AttachFile";
     }
     return "?";
 }
@@ -93,6 +94,7 @@ Tool& ToolController::annotationToolFor(AnnotationToolKind which)
     if (DrawingTool::handles(which)) return drawing_;
     if (InkTool::handles(which)) return ink_;
     if (StampTool::handles(which)) return stamp_;
+    if (AttachFileTool::handles(which)) return attach_;
     return annotation_;
 }
 
@@ -200,6 +202,7 @@ constexpr Arming kArming[kAnnotationToolKindCount] = {
     {AnnotationToolKind::Polyline, core::ActionId::AnnotPolyline},
     {AnnotationToolKind::Cloud, core::ActionId::AnnotCloud},
     {AnnotationToolKind::Eraser, core::ActionId::AnnotEraser},
+    {AnnotationToolKind::AttachFile, core::ActionId::AnnotAttachFile},
 };
 
 } // namespace
@@ -217,7 +220,7 @@ bool createsAnnotations(AnnotationToolKind kind) noexcept
     return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
            || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value()
            || TypewriterTool::handles(kind) || DrawingTool::handles(kind) || InkTool::handles(kind)
-           || StampTool::handles(kind);
+           || StampTool::handles(kind) || AttachFileTool::handles(kind);
 }
 
 std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept

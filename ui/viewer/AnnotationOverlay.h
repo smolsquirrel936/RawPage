@@ -235,6 +235,21 @@ public:
     // `DeleteAnnotationCommand` when nothing of it is left. Nothing touched makes nothing.
     core::Status eraseInk(int page, const std::vector<double>& path, double radius);
 
+    // ---- A file attached on the page (S6 T11, D6-17) -----------------------------------------------
+    // WHICH FILE: asked of the window that shows this overlay -- a file dialog, or a case's answer -- and nothing
+    // when no chooser is set or it answers nothing.
+    using FileChooser = std::function<std::optional<QString>()>;
+    void setFileChooser(FileChooser chooser) { fileChooser_ = std::move(chooser); }
+    // The `annot.attachFile` tool's click: the chooser asked, and the file attached at `at` on `page`. True when a
+    // pushpin was made; a refusal is said through `refused`.
+    bool attachFileAt(int page, core::PdfPoint at);
+    // `path`'s bytes read and attached as ONE FileAttachment whose pushpin's point is `at` -- its `PushPin` icon
+    // 16 by 24 points, the rectangle's foot centred on the point. Refused by name for a file that cannot be read,
+    // or that is larger than one command may carry (`core::kMaxAttachmentBytes`).
+    core::Status addFileAttachment(int page, core::PdfPoint at, const QString& path);
+    static constexpr double kPushPinWidth = 16.0;
+    static constexpr double kPushPinHeight = 24.0;
+
     // A refusal the page found before any command -- a character typed that no face can show, a comment
     // whose text is locked -- said the way a refused command is: as `refused`.
     void reportRefusal(const core::Error& error);
@@ -323,6 +338,7 @@ private:
     const core::AnnotationStore* store_ = nullptr;
     Runner runner_;
     Clock clock_;
+    FileChooser fileChooser_;   // S6 T11
     Author author_;
 
     // S6 T6: a mark waiting for its selection's text.

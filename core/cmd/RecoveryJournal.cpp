@@ -25,6 +25,10 @@ namespace {
 
 constexpr qint64 kMaxJournalBytes = 256LL * 1024 * 1024;   // a journal larger than this is not a session's edits
 constexpr qint64 kMaxMetaBytes = 1024 * 1024;
+// D6-23 (Stage 6 T11): a string longer than this goes to a side file. A side file larger than the cap is not one
+// RawPage wrote -- the largest payload a command carries, `kMaxAttachmentBytes`, is 342 MiB as base64.
+constexpr qsizetype kSideFileThreshold = 64 * 1024;
+constexpr qint64 kMaxSideFileBytes = 360LL * 1024 * 1024;
 const char* const kFormatLine = "{\"format\":1}";
 
 std::mutex& observerMutex()
@@ -63,6 +67,8 @@ QByteArray compact(const QJsonObject& object)
 
 // THE ONE WHOLE-FILE WRITE: `meta.json` and the truncated journal both go through it. A temporary file,
 // flushed, then replaced over the target -- so a kill leaves the previous file or the new one.
+Result<QByteArray> readCapped(const QString& path, qint64 cap, const char* tooLargeKey);
+
 bool writeWholeFile(platform::IDurableFiles& durableFiles, const QString& path, const QByteArray& bytes)
 {
     const QString temporary = path + QStringLiteral(".tmp");
@@ -78,6 +84,105 @@ bool writeWholeFile(platform::IDurableFiles& durableFiles, const QString& path, 
         return false;
     }
     return true;
+}
+
+// ---- D6-23: payloads over 64 KiB in side files ------------------------------------------------------
+// A journal line stays a line: every STRING in a serialized command longer than `kSideFileThreshold` -- an image
+// stamp's pixels, an attachment's bytes, as base64 -- is written to `<sha256 of the string>.side` beside the journal,
+// through the ONE whole-file write above (so the waiver census stays at fifteen), flushed and in place BEFORE the line
+// naming it is appended, and the line carries `{"sideFile": "<hash>"}` in its place. Replay puts each back after
+// checking the file's hash is its name. Commands never know: `serialize()` and `deserialize()` see whole strings.
+// No command's JSON holds an object whose only key is `sideFile`, so the marker cannot be mistaken for one.
+
+QString sideFileName(const QString& hash)
+{
+    return hash + QStringLiteral(".side");
+}
+
+bool isSideFileHash(const QString& text)
+{
+    if (text.size() != 64) return false;
+    return std::all_of(text.begin(), text.end(), [](QChar c) {
+        return (c >= QLatin1Char('0') && c <= QLatin1Char('9')) || (c >= QLatin1Char('a') && c <= QLatin1Char('f'));
+    });
+}
+
+// `value` with each long string moved to a side file in `directory`; false when a side file could not be written.
+bool externalize(QJsonValue& value, const QDir& directory, platform::IDurableFiles& durableFiles)
+{
+    if (value.isString()) {
+        const QString text = value.toString();
+        if (text.size() <= kSideFileThreshold) return true;
+        const QByteArray bytes = text.toUtf8();
+        const QString hash = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+        const QString path = directory.filePath(sideFileName(hash));
+        // Named by its content: one already there IS this string, and is not written twice.
+        if (!QFileInfo::exists(path) && !writeWholeFile(durableFiles, path, bytes)) return false;
+        value = QJsonObject{{QStringLiteral("sideFile"), hash}};
+        return true;
+    }
+    if (value.isArray()) {
+        QJsonArray array = value.toArray();
+        for (qsizetype i = 0; i < array.size(); ++i) {
+            QJsonValue item = array.at(i);
+            if (!externalize(item, directory, durableFiles)) return false;
+            array.replace(i, item);
+        }
+        value = array;
+        return true;
+    }
+    if (value.isObject()) {
+        QJsonObject object = value.toObject();
+        for (auto it = object.begin(); it != object.end(); ++it) {
+            QJsonValue item = it.value();
+            if (!externalize(item, directory, durableFiles)) return false;
+            it.value() = item;
+        }
+        value = object;
+    }
+    return true;
+}
+
+// `value` with each `{"sideFile": hash}` put back from `directory`; the error names the side file that is missing,
+// too large, or whose content is not the hash it is named by.
+Status internalize(QJsonValue& value, const QDir& directory)
+{
+    if (value.isArray()) {
+        QJsonArray array = value.toArray();
+        for (qsizetype i = 0; i < array.size(); ++i) {
+            QJsonValue item = array.at(i);
+            if (Status in = internalize(item, directory); !in) return in;
+            array.replace(i, item);
+        }
+        value = array;
+        return Status{};
+    }
+    if (!value.isObject()) return Status{};
+    QJsonObject object = value.toObject();
+    if (object.size() == 1 && object.contains(QStringLiteral("sideFile"))) {
+        const QString hash = object.value(QStringLiteral("sideFile")).toString();
+        if (!isSideFileHash(hash))
+            return Error{ErrorCode::ParseFailure, QLatin1String("error.recovery.sideFile"), hash.left(80)};
+        auto bytes = readCapped(directory.filePath(sideFileName(hash)), kMaxSideFileBytes, "error.recovery.sideFile");
+        if (!bytes) return Error{ErrorCode::NotFound, QLatin1String("error.recovery.sideFile"), hash};
+        if (QString::fromLatin1(QCryptographicHash::hash(bytes.value(), QCryptographicHash::Sha256).toHex()) != hash)
+            return Error{ErrorCode::Corrupted, QLatin1String("error.recovery.sideFile"), hash};
+        value = QString::fromUtf8(bytes.value());
+        return Status{};
+    }
+    for (auto it = object.begin(); it != object.end(); ++it) {
+        QJsonValue item = it.value();
+        if (Status in = internalize(item, directory); !in) return in;
+        it.value() = item;
+    }
+    value = object;
+    return Status{};
+}
+
+// Every side file in `directory`, by name.
+QStringList sideFilesIn(const QString& directory)
+{
+    return QDir(directory).entryList(QStringList{QStringLiteral("*.side"), QStringLiteral("*.side.tmp")}, QDir::Files);
 }
 
 // THE ONE APPEND: the journal is opened for appending when it is created and again after a save truncates
@@ -171,7 +276,7 @@ RecoveryJournal::~RecoveryJournal()
 
 std::unique_ptr<RecoveryJournal> RecoveryJournal::open(const QString& root, const QString& sourcePath, const DocumentId& id,
                                                         platform::IDurableFiles* durableFiles, const QByteArray& seedLines,
-                                                        bool untitled)
+                                                        bool untitled, const QString& seedDirectory)
 {
     // NEVER A NAME ALREADY ON DISK (Stage 3 T11): a reused process id with a matching counter would otherwise
     // overwrite a crashed session's journal before anyone was asked about it. Bounded, so a directory full of
@@ -205,6 +310,18 @@ std::unique_ptr<RecoveryJournal> RecoveryJournal::open(const QString& root, cons
     if (!journal->writeMeta(sourcePath, id)) {
         journal->degrade("error.recovery.unavailable", directory);
         return journal;
+    }
+    // D6-23: the seeded lines' side files come with them -- they live in the crashed session's directory -- each
+    // through the same whole-file write, and before the lines that name them.
+    if (!seedDirectory.isEmpty() && !seedLines.isEmpty()) {
+        for (const QString& name : QDir(seedDirectory).entryList(QStringList{QStringLiteral("*.side")}, QDir::Files)) {
+            if (!seedLines.contains(name.left(64).toLatin1())) continue;   // named by no seeded line
+            auto bytes = readCapped(QDir(seedDirectory).filePath(name), kMaxSideFileBytes, "error.recovery.sideFile");
+            if (!bytes || !writeWholeFile(*durableFiles, QDir(directory).filePath(name), bytes.value())) {
+                journal->degrade("error.recovery.unavailable", directory);
+                return journal;
+            }
+        }
     }
     const QString journalPath = QDir(directory).filePath(QStringLiteral("journal.ndjson"));
     if (!writeWholeFile(*durableFiles, journalPath, QByteArray(kFormatLine) + '\n' + seedLines)) {
@@ -262,15 +379,23 @@ void RecoveryJournal::appendLine(const QByteArray& line)
 
 void RecoveryJournal::recordRun(const Command& command, const std::optional<CatalogText>& opensGroup)
 {
+    if (!isRecoverable())
+        return;
     const QJsonObject serialized = command.serialize();
     if (serialized.isEmpty()) {
         degrade("error.recovery.notRecoverable", QLatin1String(command.typeId()));
         return;
     }
+    // D6-23: its long strings in side files first, so the line never names a file that is not yet on disk.
+    QJsonValue cmd = serialized;
+    if (!externalize(cmd, QDir(directory_), *durableFiles_)) {
+        degrade("error.recovery.unavailable", directory_);
+        return;
+    }
     if (opensGroup)
         appendLine(compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("groupBegin")},
                                        {QStringLiteral("name"), catalogJson(*opensGroup)}}));
-    appendLine(compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("run")}, {QStringLiteral("cmd"), serialized}}));
+    appendLine(compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("run")}, {QStringLiteral("cmd"), cmd}}));
 }
 
 void RecoveryJournal::recordGroupEnd()
@@ -280,15 +405,18 @@ void RecoveryJournal::recordGroupEnd()
 
 namespace {
 
-std::optional<QJsonArray> serializeStep(const std::vector<const Command*>& step, QString& unserializable)
+// `unserializable` names the command that serialized to nothing; empty with nullopt: a side file could not be written.
+std::optional<QJsonArray> serializeStep(const std::vector<const Command*>& step, QString& unserializable, const QDir& directory,
+                                        platform::IDurableFiles& durableFiles)
 {
     QJsonArray commands;
     for (const Command* command : step) {
-        QJsonObject serialized = command->serialize();
-        if (serialized.isEmpty()) {
+        QJsonValue serialized = command->serialize();
+        if (serialized.toObject().isEmpty()) {
             unserializable = QLatin1String(command->typeId());
             return std::nullopt;
         }
+        if (!externalize(serialized, directory, durableFiles)) return std::nullopt;   // D6-23
         commands.append(serialized);
     }
     return commands;
@@ -298,10 +426,13 @@ std::optional<QJsonArray> serializeStep(const std::vector<const Command*>& step,
 
 void RecoveryJournal::recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step)
 {
+    if (!isRecoverable())
+        return;
     QString unserializable;
-    const auto commands = serializeStep(step, unserializable);
+    const auto commands = serializeStep(step, unserializable, QDir(directory_), *durableFiles_);
     if (!commands) {
-        degrade("error.recovery.notRecoverable", unserializable);
+        if (unserializable.isEmpty()) degrade("error.recovery.unavailable", directory_);
+        else degrade("error.recovery.notRecoverable", unserializable);
         return;
     }
     appendLine(compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("undo")},
@@ -311,10 +442,13 @@ void RecoveryJournal::recordUndo(const CatalogText& stepName, const std::vector<
 
 void RecoveryJournal::recordRedo(const CatalogText& stepName, const std::vector<const Command*>& step)
 {
+    if (!isRecoverable())
+        return;
     QString unserializable;
-    const auto commands = serializeStep(step, unserializable);
+    const auto commands = serializeStep(step, unserializable, QDir(directory_), *durableFiles_);
     if (!commands) {
-        degrade("error.recovery.notRecoverable", unserializable);
+        if (unserializable.isEmpty()) degrade("error.recovery.unavailable", directory_);
+        else degrade("error.recovery.notRecoverable", unserializable);
         return;
     }
     appendLine(compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("redo")},
@@ -338,7 +472,11 @@ void RecoveryJournal::recordSaved(const Document& document, const QString& path)
     if (!writeWholeFile(*durableFiles_, QDir(directory_).filePath(QStringLiteral("journal.ndjson")), QByteArray(kFormatLine) + '\n')
         || !openForAppend(journal_)) {
         degrade("error.recovery.unavailable", directory_);
+        return;
     }
+    // D6-23: no line names a side file any more -- the history before the save is the saved file.
+    for (const QString& name : sideFilesIn(directory_))
+        durableFiles_->removeFile(QDir(directory_).filePath(name));
 }
 
 void RecoveryJournal::discard()
@@ -348,6 +486,8 @@ void RecoveryJournal::discard()
         const QDir dir(directory_);
         for (const char* name : {"journal.ndjson", "meta.json", "journal.ndjson.tmp", "meta.json.tmp"})
             durableFiles_->removeFile(dir.filePath(QLatin1String(name)));
+        for (const QString& name : sideFilesIn(directory_))   // D6-23
+            durableFiles_->removeFile(dir.filePath(name));
     }
     if (lock_)
         lock_->unlock();
@@ -455,6 +595,10 @@ Status RecoveryJournal::discardDirectory(const QString& directory, platform::IDu
         if (const Status removed = durableFiles->removeFile(dir.filePath(QLatin1String(name))); !removed)
             return removed;
     }
+    for (const QString& name : sideFilesIn(directory)) {   // D6-23
+        if (const Status removed = durableFiles->removeFile(dir.filePath(name)); !removed)
+            return removed;
+    }
     lock.unlock();
     QDir().rmdir(directory);
     return Status{};
@@ -495,14 +639,19 @@ Result<ReplayReport> RecoveryJournal::replay(const QString& directory, CommandJo
         report.stopKey = key;
         report.stopContext = context;
     };
-    auto commandsFrom = [](const QJsonValue& value, QLatin1String& key, QString& context) {
+    auto commandsFrom = [&directory](const QJsonValue& value, QLatin1String& key, QString& context) {
         std::vector<std::unique_ptr<Command>> commands;
         if (!value.isArray() || value.toArray().isEmpty()) {
             key = QLatin1String("error.recovery.malformedLine");
             context = QStringLiteral("cmds");
             return std::optional<std::vector<std::unique_ptr<Command>>>();
         }
-        for (const QJsonValue& item : value.toArray()) {
+        for (QJsonValue item : value.toArray()) {
+            if (const Status in = internalize(item, QDir(directory)); !in) {   // D6-23
+                key = in.error().messageKey;
+                context = in.error().context;
+                return std::optional<std::vector<std::unique_ptr<Command>>>();
+            }
             auto command = CommandRegistry::deserialize(item.toObject());
             if (!command) {
                 key = command.error().messageKey;
@@ -567,7 +716,12 @@ Result<ReplayReport> RecoveryJournal::replay(const QString& directory, CommandJo
         } else if (kind == QLatin1String("run")) {
             if (!inGroup)
                 ++step;
-            auto command = CommandRegistry::deserialize(op.value(QStringLiteral("cmd")).toObject());
+            QJsonValue cmd = op.value(QStringLiteral("cmd"));
+            if (const Status in = internalize(cmd, QDir(directory)); !in) {   // D6-23
+                stop(step, in.error().messageKey, in.error().context);
+                break;
+            }
+            auto command = CommandRegistry::deserialize(cmd.toObject());
             if (!command) {
                 stop(step, command.error().messageKey, command.error().context);
                 break;

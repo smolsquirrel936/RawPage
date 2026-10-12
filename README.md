@@ -4,7 +4,7 @@ A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for rea
 first-party COS layer for every write.
 
 > **Status: Stages 0 to 5 are complete and signed off, the last (Stage 5) on 2026-10-04. Stage 6,
-> annotations and review, is in progress: T1 … T10 done, the last on 2026-10-09.**
+> annotations and review, is in progress: T1 … T11 done, the last on 2026-10-12.**
 > `rawpage.exe` opens real PDFs into tabs and draws their pages through the pinned PDFium behind our
 > own facade, over a first-party COS reader. What a person can do with it today:
 >
@@ -17,10 +17,12 @@ first-party COS layer for every write.
 >   Snapshot, Reflow view, and a side-by-side or overlaid document comparison.
 > - **Annotate** (Stage 6, so far): highlight, underline, strikeout and squiggly; replace and
 >   insert text; notes; text boxes, callouts and typewriter text; lines, arrows, shapes, clouds,
->   ink and the eraser; a Comments pane with replies, statuses and checkmarks; and stamps (standard,
->   dynamic, image and custom). Each one is drawn by our own appearance builder and saved as written.
+>   ink and the eraser; a Comments pane with replies, statuses and checkmarks; stamps (standard,
+>   dynamic, image and custom); and attachments -- files attached to the document or pinned to a
+>   page, listed in an Attachments pane, saved out, or opened (a PDF in a tab of its own; a program
+>   never). Each one is drawn by our own appearance builder and saved as written.
 >
-> **Not built yet:** attachments, measurement, FDF/XFDF exchange and audio comments (the rest of
+> **Not built yet:** measurement, FDF/XFDF exchange and audio comments (the rest of
 > Stage 6), then document assembly, export and optimization, forms, security and redaction,
 > signatures, creation and import, Write mode, batch and the CLI, packaging and release (Stages 7 to
 > 15), and the post-v1 subsystems (Stage 16).
@@ -114,7 +116,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned   # once pe
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks            # the gates -- always first
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure                # 1678/1678 at Stage 6 T10, 2026-10-09
+ctest --preset x64-release --output-on-failure                # 1704/1704 at Stage 6 T11, 2026-10-12
 ```
 
 A stock Windows install runs no scripts at all: without the first line, both `.ps1` files fail with

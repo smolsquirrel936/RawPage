@@ -90,6 +90,9 @@ class PageTransitions;       // core/doc/PageTransitions.h -- Stage 4 T10 (D4-12
 class AnnotationStore;       // core/doc/AnnotationStore.h -- Stage 6 T2 (read half, D6-3)
 struct Annotation;           // core/doc/Annotation.h      -- Stage 6 T2; the sink's intents from T3
 struct AnnotationPlacement;  // core/doc/Annotation.h      -- Stage 6 T3
+class Attachments;           // core/doc/Attachments.h     -- Stage 6 T11 (D6-17)
+struct AttachmentRef;        // core/doc/Attachments.h     -- Stage 6 T11
+struct DocumentAttachment;   // core/doc/Attachments.h     -- Stage 6 T11
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -319,6 +322,17 @@ public:
     // differ, or an appearance change it cannot draw.
     virtual Status replaceAnnotations(const std::vector<Annotation>& before,
                                       const std::vector<Annotation>& after) = 0;
+
+    // FILES ATTACHED TO THE DOCUMENT AS A WHOLE -- Stage 6 T11, decision D6-17: the catalog's `/Names
+    // /EmbeddedFiles` name tree, each entry named by its KEY (`core/doc/Attachments`), each over a set and all
+    // or nothing. `insertAttachments` lists each file under its key: a file the sink removed is listed again AS
+    // IT WAS ON DISK -- its file specification and its stream untouched -- and one RawPage attaches is written
+    // new, from its bytes. Refused, with nothing changed, for a key the tree already lists, for a new file that
+    // carries no bytes, or for an empty set. `removeAttachments` drops each key's entry; the file specification
+    // stays in the file, listed nowhere, as an incremental update leaves every object it does not rewrite.
+    // Where in the tree each goes is the sink's: a name tree is sorted by its keys' bytes.
+    virtual Status insertAttachments(const std::vector<DocumentAttachment>& files) = 0;
+    virtual Status removeAttachments(const std::vector<QString>& keys) = 0;
 };
 
 // =======================================================================================
@@ -491,6 +505,34 @@ public:
     // the first-party reader declines -- an encrypted one (D2-6) -- the store is EMPTY AND SAYS WHY:
     // `status()` is the refusal, never an empty success.
     virtual const AnnotationStore* annotations(DocumentHandle document) const = 0;
+
+    // THE FILES ATTACHED TO THE DOCUMENT AS A WHOLE -- added at Stage 6 T11 (D6-17), or null for a handle this
+    // backend did not open. Read ONCE, at open, off the same first-party walk as the annotations (the engine's
+    // attachment API has no `/Desc` -- `pdf/ops/EmbeddedFileReader`), names, descriptions, types, sizes and dates
+    // and NEVER the bytes. A file attached by an annotation is that annotation's (`Annotation::attachment`). An
+    // encrypted document's is refused, with the reason.
+    virtual const Attachments* attachments(DocumentHandle document) const = 0;
+
+    // AN ATTACHMENT'S BYTES, decoded -- Stage 6 T11. As the document stands NOW: a file attached and not yet
+    // saved is read from the edit that attached it, one on disk from the newest revision's stream, so an attached
+    // PDF opens and an extract writes what the person sees listed. `NotFound` for an attachment the document does
+    // not hold; `Corrupted` for a stream whose filters will not decode, or whose decoded length disagrees with its
+    // `/Params /Size`.
+    virtual Result<QByteArray> attachmentData(DocumentHandle document, const AttachmentRef& attachment) = 0;
+
+    // EXTRACT (D6-17): `attachmentData`'s bytes written to `path`, and nothing else written -- the write is
+    // `pdf/`'s, so no layer-lint waiver: an attachment reaches the disk through the layer that owns the file
+    // format. The folder `path` names is created when it does not exist. A file already at `path` is replaced
+    // only when `overwrite`; refused otherwise, by `error.attachment.exists`. On failure no file is left at `path`.
+    virtual Status extractAttachment(DocumentHandle document, const AttachmentRef& attachment, const QString& path,
+                                     bool overwrite) = 0;
+
+    // A DOCUMENT FROM BYTES -- Stage 6 T11 (D6-17): an attached PDF opened in a tab with no file written. Exactly
+    // `open()` over `bytes` but for where they came from: its identity names no path (`name` is what a person
+    // calls it), and it is NEVER EDITABLE -- its permissions refuse every command by `error.edit.attachmentCopy`
+    // -- while a Save As writes it, unchanged, to a file of its own: the tab is read-only until then.
+    virtual Result<DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
+                                             const PasswordCallback& password) = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it

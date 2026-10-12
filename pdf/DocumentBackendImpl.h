@@ -99,6 +99,17 @@ public:
     // to agree with the engine page by page through `core::Permissions::assessAnnotations`.
     const core::AnnotationStore* annotations(core::DocumentHandle document) const override;
 
+    // S6 T11 (D6-17). The fourth first-party reading off the walk -- `pdf/ops/EmbeddedFileReader`, which since S5 T8
+    // read the descriptions the engine cannot -- and the bytes through the sink, or a table loaded for the call when
+    // the document has none. The extract is written by `pdf/ops/AttachmentFiles`: no waiver.
+    const core::Attachments* attachments(core::DocumentHandle document) const override;
+    core::Result<QByteArray> attachmentData(core::DocumentHandle document, const core::AttachmentRef& attachment) override;
+    core::Status extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,
+                                   const QString& path, bool overwrite) override;
+    // `open()`'s pieces with the read skipped; the document names no file and is never editable.
+    core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
+                                                 const core::PasswordCallback& password) override;
+
     // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
     // per page -- the one reader on this interface that is not hydrated at open, and the header of
     // `core/backend.h` says why.

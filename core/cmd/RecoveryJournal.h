@@ -9,6 +9,10 @@
 //     meta.json       {"format":1,"source":…,"size":…,"modified":…,"sha256":…} -- replaced atomically,
 //                     plus "untitled":true while the document has no file of its own (Stage 3 T11)
 //     journal.ndjson  {"format":1} then one operation per line, each flushed to disk before the edit returns
+//     <sha256>.side   Stage 6 T11, D6-23: a string of a serialized command longer than 64 KiB -- an attachment's
+//                     bytes, an image stamp's pixels -- named by the SHA-256 of its UTF-8, written through the one
+//                     whole-file write before the line that names it as {"sideFile":"<sha256>"}; replay checks
+//                     each file's hash against its name and puts the string back
 //
 // `<n>` makes the same file opened twice in one process two directories; `<pid>` does the same for two
 // processes (two instances with `general/singleInstance` off). **A name already on disk is never reused**
@@ -122,9 +126,11 @@ public:
     // `seedLines` after it -- a replayed journal's lines, so a crash after recovery loses nothing). Never
     // fails: a journal that cannot write degrades to memory and says so. `untitled`: the document's bytes
     // came from `sourcePath` but it has no file of its own yet (see the header).
+    // `seedDirectory` (Stage 6 T11, D6-23): where the seeded lines were replayed from -- their side files are copied
+    // from it, so a crash after a recovery still finds every payload the lines name.
     static std::unique_ptr<RecoveryJournal> open(const QString& root, const QString& sourcePath, const DocumentId& id,
                                                  platform::IDurableFiles* durableFiles, const QByteArray& seedLines = {},
-                                                 bool untitled = false);
+                                                 bool untitled = false, const QString& seedDirectory = {});
     ~RecoveryJournal() override;   // releases the lock and KEEPS the files: only `discard()` removes them
 
     RecoveryJournal(const RecoveryJournal&) = delete;

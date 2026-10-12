@@ -408,10 +408,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // at T7 (`annot.callout`, and the minted `annot.typewriter`), and by 6 at T8 (`annot.arrow`,
     // `annot.polyline`, `annot.eraser`, the minted `annot.cloud`, `annot.finishShape` and
     // `annot.setToolDefault`), and by 15 at T9 (the Comments pane's commands, two of them minted), and by 2 at
-    // T10 (`annot.customStamp` and `edit.paste`), and the
+    // T10 (`annot.customStamp` and `edit.paste`), and by 6 at T11 (`pane.attachments`, `annot.attachFile` and the
+    // Attachments pane's four minted commands), and the
     // point of asserting it here is unchanged: this case is about registration happening once per
     // REGISTRY rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 157);
+    CHECK(fixture.actions.registeredCount() == 163);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

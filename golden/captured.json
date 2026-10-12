@@ -92,6 +92,13 @@
         },
         {
             "dpi": 144,
+            "file": "appearance/file-attachments",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
             "file": "appearance/freetext-box",
             "height": 300,
             "page": 0,
@@ -4007,7 +4014,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-09T08:11:38Z",
+    "capturedUtc": "2026-10-12T11:12:33Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 6 T10: stamp appearances, first capture (guide A-75)"
+    "reason": "Stage 6 T11: the first capture of the file attachment appearance baseline (D6-17) -- 1 new case of tests/golden/AppearanceCases, file-attachments: a blue pushpin at 16 x 24, a red one at twice that, and a green paper clip, each carrying a file as annot.attachFile makes one. Additions only -- no corpus baseline and none of T8's or T10's appearance baselines is regenerated. The image was looked at before it was kept."
 }

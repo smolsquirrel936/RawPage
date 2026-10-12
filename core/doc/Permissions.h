@@ -60,7 +60,9 @@ class PageTree;
 // What a command may do. Stage 3 has one kind of edit; later stages add theirs as their commands
 // arrive, and Stage 10 answers each against the permission bits as well. `Annotate` is Stage 6's
 // (D6-3), asked per page through `mayAnnotate`.
-enum class Operation { EditPages, Annotate };
+// Stage 6 T11: `Attach` -- a file attached to, or removed from, the document as a whole (D6-17). Not `Annotate`:
+// ISO 32000-1 Table 22 grants annotation and document assembly separately, and Stage 10 answers each by its bit.
+enum class Operation { EditPages, Annotate, Attach };
 
 // One entry of a page's `/Annots`, as either reader sees it -- what D6-3 compares.
 struct AnnotationFact {
@@ -103,6 +105,11 @@ public:
     // larger: the engine reports them through `float`, whose step at 10,000 pt is about 0.001.
     static constexpr double kRectTolerance = 0.01;
     static constexpr double kRectRelativeTolerance = 1e-6;
+
+    // A document this build reads and will not edit, by `key` -- Stage 6 T11: an attached PDF opened from its bytes
+    // (`IDocumentBackend::openBytes`, `error.edit.attachmentCopy`), read-only until it has a file of its own. `key`
+    // must be a string literal: the refusal holds it by pointer.
+    static Permissions readOnly(const char* key) { return refused(key); }
 
     bool canEditPages() const noexcept { return editable_; }
     QLatin1String refusalKey() const noexcept { return refusalKey_; }

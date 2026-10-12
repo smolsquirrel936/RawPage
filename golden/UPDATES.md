@@ -52,3 +52,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 8 (filtered on `stamp`)
 - **Reason** Stage 6 T10: the first capture of the STAMP appearance baselines (guide A-75, D6-16) -- 8 new cases of tests/golden/AppearanceCases: every one of ISO 32000-1 Table 181's fourteen standard stamps, three to a page (stamps-standard-1 … 5), two dynamic stamps with their baked lines (stamps-dynamic), a stamp turned 30 degrees and one turned 90 (stamps-turned), and an image stamp with an alpha ramp over the band (stamp-image). Additions only -- no corpus baseline and none of T8's 31 is regenerated. Each image was looked at before it was kept.
+
+## 2026-10-12T11:12:33Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 1 (filtered on `file-attachments`)
+- **Reason** Stage 6 T11: the first capture of the file attachment appearance baseline (D6-17) -- 1 new case of tests/golden/AppearanceCases, file-attachments: a blue pushpin at 16 x 24, a red one at twice that, and a green paper clip, each carrying a file as annot.attachFile makes one. Additions only -- no corpus baseline and none of T8's or T10's appearance baselines is regenerated. The image was looked at before it was kept.

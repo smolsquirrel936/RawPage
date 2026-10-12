@@ -100,9 +100,9 @@ TEST_CASE("each arming chord arms its tool from the page with nothing armed", "[
         {Qt::Key_A, ui::AnnotationToolKind::MeasureArea},     {Qt::Key_K, ui::AnnotationToolKind::RedactMark},
     };
     // Fourteen chords; the three T6 kinds after them -- squiggly, replace, insert -- T7's two -- callout,
-    // typewriter -- and T8's four -- arrow, polyline, cloud, eraser -- have none (§8 untouched).
+    // typewriter -- T8's four -- arrow, polyline, cloud, eraser -- and T11's attach-file tool have none (§8 untouched).
     REQUIRE(std::size(chords) == ui::kChordedAnnotationToolCount);
-    REQUIRE(ui::kAnnotationToolKindCount == ui::kChordedAnnotationToolCount + 9);
+    REQUIRE(ui::kAnnotationToolKindCount == ui::kChordedAnnotationToolCount + 10);
     for (const auto& [key, kind] : chords) {
         Page page;
         INFO("Ctrl+Alt+" << QKeySequence(key).toString().toStdString());

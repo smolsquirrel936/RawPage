@@ -40,6 +40,7 @@
 #include "core/text/SearchEngine.h"
 #include "platform/platform.h"
 
+#include <functional>
 #include <QString>
 
 #include <memory>
@@ -92,6 +93,14 @@ public:
         // passes `core::ProfileStore::defaultRoot()`, so a case composing the product can never read or write the
         // stamps of whoever runs the suite; one that needs a library passes a scratch directory.
         QString stampRoot;
+
+        // WHERE AN OPENED ATTACHMENT IS WRITTEN (S6 T11, D6-17): this session's folder. EMPTY MEANS NONE, for
+        // `stampRoot`'s reason -- only `main.cpp` passes `core::attachmentSessionFolder()` -- and the folder is
+        // EMPTIED when this object is destroyed, which is the clean quit (a crash leaves it, and the next session
+        // has a folder of its own).
+        QString attachmentRoot;
+        // Hands a file to the shell. Empty means `QDesktopServices::openUrl`; a case passes a recorder.
+        std::function<bool(const QString&)> openExternally;
     };
 
     explicit CompositionRoot(Options options);
@@ -106,6 +115,9 @@ public:
 
     // `Options::loginName`, or the environment's when that is empty (S6 T6).
     QString loginName() const;
+
+    // S6 T11: the session's attachment folder emptied -- the destructor's, public for the case that checks it.
+    void emptyAttachmentFolder();
 
     core::Settings&        settings() { return *settings_; }
     core::RecentFiles&     recentFiles() { return *recentFiles_; }

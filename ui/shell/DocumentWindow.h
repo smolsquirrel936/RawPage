@@ -134,6 +134,20 @@ public:
                    QWidget* parent = nullptr);
 
     // ---------------------------------------------------------------------------------------
+    // AN ATTACHED PDF, OPENED FROM ITS BYTES -- Stage 6 T11, D6-17.
+    // ---------------------------------------------------------------------------------------
+    // `handle` is what `IDocumentBackend::openBytes` returned for an attachment named `name`. The tab names no
+    // file -- no file was written to open it -- and its document is NEVER EDITABLE: the backend refuses every
+    // command by `error.edit.attachmentCopy`, so it has no recovery journal and is never dirty. A Save As writes
+    // it, unchanged, to a file of its own -- the tab's one way to become editable, which `MainWindow` takes by
+    // opening the saved file in its place.
+    struct AttachmentCopy {
+        QString name;
+    };
+    DocumentWindow(app::Services services, core::DocumentHandle handle, const AttachmentCopy& copy,
+                   QWidget* parent = nullptr);
+
+    // ---------------------------------------------------------------------------------------
     // A SECOND VIEW OF ONE DOCUMENT, IN A SECOND WINDOW -- S4 T11, `window.new`, D4-13's exception.
     // ---------------------------------------------------------------------------------------
     // `handle` is the SAME FILE opened a second time, which is the one place a second
@@ -194,6 +208,8 @@ public:
     // bytes are its source's and whose `path()` is empty (Stage 3 T11).
     const QString& sourcePath() const { return sourcePath_; }
     bool isUntitled() const noexcept { return path_.isEmpty() && !sourcePath_.isEmpty(); }
+    // Stage 6 T11: an attached PDF opened from its bytes, and not yet saved as a file of its own.
+    bool isAttachmentCopy() const noexcept { return path_.isEmpty() && !attachmentName_.isEmpty(); }
 
     // Where a Save As proposes to write: the path, or for an untitled document "<source name> (recovered).pdf"
     // beside its source -- never the source itself, which the user chose not to write into.
@@ -332,6 +348,8 @@ public:
     QString title() const;
 
 signals:
+    // S6 T11 (D6-11): the find bar made an attachment hit current -- the window selects the file in its pane.
+    void attachmentHitActivated(const QString& name);
     // A right-click on a ruler (`guideIndex` -1) or on a guide. `MainWindow` builds the menu; the
     // TARGET is already recorded on the view's `GridGuideLayer`, so the commands in it need no
     // argument -- see `GridGuideLayer::setContextGuide`.
@@ -445,6 +463,7 @@ private:
     app::Services services_;
     QString path_;
     QString sourcePath_;
+    QString attachmentName_;   // S6 T11: the attachment an attachment copy was opened from
     core::DocumentHandle handle_;
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;

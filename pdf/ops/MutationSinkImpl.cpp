@@ -9,6 +9,7 @@
 #include "pdf/ops/AnnotationOps.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/EmbeddedFileReader.h"
+#include "pdf/cos/filters/FlateFilter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -191,6 +192,42 @@ bool rectReadsBack(const cos::CosObject& dictionary, const core::PdfRect& rect)
     return true;
 }
 
+// Stage 6 T11: whether `specification` -- read from `written` -- is a file specification whose `/EF /F` stream holds
+// exactly `flate`, the bytes RawPage compressed when the file was attached, under `/FlateDecode`. Byte for byte
+// rather than decoded, so verifying a 50 MB attachment after every command is a comparison, not an inflate.
+bool specificationHolds(cos::XrefTable& written, const cos::CosObject* specification, const std::string& flate)
+{
+    if (specification == nullptr || !specification->isReference()) return false;
+    auto spec = written.fetch(specification->reference().number);
+    if (!spec || !spec.value().object.isDictionary()) return false;
+    const cos::CosObject& ef = spec.value().object.get("EF");
+    const cos::CosObject& file = ef.get("F");
+    if (!file.isReference()) return false;
+    auto stream = written.fetch(file.reference().number);
+    if (!stream || !stream.value().object.isStream()) return false;
+    const cos::CosObject* filter = stream.value().object.find("Filter");
+    if (filter == nullptr || !filter->isName() || filter->text() != "FlateDecode") return false;
+    return stream.value().object.rawStreamData(written.source()) == std::string_view(flate);
+}
+
+// The bytes a key is written as, as a PDF string: a literal for printable ASCII, else UTF-16BE as hex --
+// `core::nameTreeKeyBytes`, which is also what the model sorts by.
+cos::CosObject keyString(const QString& key)
+{
+    const QByteArray bytes = core::nameTreeKeyBytes(key);
+    const bool unicode = bytes.startsWith("\xFE\xFF");
+    return cos::CosObject::makeString(bytes.toStdString(), unicode ? cos::StringForm::Hex : cos::StringForm::Literal);
+}
+
+// A file name as a byte string for `/F`: printable ASCII kept, every other character `_` -- `/UF` carries the
+// name in Unicode (ISO 32000-1 §7.11.3), and `/F` is what a reader with no `/UF` shows.
+cos::CosObject asciiFileName(const QString& name)
+{
+    std::string out;
+    for (const QChar c : name) out += (c.unicode() >= 0x20 && c.unicode() < 0x7F) ? static_cast<char>(c.unicode()) : '_';
+    return cos::CosObject::makeString(std::move(out));
+}
+
 } // namespace
 
 MutationSinkImpl::MutationSinkImpl(std::string_view bytes, cos::XrefTable table, PageWalk walk)
@@ -198,6 +235,7 @@ MutationSinkImpl::MutationSinkImpl(std::string_view bytes, cos::XrefTable table,
 {
     disk_ = readListings(table_, walk_);
     countArrayUsers(disk_, arrayUsers_);
+    diskFiles_ = readFiles(table_);
 }
 
 core::Result<std::unique_ptr<MutationSinkImpl>> MutationSinkImpl::open(std::string_view bytes)
@@ -255,6 +293,8 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     }
     if (core::Status annotations = composeAnnotations(delta, pageDictionaries); !annotations)
         return annotations.error();
+    if (core::Status files = composeFiles(delta); !files)   // Stage 6 T11
+        return files.error();
 
     for (auto& [number, dictionary] : pageDictionaries) {
         if (dictionary.isStream()) {
@@ -417,6 +457,11 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
                     auto appearance = AppearanceStreamBuilder::normal(annotation);
                     if (!appearance) return appearance.error();
                 }
+                // T11: a FileAttachment RawPage creates carries the file it attaches -- there is nothing to write
+                // as its /FS otherwise.
+                if (annotation.subtype == core::AnnotationSubtype::FileAttachment
+                    && (!annotation.attachment || !annotation.attachment->carried))
+                    return sinkError(core::ErrorCode::InvalidArgument, "error.attachment.noData", place.page);
                 entry.kind = ListedEntry::Kind::Created;
                 entry.nm = annotation.id.nm;
                 created.insert_or_assign(entry.nm, annotation);
@@ -710,6 +755,15 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                     }
                     auto dictionary = AnnotationOps::createdDictionary(*annotation, pageRef, appearanceRef, resolve);
                     if (!dictionary) return dictionary.error();
+                    // T11: a FileAttachment's file, as its /FS -- its stream compressed once (`compressedFor`).
+                    if (annotation->subtype == core::AnnotationSubtype::FileAttachment && annotation->attachment
+                        && annotation->attachment->carried) {
+                        const std::string* flate = compressedFor(QStringLiteral("nm:") + entry.nm, annotation->attachment->data);
+                        if (flate == nullptr) return sinkError(core::ErrorCode::Corrupted, "error.attachment.undecodable", page);
+                        const cos::CosRef spec = addFileSpecification(delta, *annotation->attachment, *flate);
+                        dictionary = AnnotationOps::withEntry(dictionary.value(), "FS",
+                                                              cos::CosObject::makeReference(spec.number, spec.generation));
+                    }
                     if (!delta.define(number->second, std::move(dictionary).value()))
                         return sinkError(core::ErrorCode::Corrupted, "error.pdf.annotationUnknown", page);
                 }
@@ -825,6 +879,12 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
                 if (!cos::ContentStreamBuilder::check(stream.value().object.rawStreamData(written.source())))
                     return listingMismatch(page);
             }
+            // T11: a created FileAttachment's /FS holds the very bytes compressed when it was made.
+            if (annotation->subtype == core::AnnotationSubtype::FileAttachment) {
+                const auto cached = compressed_.find(QStringLiteral("nm:") + want.nm);
+                if (cached == compressed_.end() || !specificationHolds(written, d.find("FS"), cached->second.flate))
+                    return listingMismatch(page);
+            }
             got.id = want.id;
             out.created.insert_or_assign(want.nm, got.reference);
         }
@@ -884,6 +944,275 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
     return out;
 }
 
+// ==========================================================================================
+// Attachments (Stage 6 T11) -- the header's rule over `/Names /EmbeddedFiles`
+// ==========================================================================================
+
+bool MutationSinkImpl::ListedFile::sameEntry(const ListedFile& other) const
+{
+    if (kind != other.kind) return false;
+    if (kind == Kind::Disk) return keyObject == other.keyObject && value == other.value;
+    return key == other.key && created == other.created;
+}
+
+std::vector<MutationSinkImpl::ListedFile> MutationSinkImpl::readFiles(cos::XrefTable& table)
+{
+    std::vector<ListedFile> out;
+    for (NameTreeEntry& entry : EmbeddedFileReader::entries(table)) {
+        ListedFile file;
+        file.kind = ListedFile::Kind::Disk;
+        if (entry.key.isString()) {
+            file.key = EmbeddedFileReader::decodeTextString(entry.key.text());
+            file.keyBytes = QByteArray(entry.key.text().data(), static_cast<qsizetype>(entry.key.text().size()));
+        }
+        file.keyObject = std::move(entry.key);
+        file.value = std::move(entry.value);
+        out.push_back(std::move(file));
+    }
+    return out;
+}
+
+const std::vector<MutationSinkImpl::ListedFile>& MutationSinkImpl::desiredFiles() const
+{
+    return desiredFiles_ ? *desiredFiles_ : diskFiles_;
+}
+
+void MutationSinkImpl::commitFiles(std::vector<ListedFile> files)
+{
+    const bool asOnDisk = files.size() == diskFiles_.size()
+                          && std::equal(files.begin(), files.end(), diskFiles_.begin(),
+                                        [](const ListedFile& a, const ListedFile& b) { return a.sameEntry(b); });
+    if (asOnDisk) desiredFiles_.reset();   // back to the disk: nothing to write
+    else desiredFiles_ = std::move(files);
+    // A carried file nothing desired names any more is not compressed for any compose (attach, then undo).
+    const std::vector<ListedFile>& now = desiredFiles();
+    for (auto it = compressed_.begin(); it != compressed_.end();) {
+        const bool named = !it->first.startsWith(QLatin1String("key:"))
+                           || std::any_of(now.begin(), now.end(), [&it](const ListedFile& f) {
+                                  return f.kind == ListedFile::Kind::Created && QStringLiteral("key:") + f.key == it->first;
+                              });
+        if (named) ++it;
+        else it = compressed_.erase(it);
+    }
+}
+
+core::Status MutationSinkImpl::insertAttachments(const std::vector<core::DocumentAttachment>& files)
+{
+    if (files.empty()) return sinkError(core::ErrorCode::InvalidArgument, "error.attachment.unknown", 0);
+    // Everything on scratch copies: refused part-way, nothing has changed.
+    std::vector<ListedFile> scratch = desiredFiles();
+    std::map<QString, RemovedFile> removed = removedFiles_;
+    std::vector<const core::DocumentAttachment*> restores;
+    std::vector<const core::DocumentAttachment*> attached;
+    std::set<QString> keys;
+    for (const core::DocumentAttachment& file : files) {
+        if (file.key.isEmpty() || !keys.insert(file.key).second)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.duplicateKey"), file.key};
+        if (std::any_of(scratch.begin(), scratch.end(), [&file](const ListedFile& f) { return f.key == file.key; }))
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.duplicateKey"), file.key};
+        if (removed.count(file.key) != 0) restores.push_back(&file);
+        else if (file.file.carried) attached.push_back(&file);
+        else return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.noData"), file.key};
+    }
+
+    // The pairs put back first, the LATEST removal first, each at the place it had -- undo is last-in-first-out,
+    // so each place is the one its removal left.
+    std::sort(restores.begin(), restores.end(), [&removed](const core::DocumentAttachment* a, const core::DocumentAttachment* b) {
+        return removed.at(a->key).sequence > removed.at(b->key).sequence;
+    });
+    for (const core::DocumentAttachment* file : restores) {
+        const RemovedFile was = removed.at(file->key);
+        scratch.insert(scratch.begin() + static_cast<std::ptrdiff_t>(std::min(was.position, scratch.size())), was.entry);
+        removed.erase(file->key);
+    }
+    // Then each new file where its key sorts.
+    for (const core::DocumentAttachment* file : attached) {
+        ListedFile entry;
+        entry.kind = ListedFile::Kind::Created;
+        entry.key = file->key;
+        entry.keyBytes = core::nameTreeKeyBytes(file->key);
+        entry.created = *file;
+        const auto at = std::find_if(scratch.begin(), scratch.end(),
+                                     [&entry](const ListedFile& f) { return entry.keyBytes < f.keyBytes; });
+        scratch.insert(at, std::move(entry));
+    }
+    removedFiles_ = std::move(removed);
+    commitFiles(std::move(scratch));
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::removeAttachments(const std::vector<QString>& keys)
+{
+    if (keys.empty()) return sinkError(core::ErrorCode::InvalidArgument, "error.attachment.unknown", 0);
+    std::vector<ListedFile> scratch = desiredFiles();
+    std::map<QString, RemovedFile> removed = removedFiles_;
+    long long sequence = removalSequence_;
+    for (const QString& key : keys) {
+        const auto at = std::find_if(scratch.begin(), scratch.end(),
+                                     [&key](const ListedFile& f) { return !key.isEmpty() && f.key == key; });
+        if (at == scratch.end()) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.attachment.unknown"), key};
+        // A pair the file holds is kept, so an undo lists it again; an attached one is its command's to carry.
+        if (at->kind == ListedFile::Kind::Disk)
+            removed.insert_or_assign(key, RemovedFile{*at, static_cast<std::size_t>(at - scratch.begin()), ++sequence});
+        scratch.erase(at);
+    }
+    removedFiles_ = std::move(removed);
+    removalSequence_ = sequence;
+    commitFiles(std::move(scratch));
+    return core::Status{};
+}
+
+const std::string* MutationSinkImpl::compressedFor(const QString& cacheKey, const QByteArray& data)
+{
+    if (const auto found = compressed_.find(cacheKey); found != compressed_.end() && found->second.data == data)
+        return &found->second.flate;
+    auto flate = cos::filters::flateEncode(std::string_view(data.constData(), static_cast<std::size_t>(data.size())));
+    if (!flate) return nullptr;
+    Compressed entry{data, std::string(flate.value().begin(), flate.value().end())};
+    return &compressed_.insert_or_assign(cacheKey, std::move(entry)).first->second.flate;
+}
+
+cos::CosRef MutationSinkImpl::addFileSpecification(cos::ObjectDelta& delta, const core::EmbeddedFile& file,
+                                                   std::string compressed)
+{
+    using cos::CosObject;
+    std::vector<CosObject::Entry> params;
+    const long long size = file.carried ? static_cast<long long>(file.data.size()) : file.size;
+    if (size >= 0) params.push_back({"Size", CosObject::makeInteger(size)});
+    if (file.checksum.size() == 16)
+        params.push_back({"CheckSum", CosObject::makeString(file.checksum.toStdString(), cos::StringForm::Hex)});
+    if (!file.created.raw.isEmpty()) params.push_back({"CreationDate", AnnotationOps::textString(file.created.raw)});
+    if (!file.modified.raw.isEmpty()) params.push_back({"ModDate", AnnotationOps::textString(file.modified.raw)});
+
+    std::vector<CosObject::Entry> stream{{"Type", CosObject::makeName("EmbeddedFile")}};
+    if (!file.mime.isEmpty()) stream.push_back({"Subtype", CosObject::makeName(file.mime.toStdString())});
+    stream.push_back({"Params", CosObject::makeDictionary(std::move(params))});
+    stream.push_back({"Filter", CosObject::makeName("FlateDecode")});
+    const long long streamNumber = delta.add(CosObject::makeStream(std::move(stream), cos::CosStreamData{}), std::move(compressed));
+
+    std::vector<CosObject::Entry> spec{
+        {"Type", CosObject::makeName("Filespec")},
+        {"F", asciiFileName(file.name)},
+        {"UF", AnnotationOps::textString(file.name)},
+    };
+    if (!file.description.isEmpty()) spec.push_back({"Desc", AnnotationOps::textString(file.description)});
+    spec.push_back({"EF", CosObject::makeDictionary({{"F", CosObject::makeReference(streamNumber, 0)},
+                                                     {"UF", CosObject::makeReference(streamNumber, 0)}})});
+    return cos::CosRef{delta.add(CosObject::makeDictionary(std::move(spec))), 0};
+}
+
+core::Status MutationSinkImpl::composeFiles(cos::ObjectDelta& delta)
+{
+    if (!desiredFiles_) return core::Status{};
+    delta.reserveNumbersThrough(referenceFloor());
+
+    // The tree, flat: one `/Names` array in the order the sink keeps -- every key's place decided when it was put
+    // there, by the bytes it is written as.
+    std::vector<cos::CosObject> pairs;
+    pairs.reserve(desiredFiles_->size() * 2);
+    for (const ListedFile& file : *desiredFiles_) {
+        if (file.kind == ListedFile::Kind::Disk) {
+            pairs.push_back(file.keyObject);
+            pairs.push_back(file.value);
+            continue;
+        }
+        const std::string* flate = compressedFor(QStringLiteral("key:") + file.key, file.created.file.data);
+        if (flate == nullptr) return sinkError(core::ErrorCode::Corrupted, "error.attachment.undecodable", -1);
+        const cos::CosRef spec = addFileSpecification(delta, file.created.file, *flate);
+        pairs.push_back(keyString(file.key));
+        pairs.push_back(cos::CosObject::makeReference(spec.number, spec.generation));
+    }
+    std::optional<cos::CosObject> tree;
+    if (!pairs.empty()) {
+        const long long number = delta.add(cos::CosObject::makeDictionary({{"Names", cos::CosObject::makeArray(std::move(pairs))}}));
+        tree = cos::CosObject::makeReference(number, 0);
+    }
+    const auto withTree = [&tree](const cos::CosObject& names) {
+        return tree ? AnnotationOps::withEntry(names, "EmbeddedFiles", *tree) : AnnotationOps::withoutEntry(names, "EmbeddedFiles");
+    };
+
+    // The catalog's `/Names`: into the names dictionary's own object when it has one, else into the catalog.
+    const cos::CosObject& root = table_.trailer().get("Root");
+    if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
+    auto catalog = table_.fetch(root.reference().number);
+    if (!catalog || !catalog.value().object.isDictionary())
+        return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", root.reference().number);
+    cos::CosObject catalogDictionary = catalog.value().object;
+    catalogDictionary.clearSpansRecursively();
+    const cos::CosObject* names = catalogDictionary.find("Names");
+    if (names != nullptr && names->isReference()) {
+        auto namesObject = table_.fetch(names->reference().number);
+        if (namesObject && namesObject.value().object.isDictionary() && !namesObject.value().object.isStream()) {
+            cos::CosObject current = namesObject.value().object;
+            current.clearSpansRecursively();
+            delta.replace(names->reference().number, withTree(current));
+            return core::Status{};
+        }
+    }
+    const cos::CosObject current = (names != nullptr && names->isDictionary()) ? *names : cos::CosObject::makeDictionary({});
+    delta.replace(root.reference().number, AnnotationOps::withEntry(catalogDictionary, "Names", withTree(current)));
+    return core::Status{};
+}
+
+core::Result<std::vector<MutationSinkImpl::ListedFile>> MutationSinkImpl::reconcileFiles(cos::XrefTable& written, bool strict) const
+{
+    const auto mismatch = [] {
+        return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.save.verifyFailed"), QStringLiteral("attachments")};
+    };
+    std::vector<ListedFile> actual = readFiles(written);
+    const std::vector<ListedFile>& expected = desiredFiles();
+    if (!desiredFiles_) {
+        // A tree this sink did not change: the same pairs, or -- adopting a file it did not compose -- as it is.
+        const bool same = actual.size() == expected.size()
+                          && std::equal(actual.begin(), actual.end(), expected.begin(),
+                                        [](const ListedFile& a, const ListedFile& b) { return a.sameEntry(b); });
+        if (!same && strict) return mismatch();
+        return actual;
+    }
+    if (actual.size() != expected.size()) return mismatch();
+    for (std::size_t at = 0; at < actual.size(); ++at) {
+        const ListedFile& want = expected[at];
+        const ListedFile& got = actual[at];
+        if (want.kind == ListedFile::Kind::Disk) {
+            if (!got.sameEntry(want)) return mismatch();
+            continue;
+        }
+        // An attached file: under its key, a specification whose stream is the bytes compressed at attach.
+        const auto cached = compressed_.find(QStringLiteral("key:") + want.key);
+        if (got.keyBytes != want.keyBytes || cached == compressed_.end()
+            || !specificationHolds(written, &got.value, cached->second.flate))
+            return mismatch();
+    }
+    return actual;
+}
+
+core::Result<QByteArray> MutationSinkImpl::attachmentData(const core::AttachmentRef& attachment)
+{
+    const auto notFound = [&attachment] {
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.attachment.unknown"),
+                           attachment.kind == core::AttachmentRef::Kind::Document ? attachment.key
+                                                                                 : attachment.annotation.toString()};
+    };
+    if (attachment.kind == core::AttachmentRef::Kind::Document) {
+        for (const ListedFile& file : desiredFiles()) {
+            if (attachment.key.isEmpty() || file.key != attachment.key) continue;
+            if (file.kind == ListedFile::Kind::Created) return file.created.file.data;
+            return EmbeddedFileReader::dataOf(table_, &file.value);
+        }
+        return notFound();
+    }
+    // A FileAttachment: one created and not saved carries its file; one the file lists has its /FS on disk.
+    if (attachment.annotation.kind == core::AnnotationId::Kind::Created) {
+        if (const core::Annotation* created = createdAnnotation(attachment.annotation.nm)) {
+            if (created->attachment && created->attachment->carried) return created->attachment->data;
+            return notFound();
+        }
+    }
+    const std::optional<cos::CosObject> dictionary = dictionaryOnDisk(attachment.annotation);
+    if (!dictionary) return notFound();
+    return EmbeddedFileReader::dataOf(table_, dictionary->find("FS"));
+}
+
 core::Status MutationSinkImpl::adopt(std::string_view bytes)
 {
     auto table = tableFor(bytes);
@@ -901,6 +1230,9 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     auto reconciled = reconcile(table.value(), walk.value(), false);
     if (!reconciled)
         return reconciled.error();
+    auto files = reconcileFiles(table.value(), false);   // T11: the tree, as it composed it
+    if (!files)
+        return files.error();
 
     bytes_ = bytes;
     table_ = std::move(table).value();
@@ -912,6 +1244,9 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     created_.clear();
     edits_.clear();
     referenceFloor_.reset();
+    diskFiles_ = std::move(files).value();
+    desiredFiles_.reset();
+    compressed_.clear();   // every carried file is now the file's: its bytes are read from the stream
     for (auto it = desired_.begin(); it != desired_.end();) {
         if (it->second == walk_.pages[static_cast<std::size_t>(it->first)].effectiveRotate())
             it = desired_.erase(it);

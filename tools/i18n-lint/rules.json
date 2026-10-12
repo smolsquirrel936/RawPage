@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps", "attachments"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -74,7 +74,11 @@
     "",
     "`stamps` JOINED AT Stage 6 T10 (`Stage6-Annotations-Plan.md` D6-16), with the stamp palette's and the",
     "custom-stamp dialog's words and each built-in stamp's name (`stamps.name.`). The action ids stay",
-    "`annot.stamp` and `annot.customStamp`, which no `stamps.` key can be mistaken for."
+    "`annot.stamp` and `annot.customStamp`, which no `stamps.` key can be mistaken for.",
+    "",
+    "`attachments` JOINED AT Stage 6 T11 (`Stage6-Annotations-Plan.md` D6-17), with the Attachments pane's words and",
+    "its questions. Its plural is not the action ids' singular -- `attachment.open` is an ActionId, and",
+    "`attachment.add` a command's type id, never a key -- and the pane's title stays `panes.attachments.title`."
   ],
 
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],

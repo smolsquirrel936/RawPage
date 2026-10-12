@@ -33,6 +33,7 @@
 #include "core/Log.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/KeyBindingStore.h"
+#include "core/doc/Attachments.h"
 #include "core/settings/ProfileStore.h"
 #include "core/settings/SettingsSchema.h"
 
@@ -297,6 +298,8 @@ int main(int argc, char** argv)
     options.logDirectory = app::LogFile::defaultDirectory();
     // S6 T10: the custom-stamp library, likewise asked for here alone (`Options::stampRoot`).
     options.stampRoot = core::ProfileStore::defaultRoot();
+    // S6 T11 (D6-17): this session's attachment folder, likewise asked for here alone (`Options::attachmentRoot`).
+    options.attachmentRoot = core::attachmentSessionFolder();
     app::CompositionRoot root(std::move(options));
 
     // --- One instance, or two? ---------------------------------------------------------------

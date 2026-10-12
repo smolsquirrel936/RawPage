@@ -11,7 +11,11 @@
 #include "core/settings/SettingsSchema.h"
 
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
+#include <QUrl>
 #include <QMetaObject>
 #include <QStandardPaths>
 #include <QtGlobal>
@@ -355,6 +359,9 @@ CompositionRoot::~CompositionRoot()
     // Here rather than in Application::aboutToQuit because a secondary instance exits before any
     // event loop runs, and a diagnostic run exits before that. A process that changed nothing
     // writes nothing, so the cost of the wider placement is zero.
+    // S6 T11 (D6-17): the session's opened attachments go -- before the platform bundle, whose delete it uses.
+    emptyAttachmentFolder();
+
     if (const core::Status written = settings_->sync(); !written) {
         RAWPAGE_LOG_ERROR(LogSubsystem::Ui)
             << "settings: could not be saved --" << written.error().messageKey
@@ -372,10 +379,45 @@ CompositionRoot::~CompositionRoot()
 
 Services CompositionRoot::services()
 {
-    return Services{*settings_,      *recentFiles_,  *actions_,         *keyBindings_,
-                    *logBuffer_,     *backend_,      *renderScheduler_, *renderCache_,
-                    *documentIndex_, *searchEngine_, *platform_,        options_.recoveryRoot,
-                    loginName(),     stamps_.get()};
+    Services services{*settings_,      *recentFiles_,  *actions_,         *keyBindings_,
+                      *logBuffer_,     *backend_,      *renderScheduler_, *renderCache_,
+                      *documentIndex_, *searchEngine_, *platform_,        options_.recoveryRoot,
+                      loginName(),     stamps_.get()};
+    // S6 T11 (D6-17): the session folder an opened attachment is written into, and how it reaches the shell.
+    services.attachmentRoot = options_.attachmentRoot;
+    services.openExternally = options_.openExternally ? options_.openExternally : [](const QString& path) {
+        return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    };
+    return services;
+}
+
+void CompositionRoot::emptyAttachmentFolder()
+{
+    // D6-17: every file an open put here goes at a clean quit -- through `IDurableFiles::removeFile`, the delete
+    // the platform already owns, so no waiver -- and each per-open folder and the session folder after it. A file
+    // another program still holds open is left, and said.
+    const QString root = options_.attachmentRoot;
+    if (root.isEmpty() || !QFileInfo(root).isDir()) return;
+    platform::IDurableFiles* durable = platform_ ? platform_->durableFiles.get() : nullptr;
+    if (durable == nullptr) return;
+    int removed = 0;
+    QStringList kept;
+    QDirIterator files(root, QDir::Files | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+        const QString path = files.next();
+        if (durable->removeFile(path)) ++removed;
+        else kept << path;
+    }
+    QDirIterator folders(root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    QStringList subfolders;
+    while (folders.hasNext()) subfolders << folders.next();
+    std::sort(subfolders.begin(), subfolders.end(), [](const QString& a, const QString& b) { return a.size() > b.size(); });
+    for (const QString& folder : subfolders) QDir().rmdir(folder);
+    QDir().rmdir(root);
+    RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "attachments: emptied the session folder" << root << "--" << removed << "removed";
+    if (!kept.isEmpty()) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "attachments: still in use, left in place:" << kept.join(QStringLiteral(", "));
+    }
 }
 
 QString CompositionRoot::loginName() const

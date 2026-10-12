@@ -179,10 +179,20 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // Stage 1 -- and `edit.paste`, §8's Common `Ctrl+V`, an image on the clipboard placed as an image stamp (its
     // annotation half T13's); nothing minted, 380 ids are declared.
     //
+    // **Six more at Stage 6 T11** (D6-17): `pane.attachments` -- §8's Global `Ctrl+Shift+A` -- `annot.attachFile`,
+    // both declared at Stage 1, and the Attachments pane's four MINTED chordless -- `attachment.open`,
+    // `attachment.extract`, `attachment.add` and `attachment.delete`; 384 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 157);
+    CHECK(fixture.actions.registeredCount() == 163);
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneAttachments));        // S6 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotAttachFile));        // S6 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::AttachmentOpen));         // S6 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::AttachmentExtract));      // S6 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::AttachmentAdd));          // S6 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::AttachmentDelete));       // S6 T11
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotCustomStamp));       // S6 T10
     CHECK(fixture.actions.isRegistered(core::ActionId::EditPaste));              // S6 T10
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotArrow));             // S6 T8
@@ -312,12 +322,13 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageSelectAll));     // S7
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageDelete));        // S7
 
-    // And the six panes whose MODELS do not exist are not registered either (D4-2): a pane
+    // And the five panes whose MODELS do not exist are not registered either (D4-2): a pane
     // cannot precede its model, and a chord that opened an empty dock would be indistinguishable
     // from a pane that is broken. `pane.bookmarks` and `pane.destinations` arrive at T6, `pane.comments`
-    // at Stage 6 T9.
+    // at Stage 6 T9, `pane.attachments` at T11.
     CHECK(fixture.actions.isRegistered(core::ActionId::PaneComments));            // S6 T9
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneAttachments));   // S6 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneAttachments));         // S6 T11
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneSignatures));    // S11
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneLayers));        // S7
 
     // S4 T6's SEVEN: the two navigation panes and the five §8 Bookmarks rows that navigate.

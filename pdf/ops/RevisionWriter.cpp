@@ -126,6 +126,11 @@ core::Status RevisionWriter::verify(std::string_view original, std::string_view 
     auto annotations = sink.reconcile(opened.value().table, walk.value(), true);
     if (!annotations)
         return annotations.error();
+    // And the name tree is the one the sink composed (Stage 6 T11): every pair it kept the same pair, every
+    // attached file a specification whose stream is the bytes compressed when it was attached.
+    auto files = sink.reconcileFiles(opened.value().table, true);
+    if (!files)
+        return files.error();
     return core::Status{};
 }
 

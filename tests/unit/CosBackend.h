@@ -18,6 +18,9 @@
 #define RAWPAGE_TESTS_UNIT_COSBACKEND_H
 
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/Attachments.h"
+#include "pdf/ops/AttachmentFiles.h"
+#include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
@@ -56,13 +59,27 @@ public:
         return implemented;
     }
 
-    core::Result<core::DocumentHandle> open(const QString& path, const core::PasswordCallback&) override
+    core::Result<core::DocumentHandle> open(const QString& path, const core::PasswordCallback& password) override
     {
         QFile file(path);
         if (!file.open(QIODevice::ReadOnly))
             return core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), path};
+        return openFrom(file.readAll(), path, password, false);
+    }
+
+    // S6 T11 (D6-17): `open()` over bytes, as the shipped backend does it -- no path, read-only, its sink kept so a
+    // Save As writes it unchanged.
+    core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
+                                                 const core::PasswordCallback& password) override
+    {
+        return openFrom(bytes, name, password, true);
+    }
+
+    core::Result<core::DocumentHandle> openFrom(const QByteArray& bytes, const QString& path, const core::PasswordCallback&,
+                                                bool fromBytes)
+    {
         auto entry = std::make_unique<Entry>();
-        entry->bytes = file.readAll();
+        entry->bytes = bytes;
         auto sink = pdf::ops::MutationSinkImpl::open(
             std::string_view(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size())));
         if (!sink)
@@ -90,7 +107,10 @@ public:
         entry->permissions = core::Permissions::assess(
             entry->tree, planted_.value_or(core::CosReading::Read), facts);
         planted_.reset();
-        entry->id = core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);   // the real time: SaveCoordinator compares it (T8)
+        entry->id = fromBytes ? core::DocumentId::of(QString(), 0, entry->bytes)
+                              : core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);   // the real time: SaveCoordinator compares it (T8)
+        // S6 T11: the document-level files, off the same walk as the shipped backend's.
+        entry->attachments = core::Attachments::fromReading(pdf::ops::EmbeddedFileReader::attachments(sink.value()->table()));
         // S6 T2 (D6-3): the annotations, from the same first-party walk as the shipped backend's.
         // There is no engine here, so no per-page agreement is assessed -- that half is
         // `tests/render/tst_annotreader.cpp`'s, where both readers are.
@@ -104,7 +124,8 @@ public:
             entry->permissions.assessAnnotations(engine, entry->annotations.listingFacts());
             plantedDisagreement_.reset();
         }
-        if (entry->permissions.canEditPages())
+        if (fromBytes) entry->permissions = core::Permissions::readOnly("error.edit.attachmentCopy");
+        if (entry->permissions.canEditPages() || fromBytes)
             entry->sink = std::move(sink).value();
 
         const core::DocumentHandle handle{next_++};
@@ -116,6 +137,31 @@ public:
     {
         entries_.erase(handle.id);
         return {};
+    }
+
+    // S6 T11 (D6-17): the shipped backend's arrangement -- the sink's reading of the document as it stands, else a
+    // table loaded for the call -- and the extract through `pdf/ops/AttachmentFiles`, the same write.
+    const core::Attachments* attachments(core::DocumentHandle handle) const override
+    {
+        const auto* entry = find(handle);
+        return entry ? &entry->attachments : nullptr;
+    }
+    core::Result<QByteArray> attachmentData(core::DocumentHandle handle, const core::AttachmentRef& attachment) override
+    {
+        auto* entry = findMutable(handle);
+        if (entry == nullptr)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"), QString()};
+        if (entry->sink) return entry->sink->attachmentData(attachment);
+        auto opened = pdf::cos::openWithRepair(std::string_view(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size())));
+        if (!opened) return opened.error();
+        return pdf::ops::AttachmentFiles::read(opened.value().table, attachment);
+    }
+    core::Status extractAttachment(core::DocumentHandle handle, const core::AttachmentRef& attachment, const QString& path,
+                                   bool overwrite) override
+    {
+        core::Result<QByteArray> bytes = attachmentData(handle, attachment);
+        if (!bytes) return bytes.error();
+        return pdf::ops::AttachmentFiles::write(bytes.value(), path, overwrite);
     }
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {
@@ -276,6 +322,7 @@ public:
 private:
     struct Entry {
         core::AnnotationStore annotations;     // S6 T2
+        core::Attachments attachments;         // S6 T11
         QByteArray bytes;
         core::PageTree tree;
         core::RepairReport repair;

@@ -30,6 +30,8 @@
 
 #include <QString>
 
+#include <functional>
+
 namespace rawpage::core {
 class ActionRegistry;
 class IDocumentBackend;
@@ -126,6 +128,18 @@ struct Services {
     // (`CompositionRoot::Options::stampRoot`) -- a test, a diagnostic run -- and the palette then offers the
     // built-in stamps alone.
     core::ProfileStore* stamps = nullptr;
+
+    // WHERE AN OPENED ATTACHMENT IS WRITTEN (Stage 6 T11, D6-17): this session's folder,
+    // `%LOCALAPPDATA%\RawPage\attachments\<process id>`, written into by `pdf/` alone (`IDocumentBackend::
+    // extractAttachment`) and EMPTIED AT A CLEAN QUIT (`app/CompositionRoot`). EMPTY when the composition was given
+    // none (`CompositionRoot::Options::attachmentRoot`) -- a test, a diagnostic run -- and opening an attachment that
+    // is not a PDF is then refused by key: nothing is written outside a folder somebody chose.
+    QString attachmentRoot = {};
+
+    // HANDS A FILE TO THE SHELL (Stage 6 T11): what opens an extracted attachment with the program Windows uses for
+    // it -- `QDesktopServices::openUrl`, installed by `app/CompositionRoot`. EMPTY in a composition that installs
+    // none, and a case installs a recorder: nothing a suite does may launch a program.
+    std::function<bool(const QString& path)> openExternally = {};
 };
 
 } // namespace rawpage::app

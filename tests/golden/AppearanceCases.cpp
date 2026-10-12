@@ -2,6 +2,7 @@
 
 #include "tests/golden/AppearanceCases.h"
 
+#include "core/doc/Attachments.h"
 #include "core/doc/DrawnShapes.h"
 #include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
@@ -323,6 +324,22 @@ std::vector<AppearanceCase> buildCases()
                                             : core::Result<Annotation>(pixels.error());
         add("stamp-image", "a 32 x 16 image with an alpha ramp, over the band: its own pixels, translucent at the left",
             {stamp(a ? a.value() : Annotation{}, n("stamp-image"), 0, PdfRect{PdfPoint{20, 20}, PdfSize{160, 80}})});
+    }
+    {
+        // Stage 6 T11 (D6-17): a FileAttachment's two icons -- the pushpin at its own 16 by 24 and at twice that, and
+        // the paper clip -- each carrying a file, as `annot.attachFile` makes one.
+        const auto pinned = [&](int index, const char* icon, PdfRect rect, std::vector<double> colour) {
+            Annotation a = made(AnnotationSubtype::FileAttachment, n("file-attachments"), index);
+            a.rect = rect;
+            a.icon = QString::fromLatin1(icon);
+            a.color = std::move(colour);
+            a.attachment = core::newEmbeddedFile(QStringLiteral("data.csv"), QByteArray("a,b"), QString(), kInstant);
+            return a;
+        };
+        add("file-attachments", "a blue pushpin, a red one twice its size, and a green paper clip",
+            {pinned(0, "PushPin", PdfRect{PdfPoint{40, 50}, PdfSize{16, 24}}, blue),
+             pinned(1, "PushPin", PdfRect{PdfPoint{90, 40}, PdfSize{32, 48}}, red),
+             pinned(2, "Paperclip", PdfRect{PdfPoint{150, 50}, PdfSize{16, 24}}, green)});
     }
     return cases;
 }

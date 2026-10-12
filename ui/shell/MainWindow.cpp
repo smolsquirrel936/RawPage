@@ -1,5 +1,8 @@
 #include "ui/shell/MainWindow.h"
 
+#include "core/doc/Attachments.h"
+#include "core/cmd/commands/AnnotationCommands.h"
+#include "core/cmd/commands/AttachmentCommands.h"
 #include "core/Log.h"
 #include "core/Units.h"
 // T9: `openFiles()` asks the backend whether a file is a PDF (guide case A-47). It is a `core/`
@@ -17,6 +20,7 @@
 #include "ui/panes/SearchPane.h"
 #include "ui/panes/StampPalettePane.h"
 #include "ui/panes/BookmarksPane.h"
+#include "ui/panes/AttachmentsPane.h"
 #include "ui/panes/CommentsPane.h"
 #include "ui/panes/DestinationsPane.h"
 #include "ui/panes/ThumbnailsPane.h"
@@ -54,6 +58,9 @@
 #include "ui/shell/UiCustomization.h"
 #include "ui/shell/WindowArranger.h"
 
+#include <QFile>
+#include <QStandardPaths>
+#include <QMessageBox>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
@@ -146,6 +153,12 @@ MainWindow::SaveAsAnswer& installedSaveAsAnswer()
 {
     static MainWindow::SaveAsAnswer answer;
     return answer;
+}
+
+MainWindow::AttachmentAnswers& installedAttachmentAnswers()
+{
+    static MainWindow::AttachmentAnswers answers;
+    return answers;
 }
 
 } // namespace
@@ -314,6 +327,14 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
                                     .arg(catalog::translateError(QString(error.messageKey), error.context)));
     });
     connect(comments_, &CommentsPane::numbersChanged, this, [this] { updateCommentNumbers(); });
+
+    // S6 T11 -- THE ATTACHMENTS PANE (D6-17), over the tab in front's document; its commands are registered in
+    // `registerAttachmentActions`, and every button of it asks for one of them.
+    attachments_ = new AttachmentsPane(sidebar_);
+    sidebar_->addPane(core::ActionId::PaneAttachments, catalog::translate(catalog::key::PanesAttachmentsTitle), attachments_);
+    connect(attachments_, &AttachmentsPane::actionRequested, this,
+            [this](core::ActionId id) { (void)services_.actions.dispatch(id, core::KeyContext::Global); });
+    connect(attachments_, &AttachmentsPane::currentChanged, this, [this] { updateViewChrome(); });
 
     // THE LOG PANE -- T14. Its own dock along the bottom rather than a pane in the sidebar: the
     // sidebar's subject is the document and the log's is the application. Hidden, because a shell
@@ -743,6 +764,8 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
             if (const core::CommandJournal* journal = document->journal())
                 thumbnails_->modelChanged(journal->revision());
         }
+        // S6 T11: the Attachments pane lists what the document holds now.
+        if (attachments_ && document == currentDocument()) attachments_->refresh();
         // S6 T9: the Comments pane re-asks its query, keeping the comment it had current.
         if (comments_ && document == currentDocument()) {
             if (const core::CommandJournal* journal = document->journal()) {
@@ -753,6 +776,22 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         }
         updateViewChrome();
     });
+    // S6 T11 (D6-11): an attachment hit in the find bar selects its file in the pane, which is shown.
+    connect(document, &DocumentWindow::attachmentHitActivated, this, [this, document](const QString& name) {
+        if (document != currentDocument() || attachments_ == nullptr) return;
+        sidebar_->setAutoHidden(false);
+        sidebar_->show();
+        sidebar_->showPane(core::ActionId::PaneAttachments);
+        attachments_->selectByName(name);
+    });
+    // The `annot.attachFile` tool's question -- which file -- asked of the window in front when it is asked, so a
+    // tab torn off into another window asks there (convention 14).
+    if (AnnotationOverlay* overlay = document->annotations()) {
+        overlay->setFileChooser([]() -> std::optional<QString> {
+            MainWindow* window = activeShell();
+            return window ? window->askAttachPath() : std::nullopt;
+        });
+    }
     connect(document, &DocumentWindow::guideMenuRequested, this,
             [this](int guideIndex, QPoint global) { showGuideMenu(guideIndex, global); });
 
@@ -1072,6 +1111,7 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
     }
     if (!target) return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.save.cancelled"), document->title()};
 
+    const bool attachmentCopy = document->isAttachmentCopy();   // S6 T11: reopened from its file once saved
     core::Result<core::SaveOutcome> saved = document->saveAs(*target);
     if (!saved) {
         reportSaveFailure(document, saved.error());
@@ -1092,6 +1132,13 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
     document->clearCondition(static_cast<int>(MessageBar::Kind::SaveAsRequired));
     document->clearCondition(static_cast<int>(MessageBar::Kind::Recovered));   // saved: nothing recovered is unsaved now
     if (const int index = documents_->indexOf(document); index >= 0) tabs_->setTabToolTip(index, document->path());
+    // S6 T11 (D6-17): AN ATTACHED PDF, NOW A FILE OF ITS OWN, is opened again from that file in its place -- an
+    // ordinary document, editable, with a recovery journal: the read-only copy has done its work.
+    if (attachmentCopy) {
+        const QString savedPath = document->path();
+        if (const int index = documents_->indexOf(document); index >= 0) (void)closeDocument(index);
+        openFiles({savedPath});
+    }
     updateDocumentChrome();
     return {};
 }
@@ -2310,8 +2357,19 @@ void MainWindow::updateDocumentPanes()
         if (bookmarks_) bookmarks_->setDocument({}, nullptr);
         if (destinations_) destinations_->setDocument({}, nullptr);
         if (comments_) comments_->setDocument(nullptr, {}, {}, {});
+        if (attachments_) attachments_->setDocument(nullptr, nullptr, false);
         updateCommentNumbers();
         return;
+    }
+
+    // S6 T11: THE ATTACHMENTS PANE over the journal's document -- what every command changes -- or nothing for a
+    // tab with no journal (a companion window's view: its attachments are its leader's).
+    if (attachments_) {
+        if (const core::CommandJournal* journal = current->journal())
+            attachments_->setDocument(&journal->document().attachments(), &journal->document().annotations(),
+                                      current->isEditable());
+        else
+            attachments_->setDocument(nullptr, nullptr, false);
     }
 
     // S6 T9: THE COMMENTS PANE, over the DOCUMENT'S store -- the one every command changes -- and the tab's
@@ -2886,6 +2944,7 @@ void MainWindow::registerActions()
     registerViewerActions();
     registerAnnotationActions();
     registerCommentActions();
+    registerAttachmentActions();
 
     // --- Undo, redo, rotate, save (Stage 3 T10) -----------------------------------------------
     registerMutationActions();
@@ -3325,7 +3384,8 @@ void MainWindow::registerMutationActions()
         };
         saveAs.enable = [currentDocumentOfActiveShell] {
             const DocumentWindow* document = currentDocumentOfActiveShell();
-            return document && document->isEditable() && canAskSavePath();
+            // S6 T11: an attached PDF opened read-only is saved as a file of its own -- its one way to be edited.
+            return document && (document->isEditable() || document->isAttachmentCopy()) && canAskSavePath();
         };
         saveAs.unavailableText = whyNotEditable(ActionId::FileSaveAs);
         registerRegistration(ActionId::FileSaveAs, std::move(saveAs));
@@ -3355,6 +3415,7 @@ QLatin1String armedStatusKey(AnnotationToolKind kind)
     case AnnotationToolKind::Cloud: return catalog::key::StatusAnnotationToolPolygon;
     case AnnotationToolKind::Pencil: return catalog::key::StatusAnnotationToolPencil;
     case AnnotationToolKind::Eraser: return catalog::key::StatusAnnotationToolEraser;
+    case AnnotationToolKind::AttachFile: return catalog::key::StatusAnnotationToolAttachFile;   // S6 T11
     default: break;
     }
     return markupSubtype(kind) ? catalog::key::StatusAnnotationToolMarkup : catalog::key::StatusAnnotationToolArmed;
@@ -4244,6 +4305,261 @@ void MainWindow::registerCommentActions()
                 });
     registerOne(ActionId::CommentFilter, [open](KeyContext) { if (CommentsPane* p = open()) p->showFilterMenu(); }, always, nullptr);
     registerOne(ActionId::CommentSort, [open](KeyContext) { if (CommentsPane* p = open()) p->showSortMenu(); }, always, nullptr);
+}
+
+// ==========================================================================================
+// Attachments -- Stage 6 T11, decision D6-17
+// ==========================================================================================
+
+void MainWindow::setAttachmentAnswersForTesting(AttachmentAnswers answers)
+{
+    installedAttachmentAnswers() = std::move(answers);
+}
+
+std::optional<QString> MainWindow::askAttachPath()
+{
+    if (installedAttachmentAnswers().attachPath) return installedAttachmentAnswers().attachPath();
+    if (!canPromptTheUser()) return std::nullopt;
+    const QString chosen = QFileDialog::getOpenFileName(this, catalog::translate(catalog::key::AttachmentsAddTitle), QString(),
+                                                        catalog::translate(catalog::key::AttachmentsAnyFileFilter));
+    if (chosen.isEmpty()) return std::nullopt;
+    return chosen;
+}
+
+namespace {
+
+// The pane's row for `attachment`, or none -- what was listed is what is opened, extracted or deleted.
+std::optional<AttachmentsPane::Row> listedRow(const AttachmentsPane* pane, const core::AttachmentRef& attachment)
+{
+    if (pane == nullptr) return std::nullopt;
+    for (const AttachmentsPane::Row& row : pane->rows()) {
+        if (row.ref == attachment) return row;
+    }
+    return std::nullopt;
+}
+
+core::Error attachmentError(core::ErrorCode code, const char* key, const QString& context)
+{
+    return core::Error{code, QLatin1String(key), context};
+}
+
+} // namespace
+
+core::Status MainWindow::openAttachment(const core::AttachmentRef& attachment)
+{
+    DocumentWindow* document = currentDocument();
+    const std::optional<AttachmentsPane::Row> row = listedRow(attachments_, attachment);
+    if (document == nullptr || !row) return attachmentError(core::ErrorCode::NotFound, "error.attachment.unknown", QString());
+    const QString name = row->file.name;
+    const auto say = [this](const QString& text) {
+        if (status_) status_->setMessage(text);
+    };
+
+    // THE POLICY HOOK FIRST (D6-17): a type Windows runs is refused before a byte of it is read or written.
+    if (core::isExecutableName(name) || core::isExecutableName(core::safeFileName(name))) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "attachments: refused to open" << name << "-- an executable type";
+        say(catalog::translate(catalog::key::AttachmentsRefusedExecutable).arg(name));
+        return attachmentError(core::ErrorCode::PermissionDenied, "error.attachment.executable", name);
+    }
+
+    core::Result<QByteArray> bytes = services_.backend.attachmentData(document->handle(), attachment);
+    if (!bytes) {
+        say(catalog::translateError(QString(bytes.error().messageKey), bytes.error().context));
+        return bytes.error();
+    }
+
+    // A PDF OPENS IN A TAB FROM ITS BYTES -- nothing written -- and is read-only until it is saved as a file.
+    if (core::isPdfAttachment(row->file) || bytes.value().startsWith("%PDF")) {
+        core::Result<core::DocumentHandle> opened =
+            services_.backend.openBytes(bytes.value(), name, PasswordDialog::callbackFor(name, this));
+        if (!opened) {
+            say(catalog::translateError(QString(opened.error().messageKey), opened.error().context));
+            return opened.error();
+        }
+        auto* copy = new DocumentWindow(services_, opened.value(), DocumentWindow::AttachmentCopy{name});
+        adoptDocument(copy);
+        updateDocumentChrome();
+        say(catalog::translate(catalog::key::AttachmentsOpenedCopy).arg(name));
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "attachments: opened" << name << "from its bytes as handle"
+                                           << static_cast<int>(opened.value().id);
+        return {};
+    }
+
+    // ANYTHING ELSE IS ASKED FIRST, then written into this session's folder and handed to the shell.
+    bool confirmed = false;
+    if (installedAttachmentAnswers().confirmOpen) {
+        confirmed = installedAttachmentAnswers().confirmOpen(name);
+    } else if (canPromptTheUser()) {
+        confirmed = QMessageBox::question(this, catalog::translate(catalog::key::AttachmentsAskOpenTitle),
+                                          catalog::translate(catalog::key::AttachmentsAskOpenBody).arg(name),
+                                          QMessageBox::Open | QMessageBox::Cancel, QMessageBox::Cancel)
+                    == QMessageBox::Open;
+    }
+    if (!confirmed) return attachmentError(core::ErrorCode::Cancelled, "error.attachment.cancelled", name);
+    if (services_.attachmentRoot.isEmpty()) {
+        const core::Error refused = attachmentError(core::ErrorCode::Unavailable, "error.attachment.noSessionFolder", name);
+        say(catalog::translateError(QString(refused.messageKey), refused.context));
+        return refused;
+    }
+    // A FOLDER OF ITS OWN PER OPEN, so two attachments of one name -- or one opened twice while a program holds the
+    // first -- never meet.
+    static int opens = 0;
+    const QString path = QDir(services_.attachmentRoot).filePath(QString::number(++opens) + QLatin1Char('/') + core::safeFileName(name));
+    if (const core::Status written = services_.backend.extractAttachment(document->handle(), attachment, path, false); !written) {
+        say(catalog::translateError(QString(written.error().messageKey), written.error().context));
+        return written;
+    }
+    if (!services_.openExternally || !services_.openExternally(path)) {
+        const core::Error refused = attachmentError(core::ErrorCode::Unavailable, "error.attachment.noShell", name);
+        say(catalog::translateError(QString(refused.messageKey), refused.context));
+        return refused;
+    }
+    RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "attachments: opened" << name << "through the shell, from" << path;
+    return {};
+}
+
+core::Status MainWindow::extractAttachment(const core::AttachmentRef& attachment)
+{
+    DocumentWindow* document = currentDocument();
+    const std::optional<AttachmentsPane::Row> row = listedRow(attachments_, attachment);
+    if (document == nullptr || !row) return attachmentError(core::ErrorCode::NotFound, "error.attachment.unknown", QString());
+    const QString folder = document->path().isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+                                                      : QFileInfo(document->path()).absolutePath();
+    const QString proposed = QDir(folder).filePath(core::safeFileName(row->file.name));
+    std::optional<QString> target;
+    if (installedAttachmentAnswers().extractPath) {
+        target = installedAttachmentAnswers().extractPath(proposed);
+    } else if (canPromptTheUser()) {
+        const QString chosen = QFileDialog::getSaveFileName(this, catalog::translate(catalog::key::AttachmentsExtractTitle),
+                                                            proposed, catalog::translate(catalog::key::AttachmentsAnyFileFilter));
+        if (!chosen.isEmpty()) target = chosen;
+    }
+    if (!target) return attachmentError(core::ErrorCode::Cancelled, "error.attachment.cancelled", row->file.name);
+    // The save dialog has already asked about a file of that name, so the extract replaces it.
+    if (const core::Status written = services_.backend.extractAttachment(document->handle(), attachment, *target, true); !written) {
+        if (status_) status_->setMessage(catalog::translateError(QString(written.error().messageKey), written.error().context));
+        return written;
+    }
+    if (status_) status_->setMessage(catalog::translate(catalog::key::AttachmentsExtracted).arg(QDir::toNativeSeparators(*target)));
+    return {};
+}
+
+core::Status MainWindow::addAttachment()
+{
+    const std::optional<QString> path = askAttachPath();
+    if (!path) return attachmentError(core::ErrorCode::Cancelled, "error.attachment.cancelled", QString());
+    return addAttachmentFrom(*path);
+}
+
+core::Status MainWindow::addAttachmentFrom(const QString& path, const QString& description)
+{
+    DocumentWindow* document = currentDocument();
+    core::CommandJournal* journal = document ? document->journal() : nullptr;
+    if (journal == nullptr) return attachmentError(core::ErrorCode::Unavailable, "error.edit.notAssessed", QString());
+    const auto refuse = [this](const core::Error& error) {
+        if (status_) status_->setMessage(catalog::translateError(QString(error.messageKey), error.context));
+        return error;
+    };
+    // READ ONCE, NOW, AND CARRIED (D6-17): the size asked before the read, so a file too large is not read at all.
+    QFile file(path);
+    const QString name = QFileInfo(path).fileName();
+    if (file.size() > core::kMaxAttachmentBytes) return refuse(attachmentError(core::ErrorCode::InvalidArgument, "error.attachment.tooLarge", name));
+    if (!file.open(QIODevice::ReadOnly)) return refuse(attachmentError(core::ErrorCode::IoFailure, "error.attachment.unreadable", name));
+    QByteArray bytes = file.readAll();
+    file.close();
+    if (bytes.size() > core::kMaxAttachmentBytes) return refuse(attachmentError(core::ErrorCode::InvalidArgument, "error.attachment.tooLarge", name));
+
+    const QString key = journal->document().attachments().uniqueKey(name);
+    core::DocumentAttachment attached{key, core::newEmbeddedFile(name, std::move(bytes), description, QDateTime::currentSecsSinceEpoch())};
+    if (const core::Status ran = journal->run(std::make_unique<core::AddAttachmentCommand>(std::vector<core::DocumentAttachment>{std::move(attached)}));
+        !ran)
+        return refuse(ran.error());
+    if (attachments_) attachments_->select(core::AttachmentRef::ofDocument(key));
+    return {};
+}
+
+core::Status MainWindow::deleteAttachment(const core::AttachmentRef& attachment)
+{
+    DocumentWindow* document = currentDocument();
+    core::CommandJournal* journal = document ? document->journal() : nullptr;
+    if (journal == nullptr) return attachmentError(core::ErrorCode::Unavailable, "error.edit.notAssessed", QString());
+    std::unique_ptr<core::Command> command;
+    if (attachment.kind == core::AttachmentRef::Kind::Document) {
+        command = std::make_unique<core::DeleteAttachmentCommand>(std::vector<QString>{attachment.key});
+    } else {
+        // A pushpin is an annotation: deleted with its pop-up, as the page's `Delete` deletes it.
+        std::vector<core::AnnotationId> ids{attachment.annotation};
+        const core::AnnotationStore& store = journal->document().annotations();
+        if (const std::optional<std::size_t> at = store.find(attachment.annotation); at && store.at(*at).popup)
+            ids.push_back(*store.at(*at).popup);
+        command = std::make_unique<core::DeleteAnnotationCommand>(std::move(ids));
+    }
+    if (const core::Status ran = journal->run(std::move(command)); !ran) {
+        if (status_)
+            status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
+                                    .arg(catalog::translateError(QString(ran.error().messageKey), ran.error().context)));
+        return ran;
+    }
+    return {};
+}
+
+void MainWindow::registerAttachmentActions()
+{
+    // FIVE IDS: `pane.attachments` -- §8's Global `Ctrl+Shift+A` -- and the pane's four commands, minted chordless
+    // (D6-17). Every handler resolves the window at dispatch time (convention 14); a command that needs an
+    // attachment is DISABLED where none is current, and one that needs a person to name a file is disabled where
+    // nobody can be asked (convention 16).
+    const auto registerOne = [this](ActionId id, core::ActionRegistry::Handler handler, core::ActionRegistry::Enable enable,
+                                    const char* unavailable) {
+        if (services_.actions.isRegistered(id)) return;
+        core::ActionRegistry::Registration registration;
+        registration.handler = std::move(handler);
+        registration.enable = std::move(enable);
+        if (unavailable != nullptr) registration.unavailableKey = unavailable;
+        services_.actions.register_(id, std::move(registration));
+    };
+    const auto current = []() -> std::optional<AttachmentsPane::Row> {
+        MainWindow* window = activeShell();
+        return (window && window->attachments_) ? window->attachments_->current() : std::nullopt;
+    };
+    const auto editable = [] {
+        MainWindow* window = activeShell();
+        const DocumentWindow* document = window ? window->currentDocument() : nullptr;
+        return document != nullptr && document->isEditable();
+    };
+    const auto canAskForFile = [] { return static_cast<bool>(installedAttachmentAnswers().attachPath) || canPromptTheUser(); };
+    const auto canAskWhere = [] { return static_cast<bool>(installedAttachmentAnswers().extractPath) || canPromptTheUser(); };
+
+    registerOne(ActionId::PaneAttachments,
+                [](KeyContext) {
+                    MainWindow* window = activeShell();
+                    if (window == nullptr || window->sidebar_ == nullptr) return;
+                    window->sidebar_->setAutoHidden(false);
+                    window->sidebar_->show();
+                    window->sidebar_->showPane(ActionId::PaneAttachments);
+                    if (window->attachments_) window->attachments_->view()->setFocus(Qt::OtherFocusReason);
+                },
+                [] { return activeShell() != nullptr; }, nullptr);
+    registerOne(ActionId::AttachmentOpen,
+                [current](KeyContext) {
+                    if (const auto row = current()) (void)activeShell()->openAttachment(row->ref);
+                },
+                [current] { return current().has_value(); }, "shell.tooltip.needsAttachment");
+    registerOne(ActionId::AttachmentExtract,
+                [current](KeyContext) {
+                    if (const auto row = current()) (void)activeShell()->extractAttachment(row->ref);
+                },
+                [current, canAskWhere] { return current().has_value() && canAskWhere(); }, "shell.tooltip.needsAttachment");
+    registerOne(ActionId::AttachmentAdd,
+                [](KeyContext) {
+                    if (MainWindow* window = activeShell()) (void)window->addAttachment();
+                },
+                [editable, canAskForFile] { return editable() && canAskForFile(); }, "shell.tooltip.needsDocument");
+    registerOne(ActionId::AttachmentDelete,
+                [current](KeyContext) {
+                    if (const auto row = current()) (void)activeShell()->deleteAttachment(row->ref);
+                },
+                [current, editable] { return current().has_value() && editable(); }, "shell.tooltip.needsAttachment");
 }
 
 } // namespace rawpage::ui

@@ -334,6 +334,57 @@ core::Result<Appearance> note(const core::Annotation& a)
     return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
 }
 
+// ---- Stage 6 T11: a file attachment's icon -------------------------------------------------------------
+
+// A FileAttachment's icon, drawn into its rectangle on a 16 by 24 grid -- the size Acrobat and the corpus generator
+// give one. Two of ISO 32000-1 Table 184's names: `PushPin`, Acrobat's default and what `annot.attachFile` creates
+// -- a round head in `/C` over a pin, the generator's own shape -- and `Paperclip`. `Graph` and `Tag` are refused BY
+// NAME, as the note refuses icons it does not draw: a move carries their producer's appearance, and an edit that
+// would redraw one is refused (D6-6).
+core::Result<Appearance> fileAttachment(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (!finiteRect(a) || !(a.rect.size.width > 0.0) || !(a.rect.size.height > 0.0))
+        return appearanceError("error.pdf.appearanceGeometry", name);
+    const QString icon = a.icon.isEmpty() ? QStringLiteral("PushPin") : a.icon;
+    if (icon != QLatin1String("PushPin") && icon != QLatin1String("Paperclip"))
+        return appearanceError("error.pdf.appearanceUnsupported", name);
+    const std::optional<std::vector<double>> color = colourOf(a, {0.13, 0.4, 0.86});
+    if (!color) return appearanceError("error.pdf.appearanceGeometry", name);
+
+    const double sx = a.rect.size.width / 16.0, sy = a.rect.size.height / 24.0;
+    const double l = a.rect.left(), b = a.rect.bottom();
+    const auto x = [&](double u) { return l + u * sx; };
+    const auto y = [&](double v) { return b + v * sy; };
+    const double scale = std::min(sx, sy);
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0").fillColor(color->data(), static_cast<int>(color->size()));
+    content.strokeColor(color->data(), static_cast<int>(color->size())).lineWidth(1.2 * scale).lineCap(1);
+    if (icon == QLatin1String("PushPin")) {
+        // The head: a circle of radius 5 centred 6 below the top, as four Bezier quarters (k = 0.5523), filled and
+        // stroked; then the pin from under the head to a unit above the foot.
+        const double cx = 8.0, cy = 18.0, r = 5.0, k = 0.5523 * r;
+        content.moveTo(x(cx + r), y(cy));
+        content.curveTo(x(cx + r), y(cy + k), x(cx + k), y(cy + r), x(cx), y(cy + r));
+        content.curveTo(x(cx - k), y(cy + r), x(cx - r), y(cy + k), x(cx - r), y(cy));
+        content.curveTo(x(cx - r), y(cy - k), x(cx - k), y(cy - r), x(cx), y(cy - r));
+        content.curveTo(x(cx + k), y(cy - r), x(cx + r), y(cy - k), x(cx + r), y(cy));
+        content.closePath().fillAndStroke();
+        content.moveTo(x(8.0), y(13.0)).lineTo(x(8.0), y(1.0)).stroke();
+    } else {
+        // A paper clip: two nested loops of one wire, open at the top right.
+        content.moveTo(x(11.0), y(17.0)).lineTo(x(11.0), y(5.0));
+        content.curveTo(x(11.0), y(2.0), x(5.0), y(2.0), x(5.0), y(5.0));
+        content.lineTo(x(5.0), y(20.0));
+        content.curveTo(x(5.0), y(23.0), x(13.0), y(23.0), x(13.0), y(20.0));
+        content.lineTo(x(13.0), y(8.0));
+        content.stroke();
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
+}
+
 // ---- Stage 6 T7: free text ----------------------------------------------------------------------------
 
 CosObject integers(const std::vector<int>& values)
@@ -1088,6 +1139,8 @@ bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
     // Stage 6 T10: stamps -- a foreign one is refused by `normal`, not here: whether one can be drawn is the
     // annotation's question, not its kind's.
     case core::AnnotationSubtype::Stamp:
+    // Stage 6 T11: a file attachment's pushpin or paper clip.
+    case core::AnnotationSubtype::FileAttachment:
         return true;
     default:
         return false;
@@ -1128,6 +1181,7 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::PolyLine: return polygon(annotation);
         case core::AnnotationSubtype::Ink: return ink(annotation);
         case core::AnnotationSubtype::Stamp: return stamp(annotation, objects);
+        case core::AnnotationSubtype::FileAttachment: return fileAttachment(annotation);
         default:
             return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
         }

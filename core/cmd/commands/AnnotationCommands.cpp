@@ -5,6 +5,7 @@
 
 #include "core/backend.h"
 #include "core/doc/AnnotationGeometry.h"
+#include "core/doc/Attachments.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
 #include "core/doc/Stamps.h"
@@ -103,6 +104,14 @@ std::optional<QString> invalidShape(const Annotation& a)
     if (!a.image.isEmpty()) {
         if (a.subtype != AnnotationSubtype::Stamp || a.intent != stampImageIntent()) return QStringLiteral("annotation.image");
         if (const std::optional<QString> invalid = invalidStampImage(a.image)) return QStringLiteral("annotation.") + *invalid;
+    }
+    // Stage 6 T11: a carried file only on a FileAttachment, named, and no larger than one command may carry.
+    if (a.attachment) {
+        if (a.subtype != AnnotationSubtype::FileAttachment || a.attachment->name.isEmpty()
+            || a.attachment->name.size() > kMaxAttachmentNameLength)
+            return QStringLiteral("annotation.attachment");
+        if (a.attachment->carried && a.attachment->data.size() > kMaxAttachmentBytes)
+            return QStringLiteral("annotation.attachment");
     }
     return std::nullopt;
 }

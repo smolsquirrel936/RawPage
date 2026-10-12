@@ -143,6 +143,8 @@ add_library(rawpage_ui STATIC
     # Stage 6 T10 (D6-16): places the palette's stamp -- a click at its natural size, a drag fitted.
     viewer/tools/StampTool.h
     viewer/tools/StampTool.cpp
+    viewer/tools/AttachFileTool.h
+    viewer/tools/AttachFileTool.cpp
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
@@ -240,6 +242,8 @@ add_library(rawpage_ui STATIC
     panes/BookmarksPane.cpp
     panes/CommentsPane.h
     panes/CommentsPane.cpp
+    panes/AttachmentsPane.h
+    panes/AttachmentsPane.cpp
     panes/DestinationsPane.h
     panes/DestinationsPane.cpp
     # S5 T9 (D5-13) -- Advanced Search, a dock of its own like the log pane: core/text/FolderSearch does the

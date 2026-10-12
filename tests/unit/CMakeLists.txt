@@ -84,6 +84,9 @@ add_executable(rawpage_tests
                                   #   redrawn (A-80), a foreign stamp refused, A-29's image line
     tst_profilestore.cpp          # Stage 6 T10 -- the custom-stamp library: two files a stamp, damage reported
                                   #   and the rest loaded (A-79), what is not an image refused
+    tst_attachments.cpp           # Stage 6 T11 -- the files a document carries: the model and its policy hook,
+                                  #   the reading against the label (A-82, A-84), add and delete saved and undone
+                                  #   (A-83), a pushpin's /FS, and D6-23's side files (A-86)
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

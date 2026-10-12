@@ -73,6 +73,8 @@ QByteArray Document::modelHash() const
             buffer.append(annotations_.annotationDigest(*entry.annotation));   // its whole JSON, hashed once
         }
     }
+    // The document-level attachments (Stage 6 T11): every file, every field, in the tree's order.
+    buffer.append(attachments_.digest());
     return QCryptographicHash::hash(buffer, QCryptographicHash::Sha256);
 }
 
@@ -103,6 +105,7 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     const Permissions* permissions = backend.permissions(handle);
     const DocumentId* id = backend.documentId(handle);
     const AnnotationStore* annotations = backend.annotations(handle);
+    const Attachments* attachments = backend.attachments(handle);
 
     handle_ = handle;
     pages_ = *pages;
@@ -110,6 +113,7 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     permissions_ = permissions ? *permissions : Permissions{};
     id_ = id ? *id : DocumentId{};
     annotations_ = annotations ? *annotations : AnnotationStore{};
+    attachments_ = attachments ? *attachments : Attachments{};
     revision_ = Revision::initial();
     return Status{};
 }

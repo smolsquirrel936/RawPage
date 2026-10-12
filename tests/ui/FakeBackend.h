@@ -15,6 +15,7 @@
 #define RAWPAGE_TESTS_UI_FAKEBACKEND_H
 
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/Attachments.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
@@ -29,7 +30,9 @@
 
 #include <QDateTime>
 #include <QFile>
+#include <QDir>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QString>
 #include <QStringList>
 
@@ -75,6 +78,21 @@ public:
         ++calls;
         return {};
     }
+    // Stage 6 T11: the attachment intents, accepted and counted -- the keys kept, for a case that asks.
+    core::Status insertAttachments(const std::vector<core::DocumentAttachment>& files) override
+    {
+        for (const core::DocumentAttachment& file : files) attachmentInserts.push_back(file.key);
+        ++calls;
+        return {};
+    }
+    core::Status removeAttachments(const std::vector<QString>& keys) override
+    {
+        for (const QString& key : keys) attachmentRemovals.push_back(key);
+        ++calls;
+        return {};
+    }
+    std::vector<QString> attachmentInserts;
+    std::vector<QString> attachmentRemovals;
     std::map<int, int> rotations;
     int annotationInserts = 0;
     int annotationRemovals = 0;
@@ -272,6 +290,50 @@ public:
         return &annotations_;
     }
     core::AnnotationStore annotations_ = core::AnnotationStore::fromReading({});
+
+    // S6 T11 (D6-17): the document-level files every document of this fake has -- none, read -- and the bytes
+    // `attachmentData` hands out, by key (a document file) or by annotation id string (`obj:12`, `nm:...`).
+    // PUBLIC and settable, as the store is. `extractAttachment` WRITES the bytes (`tests/` may write), so a case
+    // can read what an open or an extract put on disk; every write is recorded.
+    const core::Attachments* attachments(core::DocumentHandle) const override { return &attachments_; }
+    core::Attachments attachments_ = core::Attachments::fromReading({});
+    std::map<QString, QByteArray> attachmentBytes;
+    QStringList extracted;
+    core::Result<QByteArray> attachmentData(core::DocumentHandle, const core::AttachmentRef& attachment) override
+    {
+        const QString name = attachment.kind == core::AttachmentRef::Kind::Document ? attachment.key
+                                                                                   : attachment.annotation.toString();
+        const auto found = attachmentBytes.find(name);
+        if (found == attachmentBytes.end())
+            return core::Error{core::ErrorCode::NotFound, QLatin1String("error.attachment.unknown"), name};
+        return found->second;
+    }
+    core::Status extractAttachment(core::DocumentHandle handle, const core::AttachmentRef& attachment, const QString& path,
+                                   bool overwrite) override
+    {
+        core::Result<QByteArray> bytes = attachmentData(handle, attachment);
+        if (!bytes) return bytes.error();
+        if (QFileInfo::exists(path) && !overwrite)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.exists"), path};
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly) || file.write(bytes.value()) != bytes.value().size() || !file.commit())
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.attachment.writeFailed"), path};
+        extracted << path;
+        return {};
+    }
+    // `openBytes` opens as `open()` does, under the name, read-only: the bytes are recorded, not read.
+    QList<QByteArray> openedBytes;
+    core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
+                                                 const core::PasswordCallback& password) override
+    {
+        openedBytes << bytes;
+        const bool wasEditable = editable;
+        editable = false;
+        core::Result<core::DocumentHandle> handle = open(name, password);
+        editable = wasEditable;
+        return handle;
+    }
 
     // S4 T12 (D4-14). PUBLIC and settable for the same reason as the transitions above: there is no
     // engine here to union any objects, and the fit cases need a document whose content box is a

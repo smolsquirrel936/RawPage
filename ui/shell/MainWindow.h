@@ -75,6 +75,7 @@ class DocumentWindow;
 class FullScreenController;
 class AnnotationOverlay;
 class BookmarksPane;
+class AttachmentsPane;
 class CommentsPane;
 class ComparisonView;
 class DestinationsPane;
@@ -307,6 +308,31 @@ public:
     // S6 T9 (D6-12): the Comments pane, one per window like the others, over the store of the tab in front.
     CommentsPane*       commentsPane() const { return comments_; }
 
+    // ---- ATTACHMENTS (S6 T11, D6-17) ------------------------------------------------------------------
+    // The Attachments pane, in the sidebar; `Ctrl+Shift+A` (`pane.attachments`) shows it. Its four commands are
+    // these, over the tab in front -- each reachable from the pane, the tool finder and a case alike.
+    AttachmentsPane*    attachmentsPane() const { return attachments_; }
+    // OPEN: an attached PDF in a tab of its own, from its bytes, read-only (no file written); an EXECUTABLE type
+    // refused before anything is read or written (`core::isExecutableName`, the policy hook Stage 10's TrustPolicy
+    // replaces); anything else ASKED FIRST, then written into this session's folder and handed to the shell.
+    core::Status openAttachment(const core::AttachmentRef& attachment);
+    // EXTRACT: where the person chooses, through the backend's write -- an executable too, which is saved, not run.
+    core::Status extractAttachment(const core::AttachmentRef& attachment);
+    // ADD: the file the person chooses (or `path`), attached to the document as a whole -- ONE command.
+    core::Status addAttachment();
+    core::Status addAttachmentFrom(const QString& path, const QString& description = {});
+    // DELETE: a document's file by `DeleteAttachmentCommand`; a pushpin as the annotation it is, with its pop-up.
+    core::Status deleteAttachment(const core::AttachmentRef& attachment);
+    // What a headless case answers in place of the three questions (convention 16): which file to attach, where to
+    // extract one, and whether to open a file that is not a PDF. An empty member asks the person -- or, with
+    // nobody to ask, answers nothing.
+    struct AttachmentAnswers {
+        std::function<std::optional<QString>()> attachPath;
+        std::function<std::optional<QString>(const QString& proposed)> extractPath;
+        std::function<bool(const QString& name)> confirmOpen;
+    };
+    static void setAttachmentAnswersForTesting(AttachmentAnswers answers);
+
     // ---- THE SIDEBAR AS ONE OPAQUE STRING (S4 T13, D4-9) -------------------------------------
     // What `core::SessionWindow::paneLayout` holds, encoded and decoded HERE because it is a Qt
     // fact about widgets -- which dock edge, how wide, which pane in front -- and `core/` is not
@@ -396,6 +422,9 @@ private:
     void registerActions();
     // S6 T9: the Comments pane's half of `registerActions` and of the document wiring.
     void registerCommentActions();
+    // S6 T11: the Attachments pane's.
+    void registerAttachmentActions();
+    std::optional<QString> askAttachPath();
     void updateCommentNumbers();
     void revealComment(const core::AnnotationId& id, int page, const core::PdfRect& rect);
     void updateAutoHideStrips();
@@ -526,6 +555,7 @@ private:
     BookmarksPane*    bookmarks_ = nullptr;
     DestinationsPane* destinations_ = nullptr;
     CommentsPane*     comments_ = nullptr;
+    AttachmentsPane*  attachments_ = nullptr;   // S6 T11
     // S6 T9: the overlay the pane's sequence numbers were last given -- cleared when the tab in front changes.
     QPointer<AnnotationOverlay> numberedOverlay_;
     LogPane*          logPane_ = nullptr;

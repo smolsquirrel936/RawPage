@@ -63,6 +63,7 @@ Status Permissions::may(Operation operation) const
     switch (operation) {
     case Operation::EditPages:
     case Operation::Annotate:
+    case Operation::Attach:
         if (editable_)
             return Status{};
         return Error{ErrorCode::PermissionDenied, refusalKey_, refusalContext_};

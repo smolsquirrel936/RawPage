@@ -89,6 +89,21 @@ public:
 
     // S4 T10 (D4-12): empty, which is the ordinary answer -- almost no document carries one.
     const core::AnnotationStore* annotations(core::DocumentHandle) const override { return nullptr; }
+    // S6 T11 (D6-17): no document, so no attachments -- null, as for the annotations; the bytes and the open from
+    // bytes are an explicit not-implemented, never an empty buffer.
+    const core::Attachments* attachments(core::DocumentHandle) const override { return nullptr; }
+    core::Result<QByteArray> attachmentData(core::DocumentHandle, const core::AttachmentRef&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "attachmentData");
+    }
+    core::Status extractAttachment(core::DocumentHandle, const core::AttachmentRef&, const QString&, bool) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "extractAttachment");
+    }
+    core::Result<core::DocumentHandle> openBytes(const QByteArray&, const QString&, const core::PasswordCallback&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "openBytes");
+    }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {
         return &transitions_;

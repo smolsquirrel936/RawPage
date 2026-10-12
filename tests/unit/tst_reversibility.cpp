@@ -30,6 +30,7 @@
 #include "CosBackend.h"
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
@@ -390,6 +391,35 @@ const Generators& registeredGenerators()
              out.push_back(std::make_unique<core::SetAnnotationStatusCommand>(std::move(marks)));
              return out;
          }},
+        // Stage 6 T11 (D6-17): a file attached to the document -- one, and a set of two with the second empty --
+        // under keys the document does not hold, once per document (the page does not matter to an attachment).
+        {"attachment.add",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (page != 0 || !document.attachments().status()) return out;
+             const core::Attachments& held = document.attachments();
+             const QString first = held.uniqueKey(QStringLiteral("reversibility.txt"));
+             out.push_back(std::make_unique<core::AddAttachmentCommand>(std::vector<core::DocumentAttachment>{
+                 {first, core::newEmbeddedFile(first, QByteArray("attached for the property test\n"), QStringLiteral("a note"), kEditInstant)}}));
+             const QString second = held.uniqueKey(QStringLiteral("empty.bin"));
+             out.push_back(std::make_unique<core::AddAttachmentCommand>(std::vector<core::DocumentAttachment>{
+                 {first, core::newEmbeddedFile(first, QByteArray("one"), QString(), kEditInstant)},
+                 {second, core::newEmbeddedFile(second, QByteArray(), QString(), kEditInstant)}}));
+             return out;
+         }},
+        // Each file the document holds deleted alone, and all of them as one set.
+        {"attachment.delete",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (page != 0 || !document.attachments().status() || document.attachments().size() == 0) return out;
+             std::vector<QString> all;
+             for (const core::DocumentAttachment& file : document.attachments().files()) {
+                 out.push_back(std::make_unique<core::DeleteAttachmentCommand>(std::vector<QString>{file.key}));
+                 all.push_back(file.key);
+             }
+             if (all.size() > 1) out.push_back(std::make_unique<core::DeleteAttachmentCommand>(std::move(all)));
+             return out;
+         }},
     };
     return table;
 }
@@ -656,7 +686,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
     {
         CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete", "annot.edit",
                                                                           "annot.move", "annot.setAppearance", "annot.lock",
-                                                                          "annot.reply", "annot.setStatus"});
+                                                                          "annot.reply", "annot.setStatus", "attachment.add",
+                                                                          "attachment.delete"});
     }
 }
 
@@ -664,7 +695,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

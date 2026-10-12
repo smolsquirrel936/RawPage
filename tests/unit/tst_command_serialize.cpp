@@ -15,6 +15,7 @@
 
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 
 #include <QFile>
@@ -155,6 +156,27 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  core::newStateReply(parent, QStringLiteral("Marked"), QStringLiteral("Marked"), QStringLiteral("Ana"), 1791504003)}));
              return out;
          }},
+        // Stage 6 T11 (D6-17): one file, and a set of two -- one EMPTY, which is a file too, and one named outside ASCII.
+        {"attachment.add",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::AddAttachmentCommand>(std::vector<core::DocumentAttachment>{
+                 {QStringLiteral("readme (2).txt"),
+                  core::newEmbeddedFile(QStringLiteral("readme.txt"), QByteArray("notes\n"), QStringLiteral("Notes"), 1791504000)}}));
+             out.push_back(std::make_unique<core::AddAttachmentCommand>(std::vector<core::DocumentAttachment>{
+                 {QStringLiteral("empty.bin"), core::newEmbeddedFile(QStringLiteral("empty.bin"), QByteArray(), QString(), 1791504000)},
+                 {QStringLiteral("Zo\u00EB \u5831\u544A.csv"),
+                  core::newEmbeddedFile(QStringLiteral("Zo\u00EB \u5831\u544A.csv"), QByteArray("a,b\n1,2\n"), QStringLiteral("t\u00E4ble"), 1791504000)}}));
+             return out;
+         }},
+        {"attachment.delete",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DeleteAttachmentCommand>(std::vector<QString>{QStringLiteral("setup.exe")}));
+             out.push_back(std::make_unique<core::DeleteAttachmentCommand>(
+                 std::vector<QString>{QStringLiteral("appendix.pdf"), QStringLiteral("readme.txt")}));
+             return out;
+         }},
     };
     return table;
 }
@@ -183,7 +205,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -218,7 +240,49 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3);
+    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2);
+}
+
+// Stage 6 T11 (D6-17): an attachment command is a journal line, and its bytes may be large -- every shape apply()
+// would refuse is refused as the malformed line it is, and none reaches a command.
+TEST_CASE("CommandRegistry refuses every malformed attachment command by Result", "[cmd][serialize][hostile][attachments]")
+{
+    const QJsonObject good = core::DocumentAttachment{
+        QStringLiteral("a.txt"), core::newEmbeddedFile(QStringLiteral("a.txt"), QByteArray("abc"), QString(), 1791504000)}.toJson();
+    const auto withFile = [&good](const std::function<void(QJsonObject&)>& change) {
+        QJsonObject attachment = good;
+        QJsonObject file = attachment.value(QStringLiteral("file")).toObject();
+        change(file);
+        attachment.insert(QStringLiteral("file"), file);
+        return QJsonObject{{"type", "attachment.add"}, {"files", QJsonArray{attachment}}};
+    };
+    const std::vector<std::pair<const char*, QJsonObject>> hostile{
+        {"no files", QJsonObject{{"type", "attachment.add"}}},
+        {"empty files", QJsonObject{{"type", "attachment.add"}, {"files", QJsonArray{}}}},
+        {"a file that is not an object", QJsonObject{{"type", "attachment.add"}, {"files", QJsonArray{1}}}},
+        {"no key", QJsonObject{{"type", "attachment.add"},
+                               {"files", QJsonArray{QJsonObject{{"file", good.value(QStringLiteral("file"))}}}}}},
+        {"one key twice", QJsonObject{{"type", "attachment.add"}, {"files", QJsonArray{good, good}}}},
+        {"no bytes", withFile([](QJsonObject& f) { f.remove(QStringLiteral("data")); })},
+        {"bytes that are not base64", withFile([](QJsonObject& f) { f.insert(QStringLiteral("data"), QStringLiteral("!!!")); })},
+        {"a size that disagrees with the bytes", withFile([](QJsonObject& f) { f.insert(QStringLiteral("size"), 4); })},
+        {"a negative size", withFile([](QJsonObject& f) { f.insert(QStringLiteral("size"), -1); })},
+        {"a checksum that is not sixteen bytes", withFile([](QJsonObject& f) { f.insert(QStringLiteral("checksum"), QStringLiteral("abcd")); })},
+        {"no name", withFile([](QJsonObject& f) { f.remove(QStringLiteral("name")); })},
+        {"a delete with no keys", QJsonObject{{"type", "attachment.delete"}}},
+        {"a delete of an empty key", QJsonObject{{"type", "attachment.delete"}, {"keys", QJsonArray{QString()}}}},
+        {"a delete of one key twice", QJsonObject{{"type", "attachment.delete"}, {"keys", QJsonArray{"a", "a"}}}},
+        {"a delete of a number", QJsonObject{{"type", "attachment.delete"}, {"keys", QJsonArray{7}}}},
+    };
+    for (const auto& [what, json] : hostile) {
+        INFO(what << ": " << compact(json).toStdString());
+        auto result = CommandRegistry::deserialize(json);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().code == core::ErrorCode::ParseFailure);
+        CHECK(keyOf(result.error()) == "error.command.malformed");
+    }
+    // THE CONTROL: the good line parses.
+    CHECK(CommandRegistry::deserialize(QJsonObject{{"type", "attachment.add"}, {"files", QJsonArray{good}}}));
 }
 
 TEST_CASE("CommandRegistry returns NotFound for a type id it does not register", "[cmd][serialize]")

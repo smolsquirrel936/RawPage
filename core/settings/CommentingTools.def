@@ -42,5 +42,8 @@ RAWPAGE_COMMENTING_TOOL(Arrow,           "arrow")
 RAWPAGE_COMMENTING_TOOL(Polyline,        "polyline")
 RAWPAGE_COMMENTING_TOOL(Cloud,           "cloud")
 RAWPAGE_COMMENTING_TOOL(Eraser,          "eraser")
+// Stage 6 T11 (D6-17): `annot.attachFile`, declared since Stage 1 -- a pushpin carrying a file. It has no tool
+// default of its own: the pushpin is Acrobat's blue, and its one size is fixed.
+RAWPAGE_COMMENTING_TOOL(AttachFile,      "attachFile")
 
 #undef RAWPAGE_COMMENTING_TOOL

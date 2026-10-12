@@ -413,6 +413,13 @@ RAWPAGE_ACTION(CommentEditInPlace,     "comment.editInPlace",     Comments, "act
 // everything matching the current filter* (`Features.md` §4.2) and *number comments sequentially*.
 RAWPAGE_ACTION(CommentDeleteMatching,  "comment.deleteMatching",  Global,   "action.comment.deleteMatching")
 RAWPAGE_ACTION(CommentNumbering,       "comment.numbering",       Global,   "action.comment.numbering")
+// MINTED at Stage 6 T11 (D6-17), chordless: the Attachments pane's four commands -- `Features.md` §4.2's *attach a
+// file to the document as a whole, via the Attachments pane*, and the open and extract D6-17 specifies. No §8 table
+// names them, and no `Attachments` key context exists, so they are Global rows reached from the pane and the finder.
+RAWPAGE_ACTION(AttachmentOpen,         "attachment.open",         Global,   "action.attachment.open")
+RAWPAGE_ACTION(AttachmentExtract,      "attachment.extract",      Global,   "action.attachment.extract")
+RAWPAGE_ACTION(AttachmentAdd,          "attachment.add",          Global,   "action.attachment.add")
+RAWPAGE_ACTION(AttachmentDelete,       "attachment.delete",       Global,   "action.attachment.delete")
 
 // =============================================================================================
 // Features.md §5 -- Assemble
