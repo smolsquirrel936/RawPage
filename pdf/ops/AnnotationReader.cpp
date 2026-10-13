@@ -253,9 +253,15 @@ Parsed parse(cos::XrefTable& table, const CosObject& d)
     }
     a.hasAppearance = d.find("AP") != nullptr;
     // Stage 6 T11 (D6-17): the file a FileAttachment carries -- what it says about it, never its bytes, which
-    // are read when they are asked for (`IDocumentBackend::attachmentData`).
-    if (a.subtype == core::AnnotationSubtype::FileAttachment)
+    // are read when they are asked for (`IDocumentBackend::attachmentData`). A specification that NAMES no file --
+    // no `/UF`, no `/F`, an empty string -- is not one the model can hold (S6 guide I-17): `EmbeddedFile` is
+    // named, its JSON refused without one, and a document-level file with no name takes its key, which a
+    // pushpin does not have. The annotation is kept, and drawn and edited as it is; its `/FS` is never
+    // rewritten from the model, so the file keeps what it said.
+    if (a.subtype == core::AnnotationSubtype::FileAttachment) {
         a.attachment = EmbeddedFileReader::fileOf(table, d.find("FS"));
+        if (a.attachment && a.attachment->name.isEmpty()) a.attachment.reset();
+    }
 
     out.pageReference = referenceOf(d, "P");
     return out;

@@ -9,6 +9,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "SaveSession.h"
+#include "TinyPdf.h"
+#include "core/cmd/CommandRegistry.h"
 #include "core/cmd/RecoveryJournal.h"
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
@@ -502,6 +504,86 @@ TEST_CASE("a pushpin made with a file is saved with the file as its FS", "[attac
     auto adopted = session->backend.attachmentData(session->handle, AttachmentRef::ofAnnotation(pin.id));
     REQUIRE(adopted);
     CHECK(adopted.value() == bytes);
+}
+
+TEST_CASE("a file read with a key or a name past the bound a created one keeps is deleted moved edited and replayed",
+          "[attachments][I-18]")
+{
+    // S6 guide I-18: `kMaxAttachmentNameLength` bounds what a command CREATES -- a file RawPage attaches, its key and
+    // its name. A file READ from the document is the document's, and a producer may name it at any length: a delete
+    // of its key, and a move or an edit of its pushpin, must apply and their journal lines read back.
+    const QString longKey = QString(2000, QLatin1Char('k')) + QStringLiteral(".txt");
+    const QString longName = QString(2000, QLatin1Char('p')) + QStringLiteral(".txt");
+    REQUIRE(longKey.size() > core::kMaxAttachmentNameLength);
+    tests::TinyPdf pdf;
+    const int catalog = pdf.reserve();
+    const int pages = pdf.reserve();
+    const int page = pdf.reserve();
+    const auto ref = [](int number) { return std::to_string(number) + " 0 R"; };
+    const int pinData = pdf.add("<< /Type /EmbeddedFile /Length 5 >>\nstream\nhello\nendstream");
+    const int pinSpec = pdf.add("<< /Type /Filespec /F (" + longName.toStdString() + ") /EF << /F " + ref(pinData) + " >> >>");
+    const int pin = pdf.add("<< /Type /Annot /Subtype /FileAttachment /Rect [ 100 600 116 624 ] /Name /PushPin /C [ 0 0 1 ] /P "
+                            + ref(page) + " /FS " + ref(pinSpec) + " >>");
+    const int docData = pdf.add("<< /Type /EmbeddedFile /Length 5 >>\nstream\nworld\nendstream");
+    const int docSpec = pdf.add("<< /Type /Filespec /F (" + longKey.toStdString() + ") /EF << /F " + ref(docData) + " >> >>");
+    pdf.set(page, "<< /Type /Page /Parent " + ref(pages) + " /MediaBox [ 0 0 612 792 ] /Annots [ " + ref(pin) + " ] >>");
+    pdf.set(pages, "<< /Type /Pages /Kids [ " + ref(page) + " ] /Count 1 >>");
+    pdf.set(catalog, "<< /Type /Catalog /Pages " + ref(pages) + " /Names << /EmbeddedFiles << /Names [ (" + longKey.toStdString()
+                         + ") " + ref(docSpec) + " ] >> >> >>");
+    auto session = tests::openBuilt(QStringLiteral("long-names.pdf"), pdf.bytes(catalog));
+    REQUIRE(session);
+    core::CommandJournal& journal = *session->journal;
+    const core::AnnotationId pinId = core::AnnotationId::ofObject(pin);
+    REQUIRE(journal.document().attachments().find(longKey));
+    const auto readPin = [&journal, &pinId]() {
+        const std::optional<std::size_t> at = journal.document().annotations().find(pinId);
+        REQUIRE(at);
+        return journal.document().annotations().at(*at);
+    };
+    REQUIRE(readPin().attachment);
+    CHECK(readPin().attachment->name == longName);   // the file's own name, whole
+    CHECK_FALSE(readPin().attachment->carried);
+    const auto readsBack = [](const core::Command& command) {
+        auto back = core::CommandRegistry::deserialize(command.serialize());
+        if (!back) UNSCOPED_INFO(command.typeId().data() << ": " << keyOf(back.error()) << " " << back.error().context.toStdString());
+        return back && back.value()->serialize() == command.serialize();
+    };
+
+    // The document's file deleted by its key, and undone.
+    auto remove = std::make_unique<core::DeleteAttachmentCommand>(std::vector<QString>{longKey});
+    CHECK(readsBack(*remove));
+    REQUIRE(journal.run(std::move(remove)));
+    CHECK_FALSE(journal.document().attachments().find(longKey));
+    REQUIRE(journal.undo());
+    CHECK(journal.document().attachments().find(longKey));
+
+    // Its pushpin edited, and undone.
+    core::Annotation edited = readPin();
+    edited.contents = QStringLiteral("edited");
+    auto edit = std::make_unique<core::EditAnnotationCommand>(std::vector<core::Annotation>{edited});
+    CHECK(readsBack(*edit));
+    REQUIRE(journal.run(std::move(edit)));
+    CHECK(readPin().contents == QStringLiteral("edited"));
+    REQUIRE(journal.undo());
+
+    // ...and moved, and saved: the file's name read back whole, from the /FS the save kept.
+    auto move = std::make_unique<core::MoveAnnotationCommand>(std::vector<core::AnnotationId>{pinId}, 10, -10, kNow);
+    CHECK(readsBack(*move));
+    REQUIRE(journal.run(std::move(move)));
+    auto reopened = saveAndReopen(*session, QStringLiteral("moved.pdf"));
+    const core::AnnotationStore* store = reopened->backend.annotations(reopened->handle);
+    REQUIRE(store != nullptr);
+    const std::optional<std::size_t> at = store->findObject(pin);
+    REQUIRE(at);
+    REQUIRE(store->at(*at).attachment);
+    CHECK(store->at(*at).attachment->name == longName);
+    CHECK(reopened->attachments->find(longKey));
+
+    // THE CONTROL: the bound still binds what a command CREATES -- a pushpin carrying a file named past it.
+    const core::Annotation created = core::newFileAttachment(
+        0, core::PdfRect{core::PdfPoint{100, 600}, core::PdfSize{16, 24}},
+        core::newEmbeddedFile(longName, QByteArray("abc"), {}, kNow), {0.13, 0.4, 0.86}, QStringLiteral("Ana"), kNow);
+    CHECK_FALSE(core::CommandRegistry::deserialize(core::AddAnnotationCommand(std::vector<core::Annotation>{created}).serialize()));
 }
 
 // ==========================================================================================

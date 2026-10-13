@@ -158,7 +158,10 @@ Result<std::unique_ptr<Command>> DeleteAttachmentCommand::deserialize(const QJso
     std::vector<QString> parsed;
     std::set<QString> seen;
     for (const QJsonValue& item : keys.toArray()) {
-        if (!item.isString() || !keyIsBounded(item.toString()) || !seen.insert(item.toString()).second)
+        // Any key but the empty one: a delete names a key the DOCUMENT holds, at whatever length its producer wrote
+        // it, and apply() deletes only one the model finds -- `keyIsBounded` is the bound of a key RawPage makes
+        // (S6 guide I-18).
+        if (!item.isString() || item.toString().isEmpty() || !seen.insert(item.toString()).second)
             return badCommand(kTypeId, QStringLiteral("keys"));
         parsed.push_back(item.toString());
     }

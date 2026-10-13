@@ -105,12 +105,15 @@ std::optional<QString> invalidShape(const Annotation& a)
         if (a.subtype != AnnotationSubtype::Stamp || a.intent != stampImageIntent()) return QStringLiteral("annotation.image");
         if (const std::optional<QString> invalid = invalidStampImage(a.image)) return QStringLiteral("annotation.") + *invalid;
     }
-    // Stage 6 T11: a carried file only on a FileAttachment, named, and no larger than one command may carry.
+    // Stage 6 T11: a file only on a FileAttachment, and named; a CARRIED one -- a file RawPage attaches -- with a name
+    // and bytes no larger than one command may carry. A file READ from the document is the document's: its name is
+    // what its specification says, at whatever length its producer wrote it, and a command that moves or edits its
+    // pushpin names that file and never writes it (S6 guide I-18).
     if (a.attachment) {
-        if (a.subtype != AnnotationSubtype::FileAttachment || a.attachment->name.isEmpty()
-            || a.attachment->name.size() > kMaxAttachmentNameLength)
+        if (a.subtype != AnnotationSubtype::FileAttachment || a.attachment->name.isEmpty())
             return QStringLiteral("annotation.attachment");
-        if (a.attachment->carried && a.attachment->data.size() > kMaxAttachmentBytes)
+        if (a.attachment->carried && (a.attachment->name.size() > kMaxAttachmentNameLength
+                                      || a.attachment->data.size() > kMaxAttachmentBytes))
             return QStringLiteral("annotation.attachment");
     }
     return std::nullopt;

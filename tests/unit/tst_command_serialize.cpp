@@ -269,6 +269,15 @@ TEST_CASE("CommandRegistry refuses every malformed attachment command by Result"
         {"a negative size", withFile([](QJsonObject& f) { f.insert(QStringLiteral("size"), -1); })},
         {"a checksum that is not sixteen bytes", withFile([](QJsonObject& f) { f.insert(QStringLiteral("checksum"), QStringLiteral("abcd")); })},
         {"no name", withFile([](QJsonObject& f) { f.remove(QStringLiteral("name")); })},
+        // S6 guide I-18: the bound binds what a command CREATES -- an attached file's name and its key.
+        {"a name past the bound", withFile([](QJsonObject& f) {
+             f.insert(QStringLiteral("name"), QString(core::kMaxAttachmentNameLength + 1, QLatin1Char('n')));
+         })},
+        {"a key past the bound", [&good] {
+             QJsonObject attachment = good;
+             attachment.insert(QStringLiteral("key"), QString(core::kMaxAttachmentNameLength + 1, QLatin1Char('k')));
+             return QJsonObject{{"type", "attachment.add"}, {"files", QJsonArray{attachment}}};
+         }()},
         {"a delete with no keys", QJsonObject{{"type", "attachment.delete"}}},
         {"a delete of an empty key", QJsonObject{{"type", "attachment.delete"}, {"keys", QJsonArray{QString()}}}},
         {"a delete of one key twice", QJsonObject{{"type", "attachment.delete"}, {"keys", QJsonArray{"a", "a"}}}},

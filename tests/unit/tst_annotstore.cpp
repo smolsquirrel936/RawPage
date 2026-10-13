@@ -458,6 +458,44 @@ TEST_CASE("the annotation fuzz body's invariants fire", "[annotstore][fuzz][A-23
     CHECK_FALSE(back.value() == a);                         // ...is caught by the equality the body uses
 }
 
+TEST_CASE("a pushpin whose file specification names no file holds no file and its JSON reads back", "[annotstore][fuzz][A-23][I-17]")
+{
+    // S6 guide I-17, the soak's finding (run 38384043765, `fuzz_annot_pipeline`): a FileAttachment whose `/FS`
+    // resolved to a dictionary with no `/UF` and no `/F` -- in the fuzzer's input a Form XObject -- was read as an
+    // EmbeddedFile with an EMPTY name, which `EmbeddedFile::fromJson` refuses, so the annotation's JSON did not
+    // read back and no command could carry it. Three nameless shapes, and a named one as the control that the
+    // reader still keeps a file it can name.
+    const std::string bytes = tests::annotatedDocument(1, [](int, tests::TinyPdf& pdf, int) {
+        const std::string pin = "<< /Type /Annot /Subtype /FileAttachment /Rect [ 10 10 26 34 ] /Name /PushPin /FS ";
+        const int form = pdf.add("<< /Type /XObject /Subtype /Form /BBox [ 0 0 20 20 ] /Length 0 >>\nstream\n\nendstream");
+        const int a = pdf.add(pin + "<< /Type /Filespec >> >>");
+        const int b = pdf.add(pin + "() >>");
+        const int c = pdf.add(pin + std::to_string(form) + " 0 R >>");
+        const int d = pdf.add(pin + "<< /Type /Filespec /F (kept.txt) >> >>");
+        return "[ " + std::to_string(a) + " 0 R " + std::to_string(b) + " 0 R " + std::to_string(c) + " 0 R "
+               + std::to_string(d) + " 0 R ]";
+    });
+    const auto reading = tests::readAnnotations(bytes);
+    REQUIRE(reading);
+    REQUIRE(reading->annotations.size() == 4);
+    for (std::size_t i = 0; i < 3; ++i) {
+        INFO("nameless pushpin " << i);
+        CHECK(reading->annotations[i].subtype == core::AnnotationSubtype::FileAttachment);   // the annotation is kept
+        CHECK_FALSE(reading->annotations[i].attachment.has_value());                        // ...holding no file
+    }
+    REQUIRE(reading->annotations[3].attachment.has_value());
+    CHECK(reading->annotations[3].attachment->name == QStringLiteral("kept.txt"));
+    for (const core::Annotation& a : reading->annotations) {
+        const auto back = core::Annotation::fromJson(a.toJson());
+        REQUIRE(back);
+        CHECK(back.value() == a);
+    }
+    const fuzz::AnnotVerdict verdict = fuzz::annotPipelineFuzzOnce(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+    INFO(verdict.failure);
+    CHECK(verdict.ok);
+    CHECK(verdict.annotations == 4);
+}
+
 TEST_CASE("the annotation fuzz body's write invariant fires on a composed update verify refuses", "[annotstore][fuzz][A-23]")
 {
     // Stage 6 T3's control for the WRITE invariant: the same compose-fault seam guide A-30 uses, renaming
