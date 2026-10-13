@@ -228,6 +228,10 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "searchUnits");
     }
+    core::Status pageGeometry(core::DocumentHandle, int, core::PageGeometry&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "pageGeometry");
+    }
 
     core::Outline outline_;
     core::Destinations destinations_;

@@ -4,6 +4,7 @@
 
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
+#include "core/Measure.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/DrawnShapes.h"
 #include "core/doc/Stamps.h"
@@ -503,18 +504,59 @@ void solidLine(cos::ContentStreamBuilder& content, const core::Annotation& a)
     if (a.borderStyle == QLatin1String("D")) content.dash(nullptr, 0, 0.0);
 }
 
-// What a T8 kind refuses before it draws: a measurement (T12 draws its readout), and a width that is not one.
+// What a T8 kind refuses before it draws: a rectangle that is not one -- and, since T12 (D6-14), a MEASUREMENT whose
+// reading this build cannot state: a scale it does not display (a fraction, a chain of units, a `/GEO` measure) by
+// key, and a polygon that crosses itself by name. Such a measurement keeps its producer's appearance.
 std::optional<core::Error> refusedShape(const core::Annotation& a)
 {
     const QLatin1String name = core::annotationSubtypeName(a.subtype);
-    if (a.intent.endsWith(QLatin1String("Dimension"))) return appearanceError("error.pdf.appearanceUnsupported", name);
     if (!finiteRect(a)) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (core::measureKindOf(a)) {
+        const core::Result<core::MeasureReading> reading = core::measured(a);
+        if (!reading) {
+            if (reading.error().messageKey == QLatin1String("error.measure.unsupportedScale")
+                || reading.error().messageKey == QLatin1String("error.measure.notMeasurement"))
+                return appearanceError("error.pdf.appearanceUnsupported", name);
+            return reading.error();
+        }
+    }
     return std::nullopt;
 }
 
-// A Line: its stroke from `/L`'s first point to its second, and `/LE`'s two endings -- an ending's closed shape
-// filled with `/IC` when there is one (ISO 32000-1 Table 175).
-core::Result<Appearance> line(const core::Annotation& a)
+// Stage 6 T12: A CAPTION -- a line's, or a measurement's reading -- in base-14 Helvetica (WinAnsi, not embedded,
+// written with its `/Widths`: D6-7's Latin face), set along its baseline from `caption.origin` in `colour`. The
+// font's resource is added to `fonts` once. A character WinAnsi cannot write is refused BY NAME, as typed text is.
+std::optional<core::Error> drawCaption(cos::ContentStreamBuilder& content, const core::MeasureCaption& caption,
+                                       const std::vector<double>& colour, AppearanceObjects& objects,
+                                       std::vector<CosObject::Entry>& fonts)
+{
+    for (const QChar c : caption.text) {
+        if (!core::winAnsiCode(c.unicode())) {
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.edit.typedCharacterRefused"),
+                               core::describeCharacter(c.unicode())};
+        }
+    }
+    const std::string codes = AppearanceStreamBuilder::encodeText(core::TypedFont::Helvetica, caption.text);
+    if (codes.empty()) return std::nullopt;
+    const std::string resource = core::typedFontSpec(core::TypedFont::Helvetica).resource;
+    if (std::none_of(fonts.begin(), fonts.end(), [&resource](const CosObject::Entry& e) { return e.key == resource; })) {
+        const cos::CosRef at = AppearanceStreamBuilder::fontObject(core::TypedFont::Helvetica, objects);
+        fonts.push_back({resource, CosObject::makeReference(at.number, at.generation)});
+    }
+    content.beginText().fillColor(colour.data(), static_cast<int>(colour.size()));
+    content.font(resource, caption.size);
+    const core::PdfPoint d = caption.direction;
+    content.textMatrix(d.x, d.y, -d.y, d.x, caption.origin.x, caption.origin.y);
+    content.showText(codes);
+    content.endText();
+    return std::nullopt;
+}
+
+// A Line: its stroke and `/LE`'s two endings -- an ending's closed shape filled with `/IC` when there is one (ISO
+// 32000-1 Table 175). SINCE T12 the line AS `core::dimensionGeometry` places it: moved by `/LL` off the points it
+// measures, with its two leader lines, and its CAPTION -- a measurement's reading, else `/Contents` -- on top of it or
+// in a gap of it, in `/C` (black where it has none).
+core::Result<Appearance> line(const core::Annotation& a, AppearanceObjects& objects)
 {
     const QLatin1String name = core::annotationSubtypeName(a.subtype);
     if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
@@ -528,26 +570,42 @@ core::Result<Appearance> line(const core::Annotation& a)
     const std::optional<QString> blend = blendOf(a);
     if (!stroke.valid || !fill.valid) return appearanceError("error.pdf.appearanceGeometry", name);
     if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
+    const std::optional<core::DimensionGeometry> drawn = core::dimensionGeometry(a);
+    if (!drawn) return appearanceError("error.pdf.appearanceGeometry", name);
 
     const double width = core::drawnBorderWidth(a);
     cos::ContentStreamBuilder content;
+    std::vector<CosObject::Entry> fonts;
     content.save().graphicsState("GS0");
     if (!stroke.colour.empty() && width > 0.0) {
         content.strokeColor(stroke.colour.data(), static_cast<int>(stroke.colour.size()));
         if (!fill.colour.empty()) content.fillColor(fill.colour.data(), static_cast<int>(fill.colour.size()));
         if (!strokeStyle(content, a, width)) return appearanceError("error.pdf.appearanceGeometry", name);
         content.lineJoin(1);
-        content.moveTo(a.line[0], a.line[1]).lineTo(a.line[2], a.line[3]).stroke();
+        const core::PdfPoint start = drawn->start, end = drawn->end;
+        if (drawn->gap) {
+            content.moveTo(start.x, start.y).lineTo(drawn->gap->first.x, drawn->gap->first.y);
+            content.moveTo(drawn->gap->second.x, drawn->gap->second.y).lineTo(end.x, end.y).stroke();
+        } else {
+            content.moveTo(start.x, start.y).lineTo(end.x, end.y).stroke();
+        }
+        for (std::size_t at = 0; at + 3 < drawn->leaders.size(); at += 4) {
+            content.moveTo(drawn->leaders[at], drawn->leaders[at + 1]).lineTo(drawn->leaders[at + 2], drawn->leaders[at + 3]);
+            content.stroke();
+        }
         solidLine(content, a);
-        const core::PdfPoint start{a.line[0], a.line[1]}, end{a.line[2], a.line[3]};
         const double size = core::lineEndingSize(width);
         drawEnding(content, a.lineEndings.size() > 0 ? a.lineEndings[0] : QString(), start, end, size,
                    core::kArrowSpreadDegrees, !fill.colour.empty());
         drawEnding(content, a.lineEndings.size() > 1 ? a.lineEndings[1] : QString(), end, start, size,
                    core::kArrowSpreadDegrees, !fill.colour.empty());
     }
+    if (drawn->caption) {
+        const std::vector<double> colour = stroke.colour.empty() ? std::vector<double>(1, 0.0) : stroke.colour;
+        if (std::optional<core::Error> refused = drawCaption(content, *drawn->caption, colour, objects, fonts)) return *refused;
+    }
     content.restore();
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend), std::move(fonts)), content.bytes()};
 }
 
 // The box a Square's or a Circle's outline is drawn round: the rectangle less `/RD` (ISO 32000-1 Table 177).
@@ -615,8 +673,8 @@ core::Result<Appearance> squareOrCircle(const core::Annotation& a)
 }
 
 // A Polygon (closed, filled with `/IC`, its border cloudy when `/BE` says so) or a PolyLine (open, with `/LE`'s
-// endings): the vertices joined round, in `/C`.
-core::Result<Appearance> polygon(const core::Annotation& a)
+// endings): the vertices joined round, in `/C`. SINCE T12 a measurement's reading as well (`core::measureLabel`).
+core::Result<Appearance> polygon(const core::Annotation& a, AppearanceObjects& objects)
 {
     const QLatin1String name = core::annotationSubtypeName(a.subtype);
     if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
@@ -667,8 +725,13 @@ core::Result<Appearance> polygon(const core::Annotation& a)
                    core::PdfPoint{a.vertices[2 * n - 4], a.vertices[2 * n - 3]}, size, core::kArrowSpreadDegrees,
                    !fill.colour.empty());
     }
+    std::vector<CosObject::Entry> fonts;
+    if (const std::optional<core::MeasureCaption> label = core::measureLabel(a)) {
+        const std::vector<double> colour = stroke.colour.empty() ? std::vector<double>(1, 0.0) : stroke.colour;
+        if (std::optional<core::Error> refused = drawCaption(content, *label, colour, objects, fonts)) return *refused;
+    }
     content.restore();
-    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend), std::move(fonts)), content.bytes()};
 }
 
 // Ink (D6-15): each stroke as the centripetal Catmull-Rom curve through its samples (`core::inkCurve`), with
@@ -1174,11 +1237,11 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::Caret: return caret(annotation);
         case core::AnnotationSubtype::Text: return note(annotation);
         case core::AnnotationSubtype::FreeText: return freeText(annotation, objects);
-        case core::AnnotationSubtype::Line: return line(annotation);
+        case core::AnnotationSubtype::Line: return line(annotation, objects);
         case core::AnnotationSubtype::Square:
         case core::AnnotationSubtype::Circle: return squareOrCircle(annotation);
         case core::AnnotationSubtype::Polygon:
-        case core::AnnotationSubtype::PolyLine: return polygon(annotation);
+        case core::AnnotationSubtype::PolyLine: return polygon(annotation, objects);
         case core::AnnotationSubtype::Ink: return ink(annotation);
         case core::AnnotationSubtype::Stamp: return stamp(annotation, objects);
         case core::AnnotationSubtype::FileAttachment: return fileAttachment(annotation);

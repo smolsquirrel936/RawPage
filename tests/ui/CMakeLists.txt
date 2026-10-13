@@ -159,6 +159,9 @@ add_executable(rawpage_ui_tests
                                #   dialog (A-78), the bar's turn (A-80), an image pasted and Ctrl+V kept (A-81)
     tst_attachments.cpp        # Stage 6 T11 -- the Attachments pane: Ctrl+Shift+A, both kinds listed, a pane that
                                #   never widens its window, convention 16's disabling, a pushpin deleted with its pop-up
+    tst_measuretool.cpp        # Stage 6 T12 -- the measuring tools from mouse and key events: four kinds, a snap three
+                               #   device pixels off landing exactly at two zooms (A-89), calibration (A-90), the dense
+                               #   page said once (A-91), the comment and the history (A-92), the scale dialog
 
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the

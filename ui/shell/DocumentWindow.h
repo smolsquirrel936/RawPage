@@ -106,6 +106,7 @@ class ReflowView;
 class RulerWidget;
 class FindReplaceBar;
 class SelectionOverlay;
+class SnapTargets;
 class SplitViewContainer;
 
 class DocumentWindow : public QWidget {
@@ -298,6 +299,8 @@ public:
     void togglePropertiesBar();
     // Shows what is in front of the person: the selection, else the armed tool's defaults, else nothing.
     void refreshPropertiesBar();
+    // S6 T12: a reading made in a pane, into the session's history and on to the shell.
+    void recordMeasurement(const QString& reading);
 
     // THE FIND BAR (S5 T7, D5-14): one per tab, hidden until `Ctrl+F`. The `find.*` commands reach it
     // through this. Never null after `build()`.
@@ -387,6 +390,12 @@ signals:
     // cannot draw), in the person's words; the selection or the properties bar changed, so the chrome
     // re-asks the commands that depend on them.
     void annotationRefused(const QString& reason);
+    // S6 T12 (D6-14): a measurement made in any pane, reading `reading` (the history has it already); a distance
+    // measured to CALIBRATE, `points` long -- the shell asks what it is and sets the scale; and something the
+    // measuring tools want said in the status bar (a page with too many paths to snap to), in the person's words.
+    void measurementMade(const QString& reading);
+    void calibrationMeasured(double points);
+    void measureNotice(const QString& message);
     void annotationStateChanged();
 
     // S5 T10 -- a snapshot from any pane of this tab reached the clipboard, or its raster failed;
@@ -480,6 +489,13 @@ private:
     // S5 T5. A child, but deleted EXPLICITLY in the destructor -- after every pane has let go of it and
     // before the handle closes, because it holds text tickets on this document's handle.
     SelectionOverlay* selection_ = nullptr;
+    SnapTargets* snapTargets_ = nullptr;     // S6 T12: the pages' paths the measuring tools snap to
+    QStringList measurementHistory_;         // S6 T12: this session's readings, newest first, never written
+public:
+    // S6 T12: the readings measured in this tab this session, newest first -- the properties bar's history.
+    const QStringList& measurementHistory() const noexcept { return measurementHistory_; }
+    SnapTargets* snapTargets() const noexcept { return snapTargets_; }
+private:
 
     // S5 T6. `core::text::DocumentIndex::EntryId`, attached in `build()` and detached in the destructor.
     std::uint64_t indexEntry_ = 0;

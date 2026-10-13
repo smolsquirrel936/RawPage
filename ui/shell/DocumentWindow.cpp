@@ -16,6 +16,7 @@
 #include "ui/viewer/GridGuideLayer.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/PropertiesBar.h"
+#include "ui/viewer/SnapTargets.h"
 #include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/ReflowView.h"
 #include "ui/viewer/RulerWidget.h"
@@ -249,6 +250,15 @@ void DocumentWindow::build(const Recovery* recovery)
     connect(selection_, &SelectionOverlay::copyNotExtractable, this, &DocumentWindow::selectionNotExtractable);
     connect(selection_, &SelectionOverlay::copyCancelled, this, &DocumentWindow::selectionCopyCancelled);
     connect(selection_, &SelectionOverlay::presenceChanged, this, &DocumentWindow::selectionPresenceChanged);
+
+    // THE PAGES' PATHS (S6 T12, D6-14): one owner of this tab's geometry requests, handed to every pane as the
+    // selection is. A page too dense to snap to is said once.
+    snapTargets_ = new SnapTargets(services_.documentIndex, this);
+    connect(snapTargets_, &SnapTargets::tooManySegments, this, [this](int page, qulonglong counted) {
+        emit measureNotice(catalog::translate(catalog::key::MeasureStatusTooManyPaths)
+                               .arg(page + 1)
+                               .arg(static_cast<qulonglong>(counted)));
+    });
 
     // THE ANNOTATIONS (S6 T5): one overlay for every pane, given its store and its runner once the journal
     // exists (below). A refusal is said in the person's words; a selection re-asks the chrome and the bar.
@@ -518,6 +528,7 @@ void DocumentWindow::build(const Recovery* recovery)
     if (handle_.isValid())
         indexEntry_ = services_.documentIndex.attach(services_.backend.documentId(handle_), handle_, pageCount());
     selection_->setDocument(indexEntry_, pageCount());
+    snapTargets_->setDocument(indexEntry_, pageCount());
     findBar_->setDocument(indexEntry_, pageCount(), selection_);
     reflow_->attach(indexEntry_, pageCount());
     for (PageView* pane : split_->views()) handDocumentTo(pane);
@@ -534,11 +545,24 @@ void DocumentWindow::build(const Recovery* recovery)
         // S4 T8, and it reaches every open tab for the reason above: a person who turns the grid
         // on expects it on, not on in the tab they happened to be looking at.
         if (change.group == core::SettingsGroup::UnitsAndGuides) applyGuideSettings();
+        // S6 T12: `measuring/snapToPaths` is read with the snap switches.
+        if (change.group == core::SettingsGroup::Measuring) applyGuideSettings();
 
         // S6 T8: `K` and the pop-ups, and a tool default the Commenting page changed -- every pane, every tab.
         if (change.group == core::SettingsGroup::Commenting) applyCommentingSettings();
     });
     applyCommentingSettings();
+}
+
+void DocumentWindow::recordMeasurement(const QString& reading)
+{
+    // THE SESSION'S HISTORY (D6-14): newest first, bounded so a long session does not grow a list nobody scrolls,
+    // and never written -- a reading worth keeping is in the measurement's own `/Contents`.
+    constexpr qsizetype kHistory = 50;
+    measurementHistory_.prepend(reading);
+    if (measurementHistory_.size() > kHistory) measurementHistory_.resize(kHistory);
+    refreshPropertiesBar();
+    emit measurementMade(reading);
 }
 
 void DocumentWindow::applyCommentingSettings()
@@ -711,7 +735,12 @@ void DocumentWindow::handDocumentTo(PageView* pane)
     // decides what the bar shows, so a pane arming one re-asks it (a member slot: `UniqueConnection` is safe).
     pane->setSelectionOverlay(selection_);
     pane->setAnnotationOverlay(annotations_);
+    pane->setSnapTargets(snapTargets_);
     connect(pane, &PageView::toolChanged, this, &DocumentWindow::refreshPropertiesBar, Qt::UniqueConnection);
+    // S6 T12: every pane's measurement is this tab's -- recorded in the session's history, then forwarded; a
+    // calibration is the shell's to ask about. Member slots, so a repeated handing does not connect twice.
+    connect(pane, &PageView::measured, this, &DocumentWindow::recordMeasurement, Qt::UniqueConnection);
+    connect(pane, &PageView::calibrationMeasured, this, &DocumentWindow::calibrationMeasured, Qt::UniqueConnection);
 
     // EVERY PANE'S SNAPSHOT IS THIS TAB'S (S5 T10, D5-11), forwarded as the selection's copy is, so the one
     // `disconnect(document, ...)` `MainWindow` makes when a tab leaves it covers these too. Unique, because
@@ -892,6 +921,8 @@ void DocumentWindow::applyGuideSettings()
     guides.gridOriginY      = settings.get(core::keys::units::gridOriginY);
     guides.snapToGrid       = settings.get(core::keys::units::snapToGrid);
     guides.snapToGuides     = settings.get(core::keys::units::snapToGuides);
+    guides.snapToObjects    = settings.get(core::keys::units::snapToObjects);   // S6 T12
+    guides.snapToPaths      = settings.get(core::keys::measuring::snapToPaths);
 
     for (PageView* pane : split_->views()) pane->applyGuideSettings(guides);
 
@@ -1047,6 +1078,15 @@ DocumentWindow::~DocumentWindow()
         annotations_ = nullptr;
     }
 
+    // S6 T12: the pages' paths likewise -- every pane lets go, and the requests go with the object.
+    if (snapTargets_ != nullptr) {
+        if (split_)
+            for (PageView* pane : split_->views()) pane->setSnapTargets(nullptr);
+        disconnect(snapTargets_, nullptr, this, nullptr);
+        delete snapTargets_;
+        snapTargets_ = nullptr;
+    }
+
     // THE SELECTION GOES BEFORE THE HANDLE CLOSES (S5 T5): it holds text tickets on this document and a
     // subscription to the scheduler, and every pane lets go of it first so none paints through a
     // pointer to a destroyed object.
@@ -1153,6 +1193,7 @@ void DocumentWindow::togglePropertiesBar()
 void DocumentWindow::refreshPropertiesBar()
 {
     if (propertiesBar_ == nullptr || annotations_ == nullptr) return;
+    propertiesBar_->setMeasurementHistory(measurementHistory_);   // S6 T12
     if (annotations_->hasSelection()) {
         propertiesBar_->showSelection(annotations_->selected());
         return;

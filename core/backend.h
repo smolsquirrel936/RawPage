@@ -56,6 +56,7 @@
 
 #include "core/Geometry.h"
 #include "core/Result.h"
+#include "core/Snap.h"
 
 #include <QByteArray>
 #include <QLatin1String>
@@ -568,6 +569,22 @@ public:
     // open or a part that does not exist, `Unsupported` from a build that does not implement it. A part
     // with nothing in it is SUCCESS and an empty list -- most pages carry no annotation.
     virtual Status searchUnits(DocumentHandle document, int part, std::vector<text::SearchUnit>& into) = 0;
+
+    // WHAT A MEASUREMENT SNAPS TO -- the page's PATHS, added at Stage 6 T12 (**D6-14**): every stroked or filled
+    // path object's segments in page space (before `/Rotate`), each object's matrix applied, a form XObject's
+    // objects read through it, a Bezier curve flattened into pieces marked `curve` with its two ends as anchors.
+    // Text, images and shadings are not paths and are not read.
+    //
+    // **ONE PAGE, ON THE ENGINE THREAD, BOUNDED.** Called from the render scheduler's worker as an engine task,
+    // as `searchUnits` is, and kept by `core/text/DocumentIndex` beside the page's text, so a page is read once.
+    // A page holding more than `PageGeometry::kMaxSegments` segments stops being read there and is answered
+    // `PageGeometry::tooManySegments` -- SUCCESS, with no targets: the view says once that it gives no object
+    // snaps, rather than sorting a hundred thousand candidates under the pointer.
+    //
+    // Fills `into` or leaves it UNTOUCHED and fails: `InvalidArgument` for a handle this backend did not open or a
+    // page out of range, `Unsupported` from a build that does not implement it. A page with no path is SUCCESS and
+    // an empty geometry.
+    virtual Status pageGeometry(DocumentHandle document, int pageIndex, PageGeometry& into) = 0;
 
     // THE BACKEND'S HALF OF SAVE, added at Stage 3 T8 (`Stage3-Mutation-Plan.md` D3-4, §5.3). Flow F
     // once sketched one `save(Incremental)` doing the whole job; D3-4 splits it three ways, and these

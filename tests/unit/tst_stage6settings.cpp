@@ -237,3 +237,59 @@ TEST_CASE("a line style is a dash and a dash reads back as its style", "[stage6s
     CHECK(core::blendNameFor(false, core::ToolBlend::Normal).isEmpty());     // everything else's own
     CHECK(core::blendNameFor(false, core::ToolBlend::Screen) == QStringLiteral("Screen"));
 }
+
+// =============================================================================================
+// Stage 6 T12 (D6-13, D6-14) -- the five `measuring/` rows and `units/snapToObjects` (guide A-92's keys)
+// =============================================================================================
+
+TEST_CASE("the five measuring keys and snapToObjects are declared with their defaults and their units read back",
+          "[stage6settings][A-92][D6-13][D6-14]")
+{
+    std::set<std::string> paths;
+    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {
+        if (info.group != SettingsGroup::Measuring) continue;
+        paths.insert(std::string(info.path));
+    }
+    CHECK(paths == std::set<std::string>{"measuring/scaleRatio", "measuring/displayUnit", "measuring/precision",
+                                         "measuring/snapToPaths", "measuring/writeToComment"});
+    bool objects = false;
+    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {
+        if (std::string(info.path) == "units/snapToObjects") objects = info.group == SettingsGroup::UnitsAndGuides;
+    }
+    CHECK(objects);   // on Units & Guides, beside the other snap switches (D4-5)
+
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    const QString path = scratch.filePath(QStringLiteral("settings.ini"));
+    {
+        core::Settings settings(path);
+        // ACTUAL SIZE in inches, two decimals, both snaps and the comment on (each row argues why).
+        CHECK(settings.get(keys::measuring::scaleRatio) == 1.0);
+        CHECK(settings.get(keys::measuring::displayUnit) == core::MeasureUnit::Inches);
+        CHECK(settings.get(keys::measuring::precision) == 2);
+        CHECK(settings.get(keys::measuring::snapToPaths));
+        CHECK(settings.get(keys::measuring::writeToComment));
+        CHECK(settings.get(keys::units::snapToObjects));
+        // Every unit written and read back by its symbol; the ratio and the decimals clamped into their ranges.
+        for (int i = 0; i < core::kMeasureUnitCount; ++i) {
+            const auto unit = static_cast<core::MeasureUnit>(i);
+            settings.set(keys::measuring::displayUnit, unit);
+            CHECK(settings.get(keys::measuring::displayUnit) == unit);
+        }
+        settings.set(keys::measuring::displayUnit, core::MeasureUnit::Feet);
+        settings.set(keys::measuring::scaleRatio, 48.0);
+        settings.set(keys::measuring::precision, 9);   // past six: clamped
+        CHECK(settings.get(keys::measuring::precision) == 6);
+    }
+    // THE FILE says the symbol, so a person reading settings.ini reads "ft" -- and a hand-edited unknown unit
+    // falls back to the declared default rather than meaning something real.
+    {
+        QSettings ini(path, QSettings::IniFormat);
+        CHECK(ini.value(QStringLiteral("measuring/displayUnit")).toString() == QStringLiteral("ft"));
+        CHECK(ini.value(QStringLiteral("measuring/scaleRatio")).toDouble() == 48.0);
+        ini.setValue(QStringLiteral("measuring/displayUnit"), QStringLiteral("furlong"));
+    }
+    core::Settings reread(path);
+    CHECK(reread.get(keys::measuring::scaleRatio) == 48.0);
+    CHECK(reread.get(keys::measuring::displayUnit) == core::MeasureUnit::Inches);
+}

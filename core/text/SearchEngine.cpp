@@ -492,6 +492,8 @@ void SearchEngine::onIndexEvent(const DocumentIndex::Event& event)
                 slot = 0;
             }
             break;
+        case DocumentIndex::Event::Kind::GeometryArrived:
+            break;   // S6 T12: a page's paths -- nothing a search waits for
         case DocumentIndex::Event::Kind::EntryDropped:
             // THE DOCUMENT CLOSED UNDER THE SEARCH: nobody is there to be answered.
             ++stats_.cancelled;

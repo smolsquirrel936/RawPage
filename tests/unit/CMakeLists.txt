@@ -87,6 +87,10 @@ add_executable(rawpage_tests
     tst_attachments.cpp           # Stage 6 T11 -- the files a document carries: the model and its policy hook,
                                   #   the reading against the label (A-82, A-84), add and delete saved and undone
                                   #   (A-83), a pushpin's /FS, and D6-23's side files (A-86)
+    tst_measure.cpp               # Stage 6 T12 -- what a measurement measures: the arithmetic against hand values
+                                  #   (A-87), /Measure written and read back and the corpus's read (A-88),
+                                  #   calibration's ratio (A-90's arithmetic), the reading in /Contents and a
+                                  #   dimension's leaders (A-92), a self-intersecting area refused by name
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

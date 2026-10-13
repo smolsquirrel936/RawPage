@@ -313,6 +313,10 @@ struct ShellFixture {
         documentIndex.setUnitReader([this](core::DocumentHandle handle, int part, std::vector<core::text::SearchUnit>& into) {
             return backend.searchUnits(handle, part, into);
         });
+        // S6 T12 (D6-14): a page's paths, likewise -- what the measuring tools snap to.
+        documentIndex.setGeometryReader([this](core::DocumentHandle handle, int page, core::PageGeometry& into) {
+            return backend.pageGeometry(handle, page, into);
+        });
         return true;
     }();
 

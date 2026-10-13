@@ -425,6 +425,18 @@ public:
         return {};
     }
 
+    // S6 T12: a page's paths, as a case sets them -- the segments of `pagePaths[page]`, or none. Counted, so a case
+    // can say the second request asked nothing (guide A-91).
+    std::map<int, std::vector<core::PathSegment>> pagePaths;
+    std::atomic<int> geometryCalls{0};
+    core::Status pageGeometry(core::DocumentHandle, int pageIndex, core::PageGeometry& into) override
+    {
+        ++geometryCalls;
+        const auto found = pagePaths.find(pageIndex);
+        into = core::PageGeometry(pageIndex, found == pagePaths.end() ? std::vector<core::PathSegment>{} : found->second);
+        return {};
+    }
+
     void setContentBox(int pageIndex, core::PdfRect box) { contentBoxes_[pageIndex] = box; }
     void clearContentBoxes() { contentBoxes_.clear(); }
 

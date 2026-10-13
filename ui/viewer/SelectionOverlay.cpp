@@ -162,6 +162,8 @@ void SelectionOverlay::onIndexEvent(const core::text::DocumentIndex::Event& even
         return;
     case core::text::DocumentIndex::Event::Kind::UnitsArrived:
         return;   // a search's comments and fields (S5 T8) -- nothing a selection reads
+    case core::text::DocumentIndex::Event::Kind::GeometryArrived:
+        return;   // a page's paths (S6 T12) -- nothing a selection reads
     }
 }
 

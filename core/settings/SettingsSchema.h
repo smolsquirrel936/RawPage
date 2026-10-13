@@ -28,6 +28,7 @@
 #define RAWPAGE_CORE_SETTINGS_SETTINGSSCHEMA_H
 
 #include "core/Log.h"
+#include "core/Measure.h"
 #include "core/Transition.h"
 #include "core/Units.h"
 #include "core/cmd/ActionId.h"
@@ -398,6 +399,21 @@ template <> struct SettingsCodec<text::CompareSensitivity> {
     static text::CompareSensitivity fromDefault(text::CompareSensitivity value) { return value; }
 };
 
+// The S6 T12 enum -- `measuring/displayUnit` (D6-14). The token is the unit's SYMBOL, `core/Measure.h`'s one table:
+// "ft" in the settings file, after a reading's number and as a measure dictionary's `/U`.
+template <> struct SettingsCodec<MeasureUnit> {
+    static QVariant toVariant(MeasureUnit value)
+    {
+        const std::string_view token = measureUnitToken(value);
+        return QVariant(QString::fromUtf8(token.data(), static_cast<qsizetype>(token.size())));
+    }
+    static std::optional<MeasureUnit> fromVariant(const QVariant& variant)
+    {
+        return measureUnitFromToken(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static MeasureUnit fromDefault(MeasureUnit value) { return value; }
+};
+
 // The S6 T8 enum -- `commenting/popupBehaviour` (D6-28). The token is `core/settings/CommentingTypes.h`'s name.
 template <> struct SettingsCodec<PopupBehaviour> {
     static QVariant toVariant(PopupBehaviour value)
@@ -635,6 +651,19 @@ template <> struct SettingsEditorTraits<text::CompareSensitivity> {
               text::CompareSensitivity::Appearance}) {
             const std::string token(text::compareSensitivityName(sensitivity));
             out.push_back(SettingsChoice{token, "prefs.choice.compareSensitivity." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<MeasureUnit> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (int i = 0; i < kMeasureUnitCount; ++i) {
+            const std::string token(measureUnitToken(static_cast<MeasureUnit>(i)));
+            out.push_back(SettingsChoice{token, "prefs.choice.measureUnit." + token});
         }
         return out;
     }

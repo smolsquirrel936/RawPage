@@ -758,4 +758,19 @@ core::Status DocumentBackendImpl::searchUnits(core::DocumentHandle document, int
     return found->searchUnits(part, *descriptions, into);
 }
 
+core::Status DocumentBackendImpl::pageGeometry(core::DocumentHandle document, int pageIndex, core::PageGeometry& into)
+{
+    render::PdfiumDocument* found = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        Open* entry = find(document);
+        if (entry == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                               QString::number(static_cast<qulonglong>(document.id))};
+        }
+        found = entry->document.get();
+    }
+    return found->pageGeometry(pageIndex, into);
+}
+
 } // namespace rawpage::pdf

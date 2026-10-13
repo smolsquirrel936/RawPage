@@ -28,7 +28,8 @@
 // Documents at Stage 3 T12, when its two keys arrived beside the two Stage 1 had declared there with no
 // page; Units & Guides at Stage 4 T8 and Full Screen at T10; Search at Stage 5 T6, with its ten keys;
 // Identity at Stage 6 T6; Commenting at Stage 6 T8, its two rows and the per-tool editor of the
-// `commenting/default<Property>.<tool>` family (`ToolDefaultsEditor`). **Eleven of 26.** The rule each
+// `commenting/default<Property>.<tool>` family (`ToolDefaultsEditor`); Measuring at Stage 6 T12, its five
+// `measuring/*` rows. **Twelve of 26.** The rule each
 // addition followed is the last paragraph: a page arrives with keys.
 //
 // `Features.md` §9.1 lists 26 preference groups and `Stage1-AppShell-Plan.md` §11 says three ship

@@ -52,6 +52,8 @@
 #define RAWPAGE_UI_VIEWER_GRIDGUIDELAYER_H
 
 #include "core/Snap.h"
+
+#include <functional>
 #include "core/Units.h"
 #include "core/render/PagePresentation.h"
 #include "core/settings/SessionState.h"
@@ -91,6 +93,10 @@ struct GuideSettings {
 
     bool snapToGrid = false;
     bool snapToGuides = true;
+    // S6 T12 (D4-5, D6-14): `units/snapToObjects` -- the page's paths' points for a measurement, and its
+    // annotations' sides for a measurement and a guide -- and `measuring/snapToPaths`, a point ON a path as well.
+    bool snapToObjects = true;
+    bool snapToPaths = true;
 };
 
 class GridGuideLayer : public QObject {
@@ -174,10 +180,20 @@ public:
     static QColor guideColour();
 
     // ---- Snapping (D4-6) -------------------------------------------------------------------------
-    // The flags the two `units/snap*` rows currently ask for. `ObjectEdges` is never set here: the
-    // key that would set it is Stage 6's (D4-5), and a flag set over an empty span would be a
-    // surface that reads as working.
+    // The flags the `units/snap*` rows currently ask for. **Since S6 T12 `ObjectEdges` is set by
+    // `units/snapToObjects`**, the key Stage 4 left to Stage 6 (D4-5) -- and the edges come from the source
+    // below, so the flag is never set over a span nobody fills.
     core::SnapFlags activeFlags() const noexcept;
+
+    // S6 T12: WHERE OBJECT EDGES COME FROM -- the sides of the annotations on a page, which `PageView` knows and this
+    // layer does not. A drag or a drop with `ObjectEdges` set asks it for the page's.
+    using ObjectEdgeSource = std::function<std::vector<core::SnapEdge>(int pageIndex)>;
+    void setObjectEdgeSource(ObjectEdgeSource source) { objectEdges_ = std::move(source); }
+
+    // S6 T12 (D6-14): A MEASURED POINT -- `points` (a page's path targets near it, `core::snapPointsNear`) first,
+    // then the page's annotation sides, the guides and the grid, as `activeFlags()` and `units/snapToObjects` allow.
+    core::SnapResult snapMeasured(int pageIndex, core::PdfPoint point, std::span<const core::SnapPoint> points,
+                                  double scale) const;
 
     // `scale` is device pixels per PDF point -- `PageLayout::presentedScale()`. **This is what
     // makes the tolerance the same at 50 % and 400 %** (D4-6).
@@ -223,7 +239,8 @@ private:
     // within the threshold of the pointer and would otherwise pin itself in place. -1 leaves none out.
     core::SnapResult resolve(int pageIndex, core::PdfPoint point, core::SnapFlags flags,
                              std::span<const core::SnapEdge> objectEdges, double scale,
-                             int excludedGuide) const;
+                             int excludedGuide, std::span<const core::SnapPoint> objectPoints = {}) const;
+    ObjectEdgeSource objectEdges_;
 
     GuideSettings          settings_;
     std::vector<core::Guide> guides_;

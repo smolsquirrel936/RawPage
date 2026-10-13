@@ -962,8 +962,10 @@ TEST_CASE("a guide dragged near a grid line snaps to it at 50 and 400 percent", 
     viewer.fixture.settings.set(core::keys::units::gridSubdivisions, 1);
     viewer.fixture.settings.set(core::keys::units::showGrid, true);
     viewer.fixture.settings.set(core::keys::units::snapToGrid, true);
-    // Guides OFF for the grid's half, so a guide dropped earlier cannot be what a later one snaps to.
+    // Guides OFF for the grid's half, so a guide dropped earlier cannot be what a later one snaps to -- and since
+    // S6 T12 objects off too (`units/snapToObjects`, on by default), so the grid is the one kind in play.
     viewer.fixture.settings.set(core::keys::units::snapToGuides, false);
+    viewer.fixture.settings.set(core::keys::units::snapToObjects, false);
     QCoreApplication::processEvents();
     REQUIRE(viewer.guides().activeFlags() == core::SnapFlags::Grid);
 
@@ -1032,8 +1034,9 @@ TEST_CASE("a guide snaps to another guide but never to itself", "[rulers][I-16]"
 {
     Viewer viewer;
     viewer.fixture.pumpTiles();
-    // Guides only, which is how the product ships (`units/snapToGuides` on, `units/snapToGrid` off).
-    REQUIRE(viewer.guides().activeFlags() == core::SnapFlags::Guides);
+    // Guides and object edges, which is how the product ships since S6 T12 (`units/snapToGuides` and
+    // `units/snapToObjects` on, `units/snapToGrid` off) -- and this page carries no annotation, so there is no edge.
+    REQUIRE(viewer.guides().activeFlags() == (core::SnapFlags::Guides | core::SnapFlags::ObjectEdges));
 
     const SnapTarget target = visibleGridLine(viewer, true, 72.0);
     const double pointsPerDevicePixel = 1.0 / target.scale;

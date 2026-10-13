@@ -80,6 +80,7 @@ class CommentsPane;
 class ComparisonView;
 class DestinationsPane;
 class LogPane;
+class MeasurementScaleDialog;
 class SearchPane;
 class StampPalettePane;
 class ThumbnailsPane;
@@ -332,6 +333,15 @@ public:
         std::function<bool(const QString& name)> confirmOpen;
     };
     static void setAttachmentAnswersForTesting(AttachmentAnswers answers);
+
+    // ---- MEASUREMENT (S6 T12, D6-14) --------------------------------------------------------------------
+    // The scale dialog asked -- from two lengths, or (`measuredPoints`) to CALIBRATE from a length measured on the
+    // page -- and the three `measuring/*` keys written from what it chose. False when nothing was chosen.
+    bool askMeasurementScale(std::optional<double> measuredPoints);
+    // What a headless case answers in the dialog's place: it fills the fields as a person would and says whether it
+    // pressed OK. Empty: the person is asked -- or, with nobody to ask, nothing is.
+    using MeasurementScaleAnswer = std::function<bool(MeasurementScaleDialog&)>;
+    static void setMeasurementScaleAnswerForTesting(MeasurementScaleAnswer answer);
 
     // ---- THE SIDEBAR AS ONE OPAQUE STRING (S4 T13, D4-9) -------------------------------------
     // What `core::SessionWindow::paneLayout` holds, encoded and decoded HERE because it is a Qt

@@ -447,6 +447,23 @@ TEST_CASE("CommandRegistry refuses every malformed annotation command by Result"
         {"add: a colour of 5", withAnnotation("color", QJsonArray{1, 1, 1, 1, 1})},
         {"add: opacity 2", withAnnotation("opacity", 2.0)},
         {"add: a negative border", withAnnotation("borderWidth", -1.0)},
+        // Stage 6 T12 (D6-14): a line's leaders and caption, and a measure dictionary.
+        {"add: a leader past any page", withAnnotation("leaderLength", 1.0e7)},
+        {"add: a negative leader extension", withAnnotation("leaderExtension", -1.0)},
+        {"add: a negative leader offset", withAnnotation("leaderOffset", -2.0)},
+        {"add: a caption at the bottom", withAnnotation("captionPosition", "Bottom")},
+        {"add: a caption offset of three", withAnnotation("captionOffset", QJsonArray{1, 2, 3})},
+        {"add: a measure that is a number", withAnnotation("measure", 7)},
+        {"add: a measure unit of 65 characters",
+         withAnnotation("measure", QJsonObject{{"x", QJsonArray{QJsonObject{{"unit", QString(65, QLatin1Char('u'))}}}}})},
+        {"add: a measure precision of a half",
+         withAnnotation("measure", QJsonObject{{"distance", QJsonArray{QJsonObject{{"unit", "ft"}, {"precision", 0.5}}}}})},
+        {"add: a measure chain of seventeen", withAnnotation("measure", [] {
+             QJsonArray chain;
+             for (int i = 0; i < 17; ++i) chain.append(QJsonObject{{"unit", "ft"}, {"factor", 1.0}});
+             return QJsonObject{{"area", chain}};
+         }())},
+        {"add: a 10 MB scale string", withAnnotation("measure", QJsonObject{{"ratio", huge}})},
         {"delete: ids missing", QJsonObject{{"type", "annot.delete"}}},
         {"delete: ids empty", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{}}}},
         {"delete: an id a number", QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{12}}}},
@@ -475,6 +492,12 @@ TEST_CASE("CommandRegistry refuses every malformed annotation command by Result"
     CHECK(CommandRegistry::deserialize(withAnnotation("opacity", 0.0)));
     CHECK(CommandRegistry::deserialize(
         QJsonObject{{"type", "annot.delete"}, {"ids", QJsonArray{"obj:1", "direct:0:0", "nm:x"}}}));
+    // S6 T12: a leader and a measure inside every bound.
+    CHECK(CommandRegistry::deserialize(withAnnotation("leaderLength", -20.0)));
+    CHECK(CommandRegistry::deserialize(withAnnotation("captionPosition", "Top")));
+    CHECK(CommandRegistry::deserialize(withAnnotation(
+        "measure", QJsonObject{{"ratio", "1 in = 4 ft"},
+                               {"x", QJsonArray{QJsonObject{{"unit", "ft"}, {"factor", 1.0 / 18.0}, {"precision", 100}}}}})));
 }
 
 TEST_CASE("CommandRegistry refuses a malformed reply or status by Result", "[cmd][serialize][hostile][annotops][T9]")

@@ -60,6 +60,7 @@
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarkupTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
+#include "ui/viewer/tools/MeasureTool.h"
 #include "ui/viewer/tools/NoteTool.h"
 #include "ui/viewer/tools/StampTool.h"
 #include "ui/viewer/tools/AttachFileTool.h"
@@ -113,6 +114,11 @@ public:
     bool shapeInProgress() const noexcept;
     // The drawing tool, for the cases that assert a polygon's vertices (S6 T8). Read-only: driven by events.
     const DrawingTool& drawing() const noexcept { return drawing_; }
+    // S6 T12: the measuring tool, for the cases that assert where a point snapped and what it reads.
+    const MeasureTool& measuring() const noexcept { return measure_; }
+    // `annot.measureCalibrate` (S6 T12, D6-14): the distance tool, armed to CALIBRATE -- the next length it measures
+    // sets the scale and makes nothing. Arming any tool again ends it.
+    void armCalibration();
 
     // What input is actually going to -- `armed()`, or `Hand` while the temporary modifier is
     // held. The distinction is the whole of behaviour 2 above, and it is why a case must read this
@@ -203,6 +209,7 @@ private:
     InkTool         ink_;        // S6 T8: the pencil and the eraser
     StampTool       stamp_;      // S6 T10: places the palette's stamp
     AttachFileTool  attach_;     // S6 T11: a pushpin carrying a file
+    MeasureTool     measure_;    // S6 T12: distance, perimeter, area, the dimension callout
     AnnotationToolKind annotationKind_ = AnnotationToolKind::Highlight;
     bool            keepToolSelected_ = false;
 

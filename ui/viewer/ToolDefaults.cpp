@@ -2,6 +2,7 @@
 
 #include "ui/viewer/ToolDefaults.h"
 
+#include "core/Measure.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/TypedText.h"
 #include "core/settings/Settings.h"
@@ -92,6 +93,15 @@ std::optional<core::CommentingTool> toolOfAnnotation(const core::Annotation& a)
 {
     using core::AnnotationSubtype;
     using core::CommentingTool;
+    // Stage 6 T12: a measurement is its measuring tool's -- a distance on leader lines the dimension callout's.
+    if (const std::optional<core::MeasureKind> kind = core::measureKindOf(a)) {
+        switch (*kind) {
+        case core::MeasureKind::Distance:
+            return a.leaderLength != 0.0 ? CommentingTool::Dimension : CommentingTool::MeasureDistance;
+        case core::MeasureKind::Perimeter: return CommentingTool::MeasurePerimeter;
+        case core::MeasureKind::Area: return CommentingTool::MeasureArea;
+        }
+    }
     switch (a.subtype) {
     case AnnotationSubtype::Square: return CommentingTool::Rectangle;
     case AnnotationSubtype::Circle: return CommentingTool::Oval;

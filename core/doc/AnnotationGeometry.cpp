@@ -3,6 +3,7 @@
 
 #include "core/doc/AnnotationGeometry.h"
 
+#include "core/Measure.h"
 #include "core/doc/DrawnShapes.h"
 
 #include <algorithm>
@@ -179,6 +180,13 @@ std::optional<Annotation> mappedInto(const Annotation& a, const PdfRect& to)
         out.rectDifferences[2] *= m.sx;
         out.rectDifferences[3] *= m.sy;
     }
+    // Stage 6 T12: a line's leaders and its caption's offset are lengths ACROSS it, whose direction the mapping
+    // may stretch either way -- scaled by the mean of the two, which is exact for a resize that keeps proportions.
+    const double k = std::sqrt(std::abs(m.sx * m.sy));
+    out.leaderLength *= k;
+    out.leaderExtension *= k;
+    out.leaderOffset *= k;
+    for (double& v : out.captionOffset) v *= k;
     return out;
 }
 
@@ -213,6 +221,10 @@ bool isMappedCopy(const Annotation& before, const Annotation& after, double tole
         if (!near(carried->inkList[i], after.inkList[i], tolerance)) return false;
     }
     // Every other field the same: the geometry is compared above, and `/M` is the edit's own stamp.
+    const std::vector<double> leadersCarried{carried->leaderLength, carried->leaderExtension, carried->leaderOffset};
+    const std::vector<double> leadersAfter{after.leaderLength, after.leaderExtension, after.leaderOffset};
+    if (!near(leadersCarried, leadersAfter, tolerance) || !near(carried->captionOffset, after.captionOffset, tolerance))
+        return false;
     Annotation a = *carried;
     Annotation b = after;
     a.quadPoints = b.quadPoints;
@@ -222,6 +234,10 @@ bool isMappedCopy(const Annotation& before, const Annotation& after, double tole
     a.rectDifferences = b.rectDifferences;
     a.inkList = b.inkList;
     a.modified = b.modified;
+    a.leaderLength = b.leaderLength;
+    a.leaderExtension = b.leaderExtension;
+    a.leaderOffset = b.leaderOffset;
+    a.captionOffset = b.captionOffset;
     return a == b;
 }
 
@@ -305,12 +321,26 @@ bool hitsAnnotation(const Annotation& a, PdfPoint p, double tolerance)
     }
     case AnnotationSubtype::Line: {
         if (a.line.size() < 4) return insideExpanded(a.rect, p, tolerance);
-        if (distanceToSegment(p, a.line[0], a.line[1], a.line[2], a.line[3]) <= band) return true;
+        // Stage 6 T12: where it is DRAWN -- the dimension line its leaders move it to, the leaders, the caption's
+        // box; for a line with none of them that is `/L` itself.
+        const std::optional<DimensionGeometry> drawn = dimensionGeometry(a);
+        if (!drawn) return insideExpanded(a.rect, p, tolerance);
+        const PdfPoint s = drawn->start, e = drawn->end;
+        if (distanceToSegment(p, s.x, s.y, e.x, e.y) <= band) return true;
+        for (std::size_t at = 0; at + 3 < drawn->leaders.size(); at += 4) {
+            if (distanceToSegment(p, drawn->leaders[at], drawn->leaders[at + 1], drawn->leaders[at + 2], drawn->leaders[at + 3])
+                <= band)
+                return true;
+        }
+        if (drawn->caption) {
+            const auto& c = drawn->caption->corners;
+            const std::vector<double> box{c[0].x, c[0].y, c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y};
+            if (insidePolygon(p, box) || distanceToPolyline(p, box, true) <= tolerance) return true;
+        }
         // Its endings, at each end as `/LE` names them.
         const QString start = a.lineEndings.size() > 0 ? a.lineEndings[0] : QString();
         const QString end = a.lineEndings.size() > 1 ? a.lineEndings[1] : QString();
-        return hitsEnding(p, a.line[0], a.line[1], a.line[2], a.line[3], start, border, band)
-               || hitsEnding(p, a.line[2], a.line[3], a.line[0], a.line[1], end, border, band);
+        return hitsEnding(p, s.x, s.y, e.x, e.y, start, border, band) || hitsEnding(p, e.x, e.y, s.x, s.y, end, border, band);
     }
     case AnnotationSubtype::Polygon:
     case AnnotationSubtype::PolyLine: {
@@ -318,6 +348,12 @@ bool hitsAnnotation(const Annotation& a, PdfPoint p, double tolerance)
         const bool closed = a.subtype == AnnotationSubtype::Polygon;
         if (closed && !a.interiorColor.empty() && insidePolygon(p, a.vertices)) return true;
         if (distanceToPolyline(p, a.vertices, closed) <= band + cloudReachOf(a)) return true;
+        // Stage 6 T12: a measurement's reading is part of what is drawn.
+        if (const std::optional<MeasureCaption> label = measureLabel(a)) {
+            const auto& c = label->corners;
+            const std::vector<double> box{c[0].x, c[0].y, c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y};
+            if (insidePolygon(p, box)) return true;
+        }
         if (closed || a.lineEndings.empty()) return false;
         const std::size_t n = a.vertices.size();
         const QString start = a.lineEndings.size() > 0 ? a.lineEndings[0] : QString();

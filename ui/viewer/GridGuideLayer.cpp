@@ -310,9 +310,18 @@ core::SnapFlags GridGuideLayer::activeFlags() const noexcept
     if (settings_.snapToGrid && settings_.showGrid) flags = flags | core::SnapFlags::Grid;
     if (settings_.snapToGuides) flags = flags | core::SnapFlags::Guides;
 
-    // `ObjectEdges` IS NEVER SET HERE -- D4-6 and D4-5. The key that would set it is Stage 6's,
-    // and there is no annotation, field or content object at Stage 4 to be an edge.
+    // `ObjectEdges` since S6 T12, from `units/snapToObjects` (D4-5): the page's annotations' sides, from the source
+    // the view sets. Stage 4 set it nowhere, because there was nothing on a page to be an edge.
+    if (settings_.snapToObjects && objectEdges_) flags = flags | core::SnapFlags::ObjectEdges;
     return flags;
+}
+
+core::SnapResult GridGuideLayer::snapMeasured(int pageIndex, PdfPoint point, std::span<const core::SnapPoint> points,
+                                              double scale) const
+{
+    core::SnapFlags flags = activeFlags();
+    if (settings_.snapToObjects) flags = flags | core::SnapFlags::ObjectPoints;
+    return resolve(pageIndex, point, flags, {}, scale, -1, points);
 }
 
 core::SnapResult GridGuideLayer::snap(int pageIndex, PdfPoint point, core::SnapFlags flags,
@@ -324,8 +333,14 @@ core::SnapResult GridGuideLayer::snap(int pageIndex, PdfPoint point, core::SnapF
 
 core::SnapResult GridGuideLayer::resolve(int pageIndex, PdfPoint point, core::SnapFlags flags,
                                          std::span<const core::SnapEdge> objectEdges, double scale,
-                                         int excludedGuide) const
+                                         int excludedGuide, std::span<const core::SnapPoint> objectPoints) const
 {
+    // S6 T12: the page's object edges from the source when the caller passed none and the flags ask for them.
+    std::vector<core::SnapEdge> sourced;
+    if (objectEdges.empty() && core::hasFlag(flags, core::SnapFlags::ObjectEdges) && objectEdges_) {
+        sourced = objectEdges_(pageIndex);
+        objectEdges = sourced;
+    }
     // The guides of THIS page, as edges. A guide on page 3 must not attract a drag on page 4, and
     // the resolver takes coordinates with no page attached -- so the filter is here.
     std::vector<core::SnapEdge> edges;
@@ -339,6 +354,7 @@ core::SnapResult GridGuideLayer::resolve(int pageIndex, PdfPoint point, core::Sn
     }
 
     core::SnapContext context;
+    context.objectPoints = objectPoints;
     context.objectEdges = objectEdges;
     context.guides = edges;
     context.grid = core::SnapGrid{settings_.gridSpacing, settings_.gridSubdivisions,

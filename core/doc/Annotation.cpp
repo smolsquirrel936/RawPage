@@ -144,6 +144,86 @@ std::vector<double> numbersFromJson(const QJsonValue& value)
     return out;
 }
 
+// Stage 6 T12: a measure dictionary as the labels write it -- `{"ratio", "x", "y", "distance", "area"}`, each
+// quantity a chain of `{"unit", "factor", "precision"}` (ISO's `/U`, `/C`, `/D`), with the separators and
+// `"plain": false` only where they differ from the defaults, and `"subtype"` only when it is not `RL`. A label
+// writes one format as an OBJECT rather than a one-element array; both read.
+QJsonObject formatToJson(const MeasureNumberFormat& f)
+{
+    QJsonObject json;
+    json.insert(QStringLiteral("unit"), f.unit);
+    json.insert(QStringLiteral("factor"), f.factor);
+    json.insert(QStringLiteral("precision"), f.denominator);
+    if (f.thousands != QLatin1String(",")) json.insert(QStringLiteral("thousands"), f.thousands);
+    if (f.decimal != QLatin1String(".")) json.insert(QStringLiteral("decimal"), f.decimal);
+    if (!f.plain) json.insert(QStringLiteral("plain"), false);
+    return json;
+}
+
+QJsonObject measureToJson(const MeasureDictionary& m)
+{
+    QJsonObject json;
+    if (m.subtype != QLatin1String("RL")) json.insert(QStringLiteral("subtype"), m.subtype);
+    if (!m.ratio.isEmpty()) json.insert(QStringLiteral("ratio"), m.ratio);
+    const auto chain = [&json](const char* key, const std::vector<MeasureNumberFormat>& formats) {
+        if (formats.empty()) return;
+        QJsonArray out;
+        for (const MeasureNumberFormat& f : formats) out.append(formatToJson(f));
+        json.insert(QLatin1String(key), out);
+    };
+    chain("x", m.x);
+    chain("y", m.y);
+    chain("distance", m.distance);
+    chain("area", m.area);
+    return json;
+}
+
+std::optional<MeasureNumberFormat> formatFromJson(const QJsonValue& value)
+{
+    if (!value.isObject()) return std::nullopt;
+    const QJsonObject json = value.toObject();
+    MeasureNumberFormat f;
+    f.unit = json.value(QStringLiteral("unit")).toString();
+    f.factor = json.value(QStringLiteral("factor")).toDouble(1.0);
+    const double denominator = json.value(QStringLiteral("precision")).toDouble(100.0);
+    // An integer a decimal display can use: ISO's `/D` is a positive integer, and a journal line is hostile input.
+    if (!(denominator >= 1.0 && denominator <= 1.0e9) || denominator != std::floor(denominator)) return std::nullopt;
+    f.denominator = static_cast<int>(denominator);
+    f.thousands = json.value(QStringLiteral("thousands")).toString(QStringLiteral(","));
+    f.decimal = json.value(QStringLiteral("decimal")).toString(QStringLiteral("."));
+    f.plain = json.value(QStringLiteral("plain")).toBool(true);
+    return f;
+}
+
+std::optional<MeasureDictionary> measureFromJson(const QJsonValue& value)
+{
+    if (!value.isObject()) return std::nullopt;
+    const QJsonObject json = value.toObject();
+    MeasureDictionary m;
+    m.subtype = json.value(QStringLiteral("subtype")).toString(QStringLiteral("RL"));
+    m.ratio = json.value(QStringLiteral("ratio")).toString();
+    const auto chain = [&json](const char* key, std::vector<MeasureNumberFormat>& into) -> bool {
+        const QJsonValue v = json.value(QLatin1String(key));
+        if (v.isUndefined()) return true;
+        if (v.isObject()) {
+            const std::optional<MeasureNumberFormat> f = formatFromJson(v);
+            if (!f) return false;
+            into.push_back(*f);
+            return true;
+        }
+        if (!v.isArray()) return false;
+        for (const QJsonValue item : v.toArray()) {
+            const std::optional<MeasureNumberFormat> f = formatFromJson(item);
+            if (!f) return false;
+            into.push_back(*f);
+        }
+        return true;
+    };
+    if (!chain("x", m.x) || !chain("y", m.y) || !chain("distance", m.distance) || !chain("area", m.area))
+        return std::nullopt;
+    return m;
+}
+
 QString subtypeKey(const Annotation& annotation)
 {
     return annotation.subtypeName.isEmpty()
@@ -446,6 +526,14 @@ QJsonObject Annotation::toJson() const
     if (hasAppearance) json.insert(QStringLiteral("hasAppearance"), true);
     if (!image.isEmpty()) json.insert(QStringLiteral("image"), imageToJson(image));
     if (attachment) json.insert(QStringLiteral("attachment"), attachment->toJson());
+    // Stage 6 T12: a line's leaders and caption, and a measurement's scale -- each only when it says something.
+    if (leaderLength != 0.0) json.insert(QStringLiteral("leaderLength"), leaderLength);
+    if (leaderExtension != 0.0) json.insert(QStringLiteral("leaderExtension"), leaderExtension);
+    if (leaderOffset != 0.0) json.insert(QStringLiteral("leaderOffset"), leaderOffset);
+    if (caption) json.insert(QStringLiteral("caption"), true);
+    text("captionPosition", captionPosition);
+    numbers("captionOffset", captionOffset);
+    if (measure) json.insert(QStringLiteral("measure"), measureToJson(*measure));
     return json;
 }
 
@@ -538,6 +626,17 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
         Result<EmbeddedFile> file = EmbeddedFile::fromJson(value.toObject());
         if (!file) return file.error();
         a.attachment = std::move(file).value();
+    }
+    a.leaderLength = json.value(QStringLiteral("leaderLength")).toDouble();
+    a.leaderExtension = json.value(QStringLiteral("leaderExtension")).toDouble();
+    a.leaderOffset = json.value(QStringLiteral("leaderOffset")).toDouble();
+    a.caption = json.value(QStringLiteral("caption")).toBool();
+    a.captionPosition = json.value(QStringLiteral("captionPosition")).toString();
+    a.captionOffset = numbersFromJson(json.value(QStringLiteral("captionOffset")));
+    if (json.contains(QStringLiteral("measure"))) {
+        const std::optional<MeasureDictionary> measure = measureFromJson(json.value(QStringLiteral("measure")));
+        if (!measure) return malformed(QStringLiteral("annotation measure"));
+        a.measure = *measure;
     }
     return a;
 }

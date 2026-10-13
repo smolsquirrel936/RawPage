@@ -168,6 +168,39 @@ struct EmbeddedFile {
     bool operator==(const EmbeddedFile&) const = default;
 };
 
+// ---- A measurement's scale (Stage 6 T12, D6-14) ------------------------------------------------------
+// ONE NUMBER FORMAT of a measure dictionary (ISO 32000-1 Table 262): the unit's label, the factor that converts
+// into it, and how the number is displayed. The model holds what a DECIMAL display needs -- `/U`, `/C`, `/D`, and
+// the separators `/RT` and `/RD`, at ISO's defaults (a comma between thousands, a full stop before the decimals)
+// when the file says nothing. **`plain` is false for a format this build does not display**: a fraction
+// (`/F` other than `/D`), a label written before the number (`/O /P`), a spacer other than ISO's (`/PS`, `/SS`),
+// or `/FD`. Such a measurement is read, carried and listed, and never redrawn -- its producer's appearance is kept.
+struct MeasureNumberFormat {
+    QString unit;                     // /U
+    double factor = 1.0;              // /C
+    int denominator = 100;            // /D -- 10^decimals for a decimal display
+    QString thousands = QStringLiteral(",");   // /RT
+    QString decimal = QStringLiteral(".");     // /RD
+    bool plain = true;
+
+    bool operator==(const MeasureNumberFormat&) const = default;
+};
+
+// THE MEASURE DICTIONARY, `/Measure` (ISO 32000-1 §12.9): the scale it states in words (`/R`) and a chain of
+// number formats per quantity -- `/X` (and `/Y` when the axes differ) from user space, `/D` a distance from
+// `/X`'s units, `/A` an area from their square. `subtype` is `RL` (rectilinear) for every measure this build
+// draws; another (`GEO`) is held by name so it is known for one this build does not.
+struct MeasureDictionary {
+    QString subtype = QStringLiteral("RL");    // /Subtype
+    QString ratio;                             // /R
+    std::vector<MeasureNumberFormat> x;        // /X
+    std::vector<MeasureNumberFormat> y;        // /Y
+    std::vector<MeasureNumberFormat> distance; // /D
+    std::vector<MeasureNumberFormat> area;     // /A
+
+    bool operator==(const MeasureDictionary&) const = default;
+};
+
 struct Annotation {
     AnnotationId id;
     AnnotationSubtype subtype = AnnotationSubtype::Unknown;
@@ -229,6 +262,18 @@ struct Annotation {
     StampImage image;                           // Stage 6 T10: an image stamp's pixels -- never read from a file
     // Stage 6 T11: a FileAttachment's `/FS` -- the file it carries, its bytes only when RawPage attached it.
     std::optional<EmbeddedFile> attachment;
+
+    // Stage 6 T12 (D6-14): how a LINE is drawn beyond its stroke (ISO 32000-1 Table 175) -- its leader lines,
+    // `/LL` signed (positive: clockwise from the line's direction), `/LLE` past the line and `/LLO` short of the
+    // points measured; whether its text is a CAPTION (`/Cap`), drawn `/CP` -- `Inline` (empty, the default) or
+    // `Top` -- and moved by `/CO`. And a measurement's `/Measure`.
+    double leaderLength = 0.0;                  // /LL
+    double leaderExtension = 0.0;               // /LLE
+    double leaderOffset = 0.0;                  // /LLO
+    bool caption = false;                       // /Cap
+    QString captionPosition;                    // /CP, empty for Inline
+    std::vector<double> captionOffset;          // /CO: 2 numbers, or empty
+    std::optional<MeasureDictionary> measure;   // /Measure
 
     bool hasFlag(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }
     // A reply that carries a review or marked state rather than text (ISO 32000-1 §12.5.6.3).

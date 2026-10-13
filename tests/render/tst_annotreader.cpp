@@ -165,6 +165,21 @@ void compareEntry(const QJsonObject& want, const core::Annotation& got, const QS
     // Stage 6 T7: /Q, which the labels have always carried and the model now holds.
     if (want.value(QStringLiteral("justification")).toInt() != got.justification) bad(QStringLiteral("justification"));
     if (want.value(QStringLiteral("hasAppearance")).toBool() != got.hasAppearance) bad(QStringLiteral("hasAppearance"));
+    // Stage 6 T12: a line's leaders, which the labels have carried since T1, and a measurement's scale.
+    if (!near(got.leaderLength, want.value(QStringLiteral("leaderLength")).toDouble(0.0))) bad(QStringLiteral("leaderLength"));
+    const QJsonObject measure = want.value(QStringLiteral("measure")).toObject();
+    if (measure.isEmpty() != !got.measure.has_value()) bad(QStringLiteral("measure"));
+    if (got.measure && !measure.isEmpty()) {
+        if (got.measure->ratio != measure.value(QStringLiteral("ratio")).toString()) bad(QStringLiteral("measure.ratio"));
+        for (const auto& [key, chain] : {std::pair{"x", &got.measure->x}, std::pair{"distance", &got.measure->distance},
+                                         std::pair{"area", &got.measure->area}}) {
+            const QJsonObject f = measure.value(QLatin1String(key)).toObject();
+            if (chain->size() != 1 || chain->front().unit != f.value(QStringLiteral("unit")).toString()
+                || !near(chain->front().factor, f.value(QStringLiteral("factor")).toDouble())
+                || chain->front().denominator != f.value(QStringLiteral("precision")).toInt())
+                bad(QStringLiteral("measure.") + QLatin1String(key));
+        }
+    }
 }
 
 // Every page of `wanted` (a label's pages, possibly a subset) against the store. Returns problems.

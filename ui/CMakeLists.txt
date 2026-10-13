@@ -145,6 +145,12 @@ add_library(rawpage_ui STATIC
     viewer/tools/StampTool.cpp
     viewer/tools/AttachFileTool.h
     viewer/tools/AttachFileTool.cpp
+    # Stage 6 T12 (D6-14): distance, perimeter, area and the dimension callout, each point snapped; and calibration.
+    viewer/tools/MeasureTool.h
+    viewer/tools/MeasureTool.cpp
+    # Stage 6 T12: a document's pages' paths, asked of the text index for the measuring tools to snap to.
+    viewer/SnapTargets.h
+    viewer/SnapTargets.cpp
     viewer/tools/HandTool.h
     viewer/tools/HandTool.cpp
     viewer/tools/SelectTool.h
@@ -269,6 +275,9 @@ add_library(rawpage_ui STATIC
     # Stage 6 T10 (D6-16): a custom stamp from an image, or initials drawn or typed, for the library.
     dialogs/CustomStampDialog.h
     dialogs/CustomStampDialog.cpp
+    # Stage 6 T12 (D6-14): the measurement scale from two lengths, and calibration from one measured.
+    dialogs/MeasurementScaleDialog.h
+    dialogs/MeasurementScaleDialog.cpp
 
     # S2 T14. The password prompt is a DIALOG and the protected banner is not: the prompt is a
     # question the engine asks mid-open and cannot continue without, the banner is a statement about

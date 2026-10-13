@@ -5,7 +5,7 @@
 task added, 9 more at Stage 4 T1 for its three, 84 more at Stage 5 T1 for its twenty-seven, and 54
 more at Stage 6 T1 for its eleven annotated PDFs — each
 one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
-(`render.golden.*`). **Beside them, since Stage 6 T8, APPEARANCE baselines** -- 31 at T8, 39 since T10's eight stamps -- under `golden/appearance/` -- see
+(`render.golden.*`). **Beside them, since Stage 6 T8, APPEARANCE baselines** -- 31 at T8, 39 since T10's eight stamps, 40 since T11's file attachments, 42 since T12's two measurement cases -- under `golden/appearance/` -- see
 *Appearance baselines* below; they are not corpus pages and are not counted in the 369. This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 

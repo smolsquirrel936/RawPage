@@ -246,6 +246,10 @@ CompositionRoot::CompositionRoot(Options options)
         [backend = backend_.get()](core::DocumentHandle handle, int part, std::vector<core::text::SearchUnit>& into) {
             return backend->searchUnits(handle, part, into);
         });
+    // Stage 6 T12 (D6-14): a page's paths, what a measurement snaps to -- the same arrangement, read once per page.
+    documentIndex_->setGeometryReader([backend = backend_.get()](core::DocumentHandle handle, int page, core::PageGeometry& into) {
+        return backend->pageGeometry(handle, page, into);
+    });
     applySearchSettings();
 
     // THE SEARCH (Stage 5 T7), with ITS OWN pump: its workers finish off the UI thread and say so through a

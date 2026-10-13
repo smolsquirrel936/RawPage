@@ -3,6 +3,8 @@
 
 #include "ui/viewer/AnnotationOverlay.h"
 
+#include "core/Measure.h"
+
 #include "core/doc/Attachments.h"
 
 #include "core/cmd/Command.h"
@@ -508,6 +510,8 @@ bool AnnotationOverlay::release(const Viewport& view, QPoint pos, Qt::KeyboardMo
         if (!rect || a == nullptr) return true;
         std::optional<Annotation> after = core::mappedInto(*a, *rect);
         if (!after || *after == *a) return true;
+        // S6 T12: a measurement resized measures what it now spans, and /Contents that held its reading follows it.
+        after = core::withFreshReading(*a, std::move(*after));
         after->modified = core::PdfDate::fromUtcSeconds(now());
         (void)run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{*after}));
         return true;

@@ -165,6 +165,26 @@
         },
         {
             "dpi": 144,
+            "file": "appearance/measure-distance",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/measure-perimeter-area",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
             "file": "appearance/norotate-note",
             "height": 400,
             "page": 0,
@@ -4014,7 +4034,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-12T11:12:33Z",
+    "capturedUtc": "2026-10-13T22:35:58Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 6 T11: the first capture of the file attachment appearance baseline (D6-17) -- 1 new case of tests/golden/AppearanceCases, file-attachments: a blue pushpin at 16 x 24, a red one at twice that, and a green paper clip, each carrying a file as annot.attachFile makes one. Additions only -- no corpus baseline and none of T8's or T10's appearance baselines is regenerated. The image was looked at before it was kept."
+    "reason": "Stage 6 T12 (D6-14): two new appearance cases -- a distance, a dimension callout on leader lines, a perimeter and an area, each drawing its reading -- each looked at in a scratch root before it was kept"
 }

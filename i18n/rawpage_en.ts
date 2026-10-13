@@ -900,6 +900,14 @@
         <translation>Measurement Scale</translation>
     </message>
     <message>
+        <source>action.annot.dimension</source>
+        <translation>Dimension Callout</translation>
+    </message>
+    <message>
+        <source>action.annot.measureCalibrate</source>
+        <translation>Calibrate Measurement Scale</translation>
+    </message>
+    <message>
         <source>action.annot.keepToolSelected</source>
         <translation>Keep Tool Selected</translation>
     </message>
@@ -1904,11 +1912,15 @@
     </message>
     <message>
         <source>shell.tooltip.needsShapeInProgress</source>
-        <translation>Needs a polygon, polyline or cloud being drawn</translation>
+        <translation>Needs a shape or a measurement being drawn</translation>
     </message>
     <message>
         <source>shell.tooltip.needsToolOrSelection</source>
         <translation>Needs an annotation tool armed or an annotation selected</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsUser</source>
+        <translation>%1 needs someone to answer a dialog.</translation>
     </message>
     <message>
         <source>shell.tooltip.needsComparison</source>
@@ -2990,6 +3002,34 @@
         <translation>%1 could not be read.</translation>
     </message>
     <message>
+        <source>error.measure.selfIntersecting</source>
+        <translation>The area's outline crosses itself, so it encloses no single area to measure.</translation>
+    </message>
+    <message>
+        <source>error.measure.tooFewPoints</source>
+        <translation>A measurement needs more points: two for a distance or a perimeter, three for an area.</translation>
+    </message>
+    <message>
+        <source>error.measure.geometry</source>
+        <translation>The measurement's points cannot be measured.</translation>
+    </message>
+    <message>
+        <source>error.measure.notMeasurement</source>
+        <translation>This annotation is not a measurement.</translation>
+    </message>
+    <message>
+        <source>error.measure.unsupportedScale</source>
+        <translation>This measurement's scale is written in a form RawPage does not display.</translation>
+    </message>
+    <message>
+        <source>error.measure.calibration</source>
+        <translation>A calibration needs a measured length and a real length both greater than zero, within the scale's range.</translation>
+    </message>
+    <message>
+        <source>error.measure.pathsUnreadable</source>
+        <translation>The paths on page %1 could not be read.</translation>
+    </message>
+    <message>
         <source>error.edit.attachmentCopy</source>
         <translation>This attached PDF is open read-only. Save it as a file of its own to change it.</translation>
     </message>
@@ -3368,6 +3408,10 @@
         <translation>Snap to guides</translation>
     </message>
     <message>
+        <source>prefs.setting.units.snapToObjects</source>
+        <translation>Snap to objects (drawing points and annotation edges)</translation>
+    </message>
+    <message>
         <source>prefs.choice.unit.pt</source>
         <translation>Points</translation>
     </message>
@@ -3450,6 +3494,66 @@
     <message>
         <source>prefs.choice.popupBehaviour.never</source>
         <translation>Never</translation>
+    </message>
+    <message>
+        <source>prefs.group.measuring</source>
+        <translation>Measuring</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.scaleRatio</source>
+        <translation>Scale (real length per page length)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.displayUnit</source>
+        <translation>Display unit</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.precision</source>
+        <translation>Decimal places</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.snapToPaths</source>
+        <translation>Snap to points along paths</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.writeToComment</source>
+        <translation>Write the measurement into the comment</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.pt</source>
+        <translation>Points (pt)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.in</source>
+        <translation>Inches (in)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.ft</source>
+        <translation>Feet (ft)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.yd</source>
+        <translation>Yards (yd)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.mi</source>
+        <translation>Miles (mi)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.mm</source>
+        <translation>Millimetres (mm)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.cm</source>
+        <translation>Centimetres (cm)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.m</source>
+        <translation>Metres (m)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.km</source>
+        <translation>Kilometres (km)</translation>
     </message>
     <message>
         <source>prefs.group.search</source>
@@ -5031,6 +5135,81 @@
     <message>
         <source>attachments.button.delete</source>
         <translation>Delete</translation>
+    </message>
+</context>
+<context>
+    <name>measure</name>
+    <message>
+        <source>measure.dialog.title</source>
+        <translation>Measurement Scale</translation>
+    </message>
+    <message>
+        <source>measure.dialog.calibrateTitle</source>
+        <translation>Calibrate Measurement Scale</translation>
+    </message>
+    <message>
+        <source>measure.dialog.paper</source>
+        <translation>On the page</translation>
+    </message>
+    <message>
+        <source>measure.dialog.real</source>
+        <translation>Stands for</translation>
+    </message>
+    <message>
+        <source>measure.dialog.known</source>
+        <translation>Is really</translation>
+    </message>
+    <message>
+        <source>measure.dialog.measured</source>
+        <translation>Measured on the page: %1</translation>
+    </message>
+    <message>
+        <source>measure.dialog.precision</source>
+        <translation>Decimal places</translation>
+    </message>
+    <message>
+        <source>measure.dialog.scale</source>
+        <translation>Scale: %1</translation>
+    </message>
+    <message>
+        <source>measure.dialog.invalid</source>
+        <translation>Enter lengths greater than zero.</translation>
+    </message>
+    <message>
+        <source>measure.status.distance</source>
+        <translation>%1 armed. Drag between two points, or click one and then the other; Esc abandons.</translation>
+    </message>
+    <message>
+        <source>measure.status.dimension</source>
+        <translation>%1 armed. Click the two points, then where the dimension line stands; Esc abandons.</translation>
+    </message>
+    <message>
+        <source>measure.status.points</source>
+        <translation>%1 armed. Click each point; press Enter or double-click to finish, Esc to abandon.</translation>
+    </message>
+    <message>
+        <source>measure.status.calibrate</source>
+        <translation>Calibrating: measure a length whose real size you know.</translation>
+    </message>
+    <message>
+        <source>measure.status.measured</source>
+        <translation>Measured %1.</translation>
+    </message>
+    <message>
+        <source>measure.status.scaleSet</source>
+        <translation>Measurement scale set to %1.</translation>
+    </message>
+    <message>
+        <source>measure.status.tooManyPaths</source>
+        <translation>Page %1 has %2 path segments, more than measurements snap to: points on it snap to guides and the grid only.</translation>
+    </message>
+    <message>
+        <source>measure.history</source>
+        <translation>Measured</translation>
+    </message>
+    <message>
+        <source>measure.history.empty</source>
+        <translation>No measurements yet</translation>
     </message>
 </context>
 </TS>

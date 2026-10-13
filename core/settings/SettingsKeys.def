@@ -384,12 +384,18 @@ RAWPAGE_SETTING(units, snapToGrid, bool,
 // was set, while a guide exists because a person dragged it onto this page for this task. Snapping
 // to it is what it was placed for.
 //
-// **`units/snapToObjects` IS ABSENT** and is Stage 6's (D4-5, following D3-9): the resolver already
-// takes an object-edge span (D4-6) and every product caller passes it EMPTY, so Stage 6 adds a
-// source and a key, not an algorithm. A third checkbox here that read back as set and did nothing
-// would be Stage 2's I-11 by construction rather than by constraint.
+// `units/snapToObjects` was ABSENT through Stage 5 and is Stage 6's (D4-5, following D3-9): the resolver
+// already took an object-edge span (D4-6) and every product caller passed it EMPTY, so Stage 6 added a
+// source and a key, not an algorithm -- the row below.
 RAWPAGE_SETTING(units, snapToGuides, bool,
                 "units/snapToGuides", true, UnitsAndGuides, true)
+
+// S6 T12 (D4-5, D6-14). OBJECT SNAPPING: a measurement's points to the page's paths -- their endpoints,
+// midpoints and crossings (`core/Snap.h`'s point targets) -- and a dragged guide or a measured point to the
+// sides of the page's annotations. ON, as the guides' row is: what is on the page is what a measurement is
+// taken FROM, and a person who wants a free point turns this off (Units & Guides).
+RAWPAGE_SETTING(units, snapToObjects, bool,
+                "units/snapToObjects", true, UnitsAndGuides, true)
 
 // --- Full Screen and presentation (S4 T10, D4-12) -----------------------------------------------
 // The FIVE rows D4-5 names for this group, which has existed in `SettingsGroup` since Stage 1 with
@@ -559,6 +565,40 @@ RAWPAGE_SETTING(commenting, stickyTool, bool,
                 "commenting/stickyTool", false, Commenting, true)
 RAWPAGE_SETTING(commenting, popupBehaviour, PopupBehaviour,
                 "commenting/popupBehaviour", PopupBehaviour::OnHover, Commenting, true)
+
+// =============================================================================================
+// The five Stage 6 `measuring/` rows -- S6 T12, `Stage6-Annotations-Plan.md` D6-13 and D6-14. They fill the
+// `Measuring` group, declared in `SettingsGroup` since Stage 1 with no keys, and one line in
+// `PreferencesDialog::shippedPages()` is the rest of the page (convention 17). **Twelve of 26 groups ship.**
+//
+// THE SCALE IS ONE NUMBER AND A UNIT (`core/Measure.h`): `scaleRatio` is real length over paper length -- 48 for
+// 1 in = 4 ft, 100 for a 1:100 plan, 1 for actual size -- and `displayUnit` what a reading is given in, so the
+// scale in words ("1 in = 4 ft") is derived and never a second truth. `annot.measurementScale` sets the two from
+// two lengths; calibration (`annot.measureCalibrate`) sets the ratio from a length measured on the page.
+// Every NEW measurement carries its scale in its own `/Measure`; changing these keys changes no measurement made.
+// =============================================================================================
+
+// --- Measuring --------------------------------------------------------------------------------------
+// ACTUAL SIZE by default: a measurement before anyone sets a scale reads what the paper says. The range is a
+// millionth (a microscope's plate) to a billion (a map of a continent): past either a reading is no longer a
+// number a display can show to a precision of six.
+RAWPAGE_SETTING_RANGED(measuring, scaleRatio, double,
+                       "measuring/scaleRatio", 1.0, Measuring, true, 1.0e-6, 1.0e9)
+// INCHES, Acrobat's default unit, with its scale string "1 in = 1 in" at actual size.
+RAWPAGE_SETTING(measuring, displayUnit, MeasureUnit,
+                "measuring/displayUnit", MeasureUnit::Inches, Measuring, true)
+// Two decimals -- `/D 100`, the number format's own default (ISO 32000-1 Table 262) -- and at most six.
+RAWPAGE_SETTING_RANGED(measuring, precision, int,
+                       "measuring/precision", 2, Measuring, true, 0, 6)
+// A point ON a path as well as its corners, midpoints and crossings -- the lowest of the point targets
+// (`core/Snap.h`). ON, as Acrobat's "Snap to paths" is. Object snapping as a whole is `units/snapToObjects`.
+RAWPAGE_SETTING(measuring, snapToPaths, bool,
+                "measuring/snapToPaths", true, Measuring, true)
+// THE READING IN `/Contents` as well as on the page (D6-14) -- so it is in the Comments pane, in a pop-up, and
+// in a reader that draws no appearance. ON: a measurement whose number only its appearance carries is one a
+// person cannot search for.
+RAWPAGE_SETTING(measuring, writeToComment, bool,
+                "measuring/writeToComment", true, Measuring, true)
 
 // =============================================================================================
 // Internal state -- same file, same versioning, no Preferences row (rule 4).

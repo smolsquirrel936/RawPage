@@ -32,6 +32,9 @@
 #include <QDir>
 #include <QTemporaryDir>
 
+#include <algorithm>
+#include <cmath>
+#include <span>
 #include <vector>
 
 using namespace rawpage;
@@ -324,4 +327,204 @@ TEST_CASE("guides survive a capture, a save and a restore", "[snap][session]")
     // nothing rounded them into pixels on the way (D4-7).
     CHECK_THAT(guides[0].position, WithinAbs(216.5, 1e-9));
     CHECK_THAT(guides[1].position, WithinAbs(72.25, 1e-9));
+}
+
+// =============================================================================================
+// Stage 6 T12 (D6-14) -- point targets, the headless half of guide A-89
+// =============================================================================================
+// The corpus's drawing as the generator wrote it (`corpus/make-annots.py`'s `measure-scale.pdf`): a 216 x 144
+// rectangle with both diagonals, and a 288-point line crossed at its midpoint. The ENGINE's reading of the same
+// paths, and a drag through the product's views, are `tests/render/tst_measuregeometry` and
+// `tests/composition/tst_measureproduct` -- this case says what the sums do with segments given to them.
+
+namespace {
+
+core::PageGeometry corpusDrawing()
+{
+    using core::PathSegment;
+    const double s[][4] = {{100, 500, 316, 500}, {316, 500, 316, 644}, {316, 644, 100, 644}, {100, 644, 100, 500},
+                           {100, 500, 316, 644}, {100, 644, 316, 500}, {100, 400, 388, 400}, {244, 350, 244, 450}};
+    std::vector<PathSegment> segments;
+    for (const auto& v : s) segments.push_back(PathSegment{PdfPoint{v[0], v[1]}, PdfPoint{v[2], v[3]}, false});
+    return core::PageGeometry(0, segments);
+}
+
+core::SnapResult snapPoint(const core::PageGeometry& g, PdfPoint p, double scale, bool onPath,
+                           std::span<const SnapEdge> edges = {}, SnapFlags flags = SnapFlags::All)
+{
+    const double tolerance = core::kSnapThresholdDevicePixels / scale;
+    const std::vector<core::SnapPoint> points = core::snapPointsNear(g, p, tolerance, onPath);
+    SnapContext context;
+    context.objectPoints = points;
+    context.objectEdges = edges;
+    context.scale = scale;
+    context.thresholdDevicePixels = core::kSnapThresholdDevicePixels;
+    return core::snap(p, flags, context);
+}
+
+} // namespace
+
+TEST_CASE("a point near an endpoint a midpoint or a crossing snaps exactly onto it", "[snap][A-89][D6-14]")
+{
+    const core::PageGeometry g = corpusDrawing();
+    // THREE DEVICE PIXELS off each target, at 100 % (1.389 px a point) and 400 % (5.556): the same aim in the hand.
+    for (const double scale : {100.0 / 72.0, 400.0 / 72.0}) {
+        INFO("scale " << scale);
+        const double off = 3.0 / scale / std::sqrt(2.0);
+        struct Want {
+            PdfPoint at;
+            core::SnapPointKind kind;
+        };
+        for (const Want& want : {Want{{100, 500}, core::SnapPointKind::Endpoint},
+                                 Want{{316, 644}, core::SnapPointKind::Endpoint},
+                                 Want{{208, 500}, core::SnapPointKind::Midpoint},
+                                 Want{{316, 572}, core::SnapPointKind::Midpoint},
+                                 Want{{388, 400}, core::SnapPointKind::Endpoint}}) {
+            const core::SnapResult r = snapPoint(g, PdfPoint{want.at.x + off, want.at.y - off}, scale, true);
+            INFO("target " << want.at.x << "," << want.at.y);
+            CHECK(r.x == SnapSource::ObjectPoint);
+            CHECK(r.y == SnapSource::ObjectPoint);
+            CHECK(r.point.x == want.at.x);
+            CHECK(r.point.y == want.at.y);
+            REQUIRE(r.pointKind);
+            CHECK(*r.pointKind == want.kind);
+        }
+        // The diagonals cross at the rectangle's centre, which is also each diagonal's midpoint -- one point, the
+        // midpoint's kind first on the tie.
+        const core::SnapResult centre = snapPoint(g, PdfPoint{208 + off, 572 + off}, scale, true);
+        CHECK(centre.point.x == 208.0);
+        CHECK(centre.point.y == 572.0);
+        // A crossing that is no segment's end or midpoint, built here: a diagonal through a horizontal at (100, 100).
+        const core::PageGeometry crossed(0, {core::PathSegment{PdfPoint{0, 0}, PdfPoint{300, 300}, false},
+                                             core::PathSegment{PdfPoint{0, 100}, PdfPoint{300, 100}, false}});
+        const core::SnapResult cross = snapPoint(crossed, PdfPoint{100 + off, 100 + off}, scale, false);
+        REQUIRE(cross.pointKind);
+        CHECK(*cross.pointKind == core::SnapPointKind::Intersection);
+        CHECK(std::abs(cross.point.x - 100.0) < 1e-9);
+        CHECK(std::abs(cross.point.y - 100.0) < 1e-9);
+    }
+}
+
+TEST_CASE("the point threshold is the same in device pixels at every zoom", "[snap][A-89][D6-14]")
+{
+    const core::PageGeometry g = corpusDrawing();
+    for (const double scale : {50.0 / 72.0, 100.0 / 72.0, 400.0 / 72.0}) {
+        INFO("scale " << scale);
+        // AT the threshold it snaps; one device pixel beyond it, it does not -- in page units a different distance
+        // at each zoom, in the hand the same.
+        const double at = (core::kSnapThresholdDevicePixels - 0.01) / scale;   // a hundredth inside it
+        const double beyond = (core::kSnapThresholdDevicePixels + 1.0) / scale;
+        CHECK(snapPoint(g, PdfPoint{100 - at, 500}, scale, false).pointKind.has_value());
+        CHECK_FALSE(snapPoint(g, PdfPoint{100 - beyond, 500}, scale, false).pointKind.has_value());
+    }
+}
+
+TEST_CASE("a point on a path counts only where no corner midpoint or crossing is within reach", "[snap][A-89][D6-14]")
+{
+    const core::PageGeometry g = corpusDrawing();
+    const double scale = 1.0;   // eight points of reach
+    // On the lower edge, 40 points from any corner or midpoint: with paths on it lands on the edge; off, nothing.
+    const core::SnapResult onPath = snapPoint(g, PdfPoint{140, 503}, scale, true);
+    REQUIRE(onPath.pointKind);
+    CHECK(*onPath.pointKind == core::SnapPointKind::OnPath);
+    CHECK(onPath.point.y == 500.0);
+    CHECK(std::abs(onPath.point.x - 140.0) < 1e-9);
+    CHECK_FALSE(snapPoint(g, PdfPoint{140, 503}, scale, false).pointKind.has_value());
+    // Near a corner, the corner -- although the edge is nearer.
+    const core::SnapResult corner = snapPoint(g, PdfPoint{105, 501}, scale, true);
+    REQUIRE(corner.pointKind);
+    CHECK(*corner.pointKind == core::SnapPointKind::Endpoint);
+    CHECK(corner.point.x == 100.0);
+}
+
+TEST_CASE("precedence is object point then object edge then guide then grid", "[snap][A-89][D6-14]")
+{
+    const core::PageGeometry g = corpusDrawing();
+    const double scale = 1.0;
+    const PdfPoint aim{102, 503};   // within reach of the corner (100, 500)
+    // An annotation's side nearer on x: the POINT still wins, both coordinates at once.
+    const std::vector<SnapEdge> edge{SnapEdge{SnapAxis::X, 101.5}};
+    const core::SnapResult r = snapPoint(g, aim, scale, true, edge);
+    CHECK(r.x == SnapSource::ObjectPoint);
+    CHECK(r.point.x == 100.0);
+    // With object POINTS off, the edge takes x and the y is left alone -- the per-axis precedence below them.
+    const core::SnapResult edgeOnly = snapPoint(g, aim, scale, true, edge, SnapFlags::ObjectEdges | SnapFlags::Grid);
+    CHECK(edgeOnly.x == SnapSource::ObjectEdge);
+    CHECK(edgeOnly.point.x == 101.5);
+    // And with `units/snapToObjects` off -- neither object kind -- nothing of the drawing.
+    const core::SnapResult gridOnly = snapPoint(g, aim, scale, true, edge, SnapFlags::Grid);
+    CHECK(gridOnly.x != SnapSource::ObjectPoint);
+    CHECK(gridOnly.x != SnapSource::ObjectEdge);
+}
+
+TEST_CASE("a page of more paths than the bound gives no point targets", "[snap][A-91][D6-14]")
+{
+    std::vector<core::PathSegment> hatch;
+    for (std::size_t i = 0; i <= core::PageGeometry::kMaxSegments; ++i) {
+        const double y = static_cast<double>(i % 1000) * 0.5;
+        hatch.push_back(core::PathSegment{PdfPoint{0, y}, PdfPoint{100, y}, false});
+    }
+    const core::PageGeometry dense(3, std::move(hatch));
+    CHECK(dense.overLimit());
+    CHECK(dense.counted() == core::PageGeometry::kMaxSegments + 1);
+    CHECK(dense.segments().empty());
+    CHECK(core::snapPointsNear(dense, PdfPoint{0, 0}, 8.0, true).empty());
+    // One under the bound is held -- THE CONTROL.
+    std::vector<core::PathSegment> fewer(core::PageGeometry::kMaxSegments,
+                                         core::PathSegment{PdfPoint{0, 0}, PdfPoint{10, 10}, false});
+    const core::PageGeometry held(3, std::move(fewer));
+    CHECK_FALSE(held.overLimit());
+    CHECK_FALSE(core::snapPointsNear(held, PdfPoint{0.5, 0.5}, 2.0, false).empty());
+}
+
+TEST_CASE("the grid index finds every segment near a point", "[snap][D6-14]")
+{
+    // A thousand short segments scattered on a page: the index's answer, against a scan of all of them.
+    std::vector<core::PathSegment> segments;
+    for (int i = 0; i < 1000; ++i) {
+        const double x = (i * 37) % 600, y = (i * 53) % 800;
+        segments.push_back(core::PathSegment{PdfPoint{x, y}, PdfPoint{x + 9.0, y + ((i % 3) - 1) * 7.0}, false});
+    }
+    const core::PageGeometry g(0, segments);
+    for (const PdfPoint p : {PdfPoint{100, 100}, PdfPoint{333, 444}, PdfPoint{599, 799}}) {
+        const std::vector<std::size_t> near = g.segmentsNear(p, 12.0, 100000);
+        for (std::size_t i = 0; i < segments.size(); ++i) {
+            const core::PathSegment& s = segments[i];
+            const double dx = s.b.x - s.a.x, dy = s.b.y - s.a.y;
+            const double t = std::clamp(((p.x - s.a.x) * dx + (p.y - s.a.y) * dy) / (dx * dx + dy * dy), 0.0, 1.0);
+            const double d = std::hypot(s.a.x + t * dx - p.x, s.a.y + t * dy - p.y);
+            if (d <= 12.0) CHECK(std::find(near.begin(), near.end(), i) != near.end());
+        }
+    }
+}
+
+TEST_CASE("pieces of a path that meet end to end are no crossing", "[snap][I-19][D6-14]")
+{
+    // S6 guide I-19: a curve's flattened pieces share their ends, and each junction was offered as an INTERSECTION --
+    // found by `tests/render/tst_measuregeometry`'s curve, whose middle snapped to a crossing that is not there.
+    const core::PageGeometry curve(0, {core::PathSegment{PdfPoint{0, 0}, PdfPoint{10, 4}, true},
+                                       core::PathSegment{PdfPoint{10, 4}, PdfPoint{20, 6}, true},
+                                       core::PathSegment{PdfPoint{20, 6}, PdfPoint{30, 6}, true}});
+    for (const core::SnapPoint& p : core::snapPointsNear(curve, PdfPoint{10, 4}, 3.0, true))
+        CHECK(p.kind != core::SnapPointKind::Intersection);
+    // A polyline's corner is an ENDPOINT, never a crossing either.
+    const core::PageGeometry corner(0, {core::PathSegment{PdfPoint{0, 0}, PdfPoint{10, 0}, false},
+                                        core::PathSegment{PdfPoint{10, 0}, PdfPoint{10, 10}, false}});
+    const std::vector<core::SnapPoint> at = core::snapPointsNear(corner, PdfPoint{10, 0}, 1.0, false);
+    REQUIRE_FALSE(at.empty());
+    for (const core::SnapPoint& p : at) CHECK(p.kind != core::SnapPointKind::Intersection);
+    // THE CONTROL: two segments that do cross, and one that ends on another's middle (a T), are crossings.
+    const core::PageGeometry crossed(0, {core::PathSegment{PdfPoint{0, 0}, PdfPoint{10, 10}, false},
+                                         core::PathSegment{PdfPoint{0, 10}, PdfPoint{10, 0}, false},
+                                         core::PathSegment{PdfPoint{20, 0}, PdfPoint{40, 0}, false},
+                                         core::PathSegment{PdfPoint{30, 0}, PdfPoint{30, 10}, false}});
+    const auto kinds = [&](PdfPoint p) {
+        std::vector<core::SnapPointKind> out;
+        for (const core::SnapPoint& s : core::snapPointsNear(crossed, p, 0.5, false)) out.push_back(s.kind);
+        return out;
+    };
+    const std::vector<core::SnapPointKind> x = kinds(PdfPoint{5, 5});
+    CHECK(std::find(x.begin(), x.end(), core::SnapPointKind::Intersection) != x.end());
+    const std::vector<core::SnapPointKind> t = kinds(PdfPoint{30, 0});
+    CHECK(std::find(t.begin(), t.end(), core::SnapPointKind::Intersection) != t.end());
 }

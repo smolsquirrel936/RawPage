@@ -155,6 +155,8 @@ RAWPAGE_SHELL_STRING(TooltipNeedsShapeInProgress, "shell.tooltip.needsShapeInPro
 RAWPAGE_SHELL_STRING(TooltipNeedsStampLibrary, "shell.tooltip.needsStampLibrary")
 RAWPAGE_SHELL_STRING(TooltipNeedsClipboardImage, "shell.tooltip.needsClipboardImage")
 RAWPAGE_SHELL_STRING(TooltipNeedsToolOrSelection, "shell.tooltip.needsToolOrSelection")
+// S6 T12: `annot.measurementScale` where there is nobody to ask (convention 16) -- a headless run.
+RAWPAGE_SHELL_STRING(TooltipNeedsUser, "shell.tooltip.needsUser")
 // S5 T13. What `nav.nextDifference` and `nav.prevDifference` say with no comparison open, or one that found
 // nothing: DISABLED there, and still consuming `Ctrl+]` and `Ctrl+[`, which §8 binds in the Viewer.
 RAWPAGE_SHELL_STRING(TooltipNeedsComparison,    "shell.tooltip.needsComparison")
@@ -670,5 +672,28 @@ RAWPAGE_SHELL_STRING(AttachmentsButtonOpen, "attachments.button.open")
 RAWPAGE_SHELL_STRING(AttachmentsButtonExtract, "attachments.button.extract")
 RAWPAGE_SHELL_STRING(AttachmentsButtonAdd, "attachments.button.add")
 RAWPAGE_SHELL_STRING(AttachmentsButtonDelete, "attachments.button.delete")
+
+// --- Measurement (S6 T12, D6-14) -- a new family, `measure.` ---------------------------------------------
+// A new namespace, as `stamps.` was at T10, added to `tools/i18n-lint/rules.json` in the same change: the scale
+// dialog, what the status bar says while a measuring tool is armed and after it measures, and the properties
+// bar's history. A reading itself is a number and a unit SYMBOL, never translated (`core/Measure.h`).
+RAWPAGE_SHELL_STRING(MeasureDialogTitle, "measure.dialog.title")
+RAWPAGE_SHELL_STRING(MeasureDialogCalibrateTitle, "measure.dialog.calibrateTitle")
+RAWPAGE_SHELL_STRING(MeasureDialogPaper, "measure.dialog.paper")
+RAWPAGE_SHELL_STRING(MeasureDialogReal, "measure.dialog.real")
+RAWPAGE_SHELL_STRING(MeasureDialogKnown, "measure.dialog.known")
+RAWPAGE_SHELL_STRING(MeasureDialogMeasured, "measure.dialog.measured")
+RAWPAGE_SHELL_STRING(MeasureDialogPrecision, "measure.dialog.precision")
+RAWPAGE_SHELL_STRING(MeasureDialogScale, "measure.dialog.scale")
+RAWPAGE_SHELL_STRING(MeasureDialogInvalid, "measure.dialog.invalid")
+RAWPAGE_SHELL_STRING(MeasureStatusDistance, "measure.status.distance")
+RAWPAGE_SHELL_STRING(MeasureStatusDimension, "measure.status.dimension")
+RAWPAGE_SHELL_STRING(MeasureStatusPoints, "measure.status.points")
+RAWPAGE_SHELL_STRING(MeasureStatusCalibrate, "measure.status.calibrate")
+RAWPAGE_SHELL_STRING(MeasureStatusMeasured, "measure.status.measured")
+RAWPAGE_SHELL_STRING(MeasureStatusScaleSet, "measure.status.scaleSet")
+RAWPAGE_SHELL_STRING(MeasureStatusTooManyPaths, "measure.status.tooManyPaths")
+RAWPAGE_SHELL_STRING(MeasureHistory, "measure.history")
+RAWPAGE_SHELL_STRING(MeasureHistoryEmpty, "measure.history.empty")
 
 #undef RAWPAGE_SHELL_STRING

@@ -121,6 +121,10 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "searchUnits");
     }
+    core::Status pageGeometry(core::DocumentHandle, int, core::PageGeometry&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "pageGeometry");
+    }
     core::Result<core::OpenProgress> beginOpen(const QString&, const core::PasswordCallback&) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "beginOpen");

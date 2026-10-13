@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps", "attachments"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps", "attachments", "measure"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -78,7 +78,11 @@
     "",
     "`attachments` JOINED AT Stage 6 T11 (`Stage6-Annotations-Plan.md` D6-17), with the Attachments pane's words and",
     "its questions. Its plural is not the action ids' singular -- `attachment.open` is an ActionId, and",
-    "`attachment.add` a command's type id, never a key -- and the pane's title stays `panes.attachments.title`."
+    "`attachment.add` a command's type id, never a key -- and the pane's title stays `panes.attachments.title`.",
+    "",
+    "`measure` JOINED AT Stage 6 T12 (`Stage6-Annotations-Plan.md` D6-14), with the scale dialog's words, what the status",
+    "bar says while a measuring tool is armed, and the properties bar's history. The action ids stay `annot.measure*` and",
+    "`annot.dimension`, which no `measure.` key can be mistaken for; a reading's unit is a symbol and never a key."
   ],
 
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],

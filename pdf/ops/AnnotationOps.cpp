@@ -22,6 +22,42 @@ CosObject numberArray(const std::vector<double>& values)
     return CosObject::makeArray(std::move(items));
 }
 
+// Stage 6 T12: a measure dictionary as RawPage writes one (ISO 32000-1 Tables 261 and 262) -- `/Type`, `/Subtype`,
+// `/R`, and each chain of number formats with `/U`, `/C` and `/D`, and the separators only where they are not ISO's
+// defaults. A format the model marks not `plain` is never written by RawPage: the model holds it only as read.
+CosObject numberFormat(const core::MeasureNumberFormat& f)
+{
+    std::vector<CosObject::Entry> entries{
+        {"Type", CosObject::makeName("NumberFormat")},
+        {"U", AnnotationOps::textString(f.unit)},
+        {"C", CosObject::makeReal(f.factor)},
+        {"D", CosObject::makeInteger(f.denominator)},
+    };
+    if (f.thousands != QLatin1String(",")) entries.push_back({"RT", AnnotationOps::textString(f.thousands)});
+    if (f.decimal != QLatin1String(".")) entries.push_back({"RD", AnnotationOps::textString(f.decimal)});
+    return CosObject::makeDictionary(std::move(entries));
+}
+
+CosObject measureDictionary(const core::MeasureDictionary& m)
+{
+    std::vector<CosObject::Entry> entries{
+        {"Type", CosObject::makeName("Measure")},
+        {"Subtype", CosObject::makeName(m.subtype.toStdString())},
+        {"R", AnnotationOps::textString(m.ratio)},
+    };
+    const auto chain = [&entries](const char* key, const std::vector<core::MeasureNumberFormat>& formats) {
+        if (formats.empty()) return;
+        std::vector<CosObject> items;
+        for (const core::MeasureNumberFormat& f : formats) items.push_back(numberFormat(f));
+        entries.push_back({key, CosObject::makeArray(std::move(items))});
+    };
+    chain("X", m.x);
+    chain("Y", m.y);
+    chain("D", m.distance);
+    chain("A", m.area);
+    return CosObject::makeDictionary(std::move(entries));
+}
+
 // One modelled field: its key, and its value as written -- nullopt when the annotation does not set it.
 // The SAME table writes a created dictionary and decides which keys an edit overwrites, so the two can
 // never disagree about what a field means.
@@ -134,6 +170,31 @@ const std::vector<Field>& fields()
                                                {"I", CosObject::makeReal(*a.cloudIntensity)}});
          }},
         {"BM", [](const Annotation& a, const ReferenceResolver&) { return nameIfAny(a.blendMode); }},
+        // Stage 6 T12 (D6-14): a line's leaders and caption (ISO 32000-1 Table 175), each at its default written as
+        // nothing, and a measurement's `/Measure`. An EDIT rewrites `/Measure` whole only when the model's changed
+        // -- otherwise the producer's keys the model does not hold (`/O`, `/T`, `/S`, `/CYX`) stay (D6-5).
+        {"LL", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.leaderLength == 0.0) return std::nullopt;
+             return CosObject::makeReal(a.leaderLength);
+         }},
+        {"LLE", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.leaderExtension == 0.0) return std::nullopt;
+             return CosObject::makeReal(a.leaderExtension);
+         }},
+        {"LLO", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.leaderOffset == 0.0) return std::nullopt;
+             return CosObject::makeReal(a.leaderOffset);
+         }},
+        {"Cap", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (!a.caption) return std::nullopt;
+             return CosObject::makeBoolean(true);
+         }},
+        {"CP", [](const Annotation& a, const ReferenceResolver&) { return nameIfAny(a.captionPosition); }},
+        {"CO", [](const Annotation& a, const ReferenceResolver&) { return numbersIfAny(a.captionOffset); }},
+        {"Measure", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (!a.measure) return std::nullopt;
+             return measureDictionary(*a.measure);
+         }},
     };
     return table;
 }

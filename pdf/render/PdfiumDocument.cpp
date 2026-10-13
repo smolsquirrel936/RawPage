@@ -26,6 +26,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <vector>
@@ -628,6 +629,157 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
                            QString::number(pageIndex)};
     }
     return *computed;
+}
+
+// =============================================================================================
+// A PAGE'S PATHS -- Stage 6 T12, D6-14 (the header's declaration says what is read)
+// =============================================================================================
+
+namespace {
+
+// `m` after `inner`: a point through `inner` first, then `m` -- a form's object's matrix inside its form's.
+FS_MATRIX compose(const FS_MATRIX& m, const FS_MATRIX& inner)
+{
+    return FS_MATRIX{m.a * inner.a + m.c * inner.b, m.b * inner.a + m.d * inner.b,
+                     m.a * inner.c + m.c * inner.d, m.b * inner.c + m.d * inner.d,
+                     m.a * inner.e + m.c * inner.f + m.e, m.b * inner.e + m.d * inner.f + m.f};
+}
+
+core::PdfPoint through(const FS_MATRIX& m, double x, double y)
+{
+    return core::PdfPoint{m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f};
+}
+
+// What one walk of a page collects, and where it stops.
+struct PathWalk {
+    std::vector<core::PathSegment> segments;
+    std::vector<core::PdfPoint> anchors;
+    std::size_t counted = 0;
+    bool over = false;
+
+    void add(core::PdfPoint a, core::PdfPoint b, bool curve)
+    {
+        if (over) return;
+        if (++counted > core::PageGeometry::kMaxSegments) {
+            over = true;
+            return;
+        }
+        segments.push_back(core::PathSegment{a, b, curve});
+    }
+};
+
+constexpr int kCurvePieces = 8;
+constexpr int kMaxFormDepth = 8;
+
+void walkPath(FPDF_PAGEOBJECT object, const FS_MATRIX& m, PathWalk& walk)
+{
+    int fill = 0;
+    FPDF_BOOL stroke = 0;
+    if (FPDFPath_GetDrawMode(object, &fill, &stroke) && fill == FPDF_FILLMODE_NONE && !stroke) return;
+    const int count = FPDFPath_CountSegments(object);
+    core::PdfPoint current{0.0, 0.0}, start{0.0, 0.0};
+    bool started = false;
+    for (int i = 0; i < count && !walk.over; ++i) {
+        FPDF_PATHSEGMENT segment = FPDFPath_GetPathSegment(object, i);
+        float x = 0.0F, y = 0.0F;
+        if (segment == nullptr || !FPDFPathSegment_GetPoint(segment, &x, &y)) continue;
+        const core::PdfPoint p = through(m, x, y);
+        const int type = FPDFPathSegment_GetType(segment);
+        if (type == FPDF_SEGMENT_MOVETO) {
+            current = start = p;
+            started = true;
+        } else if (type == FPDF_SEGMENT_LINETO && started) {
+            walk.add(current, p, false);
+            current = p;
+        } else if (type == FPDF_SEGMENT_BEZIERTO && started && i + 2 < count) {
+            // A curve is three segments in PDFium: two control points and its end.
+            FPDF_PATHSEGMENT second = FPDFPath_GetPathSegment(object, i + 1);
+            FPDF_PATHSEGMENT third = FPDFPath_GetPathSegment(object, i + 2);
+            float x2 = 0.0F, y2 = 0.0F, x3 = 0.0F, y3 = 0.0F;
+            if (second == nullptr || third == nullptr || !FPDFPathSegment_GetPoint(second, &x2, &y2)
+                || !FPDFPathSegment_GetPoint(third, &x3, &y3)) {
+                i += 2;
+                continue;
+            }
+            const core::PdfPoint c1 = p, c2 = through(m, x2, y2), end = through(m, x3, y3);
+            walk.anchors.push_back(current);
+            walk.anchors.push_back(end);
+            core::PdfPoint from = current;
+            for (int k = 1; k <= kCurvePieces; ++k) {
+                const double t = static_cast<double>(k) / kCurvePieces, u = 1.0 - t;
+                const core::PdfPoint to{u * u * u * current.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * end.x,
+                                        u * u * u * current.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * end.y};
+                walk.add(from, to, true);
+                from = to;
+            }
+            current = end;
+            segment = third;
+            i += 2;
+        } else {
+            continue;
+        }
+        if (FPDFPathSegment_GetClose(segment) && started) {
+            if (current.x != start.x || current.y != start.y) walk.add(current, start, false);
+            current = start;
+        }
+    }
+}
+
+void walkObjects(FPDF_PAGEOBJECT form, int count, const std::function<FPDF_PAGEOBJECT(int)>& at, const FS_MATRIX& outer,
+                 int depth, PathWalk& walk)
+{
+    (void)form;
+    for (int i = 0; i < count && !walk.over; ++i) {
+        FPDF_PAGEOBJECT object = at(i);
+        if (object == nullptr) continue;
+        FS_MATRIX own{1, 0, 0, 1, 0, 0};
+        if (!FPDFPageObj_GetMatrix(object, &own)) continue;
+        const FS_MATRIX m = compose(outer, own);
+        const int type = FPDFPageObj_GetType(object);
+        if (type == FPDF_PAGEOBJ_PATH) {
+            walkPath(object, m, walk);
+        } else if (type == FPDF_PAGEOBJ_FORM && depth < kMaxFormDepth) {
+            const int children = FPDFFormObj_CountObjects(object);
+            walkObjects(object, children,
+                        [object](int k) { return FPDFFormObj_GetObject(object, static_cast<unsigned long>(k)); }, m,
+                        depth + 1, walk);
+        }
+    }
+}
+
+} // namespace
+
+core::Status PdfiumDocument::pageGeometry(int pageIndex, core::PageGeometry& into) const
+{
+    if (pages_.at(pageIndex) == nullptr) {
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"),
+                           QString::number(pageIndex)};
+    }
+    PathWalk walk;
+    {
+        const std::lock_guard<EngineMutex> guard(engineLock());
+        auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());   // a queued revision first (D6-2)
+        if (document == nullptr)
+            return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+        FPDF_PAGE page = FPDF_LoadPage(document, pageIndex);
+        if (page == nullptr) {
+            return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.measure.pathsUnreadable"),
+                               QString::number(pageIndex)};
+        }
+        const FS_MATRIX identity{1, 0, 0, 1, 0, 0};
+        walkObjects(nullptr, FPDFPage_CountObjects(page), [page](int k) { return FPDFPage_GetObject(page, k); },
+                    identity, 0, walk);
+        FPDF_ClosePage(page);
+    }
+    if (walk.over) {
+        RAWPAGE_LOG_INFO(core::LogSubsystem::Render)
+            << "page geometry: page" << pageIndex << "holds more than"
+            << static_cast<qint64>(core::PageGeometry::kMaxSegments) << "path segments -- no object snaps on it";
+        into = core::PageGeometry::tooManySegments(pageIndex, walk.counted);
+        return {};
+    }
+    into = core::PageGeometry(pageIndex, std::move(walk.segments), std::move(walk.anchors));
+    return {};
 }
 
 // =============================================================================================

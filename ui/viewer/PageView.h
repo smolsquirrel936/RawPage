@@ -83,6 +83,7 @@ namespace rawpage::ui {
 class AnnotationTextEditor;
 class LoupeRaster;
 class SelectionOverlay;
+class SnapTargets;
 class TilePresenter;
 
 // The eleven `pageDisplay/` preferences, resolved into what a viewer actually needs. Stage 2 T15.
@@ -321,6 +322,18 @@ public:
     void setToolSettings(const core::Settings* settings) { toolSettings_ = settings; }
     core::ToolDefaults toolDefaults(core::CommentingTool tool) const override;
     std::optional<QPointF> widgetPointOf(int page, core::PdfPoint point) const override;
+    // S6 T12 (D6-14): where a measured point lands -- the page's paths' points (`snapTargets`) when
+    // `units/snapToObjects` is on, then the annotations' sides, the guides and the grid; the scale and the switch
+    // the `measuring/*` keys state; a calibration and a measurement told to the shell as signals.
+    core::SnapResult snapMeasured(int page, core::PdfPoint point) override;
+    MeasureSettings measureSettings() const override;
+    bool calibrateFrom(double points) override;
+    void measurementMade(const QString& reading) override;
+    // The window's page paths, handed in as the text selection is; null detaches.
+    void setSnapTargets(SnapTargets* targets);
+    SnapTargets* snapTargets() const noexcept { return snapTargets_; }
+    // The sides of the annotations on `page` -- what an object edge is since S6 T12 (`core/Snap.h`).
+    std::vector<core::SnapEdge> annotationEdges(int page) const;
     // S6 T7: a double click on free text edits it IN PLACE -- its text in an editor over its box, the change
     // ONE command when it is committed (D6-1). False when `pos` is on no free text that may be edited.
     bool editTypedTextAt(QPoint pos);
@@ -436,6 +449,11 @@ signals:
     // shell's (`ui/viewer/` holds no catalog key); `snapshotFailed` is the raster coming back invalid.
     void snapshotCopied(int width, int height, int dpi, bool reduced, int askedDpi);
     void snapshotFailed();
+
+    // S6 T12 (D6-14): a measurement was made, reading `reading`; and a distance was measured to CALIBRATE, `points`
+    // long on the page -- the shell asks what it is known to be (`ui/dialogs/MeasurementScaleDialog`).
+    void measured(const QString& reading);
+    void calibrationMeasured(double points);
 
     // A right-click that landed ON a guide. The menu itself is the shell's -- it is words, and
     // `ui/viewer/` holds no catalog key (the same split `RulerWidget::contextMenuRequested`
@@ -602,12 +620,18 @@ private:
         {
             return view_.widgetPointOf(page, point);
         }
+        // S6 T12.
+        core::SnapResult snapMeasured(int page, core::PdfPoint point) override { return view_.snapMeasured(page, point); }
+        MeasureSettings measureSettings() const override { return view_.measureSettings(); }
+        bool calibrateFrom(double points) override { return view_.calibrateFrom(points); }
+        void measurementMade(const QString& reading) override { view_.measurementMade(reading); }
 
     private:
         PageView& view_;
     };
     ToolTarget toolTarget_{*this};
     const core::Settings* toolSettings_ = nullptr;   // S6 T8: the shell's, for the tools' defaults
+    SnapTargets* snapTargets_ = nullptr;             // S6 T12: the window's, for the measuring tools
 
     // S4 T7: the tool state machine, and the frame the LOUPE magnifies. The frame is captured
     // only while the armed tool asks for one (`Tool::needsFrame()`), so an unarmed loupe costs

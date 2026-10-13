@@ -48,6 +48,7 @@
 
 #include <cmath>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -528,11 +529,14 @@ TEST_CASE("a file's shapes recoloured are redrawn by our builder and keep every 
     }
 }
 
-TEST_CASE("a line with leader lines and a measurement are not redrawn and their change is refused by key",
-          "[annotdrawing][A-26][D6-35]")
+TEST_CASE("a line with leader lines is redrawn with them and a measurement this build cannot read is refused by key",
+          "[annotdrawing][A-26][D6-35][D6-14]")
 {
-    // A Line with leader lines and a caption -- ISO 32000-1 Table 175's /LL, /LLE, /Cap, which the model does
-    // not hold -- with its producer's appearance; and a PolyLine carrying a /Measure (T12's).
+    // A Line with leader lines and a caption -- ISO 32000-1 Table 175's /LL, /LLE, /Cap -- with its producer's
+    // appearance; and a PolyLine carrying a /Measure with no number formats. UNTIL T12 the model held neither, and
+    // both were refused a redraw by key (D6-35(j)). SINCE T12 (D6-14) the model holds a line's leaders and caption and
+    // the builder draws them, so the line IS redrawn -- its leaders with it; the measure states no reading this
+    // build can display (`core::measured`: no `/X`, no `/D`), so it is still refused, and still carried by a move.
     const std::string form = "q 0 0 1 RG 10 10 m 110 10 l S Q";
     const std::string bytes = tests::annotatedDocument(1, [&](int, tests::TinyPdf& pdf, int pageObject) -> std::string {
         const int ap = pdf.add("<< /Type /XObject /Subtype /Form /BBox [ 0 0 200 100 ] /Length " + std::to_string(form.size())
@@ -550,17 +554,39 @@ TEST_CASE("a line with leader lines and a measurement are not redrawn and their 
     std::vector<AnnotationId> ids;
     for (const Annotation& a : session->journal->document().annotations().all()) ids.push_back(a.id);
     REQUIRE(ids.size() == 2);
-    for (const AnnotationId& id : ids) {
-        INFO("object " << id.object);
-        core::AnnotationAppearance green;   // neither's colour: a change of what each draws
-        green.color = std::vector<double>{0, 1, 0};
-        const core::Status status = session->journal->run(
-            std::make_unique<core::SetAnnotationAppearanceCommand>(std::vector<AnnotationId>{id}, green, kNow));
-        REQUIRE_FALSE(status);
-        CHECK(keyOf(status.error()) == "error.pdf.appearanceUnsupported");
-        // Moved, it carries its producer's appearance with its rectangle.
-        CHECK(session->journal->run(std::make_unique<core::MoveAnnotationCommand>(std::vector<AnnotationId>{id}, 5.0, 5.0, kNow)));
+    const AnnotationId lineId = ids[0], measuredId = ids[1];
+    {
+        // The model reads what the line draws.
+        const auto at = session->journal->document().annotations().find(lineId);
+        REQUIRE(at);
+        const Annotation& line = session->journal->document().annotations().at(*at);
+        CHECK(line.leaderLength == 15.0);
+        CHECK(line.leaderExtension == 5.0);
+        CHECK(line.caption);
     }
+    core::AnnotationAppearance green;   // neither's colour: a change of what each draws
+    green.color = std::vector<double>{0, 1, 0};
+    // THE LINE: redrawn, in green, its two leaders stroked beside its line -- three strokes where T8 refused one.
+    REQUIRE(session->journal->run(
+        std::make_unique<core::SetAnnotationAppearanceCommand>(std::vector<AnnotationId>{lineId}, green, kNow)));
+    ReadBack after(save(*session, QStringLiteral("T12-leader-redrawn.pdf")));
+    const CosObject now = after.object(lineId.object);
+    CHECK(now.get("LL").numberValue() == 15.0);
+    CHECK(now.get("LLE").numberValue() == 5.0);
+    REQUIRE(now.get("AP").get("N").isReference());
+    const std::string stream(after.object(now.get("AP").get("N").reference().number).rawStreamData(after.table->source()));
+    CHECK(stream.find("0 1 0 RG") != std::string::npos);
+    std::size_t strokes = 0;
+    std::istringstream tokens(stream);
+    for (std::string token; tokens >> token;) strokes += token == "S" ? 1 : 0;
+    CHECK(strokes >= 3);
+    // THE MEASUREMENT this build cannot read: refused by key, and carried by a move.
+    const core::Status status = session->journal->run(
+        std::make_unique<core::SetAnnotationAppearanceCommand>(std::vector<AnnotationId>{measuredId}, green, kNow));
+    REQUIRE_FALSE(status);
+    CHECK(keyOf(status.error()) == "error.pdf.appearanceUnsupported");
+    CHECK(session->journal->run(
+        std::make_unique<core::MoveAnnotationCommand>(std::vector<AnnotationId>{measuredId}, 5.0, 5.0, kNow)));
 }
 
 // ==========================================================================================

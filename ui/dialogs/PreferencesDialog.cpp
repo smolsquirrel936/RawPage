@@ -72,6 +72,11 @@ const std::vector<SettingsGroup>& PreferencesDialog::shippedPages()
         // where `Features.md` §9.1 puts it (Commenting and Forms, between them there, ship later).
         SettingsGroup::Identity,
 
+        // S6 T12. The `Measuring` group, empty in `SettingsGroup` since Stage 1, filled by the five `measuring/*`
+        // rows (D6-13, D6-14): the scale, its unit and decimals, snapping to paths, the reading in the comment.
+        // **Twelve of 26 groups ship.** After Identity, where `Features.md` §9.1 puts it.
+        SettingsGroup::Measuring,
+
         // S5 T6. The `Search` group, empty in `SettingsGroup` since Stage 1, filled by the ten
         // `search/*` rows (D5-20). **Nine of 26 groups ship.** After the page-appearance pages and
         // before Performance & Cache, which is where `Features.md` §9.1 puts it relative to both.

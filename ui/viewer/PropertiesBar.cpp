@@ -224,6 +224,15 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
     rotation_->setSuffix(QStringLiteral("\u00B0"));
     row->addWidget(rotation_);
 
+    // S6 T12: the measurements made this session -- narrow, so the bar does not widen the window (guide I-16's lesson).
+    row->addWidget(new QLabel(catalog::translate(catalog::key::MeasureHistory), this));
+    history_ = new QComboBox(this);
+    history_->setObjectName(QStringLiteral("propertiesMeasureHistory"));
+    history_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    history_->setMinimumContentsLength(8);
+    row->addWidget(history_);
+    setMeasurementHistory({});
+
     row->addWidget(new QLabel(catalog::translate(catalog::key::PropertiesBarText), this));
     text_ = new QLineEdit(this);
     text_->setObjectName(QStringLiteral("propertiesText"));
@@ -509,6 +518,19 @@ void PropertiesBar::showToolDefaults(const QString& name, AnnotationToolKind too
     fontSize_->setEnabled(has(core::ToolProperty::FontSize));
     for (QCheckBox* box : {locked_, contentsLocked_, readOnly_}) box->setChecked(false);
     refreshing_ = false;
+}
+
+void PropertiesBar::setMeasurementHistory(const QStringList& readings)
+{
+    if (history_ == nullptr) return;
+    history_->clear();
+    if (readings.isEmpty()) {
+        history_->addItem(catalog::translate(catalog::key::MeasureHistoryEmpty));
+        history_->setEnabled(false);
+        return;
+    }
+    history_->addItems(readings);
+    history_->setEnabled(true);
 }
 
 void PropertiesBar::showNothing()

@@ -226,6 +226,7 @@ void ReflowView::onIndexEvent(const core::text::DocumentIndex::Event& event)
         return;
     case Kind::PagesEvicted:   // what is shown is held here, as a selection holds its pages
     case Kind::UnitsArrived:
+    case Kind::GeometryArrived:   // S6 T12: a page's paths
         return;
     }
 }

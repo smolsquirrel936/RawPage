@@ -44,6 +44,7 @@
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/ToolController.h"
 #include "ui/viewer/tools/StampTool.h"
+#include "ui/dialogs/MeasurementScaleDialog.h"
 #include "core/doc/Stamps.h"
 #include "core/settings/ProfileStore.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -159,6 +160,12 @@ MainWindow::AttachmentAnswers& installedAttachmentAnswers()
 {
     static MainWindow::AttachmentAnswers answers;
     return answers;
+}
+
+MainWindow::MeasurementScaleAnswer& installedMeasurementScaleAnswer()
+{
+    static MainWindow::MeasurementScaleAnswer answer;
+    return answer;
 }
 
 } // namespace
@@ -845,6 +852,20 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     connect(document, &DocumentWindow::annotationRefused, this, [this, document](const QString& reason) {
         if (document != currentDocument() || !status_) return;
         status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused).arg(reason));
+    });
+    // S6 T12 (D6-14): a measurement's reading and the tools' notices in the status bar, and a CALIBRATION -- the
+    // length the distance tool measured -- asked about in the scale dialog and written as the scale's keys.
+    connect(document, &DocumentWindow::measurementMade, this, [this, document](const QString& reading) {
+        if (document != currentDocument() || !status_) return;
+        status_->setMessage(catalog::translate(catalog::key::MeasureStatusMeasured).arg(reading));
+    });
+    connect(document, &DocumentWindow::measureNotice, this, [this, document](const QString& message) {
+        if (document != currentDocument() || !status_) return;
+        status_->setMessage(message);
+    });
+    connect(document, &DocumentWindow::calibrationMeasured, this, [this, document](double points) {
+        if (document != currentDocument()) return;
+        (void)askMeasurementScale(points);
     });
     connect(document, &DocumentWindow::annotationStateChanged, this, [this, document] {
         // S6 T9: one annotation selected on the page is made current in the Comments pane -- SILENTLY, so the
@@ -3416,12 +3437,44 @@ QLatin1String armedStatusKey(AnnotationToolKind kind)
     case AnnotationToolKind::Pencil: return catalog::key::StatusAnnotationToolPencil;
     case AnnotationToolKind::Eraser: return catalog::key::StatusAnnotationToolEraser;
     case AnnotationToolKind::AttachFile: return catalog::key::StatusAnnotationToolAttachFile;   // S6 T11
+    // S6 T12.
+    case AnnotationToolKind::MeasureDistance: return catalog::key::MeasureStatusDistance;
+    case AnnotationToolKind::Dimension: return catalog::key::MeasureStatusDimension;
+    case AnnotationToolKind::MeasurePerimeter:
+    case AnnotationToolKind::MeasureArea: return catalog::key::MeasureStatusPoints;
     default: break;
     }
     return markupSubtype(kind) ? catalog::key::StatusAnnotationToolMarkup : catalog::key::StatusAnnotationToolArmed;
 }
 
 } // namespace
+
+bool MainWindow::askMeasurementScale(std::optional<double> measuredPoints)
+{
+    // THE DIALOG COLLECTS; THE KEYS ARE WRITTEN HERE (D6-14): the scale is three preferences, and a measurement
+    // already made keeps its own in its `/Measure`. `measuredPoints` is a calibration's length on the page.
+    core::Settings& settings = services_.settings;
+    core::MeasureScale current;
+    current.ratio = settings.get(core::keys::measuring::scaleRatio);
+    current.unit = settings.get(core::keys::measuring::displayUnit);
+    current.precision = settings.get(core::keys::measuring::precision);
+    std::unique_ptr<MeasurementScaleDialog> dialog =
+        measuredPoints ? std::make_unique<MeasurementScaleDialog>(current, *measuredPoints, this)
+                       : std::make_unique<MeasurementScaleDialog>(current, this);
+    if (installedMeasurementScaleAnswer()) {
+        // A case answers as a person would, without a modal loop (`setMeasurementScaleAnswerForTesting`).
+        if (!installedMeasurementScaleAnswer()(*dialog)) return false;
+    } else if (!canPromptTheUser() || dialog->exec() != QDialog::Accepted) {
+        return false;   // nobody to ask (convention 16), or the person cancelled
+    }
+    const std::optional<core::MeasureScale> chosen = dialog->chosen();
+    if (!chosen) return false;
+    settings.set(core::keys::measuring::scaleRatio, chosen->ratio);
+    settings.set(core::keys::measuring::displayUnit, chosen->unit);
+    settings.set(core::keys::measuring::precision, chosen->precision);
+    if (status_) status_->setMessage(catalog::translate(catalog::key::MeasureStatusScaleSet).arg(core::scaleString(*chosen)));
+    return true;
+}
 
 void MainWindow::registerAnnotationActions()
 {
@@ -3589,6 +3642,41 @@ void MainWindow::registerAnnotationActions()
         };
         setDefault.unavailableKey = "shell.tooltip.needsToolOrSelection";
         services_.actions.register_(ActionId::AnnotSetToolDefault, std::move(setDefault));
+    }
+
+    // `annot.measurementScale` (S6 T12, D6-14): the scale from two lengths, in `MeasurementScaleDialog`, written as the
+    // three `measuring/*` keys -- a preference, not a document change; the next measurement carries it. And
+    // `annot.measureCalibrate`, MINTED: the distance tool armed to calibrate -- the next length it measures is asked
+    // about in the same dialog and sets the ratio. Both need only a window: the scale is the person's, not a tab's.
+    if (!services_.actions.isRegistered(ActionId::AnnotMeasurementScale)) {
+        core::ActionRegistry::Registration scale;
+        scale.handler = [](KeyContext) {
+            if (MainWindow* window = activeShell()) (void)window->askMeasurementScale(std::nullopt);
+        };
+        // DISABLED where there is nobody to ask (convention 16), as `file.saveAs` is.
+        scale.enable = [] { return static_cast<bool>(installedMeasurementScaleAnswer()) || canPromptTheUser(); };
+        scale.unavailableKey = "shell.tooltip.needsUser";
+        services_.actions.register_(ActionId::AnnotMeasurementScale, std::move(scale));
+    }
+    if (!services_.actions.isRegistered(ActionId::AnnotMeasureCalibrate)) {
+        core::ActionRegistry::Registration calibrate;
+        calibrate.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            PageView* view = window ? window->currentView() : nullptr;
+            if (view == nullptr) return;
+            view->tools().armCalibration();
+            if (window->status_) window->status_->setMessage(catalog::translate(catalog::key::MeasureStatusCalibrate));
+            window->updateViewChrome();
+        };
+        calibrate.checked = [] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->tools().armedAnnotation() == AnnotationToolKind::MeasureDistance
+                   && view->tools().measuring().calibrating();
+        };
+        calibrate.enable = hasView;
+        calibrate.unavailableKey = "shell.tooltip.needsDocument";
+        services_.actions.register_(ActionId::AnnotMeasureCalibrate, std::move(calibrate));
     }
 
     // `annot.customStamp` (S6 T10, D6-16): a custom stamp made in `CustomStampDialog` -- from an image, or initials
@@ -4314,6 +4402,11 @@ void MainWindow::registerCommentActions()
 void MainWindow::setAttachmentAnswersForTesting(AttachmentAnswers answers)
 {
     installedAttachmentAnswers() = std::move(answers);
+}
+
+void MainWindow::setMeasurementScaleAnswerForTesting(MeasurementScaleAnswer answer)
+{
+    installedMeasurementScaleAnswer() = std::move(answer);
 }
 
 std::optional<QString> MainWindow::askAttachPath()

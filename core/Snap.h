@@ -43,12 +43,35 @@
 // `ui/viewer/GridGuideLayer`, the class D4-6 names. That class holds the guides, the appearance
 // and the drag; the sums are here.
 
+// ===========================================================================================
+// STAGE 6 T12 (D6-14): POINT TARGETS, AND THEY COME FIRST
+// ===========================================================================================
+// A measurement snaps to the drawing it measures: a path's ENDPOINTS, the MIDPOINT of a straight segment, where
+// two segments CROSS, and -- with `measuring/snapToPaths` -- the nearest point ON a path. A point target fixes
+// both coordinates at once, so it is resolved before the per-axis kinds, and the precedence becomes **object
+// point, then object edge, then guide, then grid** -- the threshold the same one, in device pixels. Among point
+// targets the NEAREST wins, and on a tie the kind in that order; a point on a path counts only where no endpoint,
+// midpoint or intersection is within reach, because a person aiming at a corner should not get the edge beside it.
+//
+// The paths are a PAGE'S, read once per page on the engine thread (`IDocumentBackend::pageGeometry`) into a
+// `PageGeometry` and kept beside the page's text in `core/text/DocumentIndex`. A page of more than
+// `PageGeometry::kMaxSegments` segments gives NO object snaps at all and says so once -- a hatched site plan is a
+// page whose every query would otherwise sort a hundred thousand candidates under the pointer. The grid index
+// below makes a query cost the segments near the pointer, not the page's.
+//
+// **Object edges since T12 are the page's ANNOTATIONS'** -- each rectangle's four sides -- passed in by the view;
+// `units/snapToObjects` turns both kinds of object snap on (D4-5's key, Stage 6's).
+
 #ifndef RAWPAGE_CORE_SNAP_H
 #define RAWPAGE_CORE_SNAP_H
 
 #include "core/Geometry.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <span>
+#include <vector>
 
 namespace rawpage::core {
 
@@ -69,18 +92,20 @@ struct SnapEdge {
 // What a coordinate was snapped to, per axis. `None` means nothing was within the threshold and
 // the input coordinate was returned unchanged -- which a caller must be able to tell from a snap
 // that happened to land on the input.
-enum class SnapSource { None, ObjectEdge, Guide, Grid };
+// `ObjectPoint` (S6 T12) is a point target: both coordinates at once, and `SnapResult::pointKind` says which.
+enum class SnapSource { None, ObjectEdge, Guide, Grid, ObjectPoint };
 
 const char* snapSourceName(SnapSource source) noexcept;
 
 // Which kinds may participate. A flag OFF is not the same as an empty list: `units/snapToGrid` off
 // with a grid configured must not snap, and that is this enum rather than a cleared grid.
 enum class SnapFlags : unsigned {
-    None        = 0u,
-    Grid        = 1u << 0,
-    Guides      = 1u << 1,
-    ObjectEdges = 1u << 2,
-    All         = Grid | Guides | ObjectEdges,
+    None         = 0u,
+    Grid         = 1u << 0,
+    Guides       = 1u << 1,
+    ObjectEdges  = 1u << 2,
+    ObjectPoints = 1u << 3,   // S6 T12
+    All          = Grid | Guides | ObjectEdges | ObjectPoints,
 };
 
 constexpr SnapFlags operator|(SnapFlags a, SnapFlags b) noexcept
@@ -109,10 +134,77 @@ struct SnapGrid {
     double step() const noexcept;
 };
 
+// ---- Point targets (S6 T12) ------------------------------------------------------------------------
+
+// What a point target is, in its order of precedence on a tie.
+enum class SnapPointKind : std::uint8_t { Endpoint, Midpoint, Intersection, OnPath };
+const char* snapPointKindName(SnapPointKind kind) noexcept;
+
+struct SnapPoint {
+    PdfPoint      at;
+    SnapPointKind kind = SnapPointKind::Endpoint;
+};
+
+// One straight piece of a path, in page space. `curve` marks a piece of a flattened Bézier curve: its ends are
+// not corners and it has no midpoint, but it can be crossed and it is a path to snap ON.
+struct PathSegment {
+    PdfPoint a;
+    PdfPoint b;
+    bool     curve = false;
+};
+
+// ONE PAGE'S PATHS, as the engine read them, with a grid over the page so a query costs the segments near the
+// pointer. Immutable once built, so any thread may read one. `anchors` are the curves' own ends -- endpoints a
+// flattened curve's pieces do not mark.
+class PageGeometry {
+public:
+    // Past this many segments on one page there are NO object snaps on it (see the header).
+    static constexpr std::size_t kMaxSegments = 100000;
+
+    PageGeometry() = default;
+    PageGeometry(int page, std::vector<PathSegment> segments, std::vector<PdfPoint> anchors = {});
+    // A page whose paths came to more than `kMaxSegments`: nothing is held, and `counted` says how many there were
+    // when the reading stopped.
+    static PageGeometry tooManySegments(int page, std::size_t counted);
+
+    int page() const noexcept { return page_; }
+    bool overLimit() const noexcept { return overLimit_; }
+    std::size_t counted() const noexcept { return counted_; }
+    const std::vector<PathSegment>& segments() const noexcept { return segments_; }
+    const std::vector<PdfPoint>& anchors() const noexcept { return anchors_; }
+
+    // The segments that may pass within `radius` of `point` -- every one that does, and some that do not -- at
+    // most `cap` of them, nearest cells first.
+    std::vector<std::size_t> segmentsNear(PdfPoint point, double radius, std::size_t cap = 256) const;
+    std::size_t approxBytes() const noexcept;
+
+private:
+    int page_ = -1;
+    bool overLimit_ = false;
+    std::size_t counted_ = 0;
+    std::vector<PathSegment> segments_;
+    std::vector<PdfPoint> anchors_;
+
+    // The index: `columns_` x `rows_` cells of `cell_` points from (`originX_`, `originY_`), each listing the
+    // segments that pass through it.
+    double originX_ = 0.0;
+    double originY_ = 0.0;
+    double cell_ = 1.0;
+    int columns_ = 0;
+    int rows_ = 0;
+    std::vector<std::vector<std::uint32_t>> cells_;
+};
+
+// The point targets within `tolerance` (page units) of `point`: the endpoints and midpoints of the straight
+// segments near it, the curves' ends, where two of those segments cross -- and, with `onPath`, the nearest point
+// on each. Sorted nearest first.
+std::vector<SnapPoint> snapPointsNear(const PageGeometry& geometry, PdfPoint point, double tolerance, bool onPath);
+
 struct SnapResult {
     PdfPoint   point;                     // the snapped point; the input where a coordinate did not snap
     SnapSource x = SnapSource::None;
     SnapSource y = SnapSource::None;
+    std::optional<SnapPointKind> pointKind;   // S6 T12: set when both are `ObjectPoint`
 
     bool snapped() const noexcept { return x != SnapSource::None || y != SnapSource::None; }
 };
@@ -120,7 +212,8 @@ struct SnapResult {
 // Everything the resolution depends on, so no part of it can be assumed -- the same argument
 // `PageTransform` makes about a conversion that silently supplies its own dpi.
 struct SnapContext {
-    std::span<const SnapEdge> objectEdges{};   // EMPTY from every product caller until Stage 6 (D4-6)
+    std::span<const SnapPoint> objectPoints{};   // S6 T12: a page's path targets near the point
+    std::span<const SnapEdge> objectEdges{};     // S6 T12: the page's annotations' sides (empty before Stage 6, D4-6)
     std::span<const SnapEdge> guides{};
     SnapGrid                  grid{};
 

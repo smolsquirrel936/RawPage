@@ -211,6 +211,14 @@ public:
     core::Status searchUnits(int part, const std::vector<std::pair<QString, QString>>& descriptions,
                              std::vector<core::text::SearchUnit>& into) const;
 
+    // ONE PAGE'S PATHS -- Stage 6 T12, decision **D6-14** (`core/backend.h` says what is read and why it is bounded).
+    // Every path object the page draws -- stroked or filled; a path that does neither is clipping, and is not a
+    // drawing anyone measures -- in page space: each object's matrix applied, and a form XObject's objects through
+    // the form's, eight forms deep at most. A Bezier is flattened into eight pieces marked `curve`, its two ends
+    // kept as anchors. Past `core::PageGeometry::kMaxSegments` the reading stops and the page is answered
+    // `tooManySegments`. The whole page under the engine lock, as `searchUnits` reads a page.
+    core::Status pageGeometry(int pageIndex, core::PageGeometry& into) const;
+
     // The bytes, for `pdf/cos/`. A view, not a copy: they live as long as this object, because
     // PDFium holds a pointer into them.
     QByteArray bytes() const { return bytes_; }

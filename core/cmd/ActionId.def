@@ -388,6 +388,10 @@ RAWPAGE_ACTION(AnnotMeasureDistance,   "annot.measureDistance",   Viewer, "actio
 RAWPAGE_ACTION(AnnotMeasurePerimeter,  "annot.measurePerimeter",  Viewer, "action.annot.measurePerimeter")
 RAWPAGE_ACTION(AnnotMeasureArea,       "annot.measureArea",       Viewer, "action.annot.measureArea")
 RAWPAGE_ACTION(AnnotMeasurementScale,  "annot.measurementScale",  Viewer, "action.annot.measurementScale")
+// Stage 6 T12 (D6-14), MINTED chordless -- two of the plan's candidates: a dimension callout (a distance on leader
+// lines) and calibration (the scale set from a length measured on the page).
+RAWPAGE_ACTION(AnnotDimension,         "annot.dimension",         Viewer, "action.annot.dimension")
+RAWPAGE_ACTION(AnnotMeasureCalibrate,  "annot.measureCalibrate",  Viewer, "action.annot.measureCalibrate")
 
 RAWPAGE_ACTION(AnnotKeepToolSelected,  "annot.keepToolSelected",  AnnotationTools, "action.annot.keepToolSelected")
 RAWPAGE_ACTION(AnnotProperties,        "annot.properties",        AnnotationTools, "action.annot.properties")

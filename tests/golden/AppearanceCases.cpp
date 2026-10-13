@@ -2,6 +2,7 @@
 
 #include "tests/golden/AppearanceCases.h"
 
+#include "core/Measure.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/DrawnShapes.h"
 #include "core/doc/Stamps.h"
@@ -340,6 +341,29 @@ std::vector<AppearanceCase> buildCases()
             {pinned(0, "PushPin", PdfRect{PdfPoint{40, 50}, PdfSize{16, 24}}, blue),
              pinned(1, "PushPin", PdfRect{PdfPoint{90, 40}, PdfSize{32, 48}}, red),
              pinned(2, "Paperclip", PdfRect{PdfPoint{150, 50}, PdfSize{16, 24}}, green)});
+    }
+    {
+        // Stage 6 T12 (D6-14): MEASUREMENTS as the measuring tools make them (`core::newMeasurement`) at 1 in = 4 ft --
+        // each its reading drawn in Helvetica 9 in its colour: a distance with its arrows and its caption on top, a
+        // dimension callout standing 22 points off the points it measures on leader lines, a perimeter's reading
+        // over its longest segment, an area's on its centroid.
+        core::MeasureScale fourFeet;
+        fourFeet.ratio = 48.0;
+        fourFeet.unit = core::MeasureUnit::Feet;
+        const auto measured = [&](const char* caseName, int index, core::MeasureKind kind, std::vector<double> points,
+                                  std::vector<double> colour, double leader) {
+            Annotation a = styled(made(core::measureSubtype(kind), n(caseName), index), std::move(colour), 1.0);
+            a.borderStyle.clear();
+            a.dashPattern.clear();
+            core::Result<Annotation> m = core::newMeasurement(a, kind, points, fourFeet, leader, true);
+            return fit(m ? m.value() : a);   // a refused one fails the suite's case, loudly
+        };
+        add("measure-distance", "a distance of 108 pt (6.00 ft), and a dimension of 144 pt (8.00 ft) on 22-point leaders",
+            {measured("measure-distance", 0, core::MeasureKind::Distance, {30, 120, 138, 120}, blue, 0.0),
+             measured("measure-distance", 1, core::MeasureKind::Distance, {30, 70, 174, 70}, red, 22.0)});
+        add("measure-perimeter-area", "a perimeter of 108 pt (6.00 ft) and an area of 72 x 54 pt (12.00 sq ft)",
+            {measured("measure-perimeter-area", 0, core::MeasureKind::Perimeter, {20, 30, 20, 120, 38, 120}, green, 0.0),
+             measured("measure-perimeter-area", 1, core::MeasureKind::Area, {80, 50, 152, 50, 152, 104, 80, 104}, blue, 0.0)});
     }
     return cases;
 }

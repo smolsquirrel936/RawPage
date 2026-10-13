@@ -6,11 +6,13 @@
 #include "core/doc/PageTree.h"
 #include "core/doc/TypedText.h"
 #include "core/render/RenderScheduler.h"
+#include "core/settings/Settings.h"
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/viewer/AnnotationTextEditor.h"
 #include "ui/viewer/LoupeRaster.h"
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/SelectionOverlay.h"
+#include "ui/viewer/SnapTargets.h"
 #include "ui/viewer/TilePresenter.h"
 #include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/tools/LoupeTool.h"
@@ -144,6 +146,8 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
     // line never becomes a render request (guide case A-50).
     guides_ = std::make_unique<GridGuideLayer>(this);
     connect(guides_.get(), &GridGuideLayer::changed, this, [this] { viewport()->update(); });
+    // S6 T12 (D4-5): an object edge is a side of an annotation on the page -- the overlay's store, read when asked.
+    guides_->setObjectEdgeSource([this](int page) { return annotationEdges(page); });
 
     // The cursor the default tool shows, applied once at construction: `cursorChanged` only fires
     // on a CHANGE, so nothing would have set it otherwise and the viewer would open with the
@@ -862,6 +866,72 @@ std::optional<QPointF> PageView::widgetPointOf(int page, core::PdfPoint point) c
     return QPointF((device->x - visible.left()) / dpr, (device->y - visible.top()) / dpr);
 }
 
+// ---- The measuring tools (S6 T12, D6-14) -----------------------------------------------------------
+
+void PageView::setSnapTargets(SnapTargets* targets)
+{
+    if (snapTargets_ == targets) return;
+    if (snapTargets_ != nullptr) disconnect(snapTargets_, nullptr, this, nullptr);
+    snapTargets_ = targets;
+    // A page's paths that arrive while a measuring tool is aimed: the snap it could not show is shown now.
+    if (snapTargets_ != nullptr) connect(snapTargets_, &SnapTargets::arrived, this, [this] { viewport()->update(); });
+}
+
+std::vector<core::SnapEdge> PageView::annotationEdges(int page) const
+{
+    std::vector<core::SnapEdge> edges;
+    const core::AnnotationStore* store = annotations_ != nullptr ? annotations_->store() : nullptr;
+    if (store == nullptr || !store->status()) return edges;
+    for (const std::size_t index : store->onPage(page)) {
+        const core::Annotation& a = store->at(index);
+        // What is DRAWN on the page: a pop-up is a window, and a hidden annotation is not there to aim at.
+        if (a.subtype == core::AnnotationSubtype::Popup || a.hasFlag(core::AnnotationFlag::Hidden)
+            || a.hasFlag(core::AnnotationFlag::NoView) || !a.rectFinite)
+            continue;
+        edges.push_back(core::SnapEdge{core::SnapAxis::X, a.rect.left()});
+        edges.push_back(core::SnapEdge{core::SnapAxis::X, a.rect.right()});
+        edges.push_back(core::SnapEdge{core::SnapAxis::Y, a.rect.bottom()});
+        edges.push_back(core::SnapEdge{core::SnapAxis::Y, a.rect.top()});
+    }
+    return edges;
+}
+
+core::SnapResult PageView::snapMeasured(int page, core::PdfPoint point)
+{
+    const double scale = engine_.layout().presentedScale();
+    const GuideSettings& settings = guides_->settings();
+    std::vector<core::SnapPoint> points;
+    // THE PAGE'S PATHS, near the point and within the one threshold -- asked of the index the first time, so the
+    // first aim at a page may find none yet and the next one, after `arrived`, finds them (guide A-91).
+    if (settings.snapToObjects && snapTargets_ != nullptr && scale > 0.0) {
+        if (const std::shared_ptr<const core::PageGeometry> paths = snapTargets_->geometry(page))
+            points = core::snapPointsNear(*paths, point, core::kSnapThresholdDevicePixels / scale, settings.snapToPaths);
+    }
+    return guides_->snapMeasured(page, point, points, scale);
+}
+
+ToolHost::MeasureSettings PageView::measureSettings() const
+{
+    MeasureSettings out;
+    if (toolSettings_ == nullptr) return out;
+    out.scale.ratio = toolSettings_->get(core::keys::measuring::scaleRatio);
+    out.scale.unit = toolSettings_->get(core::keys::measuring::displayUnit);
+    out.scale.precision = toolSettings_->get(core::keys::measuring::precision);
+    out.writeToComment = toolSettings_->get(core::keys::measuring::writeToComment);
+    return out;
+}
+
+bool PageView::calibrateFrom(double points)
+{
+    emit calibrationMeasured(points);
+    return true;
+}
+
+void PageView::measurementMade(const QString& reading)
+{
+    emit measured(reading);
+}
+
 double PageView::pixelsPerPoint() const
 {
     const double dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
@@ -952,7 +1022,9 @@ bool PageView::overlayFirst() const
     // second stroke across the first impossible.
     if (tools_->shapeInProgress()) return false;
     const std::optional<AnnotationToolKind> armed = tools_->armedAnnotation();
-    return !(armed && InkTool::handles(*armed));
+    // S6 T12: A MEASURING TOOL places its points over what is there, as the pencil draws: a measurement is so often
+    // taken from where another one ends that picking that one up would make the commonest gesture impossible.
+    return !(armed && (InkTool::handles(*armed) || MeasureTool::handles(*armed)));
 }
 
 void PageView::updateKeyContext()

@@ -2,7 +2,9 @@
 
 #include "pdf/ops/MutationSinkImpl.h"
 
+#include "core/Measure.h"
 #include "core/doc/AnnotationGeometry.h"
+#include "core/doc/TypedText.h"
 #include "core/doc/Stamps.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefRepair.h"
@@ -163,20 +165,23 @@ private:
 };
 
 // Stage 6 T8: whether a dictionary on disk DRAWS something the model does not hold, so that our builder -- which
-// draws from the model -- would lose it: a Line's leader lines, its caption or its leader offset (ISO 32000-1
-// Table 175's `/LL`, `/LLE`, `/LLO`, `/Cap`), and a measurement's `/Measure` (T12's). Such an annotation is never
-// redrawn: an edit that would need it redrawn is refused by key, and a move carries its producer's appearance.
-bool drawsUnmodelled(const std::optional<cos::CosObject>& dictionary, core::AnnotationSubtype subtype)
+// draws from the model -- would lose it. Such an annotation is never redrawn: an edit that would need it redrawn is
+// refused by key, and a move carries its producer's appearance. **Since T12 (D6-14) the model holds a Line's leaders
+// and caption** (`/LL`, `/LLE`, `/LLO`, `/Cap`, `/CP`, `/CO`) and a `/Measure`, and the builder draws them, so what
+// is left is what it cannot draw: a `/Measure` on anything that is not a measurement, or one whose reading this build
+// does not display (`core::measured` -- a fraction, a chain of units, a `/GEO` measure); and a caption holding a
+// character WinAnsi cannot write.
+bool drawsUnmodelled(const std::optional<cos::CosObject>& dictionary, const core::Annotation& now)
 {
     if (!dictionary || !dictionary->isDictionary()) return false;
-    if (dictionary->has("Measure")) return true;
-    if (subtype != core::AnnotationSubtype::Line) return false;
-    for (const char* key : {"LL", "LLE", "LLO"}) {
-        const cos::CosObject* value = dictionary->find(key);
-        if (value != nullptr && (!value->isNumber() || value->numberValue() != 0.0)) return true;
+    if (dictionary->has("Measure") && (!core::measureKindOf(now) || !core::measured(now))) return true;
+    if (now.subtype == core::AnnotationSubtype::Line && now.caption && !core::measured(now)) {
+        for (const QChar c : now.contents) {
+            if (c == QLatin1Char('\r') || c == QLatin1Char('\n')) break;
+            if (!core::winAnsiCode(c.unicode())) return true;
+        }
     }
-    const cos::CosObject* cap = dictionary->find("Cap");
-    return cap != nullptr && cap->isBoolean() && cap->booleanValue();
+    return false;
 }
 
 // A `/Rect` read back as the four numbers written, within what a written real keeps.
@@ -608,7 +613,7 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
         const bool carried = drawnTheSame(disk, now);
         const bool picture = now.subtype == core::AnnotationSubtype::Stamp;
         if (disk.hasAppearance && (!carried || (!picture && !sameSize(disk.rect, now.rect)))) {
-            if (AppearanceStreamBuilder::supports(now.subtype) && !drawsUnmodelled(dictionaryOnDisk(now.id), now.subtype)) {
+            if (AppearanceStreamBuilder::supports(now.subtype) && !drawsUnmodelled(dictionaryOnDisk(now.id), now)) {
                 auto appearance = AppearanceStreamBuilder::normal(now);
                 if (!appearance) return appearance.error();
                 edit.redraw = true;

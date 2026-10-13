@@ -405,6 +405,26 @@ void DocumentIndex::send(Entry& entry, int key, Pending& pending, render::Render
     if (entry.handles.empty()) return;
     const DocumentHandle through = entry.handles.front();
 
+    if (isGeometryKey(key)) {
+        // A PAGE'S PATHS, as an engine task, exactly as a unit part is below (S6 T12).
+        const int page = key - kGeometryBase;
+        auto result = std::make_shared<PageGeometry>();
+        auto failed = std::make_shared<bool>(false);
+        const render::RenderTicket ticket = scheduler_.enqueueTask(
+            through, lane, [reader = geometryReader_, through, page, result, failed] {
+                if (!reader || !reader(through, page, *result)) *failed = true;
+            });
+        if (!ticket.isValid()) return;
+        if (pending.ticket.isValid()) cancelTicket(pending.ticket);
+        geometryReads_[ticket.id] = GeometryRead{entry.id, page, std::move(result), std::move(failed)};
+        pending.ticket = ticket;
+        pending.lane = lane;
+        pending.sentThrough = through;
+        ++stats_.geometryRequested;
+        ++entry.geometryRequested;
+        return;
+    }
+
     if (isUnitKey(key)) {
         // A SEARCH-UNIT PART, as an engine task (the header). The task holds a COPY of the reader and the
         // result it fills, never `this`: it runs on the worker, and the index may be gone by then.
@@ -455,6 +475,67 @@ void DocumentIndex::cancelTicket(render::RenderTicket ticket)
     scheduler_.cancel(ticket);
     // A task cancelled before it ran is never reported, so its record goes here or never.
     unitReads_.erase(ticket.id);
+    geometryReads_.erase(ticket.id);
+}
+
+void DocumentIndex::setGeometryReader(GeometryReader reader)
+{
+    geometryReader_ = std::move(reader);
+}
+
+std::shared_ptr<const PageGeometry> DocumentIndex::geometry(EntryId entryId, int page) const
+{
+    const Entry* entry = find(entryId);
+    if (entry == nullptr) return nullptr;
+    const auto found = entry->geometry.find(page);
+    return found == entry->geometry.end() ? nullptr : found->second;
+}
+
+bool DocumentIndex::requestGeometry(Owner owner, EntryId entryId, int page, render::RenderPriority lane)
+{
+    Entry* entry = find(entryId);
+    if (entry == nullptr || owner == 0 || page < 0 || page >= entry->pageCount) return false;
+    if (entry->geometry.count(page) != 0) return true;
+
+    const int key = geometryKey(page);
+    Pending& pending = entry->pending[key];
+    pending.owners.insert(owner);
+    owners_[owner].insert({entryId, key});
+    if (!pending.ticket.isValid() || static_cast<int>(lane) < static_cast<int>(pending.lane))
+        send(*entry, key, pending, lane);
+    return false;
+}
+
+long long DocumentIndex::geometryRequestedFor(EntryId entryId) const
+{
+    const Entry* entry = find(entryId);
+    return entry == nullptr ? 0 : entry->geometryRequested;
+}
+
+void DocumentIndex::onGeometry(GeometryRead read)
+{
+    Entry* entry = find(read.entry);
+    if (entry == nullptr) return;
+    settle(*entry, geometryKey(read.page));
+    if (entry->geometry.count(read.page) != 0) return;   // a raise delivered it twice; the first stays
+
+    std::shared_ptr<const PageGeometry> geometry = read.result;
+    const bool failed = !read.result || (read.failed && *read.failed);
+    if (failed) {
+        // STORED EMPTY rather than retried: asked again it would fail again (a page's text has the same rule).
+        geometry = std::make_shared<const PageGeometry>(read.page, std::vector<PathSegment>{});
+        ++stats_.geometryFailed;
+        RAWPAGE_LOG_WARNING(LogSubsystem::Render) << "index: page" << read.page << "paths could not be read";
+    }
+    entry->geometry[read.page] = std::move(geometry);
+    ++stats_.geometryStored;
+
+    Event arrived;
+    arrived.kind = Event::Kind::GeometryArrived;
+    arrived.entry = read.entry;
+    arrived.page = read.page;
+    notify(arrived);
+    enforceBudget(read.entry);
 }
 
 void DocumentIndex::setUnitReader(UnitReader reader)
@@ -508,6 +589,12 @@ void DocumentIndex::settle(Entry& entry, int key)
 
 void DocumentIndex::onTask(render::RenderTicket ticket)
 {
+    if (const auto paths = geometryReads_.find(ticket.id); paths != geometryReads_.end()) {
+        GeometryRead read = std::move(paths->second);
+        geometryReads_.erase(paths);
+        onGeometry(std::move(read));
+        return;
+    }
     const auto found = unitReads_.find(ticket.id);
     if (found == unitReads_.end()) return;   // not ours, or cancelled
     const UnitRead read = std::move(found->second);
@@ -646,7 +733,14 @@ void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
             if (hadUnits) unitsOnly.pages.push_back(page);
             continue;
         }
-        if (!held && !hadUnits) continue;
+        // S6 T12: a page's PATHS are its content too, and go with its text.
+        bool hadGeometry = false;
+        if (const auto paths = entry->geometry.find(page); paths != entry->geometry.end()) {
+            if (paths->second) released.push_back(std::move(paths->second));
+            entry->geometry.erase(paths);
+            hadGeometry = true;
+        }
+        if (!held && !hadUnits && !hadGeometry) continue;
         if (held) {
             released.push_back(std::move(held));
             ++stats_.pagesDropped;
@@ -681,6 +775,10 @@ std::size_t DocumentIndex::bytesHeld(EntryId entryId) const
         (void)part;
         if (units) bytes += unitPartBytes(*units);
     }
+    for (const auto& [page, paths] : entry->geometry) {
+        (void)page;
+        if (paths) bytes += paths->approxBytes();
+    }
     return bytes;
 }
 
@@ -708,12 +806,17 @@ void DocumentIndex::evict(Entry& entry)
     }
     // The units go with the document: WHOLE documents (the header). A part is small, but an entry holding
     // only parts would otherwise count against the budget for ever and evict nothing.
-    const bool hadUnits = !entry.units.empty();
+    const bool hadUnits = !entry.units.empty() || !entry.geometry.empty();
     for (auto& [part, unit] : entry.units) {
         (void)part;
         if (unit) released.push_back(std::move(unit));
     }
     entry.units.clear();
+    for (auto& [page, paths] : entry.geometry) {
+        (void)page;
+        if (paths) released.push_back(std::move(paths));
+    }
+    entry.geometry.clear();
     release(std::move(released));
     if (dropped.pages.empty() && !hadUnits) return;
     ++stats_.documentsEvicted;
@@ -784,6 +887,10 @@ void DocumentIndex::dropEntry(EntryId entryId)
     for (auto& [part, unit] : entry->units) {
         (void)part;
         if (unit) released.push_back(std::move(unit));
+    }
+    for (auto& [page, paths] : entry->geometry) {
+        (void)page;
+        if (paths) released.push_back(std::move(paths));
     }
     entries_.erase(entryId);
     release(std::move(released));

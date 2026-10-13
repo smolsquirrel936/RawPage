@@ -36,6 +36,8 @@
 #define RAWPAGE_UI_VIEWER_TOOLS_TOOL_H
 
 #include "core/Geometry.h"
+#include "core/Measure.h"
+#include "core/Snap.h"
 #include "core/doc/TypedText.h"
 #include "core/settings/CommentingTypes.h"
 
@@ -237,6 +239,32 @@ public:
         (void)point;
         return std::nullopt;
     }
+
+    // ---- The measuring tools' four (S6 T12, D6-14) ----------------------------------------------------
+    // WHERE A MEASURED POINT LANDS: `point` on `page` snapped to the page's paths -- their endpoints, midpoints and
+    // crossings, and a point on one with `measuring/snapToPaths` -- then the annotations' sides, the guides and the
+    // grid, all under the one device-pixel threshold (`core/Snap.h`). A host with no document returns it unsnapped.
+    virtual core::SnapResult snapMeasured(int page, core::PdfPoint point)
+    {
+        (void)page;
+        return core::SnapResult{point, core::SnapSource::None, core::SnapSource::None, std::nullopt};
+    }
+    // What a new measurement is made with: the scale the three `measuring/*` keys state, and whether its reading
+    // goes in `/Contents`.
+    struct MeasureSettings {
+        core::MeasureScale scale;
+        bool writeToComment = true;
+    };
+    virtual MeasureSettings measureSettings() const { return {}; }
+    // A distance measured to CALIBRATE: `points` long on the page. The host asks what it is known to be and sets the
+    // scale. Returns whether it asked.
+    virtual bool calibrateFrom(double points)
+    {
+        (void)points;
+        return false;
+    }
+    // A measurement was made, reading `reading` -- for the session's history and the status bar.
+    virtual void measurementMade(const QString& reading) { (void)reading; }
 };
 
 class Tool {

@@ -86,6 +86,16 @@
 // attachments' are kept, because nothing a Stage 5 command does can change them.
 //
 // ---------------------------------------------------------------------------------------------
+// A PAGE'S PATHS (Stage 6 T12, D6-14)
+// ---------------------------------------------------------------------------------------------
+// What a measurement snaps to -- a page's path segments (`core/Snap.h`'s `PageGeometry`) -- is kept here beside
+// the page's text, for the text's reasons: one entry per identity, read once, memory only, gone with the entry.
+// It is read through `requestGeometry()`, which mirrors `requestUnits()`: one outstanding read per page, owners,
+// release, the reader `setGeometryReader()` was given run as an ENGINE TASK on the render thread -- so the second
+// request for a page asks the engine for nothing (guide A-91). A page's geometry is its CONTENT, so it goes stale
+// with the page's text (`invalidate()` of a scope that touches the text) and stays through an annotation edit.
+
+// ---------------------------------------------------------------------------------------------
 // THREADS
 // ---------------------------------------------------------------------------------------------
 // Every member function is called on the PUMPING thread -- the one that calls
@@ -95,6 +105,7 @@
 #ifndef RAWPAGE_CORE_TEXT_DOCUMENTINDEX_H
 #define RAWPAGE_CORE_TEXT_DOCUMENTINDEX_H
 
+#include "core/Snap.h"
 #include "core/backend.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/Scope.h"
@@ -209,6 +220,7 @@ public:
                                 //   went, their text stayed
             EntryDropped,       // the last handle detached; every page and every request went with it
             UnitsArrived,       // search-unit part `page` is in the index now (possibly failed, empty)
+            GeometryArrived,    // S6 T12: page `page`'s paths are in the index now (possibly failed, empty)
         };
         Kind kind = Kind::PageArrived;
         EntryId entry = 0;
@@ -270,6 +282,19 @@ public:
     // How many times THIS entry's unit parts were asked of the engine -- A-79 reads it.
     long long unitsRequestedFor(EntryId entry) const;
 
+    // ---- A page's paths (Stage 6 T12, D6-14) ------------------------------------------------------
+    // What reads one page's paths, ON THE ENGINE THREAD: `app/` wires `IDocumentBackend::pageGeometry`. With none
+    // set, a page is delivered FAILED -- an empty geometry, said in the log.
+    using GeometryReader = std::function<Status(DocumentHandle, int page, PageGeometry&)>;
+    void setGeometryReader(GeometryReader reader);
+    // A page's paths the index holds, or null.
+    std::shared_ptr<const PageGeometry> geometry(EntryId entry, int page) const;
+    // `request()`'s contract for a page's paths: true when they are already here, else `owner` waits for them and
+    // the engine thread is asked -- once per page, raised by a more urgent ask.
+    bool requestGeometry(Owner owner, EntryId entry, int page, render::RenderPriority lane);
+    // How many times THIS entry's pages' paths were asked of the engine -- A-91 reads it.
+    long long geometryRequestedFor(EntryId entry) const;
+
     // ---- Staleness and memory -------------------------------------------------------------------
     // Drops every stored page `scope` touches (`Scope::touchesPage`'s rule, rounded outwards) -- its
     // search units always, its text only where `Scope::touchesText` (S6 T4, D6-10).
@@ -300,6 +325,9 @@ public:
         long long unitsStored = 0;         // ... that arrived and were kept
         long long unitsFailed = 0;         // ... of which the reader failed
         long long releasedAway = 0;        // pages and parts handed to the releaser (S5 guide I-13)
+        long long geometryRequested = 0;   // pages' paths asked of the engine (S6 T12)
+        long long geometryStored = 0;      // ... that arrived and were kept
+        long long geometryFailed = 0;      // ... of which the reader failed
     };
     Stats stats() const noexcept { return stats_; }
 
@@ -328,6 +356,11 @@ private:
     static int unitKey(int part) noexcept { return -3 - part; }
     static bool isUnitKey(int key) noexcept { return key < 0; }
     static int partOfKey(int key) noexcept { return -3 - key; }
+    // A page's PATHS (S6 T12) are keyed past every page index a document can have (ISO 32000-1 Annex C's limit on
+    // objects is 8,388,607), so the three kinds share the one map and the one ledger.
+    static constexpr int kGeometryBase = 1 << 29;
+    static int geometryKey(int page) noexcept { return kGeometryBase + page; }
+    static bool isGeometryKey(int key) noexcept { return key >= kGeometryBase; }
 
     // An engine task's result, written on the worker and read on the pumping thread once the scheduler
     // says the task ran -- the scheduler's own lock orders the two.
@@ -335,6 +368,12 @@ private:
         EntryId entry = 0;
         int part = 0;
         std::shared_ptr<SearchUnitPart> result;
+    };
+    struct GeometryRead {
+        EntryId entry = 0;
+        int page = 0;
+        std::shared_ptr<PageGeometry> result;
+        std::shared_ptr<bool> failed;
     };
 
     struct Entry {
@@ -344,10 +383,12 @@ private:
         int pageCount = 0;
         std::vector<std::shared_ptr<const IndexedPage>> pages;
         std::map<int, std::shared_ptr<const SearchUnitPart>> units;   // by part
+        std::map<int, std::shared_ptr<const PageGeometry>> geometry;  // by page (S6 T12)
         std::map<int, Pending> pending;        // by key: a page, or `unitKey(part)`
         std::uint64_t lastSearched = 0;        // 0: never searched
         long long requested = 0;
         long long unitsRequested = 0;
+        long long geometryRequested = 0;
     };
 
     Entry* find(EntryId entry);
@@ -369,6 +410,9 @@ private:
     render::RenderScheduler::SubscriptionToken taskToken_ = 0;
     UnitReader unitReader_;
     std::map<std::uint64_t, UnitRead> unitReads_;   // by ticket id: the tasks in flight
+    GeometryReader geometryReader_;
+    std::map<std::uint64_t, GeometryRead> geometryReads_;   // S6 T12, likewise
+    void onGeometry(GeometryRead read);
 
     std::map<EntryId, Entry> entries_;
     std::map<std::uint64_t, EntryId> byHandle_;          // DocumentHandle::id -> entry

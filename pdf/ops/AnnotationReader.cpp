@@ -6,6 +6,7 @@
 #include "pdf/cos/CosObject.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <map>
@@ -94,6 +95,79 @@ std::vector<double> smallNumbersOf(cos::XrefTable& table, const CosObject& dicti
     std::size_t budget = 16;
     bool truncated = false;
     return numbersOf(table, dictionary.find(key), budget, truncated);
+}
+
+// Stage 6 T12 (D6-14): ONE NUMBER FORMAT of a measure dictionary (ISO 32000-1 Table 262) -- what the model holds of
+// it, and whether the rest asks for a display this build does not draw (`core::MeasureNumberFormat::plain`).
+std::optional<core::MeasureNumberFormat> numberFormatOf(cos::XrefTable& table, const CosObject* value)
+{
+    std::optional<cos::IndirectObject> holder;
+    const CosObject* f = resolve(table, value, holder);
+    if (f == nullptr || !f->isDictionary()) return std::nullopt;
+    core::MeasureNumberFormat out;
+    // WHAT A COMMAND ACCEPTS IS WHAT THIS KEEPS (S6 guide I-18's lesson): a unit or a separator past
+    // `core::isBoundedMeasure`'s 64 and 8 characters is cut there and the format marked not plain -- never redrawn,
+    // its producer's appearance carried -- so a measurement read from a file can always be moved and edited.
+    const auto bounded = [&out](QString text, qsizetype limit) {
+        if (text.size() > limit) {
+            text.truncate(limit);
+            out.plain = false;
+        }
+        return text;
+    };
+    out.unit = bounded(textOf(*f, "U"), 64);
+    if (const CosObject* c = f->find("C"); c != nullptr && c->isNumber() && std::isfinite(c->numberValue()))
+        out.factor = c->numberValue();
+    else
+        out.plain = false;   // ISO requires /C: a format without one converts nothing this build can state
+    if (!(out.factor > 0.0)) out.plain = false;   // a factor of nothing, or below it, states no length
+    if (const CosObject* d = f->find("D"); d != nullptr && d->isNumber()) {
+        const double v = d->numberValue();
+        if (v >= 1.0 && v <= 1.0e9 && v == std::floor(v)) out.denominator = static_cast<int>(v);
+        else out.plain = false;
+    }
+    if (const CosObject* rt = f->find("RT"); rt != nullptr && rt->isString()) out.thousands = bounded(textOf(*f, "RT"), 8);
+    if (const CosObject* rd = f->find("RD"); rd != nullptr && rd->isString()) out.decimal = bounded(textOf(*f, "RD"), 8);
+    const QString format = nameOf(*f, "F");
+    if (!format.isEmpty() && format != QLatin1String("D")) out.plain = false;
+    const QString position = nameOf(*f, "O");
+    if (!position.isEmpty() && position != QLatin1String("S")) out.plain = false;
+    if (const CosObject* fd = f->find("FD"); fd != nullptr && fd->isBoolean() && fd->booleanValue()) out.plain = false;
+    for (const char* spacer : {"PS", "SS"}) {
+        const CosObject* s = f->find(spacer);
+        if (s != nullptr && s->isString() && s->text() != " ") out.plain = false;
+    }
+    return out;
+}
+
+// A chain of number formats -- an array of them, at most sixteen read.
+std::vector<core::MeasureNumberFormat> numberFormatsOf(cos::XrefTable& table, const CosObject& measure, std::string_view key)
+{
+    std::vector<core::MeasureNumberFormat> out;
+    std::optional<cos::IndirectObject> holder;
+    const CosObject* array = resolve(table, measure.find(key), holder);
+    if (array == nullptr || !array->isArray()) return out;
+    for (const CosObject& item : array->items()) {
+        if (out.size() == 16) break;
+        if (std::optional<core::MeasureNumberFormat> f = numberFormatOf(table, &item)) out.push_back(std::move(*f));
+    }
+    return out;
+}
+
+std::optional<core::MeasureDictionary> measureOf(cos::XrefTable& table, const CosObject& d)
+{
+    std::optional<cos::IndirectObject> holder;
+    const CosObject* m = resolve(table, d.find("Measure"), holder);
+    if (m == nullptr || !m->isDictionary()) return std::nullopt;
+    core::MeasureDictionary out;
+    const QString subtype = nameOf(*m, "Subtype");
+    out.subtype = subtype.isEmpty() ? QStringLiteral("RL") : subtype.left(64);
+    out.ratio = textOf(*m, "R").left(256);
+    out.x = numberFormatsOf(table, *m, "X");
+    out.y = numberFormatsOf(table, *m, "Y");
+    out.distance = numberFormatsOf(table, *m, "D");
+    out.area = numberFormatsOf(table, *m, "A");
+    return out;
 }
 
 struct Parsed {
@@ -252,6 +326,25 @@ Parsed parse(cos::XrefTable& table, const CosObject& d)
         if (value == 1.0 || value == 2.0) a.justification = static_cast<int>(value);
     }
     a.hasAppearance = d.find("AP") != nullptr;
+    // Stage 6 T12 (D6-14): a line's leaders and caption (ISO 32000-1 Table 175), each finite and within what a page
+    // could hold many times over, and a measurement's scale. A value out of range is read as absent -- ISO's default.
+    const auto length = [&d](const char* key, bool nonNegative) {
+        const CosObject* v = d.find(key);
+        if (v == nullptr || !v->isNumber()) return 0.0;
+        const double n = v->numberValue();
+        if (!std::isfinite(n) || std::abs(n) > 1.0e6 || (nonNegative && n < 0.0)) return 0.0;
+        return n;
+    };
+    a.leaderLength = length("LL", false);
+    a.leaderExtension = length("LLE", true);
+    a.leaderOffset = length("LLO", true);
+    if (const CosObject* cap = d.find("Cap"); cap != nullptr && cap->isBoolean()) a.caption = cap->booleanValue();
+    if (const QString cp = nameOf(d, "CP"); cp == QLatin1String("Top")) a.captionPosition = cp;
+    a.captionOffset = smallNumbersOf(table, d, "CO");
+    if (a.captionOffset.size() != 2
+        || std::any_of(a.captionOffset.begin(), a.captionOffset.end(), [](double v) { return std::abs(v) > 1.0e6; }))
+        a.captionOffset.clear();
+    a.measure = measureOf(table, d);
     // Stage 6 T11 (D6-17): the file a FileAttachment carries -- what it says about it, never its bytes, which
     // are read when they are asked for (`IDocumentBackend::attachmentData`). A specification that NAMES no file --
     // no `/UF`, no `/F`, an empty string -- is not one the model can hold (S6 guide I-17): `EmbeddedFile` is

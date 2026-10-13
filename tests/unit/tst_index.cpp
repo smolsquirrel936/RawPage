@@ -28,6 +28,7 @@
 #include <QElapsedTimer>
 #include <QString>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -1139,4 +1140,86 @@ TEST_CASE("an annotation-only scope keeps the page's text and drops only its sea
     REQUIRE(events.size() == 1);
     CHECK(events[0].kind == DocumentIndex::Event::Kind::PagesInvalidated);
     rig.index.unsubscribe(token);
+}
+
+// =============================================================================================
+// Stage 6 T12 (D6-14, guide A-91's index half) -- a page's paths, read once and kept with its text
+// =============================================================================================
+
+TEST_CASE("a page's paths are read once on the engine thread and kept beside its text", "[index][A-91][D6-14]")
+{
+    Rig rig;
+    std::mutex mutex;
+    std::map<int, int> calls;
+    std::set<std::thread::id> threads;
+    rig.index.setGeometryReader([&](DocumentHandle, int page, core::PageGeometry& into) -> core::Status {
+        {
+            const std::lock_guard<std::mutex> lock(mutex);
+            ++calls[page];
+            threads.insert(std::this_thread::get_id());
+        }
+        if (page == 2) return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.measure.pathsUnreadable")};
+        into = core::PageGeometry(page, {core::PathSegment{core::PdfPoint{0, 0}, core::PdfPoint{10, 10}, false}});
+        return {};
+    });
+    const DocumentHandle handle{191};
+    const auto id = identity(QStringLiteral("drawing.pdf"));
+    const DocumentIndex::EntryId entry = rig.index.attach(&id, handle, 3);
+    std::vector<DocumentIndex::Event> events;
+    const auto token = rig.index.subscribe([&](const DocumentIndex::Event& event) { events.push_back(event); });
+    const auto callsFor = [&](int page) {
+        const std::lock_guard<std::mutex> lock(mutex);
+        return calls[page];
+    };
+
+    // ASKED, NOT HELD: the engine is asked at the lane given, and nothing is here until it answers.
+    const DocumentIndex::Owner owner = rig.index.newOwner();
+    CHECK_FALSE(rig.index.requestGeometry(owner, entry, 1, RenderPriority::Visible));
+    CHECK(rig.index.geometry(entry, 1) == nullptr);
+    rig.pumpUntil([&] { return rig.index.geometry(entry, 1) != nullptr; });
+    REQUIRE(rig.index.geometry(entry, 1) != nullptr);
+    CHECK(rig.index.geometry(entry, 1)->segments().size() == 1);
+    CHECK(callsFor(1) == 1);
+    // ON THE ENGINE THREAD, never this one -- the render scheduler's task, as a page's text is read.
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        REQUIRE(threads.size() == 1);
+        CHECK(*threads.begin() != std::this_thread::get_id());
+    }
+    CHECK(std::any_of(events.begin(), events.end(), [](const DocumentIndex::Event& e) {
+        return e.kind == DocumentIndex::Event::Kind::GeometryArrived && e.page == 1;
+    }));
+
+    // THE SECOND REQUEST IS SERVED FROM THE INDEX, and asks the engine for nothing.
+    CHECK(rig.index.requestGeometry(owner, entry, 1, RenderPriority::Visible));
+    rig.pumpIdle();
+    CHECK(callsFor(1) == 1);
+    CHECK(rig.index.geometryRequestedFor(entry) == 1);
+
+    // An ANNOTATION's scope keeps it -- paths are content; a CONTENT scope drops it, and the next ask reads again.
+    rig.index.invalidate(entry, core::Scope::annotationsOf({1}));
+    CHECK(rig.index.geometry(entry, 1) != nullptr);
+    rig.index.invalidate(entry, core::Scope::page(1));
+    CHECK(rig.index.geometry(entry, 1) == nullptr);
+    CHECK_FALSE(rig.index.requestGeometry(owner, entry, 1, RenderPriority::Visible));
+    rig.pumpUntil([&] { return rig.index.geometry(entry, 1) != nullptr; });
+    CHECK(callsFor(1) == 2);
+
+    // A PAGE THE READER CANNOT READ is kept EMPTY, said in the stats, and not asked again.
+    CHECK_FALSE(rig.index.requestGeometry(owner, entry, 2, RenderPriority::Visible));
+    rig.pumpUntil([&] { return rig.index.geometry(entry, 2) != nullptr; });
+    REQUIRE(rig.index.geometry(entry, 2) != nullptr);
+    CHECK(rig.index.geometry(entry, 2)->segments().empty());
+    CHECK(rig.index.stats().geometryFailed == 1);
+    CHECK(rig.index.requestGeometry(owner, entry, 2, RenderPriority::Visible));
+    rig.pumpIdle();
+    CHECK(callsFor(2) == 1);
+
+    // A SECOND WINDOW over the same file reads nothing again: one entry.
+    const DocumentHandle companion{192};
+    CHECK(rig.index.attach(&id, companion, 3) == entry);
+    CHECK(rig.index.requestGeometry(rig.index.newOwner(), entry, 1, RenderPriority::Visible));
+    CHECK(callsFor(1) == 2);
+    rig.index.unsubscribe(token);
+    rig.index.release(owner);
 }

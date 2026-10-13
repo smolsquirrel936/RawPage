@@ -30,6 +30,7 @@
 #include "ui/viewer/tools/AnnotationTool.h"
 
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include <cstdint>
@@ -82,6 +83,11 @@ public:
     QCheckBox* readOnlyBox() const noexcept { return readOnly_; }
     QLabel* subjectLabel() const noexcept { return label_; }
 
+    // S6 T12 (D6-14): THE SESSION'S MEASUREMENTS, newest first -- the tab's readings this session, listed and never
+    // written (a reading worth keeping is in its measurement's `/Contents`). Read-only: a list, not a property.
+    void setMeasurementHistory(const QStringList& readings);
+    QComboBox* historyBox() const noexcept { return history_; }
+
 signals:
     // The selection's: one command each, constructed by the overlay.
     void appearanceRequested(const core::AnnotationAppearance& appearance);
@@ -125,6 +131,7 @@ private:
     QComboBox* endEnding_ = nullptr;
     QSpinBox* cloud_ = nullptr;
     QSpinBox* rotation_ = nullptr;   // S6 T10: a stamp's turn
+    QComboBox* history_ = nullptr;   // S6 T12: the session's measurements
     QLineEdit* text_ = nullptr;
     QCheckBox* locked_ = nullptr;
     QCheckBox* contentsLocked_ = nullptr;

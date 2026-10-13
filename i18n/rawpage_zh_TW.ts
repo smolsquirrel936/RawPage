@@ -900,6 +900,14 @@
         <translation>測量比例</translation>
     </message>
     <message>
+        <source>action.annot.dimension</source>
+        <translation>尺寸標註</translation>
+    </message>
+    <message>
+        <source>action.annot.measureCalibrate</source>
+        <translation>校正測量比例</translation>
+    </message>
+    <message>
         <source>action.annot.keepToolSelected</source>
         <translation>保持工具選取狀態</translation>
     </message>
@@ -1904,11 +1912,15 @@
     </message>
     <message>
         <source>shell.tooltip.needsShapeInProgress</source>
-        <translation>需要正在繪製的多邊形、折線或雲朵</translation>
+        <translation>需要正在繪製的形狀或測量</translation>
     </message>
     <message>
         <source>shell.tooltip.needsToolOrSelection</source>
         <translation>需要選取註解工具或註解</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.needsUser</source>
+        <translation>%1 需要有人回答對話方塊。</translation>
     </message>
     <message>
         <source>shell.tooltip.needsComparison</source>
@@ -2990,6 +3002,34 @@
         <translation>無法讀取 %1。</translation>
     </message>
     <message>
+        <source>error.measure.selfIntersecting</source>
+        <translation>面積的外框與自身交叉，因此沒有單一可測量的面積。</translation>
+    </message>
+    <message>
+        <source>error.measure.tooFewPoints</source>
+        <translation>測量需要更多點：距離或周長需要兩點，面積需要三點。</translation>
+    </message>
+    <message>
+        <source>error.measure.geometry</source>
+        <translation>無法測量這個測量的點。</translation>
+    </message>
+    <message>
+        <source>error.measure.notMeasurement</source>
+        <translation>這個註解不是測量。</translation>
+    </message>
+    <message>
+        <source>error.measure.unsupportedScale</source>
+        <translation>這個測量的比例以 RawPage 無法顯示的形式寫入。</translation>
+    </message>
+    <message>
+        <source>error.measure.calibration</source>
+        <translation>校正需要大於零的測量長度和實際長度，且比例須在範圍內。</translation>
+    </message>
+    <message>
+        <source>error.measure.pathsUnreadable</source>
+        <translation>無法讀取第 %1 頁的路徑。</translation>
+    </message>
+    <message>
         <source>error.edit.attachmentCopy</source>
         <translation>此附加的 PDF 以唯讀方式開啟。請另存為獨立檔案後再修改。</translation>
     </message>
@@ -3368,6 +3408,10 @@
         <translation>貼齊參考線</translation>
     </message>
     <message>
+        <source>prefs.setting.units.snapToObjects</source>
+        <translation>貼齊物件（圖形的點與註解的邊緣）</translation>
+    </message>
+    <message>
         <source>prefs.choice.unit.pt</source>
         <translation>點</translation>
     </message>
@@ -3450,6 +3494,66 @@
     <message>
         <source>prefs.choice.popupBehaviour.never</source>
         <translation>永不</translation>
+    </message>
+    <message>
+        <source>prefs.group.measuring</source>
+        <translation>測量</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.scaleRatio</source>
+        <translation>比例（每單位頁面長度代表的實際長度）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.displayUnit</source>
+        <translation>顯示單位</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.precision</source>
+        <translation>小數位數</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.snapToPaths</source>
+        <translation>貼齊路徑上的點</translation>
+    </message>
+    <message>
+        <source>prefs.setting.measuring.writeToComment</source>
+        <translation>將測量結果寫入註解</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.pt</source>
+        <translation>點 (pt)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.in</source>
+        <translation>英寸 (in)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.ft</source>
+        <translation>英尺 (ft)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.yd</source>
+        <translation>碼 (yd)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.mi</source>
+        <translation>英里 (mi)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.mm</source>
+        <translation>公釐 (mm)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.cm</source>
+        <translation>公分 (cm)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.m</source>
+        <translation>公尺 (m)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.measureUnit.km</source>
+        <translation>公里 (km)</translation>
     </message>
     <message>
         <source>prefs.group.search</source>
@@ -5031,6 +5135,81 @@
     <message>
         <source>attachments.button.delete</source>
         <translation>刪除</translation>
+    </message>
+</context>
+<context>
+    <name>measure</name>
+    <message>
+        <source>measure.dialog.title</source>
+        <translation>測量比例</translation>
+    </message>
+    <message>
+        <source>measure.dialog.calibrateTitle</source>
+        <translation>校正測量比例</translation>
+    </message>
+    <message>
+        <source>measure.dialog.paper</source>
+        <translation>頁面上的長度</translation>
+    </message>
+    <message>
+        <source>measure.dialog.real</source>
+        <translation>代表</translation>
+    </message>
+    <message>
+        <source>measure.dialog.known</source>
+        <translation>實際長度</translation>
+    </message>
+    <message>
+        <source>measure.dialog.measured</source>
+        <translation>在頁面上測得：%1</translation>
+    </message>
+    <message>
+        <source>measure.dialog.precision</source>
+        <translation>小數位數</translation>
+    </message>
+    <message>
+        <source>measure.dialog.scale</source>
+        <translation>比例：%1</translation>
+    </message>
+    <message>
+        <source>measure.dialog.invalid</source>
+        <translation>請輸入大於零的長度。</translation>
+    </message>
+    <message>
+        <source>measure.status.distance</source>
+        <translation>已選取「%1」。在兩點之間拖曳，或先按一點再按另一點；按 Esc 放棄。</translation>
+    </message>
+    <message>
+        <source>measure.status.dimension</source>
+        <translation>已選取「%1」。按下兩個點，再按下尺寸線要放的位置；按 Esc 放棄。</translation>
+    </message>
+    <message>
+        <source>measure.status.points</source>
+        <translation>已選取「%1」。逐一按下每個點；按 Enter 或按兩下完成，按 Esc 放棄。</translation>
+    </message>
+    <message>
+        <source>measure.status.calibrate</source>
+        <translation>校正中：測量一段已知實際長度的距離。</translation>
+    </message>
+    <message>
+        <source>measure.status.measured</source>
+        <translation>已測量 %1。</translation>
+    </message>
+    <message>
+        <source>measure.status.scaleSet</source>
+        <translation>測量比例已設為 %1。</translation>
+    </message>
+    <message>
+        <source>measure.status.tooManyPaths</source>
+        <translation>第 %1 頁有 %2 個路徑線段，超過測量可貼齊的上限：此頁上的點只會貼齊參考線和格線。</translation>
+    </message>
+    <message>
+        <source>measure.history</source>
+        <translation>已測量</translation>
+    </message>
+    <message>
+        <source>measure.history.empty</source>
+        <translation>尚無測量</translation>
     </message>
 </context>
 </TS>

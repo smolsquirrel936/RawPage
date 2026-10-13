@@ -2,6 +2,8 @@
 
 #include "core/doc/DrawnShapes.h"
 
+#include "core/Measure.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -303,10 +305,22 @@ std::optional<Annotation> fittedShape(Annotation a)
         return a;
     case AnnotationSubtype::Line: {
         if (a.line.size() != 4 || !finitePoints(a.line)) return std::nullopt;
-        const PdfPoint start{a.line[0], a.line[1]}, end{a.line[2], a.line[3]};
-        if (!(std::hypot(end.x - start.x, end.y - start.y) > 1e-9)) return std::nullopt;
+        const PdfPoint p1{a.line[0], a.line[1]}, p2{a.line[2], a.line[3]};
+        if (!(std::hypot(p2.x - p1.x, p2.y - p1.y) > 1e-9)) return std::nullopt;
+        // Stage 6 T12: the line AS DRAWN -- moved by its leaders, its endings at the dimension line's ends -- and
+        // its leaders and its caption (`core::dimensionGeometry`). Without them it is `/L` itself.
+        const std::optional<DimensionGeometry> drawn = dimensionGeometry(a);
+        if (!drawn) return std::nullopt;
+        const PdfPoint start = drawn->start, end = drawn->end;
+        include(left, bottom, right, top, p1.x, p1.y);
+        include(left, bottom, right, top, p2.x, p2.y);
         include(left, bottom, right, top, start.x, start.y);
         include(left, bottom, right, top, end.x, end.y);
+        for (std::size_t at = 0; at + 1 < drawn->leaders.size(); at += 2)
+            include(left, bottom, right, top, drawn->leaders[at], drawn->leaders[at + 1]);
+        if (drawn->caption) {
+            for (const PdfPoint& c : drawn->caption->corners) include(left, bottom, right, top, c.x, c.y);
+        }
         endings(start, end, a.lineEndings.size() > 0 ? a.lineEndings[0] : QString());
         endings(end, start, a.lineEndings.size() > 1 ? a.lineEndings[1] : QString());
         break;
@@ -332,6 +346,10 @@ std::optional<Annotation> fittedShape(Annotation a)
                     a.lineEndings.size() > 0 ? a.lineEndings[0] : QString());
             endings(PdfPoint{a.vertices[2 * n - 2], a.vertices[2 * n - 1]}, PdfPoint{a.vertices[2 * n - 4], a.vertices[2 * n - 3]},
                     a.lineEndings.size() > 1 ? a.lineEndings[1] : QString());
+        }
+        // Stage 6 T12: a measurement's reading, drawn beside or inside it (`core::measureLabel`).
+        if (const std::optional<MeasureCaption> label = measureLabel(a)) {
+            for (const PdfPoint& c : label->corners) include(left, bottom, right, top, c.x, c.y);
         }
         break;
     }

@@ -80,8 +80,8 @@ RAWPAGE_TOOL_DEFAULT(Pencil,          BlendMode,  "normal")
 // The STAMP has an opacity and NO colour (Stage 6 T10, D6-37): a built-in stamp is drawn in its own colour -- an
 // approval green, a restriction red (`core::stampColour`) -- and an image stamp in its pixels', so a colour the
 // tool started every stamp in would be one nobody could see; a placed stamp is recoloured from the properties bar.
-// The two measurements and the redaction mark make nothing yet (T12, T14); their rows are the colour and opacity
-// their tools are armed with, and each task adds what it needs.
+// The MEASUREMENTS (T12, D6-14) are drawn blue at their own width -- a measurement is read, not styled, so a
+// colour and an opacity are what they have; the redaction mark makes nothing yet (T14).
 RAWPAGE_TOOL_DEFAULT(Stamp,           Opacity,    "1")
 RAWPAGE_TOOL_DEFAULT(MeasureDistance, Colour,     "0 0 1")
 RAWPAGE_TOOL_DEFAULT(MeasureDistance, Opacity,    "1")
@@ -126,5 +126,11 @@ RAWPAGE_TOOL_DEFAULT(Cloud,           FillColour, "")
 RAWPAGE_TOOL_DEFAULT(Cloud,           Opacity,    "1")
 RAWPAGE_TOOL_DEFAULT(Cloud,           Thickness,  "1")
 RAWPAGE_TOOL_DEFAULT(Cloud,           BlendMode,  "normal")
+
+// Stage 6 T12: the perimeter (declared since Stage 1) and the dimension callout (minted), blue as the other two.
+RAWPAGE_TOOL_DEFAULT(MeasurePerimeter, Colour,    "0 0 1")
+RAWPAGE_TOOL_DEFAULT(MeasurePerimeter, Opacity,   "1")
+RAWPAGE_TOOL_DEFAULT(Dimension,       Colour,     "0 0 1")
+RAWPAGE_TOOL_DEFAULT(Dimension,       Opacity,    "1")
 
 #undef RAWPAGE_TOOL_DEFAULT

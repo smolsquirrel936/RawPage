@@ -58,6 +58,8 @@ const char* annotationToolKindName(AnnotationToolKind kind) noexcept
     case AnnotationToolKind::Cloud:           return "Cloud";
     case AnnotationToolKind::Eraser:          return "Eraser";
     case AnnotationToolKind::AttachFile:      return "AttachFile";
+    case AnnotationToolKind::MeasurePerimeter: return "MeasurePerimeter";
+    case AnnotationToolKind::Dimension:       return "Dimension";
     }
     return "?";
 }
@@ -95,6 +97,7 @@ Tool& ToolController::annotationToolFor(AnnotationToolKind which)
     if (InkTool::handles(which)) return ink_;
     if (StampTool::handles(which)) return stamp_;
     if (AttachFileTool::handles(which)) return attach_;
+    if (MeasureTool::handles(which)) return measure_;
     return annotation_;
 }
 
@@ -157,6 +160,8 @@ void ToolController::armAnnotation(AnnotationToolKind which)
         typed_.setWhich(which);
         drawing_.setWhich(which);
         ink_.setWhich(which);
+        if (MeasureTool::handles(which)) measure_.setWhich(which);
+        measure_.setCalibrating(false);
         emit armedChanged(armed_);   // the same kind of tool, another tool: said all the same
         emitCursor();
         host_.requestRepaint();
@@ -168,7 +173,15 @@ void ToolController::armAnnotation(AnnotationToolKind which)
     typed_.setWhich(which);
     drawing_.setWhich(which);
     ink_.setWhich(which);
+    if (MeasureTool::handles(which)) measure_.setWhich(which);
+    measure_.setCalibrating(false);
     arm(ToolKind::Annotate);
+}
+
+void ToolController::armCalibration()
+{
+    armAnnotation(AnnotationToolKind::MeasureDistance);
+    measure_.setCalibrating(true);
 }
 
 namespace {
@@ -203,6 +216,8 @@ constexpr Arming kArming[kAnnotationToolKindCount] = {
     {AnnotationToolKind::Cloud, core::ActionId::AnnotCloud},
     {AnnotationToolKind::Eraser, core::ActionId::AnnotEraser},
     {AnnotationToolKind::AttachFile, core::ActionId::AnnotAttachFile},
+    {AnnotationToolKind::MeasurePerimeter, core::ActionId::AnnotMeasurePerimeter},
+    {AnnotationToolKind::Dimension, core::ActionId::AnnotDimension},
 };
 
 } // namespace
@@ -220,7 +235,7 @@ bool createsAnnotations(AnnotationToolKind kind) noexcept
     return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
            || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value()
            || TypewriterTool::handles(kind) || DrawingTool::handles(kind) || InkTool::handles(kind)
-           || StampTool::handles(kind) || AttachFileTool::handles(kind);
+           || StampTool::handles(kind) || AttachFileTool::handles(kind) || MeasureTool::handles(kind);
 }
 
 std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept
@@ -365,15 +380,16 @@ bool ToolController::cancel()
 
 bool ToolController::finishShape()
 {
-    if (armed_ != ToolKind::Annotate || !drawing_.inProgress()) return false;
-    const bool finished = drawing_.finish(host_);
+    if (armed_ != ToolKind::Annotate) return false;
+    // S6 T12: a perimeter, an area or a dimension in progress finishes as a polygon does.
+    const bool finished = drawing_.inProgress() ? drawing_.finish(host_) : measure_.inProgress() && measure_.finish(host_);
     emitCursor();
     return finished;
 }
 
 bool ToolController::shapeInProgress() const noexcept
 {
-    return armed_ == ToolKind::Annotate && drawing_.inProgress();
+    return armed_ == ToolKind::Annotate && (drawing_.inProgress() || measure_.inProgress());
 }
 
 bool ToolController::stepLoupeMagnification(int steps)

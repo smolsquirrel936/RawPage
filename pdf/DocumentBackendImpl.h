@@ -121,6 +121,10 @@ public:
     core::Status searchUnits(core::DocumentHandle document, int part,
                              std::vector<core::text::SearchUnit>& into) override;
 
+    // S6 T12 (D6-14). Forwards to `PdfiumDocument::pageGeometry`, `contentBox()`'s arrangement. CALLED FROM THE
+    // RENDER THREAD, as an engine task, like `searchUnits`.
+    core::Status pageGeometry(core::DocumentHandle document, int pageIndex, core::PageGeometry& into) override;
+
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
     core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;
     core::Status adoptRevision(core::DocumentHandle document, const QString& path) override;

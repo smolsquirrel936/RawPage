@@ -105,23 +105,25 @@ TEST_CASE("the two new Preferences pages are built from the table, not laid out 
     // T12 added Documents (D3-9), seven since Stage 4 T8 added Units & Guides with its eleven
     // `units/*` rows, eight since Stage 4 T10 added Full Screen with its five `fullScreen/*` rows,
     // nine since Stage 5 T6 added Search with its ten `search/*` rows (D5-20), and ten since Stage 6
-    // T6 added Identity with its three `identity/*` rows (D6-13, guide A-54), and eleven since Stage 6 T8
-    // added Commenting with its two `commenting/*` rows and the tool-defaults family (D6-13); corrected in place
+    // T6 added Identity with its three `identity/*` rows (D6-13, guide A-54), eleven since Stage 6 T8
+    // added Commenting with its two `commenting/*` rows and the tool-defaults family (D6-13), and twelve since
+    // Stage 6 T12 added Measuring with its five `measuring/*` rows (D6-14, guide A-92); corrected in place
     // rather than loosened. The count is asserted as well as the members, because "two new pages
     // appear" is a claim about the list and a member check stays green when another is added by
     // accident.
     const std::vector<SettingsGroup>& pages = ui::PreferencesDialog::shippedPages();
-    CHECK(pages.size() == 11);   // S6 T8: Commenting
+    CHECK(pages.size() == 12);   // S6 T12: Measuring
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::PageDisplay) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::PerformanceAndCache) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::FullScreen) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::Search) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::Identity) != pages.end());
     CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::Commenting) != pages.end());
+    CHECK(std::find(pages.begin(), pages.end(), SettingsGroup::Measuring) != pages.end());
 
     QListWidget* list = dialog.findChild<QListWidget*>(QStringLiteral("preferencesPageList"));
     REQUIRE(list != nullptr);
-    CHECK(list->count() == 11);
+    CHECK(list->count() == 12);
 
     // ONE EDITOR PER DECLARED KEY, and the count comes from the TABLE rather than from a literal --
     // a case that said "11" would be a second copy of the row count and would go stale the day a

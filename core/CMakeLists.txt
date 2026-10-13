@@ -28,6 +28,12 @@ add_library(rawpage_core STATIC
     Snap.h
     Snap.cpp
 
+    # S6 T12, D6-14: what a measurement measures -- units, the scale and its /Measure, lengths, areas (a
+    # self-intersecting polygon refused by name), calibration, and where a dimension's leaders and caption are
+    # drawn, shared by the builder, the hit test and the tools. tests/unit/tst_measure.cpp.
+    Measure.h
+    Measure.cpp
+
     # The ENGINE boundary (Stage 2 T1, decision D2-7). The second of the two interface headers this
     # architecture rests on -- header-only, like platform/platform.h, and constrained by its own
     # tools/layer-lint entry because core/, pdf/, ui/ and app/ all include it.

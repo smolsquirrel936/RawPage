@@ -83,6 +83,10 @@ add_executable(rawpage_composition_tests
     # folder, an executable refused, the folder emptied at the clean quit), A-83 through the pane and the pushpin
     # tool, A-74's attachment clause through the REAL find bar.
     tst_attachmentproduct.cpp
+    # S6 T12 -- guide A-89 (a drag started three device pixels from each of the generator's points on
+    # measure-scale.pdf lands exactly on it, through the engine's paths, at 100 and 400 percent), A-90 (calibration
+    # through the product) and A-88's product half (the measurements saved and reopened fresh).
+    tst_measureproduct.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp

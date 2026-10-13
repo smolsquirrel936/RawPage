@@ -3,6 +3,7 @@
 
 #include "core/cmd/commands/AnnotationCommands.h"
 
+#include "core/Measure.h"
 #include "core/backend.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/Attachments.h"
@@ -101,6 +102,18 @@ std::optional<QString> invalidShape(const Annotation& a)
     // Stage 6 T10: a turn no larger than the reader keeps (`pdf/ops/AnnotationReader`), and pixels only on a stamp
     // that says it draws them -- each the size its header says, within the image bounds (`core/doc/Stamps`).
     if (a.rotate < -360000 || a.rotate > 360000) return QStringLiteral("annotation.rotate");
+    // Stage 6 T12: a line's leaders and caption finite and within a page many times over, its caption where ISO
+    // 32000-1 Table 175 lets it go, and a measure dictionary of short chains of finite factors (`core/Measure`).
+    for (const double v : {a.leaderLength, a.leaderExtension, a.leaderOffset}) {
+        if (!std::isfinite(v) || std::abs(v) > Limits::kMaxOffset) return QStringLiteral("annotation.leader");
+    }
+    if (a.leaderExtension < 0.0 || a.leaderOffset < 0.0) return QStringLiteral("annotation.leader");
+    if (!a.captionPosition.isEmpty() && a.captionPosition != QLatin1String("Inline") && a.captionPosition != QLatin1String("Top"))
+        return QStringLiteral("annotation.captionPosition");
+    if ((!a.captionOffset.empty() && a.captionOffset.size() != 2) || !allFinite(a.captionOffset)
+        || std::any_of(a.captionOffset.begin(), a.captionOffset.end(), [](double v) { return std::abs(v) > Limits::kMaxOffset; }))
+        return QStringLiteral("annotation.captionOffset");
+    if (a.measure && !isBoundedMeasure(*a.measure)) return QStringLiteral("annotation.measure");
     if (!a.image.isEmpty()) {
         if (a.subtype != AnnotationSubtype::Stamp || a.intent != stampImageIntent()) return QStringLiteral("annotation.image");
         if (const std::optional<QString> invalid = invalidStampImage(a.image)) return QStringLiteral("annotation.") + *invalid;

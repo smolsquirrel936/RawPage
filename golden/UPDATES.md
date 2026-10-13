@@ -58,3 +58,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 1 (filtered on `file-attachments`)
 - **Reason** Stage 6 T11: the first capture of the file attachment appearance baseline (D6-17) -- 1 new case of tests/golden/AppearanceCases, file-attachments: a blue pushpin at 16 x 24, a red one at twice that, and a green paper clip, each carrying a file as annot.attachFile makes one. Additions only -- no corpus baseline and none of T8's or T10's appearance baselines is regenerated. The image was looked at before it was kept.
+
+## 2026-10-13T22:35:58Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 2 (filtered on `measure-`)
+- **Reason** Stage 6 T12 (D6-14): two new appearance cases -- a distance, a dimension callout on leader lines, a perimeter and an area, each drawing its reading -- each looked at in a scratch root before it was kept
