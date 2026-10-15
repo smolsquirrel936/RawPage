@@ -1547,6 +1547,10 @@
         <source>action.attachment.delete</source>
         <translation>刪除附件</translation>
     </message>
+    <message>
+        <source>action.comment.migrate</source>
+        <translation>從舊版本移轉註解...</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2322,6 +2326,10 @@
         <source>shell.status.annotationToolAttachFile</source>
         <translation>%1：按一下要釘上檔案的位置，再選擇檔案。</translation>
     </message>
+    <message>
+        <source>shell.tooltip.needsComments</source>
+        <translation>文件含有註解時可用</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -3036,6 +3044,118 @@
     <message>
         <source>error.recovery.sideFile</source>
         <translation>復原日誌所指的檔案遺失或已損毀 (%1)。</translation>
+    </message>
+    <message>
+        <source>error.exchange.tooLarge</source>
+        <translation>註解檔太大，無法匯入（%1）。</translation>
+    </message>
+    <message>
+        <source>error.exchange.dtd</source>
+        <translation>註解檔宣告了自己的實體（%1），RawPage 不會讀取，因此未匯入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.exchange.malformed</source>
+        <translation>註解檔格式不正確（%1），因此未匯入任何內容。</translation>
+    </message>
+    <message>
+        <source>error.exchange.notExchange</source>
+        <translation>此檔案不是 FDF 或 XFDF。</translation>
+    </message>
+    <message>
+        <source>error.exchange.tooMany</source>
+        <translation>註解檔含有超過 %1 則註解。</translation>
+    </message>
+    <message>
+        <source>error.exchange.unreadable</source>
+        <translation>無法讀取 %1。</translation>
+    </message>
+    <message>
+        <source>error.exchange.exists</source>
+        <translation>%1 已有檔案。</translation>
+    </message>
+    <message>
+        <source>error.exchange.writeFailed</source>
+        <translation>無法寫入 %1。</translation>
+    </message>
+    <message>
+        <source>error.exchange.badName</source>
+        <translation>有註解的名稱超出 RawPage 可保留的長度（%1…）。</translation>
+    </message>
+    <message>
+        <source>error.exchange.duplicateName</source>
+        <translation>檔案中有兩則註解同名 %1；第二則未匯入。</translation>
+    </message>
+    <message>
+        <source>error.exchange.pageMissing</source>
+        <translation>文件沒有第 %1 頁。</translation>
+    </message>
+    <message>
+        <source>error.exchange.geometry</source>
+        <translation>無法照原樣寫入此註解（%1）。</translation>
+    </message>
+    <message>
+        <source>error.exchange.conflict</source>
+        <translation>文件中已有名為 %1 的註解，但類型或頁面不同。</translation>
+    </message>
+    <message>
+        <source>error.exchange.cancelled</source>
+        <translation>未選擇任何檔案。</translation>
+    </message>
+    <message>
+        <source>error.exchange.unknownFormat</source>
+        <translation>%1 的副檔名不是 .fdf 或 .xfdf。</translation>
+    </message>
+    <message>
+        <source>error.exchange.nothingToExport</source>
+        <translation>沒有可匯出的註解。</translation>
+    </message>
+    <message>
+        <source>error.migrate.pageGone</source>
+        <translation>修訂版中沒有第 %1 頁。</translation>
+    </message>
+    <message>
+        <source>error.migrate.noText</source>
+        <translation>註解下方無法讀取文字（%1）。</translation>
+    </message>
+    <message>
+        <source>error.migrate.textGone</source>
+        <translation>修訂版中已沒有「%1」。</translation>
+    </message>
+    <message>
+        <source>error.migrate.noAnchor</source>
+        <translation>註解附近無法讀取任何文字行（%1）。</translation>
+    </message>
+    <message>
+        <source>error.migrate.anchorGone</source>
+        <translation>註解旁的文字行已變更：「%1」。</translation>
+    </message>
+    <message>
+        <source>error.migrate.cancelled</source>
+        <translation>已取消從 %1 移轉。</translation>
+    </message>
+    <message>
+        <source>error.migrate.noComments</source>
+        <translation>%1 沒有可移轉的註解。</translation>
+    </message>
+    <message>
+        <source>error.migrate.busy</source>
+        <translation>已有移轉正在進行。</translation>
+    </message>
+    <message>
+        <source>error.migrate.targetClosed</source>
+        <translation>註解要移轉到的文件已關閉。</translation>
+    </message>
+    <message>
+        <source>error.clipboard.nothingSelected</source>
+        <translation>未選取任何註解。</translation>
+    </message>
+    <message>
+        <source>error.clipboard.malformed</source>
+        <translation>剪貼簿上的內容不是 RawPage 可讀取的註解。</translation>
+    </message>
+    <message>
+        <source>error.clipboard.nothingPastable</source>
+        <translation>複製的註解都無法貼到這裡。</translation>
     </message>
 </context>
 <context>
@@ -4102,6 +4222,10 @@
         <source>command.attachment.deleteMany</source>
         <translation>刪除 %1 個附件</translation>
     </message>
+    <message>
+        <source>command.annot.import</source>
+        <translation>匯入 %1 則註解</translation>
+    </message>
 </context>
 <context>
     <name>panes</name>
@@ -4869,6 +4993,90 @@
     <message>
         <source>comments.type.other</source>
         <translation>註記</translation>
+    </message>
+    <message>
+        <source>comments.exchange.importTitle</source>
+        <translation>匯入註解</translation>
+    </message>
+    <message>
+        <source>comments.exchange.exportTitle</source>
+        <translation>匯出註解</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateTitle</source>
+        <translation>從舊版本移轉註解</translation>
+    </message>
+    <message>
+        <source>comments.exchange.fileFilter</source>
+        <translation>註解檔 (*.xfdf *.fdf);;XFDF (*.xfdf);;FDF (*.fdf)</translation>
+    </message>
+    <message>
+        <source>comments.exchange.pdfFilter</source>
+        <translation>PDF 文件 (*.pdf)</translation>
+    </message>
+    <message>
+        <source>comments.exchange.importSummary</source>
+        <translation>已匯入註解：新增 %1 則、取代 %2 則、保留 %3 則、未匯入 %4 則。</translation>
+    </message>
+    <message>
+        <source>comments.exchange.exported</source>
+        <translation>已將 %1 則註解匯出至 %2。</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateReading</source>
+        <translation>正在讀取兩個版本：第 %1 頁，共 %2 頁…</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateComparing</source>
+        <translation>正在對齊兩個版本：%1 / %2…</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateSummary</source>
+        <translation>已移轉 %1 則註解（共 %2 則）；%3 則無法放置，已列於報告中。</translation>
+    </message>
+    <message>
+        <source>comments.exchange.copied</source>
+        <translation>已複製 %1 則註解。</translation>
+    </message>
+    <message>
+        <source>comments.exchange.pasted</source>
+        <translation>已貼上 %1 則註解。</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.added</source>
+        <translation>已新增</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.replaced</source>
+        <translation>已取代</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.kept</source>
+        <translation>保留：文件中的版本相同或較新</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.refused</source>
+        <translation>未匯入</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.reported</source>
+        <translation>未放置</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.comment</source>
+        <translation>註解</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.page</source>
+        <translation>頁</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.outcome</source>
+        <translation>結果</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.reason</source>
+        <translation>原因</translation>
     </message>
 </context>
 <context>

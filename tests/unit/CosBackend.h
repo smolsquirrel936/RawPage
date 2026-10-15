@@ -19,7 +19,9 @@
 
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/Attachments.h"
+#include "core/doc/Fdf.h"
 #include "pdf/ops/AttachmentFiles.h"
+#include "pdf/ops/FdfCodec.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "core/doc/Destinations.h"
@@ -162,6 +164,26 @@ public:
         core::Result<QByteArray> bytes = attachmentData(handle, attachment);
         if (!bytes) return bytes.error();
         return pdf::ops::AttachmentFiles::write(bytes.value(), path, overwrite);
+    }
+    // S6 T13 (D6-20): the shipped backend's arrangement -- `pdf/ops/FdfCodec` both ways, the bytes of an export's
+    // FileAttachments from `attachmentData`, and the sink's own question for writability.
+    core::Result<core::Fdf> readAnnotationExchange(const QString& path) override
+    {
+        return pdf::ops::FdfCodec::readFile(path);
+    }
+    core::Status writeAnnotationExchange(core::DocumentHandle handle, const core::Fdf& exchange, core::ExchangeFormat format,
+                                         const QString& path, bool overwrite) override
+    {
+        core::Fdf carried = exchange;
+        const core::Status filled = pdf::ops::FdfCodec::carryFiles(carried, [this, handle](const core::AnnotationId& id) {
+            return attachmentData(handle, core::AttachmentRef::ofAnnotation(id));
+        });
+        if (!filled) return filled;
+        return pdf::ops::FdfCodec::writeFile(carried, format, path, overwrite);
+    }
+    core::Status annotationWritable(const core::Annotation& annotation) const override
+    {
+        return pdf::ops::MutationSinkImpl::canCreate(annotation);
     }
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {

@@ -177,6 +177,25 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  std::vector<QString>{QStringLiteral("appendix.pdf"), QStringLiteral("readme.txt")}));
              return out;
          }},
+        // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
+        // one that only replaces, and one that does both.
+        {"annot.import",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::Annotation acrobat = sampleHighlight(0);
+             acrobat.nm = QStringLiteral("5043e2eb-3e13-d3bf-03ab-158c24668db9");
+             acrobat.id = core::AnnotationId::ofCreated(acrobat.nm);
+             out.push_back(std::make_unique<core::ImportAnnotationsCommand>(
+                 std::vector<core::Annotation>{acrobat, sampleHighlight(2)}, std::vector<core::Annotation>{}));
+             core::Annotation fromFile = sampleHighlight(0);
+             fromFile.id = core::AnnotationId::ofObject(12);
+             fromFile.nm = QStringLiteral("producer");
+             out.push_back(std::make_unique<core::ImportAnnotationsCommand>(std::vector<core::Annotation>{},
+                                                                            std::vector<core::Annotation>{fromFile}));
+             out.push_back(std::make_unique<core::ImportAnnotationsCommand>(std::vector<core::Annotation>{acrobat},
+                                                                            std::vector<core::Annotation>{fromFile}));
+             return out;
+         }},
     };
     return table;
 }
@@ -205,7 +224,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -240,7 +259,57 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2);
+    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3);
+}
+
+// Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,
+// what it replaces what an edit accepts, and neither twice.
+TEST_CASE("CommandRegistry refuses every malformed import by Result", "[cmd][serialize][hostile][annotops][T13]")
+{
+    core::Annotation added = sampleHighlight(0);
+    core::Annotation replaced = sampleHighlight(1);
+    replaced.id = core::AnnotationId::ofObject(12);
+    replaced.nm = QStringLiteral("producer");
+    const QJsonObject a = added.toJson();
+    const QJsonObject r = replaced.toJson();
+    const auto import = [](const QJsonArray& addedArray, const QJsonArray& replacedArray) {
+        return QJsonObject{{"type", "annot.import"}, {"added", addedArray}, {"replaced", replacedArray}};
+    };
+    const auto with = [](QJsonObject annotation, const char* key, const QJsonValue& value) {
+        annotation.insert(QLatin1String(key), value);
+        return annotation;
+    };
+    QJsonArray tooMany;
+    for (std::size_t i = 0; i <= core::AnnotationCommandLimits::kMaxAnnotations; ++i) tooMany.append(r);
+    const std::vector<std::pair<const char*, QJsonObject>> hostile{
+        {"no added", QJsonObject{{"type", "annot.import"}, {"replaced", QJsonArray{r}}}},
+        {"no replaced", QJsonObject{{"type", "annot.import"}, {"added", QJsonArray{a}}}},
+        {"both empty", import(QJsonArray{}, QJsonArray{})},
+        {"added an object", QJsonObject{{"type", "annot.import"}, {"added", QJsonObject{}}, {"replaced", QJsonArray{}}}},
+        {"an added annotation a number", import(QJsonArray{1}, QJsonArray{})},
+        {"an added annotation with an object id", import(QJsonArray{with(a, "id", "obj:12")}, QJsonArray{})},
+        {"an added annotation whose nm is not its id", import(QJsonArray{with(a, "nm", "other")}, QJsonArray{})},
+        {"one name added twice", import(QJsonArray{a, a}, QJsonArray{})},
+        {"a replaced annotation with no rect", [&] {
+             QJsonObject broken = r;
+             broken.remove(QStringLiteral("rect"));
+             return import(QJsonArray{}, QJsonArray{broken});
+         }()},
+        {"a replaced annotation with opacity 2", import(QJsonArray{}, QJsonArray{with(r, "opacity", 2.0)})},
+        {"one identity replaced twice", import(QJsonArray{}, QJsonArray{r, r})},
+        {"too many", import(QJsonArray{}, tooMany)},
+    };
+    for (const auto& [label, json] : hostile) {
+        INFO("input: " << label);
+        auto result = CommandRegistry::deserialize(json);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().code == core::ErrorCode::ParseFailure);
+        CHECK(keyOf(result.error()) == "error.command.malformed");
+    }
+    // THE CONTROL: each set alone, and both, are accepted.
+    CHECK(CommandRegistry::deserialize(import(QJsonArray{a}, QJsonArray{})));
+    CHECK(CommandRegistry::deserialize(import(QJsonArray{}, QJsonArray{r})));
+    CHECK(CommandRegistry::deserialize(import(QJsonArray{a}, QJsonArray{r})));
 }
 
 // Stage 6 T11 (D6-17): an attachment command is a journal line, and its bytes may be large -- every shape apply()

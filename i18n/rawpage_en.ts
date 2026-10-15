@@ -1547,6 +1547,10 @@
         <source>action.attachment.delete</source>
         <translation>Delete Attachment</translation>
     </message>
+    <message>
+        <source>action.comment.migrate</source>
+        <translation>Migrate Comments from an Earlier Version...</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2322,6 +2326,10 @@
         <source>shell.status.annotationToolAttachFile</source>
         <translation>%1: click where the file should be pinned, then choose the file.</translation>
     </message>
+    <message>
+        <source>shell.tooltip.needsComments</source>
+        <translation>Available when the document has comments</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -3036,6 +3044,118 @@
     <message>
         <source>error.recovery.sideFile</source>
         <translation>A file the recovery journal names is missing or damaged (%1).</translation>
+    </message>
+    <message>
+        <source>error.exchange.tooLarge</source>
+        <translation>The comment file is too large to import (%1).</translation>
+    </message>
+    <message>
+        <source>error.exchange.dtd</source>
+        <translation>The comment file declares entities of its own (%1), which RawPage never reads, so nothing was imported.</translation>
+    </message>
+    <message>
+        <source>error.exchange.malformed</source>
+        <translation>The comment file is not well-formed (%1), so nothing was imported.</translation>
+    </message>
+    <message>
+        <source>error.exchange.notExchange</source>
+        <translation>The file is neither FDF nor XFDF.</translation>
+    </message>
+    <message>
+        <source>error.exchange.tooMany</source>
+        <translation>The comment file holds more than %1 comments.</translation>
+    </message>
+    <message>
+        <source>error.exchange.unreadable</source>
+        <translation>%1 could not be read.</translation>
+    </message>
+    <message>
+        <source>error.exchange.exists</source>
+        <translation>A file already exists at %1.</translation>
+    </message>
+    <message>
+        <source>error.exchange.writeFailed</source>
+        <translation>%1 could not be written.</translation>
+    </message>
+    <message>
+        <source>error.exchange.badName</source>
+        <translation>A comment's name is longer than RawPage keeps (%1…).</translation>
+    </message>
+    <message>
+        <source>error.exchange.duplicateName</source>
+        <translation>The file names two comments %1; the second was not imported.</translation>
+    </message>
+    <message>
+        <source>error.exchange.pageMissing</source>
+        <translation>The document has no page %1.</translation>
+    </message>
+    <message>
+        <source>error.exchange.geometry</source>
+        <translation>This comment cannot be written as it is (%1).</translation>
+    </message>
+    <message>
+        <source>error.exchange.conflict</source>
+        <translation>The document already holds a comment named %1, of another kind or on another page.</translation>
+    </message>
+    <message>
+        <source>error.exchange.cancelled</source>
+        <translation>Nothing was chosen.</translation>
+    </message>
+    <message>
+        <source>error.exchange.unknownFormat</source>
+        <translation>%1 is not named .fdf or .xfdf.</translation>
+    </message>
+    <message>
+        <source>error.exchange.nothingToExport</source>
+        <translation>There are no comments to export.</translation>
+    </message>
+    <message>
+        <source>error.migrate.pageGone</source>
+        <translation>Page %1 is not in the revised version.</translation>
+    </message>
+    <message>
+        <source>error.migrate.noText</source>
+        <translation>No text could be read under the comment (%1).</translation>
+    </message>
+    <message>
+        <source>error.migrate.textGone</source>
+        <translation>The revised version no longer has “%1”.</translation>
+    </message>
+    <message>
+        <source>error.migrate.noAnchor</source>
+        <translation>No line of text could be read near the comment (%1).</translation>
+    </message>
+    <message>
+        <source>error.migrate.anchorGone</source>
+        <translation>The line beside the comment changed: “%1”.</translation>
+    </message>
+    <message>
+        <source>error.migrate.cancelled</source>
+        <translation>The migration from %1 was cancelled.</translation>
+    </message>
+    <message>
+        <source>error.migrate.noComments</source>
+        <translation>%1 has no comments to migrate.</translation>
+    </message>
+    <message>
+        <source>error.migrate.busy</source>
+        <translation>A migration is already running.</translation>
+    </message>
+    <message>
+        <source>error.migrate.targetClosed</source>
+        <translation>The document the comments were going to was closed.</translation>
+    </message>
+    <message>
+        <source>error.clipboard.nothingSelected</source>
+        <translation>No comment is selected.</translation>
+    </message>
+    <message>
+        <source>error.clipboard.malformed</source>
+        <translation>What is on the clipboard is not comments RawPage can read.</translation>
+    </message>
+    <message>
+        <source>error.clipboard.nothingPastable</source>
+        <translation>None of the copied comments can be pasted here.</translation>
     </message>
 </context>
 <context>
@@ -4102,6 +4222,10 @@
         <source>command.attachment.deleteMany</source>
         <translation>Delete %1 Attachments</translation>
     </message>
+    <message>
+        <source>command.annot.import</source>
+        <translation>Import %1 Comments</translation>
+    </message>
 </context>
 <context>
     <name>panes</name>
@@ -4869,6 +4993,90 @@
     <message>
         <source>comments.type.other</source>
         <translation>Annotation</translation>
+    </message>
+    <message>
+        <source>comments.exchange.importTitle</source>
+        <translation>Import Comments</translation>
+    </message>
+    <message>
+        <source>comments.exchange.exportTitle</source>
+        <translation>Export Comments</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateTitle</source>
+        <translation>Migrate Comments from an Earlier Version</translation>
+    </message>
+    <message>
+        <source>comments.exchange.fileFilter</source>
+        <translation>Comment files (*.xfdf *.fdf);;XFDF (*.xfdf);;FDF (*.fdf)</translation>
+    </message>
+    <message>
+        <source>comments.exchange.pdfFilter</source>
+        <translation>PDF documents (*.pdf)</translation>
+    </message>
+    <message>
+        <source>comments.exchange.importSummary</source>
+        <translation>Comments imported: %1 added, %2 replaced, %3 kept, %4 not imported.</translation>
+    </message>
+    <message>
+        <source>comments.exchange.exported</source>
+        <translation>Exported %1 comments to %2.</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateReading</source>
+        <translation>Reading the two versions: %1 of %2 pages…</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateComparing</source>
+        <translation>Aligning the two versions: %1 of %2…</translation>
+    </message>
+    <message>
+        <source>comments.exchange.migrateSummary</source>
+        <translation>Migrated %1 of %2 comments; %3 could not be placed and are listed in the report.</translation>
+    </message>
+    <message>
+        <source>comments.exchange.copied</source>
+        <translation>Copied %1 comments.</translation>
+    </message>
+    <message>
+        <source>comments.exchange.pasted</source>
+        <translation>Pasted %1 comments.</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.added</source>
+        <translation>Added</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.replaced</source>
+        <translation>Replaced</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.kept</source>
+        <translation>Kept: the document's is as new or newer</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.refused</source>
+        <translation>Not imported</translation>
+    </message>
+    <message>
+        <source>comments.exchange.outcome.reported</source>
+        <translation>Not placed</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.comment</source>
+        <translation>Comment</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.page</source>
+        <translation>Page</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.outcome</source>
+        <translation>Result</translation>
+    </message>
+    <message>
+        <source>comments.exchange.column.reason</source>
+        <translation>Why</translation>
     </message>
 </context>
 <context>

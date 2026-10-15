@@ -46,6 +46,17 @@ public:
 
     // Every page `walk` found, in document order. Never fails.
     static core::AnnotationStore::Reading read(cos::XrefTable& table, const PageWalk& walk);
+
+    // ONE ANNOTATION DICTIONARY, read as `read` reads each -- every modelled field, bounded the same way; its
+    // identity and page are the caller's (Stage 6 T13: an FDF's annotations are the same dictionaries, listed by
+    // `/FDF /Annots` rather than by a page, `pdf/ops/FdfCodec`).
+    struct Parsed {
+        core::Annotation annotation;
+        std::optional<long long> pageReference;   // its /P
+        bool nonFiniteRect = false;
+        bool truncated = false;
+    };
+    static Parsed parseDictionary(cos::XrefTable& table, const cos::CosObject& dictionary);
 };
 
 } // namespace rawpage::pdf::ops

@@ -87,6 +87,10 @@ add_executable(rawpage_composition_tests
     # measure-scale.pdf lands exactly on it, through the engine's paths, at 100 and 400 percent), A-90 (calibration
     # through the product) and A-88's product half (the measurements saved and reopened fresh).
     tst_measureproduct.cpp
+    # S6 T13 -- guide A-94 and A-96 through the product (an Acrobat-shaped XFDF imported and saved as shown, a
+    # filtered export read back), A-98 and A-99 (a migration from annots-report-v1.pdf graded on §3.5 from the saved
+    # file), and A-81's paste across documents saved and reopened fresh.
+    tst_exchangeproduct.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp

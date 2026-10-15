@@ -28,6 +28,11 @@ add_library(rawpage_ui STATIC
     shell/DockEdge.cpp
     shell/MainWindow.h
     shell/MainWindow.cpp
+    # S6 T13 (D6-20, D6-21, D6-22): the window's comments in and out -- MainWindow members in a file of their own --
+    # and one migration's run, off the UI thread over the comparison's pipeline.
+    shell/MainWindowExchange.cpp
+    shell/CommentMigration.h
+    shell/CommentMigration.cpp
 
     # The ribbon -- T10. RibbonModel is the declarative layout's parser and is deliberately
     # WIDGET-FREE: tools/ribbon-validate compiles that one file in so the build-time check and the
@@ -278,6 +283,9 @@ add_library(rawpage_ui STATIC
     # Stage 6 T12 (D6-14): the measurement scale from two lengths, and calibration from one measured.
     dialogs/MeasurementScaleDialog.h
     dialogs/MeasurementScaleDialog.cpp
+    # S6 T13: what an import or a migration did, comment by comment. Asks nothing, constructs nothing.
+    dialogs/ExchangeReportDialog.h
+    dialogs/ExchangeReportDialog.cpp
 
     # S2 T14. The password prompt is a DIALOG and the protected banner is not: the prompt is a
     # question the engine asks mid-open and cannot continue without, the banner is a statement about

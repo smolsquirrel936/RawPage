@@ -295,6 +295,27 @@ core::Result<CosObject> AnnotationOps::createdDictionary(const Annotation& annot
     return CosObject::makeDictionary(std::move(entries));
 }
 
+core::Result<CosObject> AnnotationOps::exchangeDictionary(const Annotation& annotation, const ReferenceResolver& resolve)
+{
+    const QLatin1String known = core::annotationSubtypeName(annotation.subtype);
+    const QString subtype = annotation.subtype == core::AnnotationSubtype::Unknown ? annotation.subtypeName
+                                                                                   : QString(known);
+    if (subtype.isEmpty() || !annotation.rectFinite)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pdf.appearanceGeometry"), subtype};
+
+    std::vector<CosObject::Entry> entries{
+        {"Type", CosObject::makeName("Annot")},
+        {"Subtype", CosObject::makeName(subtype.toStdString())},
+    };
+    for (const Field& field : fields()) {
+        if (std::optional<CosObject> value = field.value(annotation, resolve)) entries.push_back({field.key, std::move(*value)});
+    }
+    if (std::optional<CosObject> bs = borderStyleDictionary(nullptr, Annotation{}, annotation))
+        entries.push_back({"BS", std::move(*bs)});
+    entries.push_back({"Page", CosObject::makeInteger(annotation.page)});
+    return CosObject::makeDictionary(std::move(entries));
+}
+
 CosObject AnnotationOps::editedDictionary(const CosObject& onDisk, const Annotation& before, const Annotation& after,
                                          const ReferenceResolver& resolve)
 {

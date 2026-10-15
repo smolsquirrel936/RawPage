@@ -461,7 +461,7 @@ jobs:
       - name: S6 A-23 -- fuzz_annot_pipeline
         run: |
           mkdir -p fuzz-work/annot
-          ./build/portable-fuzz/bin/fuzz_annot_pipeline fuzz-work/annot corpus/ordinary corpus/malformed \
+          ./build/portable-fuzz/bin/fuzz_annot_pipeline fuzz-work/annot corpus/ordinary corpus/malformed corpus/exchange \
               -max_total_time=60 -error_exitcode=1
 
   # =====================================================================================

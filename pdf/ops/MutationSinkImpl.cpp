@@ -422,6 +422,21 @@ void MutationSinkImpl::commitListings(std::map<int, std::vector<ListedEntry>> ch
     }
 }
 
+core::Status MutationSinkImpl::canCreate(const core::Annotation& annotation)
+{
+    // A pop-up and a state reply are drawn by no appearance at all (T6, T9).
+    if (!AppearanceStreamBuilder::drawsNothing(annotation)) {
+        auto appearance = AppearanceStreamBuilder::normal(annotation);
+        if (!appearance) return appearance.error();
+    }
+    // T11: a FileAttachment RawPage creates carries the file it attaches -- there is nothing to write as its /FS
+    // otherwise.
+    if (annotation.subtype == core::AnnotationSubtype::FileAttachment
+        && (!annotation.attachment || !annotation.attachment->carried))
+        return sinkError(core::ErrorCode::InvalidArgument, "error.attachment.noData", annotation.page);
+    return core::Status{};
+}
+
 core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::AnnotationPlacement>& at,
                                                  const std::vector<core::Annotation>& annotations)
 {
@@ -456,17 +471,8 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
                 entry.kind = ListedEntry::Kind::Reference;  // created, and since saved: list that object
                 entry.reference = saved->second;
             } else {
-                // Written new -- so it must be a kind this build can draw (D6-6), asked now, not at save. A
-                // pop-up is drawn by no appearance at all (T6).
-                if (!AppearanceStreamBuilder::drawsNothing(annotation)) {
-                    auto appearance = AppearanceStreamBuilder::normal(annotation);
-                    if (!appearance) return appearance.error();
-                }
-                // T11: a FileAttachment RawPage creates carries the file it attaches -- there is nothing to write
-                // as its /FS otherwise.
-                if (annotation.subtype == core::AnnotationSubtype::FileAttachment
-                    && (!annotation.attachment || !annotation.attachment->carried))
-                    return sinkError(core::ErrorCode::InvalidArgument, "error.attachment.noData", place.page);
+                // Written new -- so it must be a kind this build can draw (D6-6), asked now, not at save.
+                if (core::Status writable = canCreate(annotation); !writable) return writable;
                 entry.kind = ListedEntry::Kind::Created;
                 entry.nm = annotation.id.nm;
                 created.insert_or_assign(entry.nm, annotation);

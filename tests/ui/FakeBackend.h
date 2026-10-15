@@ -17,8 +17,10 @@
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/Destinations.h"
+#include "core/doc/Fdf.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
+#include "core/doc/XfdfCodec.h"
 #include "core/doc/Outline.h"
 #include "core/backend.h"
 #include "core/doc/Page.h"
@@ -322,6 +324,43 @@ public:
         extracted << path;
         return {};
     }
+    // S6 T13 (D6-20): an exchange READ is XFDF only (`core/doc/XfdfCodec` -- an FDF needs `pdf/`, which this target
+    // does not link); a WRITE is recorded, the exchange kept as it was handed over, and XFDF written to the path (an
+    // FDF asked for is written as XFDF too: what the real backend writes is `tests/unit`'s to judge). Writability is
+    // `writable`'s, everything by default.
+    QStringList exchangesRead;
+    struct WrittenExchange {
+        QString path;
+        core::ExchangeFormat format;
+        core::Fdf exchange;
+    };
+    std::vector<WrittenExchange> exchangesWritten;
+    std::function<core::Status(const core::Annotation&)> writable;
+    core::Result<core::Fdf> readAnnotationExchange(const QString& path) override
+    {
+        exchangesRead << path;
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.exchange.unreadable"), path};
+        return core::XfdfCodec::read(file.readAll());
+    }
+    core::Status writeAnnotationExchange(core::DocumentHandle, const core::Fdf& exchange, core::ExchangeFormat format,
+                                         const QString& path, bool overwrite) override
+    {
+        if (QFileInfo::exists(path) && !overwrite)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.exchange.exists"), path};
+        QSaveFile file(path);
+        const QByteArray bytes = core::XfdfCodec::write(exchange);
+        if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.exchange.writeFailed"), path};
+        exchangesWritten.push_back(WrittenExchange{path, format, exchange});
+        return {};
+    }
+    core::Status annotationWritable(const core::Annotation& annotation) const override
+    {
+        return writable ? writable(annotation) : core::Status{};
+    }
+
     // `openBytes` opens as `open()` does, under the name, read-only: the bytes are recorded, not read.
     QList<QByteArray> openedBytes;
     core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,

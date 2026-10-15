@@ -12,8 +12,9 @@
 // JSON round trip -> (T3) `AppearanceStreamBuilder` over every annotation of a kind it draws, the
 // generated stream re-read, and the input itself re-read as a content stream -> (T3) a highlight added
 // to page 1 and every annotation it listed removed, composed by `RevisionWriter` and VERIFIED, as a
-// save would. **T13** adds the XFDF branch, as D6-29 lists; until then that half is not fuzzed, and this
-// comment is where that is said.
+// save would. **T13's EXCHANGE BRANCH** (D6-29 named it): the same bytes read as an exchange file --
+// `pdf/ops/FdfCodec::readEither`, FDF or XFDF by their first bytes, as an import reads a file -- and,
+// where they are one, written back in both syntaxes and read again, and merged into a page.
 //
 // THE INVARIANTS, each one a defect the reader or the store could plausibly have:
 //   * LISTING   -- every listing entry names an annotation that exists, or none; every annotation is
@@ -33,6 +34,11 @@
 //                  `RevisionWriter::verify` accepts. A compose REFUSED is not a finding (a repaired file
 //                  chains to nothing, D3-6); a compose that verify rejects is our writer writing a file
 //                  our reader cannot read back as the sink meant it.
+//   * EXCHANGE  -- (T13) an exchange read is NAMED (every annotation `Created` under a name, the same as its
+//                  `/NM`, within the bound), BOUNDED (`kMaxExchangeCoordinates`, finite), its JSON round-trips;
+//                  written as XFDF and as FDF it reads again with no more annotations than were written, every
+//                  name one it was written under; and merged into an empty page it decides once for each
+//                  annotation, adding each name once, every reference to a name it adds or to nothing.
 //
 // WHAT IS NOT A FINDING: an input the sink cannot walk. That is `fuzz_cos_parser`'s ground.
 
@@ -40,9 +46,12 @@
 #define RAWPAGE_TESTS_FUZZ_ANNOTPIPELINEFUZZBODY_H
 
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/Fdf.h"
+#include "core/doc/XfdfCodec.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
+#include "pdf/ops/FdfCodec.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/RevisionWriter.h"
 
@@ -51,6 +60,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -64,6 +74,67 @@ struct AnnotVerdict {
     std::string failure;
 };
 
+// THE EXCHANGE BRANCH (T13): `bytes` as an import reads a file. Returns the failure, or nothing.
+inline std::optional<std::string> exchangeFuzzOnce(const QByteArray& bytes, std::size_t* annotations = nullptr)
+{
+    core::Result<core::Fdf> read = pdf::ops::FdfCodec::readEither(bytes);
+    if (!read) return std::nullopt;   // refused by key: what a hostile file is owed
+    const core::Fdf& exchange = read.value();
+    if (annotations != nullptr) *annotations = exchange.annotations.size();
+    if (exchange.annotations.size() > core::kMaxExchangeAnnotations) return std::string("an exchange past its bound");
+    std::set<QString> names;
+    for (const core::Annotation& a : exchange.annotations) {
+        // NAMED
+        if (a.id.kind != core::AnnotationId::Kind::Created || a.id.nm.isEmpty() || a.nm != a.id.nm)
+            return std::string("an exchange annotation without its name");
+        if (a.nm.size() > core::kMaxExchangeNameLength + 6) return std::string("an exchange name past its bound");
+        if (!names.insert(a.nm).second) return std::string("an exchange name given twice");
+        // BOUNDED, finite
+        std::size_t numbers = a.quadPoints.size() + a.vertices.size();
+        for (const std::vector<double>& stroke : a.inkList) numbers += stroke.size();
+        if (numbers > core::kMaxExchangeCoordinates) return std::string("exchange geometry not bounded");
+        const auto finite = [](const std::vector<double>& values) {
+            return std::all_of(values.begin(), values.end(), [](double v) { return std::isfinite(v); });
+        };
+        if (!finite(a.quadPoints) || !finite(a.vertices) || !finite(a.line) || !finite(a.color) || !finite(a.callout))
+            return std::string("a non-finite number kept from an exchange");
+        // JSON
+        const core::Result<core::Annotation> back = core::Annotation::fromJson(a.toJson());
+        if (!back || !(back.value() == a)) return std::string("an exchange annotation's JSON round trip changed it");
+    }
+    // WRITTEN BOTH WAYS AND READ AGAIN
+    for (const bool xfdf : {true, false}) {
+        const QByteArray written = xfdf ? core::XfdfCodec::write(exchange) : QByteArray::fromStdString(pdf::ops::FdfCodec::write(exchange));
+        core::Result<core::Fdf> again = pdf::ops::FdfCodec::readEither(written);
+        if (!again) return std::string(xfdf ? "an XFDF we wrote that we cannot read" : "an FDF we wrote that we cannot read");
+        if (again.value().annotations.size() > exchange.annotations.size()) return std::string("an exchange read back with more than it held");
+        if (!xfdf) {
+            for (const core::Annotation& a : again.value().annotations) {
+                if (names.count(a.nm) == 0) return std::string("an FDF read back under a name it was not written under");
+            }
+        }
+    }
+    // MERGED INTO AN EMPTY PAGE
+    core::AnnotationStore::Reading empty;
+    empty.pages.resize(1);
+    const core::AnnotationStore store = core::AnnotationStore::fromReading(std::move(empty));
+    const core::FdfImport plan = store.importFdf(exchange);
+    std::size_t comments = 0;
+    for (const core::Annotation& a : exchange.annotations) comments += a.subtype == core::AnnotationSubtype::Popup ? 0 : 1;
+    if (plan.result.entries.size() != comments) return std::string("a merge that did not decide once for each comment");
+    std::set<QString> added;
+    for (const core::Annotation& a : plan.added) {
+        if (!added.insert(a.id.nm).second) return std::string("a merge that added one name twice");
+    }
+    for (const core::Annotation& a : plan.added) {
+        for (const std::optional<core::AnnotationId>& target : {a.inReplyTo, a.popup, a.parent}) {
+            if (target && (target->kind != core::AnnotationId::Kind::Created || added.count(target->nm) == 0))
+                return std::string("a merge that kept a reference to nothing it added");
+        }
+    }
+    return std::nullopt;
+}
+
 inline AnnotVerdict annotPipelineFuzzOnce(const std::uint8_t* data, std::size_t size)
 {
     AnnotVerdict verdict;
@@ -72,6 +143,11 @@ inline AnnotVerdict annotPipelineFuzzOnce(const std::uint8_t* data, std::size_t 
         verdict.failure = std::move(why);
         return verdict;
     };
+
+    // EXCHANGE (T13) -- before the walk, so a file that is no PDF is fuzzed too.
+    if (const std::optional<std::string> failed =
+            exchangeFuzzOnce(QByteArray(reinterpret_cast<const char*>(data), static_cast<qsizetype>(size))))
+        return fail(*failed);
 
     auto sink = pdf::ops::MutationSinkImpl::open(
         std::string_view(reinterpret_cast<const char*>(data), size));

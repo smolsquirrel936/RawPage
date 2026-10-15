@@ -397,7 +397,7 @@ namespace {
 // created one no annotation of the document already has, listed at the END of its page's listing in the order
 // given -- checked against the model, then the sink, then the model.
 bool addCreated(Document& document, MutationSink& sink, const std::vector<Annotation>& annotations,
-                std::vector<AnnotationPlacement>& placed)
+                std::vector<AnnotationPlacement>& placed, std::optional<Error>* refusal = nullptr)
 {
     const AnnotationStore& store = document.annotations();
     if (!store.status() || annotations.empty() || annotations.size() > Limits::kMaxAnnotations) return false;
@@ -414,7 +414,10 @@ bool addCreated(Document& document, MutationSink& sink, const std::vector<Annota
         placements.push_back(AnnotationPlacement{a.page, position});
     }
 
-    if (!sink.insertAnnotations(placements, annotations)) return false;   // the model is untouched
+    if (Status sunk = sink.insertAnnotations(placements, annotations); !sunk) {   // the model is untouched
+        if (refusal != nullptr) *refusal = sunk.error();
+        return false;
+    }
 
     std::vector<std::pair<AnnotationPlacement, Annotation>> entries;
     entries.reserve(annotations.size());
@@ -1214,6 +1217,138 @@ Result<std::unique_ptr<Command>> LockAnnotationCommand::deserialize(const QJsonO
     const std::optional<std::int64_t> at = parseInstant(json);
     if (!at) return badCommand(kTypeId, QStringLiteral("at"));
     return std::unique_ptr<Command>(new LockAnnotationCommand(std::move(ids).value(), *set, *clear, *at));
+}
+
+// ==========================================================================================
+// ImportAnnotationsCommand (T13)
+// ==========================================================================================
+
+ImportAnnotationsCommand::ImportAnnotationsCommand(std::vector<Annotation> added, std::vector<Annotation> replaced)
+    : added_(std::move(added)), replaced_(std::move(replaced))
+{
+}
+
+CatalogText ImportAnnotationsCommand::name() const
+{
+    return CatalogText{QLatin1String("command.annot.import"), {QString::number(added_.size() + replaced_.size())}};
+}
+
+Scope ImportAnnotationsCommand::scope() const
+{
+    if (!replaced_.empty() && !change_) return Scope::wholeDocument();
+    Scope scope = addedScope(added_);
+    if (change_) scope = scope.merged(changeScope(change_));
+    return scope;
+}
+
+Status ImportAnnotationsCommand::permitted(const Document& document) const
+{
+    if (Status allowed = document.permissions().may(Operation::Annotate); !allowed) return allowed;
+    for (const Annotation& a : added_) {
+        if (Status page = document.permissions().mayAnnotate(a.page); !page) return page;
+    }
+    std::map<AnnotationId, const Annotation*> wanted;
+    for (const Annotation& a : replaced_) wanted.emplace(a.id, &a);
+    return permittedChange(document, idsOf(replaced_), [&wanted](const Annotation& now) {
+        const auto found = wanted.find(now.id);
+        return found == wanted.end() ? std::pair<bool, bool>{false, false} : whatChanges(now, *found->second);
+    });
+}
+
+bool ImportAnnotationsCommand::apply(Document& document, MutationSink& sink)
+{
+    refusal_.reset();
+    if ((added_.empty() && replaced_.empty()) || added_.size() + replaced_.size() > Limits::kMaxAnnotations) return false;
+
+    // What is replaced must be what the document holds, changed only where an edit may change it.
+    std::optional<AnnotationChange> change;
+    if (!replaced_.empty()) {
+        const std::optional<std::vector<Annotation>> before = currentOf(document.annotations(), idsOf(replaced_));
+        if (!before) return false;
+        for (std::size_t i = 0; i < replaced_.size(); ++i) {
+            const Annotation& was = (*before)[i];
+            const Annotation& now = replaced_[i];
+            if (invalidShape(now) || now.subtype != was.subtype || now.page != was.page || now.nm != was.nm) return false;
+        }
+        if (!applyChange(document, sink, AnnotationChange{*before, replaced_}, change, refusal_)) return false;
+    }
+    if (!added_.empty() && !addCreated(document, sink, added_, placed_, &refusal_)) {
+        // Put back what was replaced: a false here means nothing changed.
+        if (change) (void)revertChange(document, sink, change);
+        return false;
+    }
+    change_ = std::move(change);
+    return true;
+}
+
+bool ImportAnnotationsCommand::revert(Document& document, MutationSink& sink)
+{
+    if (!added_.empty() && !removeCreated(document, sink, added_, placed_)) return false;
+    if (change_ && !revertChange(document, sink, change_)) {
+        // The listing apply() left is gone again; put the added ones back, so a false here changes nothing.
+        if (!added_.empty()) (void)addCreated(document, sink, added_, placed_);
+        return false;
+    }
+    return true;
+}
+
+QJsonObject ImportAnnotationsCommand::serialize() const
+{
+    QJsonArray added;
+    for (const Annotation& a : added_) added.append(a.toJson());
+    QJsonArray replaced;
+    for (const Annotation& a : replaced_) replaced.append(a.toJson());
+    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                       {QStringLiteral("added"), added},
+                       {QStringLiteral("replaced"), replaced}};
+}
+
+Result<std::unique_ptr<Command>> ImportAnnotationsCommand::deserialize(const QJsonObject& json)
+{
+    if (!typeIs(json, kTypeId)) return badCommand(kTypeId, QStringLiteral("type"));
+    const QJsonValue addedValue = json.value(QStringLiteral("added"));
+    const QJsonValue replacedValue = json.value(QStringLiteral("replaced"));
+    if (!addedValue.isArray() || !replacedValue.isArray()) return badCommand(kTypeId, QStringLiteral("annotations"));
+    const QJsonArray addedArray = addedValue.toArray();
+    const QJsonArray replacedArray = replacedValue.toArray();
+    const auto total = static_cast<std::size_t>(addedArray.size()) + static_cast<std::size_t>(replacedArray.size());
+    if (total == 0 || total > Limits::kMaxAnnotations) return badCommand(kTypeId, QStringLiteral("annotations"));
+
+    std::vector<Annotation> added;
+    added.reserve(static_cast<std::size_t>(addedArray.size()));
+    std::set<QString> names;
+    for (const QJsonValue item : addedArray) {
+        if (!item.isObject()) return badCommand(kTypeId, QStringLiteral("annotation"));
+        auto annotation = Annotation::fromJson(item.toObject());
+        if (!annotation) return badCommand(kTypeId, QStringLiteral("annotation"));
+        if (const std::optional<QString> invalid = invalidCreated(annotation.value())) return badCommand(kTypeId, *invalid);
+        if (!names.insert(annotation.value().id.nm).second) return badCommand(kTypeId, QStringLiteral("annotation.id"));
+        added.push_back(std::move(annotation).value());
+    }
+    std::vector<Annotation> replaced;
+    replaced.reserve(static_cast<std::size_t>(replacedArray.size()));
+    std::set<AnnotationId> ids;
+    for (const QJsonValue item : replacedArray) {
+        if (!item.isObject()) return badCommand(kTypeId, QStringLiteral("annotation"));
+        auto annotation = Annotation::fromJson(item.toObject());
+        if (!annotation) return badCommand(kTypeId, QStringLiteral("annotation"));
+        if (const std::optional<QString> invalid = invalidShape(annotation.value())) return badCommand(kTypeId, *invalid);
+        if (!ids.insert(annotation.value().id).second) return badCommand(kTypeId, QStringLiteral("annotation.id"));
+        replaced.push_back(std::move(annotation).value());
+    }
+    return std::unique_ptr<Command>(new ImportAnnotationsCommand(std::move(added), std::move(replaced)));
+}
+
+ImportCheck importCheck(const Document& document, std::function<Status(const Annotation&)> writable)
+{
+    return [&document, writable = std::move(writable)](const Annotation& a) -> Status {
+        // The shape a command carries: what `apply()` and the journal's parser would refuse, refused one by one.
+        const std::optional<QString> invalid = a.id.kind == AnnotationId::Kind::Created ? invalidCreated(a) : invalidShape(a);
+        if (invalid) return Error{ErrorCode::InvalidArgument, QLatin1String("error.exchange.geometry"), *invalid};
+        if (Status page = document.permissions().mayAnnotate(a.page); !page) return page;
+        if (writable) return writable(a);
+        return Status{};
+    };
 }
 
 } // namespace rawpage::core

@@ -36,6 +36,7 @@
 
 #include "core/Result.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/Fdf.h"
 #include "core/doc/Permissions.h"
 
 #include <QByteArray>
@@ -230,6 +231,18 @@ public:
     // place -- drops the digest of each annotation it replaces. Measured at Stage 6 T3: hashing `annots-900.pdf`'s 9,000 annotations' JSON took 78 ms,
     // and `CommandJournal::run` hashes the model before EVERY command -- one highlight took 80 ms.
     const QByteArray& annotationDigest(std::size_t index) const;
+
+    // --- Exchange (Stage 6 T13, D6-20) -- defined in `core/doc/Fdf.cpp`, beside the exchange model -------------
+    // WHAT AN IMPORT OF `exchange` INTO THIS DOCUMENT WILL DO -- added, replaced, kept, refused, and why (the merge
+    // `core/doc/Fdf.h` states). Changes nothing: the caller hands `added` and `replaced` to ONE
+    // `ImportAnnotationsCommand`. `check` is asked of every annotation the import would write; a refusal is that
+    // annotation's, never the import's.
+    FdfImport importFdf(const Fdf& exchange, const ImportCheck& check = {}) const;
+    // THE ANNOTATIONS `items` NAME (indices into `all()`), EACH WITH ITS THREAD (`threadOf`), as an exchange carries
+    // them -- by name, references by name, pages as indices -- in document order, once each. Only comments
+    // (`isCommentSubtype`); a sound is left out and noted (its payload is not the model's). `sources` says where each
+    // came from.
+    Fdf exportFdf(const std::vector<std::size_t>& items) const;
 
 private:
     void reindex();

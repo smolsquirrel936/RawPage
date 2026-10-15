@@ -89,6 +89,9 @@ add_executable(rawpage_render_tests
     tst_measuregeometry.cpp       # Stage 6 T12 -- guide A-89's engine half and A-91 (D6-14): a page's paths read
                                   #   by PDFium against the generator's segments, a form's matrix and a curve's
                                   #   anchors, the 100,000-segment bound, and the read as an engine task, once
+    tst_migratecorpus.cpp         # Stage 6 T13 -- guide A-98, A-99 (D6-21): annots-report-v1.pdf's comments carried
+                                  #   to compare/report-v2.pdf over the engine's text and Stage 5's alignment, graded on
+                                  #   §3.5 against labels/annots-migration.json
     # The appearance cases' spec and page builder (tests/golden/AppearanceCases), compiled in -- the golden
     # suite and golden-update read the same one.
     ${CMAKE_SOURCE_DIR}/tests/golden/AppearanceCases.cpp

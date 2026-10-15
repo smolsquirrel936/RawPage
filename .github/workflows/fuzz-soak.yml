@@ -73,7 +73,7 @@ jobs:
             seeds: corpus/labels
           # Stage 6 T2 (D6-29, S6 guide A-23): the annotation reader and store.
           - target: fuzz_annot_pipeline
-            seeds: corpus/ordinary corpus/malformed
+            seeds: corpus/ordinary corpus/malformed corpus/exchange   # S6 T13: the exchange branch's seeds
     env:
       SOAK_SECONDS: ${{ github.event.inputs.seconds || '600' }}
     steps:

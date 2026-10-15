@@ -45,10 +45,12 @@
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/Fdf.h"
 #include "core/text/SearchEngine.h"
 #include "ui/dialogs/CompareDialog.h"
 #include "ui/dialogs/CustomStampDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
+#include "ui/dialogs/ExchangeReportDialog.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 
@@ -77,6 +79,7 @@ class AnnotationOverlay;
 class BookmarksPane;
 class AttachmentsPane;
 class CommentsPane;
+class CommentMigration;
 class ComparisonView;
 class DestinationsPane;
 class LogPane;
@@ -343,6 +346,45 @@ public:
     using MeasurementScaleAnswer = std::function<bool(MeasurementScaleDialog&)>;
     static void setMeasurementScaleAnswerForTesting(MeasurementScaleAnswer answer);
 
+    // ---- COMMENTS IN AND OUT (S6 T13, D6-20, D6-21, D6-22) -------------------------------------------------
+    // Defined in `ui/shell/MainWindowExchange.cpp`. Each over the tab in front, each reachable from the ribbon, the tool
+    // finder and a case alike, each a command where it changes the document -- and none asks a person where nobody can
+    // be asked (convention 16).
+    //
+    // IMPORT: the FDF or XFDF chosen (or `path`), merged into the tab by `/NM` (`AnnotationStore::importFdf`) as ONE
+    // `ImportAnnotationsCommand` -- the counts on the status bar, and the report shown when anything was not brought
+    // over. A file the backend refuses imports nothing and is said, by key.
+    core::Result<core::MergeResult> importComments();
+    core::Result<core::MergeResult> importCommentsFrom(const QString& path);
+    // EXPORT: what the Comments pane lists -- everything, unless the pane is filtered (D6-20's *export only the
+    // filtered*) -- with each one's thread, to the file chosen, its format by its suffix, written by the backend.
+    core::Status exportComments();
+    core::Status exportCommentsTo(const QString& path);
+    // MIGRATE: the older revision chosen (or `olderPath`) opened, both documents' text read and aligned off the UI
+    // thread (`CommentMigration`), and what lands merged into the tab as ONE `ImportAnnotationsCommand`, the report
+    // shown. Returns once the run has STARTED; `migrationFinished` says when it is done.
+    core::Status migrateComments();
+    core::Status migrateCommentsFrom(const QString& olderPath);
+    CommentMigration* migration() const;
+    // COPY, CUT, PASTE ANNOTATIONS (D6-22): the selected annotations -- with their pop-ups -- on the clipboard under
+    // `kAnnotationsMimeType`, and their words as text; a cut is that and ONE `DeleteAnnotationCommand`; a paste adds them
+    // to the page in front, where they were when the page is the size theirs was, else round the middle of what is
+    // shown -- each a new `/NM`, everything else as copied -- as ONE `AddAnnotationCommand`.
+    static constexpr const char* kAnnotationsMimeType = "application/x-rawpage-annotations";
+    core::Status copyAnnotations();
+    core::Status cutAnnotations();
+    core::Status pasteAnnotations(const QByteArray& payload);
+    // What the last import or migration reported, for a case; the dialog shows it where a person can see it.
+    const std::optional<ExchangeReport>& lastExchangeReport() const noexcept { return lastExchangeReport_; }
+    // What a headless case answers in place of the three file questions. An empty member asks the person -- or, with
+    // nobody to ask, answers nothing.
+    struct ExchangeAnswers {
+        std::function<std::optional<QString>()> importPath;
+        std::function<std::optional<QString>(const QString& proposed)> exportPath;
+        std::function<std::optional<QString>()> migratePath;
+    };
+    static void setExchangeAnswersForTesting(ExchangeAnswers answers);
+
     // ---- THE SIDEBAR AS ONE OPAQUE STRING (S4 T13, D4-9) -------------------------------------
     // What `core::SessionWindow::paneLayout` holds, encoded and decoded HERE because it is a Qt
     // fact about widgets -- which dock edge, how wide, which pane in front -- and `core/` is not
@@ -402,6 +444,11 @@ public:
     PageView*           currentView() const;
     ThemeManager*       theme() const { return theme_.get(); }
 
+signals:
+    // S6 T13: a migration started by `migrateCommentsFrom` has ended -- merged, refused or cancelled. What it did is
+    // `lastExchangeReport()` and the status bar.
+    void migrationFinished();
+
 protected:
     // Activation is what `activeShell()` follows. Offscreen it may never arrive, which is why
     // `raiseToForeground()` sets the same state directly -- a test that raises a window must get
@@ -435,6 +482,10 @@ private:
     // S6 T11: the Attachments pane's.
     void registerAttachmentActions();
     std::optional<QString> askAttachPath();
+    // S6 T13: import, export, migrate, and the annotations' half of cut, copy and paste.
+    void registerExchangeActions();
+    void onMigrationFinished();
+    void showExchangeReport(ExchangeReport report);
     void updateCommentNumbers();
     void revealComment(const core::AnnotationId& id, int page, const core::PdfRect& rect);
     void updateAutoHideStrips();
@@ -573,6 +624,10 @@ private:
     StampPalettePane* stampPalette_ = nullptr;   // S6 T10
     // S5 T13: an owned window, deleted on close -- so a guarded pointer, never a raw one.
     QPointer<ComparisonView> comparison_;
+    // S6 T13: the migration in flight, and the tab it lands in; the last import's or migration's report.
+    QPointer<CommentMigration> migration_;
+    QPointer<DocumentWindow> migrationTarget_;
+    std::optional<ExchangeReport> lastExchangeReport_;
     StatusBar*   status_ = nullptr;
     MessageBar*  messageBar_ = nullptr;
 

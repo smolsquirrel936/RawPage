@@ -70,6 +70,11 @@ public:
                                                           std::optional<cos::CosRef> appearance,
                                                           const ReferenceResolver& resolve = objectReferences());
 
+    // THE SAME DICTIONARY AS AN FDF CARRIES IT (Stage 6 T13, D6-20): every modelled field from the same table, its
+    // page as `/Page` -- the 0-based index ISO 32000-1 Table 247 gives an FDF annotation -- and no `/P` and no `/AP`.
+    static core::Result<cos::CosObject> exchangeDictionary(const core::Annotation& annotation,
+                                                           const ReferenceResolver& resolve);
+
     // D6-5, as above: `onDisk` with only the keys of the fields that differ between `before` and `after`
     // overwritten -- or removed, where `after` no longer has the field. A stream stays a stream.
     static cos::CosObject editedDictionary(const cos::CosObject& onDisk, const core::Annotation& before,

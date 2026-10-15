@@ -110,6 +110,13 @@ public:
     core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
                                                  const core::PasswordCallback& password) override;
 
+    // S6 T13 (D6-20). Both files through `pdf/ops/FdfCodec` -- an export's FileAttachments given their bytes by
+    // `attachmentData` first -- and the writability the sink asks, `MutationSinkImpl::canCreate`.
+    core::Result<core::Fdf> readAnnotationExchange(const QString& path) override;
+    core::Status writeAnnotationExchange(core::DocumentHandle document, const core::Fdf& exchange,
+                                         core::ExchangeFormat format, const QString& path, bool overwrite) override;
+    core::Status annotationWritable(const core::Annotation& annotation) const override;
+
     // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
     // per page -- the one reader on this interface that is not hydrated at open, and the header of
     // `core/backend.h` says why.

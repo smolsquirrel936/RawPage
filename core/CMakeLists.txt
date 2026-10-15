@@ -176,6 +176,14 @@ add_library(rawpage_core STATIC
     doc/Stamps.cpp
     doc/Attachments.h
     doc/Attachments.cpp
+    # Stage 6 T13 (D6-20, D6-21): the exchange model and its merge, XFDF (QtCore's QXmlStreamReader, no DTD ever),
+    # and the migration of comments to a revised document over Stage 5's alignment. Pure; FDF is pdf/ops/FdfCodec's.
+    doc/Fdf.h
+    doc/Fdf.cpp
+    doc/XfdfCodec.h
+    doc/XfdfCodec.cpp
+    doc/CommentMigrator.h
+    doc/CommentMigrator.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

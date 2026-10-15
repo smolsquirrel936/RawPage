@@ -4,10 +4,12 @@
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/DocumentId.h"
+#include "core/doc/Fdf.h"
 #include "core/doc/Permissions.h"
 #include "core/text/SearchUnit.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AttachmentFiles.h"
+#include "pdf/ops/FdfCodec.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/MutationSinkImpl.h"
@@ -444,6 +446,37 @@ core::Result<QByteArray> DocumentBackendImpl::attachmentData(core::DocumentHandl
     auto opened = cos::openWithRepair(std::string_view(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size())));
     if (!opened) return opened.error();
     return ops::AttachmentFiles::read(opened.value().table, attachment);
+}
+
+core::Result<core::Fdf> DocumentBackendImpl::readAnnotationExchange(const QString& path)
+{
+    core::Result<core::Fdf> read = ops::FdfCodec::readFile(path);
+    if (read) {
+        RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+            << "backend: read" << static_cast<int>(read.value().annotations.size()) << "annotation(s) from" << path << "("
+            << static_cast<int>(read.value().notes.size()) << "note(s))";
+    }
+    return read;
+}
+
+core::Status DocumentBackendImpl::writeAnnotationExchange(core::DocumentHandle document, const core::Fdf& exchange,
+                                                          core::ExchangeFormat format, const QString& path, bool overwrite)
+{
+    core::Fdf carried = exchange;
+    const core::Status filled = ops::FdfCodec::carryFiles(carried, [this, document](const core::AnnotationId& id) {
+        return attachmentData(document, core::AttachmentRef::ofAnnotation(id));
+    });
+    if (!filled) return filled;
+    if (const core::Status written = ops::FdfCodec::writeFile(carried, format, path, overwrite); !written) return written;
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+        << "backend: wrote" << static_cast<int>(carried.annotations.size()) << "annotation(s) of handle"
+        << static_cast<int>(document.id) << "to" << path;
+    return core::Status{};
+}
+
+core::Status DocumentBackendImpl::annotationWritable(const core::Annotation& annotation) const
+{
+    return ops::MutationSinkImpl::canCreate(annotation);
 }
 
 core::Status DocumentBackendImpl::extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,

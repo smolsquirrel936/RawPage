@@ -170,7 +170,7 @@ std::optional<core::MeasureDictionary> measureOf(cos::XrefTable& table, const Co
     return out;
 }
 
-struct Parsed {
+struct ParsedEntry {
     Annotation annotation;
     core::AnnotationFact fact;
     std::optional<long long> pageReference;   // its /P
@@ -178,9 +178,9 @@ struct Parsed {
     bool truncated = false;
 };
 
-Parsed parse(cos::XrefTable& table, const CosObject& d)
+ParsedEntry parse(cos::XrefTable& table, const CosObject& d)
 {
-    Parsed out;
+    ParsedEntry out;
     Annotation& a = out.annotation;
     out.fact.dictionary = true;
 
@@ -416,7 +416,7 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
                     reading.pages[pageIndex].push_back(listed);
                     continue;
                 }
-                Parsed parsed = parse(table, object.value().object);
+                ParsedEntry parsed = parse(table, object.value().object);
                 parsed.annotation.id = core::AnnotationId::ofObject(number);
                 parsed.annotation.page = page;
                 if (parsed.nonFiniteRect) note(AnnotationNoteKind::NonFiniteRect, page, number);
@@ -429,7 +429,7 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
                 facts.push_back(parsed.fact);
                 reading.annotations.push_back(std::move(parsed.annotation));
             } else if (entry.isDictionary()) {
-                Parsed parsed = parse(table, entry);
+                ParsedEntry parsed = parse(table, entry);
                 parsed.annotation.id = core::AnnotationId::ofDirect(page, static_cast<int>(position));
                 parsed.annotation.page = page;
                 if (parsed.nonFiniteRect) note(AnnotationNoteKind::NonFiniteRect, page, -1);
@@ -465,6 +465,12 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
         if (annotation) note(AnnotationNoteKind::Unlisted, -1, number);
     }
     return reading;
+}
+
+AnnotationReader::Parsed AnnotationReader::parseDictionary(cos::XrefTable& table, const cos::CosObject& dictionary)
+{
+    ParsedEntry entry = parse(table, dictionary);
+    return Parsed{std::move(entry.annotation), entry.pageReference, entry.nonFiniteRect, entry.truncated};
 }
 
 } // namespace rawpage::pdf::ops

@@ -1834,12 +1834,25 @@ void MainWindow::registerViewerActions()
             return document ? document->selection() : nullptr;
         };
 
+        // S6 T13 (D6-22): SELECTED ANNOTATIONS come first -- a person who clicked a comment and pressed `Ctrl+C` means
+        // the comment -- and the text selection otherwise, as at S5 T5.
+        const auto annotationsInFront = []() -> AnnotationOverlay* {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            AnnotationOverlay* overlay = document ? document->annotations() : nullptr;
+            return overlay != nullptr && overlay->hasSelection() ? overlay : nullptr;
+        };
         if (!services_.actions.isRegistered(ActionId::EditCopy)) {
             core::ActionRegistry::Registration copy;
-            copy.handler = [selectionInFront](KeyContext) {
+            copy.handler = [selectionInFront, annotationsInFront](KeyContext) {
+                if (annotationsInFront() != nullptr) {
+                    if (MainWindow* window = activeShell()) (void)window->copyAnnotations();
+                    return;
+                }
                 if (SelectionOverlay* selection = selectionInFront()) (void)selection->copy();
             };
-            copy.enable = [selectionInFront] {
+            copy.enable = [selectionInFront, annotationsInFront] {
+                if (annotationsInFront() != nullptr) return true;
                 const SelectionOverlay* selection = selectionInFront();
                 return selection != nullptr && selection->hasSelection();
             };
@@ -2966,6 +2979,8 @@ void MainWindow::registerActions()
     registerAnnotationActions();
     registerCommentActions();
     registerAttachmentActions();
+    // S6 T13: comments in and out, and the annotations' cut.
+    registerExchangeActions();
 
     // --- Undo, redo, rotate, save (Stage 3 T10) -----------------------------------------------
     registerMutationActions();
@@ -3706,23 +3721,31 @@ void MainWindow::registerAnnotationActions()
     // `edit.paste` (S6 T10, D6-22's image half): an IMAGE on the clipboard placed as an image stamp in the middle
     // of what the tab in front shows -- one command. A Common row, so it consumes `Ctrl+V` wherever the key falls
     // through to Common, and every text widget keeps its own: `ShortcutBinder` offers the key to the focused widget
-    // first, and an editable one claims Paste (guide A-81, Stage 5's I-04 turned round). DISABLED with no image on
-    // the clipboard; annotations copied there are T13's.
+    // first, and an editable one claims Paste (guide A-81, Stage 5's I-04 turned round). DISABLED with nothing it can
+    // paste on the clipboard. S6 T13: ANNOTATIONS copied there come first (`pasteAnnotations`) -- RawPage's own type,
+    // from this process or another.
     if (!services_.actions.isRegistered(ActionId::EditPaste)) {
         core::ActionRegistry::Registration paste;
         paste.handler = [](KeyContext) {
             MainWindow* window = activeShell();
             const QClipboard* clipboard = QGuiApplication::clipboard();
             const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
-            if (window == nullptr || held == nullptr || !held->hasImage()) return;
-            if (const core::Status pasted = window->pasteImage(qvariant_cast<QImage>(held->imageData())); !pasted && window->status_)
+            if (window == nullptr || held == nullptr) return;
+            core::Status pasted;
+            if (held->hasFormat(QLatin1String(kAnnotationsMimeType)))
+                pasted = window->pasteAnnotations(held->data(QLatin1String(kAnnotationsMimeType)));
+            else if (held->hasImage())
+                pasted = window->pasteImage(qvariant_cast<QImage>(held->imageData()));
+            else
+                return;
+            if (!pasted && window->status_)
                 window->status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
                                                 .arg(catalog::translateError(QString(pasted.error().messageKey), pasted.error().context)));
         };
         paste.enable = [hasView] {
             const QClipboard* clipboard = QGuiApplication::clipboard();
             const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
-            return hasView() && held != nullptr && held->hasImage();
+            return hasView() && held != nullptr && (held->hasImage() || held->hasFormat(QLatin1String(kAnnotationsMimeType)));
         };
         paste.unavailableKey = "shell.tooltip.needsClipboardImage";
         services_.actions.register_(ActionId::EditPaste, std::move(paste));

@@ -2,7 +2,8 @@
 // of the eleven `Stage6-Annotations-Plan.md` §4 names, `AddAnnotationCommand` and
 // `DeleteAnnotationCommand`; T5 the four that change annotations IN PLACE -- `EditAnnotationCommand`,
 // `MoveAnnotationCommand`, `SetAnnotationAppearanceCommand` and `LockAnnotationCommand`; T9 the two that
-// answer one -- `ReplyToAnnotationCommand` and `SetAnnotationStatusCommand` -- and import arrives with T13.
+// answer one -- `ReplyToAnnotationCommand` and `SetAnnotationStatusCommand` -- and T13 the import that does both an add
+// and an edit as one step, `ImportAnnotationsCommand`: the eleventh of §4's names, and the last.
 //
 // ===========================================================================================
 // A CHANGE IN PLACE IS A BEFORE AND AN AFTER (T5)
@@ -52,6 +53,7 @@
 #include "core/Result.h"
 #include "core/cmd/Command.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/Fdf.h"
 #include "core/settings/CommentingTypes.h"
 
 #include <cstddef>
@@ -367,6 +369,53 @@ private:
     std::vector<Annotation> states_;
     std::vector<AnnotationPlacement> placed_;
 };
+
+// ---- Stage 6 T13: an import (D6-20, D6-21) -----------------------------------------------------------------------
+// IMPORTS annotations -- an FDF or XFDF file merged, or comments migrated from another revision -- as ONE command and
+// one undo step (D6-1): it ADDS what `added` holds, each a `Created` annotation no annotation of the document already
+// has, at the end of its page's listing as `AddAnnotationCommand` adds, and REPLACES IN PLACE what `replaced` holds,
+// each matched by identity as `EditAnnotationCommand` replaces -- the identity, the subtype, the page and the `/NM`
+// unchanged. WHAT to add and replace is `AnnotationStore::importFdf`'s merge, decided before the command exists (and
+// `core/doc/CommentMigrator`'s, for a migration); the command checks its own promises again in `apply()` and in its
+// parser, because a journal line is bytes on a disk. Replaced first, added second, so an added pop-up and the
+// replaced parent that names it arrive in one compose; a failure part-way puts back what was done.
+class ImportAnnotationsCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"annot.import"};
+
+    ImportAnnotationsCommand(std::vector<Annotation> added, std::vector<Annotation> replaced);
+
+    const std::vector<Annotation>& added() const noexcept { return added_; }
+    const std::vector<Annotation>& replaced() const noexcept { return replaced_; }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.annot.import: %1 -- how many were added and replaced
+    Scope scope() const override;           // the added annotations' pages, and the replaced ones' rectangles
+    Operation operation() const override { return Operation::Annotate; }
+    Status permitted(const Document& document) const override;   // + each page, + D6-27 for each replacement
+
+    std::optional<Error> refusal() const override { return refusal_; }
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "annot.import", "added": [ {...}, ... ], "replaced": [ {...}, ... ]} -- either may be empty, not both.
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<Annotation> added_;
+    std::vector<Annotation> replaced_;
+    std::vector<AnnotationPlacement> placed_;
+    std::optional<AnnotationChange> change_;
+    std::optional<Error> refusal_;   // the sink's, when it refused the last apply
+};
+
+// THE CHECK AN IMPORT ASKS OF EACH ANNOTATION IT WOULD WRITE (`AnnotationStore::importFdf`'s `ImportCheck`): the shape
+// a command carries -- a finite rectangle and geometry, colours in range, a bounded name, a drawable dash (refused by
+// `error.exchange.geometry`, the field named) -- the document's permission for its page (D6-3), and `writable`: the
+// backend's answer, whether this build can write it (`IDocumentBackend::annotationWritable`). Asked one by one, so a
+// file holding one comment this build cannot write imports the rest.
+ImportCheck importCheck(const Document& document, std::function<Status(const Annotation&)> writable);
 
 // D6-27, as `permitted()` asks it: may `annotation` be changed this way? `properties` is anything but its
 // text, `contents` its text. Refused by key, the page named (1-based): `error.edit.annotationReadOnly`,

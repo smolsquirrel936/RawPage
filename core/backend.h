@@ -94,6 +94,8 @@ struct AnnotationPlacement;  // core/doc/Annotation.h      -- Stage 6 T3
 class Attachments;           // core/doc/Attachments.h     -- Stage 6 T11 (D6-17)
 struct AttachmentRef;        // core/doc/Attachments.h     -- Stage 6 T11
 struct DocumentAttachment;   // core/doc/Attachments.h     -- Stage 6 T11
+struct Fdf;                  // core/doc/Fdf.h             -- Stage 6 T13 (D6-20)
+enum class ExchangeFormat : std::uint8_t;   // core/doc/Fdf.h -- Stage 6 T13
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -534,6 +536,25 @@ public:
     // -- while a Save As writes it, unchanged, to a file of its own: the tab is read-only until then.
     virtual Result<DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
                                              const PasswordCallback& password) = 0;
+
+    // COMMENTS IN AND OUT -- Stage 6 T13 (D6-20). FDF is PDF syntax, so its reader and writer are `pdf/`'s
+    // (`pdf/ops/FdfCodec`); XFDF is XML, `core/doc/XfdfCodec`'s -- and both FILES go through here, so the one read and
+    // the one write of an exchange are the layer's that owns the format, and the write needs no layer-lint waiver.
+    //
+    // `readAnnotationExchange`: `path`'s comments, either syntax, told by the file's first bytes. Refused by key for
+    // a file that is neither, too large, malformed, or an XFDF with a document type declaration (never resolved).
+    // Needs no document: what the comments are is the file's; where they go is `AnnotationStore::importFdf`'s.
+    virtual Result<Fdf> readAnnotationExchange(const QString& path) = 0;
+    // `writeAnnotationExchange`: `exchange` written to `path` in `format` -- each FileAttachment's file with its
+    // bytes, read from `document` where the exchange does not carry them (`Fdf::sources` says which annotation each
+    // came from). A file already at `path` is replaced only when `overwrite` (`error.exchange.exists`).
+    virtual Status writeAnnotationExchange(DocumentHandle document, const Fdf& exchange, ExchangeFormat format,
+                                           const QString& path, bool overwrite) = 0;
+    // WHETHER THIS BUILD CAN WRITE `annotation` AS A NEW ONE -- the question the sink asks before it lists one
+    // (`MutationSink::insertAnnotations`), asked BEFORE a command exists: an import, a migration and a paste refuse
+    // the one comment that cannot be written and keep the rest, rather than failing whole at the sink. Refused by the
+    // builder's key (`error.pdf.appearanceUnsupported`, `error.edit.stampNotRedrawable` …).
+    virtual Status annotationWritable(const Annotation& annotation) const = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it

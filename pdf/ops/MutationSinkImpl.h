@@ -143,6 +143,10 @@ public:
     int desiredRotation(int pageIndex) const;
 
     // --- Annotations (Stage 6 T3) --------------------------------------------------------------
+    // Whether a CREATED annotation can be written new: a kind this build draws (D6-6) or one with no appearance at
+    // all, and a FileAttachment carrying its file. What `insertAnnotations` asks of each, and -- Stage 6 T13 -- what
+    // `IDocumentBackend::annotationWritable` answers before a command exists.
+    static core::Status canCreate(const core::Annotation& annotation);
     core::Status insertAnnotations(const std::vector<core::AnnotationPlacement>& at,
                                    const std::vector<core::Annotation>& annotations) override;
     core::Status removeAnnotations(const std::vector<core::AnnotationPlacement>& at) override;

@@ -162,6 +162,10 @@ add_executable(rawpage_ui_tests
     tst_measuretool.cpp        # Stage 6 T12 -- the measuring tools from mouse and key events: four kinds, a snap three
                                #   device pixels off landing exactly at two zooms (A-89), calibration (A-90), the dense
                                #   page said once (A-91), the comment and the history (A-92), the scale dialog
+    tst_exchange.cpp           # Stage 6 T13 -- annotations cut, copied and pasted from key events, across tabs and as
+                               #   bytes alone; text fields keeping their own Ctrl+X (A-81); export what the pane
+                               #   lists (A-96); an import as one command and its report; the file questions disabled
+                               #   where nobody can be asked (convention 16)
 
     # S5 T13 -- the comparison as a window driven by key events over two fake documents (guide A-103, and
     # the widget halves of A-106 and A-107): Ctrl+Alt+C through the binder with an answer installed, the

@@ -91,6 +91,13 @@ add_executable(rawpage_tests
                                   #   (A-87), /Measure written and read back and the corpus's read (A-88),
                                   #   calibration's ratio (A-90's arithmetic), the reading in /Contents and a
                                   #   dimension's leaders (A-92), a self-intersecting area refused by name
+    tst_fdf.cpp                   # Stage 6 T13 -- comments as FDF and XFDF: the corpus round trip saved and
+                                  #   reopened (A-93), the Acrobat-shaped files against their labels (A-94), the
+                                  #   merge by /NM and its one undo (A-95), a filtered export (A-96), a hostile
+                                  #   XFDF refused by key in bounded time (A-97)
+    tst_migrate.cpp               # Stage 6 T13 -- comments carried to a revision over synthetic pages: markup by
+                                  #   the words it covers, a note by its nearest line, a thread with its comment,
+                                  #   and what cannot be placed reported and never placed (A-98, A-99 headless)
 
     # S4 T12 -- core/render/FitPolicy (D4-14), which closes Stage 2's I-28. HEADLESS for the same
     # reason tst_snap is: which rectangle a fit measures and what zoom satisfies it are arithmetic,

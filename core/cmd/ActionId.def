@@ -417,6 +417,9 @@ RAWPAGE_ACTION(CommentEditInPlace,     "comment.editInPlace",     Comments, "act
 // everything matching the current filter* (`Features.md` §4.2) and *number comments sequentially*.
 RAWPAGE_ACTION(CommentDeleteMatching,  "comment.deleteMatching",  Global,   "action.comment.deleteMatching")
 RAWPAGE_ACTION(CommentNumbering,       "comment.numbering",       Global,   "action.comment.numbering")
+// MINTED at Stage 6 T13 (D6-21, one of §4's candidates), chordless: *migrate comments to a revised document*
+// (`Features.md` §4.2) -- the older revision chosen, its comments carried into the tab in front.
+RAWPAGE_ACTION(CommentMigrate,         "comment.migrate",         Global,   "action.comment.migrate")
 // MINTED at Stage 6 T11 (D6-17), chordless: the Attachments pane's four commands -- `Features.md` §4.2's *attach a
 // file to the document as a whole, via the Attachments pane*, and the open and extract D6-17 specifies. No §8 table
 // names them, and no `Attachments` key context exists, so they are Global rows reached from the pane and the finder.

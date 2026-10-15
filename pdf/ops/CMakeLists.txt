@@ -53,6 +53,11 @@ add_library(rawpage_ops STATIC
     AnnotationOps.cpp
     AppearanceStreamBuilder.h
     AppearanceStreamBuilder.cpp
+
+    # S6 T13 (D6-20): FDF, which is PDF syntax and so read with pdf/cos/'s repair scan and AnnotationReader's own
+    # dictionary parse -- and the one read and one write of an exchange FILE, either syntax (XFDF is core/doc/'s).
+    FdfCodec.h
+    FdfCodec.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

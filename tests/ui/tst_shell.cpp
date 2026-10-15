@@ -187,10 +187,18 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // Stage 1, and two MINTED chordless -- `annot.dimension` (a dimension callout) and `annot.measureCalibrate`; 386
     // ids are declared.
     //
+    // **Four more at Stage 6 T13** (D6-20, D6-21, D6-22): `comment.import` and `comment.export`, declared at Stage
+    // 1, `edit.cut` -- §8's Common `Ctrl+X`, annotations cut -- and the migration MINTED chordless,
+    // `comment.migrate`; 387 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 167);
+    CHECK(fixture.actions.registeredCount() == 171);
+    CHECK(fixture.actions.isRegistered(core::ActionId::CommentImport));          // S6 T13
+    CHECK(fixture.actions.isRegistered(core::ActionId::CommentExport));          // S6 T13
+    CHECK(fixture.actions.isRegistered(core::ActionId::CommentMigrate));         // S6 T13
+    CHECK(fixture.actions.isRegistered(core::ActionId::EditCut));                // S6 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotMeasurePerimeter));  // S6 T12
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotMeasurementScale));  // S6 T12
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotDimension));         // S6 T12

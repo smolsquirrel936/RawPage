@@ -696,4 +696,30 @@ RAWPAGE_SHELL_STRING(MeasureStatusTooManyPaths, "measure.status.tooManyPaths")
 RAWPAGE_SHELL_STRING(MeasureHistory, "measure.history")
 RAWPAGE_SHELL_STRING(MeasureHistoryEmpty, "measure.history.empty")
 
+// --- Comments in and out (S6 T13, D6-20, D6-21, D6-22) -- the `comments.` family T9 opened ----------------------
+// The three file questions, what the status bar says an import, an export, a migration, a copy and a paste did, and
+// the report's columns and outcomes. A reason is the refusal's own `error.` key, worded where it is shown.
+RAWPAGE_SHELL_STRING(ExchangeImportTitle, "comments.exchange.importTitle")
+RAWPAGE_SHELL_STRING(ExchangeExportTitle, "comments.exchange.exportTitle")
+RAWPAGE_SHELL_STRING(ExchangeMigrateTitle, "comments.exchange.migrateTitle")
+RAWPAGE_SHELL_STRING(ExchangeFileFilter, "comments.exchange.fileFilter")
+RAWPAGE_SHELL_STRING(ExchangePdfFilter, "comments.exchange.pdfFilter")
+RAWPAGE_SHELL_STRING(ExchangeImportSummary, "comments.exchange.importSummary")
+RAWPAGE_SHELL_STRING(ExchangeExported, "comments.exchange.exported")
+RAWPAGE_SHELL_STRING(ExchangeMigrateReading, "comments.exchange.migrateReading")
+RAWPAGE_SHELL_STRING(ExchangeMigrateComparing, "comments.exchange.migrateComparing")
+RAWPAGE_SHELL_STRING(ExchangeMigrateSummary, "comments.exchange.migrateSummary")
+RAWPAGE_SHELL_STRING(ExchangeCopied, "comments.exchange.copied")
+RAWPAGE_SHELL_STRING(ExchangePasted, "comments.exchange.pasted")
+RAWPAGE_SHELL_STRING(ExchangeOutcomeAdded, "comments.exchange.outcome.added")
+RAWPAGE_SHELL_STRING(ExchangeOutcomeReplaced, "comments.exchange.outcome.replaced")
+RAWPAGE_SHELL_STRING(ExchangeOutcomeKept, "comments.exchange.outcome.kept")
+RAWPAGE_SHELL_STRING(ExchangeOutcomeRefused, "comments.exchange.outcome.refused")
+RAWPAGE_SHELL_STRING(ExchangeOutcomeReported, "comments.exchange.outcome.reported")
+RAWPAGE_SHELL_STRING(ExchangeReportColumnComment, "comments.exchange.column.comment")
+RAWPAGE_SHELL_STRING(ExchangeReportColumnPage, "comments.exchange.column.page")
+RAWPAGE_SHELL_STRING(ExchangeReportColumnOutcome, "comments.exchange.column.outcome")
+RAWPAGE_SHELL_STRING(ExchangeReportColumnReason, "comments.exchange.column.reason")
+RAWPAGE_SHELL_STRING(TooltipNeedsComments, "shell.tooltip.needsComments")
+
 #undef RAWPAGE_SHELL_STRING

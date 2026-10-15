@@ -420,6 +420,54 @@ const Generators& registeredGenerators()
              if (all.size() > 1) out.push_back(std::make_unique<core::DeleteAttachmentCommand>(std::move(all)));
              return out;
          }},
+        // Stage 6 T13 (D6-20): an IMPORT that only adds -- a highlight and a note with its pop-up under names the
+        // document does not hold, referring to each other by name, as an exchange brings them -- and one PLANNED BY
+        // THE MERGE, as the shell plans one: the page's own comments exported, brought back newer with new words,
+        // and merged -- every one this build can write replaced in place, the rest refused and left out.
+        {"annot.import",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const core::AnnotationStore& store = document.annotations();
+             if (!store.status()) return out;
+             core::Annotation highlight = core::newAnnotation(core::AnnotationSubtype::Highlight, page, QStringLiteral("Import"), 1791504000);
+             highlight.nm = QStringLiteral("5043e2eb-3e13-d3bf-03ab-reversible") + QString::number(page);
+             highlight.id = core::AnnotationId::ofCreated(highlight.nm);
+             highlight.quadPoints = {36, 60, 136, 60, 36, 48, 136, 48};
+             highlight.rect = *core::boundsOfPoints(highlight.quadPoints);
+             core::Annotation note = core::newAnnotation(core::AnnotationSubtype::Text, page, QStringLiteral("Import"), 1791504000);
+             note.nm = QStringLiteral("imported-note-") + QString::number(page);
+             note.id = core::AnnotationId::ofCreated(note.nm);
+             note.icon = QStringLiteral("Comment");
+             note.rect = core::PdfRect{core::PdfPoint{300, 300}, core::PdfSize{20, 20}};
+             note.contents = QStringLiteral("Imported (Zoë)");
+             core::Annotation popup;
+             popup.subtype = core::AnnotationSubtype::Popup;
+             popup.page = page;
+             popup.nm = core::popupNameFor(note.nm);
+             popup.id = core::AnnotationId::ofCreated(popup.nm);
+             popup.rect = core::PdfRect{core::PdfPoint{320, 200}, core::PdfSize{180, 100}};
+             popup.parent = note.id;
+             popup.open = false;
+             note.popup = popup.id;
+             out.push_back(std::make_unique<core::ImportAnnotationsCommand>(std::vector<core::Annotation>{highlight, note, popup},
+                                                                            std::vector<core::Annotation>{}));
+
+             std::vector<std::size_t> owned;
+             for (const std::size_t index : store.onPage(page)) {
+                 if (store.isTopLevel(index)) owned.push_back(index);
+             }
+             core::Fdf exchange = store.exportFdf(owned);
+             for (core::Annotation& a : exchange.annotations) {
+                 if (a.subtype == core::AnnotationSubtype::Popup) continue;
+                 a.contents += QStringLiteral(" (imported)");
+                 a.modified = core::PdfDate::fromUtcSeconds(kEditInstant);
+             }
+             const core::FdfImport plan = store.importFdf(
+                 exchange, core::importCheck(document, [](const core::Annotation& a) { return pdf::ops::MutationSinkImpl::canCreate(a); }));
+             if (!plan.changesNothing())
+                 out.push_back(std::make_unique<core::ImportAnnotationsCommand>(plan.added, plan.replaced));
+             return out;
+         }},
     };
     return table;
 }
@@ -686,8 +734,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
     {
         CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete", "annot.edit",
                                                                           "annot.move", "annot.setAppearance", "annot.lock",
-                                                                          "annot.reply", "annot.setStatus", "attachment.add",
-                                                                          "attachment.delete"});
+                                                                          "annot.reply", "annot.setStatus", "annot.import",
+                                                                          "attachment.add", "attachment.delete"});
     }
 }
 
@@ -695,7 +743,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

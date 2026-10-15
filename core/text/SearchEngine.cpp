@@ -12,33 +12,9 @@
 namespace rawpage::core::text {
 namespace {
 
-// T9 (D6-11): what a comment is, for a search -- the subtypes `pdf/render/PdfiumDocument`'s reader calls
-// comments, so a document's comments are the same set whichever of the two readers gave them.
-bool isCommentSubtype(AnnotationSubtype subtype)
-{
-    switch (subtype) {
-    case AnnotationSubtype::Text:
-    case AnnotationSubtype::FreeText:
-    case AnnotationSubtype::Line:
-    case AnnotationSubtype::Square:
-    case AnnotationSubtype::Circle:
-    case AnnotationSubtype::Polygon:
-    case AnnotationSubtype::PolyLine:
-    case AnnotationSubtype::Highlight:
-    case AnnotationSubtype::Underline:
-    case AnnotationSubtype::Squiggly:
-    case AnnotationSubtype::StrikeOut:
-    case AnnotationSubtype::Stamp:
-    case AnnotationSubtype::Caret:
-    case AnnotationSubtype::Ink:
-    case AnnotationSubtype::FileAttachment:
-    case AnnotationSubtype::Sound:
-    case AnnotationSubtype::Redact:
-        return true;
-    default:
-        return false;
-    }
-}
+// T9 (D6-11): what a comment is, for a search, is `core::isCommentSubtype` (`core/doc/Fdf.h`, since T13 -- the same
+// set an exchange carries) -- the subtypes `pdf/render/PdfiumDocument`'s reader calls comments, so a document's
+// comments are the same set whichever of the two readers gave them.
 
 // A worker takes this many pages at a time, so the first search of a long document -- every page laid
 // out and normalized -- spreads over every worker rather than landing on one.

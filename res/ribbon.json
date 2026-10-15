@@ -335,6 +335,7 @@
           "controls": [
             { "action": "comment.import", "size": "small" },
             { "action": "comment.export", "size": "small" },
+            { "action": "comment.migrate", "size": "small" },
             { "action": "nav.nextComment", "size": "small" },
             { "action": "nav.prevComment", "size": "small" }
           ]

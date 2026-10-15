@@ -26,6 +26,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/doc/Destinations.h"
+#include "core/doc/Fdf.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
 #include "core/doc/Outline.h"
@@ -103,6 +104,19 @@ public:
     core::Result<core::DocumentHandle> openBytes(const QByteArray&, const QString&, const core::PasswordCallback&) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "openBytes");
+    }
+    core::Result<core::Fdf> readAnnotationExchange(const QString&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "readAnnotationExchange");
+    }
+    core::Status writeAnnotationExchange(core::DocumentHandle, const core::Fdf&, core::ExchangeFormat, const QString&,
+                                         bool) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "writeAnnotationExchange");
+    }
+    core::Status annotationWritable(const core::Annotation&) const override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "annotationWritable");
     }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {

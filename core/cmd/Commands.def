@@ -37,6 +37,7 @@ RAWPAGE_COMMAND(SetAnnotationAppearanceCommand, "annot.setAppearance", "core/cmd
 RAWPAGE_COMMAND(LockAnnotationCommand, "annot.lock", "core/cmd/commands/AnnotationCommands.h")
 RAWPAGE_COMMAND(ReplyToAnnotationCommand, "annot.reply", "core/cmd/commands/AnnotationCommands.h")
 RAWPAGE_COMMAND(SetAnnotationStatusCommand, "annot.setStatus", "core/cmd/commands/AnnotationCommands.h")
+RAWPAGE_COMMAND(ImportAnnotationsCommand, "annot.import", "core/cmd/commands/AnnotationCommands.h")
 RAWPAGE_COMMAND(AddAttachmentCommand, "attachment.add", "core/cmd/commands/AttachmentCommands.h")
 RAWPAGE_COMMAND(DeleteAttachmentCommand, "attachment.delete", "core/cmd/commands/AttachmentCommands.h")
 
