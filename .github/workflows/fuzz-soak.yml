@@ -31,18 +31,25 @@ on:
         required: false
         default: "600"
   schedule:
-    # Nightly, 03:17 UTC. Off the hour, because scheduled runs on the hour queue behind everyone's,
-    # and GitHub's cron is best-effort anyway -- the two scheduled runs before this cadence changed
-    # both landed near 08:58 UTC, some five and a half hours late.
+    # Weekly, Mondays 03:17 UTC. Off the hour, because scheduled runs on the hour queue behind
+    # everyone's, and GitHub's cron is best-effort anyway -- the two scheduled runs before the
+    # 2026-09-21 change both landed near 08:58 UTC, some five and a half hours late.
     #
-    # NIGHTLY RATHER THAN WEEKLY, since 2026-09-21. A soak's yield is a function of accumulated
-    # search time and NOT of the diff: run 35580712267 found UB in pdf/cos/Lexer.cpp that fb16c9b
-    # had shipped nineteen days earlier, on a commit (Stage 4 T10's full-screen controller) that
-    # touches neither the lexer nor pdf/. Four earlier soaks over the very same code had missed it
-    # -- each run reseeds from corpus/malformed and keeps nothing, so every run is an independent
-    # draw, and draws are the only lever there is. Weekly bought roughly fifty-two a year; nightly
-    # buys seven times that for the same half hour of runner time per run.
-    - cron: "17 3 * * *"
+    # WEEKLY AGAIN SINCE 2026-10-16, on the GitHub Actions quota, and knowingly at a cost in yield.
+    # The repository is private, so GitHub's free plan allows 2,000 Linux minutes a month. A soak
+    # bills about 95 of them (five jobs of 16-21 min each, rounded up per job, run 38871661378), so
+    # nightly cost about 2,900 a month on its own -- more than the whole allowance before CI's ~53 per
+    # push (run 38800282082). Counted over 2026-09-16 .. 10-16: 31 soaks and 59 CI runs, about 6,000.
+    #
+    # WHAT WEEKLY GIVES UP. From 2026-09-21 to 2026-10-16 this ran nightly, because a soak's yield is
+    # a function of accumulated search time and NOT of the diff: run 35580712267 found UB in
+    # pdf/cos/Lexer.cpp that fb16c9b had shipped nineteen days earlier, on a commit (Stage 4 T10's
+    # full-screen controller) that touches neither the lexer nor pdf/. Four earlier soaks over the
+    # very same code had missed it -- each run reseeds from corpus/malformed and keeps nothing, so
+    # every run is an independent draw. Nightly bought about 365 draws a year; weekly buys about 52,
+    # a seventh. The nightly runs found Stage 3 I-17, Stage 5 I-23 and Stage 6 I-17, each an S2.
+    # A soak dispatched by hand (above) adds a draw whenever one is wanted.
+    - cron: "17 3 * * 1"
 
 concurrency:
   group: fuzz-soak-${{ github.ref }}

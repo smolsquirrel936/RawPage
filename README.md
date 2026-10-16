@@ -145,7 +145,7 @@ process that immediately exits; the script detects this and tells you.
 | `gates` | any | **tools/ and tests/gates/ only — no Qt, no vcpkg.** What CI runs first; ~4 s |
 | `arm64-release` | Windows | **Placeholder — does not configure.** Fails with an explanation: the pin is x86_64 GCC 13.1.0, and whether arm64 means moving to LLVM-MinGW is open decision O6 |
 | `portable-asan` | Linux | `core/` + `pdf/cos/` + `pdf/ops/` under ASan+UBSan — MinGW GCC has no sanitizer runtime |
-| `portable-fuzz` | Linux | libFuzzer over five targets: the COS lexer and parser, the reader-writer round trip, the text pipeline and the annotation pipeline. CI only; `.github/workflows/fuzz-soak.yml` is the nightly ten-minute soak |
+| `portable-fuzz` | Linux | libFuzzer over five targets: the COS lexer and parser, the reader-writer round trip, the text pipeline and the annotation pipeline. CI only; `.github/workflows/fuzz-soak.yml` is the weekly ten-minute soak |
 
 The two portable presets are not a portability aspiration: `core/` must build with no display and no
 PDF engine linked, and those jobs are what prove it mechanically rather than by assertion.
