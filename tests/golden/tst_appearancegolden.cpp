@@ -64,7 +64,7 @@ TEST_CASE("appearance every case matches its baseline", "[golden][appearance][A-
     int compared = 0;
     for (const golden::AppearanceCase& item : golden::appearanceCases()) {
         INFO(item.name.toStdString() << " -- " << item.note.toStdString());
-        const std::string bytes = golden::appearancePdf(item.annotations, item.rotate, true);
+        const std::string bytes = golden::appearancePdf(item.annotations, item.rotate, true, item.overlay);
         REQUIRE_FALSE(bytes.empty());   // a case our builder refused would be a page without it
         const QString name = item.name + QStringLiteral(".pdf");
         QFile file(QDir(scratch.path()).filePath(name));

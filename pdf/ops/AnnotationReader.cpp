@@ -4,6 +4,7 @@
 #include "pdf/ops/AnnotationReader.h"
 
 #include "pdf/cos/CosObject.h"
+#include "pdf/cos/filters/Filter.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 
 #include <algorithm>
@@ -167,6 +168,41 @@ std::optional<core::MeasureDictionary> measureOf(cos::XrefTable& table, const Co
     out.y = numberFormatsOf(table, *m, "Y");
     out.distance = numberFormatsOf(table, *m, "D");
     out.area = numberFormatsOf(table, *m, "A");
+    return out;
+}
+
+// Stage 6 T14 (D6-18): what a Sound's `/Sound` stream SAYS -- its rate, channels, depth, encoding and compression --
+// never its samples, which `soundSamples` reads when they are asked for. Each number within what a command accepts
+// (`core::SoundData::fromJson`'s ranges, S6 guide I-18's lesson); a stream that says something outside them, or names
+// an encoding ISO 32000-1 Table 294 does not, is not a sound the model can hold, and the annotation is kept without one.
+std::optional<core::SoundData> soundOf(cos::XrefTable& table, const CosObject& d)
+{
+    std::optional<cos::IndirectObject> holder;
+    const CosObject* s = resolve(table, d.find("Sound"), holder);
+    if (s == nullptr || !s->isStream()) return std::nullopt;
+    core::SoundData out;
+    const auto whole = [s](const char* key, double low, double high, int fallback) -> std::optional<int> {
+        const CosObject* v = s->find(key);
+        if (v == nullptr) return fallback;
+        if (!v->isNumber() || !std::isfinite(v->numberValue())) return std::nullopt;
+        const double n = std::round(v->numberValue());
+        if (n < low || n > high) return std::nullopt;
+        return static_cast<int>(n);
+    };
+    const std::optional<int> rate = whole("R", 1.0, 10000000.0, -1);
+    const std::optional<int> channels = whole("C", 1.0, 64.0, 1);
+    const std::optional<int> bits = whole("B", 1.0, 32.0, 8);
+    if (!rate || *rate < 1 || !channels || !bits) return std::nullopt;   // /R is required
+    out.rate = *rate;
+    out.channels = *channels;
+    out.bits = *bits;
+    const QString encoding = nameOf(*s, "E");
+    if (!encoding.isEmpty()) {
+        const std::optional<core::SoundEncoding> e = core::soundEncodingFromName(encoding);
+        if (!e) return std::nullopt;
+        out.encoding = *e;
+    }
+    out.compression = nameOf(*s, "CO").left(64);
     return out;
 }
 
@@ -345,6 +381,12 @@ ParsedEntry parse(cos::XrefTable& table, const CosObject& d)
         || std::any_of(a.captionOffset.begin(), a.captionOffset.end(), [](double v) { return std::abs(v) > 1.0e6; }))
         a.captionOffset.clear();
     a.measure = measureOf(table, d);
+    // Stage 6 T14 (D6-25): a redaction mark's overlay text, no longer than a command carries, and whether it repeats.
+    if (a.subtype == core::AnnotationSubtype::Redact) {
+        a.overlayText = textOf(d, "OverlayText").left(core::kMaxOverlayTextLength);
+        if (const CosObject* r = d.find("Repeat"); r != nullptr && r->isBoolean()) a.repeat = r->booleanValue();
+    }
+    if (a.subtype == core::AnnotationSubtype::Sound) a.sound = soundOf(table, d);
     // Stage 6 T11 (D6-17): the file a FileAttachment carries -- what it says about it, never its bytes, which
     // are read when they are asked for (`IDocumentBackend::attachmentData`). A specification that NAMES no file --
     // no `/UF`, no `/F`, an empty string -- is not one the model can hold (S6 guide I-17): `EmbeddedFile` is

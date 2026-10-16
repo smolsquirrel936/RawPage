@@ -87,6 +87,12 @@
 // wrote out of order is put back exactly. A `FileAttachment` annotation RawPage creates gets the same stream and
 // specification as its `/FS`.
 //
+// REDACTION MARKS AND SOUNDS -- Stage 6 T14 (D6-25, D6-18). A mark RawPage creates, or redraws, is written with TWO
+// forms: its `/AP /N` and its `/RO` (`AppearanceStreamBuilder::redactionOverlay`) -- and nothing else: a mark is an
+// annotation like any other, and no page's content is read, let alone written (guide case A-100). A Sound RawPage
+// creates gets its `/Sound` stream -- `/R`, `/C`, `/B`, `/E` and the samples, `/FlateDecode`d ONCE as an attached
+// file is, for the same reason -- and verify compares that stream byte for byte with what was compressed.
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -177,6 +183,11 @@ public:
     // not saved from the edit that attached it, one the file holds from its stream. A `FileAttachment` annotation
     // likewise -- created, or one the file lists. `NotFound` for one the document does not hold.
     core::Result<QByteArray> attachmentData(const core::AttachmentRef& attachment);
+
+    // T14: a Sound's samples AS THE DOCUMENT NOW STANDS (`IDocumentBackend::soundSamples`): one created and not saved
+    // from the command that carries them, one the file lists from its `/Sound` stream, its filters undone.
+    // `NotFound` (`error.sound.noData`) for an annotation that is no Sound with a stream.
+    core::Result<QByteArray> soundSamples(const core::AnnotationId& annotation);
 
     // One entry of a page's `/Annots`, as the sink holds it.
     struct ListedEntry {

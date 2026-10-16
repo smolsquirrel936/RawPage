@@ -7,8 +7,10 @@
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/tools/AnnotationTool.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
+#include <QLineEdit>
 #include <QFormLayout>
 #include <QIcon>
 #include <QLabel>
@@ -158,6 +160,15 @@ ToolDefaultsEditor::ToolDefaultsEditor(core::Settings& settings, QWidget* parent
     fontSize_->setDecimals(1);
     form->addRow(catalog::translate(catalog::key::PropertiesBarFontSize), fontSize_);
 
+    // S6 T14 (D6-25): a redaction mark's overlay text, written when it is finished, and whether it repeats.
+    overlayText_ = new QLineEdit(this);
+    overlayText_->setObjectName(QStringLiteral("toolDefaultsOverlayText"));
+    overlayText_->setMaxLength(core::kToolOverlayTextMax);
+    form->addRow(catalog::translate(catalog::key::PropertiesBarOverlayText), overlayText_);
+    repeat_ = new QCheckBox(catalog::translate(catalog::key::PropertiesBarRepeat), this);
+    repeat_->setObjectName(QStringLiteral("toolDefaultsRepeat"));
+    form->addRow(QString(), repeat_);
+
     reset_ = new QPushButton(catalog::translate(catalog::key::PrefsToolDefaultsReset), this);
     reset_->setObjectName(QStringLiteral("toolDefaultsReset"));
     column->addWidget(reset_, 0, Qt::AlignLeft);
@@ -168,6 +179,8 @@ ToolDefaultsEditor::ToolDefaultsEditor(core::Settings& settings, QWidget* parent
     connect(opacity_, &QSpinBox::valueChanged, this, [this] { write(); });
     connect(thickness_, &QDoubleSpinBox::valueChanged, this, [this] { write(); });
     connect(fontSize_, &QDoubleSpinBox::valueChanged, this, [this] { write(); });
+    connect(overlayText_, &QLineEdit::editingFinished, this, [this] { write(); });
+    connect(repeat_, &QCheckBox::toggled, this, [this] { write(); });
     connect(reset_, &QPushButton::clicked, this, [this] {
         settings_.resetToolDefaults(currentTool());
         refresh();
@@ -207,6 +220,8 @@ void ToolDefaultsEditor::refresh()
     lineStyle_->setCurrentIndex(static_cast<int>(values.lineStyle));
     blend_->setCurrentIndex(static_cast<int>(values.blendMode));
     fontSize_->setValue(values.fontSize);
+    overlayText_->setText(values.overlayText);
+    repeat_->setChecked(values.repeat);
     // FROM THE TABLE: an editor only where `ToolDefaults.def` gives this tool the property.
     const auto has = [tool](core::ToolProperty property) { return core::toolHasProperty(tool, property); };
     colour_->setEnabled(has(core::ToolProperty::Colour));
@@ -216,6 +231,8 @@ void ToolDefaultsEditor::refresh()
     lineStyle_->setEnabled(has(core::ToolProperty::LineStyle));
     blend_->setEnabled(has(core::ToolProperty::BlendMode));
     fontSize_->setEnabled(has(core::ToolProperty::FontSize));
+    overlayText_->setEnabled(has(core::ToolProperty::OverlayText));
+    repeat_->setEnabled(has(core::ToolProperty::Repeat));
     refreshing_ = false;
 }
 
@@ -231,6 +248,9 @@ void ToolDefaultsEditor::write()
     values.lineStyle = kLineStyles[std::clamp(lineStyle_->currentIndex(), 0, 2)];
     values.blendMode = kBlends[std::clamp(blend_->currentIndex(), 0, 7)];
     values.fontSize = fontSize_->value();
+    // An overlay text the family refuses -- a control character pasted in -- keeps what the family holds.
+    (void)core::parseToolProperty(core::ToolProperty::OverlayText, overlayText_->text(), values);
+    values.repeat = repeat_->isChecked();
     refreshing_ = true;   // our own write's change notification is not a refresh
     settings_.setToolDefaults(tool, values);
     refreshing_ = false;

@@ -4,8 +4,9 @@
 //
 //   * A-93 -- every comment the labelled corpus holds, exported to XFDF and separately to FDF, read back, imported
 //     into a copy of its document with every annotation removed, SAVED and REOPENED: every modelled field equal,
-//     dates compared as written (guide §3.7). What cannot be imported is what this build cannot WRITE (a redaction
-//     mark until T14), refused by the builder's own key -- checked against the builder, not listed here.
+//     dates compared as written (guide §3.7). What cannot be imported is what this build cannot WRITE (since T14 only
+//     a producer's free text in a face this build does not draw), refused by the builder's own key -- checked against
+//     the builder, and printed by name.
 //   * A-94 -- `corpus/exchange/`'s Acrobat-shaped files imported into their targets, each field against the
 //     generator's label; one `ImportAnnotationsCommand` in the journal.
 //   * A-95 -- the merge by `/NM`: added, replaced, kept, refused, each said; one undo restores all of it.
@@ -187,6 +188,7 @@ struct Tally {
     int exported = 0;
     int equal = 0;
     int refused = 0;
+    std::vector<std::string> why;   // each refusal: its file, its kind and its key -- printed, so the figure explains itself
 };
 
 // A-93 for one file in one format. Returns what it counted; every difference is a CHECK failure naming the field.
@@ -227,6 +229,8 @@ Tally roundTrip(const std::string& relative, core::ExchangeFormat format)
             const core::Status builder = writable(*exchanged);
             CHECK_FALSE(builder);
             if (!builder) CHECK(keyOf(builder.error()) == keyOf(*e.why));
+            tally.why.push_back(relative + " " + text(QString(core::annotationSubtypeName(e.subtype))) + " (" + keyOf(*e.why)
+                                + " " + text(e.why->context) + ")");
         } else {
             CHECK(e.outcome == MergeEntry::Outcome::Added);
         }
@@ -290,11 +294,13 @@ TEST_CASE("every comment the labelled corpus holds round-trips through XFDF and 
             total.exported += t.exported;
             total.equal += t.equal;
             total.refused += t.refused;
+            total.why.insert(total.why.end(), t.why.begin(), t.why.end());
         }
         std::printf("A-93 %s: %d comment(s) exported over %d file(s); %d imported equal in every modelled field, %d refused "
                     "as this build cannot write them\n",
                     format == core::ExchangeFormat::Xfdf ? "XFDF" : "FDF", total.exported, static_cast<int>(kRoundTrip.size()),
                     total.equal, total.refused);
+        for (const std::string& why : total.why) std::printf("  refused: %s\n", why.c_str());
         CHECK(total.equal + total.refused == total.exported);
         CHECK(total.equal > 0);
     }
@@ -482,12 +488,10 @@ TEST_CASE("the Acrobat-shaped exports import with every field the label holds", 
                                             [&name](const MergeEntry& e) { return e.name == name; });
             REQUIRE(entry != imported.plan.result.entries.end());
             if (entry->outcome == MergeEntry::Outcome::Refused) {
-                // UNTIL T14 a redaction mark and a sound are kinds this build does not write: refused by the builder's key.
+                // SINCE T14 NOTHING these files hold is refused: until then a redaction mark and a sound were, by the
+                // builder's key (D6-41(k)).
                 ++refused;
-                const QString subtype = want.value(QStringLiteral("subtype")).toString();
-                CHECK((subtype == QLatin1String("Redact") || subtype == QLatin1String("Sound")));
-                REQUIRE(entry->why);
-                CHECK(keyOf(*entry->why) == "error.pdf.appearanceUnsupported");
+                FAIL_CHECK("refused: " << want.value(QStringLiteral("subtype")).toString().toStdString());
                 continue;
             }
             const auto found = got.find(name);
@@ -500,7 +504,7 @@ TEST_CASE("the Acrobat-shaped exports import with every field the label holds", 
             INFO(text(problems.join(QStringLiteral(", "))));
             CHECK(problems.isEmpty());
         }
-        std::printf("A-94 %s: %d of the label's comments imported with every field, %d refused (a kind T14 writes)\n",
+        std::printf("A-94 %s: %d of the label's comments imported with every field, %d refused\n",
                     f.exchange, present, refused);
         CHECK(present > 0);
     }

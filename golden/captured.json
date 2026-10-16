@@ -248,10 +248,34 @@
         },
         {
             "dpi": 144,
+            "file": "appearance/redaction-marks",
+            "height": 300,
+            "page": 0,
+            "width": 400
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/redaction-overlay",
+            "height": 300,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 400
+        },
+        {
+            "dpi": 144,
             "file": "appearance/rotated-90",
             "height": 400,
             "page": 0,
             "width": 300
+        },
+        {
+            "dpi": 144,
+            "file": "appearance/sounds",
+            "height": 300,
+            "page": 0,
+            "width": 400
         },
         {
             "dpi": 144,
@@ -4034,7 +4058,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-13T22:35:58Z",
+    "capturedUtc": "2026-10-16T13:06:28Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 6 T12 (D6-14): two new appearance cases -- a distance, a dimension callout on leader lines, a perimeter and an area, each drawing its reading -- each looked at in a scratch root before it was kept"
+    "reason": "Stage 6 T14 (D6-25, D6-18): new appearance cases -- redaction marks, their /RO overlay, and the sound icons; no existing baseline touched"
 }

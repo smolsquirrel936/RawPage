@@ -6,6 +6,7 @@
 #include "pdf/cos/CosObject.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefRepair.h"
+#include "pdf/cos/filters/Filter.h"
 #include "pdf/ops/AnnotationOps.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AttachmentFiles.h"
@@ -183,6 +184,19 @@ core::Result<core::Fdf> FdfCodec::read(const QByteArray& bytes)
                 a.attachment->size = a.attachment->data.size();
             }
         }
+        // Stage 6 T14 (D6-18): a sound's samples, from its `/Sound` stream, its filters undone.
+        if (a.subtype == core::AnnotationSubtype::Sound && a.sound) {
+            std::optional<cos::IndirectObject> soundHolder;
+            const CosObject* stream = resolve(table, d->find("Sound"), soundHolder);
+            if (stream != nullptr && stream->isStream()) {
+                auto decoded = cos::decodeStream(*stream, table.source());
+                if (decoded && decoded.value().size() <= static_cast<std::size_t>(core::kMaxSoundBytes)) {
+                    a.sound->samples = QByteArray(reinterpret_cast<const char*>(decoded.value().data()),
+                                                  static_cast<qsizetype>(decoded.value().size()));
+                    a.sound->carried = true;
+                }
+            }
+        }
         for (QString* text : {&a.contents, &a.richText, &a.author, &a.subject}) {
             if (text->size() > core::kMaxExchangeTextLength) {
                 text->truncate(core::kMaxExchangeTextLength);
@@ -320,6 +334,18 @@ std::string FdfCodec::write(const core::Fdf& exchange)
             }
             d = AnnotationOps::withEntry(d, "FS", CosObject::makeDictionary(std::move(spec)));
         }
+        // Stage 6 T14: a sound's samples as its `/Sound` stream, unfiltered as an attached file's are here.
+        if (a.sound && a.sound->carried) {
+            const long long stream = next++;
+            objects += serializedStream(stream, CosObject::makeDictionary({
+                {"Type", CosObject::makeName("Sound")},
+                {"R", CosObject::makeInteger(a.sound->rate)},
+                {"C", CosObject::makeInteger(a.sound->channels)},
+                {"B", CosObject::makeInteger(a.sound->bits)},
+                {"E", CosObject::makeName(QString(core::soundEncodingName(a.sound->encoding)).toStdString())},
+            }), a.sound->samples);
+            d = AnnotationOps::withEntry(d, "Sound", CosObject::makeReference(stream, 0));
+        }
         objects += serialized(at, d);
         listed.push_back(CosObject::makeReference(at, 0));
     }
@@ -379,6 +405,22 @@ core::Status FdfCodec::carryFiles(core::Fdf& exchange,
         a.attachment->data = std::move(bytes).value();
         a.attachment->carried = true;
         a.attachment->size = a.attachment->data.size();
+    }
+    return core::Status{};
+}
+
+core::Status FdfCodec::carrySounds(core::Fdf& exchange,
+                                   const std::function<core::Result<QByteArray>(const core::AnnotationId&)>& read)
+{
+    for (std::size_t i = 0; i < exchange.annotations.size(); ++i) {
+        core::Annotation& a = exchange.annotations[i];
+        if (a.subtype != core::AnnotationSubtype::Sound || !a.sound || a.sound->carried) continue;
+        if (i >= exchange.sources.size())
+            return core::Error{core::ErrorCode::NotFound, QLatin1String("error.sound.noData"), a.nm};
+        core::Result<QByteArray> samples = read(exchange.sources[i]);
+        if (!samples) return samples.error();
+        a.sound->samples = std::move(samples).value();
+        a.sound->carried = true;
     }
     return core::Status{};
 }

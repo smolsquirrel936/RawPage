@@ -62,6 +62,8 @@
 #include "ui/viewer/tools/MarqueeZoomTool.h"
 #include "ui/viewer/tools/MeasureTool.h"
 #include "ui/viewer/tools/NoteTool.h"
+#include "ui/viewer/tools/RedactTool.h"
+#include "ui/viewer/tools/SoundTool.h"
 #include "ui/viewer/tools/StampTool.h"
 #include "ui/viewer/tools/AttachFileTool.h"
 #include "ui/viewer/tools/TypewriterTool.h"
@@ -210,6 +212,8 @@ private:
     StampTool       stamp_;      // S6 T10: places the palette's stamp
     AttachFileTool  attach_;     // S6 T11: a pushpin carrying a file
     MeasureTool     measure_;    // S6 T12: distance, perimeter, area, the dimension callout
+    RedactTool      redact_;     // S6 T14: a redaction mark over text or an area
+    SoundTool       sound_;      // S6 T14: a sound recorded or attached
     AnnotationToolKind annotationKind_ = AnnotationToolKind::Highlight;
     bool            keepToolSelected_ = false;
 

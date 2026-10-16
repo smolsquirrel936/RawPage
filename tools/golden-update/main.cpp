@@ -457,7 +457,7 @@ int regenerateAppearance(const Options& options)
             && std::none_of(options.filters.begin(), options.filters.end(),
                             [&item](const QString& filter) { return item.name.contains(filter, Qt::CaseInsensitive); }))
             continue;
-        const std::string bytes = golden::appearancePdf(item.annotations, item.rotate, true);
+        const std::string bytes = golden::appearancePdf(item.annotations, item.rotate, true, item.overlay);
         if (bytes.empty()) {
             err() << "golden-update: our builder refused case " << item.name << "; nothing was recorded\n";
             err().flush();

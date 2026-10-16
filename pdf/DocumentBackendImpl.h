@@ -104,6 +104,8 @@ public:
     // the document has none. The extract is written by `pdf/ops/AttachmentFiles`: no waiver.
     const core::Attachments* attachments(core::DocumentHandle document) const override;
     core::Result<QByteArray> attachmentData(core::DocumentHandle document, const core::AttachmentRef& attachment) override;
+    // Stage 6 T14: a Sound's samples, from the sink -- the document as it stands now.
+    core::Result<QByteArray> soundSamples(core::DocumentHandle document, const core::AnnotationId& annotation) override;
     core::Status extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,
                                    const QString& path, bool overwrite) override;
     // `open()`'s pieces with the read skipped; the document names no file and is never editable.

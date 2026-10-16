@@ -40,6 +40,7 @@
 #include "pdf/render/PdfiumInit.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
+#include "ui/viewer/AudioRecorder.h"
 #include "ui/viewer/PageLayoutEngine.h"
 
 #include <windows.h>
@@ -244,6 +245,10 @@ int main(int argc, char** argv)
         RAWPAGE_LOG_WARNING(core::LogSubsystem::Ui)
             << "SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2) failed; scaling will be wrong";
     }
+
+    // S6 T14 (D6-18): Qt Multimedia's Media Foundation backend, never its FFmpeg one -- set before anything can load a
+    // multimedia plugin (ui/viewer/AudioRecorder says why; the recorder and the player set it again, for a test process).
+    ui::useMediaFoundation();
 
     app::Application application(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("RawPage"));

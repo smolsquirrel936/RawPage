@@ -12,6 +12,7 @@
 #include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/cos/filters/FlateFilter.h"
+#include "pdf/cos/filters/Filter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -123,6 +124,7 @@ bool drawnTheSame(const core::Annotation& disk, const core::Annotation& now)
     probe.parent = disk.parent;
     probe.open = disk.open;
     probe.hasAppearance = disk.hasAppearance;
+    probe.sound = disk.sound;   // T14: a sound's samples are heard, never drawn
     // Stage 6 T10: and a DYNAMIC stamp's, whose appearance draws its `/Contents` -- the lines it baked -- as free text
     // draws its text (`core/doc/Stamps`).
     if (disk.subtype != core::AnnotationSubtype::FreeText && core::stampKind(disk) != core::StampKind::Dynamic) {
@@ -195,6 +197,37 @@ bool rectReadsBack(const cos::CosObject& dictionary, const core::PdfRect& rect)
         if (!n.isNumber() || std::abs(n.numberValue() - want[i]) > 0.01) return false;
     }
     return true;
+}
+
+// Stage 6 T14: whether the form `value` names in `written` is a well-formed, unfiltered stream of our own -- what a
+// created or redrawn appearance must read back as, `/AP /N` and a mark's `/RO` alike.
+bool formReadsBack(cos::XrefTable& written, const cos::CosObject& value)
+{
+    if (!value.isReference()) return false;
+    auto stream = written.fetch(value.reference().number);
+    if (!stream || !stream.value().object.isStream() || stream.value().object.has("Filter")) return false;
+    return static_cast<bool>(cos::ContentStreamBuilder::check(stream.value().object.rawStreamData(written.source())));
+}
+
+// Stage 6 T14: whether a Sound's `/Sound` -- read from `written` -- is a sound stream with `sound`'s numbers whose bytes
+// are exactly `flate`, `/FlateDecode`d -- compared as written, not inflated, as an attached file's are.
+bool soundStreamHolds(cos::XrefTable& written, const cos::CosObject* value, const core::SoundData& sound, const std::string& flate)
+{
+    if (value == nullptr || !value->isReference()) return false;
+    auto stream = written.fetch(value->reference().number);
+    if (!stream || !stream.value().object.isStream()) return false;
+    const cos::CosObject& s = stream.value().object;
+    const auto number = [&s](const char* key) {
+        const cos::CosObject* v = s.find(key);
+        return v != nullptr && v->isNumber() ? v->numberValue() : -1.0;
+    };
+    const cos::CosObject* encoding = s.find("E");
+    const cos::CosObject* filter = s.find("Filter");
+    return number("R") == sound.rate && number("C") == sound.channels && number("B") == sound.bits
+           && encoding != nullptr && encoding->isName()
+           && QString::fromStdString(encoding->text()) == QString(core::soundEncodingName(sound.encoding))
+           && filter != nullptr && filter->isName() && filter->text() == "FlateDecode"
+           && s.rawStreamData(written.source()) == std::string_view(flate);
 }
 
 // Stage 6 T11: whether `specification` -- read from `written` -- is a file specification whose `/EF /F` stream holds
@@ -434,6 +467,14 @@ core::Status MutationSinkImpl::canCreate(const core::Annotation& annotation)
     if (annotation.subtype == core::AnnotationSubtype::FileAttachment
         && (!annotation.attachment || !annotation.attachment->carried))
         return sinkError(core::ErrorCode::InvalidArgument, "error.attachment.noData", annotation.page);
+    // T14: a redaction mark's `/RO` is drawn beside its `/AP` -- an overlay text no face can show is refused HERE, by
+    // name, before any command exists -- and a Sound RawPage creates carries its samples.
+    if (annotation.subtype == core::AnnotationSubtype::Redact) {
+        auto overlay = AppearanceStreamBuilder::redactionOverlay(annotation);
+        if (!overlay) return overlay.error();
+    }
+    if (annotation.subtype == core::AnnotationSubtype::Sound && (!annotation.sound || !annotation.sound->carried))
+        return sinkError(core::ErrorCode::InvalidArgument, "error.sound.noData", annotation.page);
     return core::Status{};
 }
 
@@ -558,6 +599,10 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
                 auto appearance = AppearanceStreamBuilder::normal(now);
                 if (!appearance) return appearance.error();
             }
+            if (now.subtype == core::AnnotationSubtype::Redact) {   // T14: and its /RO
+                auto overlay = AppearanceStreamBuilder::redactionOverlay(now);
+                if (!overlay) return overlay.error();
+            }
             created.insert_or_assign(now.id.nm, now);
             continue;
         }
@@ -622,6 +667,10 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
             if (AppearanceStreamBuilder::supports(now.subtype) && !drawsUnmodelled(dictionaryOnDisk(now.id), now)) {
                 auto appearance = AppearanceStreamBuilder::normal(now);
                 if (!appearance) return appearance.error();
+                if (now.subtype == core::AnnotationSubtype::Redact) {   // T14: a mark is redrawn with its /RO
+                    auto overlay = AppearanceStreamBuilder::redactionOverlay(now);
+                    if (!overlay) return overlay.error();
+                }
                 edit.redraw = true;
             } else if (!carried) {
                 return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.pdf.appearanceUnsupported"),
@@ -686,6 +735,14 @@ core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& 
             delta.add(std::move(appearance.value().dictionary), std::move(appearance.value().data));
         edited = AnnotationOps::withEntry(edited, "AP",
                                           cos::CosObject::makeDictionary({{"N", cos::CosObject::makeReference(number, 0)}}));
+        // T14: a redaction mark redrawn has its `/RO` drawn again too -- the overlay text, the fill and the repeat are
+        // what an edit of a mark changes.
+        if (edit.now.subtype == core::AnnotationSubtype::Redact) {
+            auto overlay = AppearanceStreamBuilder::redactionOverlay(edit.now, shared);
+            if (!overlay) return overlay.error();
+            const long long ro = delta.add(std::move(overlay.value().dictionary), std::move(overlay.value().data));
+            edited = AnnotationOps::withEntry(edited, "RO", cos::CosObject::makeReference(ro, 0));
+        }
     }
     return edited;
 }
@@ -774,6 +831,27 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                         const cos::CosRef spec = addFileSpecification(delta, *annotation->attachment, *flate);
                         dictionary = AnnotationOps::withEntry(dictionary.value(), "FS",
                                                               cos::CosObject::makeReference(spec.number, spec.generation));
+                    }
+                    // T14: a redaction mark's /RO, and a sound's samples as its /Sound stream -- compressed once.
+                    if (annotation->subtype == core::AnnotationSubtype::Redact) {
+                        auto overlay = AppearanceStreamBuilder::redactionOverlay(*annotation, shared);
+                        if (!overlay) return overlay.error();
+                        const long long ro = delta.add(std::move(overlay.value().dictionary), std::move(overlay.value().data));
+                        dictionary = AnnotationOps::withEntry(dictionary.value(), "RO", cos::CosObject::makeReference(ro, 0));
+                    }
+                    if (annotation->subtype == core::AnnotationSubtype::Sound && annotation->sound && annotation->sound->carried) {
+                        const core::SoundData& sound = *annotation->sound;
+                        const std::string* flate = compressedFor(QStringLiteral("sound:") + entry.nm, sound.samples);
+                        if (flate == nullptr) return sinkError(core::ErrorCode::Corrupted, "error.sound.undecodable", page);
+                        const long long at = delta.add(cos::CosObject::makeStream({
+                            {"Type", cos::CosObject::makeName("Sound")},
+                            {"R", cos::CosObject::makeInteger(sound.rate)},
+                            {"C", cos::CosObject::makeInteger(sound.channels)},
+                            {"B", cos::CosObject::makeInteger(sound.bits)},
+                            {"E", cos::CosObject::makeName(QString(core::soundEncodingName(sound.encoding)).toStdString())},
+                            {"Filter", cos::CosObject::makeName("FlateDecode")},
+                        }, cos::CosStreamData{}), *flate);
+                        dictionary = AnnotationOps::withEntry(dictionary.value(), "Sound", cos::CosObject::makeReference(at, 0));
                     }
                     if (!delta.define(number->second, std::move(dictionary).value()))
                         return sinkError(core::ErrorCode::Corrupted, "error.pdf.annotationUnknown", page);
@@ -890,6 +968,16 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
                 if (!cos::ContentStreamBuilder::check(stream.value().object.rawStreamData(written.source())))
                     return listingMismatch(page);
             }
+            // T14: a created mark's /RO is a well-formed form of our own; a created sound's /Sound holds exactly the
+            // samples compressed when it was made.
+            if (annotation->subtype == core::AnnotationSubtype::Redact && !formReadsBack(written, d.get("RO")))
+                return listingMismatch(page);
+            if (annotation->subtype == core::AnnotationSubtype::Sound) {
+                const auto cached = compressed_.find(QStringLiteral("sound:") + want.nm);
+                if (!annotation->sound || cached == compressed_.end()
+                    || !soundStreamHolds(written, d.find("Sound"), *annotation->sound, cached->second.flate))
+                    return listingMismatch(page);
+            }
             // T11: a created FileAttachment's /FS holds the very bytes compressed when it was made.
             if (annotation->subtype == core::AnnotationSubtype::FileAttachment) {
                 const auto cached = compressed_.find(QStringLiteral("nm:") + want.nm);
@@ -949,6 +1037,8 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
                 if (!stream || !stream.value().object.isStream() || stream.value().object.has("Filter")
                     || !cos::ContentStreamBuilder::check(stream.value().object.rawStreamData(written.source())))
                     return listingMismatch(page);
+                if (edit->second.now.subtype == core::AnnotationSubtype::Redact && !formReadsBack(written, d.get("RO")))
+                    return listingMismatch(page);   // T14: a mark redrawn with its /RO
             }
         }
     }
@@ -1222,6 +1312,35 @@ core::Result<QByteArray> MutationSinkImpl::attachmentData(const core::Attachment
     const std::optional<cos::CosObject> dictionary = dictionaryOnDisk(attachment.annotation);
     if (!dictionary) return notFound();
     return EmbeddedFileReader::dataOf(table_, dictionary->find("FS"));
+}
+
+core::Result<QByteArray> MutationSinkImpl::soundSamples(const core::AnnotationId& annotation)
+{
+    const auto noData = [&annotation] {
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.sound.noData"), annotation.toString()};
+    };
+    if (annotation.kind == core::AnnotationId::Kind::Created) {
+        if (const core::Annotation* created = createdAnnotation(annotation.nm)) {
+            if (created->sound && created->sound->carried) return created->sound->samples;
+            return noData();
+        }
+    }
+    const std::optional<cos::CosObject> dictionary = dictionaryOnDisk(annotation);
+    if (!dictionary) return noData();
+    const cos::CosObject* value = dictionary->find("Sound");
+    std::optional<cos::IndirectObject> holder;
+    if (value != nullptr && value->isReference()) {
+        auto fetched = table_.fetch(value->reference().number);
+        if (!fetched) return noData();
+        holder = std::move(fetched).value();
+        value = &holder->object;
+    }
+    if (value == nullptr || !value->isStream()) return noData();
+    // A stream's bytes lie in the buffer the table was loaded over: a stream is never packed in an object stream.
+    auto decoded = cos::decodeStream(*value, table_.source());
+    if (!decoded)
+        return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.sound.undecodable"), QString(decoded.error().messageKey)};
+    return QByteArray(reinterpret_cast<const char*>(decoded.value().data()), static_cast<qsizetype>(decoded.value().size()));
 }
 
 core::Status MutationSinkImpl::adopt(std::string_view bytes)

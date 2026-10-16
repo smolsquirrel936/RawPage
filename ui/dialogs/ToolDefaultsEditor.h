@@ -22,8 +22,10 @@
 
 #include <vector>
 
+class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
+class QLineEdit;
 class QPushButton;
 class QSpinBox;
 
@@ -57,6 +59,8 @@ public:
     QComboBox* lineStyleBox() const noexcept { return lineStyle_; }
     QComboBox* blendBox() const noexcept { return blend_; }
     QDoubleSpinBox* fontSizeBox() const noexcept { return fontSize_; }
+    QLineEdit* overlayTextField() const noexcept { return overlayText_; }   // S6 T14
+    QCheckBox* repeatBox() const noexcept { return repeat_; }
     QPushButton* resetButton() const noexcept { return reset_; }
 
 private:
@@ -76,6 +80,8 @@ private:
     QComboBox* lineStyle_ = nullptr;
     QComboBox* blend_ = nullptr;
     QDoubleSpinBox* fontSize_ = nullptr;
+    QLineEdit* overlayText_ = nullptr;   // S6 T14
+    QCheckBox* repeat_ = nullptr;        // S6 T14
     QPushButton* reset_ = nullptr;
     int settingsToken_ = 0;
 };

@@ -180,6 +180,18 @@ void compareEntry(const QJsonObject& want, const core::Annotation& got, const QS
                 bad(QStringLiteral("measure.") + QLatin1String(key));
         }
     }
+    // Stage 6 T14: a redaction mark's overlay and repeat, and a sound's numbers -- carried by the labels since T1.
+    if (got.overlayText != want.value(QStringLiteral("overlayText")).toString()) bad(QStringLiteral("overlayText"));
+    if (got.repeat != want.value(QStringLiteral("repeat")).toBool()) bad(QStringLiteral("repeat"));
+    const QJsonObject sound = want.value(QStringLiteral("sound")).toObject();
+    if (sound.isEmpty() != !got.sound.has_value()) bad(QStringLiteral("sound"));
+    if (got.sound && !sound.isEmpty()
+        && (got.sound->rate != sound.value(QStringLiteral("rate")).toInt()
+            || got.sound->channels != sound.value(QStringLiteral("channels")).toInt()
+            || got.sound->bits != sound.value(QStringLiteral("bits")).toInt()
+            || QString(core::soundEncodingName(got.sound->encoding)) != sound.value(QStringLiteral("encoding")).toString()
+            || got.sound->carried))
+        bad(QStringLiteral("sound.numbers"));
 }
 
 // Every page of `wanted` (a label's pages, possibly a subset) against the store. Returns problems.

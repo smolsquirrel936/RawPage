@@ -80,6 +80,20 @@
 // through `AppearanceObjects` by the image's SHA-256 (`core::stampImageKey`), so one image placed many times is
 // ONE object in a save (guide A-78). A stamp RawPage cannot redraw -- a foreign one, or an image stamp read from
 // a file, whose pixels the model does not hold -- is refused by key (`error.edit.stampNotRedrawable`).
+//
+// ===========================================================================================
+// A REDACTION MARK AND A SOUND -- Stage 6 T14 (D6-25, D6-18)
+// ===========================================================================================
+// A MARK has TWO appearances, and neither touches the page: `/AP /N`, what a reader shows while the mark is only a
+// mark -- each quadrilateral (or, for an area, the rectangle) outlined in `/C`, red when it has none, as Acrobat
+// outlines one -- and `/RO`, ISO 32000-1 Table 190's form of what the area WILL look like once the mark is applied:
+// each region filled with `/IC` (nothing when it has none) and the overlay text set in `/DA`'s face, size and colour,
+// once -- aligned by `/Q` and centred on the region's height -- or, with `/Repeat`, tiled from the region's top-left
+// corner to fill it, every copy clipped to the region. Both are forms over the rectangle, drawn in page space. The
+// overlay text is typed text (`core::layoutTypedText`), so a character no face can show is refused by name.
+//
+// A SOUND's icon is ISO 32000-1 Table 185's `Speaker` (the default) or `Mic`, drawn on a 20-unit grid in `/C` and
+// outlined in black, as a note's is; any other `/Name` is refused by name.
 
 #ifndef RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
 #define RAWPAGE_PDF_OPS_APPEARANCESTREAMBUILDER_H
@@ -143,7 +157,8 @@ public:
     // Whether this build can draw `subtype`. Stage 6 T3: Highlight; T6: Underline, StrikeOut, Squiggly,
     // Caret, and Text (a note, its `Comment` and `Note` icons -- another `/Name` is refused by `normal`); T7:
     // FreeText -- a box, a callout, a typewriter; T8: Line, Square, Circle, Polygon, PolyLine and Ink; T10: Stamp
-    // (a foreign one refused by `normal`, `error.edit.stampNotRedrawable`).
+    // (a foreign one refused by `normal`, `error.edit.stampNotRedrawable`); T11: FileAttachment; T14: Redact (with
+    // its `/RO`) and Sound.
     static bool supports(core::AnnotationSubtype subtype) noexcept;
 
     // A kind that has NO appearance of its own: a `Popup` (ISO 32000-1 §12.5.6.14), which a reader draws as
@@ -162,6 +177,11 @@ public:
     static core::Result<Appearance> normal(const core::Annotation& annotation, AppearanceObjects& objects);
     // The same, its objects kept nowhere: whether `annotation` can be drawn, and its stream.
     static core::Result<Appearance> normal(const core::Annotation& annotation);
+
+    // Stage 6 T14 (D6-25): a redaction mark's `/RO` -- see the header. `error.pdf.appearanceUnsupported` for anything
+    // that is not a `Redact`.
+    static core::Result<Appearance> redactionOverlay(const core::Annotation& annotation, AppearanceObjects& objects);
+    static core::Result<Appearance> redactionOverlay(const core::Annotation& annotation);
 
     // The font object for `font` -- and, for a CJK one, its CIDFont and descriptor -- through `objects`, keyed
     // so each is written once. What free text's `/Font` resources name; public so a case can set text in

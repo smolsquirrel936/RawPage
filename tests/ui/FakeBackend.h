@@ -310,6 +310,15 @@ public:
             return core::Error{core::ErrorCode::NotFound, QLatin1String("error.attachment.unknown"), name};
         return found->second;
     }
+    // S6 T14 (D6-18): the samples `soundSamples` hands out, by annotation id string -- settable, as the bytes above.
+    std::map<QString, QByteArray> soundBytes;
+    core::Result<QByteArray> soundSamples(core::DocumentHandle, const core::AnnotationId& annotation) override
+    {
+        const auto found = soundBytes.find(annotation.toString());
+        if (found == soundBytes.end())
+            return core::Error{core::ErrorCode::NotFound, QLatin1String("error.sound.noData"), annotation.toString()};
+        return found->second;
+    }
     core::Status extractAttachment(core::DocumentHandle handle, const core::AttachmentRef& attachment, const QString& path,
                                    bool overwrite) override
     {

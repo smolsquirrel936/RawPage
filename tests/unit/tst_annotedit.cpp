@@ -20,6 +20,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "SaveSession.h"
+#include "TinyPdf.h"
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/RecoveryJournal.h"
 #include "core/cmd/commands/AnnotationCommands.h"
@@ -440,22 +441,32 @@ TEST_CASE("an edit undone after its save writes back the dictionary the file hel
 TEST_CASE("a change of what a kind draws is refused by key when this build cannot draw that kind",
           "[annotedit][A-26][refuse]")
 {
-    // A SOUND since T11, which draws the file attachment this case recoloured from T10 (`tst_attachments` holds a
-    // pushpin redrawn) -- as T10 moved it off the stamp and T8 off the Square. Sounds are T14's.
-    auto session = tests::openCopy("ordinary/annots-every-type.pdf");
+    // A LINK WITH ITS PRODUCER'S APPEARANCE since T14, which draws the sound this case recoloured from T11
+    // (`tst_redaction` holds a speaker redrawn) -- as T11 moved it off the file attachment, T10 off the stamp and T8 off
+    // the Square. Every kind Stage 6 creates is now drawn, and no corpus file holds a kind it does not WITH an `/AP`
+    // (`annots-mixed.pdf`'s link has none, and one with none is rewritten, not redrawn), so the producer is built here.
+    const std::string form = "q 0 0 1 RG 1 w 0.5 0.5 99 19 re S Q";
+    const std::string bytes = tests::annotatedDocument(1, [&](int, tests::TinyPdf& pdf, int pageObject) -> std::string {
+        const int ap = pdf.add("<< /Type /XObject /Subtype /Form /BBox [ 0 0 100 20 ] /Length " + std::to_string(form.size())
+                               + " >>\nstream\n" + form + "\nendstream");
+        const int annot = pdf.add("<< /Type /Annot /Subtype /Link /Rect [ 100 700 200 720 ] /C [ 0 0 1 ] /AP << /N "
+                                  + std::to_string(ap) + " 0 R >> /P " + std::to_string(pageObject) + " 0 R >>");
+        return "[ " + std::to_string(annot) + " 0 R ]";
+    });
+    auto session = tests::openBuilt(QStringLiteral("drawn-link.pdf"), bytes);
     REQUIRE(session);
-    const std::optional<AnnotationId> sound = firstOf(storeOf(*session), AnnotationSubtype::Sound);
-    REQUIRE(sound);
+    const std::optional<AnnotationId> link = firstOf(storeOf(*session), AnnotationSubtype::Link);
+    REQUIRE(link);
     const QByteArray hash = session->journal->document().modelHash();
-    const core::Status status = recolour(*session, {*sound}, {0, 0, 1});
+    const core::Status status = recolour(*session, {*link}, {1, 0, 0});
     REQUIRE_FALSE(status);
     CHECK(keyOf(status.error()) == "error.pdf.appearanceUnsupported");   // the sink's reason, not "it failed"
-    CHECK(status.error().context == QStringLiteral("Sound"));
+    CHECK(status.error().context == QStringLiteral("Link"));
     CHECK(session->journal->document().modelHash() == hash);
     CHECK_FALSE(session->journal->canUndo());
     CHECK(deltaIsEmpty(*session));
-    // The same sound MOVED is not a change of what it draws: its appearance goes with its rectangle.
-    REQUIRE(move(*session, {*sound}, 10, -10));
+    // The same link MOVED is not a change of what it draws: its appearance goes with its rectangle.
+    REQUIRE(move(*session, {*link}, 10, -10));
 }
 
 // ==========================================================================================

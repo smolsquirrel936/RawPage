@@ -87,6 +87,9 @@ public:
     // written (a reading worth keeping is in its measurement's `/Contents`). Read-only: a list, not a property.
     void setMeasurementHistory(const QStringList& readings);
     QComboBox* historyBox() const noexcept { return history_; }
+    // S6 T14 (D6-25): a redaction mark's overlay text -- committed on `Enter` -- and whether it repeats.
+    QLineEdit* overlayTextField() const noexcept { return overlayText_; }
+    QCheckBox* repeatBox() const noexcept { return repeat_; }
 
 signals:
     // The selection's: one command each, constructed by the overlay.
@@ -132,6 +135,9 @@ private:
     QSpinBox* cloud_ = nullptr;
     QSpinBox* rotation_ = nullptr;   // S6 T10: a stamp's turn
     QComboBox* history_ = nullptr;   // S6 T12: the session's measurements
+    QLineEdit* overlayText_ = nullptr;   // S6 T14: a redaction mark's overlay text
+    QCheckBox* repeat_ = nullptr;        // S6 T14: and whether it repeats
+    QString shownOverlay_;
     QLineEdit* text_ = nullptr;
     QCheckBox* locked_ = nullptr;
     QCheckBox* contentsLocked_ = nullptr;

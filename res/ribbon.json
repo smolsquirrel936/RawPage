@@ -301,7 +301,9 @@
             { "action": "annot.callout", "size": "small" },
             { "action": "annot.typewriter", "size": "small" },
             { "action": "annot.stamp", "size": "small" },
-            { "action": "annot.attachFile", "size": "small" }
+            { "action": "annot.attachFile", "size": "small" },
+            { "action": "annot.recordAudio", "size": "small" },
+            { "action": "annot.attachAudio", "size": "small" }
           ]
         },
         {

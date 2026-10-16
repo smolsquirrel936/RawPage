@@ -33,7 +33,7 @@ constexpr DefaultRow kDefaults[] = {
 };
 
 constexpr std::array<std::string_view, kToolPropertyCount> kPropertyNames = {
-    "Colour", "FillColour", "Opacity", "Thickness", "LineStyle", "BlendMode", "FontSize"};
+    "Colour", "FillColour", "Opacity", "Thickness", "LineStyle", "BlendMode", "FontSize", "OverlayText", "Repeat"};
 
 constexpr std::array<std::string_view, 3> kLineStyles = {"solid", "dashed", "dotted"};
 constexpr std::array<std::string_view, 8> kBlends = {"normal", "multiply", "screen", "overlay",
@@ -208,6 +208,8 @@ QString formatToolProperty(ToolProperty property, const ToolDefaults& values)
         return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
     }
     case ToolProperty::FontSize: return number(values.fontSize);
+    case ToolProperty::OverlayText: return values.overlayText;
+    case ToolProperty::Repeat: return values.repeat ? QStringLiteral("true") : QStringLiteral("false");
     }
     return QString();
 }
@@ -255,6 +257,21 @@ bool parseToolProperty(ToolProperty property, const QString& text, ToolDefaults&
         const std::optional<double> v = numberIn(text, kToolFontSizeMin, kToolFontSizeMax);
         if (!v) return false;
         values.fontSize = *v;
+        return true;
+    }
+    case ToolProperty::OverlayText: {
+        // T14: one printable line -- a control character in a settings file is damage, not text.
+        if (text.size() > kToolOverlayTextMax) return false;
+        for (const QChar c : text) {
+            if (c.unicode() < 0x20 || c.unicode() == 0x7F) return false;
+        }
+        values.overlayText = text;
+        return true;
+    }
+    case ToolProperty::Repeat: {
+        const QString word = text.trimmed();
+        if (word != QLatin1String("true") && word != QLatin1String("false")) return false;
+        values.repeat = word == QLatin1String("true");
         return true;
     }
     }

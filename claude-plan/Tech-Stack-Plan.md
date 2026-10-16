@@ -1080,7 +1080,15 @@ brings `avcodec-61`, `avformat-61`, `avutil-59`, `swresample-5` and `swscale-8` 
 `C:\Qt\6.11.1\mingw_64` on 2026-10-04). **The FFmpeg plugin and those five DLLs are never deployed**:
 Stage 6's `Sound` annotations carry raw PCM, so no codec is involved, and FFmpeg would add five DLLs
 and a licence review of its own build configuration for nothing the product needs. Stage 6's guide
-case A-07 checks the deployment. `QtMultimedia` links into `ui/` only — never `core/`.
+case A-07 checks the deployment. `QtMultimedia` links into `ui/` only — never `core/`. **Built at Stage 6 T14
+(2026-10-16, `Stage6-Annotations-Plan.md` D6-41(j))**: `ui/CMakeLists.txt` deploys `Qt6Multimedia.dll` and
+`multimedia\windowsmediaplugin.dll` beside the executable — windeployqt's layout, an application library path
+Qt searches — and never the FFmpeg plugin; and because Qt 6 PREFERS FFmpeg wherever its plugin can be found,
+and a developer's PATH reaches the Qt prefix whose `plugins\multimedia` holds both, the product sets
+`QT_MEDIA_BACKEND=windows` before any multimedia object exists (`ui::useMediaFoundation`) unless the environment
+already names one. Measured the same day: a test process loads
+`build\x64-release\bin\multimedia\windowsmediaplugin.dll` and no `ffmpegmediaplugin.dll`, and `license-audit` reads
+five Qt modules with Multimedia among them.
 
 **Explicitly not taken:** `QtWebEngine` (enormous, and we render PDFs ourselves), `QtCharts` and
 `QtDataVisualization` (**GPL-3.0 only under the open-source license — taking either would breach

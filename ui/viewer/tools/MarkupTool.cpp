@@ -37,7 +37,7 @@ AnnotationOverlay::Style styleFor(const ToolHost& host, AnnotationToolKind kind)
     const core::ToolDefaults defaults = host.toolDefaults(kind);
     const std::optional<core::AnnotationSubtype> marked = markupSubtype(kind);
     return AnnotationOverlay::Style{defaults.colour, defaults.opacity,
-                                    marked ? blendNameFor(*marked, defaults.blendMode) : QString()};
+                                    marked ? blendNameFor(*marked, defaults.blendMode) : QString(), std::nullopt};
 }
 
 } // namespace

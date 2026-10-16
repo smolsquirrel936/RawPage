@@ -184,6 +184,13 @@ add_library(rawpage_core STATIC
     doc/XfdfCodec.cpp
     doc/CommentMigrator.h
     doc/CommentMigrator.cpp
+    # Stage 6 T14 (D6-18): a Sound's samples -- WAV in, ISO's big-endian PCM out, and back. Pure.
+    doc/SoundData.h
+    doc/SoundData.cpp
+    # Stage 6 T14 (D6-25): a redaction mark as a tool makes one -- over a selection or an area, its overlay text readable
+    # on its fill -- and a sound comment's icon. Pure; nothing here reads or writes a page's content.
+    doc/Redaction.h
+    doc/Redaction.cpp
 
     # Stage 3 T8 (D3-4, D3-6, D3-16): the order of a save, and every decision in it. It writes no byte:
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.

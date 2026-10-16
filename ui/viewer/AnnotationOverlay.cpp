@@ -336,6 +336,12 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
         togglePopup(*hit);
         return true;
     }
+    // S6 T14: a double click on a sound plays it -- the window's player; no byte changes.
+    if (clicks == 2 && a->subtype == AnnotationSubtype::Sound) {
+        select({*hit});
+        emit soundRequested(*hit);
+        return true;
+    }
 
     // TEXT MARKUP BELONGS TO ITS WORDS (D6-30): a drag on it is the tool's, a click selects it.
     if (isTextMarkup(a->subtype) && !(modifiers & Qt::AltModifier)) {
@@ -694,6 +700,12 @@ AnnotationOverlay::MarkOutcome AnnotationOverlay::markText(SelectionOverlay& tex
         std::vector<double> quads = selection.markupQuadsOn(*reading);
         const std::optional<core::PdfRect> rect = core::markupRect(quads);
         if (!rect) continue;
+        // S6 T14: a redaction mark, with its whole style (D6-25).
+        if (subtype == AnnotationSubtype::Redact && style.redaction) {
+            if (std::optional<Annotation> mark = core::newTextRedaction(page, quads, *style.redaction, author(), now()))
+                made.push_back(std::move(*mark));
+            continue;
+        }
         Annotation a = newAnnotation(subtype, page);
         a.quadPoints = std::move(quads);
         a.rect = *rect;
@@ -724,6 +736,21 @@ AnnotationOverlay::MarkOutcome AnnotationOverlay::markText(SelectionOverlay& tex
     if (!run(std::make_unique<core::AddAnnotationCommand>(std::move(made)))) return MarkOutcome::Refused;
     text.clear();
     return MarkOutcome::Made;
+}
+
+AnnotationOverlay::MarkOutcome AnnotationOverlay::markRedaction(SelectionOverlay& text, const core::RedactionStyle& style)
+{
+    Style marking;
+    marking.redaction = style;
+    return markText(text, AnnotationSubtype::Redact, marking);
+}
+
+bool AnnotationOverlay::markArea(int page, const core::PdfRect& area, const core::RedactionStyle& style)
+{
+    if (!isActive()) return false;
+    std::optional<Annotation> mark = core::newAreaRedaction(page, area, style, author(), now());
+    if (!mark) return false;
+    return static_cast<bool>(run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(*mark)})));
 }
 
 void AnnotationOverlay::retryPendingMark()
@@ -817,6 +844,55 @@ core::Status AnnotationOverlay::addFileAttachment(int page, core::PdfPoint at, c
     // Acrobat's pushpin blue, the colour the corpus generator gives one -- a file attachment has no tool default.
     Annotation pin = core::newFileAttachment(page, rect, std::move(embedded), {0.13, 0.4, 0.86}, author(), now());
     return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(pin)}));
+}
+
+// ---- A sound comment (S6 T14) -----------------------------------------------------------------------
+
+bool AnnotationOverlay::recordSoundAt(int page, core::PdfPoint at)
+{
+    if (!soundRecorder_ || !isActive()) return false;
+    const std::optional<core::SoundData> sound = soundRecorder_();
+    if (!sound) return false;
+    if (const core::Status made = addSound(page, at, *sound); !made) return false;   // `run` said why
+    return true;
+}
+
+bool AnnotationOverlay::attachSoundAt(int page, core::PdfPoint at)
+{
+    if (!soundChooser_ || !isActive()) return false;
+    const std::optional<QString> path = soundChooser_();
+    if (!path || path->isEmpty()) return false;
+    if (const core::Status made = addSoundFile(page, at, *path); !made) {
+        // A refusal before any command -- a file that is no PCM WAV -- said as a refused command is.
+        if (QString(made.error().messageKey).startsWith(QLatin1String("error.sound."))) reportRefusal(made.error());
+        return false;
+    }
+    return true;
+}
+
+core::Status AnnotationOverlay::addSound(int page, core::PdfPoint at, const core::SoundData& sound)
+{
+    // Acrobat's note yellow, the colour the corpus generator gives a speaker -- a sound has no tool default.
+    Annotation a = core::newSoundComment(page, at, sound, {1.0, 0.85, 0.3}, author(), now());
+    return run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{std::move(a)}));
+}
+
+core::Status AnnotationOverlay::addSoundFile(int page, core::PdfPoint at, const QString& path)
+{
+    // READ ONCE, NOW: the samples are the command's (D6-18). The size is asked first, so a file far too large to carry
+    // is refused without reading it -- a WAV's header is 44 bytes, and anything past the bound plus a generous header
+    // cannot hold samples a command may carry.
+    QFile file(path);
+    const QString name = QFileInfo(path).fileName();
+    if (file.size() > core::kMaxSoundBytes + 1024 * 1024)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.sound.tooLarge"), name};
+    if (!file.open(QIODevice::ReadOnly))
+        return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.sound.unreadable"), name};
+    const QByteArray bytes = file.readAll();
+    file.close();
+    core::Result<core::SoundData> sound = core::soundFromWav(bytes);
+    if (!sound) return sound.error();
+    return addSound(page, at, sound.value());
 }
 
 // ---- Typed text (S6 T7) --------------------------------------------------------------------------

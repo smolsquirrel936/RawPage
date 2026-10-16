@@ -50,8 +50,10 @@ std::string_view commentingToolToken(CommentingTool tool) noexcept;
 std::optional<CommentingTool> commentingToolFromToken(std::string_view token) noexcept;
 
 // ---- The properties --------------------------------------------------------------------------------
-enum class ToolProperty { Colour, FillColour, Opacity, Thickness, LineStyle, BlendMode, FontSize };
-inline constexpr int kToolPropertyCount = 7;
+// Stage 6 T14 appended two (D6-25): a redaction mark's `OverlayText` and whether it repeats. Appended, never inserted:
+// a property's number is its index in the editors.
+enum class ToolProperty { Colour, FillColour, Opacity, Thickness, LineStyle, BlendMode, FontSize, OverlayText, Repeat };
+inline constexpr int kToolPropertyCount = 9;
 
 // `Colour`, `FillColour` … -- the `<Property>` of `commenting/default<Property>.<tool>`.
 std::string_view toolPropertyName(ToolProperty property) noexcept;
@@ -103,6 +105,8 @@ struct ToolDefaults {
     LineStyle lineStyle = LineStyle::Solid;
     ToolBlend blendMode = ToolBlend::Normal;
     double fontSize = 12.0;
+    QString overlayText;                         // T14: a redaction mark's, at most `kToolOverlayTextMax` characters
+    bool repeat = false;                         // T14: whether a mark's overlay text repeats
 
     bool operator==(const ToolDefaults&) const = default;
 };
@@ -118,6 +122,8 @@ bool parseToolProperty(ToolProperty property, const QString& text, ToolDefaults&
 inline constexpr double kToolThicknessMax = 24.0;
 inline constexpr double kToolFontSizeMin = 4.0;
 inline constexpr double kToolFontSizeMax = 144.0;
+// T14: an overlay text in the settings file -- printable, on one line, no longer than a command carries.
+inline constexpr int kToolOverlayTextMax = 512;
 
 // ---- The key -----------------------------------------------------------------------------------------
 class ToolDefaultKey {

@@ -255,3 +255,17 @@ set_tests_properties(ui.diagnostics_ignore_the_bus PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin"
     SKIP_RETURN_CODE 77
     RUN_SERIAL TRUE)
+
+# S6 T14 -- guide case A-07 (D6-18, Q5): audio deploys Qt Multimedia's MEDIA FOUNDATION backend and nothing of FFmpeg.
+# A script, as A-84 and A-87 are, because what it judges is the deployment -- the files beside the executable and the
+# PE import tables of rawpage.exe and rawpage_tests.exe -- which no test binary links. The CONTROL plants the real
+# ffmpegmediaplugin.dll in a scratch copy of the deployment and requires the check to see it (convention 7).
+add_test(NAME ui.deployment_media_foundation_only
+    COMMAND ${CMAKE_COMMAND} -DMODE=check -DBIN=${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -DOBJDUMP=${CMAKE_OBJDUMP}
+            -DMODULES=${CMAKE_BINARY_DIR}/qt-modules.txt
+            -P ${CMAKE_SOURCE_DIR}/tests/gates/CheckMultimediaDeploy.cmake)
+add_test(NAME ui.deployment_media_foundation_only_control
+    COMMAND ${CMAKE_COMMAND} -DMODE=control -DBIN=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            -DFFMPEG_PLUGIN=${QT6_INSTALL_PREFIX}/${QT6_INSTALL_PLUGINS}/multimedia/ffmpegmediaplugin.dll
+            -DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/a07-control
+            -P ${CMAKE_SOURCE_DIR}/tests/gates/CheckMultimediaDeploy.cmake)

@@ -1551,6 +1551,14 @@
         <source>action.comment.migrate</source>
         <translation>Migrate Comments from an Earlier Version...</translation>
     </message>
+    <message>
+        <source>action.annot.recordAudio</source>
+        <translation>Record Audio Comment</translation>
+    </message>
+    <message>
+        <source>action.annot.attachAudio</source>
+        <translation>Attach Audio File</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2329,6 +2337,26 @@
     <message>
         <source>shell.tooltip.needsComments</source>
         <translation>Available when the document has comments</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.overlayText</source>
+        <translation>Overlay text</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.repeat</source>
+        <translation>Repeat</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolRedact</source>
+        <translation>%1: drag across text to mark it for redaction, or drag a box anywhere else. Nothing is removed until redaction is applied.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolRecordAudio</source>
+        <translation>%1: click where the audio comment goes, then record it.</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolAttachAudio</source>
+        <translation>%1: click where the audio comment goes, then choose a WAV file.</translation>
     </message>
 </context>
 <context>
@@ -3156,6 +3184,50 @@
     <message>
         <source>error.clipboard.nothingPastable</source>
         <translation>None of the copied comments can be pasted here.</translation>
+    </message>
+    <message>
+        <source>error.sound.notWav</source>
+        <translation>The file is not a WAV file.</translation>
+    </message>
+    <message>
+        <source>error.sound.malformed</source>
+        <translation>The WAV file is damaged (its %1 chunk).</translation>
+    </message>
+    <message>
+        <source>error.sound.notPcm</source>
+        <translation>The WAV file holds compressed audio (format %1); only uncompressed PCM can be attached.</translation>
+    </message>
+    <message>
+        <source>error.sound.unsupported</source>
+        <translation>RawPage takes one or two channels of 8- or 16-bit samples, 1,000 to 192,000 a second; this audio is not that (%1).</translation>
+    </message>
+    <message>
+        <source>error.sound.tooLarge</source>
+        <translation>The audio is larger than 64 MB, the most one comment carries (%1).</translation>
+    </message>
+    <message>
+        <source>error.sound.unplayable</source>
+        <translation>This sound cannot be played (%1).</translation>
+    </message>
+    <message>
+        <source>error.sound.noData</source>
+        <translation>There is no sound here to play or save (%1).</translation>
+    </message>
+    <message>
+        <source>error.sound.undecodable</source>
+        <translation>The sound's samples could not be read (%1).</translation>
+    </message>
+    <message>
+        <source>error.sound.unreadable</source>
+        <translation>%1 could not be read.</translation>
+    </message>
+    <message>
+        <source>error.sound.noDevice</source>
+        <translation>No audio device is available.</translation>
+    </message>
+    <message>
+        <source>error.sound.recordFailed</source>
+        <translation>Recording could not start.</translation>
     </message>
 </context>
 <context>
@@ -5418,6 +5490,53 @@
     <message>
         <source>measure.history.empty</source>
         <translation>No measurements yet</translation>
+    </message>
+</context>
+<context>
+    <name>audio</name>
+    <message>
+        <source>audio.dialog.title</source>
+        <translation>Record Audio Comment</translation>
+    </message>
+    <message>
+        <source>audio.dialog.record</source>
+        <translation>Record</translation>
+    </message>
+    <message>
+        <source>audio.dialog.stop</source>
+        <translation>Stop</translation>
+    </message>
+    <message>
+        <source>audio.dialog.play</source>
+        <translation>Play</translation>
+    </message>
+    <message>
+        <source>audio.dialog.ready</source>
+        <translation>Ready to record.</translation>
+    </message>
+    <message>
+        <source>audio.dialog.recording</source>
+        <translation>Recording… %1</translation>
+    </message>
+    <message>
+        <source>audio.dialog.recorded</source>
+        <translation>Recorded %1. Play it back, record again, or choose OK.</translation>
+    </message>
+    <message>
+        <source>audio.dialog.noInput</source>
+        <translation>No microphone is available, so nothing can be recorded.</translation>
+    </message>
+    <message>
+        <source>audio.attach.title</source>
+        <translation>Attach Audio File</translation>
+    </message>
+    <message>
+        <source>audio.filter.wav</source>
+        <translation>WAV audio (*.wav)</translation>
+    </message>
+    <message>
+        <source>audio.status.playing</source>
+        <translation>Playing an audio comment (%1).</translation>
     </message>
 </context>
 </TS>

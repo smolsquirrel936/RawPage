@@ -17,6 +17,7 @@
 #include "ui/viewer/ToolDefaults.h"
 #include "ui/viewer/tools/LoupeTool.h"
 #include "ui/viewer/tools/MarqueeZoomTool.h"
+#include "ui/viewer/tools/RedactTool.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -983,7 +984,12 @@ bool PageView::markSelectedText(AnnotationToolKind kind)
     const core::ToolDefaults defaults = toolDefaults(kind);
     const std::optional<core::AnnotationSubtype> marked = markupSubtype(kind);
     const AnnotationOverlay::Style style{defaults.colour, defaults.opacity,
-                                         marked ? blendNameFor(*marked, defaults.blendMode) : QString()};
+                                         marked ? blendNameFor(*marked, defaults.blendMode) : QString(), std::nullopt};
+    // S6 T14 (D6-25): text already selected is MARKED FOR REDACTION at once, as the markup commands mark it.
+    if (kind == AnnotationToolKind::RedactMark) {
+        (void)annotations_->markRedaction(*selection_, RedactTool::styleFor(*this));
+        return true;
+    }
     if (kind == AnnotationToolKind::ReplaceText) {
         // The editor at the END of what is selected -- where the caret will go.
         QPoint at(viewport()->width() / 2, viewport()->height() / 2);

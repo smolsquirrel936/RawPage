@@ -232,6 +232,14 @@ inline AnnotVerdict annotPipelineFuzzOnce(const std::uint8_t* data, std::size_t 
             return fail("a generated appearance its own re-read refuses");
         if (appearance && !appearance.value().dictionary.isStream())
             return fail("a generated appearance that is not a stream");
+        // Stage 6 T14: a redaction mark's `/RO`, from whatever overlay text, fill and repeat the bytes carry -- and a
+        // sound's numbers, whatever they read as, are a sound a command accepts or none (S6 guide I-18's lesson).
+        if (a.subtype == core::AnnotationSubtype::Redact) {
+            const auto overlay = pdf::ops::AppearanceStreamBuilder::redactionOverlay(a);
+            if (overlay && !pdf::cos::ContentStreamBuilder::check(overlay.value().data))
+                return fail("a generated redaction overlay its own re-read refuses");
+        }
+        if (a.sound && core::invalidSound(*a.sound)) return fail("a sound read that no command could carry");
     }
 
     // WRITE

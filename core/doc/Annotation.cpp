@@ -534,6 +534,10 @@ QJsonObject Annotation::toJson() const
     text("captionPosition", captionPosition);
     numbers("captionOffset", captionOffset);
     if (measure) json.insert(QStringLiteral("measure"), measureToJson(*measure));
+    // Stage 6 T14: a redaction mark's overlay, and a sound's samples.
+    text("overlayText", overlayText);
+    if (repeat) json.insert(QStringLiteral("repeat"), true);
+    if (sound) json.insert(QStringLiteral("sound"), sound->toJson());
     return json;
 }
 
@@ -637,6 +641,15 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
         const std::optional<MeasureDictionary> measure = measureFromJson(json.value(QStringLiteral("measure")));
         if (!measure) return malformed(QStringLiteral("annotation measure"));
         a.measure = *measure;
+    }
+    a.overlayText = json.value(QStringLiteral("overlayText")).toString();
+    a.repeat = json.value(QStringLiteral("repeat")).toBool();
+    if (json.contains(QStringLiteral("sound"))) {
+        const QJsonValue value = json.value(QStringLiteral("sound"));
+        if (!value.isObject()) return malformed(QStringLiteral("annotation sound"));
+        Result<SoundData> sound = SoundData::fromJson(value.toObject());
+        if (!sound) return sound.error();
+        a.sound = std::move(sound).value();
     }
     return a;
 }

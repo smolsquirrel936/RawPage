@@ -32,12 +32,16 @@
 // rewrite geometry nobody edited.
 //
 // Pure: QtCore only, no engine, no display -- `tst_annotation` in `rawpage_tests`.
+//
+// Stage 6 T14: a redaction mark's overlay text and a Sound's samples (`core/doc/SoundData`) -- each bounded where a
+// command carries it, and read no longer than a command accepts (S6 guide I-18's lesson).
 
 #ifndef RAWPAGE_CORE_DOC_ANNOTATION_H
 #define RAWPAGE_CORE_DOC_ANNOTATION_H
 
 #include "core/Geometry.h"
 #include "core/Result.h"
+#include "core/doc/SoundData.h"
 
 #include <QByteArray>
 #include <QJsonObject>
@@ -201,6 +205,10 @@ struct MeasureDictionary {
     bool operator==(const MeasureDictionary&) const = default;
 };
 
+// THE LONGEST OVERLAY TEXT A REDACTION MARK CARRIES (Stage 6 T14): what the reader keeps of a file's and what a
+// command accepts -- one bound, so a mark read from a file can always be moved and edited (S6 guide I-18).
+inline constexpr qsizetype kMaxOverlayTextLength = 512;
+
 struct Annotation {
     AnnotationId id;
     AnnotationSubtype subtype = AnnotationSubtype::Unknown;
@@ -274,6 +282,15 @@ struct Annotation {
     QString captionPosition;                    // /CP, empty for Inline
     std::vector<double> captionOffset;          // /CO: 2 numbers, or empty
     std::optional<MeasureDictionary> measure;   // /Measure
+
+    // Stage 6 T14 (D6-25): a REDACTION MARK's overlay -- the text drawn over the area once the mark is applied
+    // (`/OverlayText`, in `/DA`'s face, size and colour) and whether it is repeated to fill it (`/Repeat`). A mark
+    // removes nothing here: applying is Stage 10's.
+    QString overlayText;                        // /OverlayText
+    bool repeat = false;                        // /Repeat
+    // Stage 6 T14 (D6-18): a Sound's `/Sound` -- its rate, channels, depth and encoding, and its samples only when
+    // RawPage recorded or attached it (`core/doc/SoundData`).
+    std::optional<SoundData> sound;
 
     bool hasFlag(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }
     // A reply that carries a review or marked state rather than text (ISO 32000-1 §12.5.6.3).

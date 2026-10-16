@@ -88,6 +88,7 @@ bool hasFill(AnnotationSubtype subtype)
     case AnnotationSubtype::Line:
     case AnnotationSubtype::PolyLine:
     case AnnotationSubtype::FreeText:
+    case AnnotationSubtype::Redact:   // S6 T14: the fill a mark leaves once applied
         return true;
     default:
         return false;
@@ -233,6 +234,18 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
     row->addWidget(history_);
     setMeasurementHistory({});
 
+    // S6 T14 (D6-25): a redaction mark's overlay text and repeat -- narrow, as the history is (guide I-16's lesson).
+    row->addWidget(new QLabel(catalog::translate(catalog::key::PropertiesBarOverlayText), this));
+    overlayText_ = new QLineEdit(this);
+    overlayText_->setObjectName(QStringLiteral("propertiesOverlayText"));
+    overlayText_->setMaxLength(core::kToolOverlayTextMax);
+    overlayText_->setMaximumWidth(overlayText_->fontMetrics().averageCharWidth() * 14);
+    overlayText_->installEventFilter(this);
+    row->addWidget(overlayText_);
+    repeat_ = new QCheckBox(catalog::translate(catalog::key::PropertiesBarRepeat), this);
+    repeat_->setObjectName(QStringLiteral("propertiesRepeat"));
+    row->addWidget(repeat_);
+
     row->addWidget(new QLabel(catalog::translate(catalog::key::PropertiesBarText), this));
     text_ = new QLineEdit(this);
     text_->setObjectName(QStringLiteral("propertiesText"));
@@ -313,6 +326,19 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
         shownText_ = text_->text();
         emit contentsRequested(text_->text());
     });
+    connect(overlayText_, &QLineEdit::returnPressed, this, [this] {
+        if (refreshing_ || overlayText_->text() == shownOverlay_) return;
+        shownOverlay_ = overlayText_->text();
+        core::AnnotationAppearance appearance;
+        appearance.overlayText = overlayText_->text();
+        emitAppearance(appearance);
+    });
+    connect(repeat_, &QCheckBox::toggled, this, [this](bool on) {
+        if (refreshing_) return;
+        core::AnnotationAppearance appearance;
+        appearance.repeat = on;
+        emitAppearance(appearance);
+    });
     connect(locked_, &QCheckBox::toggled, this, [this](bool on) { lockToggled(core::AnnotationFlag::Locked, on); });
     connect(contentsLocked_, &QCheckBox::toggled, this,
             [this](bool on) { lockToggled(core::AnnotationFlag::LockedContents, on); });
@@ -327,6 +353,13 @@ bool PropertiesBar::eventFilter(QObject* watched, QEvent* event)
     if (watched == text_ && event->type() == QEvent::KeyPress
         && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape && text_->text() != shownText_) {
         text_->setText(shownText_);
+        event->accept();
+        return true;
+    }
+    // S6 T14: and in the overlay text field, its own.
+    if (watched == overlayText_ && event->type() == QEvent::KeyPress
+        && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape && overlayText_->text() != shownOverlay_) {
+        overlayText_->setText(shownOverlay_);
         event->accept();
         return true;
     }
@@ -390,6 +423,8 @@ void PropertiesBar::emitAppearance(core::AnnotationAppearance appearance)
         if (appearance.borderWidth) defaults_.thickness = *appearance.borderWidth;
         if (appearance.lineStyle) defaults_.lineStyle = *appearance.lineStyle;
         if (appearance.blendMode) defaults_.blendMode = *appearance.blendMode;
+        if (appearance.overlayText) defaults_.overlayText = *appearance.overlayText;   // S6 T14
+        if (appearance.repeat) defaults_.repeat = *appearance.repeat;
         emit toolDefaultsChanged(defaults_);
     }
 }
@@ -404,7 +439,7 @@ void PropertiesBar::enableAll(bool enabled)
 {
     for (QWidget* control : std::initializer_list<QWidget*>{colour_, fill_, opacity_, width_, lineStyle_, blend_, fontSize_,
                                                             startEnding_, endEnding_, cloud_, rotation_, text_, locked_,
-                                                            contentsLocked_, readOnly_})
+                                                            contentsLocked_, readOnly_, overlayText_, repeat_})
         control->setEnabled(enabled);
 }
 
@@ -472,10 +507,18 @@ void PropertiesBar::showSelection(const std::vector<core::Annotation>& selection
     }));
     // S6 T10: a turn where every one selected is a stamp RawPage can redraw -- a foreign one keeps its producer's.
     rotation_->setEnabled(every([](const core::Annotation& a) { return core::stampKind(a) != core::StampKind::Foreign; }));
+    // S6 T14: a redaction mark's overlay where every one selected is a mark.
+    const bool marks = every([](const core::Annotation& a) { return a.subtype == AnnotationSubtype::Redact; });
+    shownOverlay_ = marks ? first.overlayText : QString();
+    overlayText_->setText(shownOverlay_);
+    repeat_->setChecked(marks && first.repeat);
+    overlayText_->setEnabled(marks);
+    repeat_->setEnabled(marks);
     // D6-27 shown where it applies: a lock greys what it forbids, and a read-only one everything but its locks.
     if (anyLocked || anyReadOnly) {
         for (QWidget* control : std::initializer_list<QWidget*>{colour_, fill_, opacity_, width_, lineStyle_, blend_,
-                                                                fontSize_, startEnding_, endEnding_, cloud_, rotation_})
+                                                                fontSize_, startEnding_, endEnding_, cloud_, rotation_,
+                                                                overlayText_, repeat_})
             control->setEnabled(false);
     }
 
@@ -504,6 +547,9 @@ void PropertiesBar::showToolDefaults(const QString& name, AnnotationToolKind too
     lineStyle_->setCurrentIndex(static_cast<int>(values.lineStyle));
     blend_->setCurrentIndex(static_cast<int>(values.blendMode));
     fontSize_->setValue(values.fontSize);
+    shownOverlay_ = values.overlayText;   // S6 T14
+    overlayText_->setText(shownOverlay_);
+    repeat_->setChecked(values.repeat);
     shownText_.clear();
     text_->clear();
     enableAll(false);
@@ -516,6 +562,8 @@ void PropertiesBar::showToolDefaults(const QString& name, AnnotationToolKind too
     lineStyle_->setEnabled(has(core::ToolProperty::LineStyle));
     blend_->setEnabled(has(core::ToolProperty::BlendMode));
     fontSize_->setEnabled(has(core::ToolProperty::FontSize));
+    overlayText_->setEnabled(has(core::ToolProperty::OverlayText));
+    repeat_->setEnabled(has(core::ToolProperty::Repeat));
     for (QCheckBox* box : {locked_, contentsLocked_, readOnly_}) box->setChecked(false);
     refreshing_ = false;
 }
@@ -541,6 +589,9 @@ void PropertiesBar::showNothing()
     label_->setText(catalog::translate(catalog::key::PropertiesBarNothing));
     shownText_.clear();
     text_->clear();
+    shownOverlay_.clear();
+    overlayText_->clear();
+    repeat_->setChecked(false);
     enableAll(false);
     for (QCheckBox* box : {locked_, contentsLocked_, readOnly_}) box->setChecked(false);
     refreshing_ = false;

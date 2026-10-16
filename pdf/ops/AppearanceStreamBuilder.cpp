@@ -1076,6 +1076,238 @@ core::Result<Appearance> stamp(const core::Annotation& a, AppearanceObjects& obj
     return wordStamp(a, objects, natural.value());
 }
 
+// ---- Stage 6 T14: a redaction mark (D6-25) and a sound (D6-18) ----------------------------------------------
+
+// The regions a mark covers, each as four corners in drawing order: every whole quadrilateral -- its corners sorted
+// round their centre, as a highlight draws them -- or, for a mark over an AREA, the rectangle. Empty when a
+// quadrilateral holds a coordinate that is not finite.
+using Region = std::array<std::pair<double, double>, 4>;
+
+std::vector<Region> redactionRegions(const core::Annotation& a)
+{
+    std::vector<Region> out;
+    if (a.quadPoints.size() >= 8) {
+        if (!quadsDrawable(a)) return out;
+        for (std::size_t quad = 0; quad + 8 <= a.quadPoints.size(); quad += 8) {
+            Region corners;
+            double cx = 0.0, cy = 0.0;
+            for (std::size_t k = 0; k < 4; ++k) {
+                corners[k] = {a.quadPoints[quad + 2 * k], a.quadPoints[quad + 2 * k + 1]};
+                cx += corners[k].first / 4.0;
+                cy += corners[k].second / 4.0;
+            }
+            std::sort(corners.begin(), corners.end(), [cx, cy](const auto& p, const auto& q) {
+                return std::atan2(p.second - cy, p.first - cx) < std::atan2(q.second - cy, q.first - cx);
+            });
+            out.push_back(corners);
+        }
+        return out;
+    }
+    const double l = a.rect.left(), b = a.rect.bottom(), r = a.rect.right(), t = a.rect.top();
+    out.push_back(Region{{{l, b}, {r, b}, {r, t}, {l, t}}});
+    return out;
+}
+
+void regionPath(cos::ContentStreamBuilder& content, const Region& region)
+{
+    content.moveTo(region[0].first, region[0].second);
+    for (std::size_t k = 1; k < 4; ++k) content.lineTo(region[k].first, region[k].second);
+    content.closePath();
+}
+
+core::PdfRect regionBounds(const Region& region)
+{
+    double l = region[0].first, r = l, b = region[0].second, t = b;
+    for (const auto& [x, y] : region) {
+        l = std::min(l, x);
+        r = std::max(r, x);
+        b = std::min(b, y);
+        t = std::max(t, y);
+    }
+    return core::PdfRect{core::PdfPoint{l, b}, core::PdfSize{r - l, t - b}};
+}
+
+bool redactionDrawable(const core::Annotation& a)
+{
+    return finiteRect(a) && a.rect.size.width > 0.0 && a.rect.size.height > 0.0
+           && (a.quadPoints.empty() || quadsDrawable(a));
+}
+
+// `/AP /N`: the outline of each region in `/C`.
+core::Result<Appearance> redaction(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (!redactionDrawable(a)) return appearanceError("error.pdf.appearanceGeometry", name);
+    const std::vector<Region> regions = redactionRegions(a);
+    if (regions.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+    const std::optional<std::vector<double>> colour = colourOf(a, {1.0, 0.0, 0.0});
+    if (!colour) return appearanceError("error.pdf.appearanceGeometry", name);
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0").strokeColor(colour->data(), static_cast<int>(colour->size()));
+    if (a.quadPoints.empty()) {
+        // An area: the rectangle less half the line, so the whole line shows inside it.
+        content.lineWidth(1.0).lineJoin(0);
+        const core::PdfRect& r = a.rect;
+        content.rectangle(r.left() + 0.5, r.bottom() + 0.5, std::max(r.size.width - 1.0, 0.0),
+                          std::max(r.size.height - 1.0, 0.0)).stroke();
+    } else {
+        content.lineWidth(1.0).lineJoin(0);
+        for (const Region& region : regions) regionPath(content, region);
+        content.stroke();
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
+}
+
+// `/RO`: each region filled with `/IC` and the overlay text set in it, once or repeated.
+core::Result<Appearance> redactionOverlayOf(const core::Annotation& a, AppearanceObjects& objects)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (!redactionDrawable(a)) return appearanceError("error.pdf.appearanceGeometry", name);
+    const std::vector<Region> regions = redactionRegions(a);
+    if (regions.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (!a.interiorColor.empty() && a.interiorColor.size() != 1 && a.interiorColor.size() != 3 && a.interiorColor.size() != 4)
+        return appearanceError("error.pdf.appearanceGeometry", name);
+
+    const core::FreeTextStyle style = core::freeTextStyle(a);
+    std::optional<core::TypedFont> daFace;
+    if (!style.font.isEmpty()) {
+        daFace = core::typedFontByResource(style.font);
+        if (!daFace) return appearanceError("error.pdf.appearanceUnsupported", name);
+    }
+    std::vector<double> textColour = style.textColour;
+    if (textColour.size() != 1 && textColour.size() != 3 && textColour.size() != 4) textColour.assign(1, 0.0);
+    for (const double v : textColour) {
+        if (!std::isfinite(v)) return appearanceError("error.pdf.appearanceGeometry", name);
+    }
+
+    // ONE line, never wrapped: the overlay is a label, and a repeat tiles the line rather than flowing it.
+    std::optional<core::TypedLayout> layout;
+    if (!a.overlayText.isEmpty()) {
+        QString line = a.overlayText;
+        line.replace(QLatin1Char('\r'), QLatin1Char(' ')).replace(QLatin1Char('\n'), QLatin1Char(' '));
+        core::Result<core::TypedLayout> laid =
+            core::layoutTypedText(line, style.size, std::nullopt, style.han.value_or(core::TypedFont::Simplified));
+        if (!laid) return laid.error();
+        layout = std::move(laid).value();
+    }
+
+    std::vector<CosObject::Entry> fonts;
+    std::vector<std::string> named;
+    const auto addFont = [&](core::TypedFont face, const std::string& resource) {
+        if (std::find(named.begin(), named.end(), resource) != named.end()) return;
+        named.push_back(resource);
+        const cos::CosRef at = AppearanceStreamBuilder::fontObject(face, objects);
+        fonts.push_back({resource, CosObject::makeReference(at.number, at.generation)});
+    };
+    if (layout) {
+        if (daFace) addFont(*daFace, style.font.toStdString());
+        for (const core::TypedLine& line : layout->lines) {
+            for (const core::TypedRun& run : line.runs) addFont(run.font, core::typedFontSpec(run.font).resource);
+        }
+    }
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    if (!a.interiorColor.empty()) {
+        content.fillColor(a.interiorColor.data(), static_cast<int>(a.interiorColor.size()));
+        for (const Region& region : regions) regionPath(content, region);
+        content.fill();
+    }
+    const auto setLine = [&](const core::TypedLine& line, double x, double y) -> std::optional<core::Error> {
+        content.textMatrix(1.0, 0.0, 0.0, 1.0, x, y);
+        for (const core::TypedRun& run : line.runs) {
+            content.font(core::typedFontSpec(run.font).resource, layout->size);
+            const std::string codes = AppearanceStreamBuilder::encodeText(run.font, run.text);
+            if (codes.empty()) return appearanceError("error.pdf.appearanceGeometry", name);
+            content.showText(codes);
+        }
+        return std::nullopt;
+    };
+    if (layout && !layout->lines.empty() && !layout->lines.front().runs.empty()) {
+        const core::TypedLine& line = layout->lines.front();
+        const double size = layout->size;
+        const double lineHeight = core::kTypedLeading * size;
+        const double gap = std::max(size * 0.5, 1.0);
+        for (const Region& region : regions) {
+            const core::PdfRect box = regionBounds(region);
+            content.save();
+            regionPath(content, region);
+            content.clip().endPath();
+            content.beginText().fillColor(textColour.data(), static_cast<int>(textColour.size()));
+            if (a.repeat) {
+                // Tiled from the top-left corner, row under row, until the region is full: every copy whole or clipped.
+                const double step = line.width + gap;
+                int rows = 0;
+                for (double top = box.top(); top > box.bottom() && rows < 512; top -= lineHeight, ++rows) {
+                    int copies = 0;
+                    for (double x = box.left(); x < box.right() && copies < 512 && step > 0.0; x += step, ++copies) {
+                        if (std::optional<core::Error> failed = setLine(line, x, top - core::kTypedAscent * size)) return *failed;
+                    }
+                }
+            } else {
+                double x = box.left();
+                if (a.justification == 1) x += (box.size.width - line.width) / 2.0;
+                else if (a.justification == 2) x += box.size.width - line.width;
+                // The line's box -- its leading -- centred on the region's height, the baseline its ascent below the top.
+                const double y = box.bottom() + (box.size.height + lineHeight) / 2.0 - core::kTypedAscent * size;
+                if (std::optional<core::Error> failed = setLine(line, x, y)) return *failed;
+            }
+            content.endText().restore();
+        }
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString())), std::move(fonts)),
+                      content.bytes()};
+}
+
+// A sound's icon on a 20-unit grid: `Speaker`, a cone with two arcs of sound, or `Mic`, a capsule on a stand.
+core::Result<Appearance> soundIcon(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (!finiteRect(a) || !(a.rect.size.width > 0.0) || !(a.rect.size.height > 0.0))
+        return appearanceError("error.pdf.appearanceGeometry", name);
+    const QString icon = a.icon.isEmpty() ? QStringLiteral("Speaker") : a.icon;
+    if (icon != QLatin1String("Speaker") && icon != QLatin1String("Mic"))
+        return appearanceError("error.pdf.appearanceUnsupported", name);
+    const std::optional<std::vector<double>> colour = colourOf(a, {1.0, 0.82, 0.0});
+    if (!colour) return appearanceError("error.pdf.appearanceGeometry", name);
+
+    const double sx = a.rect.size.width / 20.0, sy = a.rect.size.height / 20.0;
+    const double l = a.rect.left(), b = a.rect.bottom();
+    const auto x = [&](double u) { return l + u * sx; };
+    const auto y = [&](double v) { return b + v * sy; };
+    const double scale = std::min(sx, sy);
+    const double black[1] = {0.0};
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0").fillColor(colour->data(), static_cast<int>(colour->size()));
+    content.strokeColor(black, 1).lineWidth(0.8 * scale).lineJoin(1).lineCap(1);
+    if (icon == QLatin1String("Speaker")) {
+        // The box and the cone, filled and outlined, then two arcs of sound beside it.
+        content.moveTo(x(2.0), y(7.0)).lineTo(x(6.0), y(7.0)).lineTo(x(11.0), y(2.5)).lineTo(x(11.0), y(17.5));
+        content.lineTo(x(6.0), y(13.0)).lineTo(x(2.0), y(13.0)).closePath().fillAndStroke();
+        content.moveTo(x(13.5), y(7.0)).curveTo(x(15.0), y(8.5), x(15.0), y(11.5), x(13.5), y(13.0)).stroke();
+        content.moveTo(x(15.5), y(4.5)).curveTo(x(18.5), y(7.5), x(18.5), y(12.5), x(15.5), y(15.5)).stroke();
+    } else {
+        // A capsule -- two half circles and their sides -- filled and outlined, its cradle and a stand.
+        const double k = 0.5523 * 3.5;
+        content.moveTo(x(6.5), y(9.0)).lineTo(x(6.5), y(15.0));
+        content.curveTo(x(6.5), y(15.0 + k), x(10.0 - k), y(18.5), x(10.0), y(18.5));
+        content.curveTo(x(10.0 + k), y(18.5), x(13.5), y(15.0 + k), x(13.5), y(15.0));
+        content.lineTo(x(13.5), y(9.0));
+        content.curveTo(x(13.5), y(9.0 - k), x(10.0 + k), y(5.5), x(10.0), y(5.5));
+        content.curveTo(x(10.0 - k), y(5.5), x(6.5), y(9.0 - k), x(6.5), y(9.0));
+        content.closePath().fillAndStroke();
+        content.moveTo(x(4.5), y(10.5)).curveTo(x(4.5), y(5.0), x(15.5), y(5.0), x(15.5), y(10.5)).stroke();
+        content.moveTo(x(10.0), y(3.5)).lineTo(x(10.0), y(1.5)).stroke();
+        content.moveTo(x(6.5), y(1.5)).lineTo(x(13.5), y(1.5)).stroke();
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), blendOf(a).value_or(QString()))), content.bytes()};
+}
+
 class DryRun final : public AppearanceObjects {
 public:
     cos::CosRef shared(const std::string&, cos::CosObject) override { return cos::CosRef{0, 0}; }
@@ -1204,6 +1436,9 @@ bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
     case core::AnnotationSubtype::Stamp:
     // Stage 6 T11: a file attachment's pushpin or paper clip.
     case core::AnnotationSubtype::FileAttachment:
+    // Stage 6 T14: a redaction mark's outline (its `/RO` beside it) and a sound's speaker or microphone.
+    case core::AnnotationSubtype::Redact:
+    case core::AnnotationSubtype::Sound:
         return true;
     default:
         return false;
@@ -1245,12 +1480,32 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::Ink: return ink(annotation);
         case core::AnnotationSubtype::Stamp: return stamp(annotation, objects);
         case core::AnnotationSubtype::FileAttachment: return fileAttachment(annotation);
+        case core::AnnotationSubtype::Redact: return redaction(annotation);
+        case core::AnnotationSubtype::Sound: return soundIcon(annotation);
         default:
             return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
         }
     }();
     if (!built) return built;
     // D6-6: every stream we generate is re-read by the reader before anyone else sees it.
+    if (core::Status wellFormed = cos::ContentStreamBuilder::check(built.value().data); !wellFormed)
+        return wellFormed.error();
+    return built;
+}
+
+core::Result<Appearance> AppearanceStreamBuilder::redactionOverlay(const core::Annotation& annotation)
+{
+    DryRun nowhere;
+    return redactionOverlay(annotation, nowhere);
+}
+
+core::Result<Appearance> AppearanceStreamBuilder::redactionOverlay(const core::Annotation& annotation,
+                                                                   AppearanceObjects& objects)
+{
+    if (annotation.subtype != core::AnnotationSubtype::Redact)
+        return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
+    core::Result<Appearance> built = redactionOverlayOf(annotation, objects);
+    if (!built) return built;
     if (core::Status wellFormed = cos::ContentStreamBuilder::check(built.value().data); !wellFormed)
         return wellFormed.error();
     return built;

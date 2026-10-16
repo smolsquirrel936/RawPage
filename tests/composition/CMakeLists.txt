@@ -91,6 +91,12 @@ add_executable(rawpage_composition_tests
     # filtered export read back), A-98 and A-99 (a migration from annots-report-v1.pdf graded on §3.5 from the saved
     # file), and A-81's paste across documents saved and reopened fresh.
     tst_exchangeproduct.cpp
+    # S6 T14 -- guide A-100 through the tool (a phrase and an area marked with Ctrl+Alt+K, the overlay set on the bar,
+    # saved: every content stream byte-identical, the phrase still extracted by a fresh engine) and A-34 for the marks.
+    tst_redactink.cpp
+    # S6 T14 -- guide A-101's product half: a WAV attached and a recording made through the two sound tools, saved and
+    # read back byte for byte, played as their samples; a non-PCM WAV refused; and a by-hand recording on `windows`.
+    tst_audioproduct.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp

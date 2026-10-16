@@ -49,5 +49,9 @@ RAWPAGE_COMMENTING_TOOL(AttachFile,      "attachFile")
 // (`annot.dimension`, minted chordless): a distance whose line stands off the points measured on leader lines.
 RAWPAGE_COMMENTING_TOOL(MeasurePerimeter, "measurePerimeter")
 RAWPAGE_COMMENTING_TOOL(Dimension,       "dimension")
+// Stage 6 T14 (D6-18): a sound comment recorded (`annot.recordAudio`) or taken from a WAV file (`annot.attachAudio`),
+// both minted chordless. No tool default of its own: the speaker is Acrobat's at its one 20-point size.
+RAWPAGE_COMMENTING_TOOL(RecordAudio,     "recordAudio")
+RAWPAGE_COMMENTING_TOOL(AttachAudio,     "attachAudio")
 
 #undef RAWPAGE_COMMENTING_TOOL

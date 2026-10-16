@@ -400,6 +400,9 @@ RAWPAGE_SHELL_STRING(PropertiesBarEndings,        "shell.propertiesBar.endings")
 RAWPAGE_SHELL_STRING(PropertiesBarCloud,          "shell.propertiesBar.cloud")
 // S6 T10: a stamp's turn, any angle (D6-37).
 RAWPAGE_SHELL_STRING(PropertiesBarRotation,       "shell.propertiesBar.rotation")
+// S6 T14: a redaction mark's overlay text and whether it repeats (D6-25).
+RAWPAGE_SHELL_STRING(PropertiesBarOverlayText,    "shell.propertiesBar.overlayText")
+RAWPAGE_SHELL_STRING(PropertiesBarRepeat,         "shell.propertiesBar.repeat")
 // A refused annotation change, in the status bar (guide A-39's last clause): `%1` is the reason's own text.
 RAWPAGE_SHELL_STRING(StatusAnnotationRefused,     "shell.status.annotationRefused")
 // An annotation tool armed that makes nothing yet: `%1` is its name. What it creates arrives with its task
@@ -421,6 +424,10 @@ RAWPAGE_SHELL_STRING(StatusAnnotationToolPolygon,    "shell.status.annotationToo
 RAWPAGE_SHELL_STRING(StatusAnnotationToolPencil,     "shell.status.annotationToolPencil")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolEraser,     "shell.status.annotationToolEraser")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolAttachFile, "shell.status.annotationToolAttachFile")   // S6 T11
+// S6 T14: the redaction mark and the two sound tools, likewise -- `%1` the tool's name.
+RAWPAGE_SHELL_STRING(StatusAnnotationToolRedact,      "shell.status.annotationToolRedact")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolRecordAudio, "shell.status.annotationToolRecordAudio")
+RAWPAGE_SHELL_STRING(StatusAnnotationToolAttachAudio, "shell.status.annotationToolAttachAudio")
 RAWPAGE_SHELL_STRING(StatusToolDefaultsWritten,      "shell.status.toolDefaultsWritten")
 
 // --- Advanced Search (S5 T9, D5-13) -- `ui/panes/SearchPane`, the same `search.` family ---------------
@@ -721,5 +728,21 @@ RAWPAGE_SHELL_STRING(ExchangeReportColumnPage, "comments.exchange.column.page")
 RAWPAGE_SHELL_STRING(ExchangeReportColumnOutcome, "comments.exchange.column.outcome")
 RAWPAGE_SHELL_STRING(ExchangeReportColumnReason, "comments.exchange.column.reason")
 RAWPAGE_SHELL_STRING(TooltipNeedsComments, "shell.tooltip.needsComments")
+
+// --- A sound comment (S6 T14, D6-18) -- a new family, `audio.` ------------------------------------------------
+// A new namespace, as `measure.` was at T12, added to `tools/i18n-lint/rules.json` in the same change: the recorder
+// dialog, the WAV question and what the status bar says while one plays. NOT `sound.`, which nothing names, and NOT
+// `annot.`, whose every action id would read as a missing key (Stage 5's I-08, D6-31(b)).
+RAWPAGE_SHELL_STRING(AudioDialogTitle, "audio.dialog.title")
+RAWPAGE_SHELL_STRING(AudioDialogRecord, "audio.dialog.record")
+RAWPAGE_SHELL_STRING(AudioDialogStop, "audio.dialog.stop")
+RAWPAGE_SHELL_STRING(AudioDialogPlay, "audio.dialog.play")
+RAWPAGE_SHELL_STRING(AudioDialogReady, "audio.dialog.ready")
+RAWPAGE_SHELL_STRING(AudioDialogRecording, "audio.dialog.recording")
+RAWPAGE_SHELL_STRING(AudioDialogRecorded, "audio.dialog.recorded")
+RAWPAGE_SHELL_STRING(AudioDialogNoInput, "audio.dialog.noInput")
+RAWPAGE_SHELL_STRING(AudioAttachTitle, "audio.attach.title")
+RAWPAGE_SHELL_STRING(AudioWavFilter, "audio.filter.wav")
+RAWPAGE_SHELL_STRING(AudioStatusPlaying, "audio.status.playing")
 
 #undef RAWPAGE_SHELL_STRING

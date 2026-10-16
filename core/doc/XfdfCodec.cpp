@@ -478,6 +478,35 @@ struct Reader {
             a.captionOffset = {numberAttribute(at, "caption-offset-h").value_or(0.0), numberAttribute(at, "caption-offset-v").value_or(0.0)};
         a.stateModel = text("statemodel").left(64);
         if (!a.stateModel.isEmpty()) a.state = text("state").left(64);
+        // Stage 6 T14 (D6-25): a redaction mark's overlay, as Acrobat writes it -- no longer than a command carries.
+        if (subtype == AnnotationSubtype::Redact) {
+            a.overlayText = text("overlay-text").left(kMaxOverlayTextLength);
+            a.repeat = text("repeat").toLower() == QLatin1String("true") || text("repeat").toLower() == QLatin1String("yes");
+        }
+        // Stage 6 T14 (D6-18): a sound's numbers from its own attributes, its samples from its `<data>` -- each within
+        // what a command accepts, or the annotation carries no sound and an import refuses it as one with nothing to play.
+        std::optional<SoundData> sound;
+        if (subtype == AnnotationSubtype::Sound) {
+            SoundData s;
+            const auto whole = [&](const char* name, double low, double high, int fallback) -> std::optional<int> {
+                if (!has(name)) return fallback;
+                const std::optional<double> v = numberAttribute(at, name);
+                if (!v || *v < low || *v > high || *v != std::floor(*v)) return std::nullopt;
+                return static_cast<int>(*v);
+            };
+            const std::optional<int> rate = whole("rate", 1.0, 10000000.0, -1);
+            const std::optional<int> channels = whole("channels", 1.0, 64.0, 1);
+            const std::optional<int> bits = whole("bits", 1.0, 32.0, 8);
+            const std::optional<SoundEncoding> encoding =
+                soundEncodingFromName(has("encoding") ? text("encoding") : QStringLiteral("Raw"));
+            if (rate && *rate >= 1 && channels && bits && encoding) {
+                s.rate = *rate;
+                s.channels = *channels;
+                s.bits = *bits;
+                s.encoding = *encoding;
+                sound = s;
+            }
+        }
         if (text("replyType").toLower() == QLatin1String("group")) a.replyType = ReplyType::Group;
         const QString inReplyTo = text("inreplyto");
 
@@ -534,10 +563,14 @@ struct Reader {
                     }
                 }
             } else if (child == QLatin1String("data")) {
-                if (std::optional<QByteArray> bytes = data(a.nm); bytes && subtype == AnnotationSubtype::FileAttachment) {
+                std::optional<QByteArray> bytes = data(a.nm);
+                if (bytes && subtype == AnnotationSubtype::FileAttachment) {
                     file.data = std::move(*bytes);
                     file.carried = true;
                     file.size = file.data.size();
+                } else if (bytes && sound && bytes->size() <= kMaxSoundBytes) {   // T14: a sound's samples
+                    sound->samples = std::move(*bytes);
+                    sound->carried = true;
                 }
             } else if (child == QLatin1String("popup")) {
                 const QXmlStreamAttributes pa = xml.attributes();
@@ -562,6 +595,7 @@ struct Reader {
         }
         if (truncated) note(ExchangeNoteKind::GeometryTruncated, a.nm, a.page);
         if (subtype == AnnotationSubtype::FileAttachment && !file.name.isEmpty()) a.attachment = std::move(file);
+        if (sound) a.sound = std::move(sound);
 
         // ITS NAME: the file's, else the one its content gives it (`core/doc/Fdf.h`).
         if (a.nm.isEmpty()) a.nm = contentNameOf(a);
@@ -729,6 +763,17 @@ struct Writer {
             attribute("modification", f.modified.raw);
             if (!f.checksum.isEmpty()) attribute("checksum", QString::fromLatin1(f.checksum.toHex()));
         }
+        // Stage 6 T14: a redaction mark's overlay and a sound's numbers, in Acrobat's attribute names.
+        if (a.subtype == AnnotationSubtype::Redact) {
+            attribute("overlay-text", a.overlayText);
+            if (a.repeat) attribute("repeat", QStringLiteral("true"));
+        }
+        if (a.sound) {
+            attribute("bits", QString::number(a.sound->bits));
+            attribute("channels", QString::number(a.sound->channels));
+            attribute("encoding", QString(soundEncodingName(a.sound->encoding)));
+            attribute("rate", QString::number(a.sound->rate));
+        }
         out += QStringLiteral(">\n");
 
         if (!a.contents.isEmpty()) out += QStringLiteral("<contents>") + escapeText(a.contents) + QStringLiteral("</contents>\n");
@@ -744,6 +789,10 @@ struct Writer {
         if (a.attachment && a.attachment->carried) {
             out += QStringLiteral("<data MODE=\"raw\" encoding=\"hex\" length=\"") + QString::number(a.attachment->data.size())
                    + QStringLiteral("\">") + QString::fromLatin1(a.attachment->data.toHex().toUpper()) + QStringLiteral("</data>\n");
+        }
+        if (a.sound && a.sound->carried) {   // T14: the samples, as the stream holds them
+            out += QStringLiteral("<data MODE=\"raw\" encoding=\"hex\" length=\"") + QString::number(a.sound->samples.size())
+                   + QStringLiteral("\">") + QString::fromLatin1(a.sound->samples.toHex().toUpper()) + QStringLiteral("</data>\n");
         }
         if (a.measure) {
             const MeasureDictionary& m = *a.measure;

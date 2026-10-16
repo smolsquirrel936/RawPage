@@ -61,6 +61,10 @@ public:
     // specification SAYS, never the bytes (D6-38(b)). Refused by the first read that fails, by its key.
     static core::Status carryFiles(core::Fdf& exchange,
                                    const std::function<core::Result<QByteArray>(const core::AnnotationId&)>& read);
+    // Stage 6 T14 (D6-18): every Sound of `exchange` whose samples are not carried, given them -- `read` asked as
+    // `carryFiles` asks, for the same reason: the model holds what a sound SAYS, its samples only for one RawPage made.
+    static core::Status carrySounds(core::Fdf& exchange,
+                                    const std::function<core::Result<QByteArray>(const core::AnnotationId&)>& read);
 };
 
 } // namespace rawpage::pdf::ops

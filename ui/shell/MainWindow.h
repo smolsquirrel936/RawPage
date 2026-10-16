@@ -85,6 +85,7 @@ class DestinationsPane;
 class LogPane;
 class MeasurementScaleDialog;
 class SearchPane;
+class SoundPlayer;
 class StampPalettePane;
 class ThumbnailsPane;
 class MessageBar;
@@ -376,6 +377,22 @@ public:
     core::Status pasteAnnotations(const QByteArray& payload);
     // What the last import or migration reported, for a case; the dialog shows it where a person can see it.
     const std::optional<ExchangeReport>& lastExchangeReport() const noexcept { return lastExchangeReport_; }
+
+    // ---- A SOUND COMMENT (S6 T14, D6-18) -- defined in `ui/shell/MainWindowAudio.cpp` ---------------------------
+    // The recorder asked (`ui/viewer/AudioRecorder`) and what it recorded; the WAV `annot.attachAudio` is to read. Each
+    // answers nothing where nobody can be asked (convention 16) or the person stopped short.
+    std::optional<core::SoundData> askRecording();
+    std::optional<QString> askSoundPath();
+    // Sound `id` of the tab in front PLAYED -- its samples carried, or read from the document. Changes no byte.
+    core::Status playSound(const core::AnnotationId& id);
+    // The sound last handed to the player, its samples read -- for a case, where the player may have no device.
+    const std::optional<core::SoundData>& lastPlayed() const noexcept { return lastPlayed_; }
+    // What a headless case answers in place of the recorder and the WAV question. Empty: the person is asked.
+    struct AudioAnswers {
+        std::function<std::optional<core::SoundData>()> recording;
+        std::function<std::optional<QString>()> soundPath;
+    };
+    static void setAudioAnswersForTesting(AudioAnswers answers);
     // What a headless case answers in place of the three file questions. An empty member asks the person -- or, with
     // nobody to ask, answers nothing.
     struct ExchangeAnswers {
@@ -628,6 +645,9 @@ private:
     QPointer<CommentMigration> migration_;
     QPointer<DocumentWindow> migrationTarget_;
     std::optional<ExchangeReport> lastExchangeReport_;
+    // S6 T14: the one player, made on the first sound played, and what it was last given.
+    SoundPlayer* player_ = nullptr;
+    std::optional<core::SoundData> lastPlayed_;
     StatusBar*   status_ = nullptr;
     MessageBar*  messageBar_ = nullptr;
 

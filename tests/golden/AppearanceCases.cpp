@@ -5,6 +5,7 @@
 #include "core/Measure.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Redaction.h"
 #include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
 #include "core/settings/CommentingTypes.h"
@@ -365,6 +366,61 @@ std::vector<AppearanceCase> buildCases()
             {measured("measure-perimeter-area", 0, core::MeasureKind::Perimeter, {20, 30, 20, 120, 38, 120}, green, 0.0),
              measured("measure-perimeter-area", 1, core::MeasureKind::Area, {80, 50, 152, 50, 152, 104, 80, 104}, blue, 0.0)});
     }
+    {
+        // Stage 6 T14 (D6-25): REDACTION MARKS as the tool makes them (`core::newTextRedaction`, `newAreaRedaction`) --
+        // over two "lines" of the band and over an area -- first as a reader shows a mark (its red outline, `/AP /N`),
+        // then as it will look applied (`/RO`): the black fill and white "REDACTED" once, centred, and a white fill with
+        // black "WITHHELD" tiled.
+        const auto marks = [&](const char* caseName) {
+            core::RedactionStyle once;
+            once.overlayText = QStringLiteral("REDACTED");
+            core::RedactionStyle tiled;
+            tiled.overlayText = QStringLiteral("WITHHELD");
+            tiled.repeat = true;
+            tiled.fill = {1.0, 1.0, 1.0};
+            tiled.outline = blue;
+            const Annotation fixedText = made(AnnotationSubtype::Redact, n(caseName), 0);
+            const Annotation fixedArea = made(AnnotationSubtype::Redact, n(caseName), 1);
+            std::optional<Annotation> text = core::newTextRedaction(0, {15, 52, 120, 52, 15, 30, 120, 30, 15, 108, 90, 108, 15, 98, 90, 98},
+                                                                    once, QStringLiteral("Appearance"), kInstant);
+            std::optional<Annotation> area = core::newAreaRedaction(0, PdfRect{PdfPoint{130, 60}, PdfSize{60, 80}}, tiled,
+                                                                    QStringLiteral("Appearance"), kInstant);
+            std::vector<Annotation> out;
+            for (auto [made_, fixed] : {std::pair{&text, &fixedText}, std::pair{&area, &fixedArea}}) {
+                if (!*made_) continue;   // a refused one fails the case, by its count
+                Annotation a = **made_;
+                a.id = fixed->id;
+                a.nm = fixed->nm;
+                out.push_back(std::move(a));
+            }
+            return out;
+        };
+        add("redaction-marks", "two lines and an area marked: a red outline round each line and a blue one round the area",
+            marks("redaction-marks"));
+        cases.push_back(AppearanceCase{n("redaction-overlay"),
+                                       n("the same marks as they will look applied: black with REDACTED once in white, "
+                                         "white with WITHHELD tiled in black"),
+                                       0, marks("redaction-overlay"), true});
+    }
+    {
+        // Stage 6 T14 (D6-18): a SOUND's two icons -- the speaker at its 20 points and at twice that, and the microphone.
+        const auto sounding = [&](int index, const char* icon, PdfRect rect, std::vector<double> colour) {
+            Annotation a = made(AnnotationSubtype::Sound, n("sounds"), index);
+            a.rect = rect;
+            a.icon = QString::fromLatin1(icon);
+            a.color = std::move(colour);
+            core::SoundData s;
+            s.rate = 8000;
+            s.samples = QByteArray(80, '\x80');
+            s.carried = true;
+            a.sound = s;
+            return a;
+        };
+        add("sounds", "a yellow speaker, a red one twice its size, and a green microphone",
+            {sounding(0, "Speaker", PdfRect{PdfPoint{40, 50}, PdfSize{20, 20}}, {1.0, 0.85, 0.3}),
+             sounding(1, "Speaker", PdfRect{PdfPoint{85, 40}, PdfSize{40, 40}}, red),
+             sounding(2, "Mic", PdfRect{PdfPoint{150, 50}, PdfSize{20, 20}}, green)});
+    }
     return cases;
 }
 
@@ -390,7 +446,7 @@ QString appearanceBaselinePath(const AppearanceCase& item)
     return QStringLiteral("appearance/%1.png").arg(item.name);
 }
 
-std::string appearancePdf(const std::vector<core::Annotation>& annotations, int rotate, bool withAppearance)
+std::string appearancePdf(const std::vector<core::Annotation>& annotations, int rotate, bool withAppearance, bool overlay)
 {
     // 1 the catalog, 2 the page tree, 3 the page, 4 its content; then the objects appearances share, then each
     // annotation's form and its dictionary.
@@ -402,7 +458,9 @@ std::string appearancePdf(const std::vector<core::Annotation>& annotations, int 
     std::vector<pdf::ops::Appearance> forms;
     if (withAppearance) {
         for (const core::Annotation& a : annotations) {
-            auto built = pdf::ops::AppearanceStreamBuilder::normal(a, shared);
+            auto built = overlay && a.subtype == core::AnnotationSubtype::Redact
+                             ? pdf::ops::AppearanceStreamBuilder::redactionOverlay(a, shared)
+                             : pdf::ops::AppearanceStreamBuilder::normal(a, shared);
             if (!built) return std::string();   // the case fails, by name, rather than a page drawn without it
             forms.push_back(std::move(built).value());
         }

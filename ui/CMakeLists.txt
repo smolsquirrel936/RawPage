@@ -31,6 +31,8 @@ add_library(rawpage_ui STATIC
     # S6 T13 (D6-20, D6-21, D6-22): the window's comments in and out -- MainWindow members in a file of their own --
     # and one migration's run, off the UI thread over the comparison's pipeline.
     shell/MainWindowExchange.cpp
+    # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
+    shell/MainWindowAudio.cpp
     shell/CommentMigration.h
     shell/CommentMigration.cpp
 
@@ -153,6 +155,14 @@ add_library(rawpage_ui STATIC
     # Stage 6 T12 (D6-14): distance, perimeter, area and the dimension callout, each point snapped; and calibration.
     viewer/tools/MeasureTool.h
     viewer/tools/MeasureTool.cpp
+    # Stage 6 T14 (D6-25, D6-18): the redaction mark -- over text or an area -- and the two sound tools; and recording
+    # and playing a sound through Qt Multimedia's Media Foundation backend, the one file that names Qt Multimedia.
+    viewer/tools/RedactTool.h
+    viewer/tools/RedactTool.cpp
+    viewer/tools/SoundTool.h
+    viewer/tools/SoundTool.cpp
+    viewer/AudioRecorder.h
+    viewer/AudioRecorder.cpp
     # Stage 6 T12: a document's pages' paths, asked of the text index for the measuring tools to snap to.
     viewer/SnapTargets.h
     viewer/SnapTargets.cpp
@@ -335,5 +345,30 @@ target_include_directories(rawpage_ui PUBLIC "${CMAKE_SOURCE_DIR}")
 # those, the boundary is gone regardless of what any lint says.
 target_link_libraries(rawpage_ui PUBLIC rawpage_core)
 
-rawpage_link_qt(rawpage_ui Widgets Gui Svg)
+# Multimedia since Stage 6 T14 (D6-18, Tech-Stack-Plan.md 6.1): ui/ ONLY -- core/ never links it, which the A-07
+# deployment case checks against the unit binary's imports.
+rawpage_link_qt(rawpage_ui Widgets Gui Svg Multimedia)
+
+# --- Qt Multimedia beside the executable: Media Foundation, and NOTHING of FFmpeg (D6-18, guide A-07) -------------
+# The Qt prefix carries two Windows backends, and Qt 6 prefers FFmpeg wherever its plugin can be found. So the build
+# deploys Qt6Multimedia.dll and the WINDOWS backend's plugin -- in windeployqt's layout, multimedia/ beside the
+# executable, a directory Qt searches as an application library path -- and never ffmpegmediaplugin.dll or the five
+# DLLs it brings (avcodec, avformat, avutil, swresample, swscale). ui/viewer/AudioRecorder sets
+# QT_MEDIA_BACKEND=windows besides, for a process whose PATH reaches the Qt prefix's own plugins. A custom target,
+# as pdfium.dll's is (pdf/CMakeLists.txt), so every executable that links rawpage_ui finds both from a fresh tree.
+set(RAWPAGE_MEDIA_PLUGIN "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_PLUGINS}/multimedia/windowsmediaplugin.dll")
+add_custom_command(
+    OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Qt6Multimedia.dll"
+           "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/multimedia/windowsmediaplugin.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt6::Multimedia>"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Qt6Multimedia.dll"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/multimedia"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RAWPAGE_MEDIA_PLUGIN}"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/multimedia/windowsmediaplugin.dll"
+    DEPENDS "${RAWPAGE_MEDIA_PLUGIN}"
+    COMMENT "Deploying Qt Multimedia (the Media Foundation backend only) beside the executable"
+    VERBATIM)
+add_custom_target(rawpage_multimedia_runtime DEPENDS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Qt6Multimedia.dll"
+                                                     "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/multimedia/windowsmediaplugin.dll")
+add_dependencies(rawpage_ui rawpage_multimedia_runtime)
 rawpage_ui_grace(rawpage_ui)

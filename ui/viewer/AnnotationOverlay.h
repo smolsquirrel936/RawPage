@@ -61,6 +61,8 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/Redaction.h"
+#include "core/doc/SoundData.h"
 #include "core/doc/TypedText.h"
 #include "core/render/PagePresentation.h"
 
@@ -179,6 +181,9 @@ public:
         std::vector<double> colour;   // /C: 1, 3 or 4 components; empty for the kind's own
         double opacity = 1.0;         // /CA, written only below 1
         QString blendMode;            // /BM (S6 T8): empty for the kind's own -- see `ui::blendNameFor`
+        // S6 T14 (D6-25): a REDACTION MARK's whole style -- its outline, fill, overlay text and repeat. Set, a
+        // `markText` of `Redact` makes marks with it (`core::newTextRedaction`) rather than from the three above.
+        std::optional<core::RedactionStyle> redaction;
     };
     // A new annotation of `subtype` on `page`: its `/NM`, the person's name, the instant.
     core::Annotation newAnnotation(core::AnnotationSubtype subtype, int page) const;
@@ -189,6 +194,12 @@ public:
     MarkOutcome markText(SelectionOverlay& text, core::AnnotationSubtype subtype, const Style& style,
                          std::optional<QString> replacement = std::nullopt);
     bool hasPendingMark() const noexcept { return pendingMark_.has_value(); }
+    // ---- Redaction marks (S6 T14, D6-25) -------------------------------------------------------------
+    // What `text` has selected MARKED for redaction, one region a line -- `markText` with `style` as the mark's. The
+    // mark removes nothing: applying is Stage 10's.
+    MarkOutcome markRedaction(SelectionOverlay& text, const core::RedactionStyle& style);
+    // `area` on `page` marked for redaction, as ONE `AddAnnotationCommand`; a refusal said through `refused`.
+    bool markArea(int page, const core::PdfRect& area, const core::RedactionStyle& style);
     // An insertion mark at the boundary nearest `at` on `page`, holding `inserted`.
     core::Status insertText(SelectionOverlay& text, int page, core::PdfPoint at, const QString& inserted,
                             const Style& style);
@@ -250,6 +261,22 @@ public:
     static constexpr double kPushPinWidth = 16.0;
     static constexpr double kPushPinHeight = 24.0;
 
+    // ---- A sound comment (S6 T14, D6-18) --------------------------------------------------------------
+    // THE SAMPLES: recorded by the window's recorder (`ui/viewer/AudioRecorder`, or a case's answer), or read from the
+    // WAV the window's chooser names. Nothing when either is unset or answers nothing -- the person stopped short.
+    using SoundRecorder = std::function<std::optional<core::SoundData>()>;
+    void setSoundRecorder(SoundRecorder recorder) { soundRecorder_ = std::move(recorder); }
+    void setSoundChooser(FileChooser chooser) { soundChooser_ = std::move(chooser); }
+    // The two tools' click: the sound asked for, and ONE Sound made with its icon's top-left corner at `at`. True when
+    // one was made; a refusal -- a WAV that is not PCM, too long a recording -- is said through `refused`.
+    bool recordSoundAt(int page, core::PdfPoint at);
+    bool attachSoundAt(int page, core::PdfPoint at);
+    // `sound` as ONE Sound on `page`, its icon's top-left corner at `at` (`core::newSoundComment`).
+    core::Status addSound(int page, core::PdfPoint at, const core::SoundData& sound);
+    // `path` read as a WAV and attached at `at`; refused by name for a file that cannot be read, is not PCM, or is
+    // larger than one command may carry (`core::kMaxSoundBytes`).
+    core::Status addSoundFile(int page, core::PdfPoint at, const QString& path);
+
     // A refusal the page found before any command -- a character typed that no face can show, a comment
     // whose text is locked -- said the way a refused command is: as `refused`.
     void reportRefusal(const core::Error& error);
@@ -305,6 +332,9 @@ signals:
     // A gesture's command was refused -- by a lock, a page that cannot be edited, a kind this build
     // cannot draw. The shell words it.
     void refused(const core::Error& error);
+    // S6 T14 (D6-18): a double click on a sound asked for it to be PLAYED -- the window plays it (`ui/viewer/AudioRecorder`).
+    // Playing changes no byte, as opening a pop-up does not.
+    void soundRequested(const core::AnnotationId& id);
 
 private:
     enum class DragKind { None, Move, Resize, Duplicate, Popup, MarkupClick };
@@ -339,6 +369,8 @@ private:
     Runner runner_;
     Clock clock_;
     FileChooser fileChooser_;   // S6 T11
+    FileChooser soundChooser_;  // S6 T14
+    SoundRecorder soundRecorder_;
     Author author_;
 
     // S6 T6: a mark waiting for its selection's text.

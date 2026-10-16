@@ -44,6 +44,9 @@ struct AppearanceCase {
     QString note;                              // what it shows
     int rotate = 0;                            // the page's /Rotate
     std::vector<core::Annotation> annotations; // fixed identities and instants
+    // Stage 6 T14: draw each redaction mark's `/RO` -- what it will look like applied -- in its `/N`'s place, so the
+    // overlay a reader shows only on applying is LOOKED AT like every other appearance.
+    bool overlay = false;
 };
 
 // Every case, in the order they are captured and listed.
@@ -51,7 +54,8 @@ const std::vector<AppearanceCase>& appearanceCases();
 
 // The case's page with its annotations: with our appearance, or -- `withAppearance` false -- with none, so a
 // reader generates its own.
-std::string appearancePdf(const std::vector<core::Annotation>& annotations, int rotate, bool withAppearance);
+std::string appearancePdf(const std::vector<core::Annotation>& annotations, int rotate, bool withAppearance,
+                          bool overlay = false);
 
 // `appearance/<name>.png`, golden-relative.
 QString appearanceBaselinePath(const AppearanceCase& item);

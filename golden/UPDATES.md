@@ -64,3 +64,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 2 (filtered on `measure-`)
 - **Reason** Stage 6 T12 (D6-14): two new appearance cases -- a distance, a dimension callout on leader lines, a perimeter and an area, each drawing its reading -- each looked at in a scratch root before it was kept
+
+## 2026-10-16T13:06:28Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 3 (filtered on `redaction-marks`, `redaction-overlay`, `sounds`)
+- **Reason** Stage 6 T14 (D6-25, D6-18): new appearance cases -- redaction marks, their /RO overlay, and the sound icons; no existing baseline touched

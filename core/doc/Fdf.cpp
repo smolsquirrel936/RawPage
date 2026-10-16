@@ -352,9 +352,10 @@ Fdf AnnotationStore::exportFdf(const std::vector<std::size_t>& items) const
         if (a.subtype == AnnotationSubtype::Popup) continue;
         if (!isCommentSubtype(a.subtype)) {
             left.insert(index);
-        } else if (a.subtype == AnnotationSubtype::Sound) {
-            // A sound's samples are its stream's, and the model does not hold them (T14): an exchange that named the
-            // sound and carried no sound would be a comment that plays nothing.
+        } else if (a.subtype == AnnotationSubtype::Sound && !a.sound) {
+            // A sound whose `/Sound` the model could not read (T14): an exchange that named it and carried no sound would
+            // be a comment that plays nothing. One it can read is exported, its samples carried from the document by the
+            // writer (`IDocumentBackend::writeAnnotationExchange`).
             out.notes.push_back(ExchangeNote{ExchangeNoteKind::NotExported, nameOf(index), a.page});
             left.insert(index);
         }

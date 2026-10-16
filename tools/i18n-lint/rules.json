@@ -31,7 +31,7 @@
     "the same names. A gate reads the files that REFERENCE a key, and whether that file happens to be",
     "compiled is a fact about the build rather than about what the gate is for (issue I-16)."],
 
-  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps", "attachments", "measure"],
+  "keyFamilies": ["action", "shell", "ribbon", "prefs", "error", "command", "panes", "search", "compare", "comments", "stamps", "attachments", "measure", "audio"],
 
   "$comment-keyFamilies": [
     "THE unknown-key RULE'S WHOLE INPUT, added at Stage 2 T16 -- issue I-04. Nothing here compared a",
@@ -82,7 +82,11 @@
     "",
     "`measure` JOINED AT Stage 6 T12 (`Stage6-Annotations-Plan.md` D6-14), with the scale dialog's words, what the status",
     "bar says while a measuring tool is armed, and the properties bar's history. The action ids stay `annot.measure*` and",
-    "`annot.dimension`, which no `measure.` key can be mistaken for; a reading's unit is a symbol and never a key."
+    "`annot.dimension`, which no `measure.` key can be mistaken for; a reading's unit is a symbol and never a key.",
+    "",
+    "`audio` JOINED AT Stage 6 T14 (`Stage6-Annotations-Plan.md` D6-18), with the recorder dialog's words, the WAV question",
+    "and what the status bar says while a sound plays. The action ids stay `annot.recordAudio` and `annot.attachAudio`,",
+    "and a sound's refusals are `error.sound.*` -- no `audio.` key can be mistaken for either."
   ],
 
   "scannedPaths": ["ui/", "app/", "core/", "res/", "pdf/", "platform/"],

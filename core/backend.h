@@ -91,6 +91,7 @@ class PageTransitions;       // core/doc/PageTransitions.h -- Stage 4 T10 (D4-12
 class AnnotationStore;       // core/doc/AnnotationStore.h -- Stage 6 T2 (read half, D6-3)
 struct Annotation;           // core/doc/Annotation.h      -- Stage 6 T2; the sink's intents from T3
 struct AnnotationPlacement;  // core/doc/Annotation.h      -- Stage 6 T3
+struct AnnotationId;         // core/doc/Annotation.h      -- Stage 6 T14 (a sound's samples, D6-18)
 class Attachments;           // core/doc/Attachments.h     -- Stage 6 T11 (D6-17)
 struct AttachmentRef;        // core/doc/Attachments.h     -- Stage 6 T11
 struct DocumentAttachment;   // core/doc/Attachments.h     -- Stage 6 T11
@@ -522,6 +523,12 @@ public:
     // not hold; `Corrupted` for a stream whose filters will not decode, or whose decoded length disagrees with its
     // `/Params /Size`.
     virtual Result<QByteArray> attachmentData(DocumentHandle document, const AttachmentRef& attachment) = 0;
+
+    // A SOUND'S SAMPLES -- Stage 6 T14 (D6-18): as the document stands now, as `attachmentData` reads a file -- a sound
+    // recorded and not yet saved from the command that carries it, one on disk from its `/Sound` stream, filters
+    // undone: interleaved and big-endian, as ISO 32000-1 §13.3 stores them (`core/doc/SoundData`). `NotFound`
+    // (`error.sound.noData`) for an annotation that is no Sound with a stream; `Corrupted` for one that will not decode.
+    virtual Result<QByteArray> soundSamples(DocumentHandle document, const AnnotationId& annotation) = 0;
 
     // EXTRACT (D6-17): `attachmentData`'s bytes written to `path`, and nothing else written -- the write is
     // `pdf/`'s, so no layer-lint waiver: an attachment reaches the disk through the layer that owns the file

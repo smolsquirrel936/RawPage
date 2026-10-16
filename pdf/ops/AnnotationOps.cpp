@@ -195,6 +195,16 @@ const std::vector<Field>& fields()
              if (!a.measure) return std::nullopt;
              return measureDictionary(*a.measure);
          }},
+        // Stage 6 T14 (D6-25): a redaction mark's overlay text and repeat (ISO 32000-1 Table 190), each only on a mark
+        // -- `/Repeat false`, the default, written as nothing. A `/Sound` is a STREAM, not a field: the sink writes it.
+        {"OverlayText", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.subtype != core::AnnotationSubtype::Redact) return std::nullopt;
+             return textIfAny(a.overlayText);
+         }},
+        {"Repeat", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.subtype != core::AnnotationSubtype::Redact || !a.repeat) return std::nullopt;
+             return CosObject::makeBoolean(true);
+         }},
     };
     return table;
 }

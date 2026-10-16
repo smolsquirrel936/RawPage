@@ -97,6 +97,10 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "attachmentData");
     }
+    core::Result<QByteArray> soundSamples(core::DocumentHandle, const core::AnnotationId&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "soundSamples");
+    }
     core::Status extractAttachment(core::DocumentHandle, const core::AttachmentRef&, const QString&, bool) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "extractAttachment");

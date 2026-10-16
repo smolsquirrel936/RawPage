@@ -191,10 +191,17 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // 1, `edit.cut` -- §8's Common `Ctrl+X`, annotations cut -- and the migration MINTED chordless,
     // `comment.migrate`; 387 ids are declared.
     //
+    // **Two more at Stage 6 T14** (D6-18): the sound tools, both MINTED chordless -- `annot.recordAudio` and
+    // `annot.attachAudio`; `redact.mark` arms the redaction tool it has armed since T5, which now makes marks. 389 ids are
+    // declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 171);
+    CHECK(fixture.actions.registeredCount() == 173);
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotRecordAudio));       // S6 T14
+    CHECK(fixture.actions.isRegistered(core::ActionId::AnnotAttachAudio));       // S6 T14
+    CHECK(fixture.actions.isRegistered(core::ActionId::RedactMark));             // S6 T5, makes marks since T14
     CHECK(fixture.actions.isRegistered(core::ActionId::CommentImport));          // S6 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::CommentExport));          // S6 T13
     CHECK(fixture.actions.isRegistered(core::ActionId::CommentMigrate));         // S6 T13

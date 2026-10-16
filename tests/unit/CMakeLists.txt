@@ -87,6 +87,10 @@ add_executable(rawpage_tests
     tst_attachments.cpp           # Stage 6 T11 -- the files a document carries: the model and its policy hook,
                                   #   the reading against the label (A-82, A-84), add and delete saved and undone
                                   #   (A-83), a pushpin's /FS, and D6-23's side files (A-86)
+    tst_sounddata.cpp             # Stage 6 T14 -- a Sound's samples: WAV in, ISO's big-endian PCM out and back, saved
+                                  #   and read back byte for byte (A-101); a non-PCM WAV refused by its tag
+    tst_redaction.cpp             # Stage 6 T14 -- a redaction mark: its two appearances, saved, every content stream
+                                  #   byte-identical (A-100); its overlay edited; its exchange
     tst_measure.cpp               # Stage 6 T12 -- what a measurement measures: the arithmetic against hand values
                                   #   (A-87), /Measure written and read back and the corpus's read (A-88),
                                   #   calibration's ratio (A-90's arithmetic), the reading in /Contents and a

@@ -16,7 +16,8 @@
 // The default is the value's TEXT as the file holds it: a colour is 1, 3 or 4 components from 0 to 1 -- `1 1 0`
 // -- and a fill colour may be empty (no fill); an opacity 0 to 1; a thickness 0 to 24 points; a line style
 // `solid`, `dashed` or `dotted`; a blend mode `normal`, `multiply`, `screen`, `overlay`, `darken`, `lighten`,
-// `difference` or `exclusion`; a font size 4 to 144 points.
+// `difference` or `exclusion`; a font size 4 to 144 points; since T14 an overlay text one printable line of at most
+// 512 characters, and a repeat `true` or `false`.
 //
 // Each default is what the tool started as when the session held it (T5 to T7, `sessionToolDefaults`): the
 // highlighter yellow under multiply, the pens red, typed text black at 12 points, a callout red -- as Acrobat
@@ -81,14 +82,19 @@ RAWPAGE_TOOL_DEFAULT(Pencil,          BlendMode,  "normal")
 // approval green, a restriction red (`core::stampColour`) -- and an image stamp in its pixels', so a colour the
 // tool started every stamp in would be one nobody could see; a placed stamp is recoloured from the properties bar.
 // The MEASUREMENTS (T12, D6-14) are drawn blue at their own width -- a measurement is read, not styled, so a
-// colour and an opacity are what they have; the redaction mark makes nothing yet (T14).
+// colour and an opacity are what they have. The REDACTION MARK (T14, D6-25) is outlined in Acrobat's red and leaves a
+// black fill; its overlay text -- none until a person types one -- is set at 10 points and repeats only when asked.
 RAWPAGE_TOOL_DEFAULT(Stamp,           Opacity,    "1")
 RAWPAGE_TOOL_DEFAULT(MeasureDistance, Colour,     "0 0 1")
 RAWPAGE_TOOL_DEFAULT(MeasureDistance, Opacity,    "1")
 RAWPAGE_TOOL_DEFAULT(MeasureArea,     Colour,     "0 0 1")
 RAWPAGE_TOOL_DEFAULT(MeasureArea,     Opacity,    "1")
-RAWPAGE_TOOL_DEFAULT(RedactMark,      Colour,     "0 0 0")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      Colour,     "1 0 0")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      FillColour, "0 0 0")
 RAWPAGE_TOOL_DEFAULT(RedactMark,      Opacity,    "1")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      FontSize,   "10")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      OverlayText, "")
+RAWPAGE_TOOL_DEFAULT(RedactMark,      Repeat,     "false")
 
 RAWPAGE_TOOL_DEFAULT(Squiggly,        Colour,     "0 0.6 0")
 RAWPAGE_TOOL_DEFAULT(Squiggly,        Opacity,    "1")

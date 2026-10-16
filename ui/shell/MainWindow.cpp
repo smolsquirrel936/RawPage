@@ -798,6 +798,19 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
             MainWindow* window = activeShell();
             return window ? window->askAttachPath() : std::nullopt;
         });
+        // S6 T14 (D6-18): the two sound tools' questions, asked of the window in front likewise; and a double click on a
+        // sound plays it, in the tab in front only.
+        overlay->setSoundRecorder([]() -> std::optional<core::SoundData> {
+            MainWindow* window = activeShell();
+            return window ? window->askRecording() : std::nullopt;
+        });
+        overlay->setSoundChooser([]() -> std::optional<QString> {
+            MainWindow* window = activeShell();
+            return window ? window->askSoundPath() : std::nullopt;
+        });
+        connect(overlay, &AnnotationOverlay::soundRequested, this, [this, document](const core::AnnotationId& id) {
+            if (document == currentDocument()) (void)playSound(id);
+        });
     }
     connect(document, &DocumentWindow::guideMenuRequested, this,
             [this](int guideIndex, QPoint global) { showGuideMenu(guideIndex, global); });
@@ -3452,6 +3465,10 @@ QLatin1String armedStatusKey(AnnotationToolKind kind)
     case AnnotationToolKind::Pencil: return catalog::key::StatusAnnotationToolPencil;
     case AnnotationToolKind::Eraser: return catalog::key::StatusAnnotationToolEraser;
     case AnnotationToolKind::AttachFile: return catalog::key::StatusAnnotationToolAttachFile;   // S6 T11
+    // S6 T14.
+    case AnnotationToolKind::RedactMark: return catalog::key::StatusAnnotationToolRedact;
+    case AnnotationToolKind::RecordAudio: return catalog::key::StatusAnnotationToolRecordAudio;
+    case AnnotationToolKind::AttachAudio: return catalog::key::StatusAnnotationToolAttachAudio;
     // S6 T12.
     case AnnotationToolKind::MeasureDistance: return catalog::key::MeasureStatusDistance;
     case AnnotationToolKind::Dimension: return catalog::key::MeasureStatusDimension;

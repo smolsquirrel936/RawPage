@@ -9,6 +9,7 @@
 #include "core/doc/Attachments.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Redaction.h"
 #include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
 
@@ -128,6 +129,16 @@ std::optional<QString> invalidShape(const Annotation& a)
         if (a.attachment->carried && (a.attachment->name.size() > kMaxAttachmentNameLength
                                       || a.attachment->data.size() > kMaxAttachmentBytes))
             return QStringLiteral("annotation.attachment");
+    }
+    // Stage 6 T14: an overlay text and a repeat only on a redaction mark, the text no longer than the reader keeps; a
+    // sound only on a Sound, and a CARRIED one -- a sound RawPage recorded or attached -- one RawPage writes
+    // (`core::invalidSound`). A sound READ from the document is the document's, and only its numbers are asked for.
+    if ((!a.overlayText.isEmpty() || a.repeat) && a.subtype != AnnotationSubtype::Redact)
+        return QStringLiteral("annotation.overlayText");
+    if (a.overlayText.size() > kMaxOverlayTextLength) return QStringLiteral("annotation.overlayText");
+    if (a.sound) {
+        if (a.subtype != AnnotationSubtype::Sound) return QStringLiteral("annotation.sound");
+        if (const std::optional<QString> invalid = invalidSound(*a.sound)) return QStringLiteral("annotation.") + *invalid;
     }
     return std::nullopt;
 }
@@ -997,6 +1008,13 @@ Annotation AnnotationAppearance::appliedTo(const Annotation& a) const
     if (cloudIntensity && (a.subtype == AnnotationSubtype::Polygon || a.subtype == AnnotationSubtype::Square)
         && a.cloudIntensity)
         out.cloudIntensity = *cloudIntensity;
+    // ---- Stage 6 T14: a redaction mark's overlay -- its text, whether it repeats, and a fill that keeps the text
+    // readable on it (`core::withRedactionFill`).
+    if (a.subtype == AnnotationSubtype::Redact) {
+        if (interiorColor) out = withRedactionFill(std::move(out), *interiorColor);
+        if (overlayText) out.overlayText = overlayText->left(kMaxOverlayTextLength);
+        if (repeat) out.repeat = *repeat;
+    }
     // What a drawn shape's extent depends on changed: its rectangle holds what is drawn now.
     const bool reaches = out.borderWidth != a.borderWidth || out.lineEndings != a.lineEndings
                          || out.cloudIntensity != a.cloudIntensity;
@@ -1023,6 +1041,8 @@ QJsonObject AnnotationAppearance::toJson() const
         json.insert(QStringLiteral("lineEndings"), names);
     }
     if (cloudIntensity) json.insert(QStringLiteral("cloudIntensity"), *cloudIntensity);
+    if (overlayText) json.insert(QStringLiteral("overlayText"), *overlayText);   // Stage 6 T14
+    if (repeat) json.insert(QStringLiteral("repeat"), *repeat);
     return json;
 }
 
@@ -1068,6 +1088,12 @@ std::optional<AnnotationAppearance> AnnotationAppearance::fromJson(const QJsonOb
             const double v = it.value().toDouble(-1.0);
             if (!it.value().isDouble() || !std::isfinite(v) || v <= 0.0 || v > 2.0) return std::nullopt;
             out.cloudIntensity = v;
+        } else if (key == QLatin1String("overlayText")) {   // Stage 6 T14, and the one below
+            if (!it.value().isString() || it.value().toString().size() > kMaxOverlayTextLength) return std::nullopt;
+            out.overlayText = it.value().toString();
+        } else if (key == QLatin1String("repeat")) {
+            if (!it.value().isBool()) return std::nullopt;
+            out.repeat = it.value().toBool();
         } else {
             return std::nullopt;   // an unknown property is a journal this build cannot replay faithfully
         }

@@ -165,6 +165,15 @@ public:
         if (!bytes) return bytes.error();
         return pdf::ops::AttachmentFiles::write(bytes.value(), path, overwrite);
     }
+    // S6 T14 (D6-18): the shipped backend's arrangement -- the sink's samples, the document as it stands now.
+    core::Result<QByteArray> soundSamples(core::DocumentHandle handle, const core::AnnotationId& annotation) override
+    {
+        auto* entry = findMutable(handle);
+        if (entry == nullptr)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"), QString()};
+        if (!entry->sink) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.sound.noData"), annotation.toString()};
+        return entry->sink->soundSamples(annotation);
+    }
     // S6 T13 (D6-20): the shipped backend's arrangement -- `pdf/ops/FdfCodec` both ways, the bytes of an export's
     // FileAttachments from `attachmentData`, and the sink's own question for writability.
     core::Result<core::Fdf> readAnnotationExchange(const QString& path) override
@@ -179,6 +188,10 @@ public:
             return attachmentData(handle, core::AttachmentRef::ofAnnotation(id));
         });
         if (!filled) return filled;
+        const core::Status heard = pdf::ops::FdfCodec::carrySounds(carried, [this, handle](const core::AnnotationId& id) {
+            return soundSamples(handle, id);
+        });
+        if (!heard) return heard;
         return pdf::ops::FdfCodec::writeFile(carried, format, path, overwrite);
     }
     core::Status annotationWritable(const core::Annotation& annotation) const override

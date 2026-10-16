@@ -60,6 +60,8 @@ const char* annotationToolKindName(AnnotationToolKind kind) noexcept
     case AnnotationToolKind::AttachFile:      return "AttachFile";
     case AnnotationToolKind::MeasurePerimeter: return "MeasurePerimeter";
     case AnnotationToolKind::Dimension:       return "Dimension";
+    case AnnotationToolKind::RecordAudio:     return "RecordAudio";
+    case AnnotationToolKind::AttachAudio:     return "AttachAudio";
     }
     return "?";
 }
@@ -98,6 +100,8 @@ Tool& ToolController::annotationToolFor(AnnotationToolKind which)
     if (StampTool::handles(which)) return stamp_;
     if (AttachFileTool::handles(which)) return attach_;
     if (MeasureTool::handles(which)) return measure_;
+    if (RedactTool::handles(which)) return redact_;   // S6 T14
+    if (SoundTool::handles(which)) return sound_;
     return annotation_;
 }
 
@@ -161,6 +165,7 @@ void ToolController::armAnnotation(AnnotationToolKind which)
         drawing_.setWhich(which);
         ink_.setWhich(which);
         if (MeasureTool::handles(which)) measure_.setWhich(which);
+        if (SoundTool::handles(which)) sound_.setWhich(which);
         measure_.setCalibrating(false);
         emit armedChanged(armed_);   // the same kind of tool, another tool: said all the same
         emitCursor();
@@ -174,6 +179,7 @@ void ToolController::armAnnotation(AnnotationToolKind which)
     drawing_.setWhich(which);
     ink_.setWhich(which);
     if (MeasureTool::handles(which)) measure_.setWhich(which);
+    if (SoundTool::handles(which)) sound_.setWhich(which);
     measure_.setCalibrating(false);
     arm(ToolKind::Annotate);
 }
@@ -218,6 +224,8 @@ constexpr Arming kArming[kAnnotationToolKindCount] = {
     {AnnotationToolKind::AttachFile, core::ActionId::AnnotAttachFile},
     {AnnotationToolKind::MeasurePerimeter, core::ActionId::AnnotMeasurePerimeter},
     {AnnotationToolKind::Dimension, core::ActionId::AnnotDimension},
+    {AnnotationToolKind::RecordAudio, core::ActionId::AnnotRecordAudio},
+    {AnnotationToolKind::AttachAudio, core::ActionId::AnnotAttachAudio},
 };
 
 } // namespace
@@ -235,7 +243,8 @@ bool createsAnnotations(AnnotationToolKind kind) noexcept
     return kind == AnnotationToolKind::StickyNote || kind == AnnotationToolKind::ReplaceText
            || kind == AnnotationToolKind::InsertText || markupSubtype(kind).has_value()
            || TypewriterTool::handles(kind) || DrawingTool::handles(kind) || InkTool::handles(kind)
-           || StampTool::handles(kind) || AttachFileTool::handles(kind) || MeasureTool::handles(kind);
+           || StampTool::handles(kind) || AttachFileTool::handles(kind) || MeasureTool::handles(kind)
+           || RedactTool::handles(kind) || SoundTool::handles(kind);
 }
 
 std::optional<core::AnnotationSubtype> markupSubtype(AnnotationToolKind kind) noexcept

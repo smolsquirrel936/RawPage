@@ -26,6 +26,9 @@
 #include "ui/shell/MainWindow.h"
 
 #include <QClipboard>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -167,21 +170,36 @@ TEST_CASE("an Acrobat-shaped XFDF imported through the product is saved as shown
     CHECK(differing == 0);
 }
 
-TEST_CASE("a file holding kinds this build cannot write yet imports the rest as one command", "[exchangeproduct][A-94][D6-20]")
+TEST_CASE("a file holding kinds this build cannot write imports the rest as one command", "[exchangeproduct][A-94][D6-20]")
 {
-    // `every-type.xfdf` holds a redaction mark and a sound, which this build does not write until T14: each is refused
-    // by the builder's own key through the SHIPPED backend's `annotationWritable`, and the other eighteen are one command.
+    // UNTIL T14 `every-type.xfdf`'s redaction mark and sound were the two this build could not write. Since T14 it writes
+    // both (the case below), so the refusal is MADE here: the same file with its note's icon `Key` and its pushpin's
+    // `Graph` -- two icons the builder refuses by name (D6-33(h), D6-38(i)). Each is refused by the builder's own key
+    // through the SHIPPED backend's `annotationWritable`, and the other eighteen are one command.
     Product product;
     product.open("compare/report-v2.pdf");
+    QFile source(test_oracle::corpusPath("exchange/every-type.xfdf"));
+    REQUIRE(source.open(QIODevice::ReadOnly));
+    QByteArray bytes = source.readAll();
+    source.close();
+    REQUIRE(bytes.count("icon=\"Comment\"") == 1);
+    REQUIRE(bytes.count("icon=\"PushPin\"") == 1);
+    bytes.replace("icon=\"Comment\"", "icon=\"Key\"").replace("icon=\"PushPin\"", "icon=\"Graph\"");
+    const QString path = QDir(product.scratch.path()).filePath(QStringLiteral("unwritable-icons.xfdf"));
+    QFile out(path);
+    REQUIRE(out.open(QIODevice::WriteOnly));
+    REQUIRE(out.write(bytes) == bytes.size());
+    out.close();
+
     const std::size_t before = product.document()->journal()->position();
-    core::Result<core::MergeResult> merged = product.window->importCommentsFrom(test_oracle::corpusPath("exchange/every-type.xfdf"));
+    core::Result<core::MergeResult> merged = product.window->importCommentsFrom(path);
     REQUIRE(merged);
     CHECK(product.document()->journal()->position() == before + 1);
     CHECK(merged.value().count(core::MergeEntry::Outcome::Added) == 18);
     REQUIRE(merged.value().count(core::MergeEntry::Outcome::Refused) == 2);
     for (const core::MergeEntry& e : merged.value().entries) {
         if (e.outcome != core::MergeEntry::Outcome::Refused) continue;
-        CHECK((e.subtype == AnnotationSubtype::Redact || e.subtype == AnnotationSubtype::Sound));
+        CHECK((e.subtype == AnnotationSubtype::Text || e.subtype == AnnotationSubtype::FileAttachment));
         REQUIRE(e.why);
         CHECK(QString(e.why->messageKey) == QLatin1String("error.pdf.appearanceUnsupported"));
     }
@@ -190,6 +208,58 @@ TEST_CASE("a file holding kinds this build cannot write yet imports the rest as 
     int refused = 0;
     for (const ui::ExchangeReport::Row& row : product.window->lastExchangeReport()->rows) refused += row.reason.isEmpty() ? 0 : 1;
     CHECK(refused == 2);
+}
+
+TEST_CASE("since T14 an Acrobat-shaped exchange's redaction mark and sound import with their payloads", "[exchangeproduct][A-94][A-100][A-101]")
+{
+    // D6-40's revisit, paid at T14: `every-type.xfdf`'s twenty comments ALL arrive as one command -- the mark with its
+    // overlay text and repeat, the sound with its samples byte for byte as the generator wrote them (its label's SHA-256)
+    // -- and the saved file reads them back.
+    Product product;
+    product.open("compare/report-v2.pdf");
+    core::Result<core::MergeResult> merged = product.window->importCommentsFrom(test_oracle::corpusPath("exchange/every-type.xfdf"));
+    REQUIRE(merged);
+    CHECK(merged.value().count(core::MergeEntry::Outcome::Added) == 20);
+    CHECK(merged.value().count(core::MergeEntry::Outcome::Refused) == 0);
+
+    const QJsonObject wanted = label("annots-every-type.json");
+    QJsonObject wantSound, wantMark;
+    for (const QJsonValue page : wanted.value(QStringLiteral("pages")).toArray()) {
+        for (const QJsonValue entry : page.toObject().value(QStringLiteral("annots")).toArray()) {
+            const QJsonObject a = entry.toObject();
+            if (a.value(QStringLiteral("subtype")).toString() == QLatin1String("Sound")) wantSound = a;
+            if (a.value(QStringLiteral("subtype")).toString() == QLatin1String("Redact")) wantMark = a;
+        }
+    }
+    REQUIRE_FALSE(wantSound.isEmpty());
+    REQUIRE_FALSE(wantMark.isEmpty());
+    product.settle();
+    auto fresh = saveAndReopen(product);
+    const core::AnnotationStore* store = fresh->store;
+    int sounds = 0, marks = 0;
+    for (const Annotation& a : store->all()) {
+        if (a.subtype == AnnotationSubtype::Sound) {
+            ++sounds;
+            REQUIRE(a.sound);
+            const QJsonObject s = wantSound.value(QStringLiteral("sound")).toObject();
+            CHECK(a.sound->rate == s.value(QStringLiteral("rate")).toInt());
+            CHECK(a.sound->channels == s.value(QStringLiteral("channels")).toInt());
+            CHECK(a.sound->bits == s.value(QStringLiteral("bits")).toInt());
+            CHECK(a.sound->encoding == core::SoundEncoding::Signed);
+            const core::Result<QByteArray> samples = fresh->backend.soundSamples(fresh->handle, a.id);
+            REQUIRE(samples);
+            CHECK(QString::fromLatin1(QCryptographicHash::hash(samples.value(), QCryptographicHash::Sha256).toHex())
+                  == s.value(QStringLiteral("sha256")).toString());
+        }
+        if (a.subtype == AnnotationSubtype::Redact) {
+            ++marks;
+            CHECK(a.overlayText == wantMark.value(QStringLiteral("overlayText")).toString());
+            CHECK(a.repeat == wantMark.value(QStringLiteral("repeat")).toBool());
+            CHECK(a.quadPoints.size() == static_cast<std::size_t>(wantMark.value(QStringLiteral("quadPoints")).toArray().size()));
+        }
+    }
+    CHECK(sounds == 1);
+    CHECK(marks == 1);
 }
 
 TEST_CASE("an export through the product carries what the filtered pane lists", "[exchangeproduct][A-96][D6-20]")
@@ -334,5 +404,57 @@ TEST_CASE("annotations pasted into another document through the product are save
         ++compared;
     }
     CHECK(compared == 3);
+    QGuiApplication::clipboard()->clear();
+}
+
+TEST_CASE("a pushpin and a sound copied from a file are pasted with their bytes", "[exchangeproduct][A-81][I-21][D6-22]")
+{
+    // S6 guide I-21: the model holds what a file attachment and a sound SAY, their bytes only for ones RawPage made -- so
+    // a copy of ones READ from the file carried no bytes, and the paste was refused by key (`error.attachment.noData`,
+    // `error.sound.noData`). The copy now reads them from the document first, as an export does.
+    Product product;
+    product.open("ordinary/annots-every-type.pdf");
+    std::vector<AnnotationId> chosen;
+    for (const Annotation& a : product.store().all())
+        if (a.subtype == AnnotationSubtype::FileAttachment || a.subtype == AnnotationSubtype::Sound) chosen.push_back(a.id);
+    REQUIRE(chosen.size() == 2);
+    product.overlay()->select(chosen);
+    REQUIRE(product.root->services().actions.dispatch(core::ActionId::EditCopy, core::KeyContext::Viewer));
+
+    product.open("ordinary/text-a4.pdf");
+    const std::size_t before = product.document()->journal()->position();
+    REQUIRE(product.root->services().actions.dispatch(core::ActionId::EditPaste, core::KeyContext::Viewer));
+    CHECK(product.document()->journal()->position() == before + 1);
+    product.settle();
+
+    auto fresh = saveAndReopen(product);
+    const QJsonObject wanted = label("annots-every-type.json");
+    QString soundSha, fileSha;
+    for (const QJsonValue page : wanted.value(QStringLiteral("pages")).toArray()) {
+        for (const QJsonValue entry : page.toObject().value(QStringLiteral("annots")).toArray()) {
+            const QJsonObject a = entry.toObject();
+            if (a.contains(QStringLiteral("sound"))) soundSha = a.value(QStringLiteral("sound")).toObject().value(QStringLiteral("sha256")).toString();
+            if (a.contains(QStringLiteral("attachment")))
+                fileSha = a.value(QStringLiteral("attachment")).toObject().value(QStringLiteral("sha256")).toString();
+        }
+    }
+    REQUIRE_FALSE(soundSha.isEmpty());
+    REQUIRE_FALSE(fileSha.isEmpty());
+    int pasted = 0;
+    for (const Annotation& a : fresh->store->all()) {
+        if (a.subtype == AnnotationSubtype::Sound) {
+            ++pasted;
+            const core::Result<QByteArray> samples = fresh->backend.soundSamples(fresh->handle, a.id);
+            REQUIRE(samples);
+            CHECK(QString::fromLatin1(QCryptographicHash::hash(samples.value(), QCryptographicHash::Sha256).toHex()) == soundSha);
+        }
+        if (a.subtype == AnnotationSubtype::FileAttachment) {
+            ++pasted;
+            const core::Result<QByteArray> bytes = fresh->backend.attachmentData(fresh->handle, core::AttachmentRef::ofAnnotation(a.id));
+            REQUIRE(bytes);
+            CHECK(QString::fromLatin1(QCryptographicHash::hash(bytes.value(), QCryptographicHash::Sha256).toHex()) == fileSha);
+        }
+    }
+    CHECK(pasted == 2);
     QGuiApplication::clipboard()->clear();
 }

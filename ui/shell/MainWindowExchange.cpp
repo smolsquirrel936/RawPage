@@ -386,6 +386,26 @@ core::Status MainWindow::copyAnnotations()
                 copied.push_back(store->at(*popup));
         }
     }
+    // THE BYTES TRAVEL WITH THEM (S6 guide I-21): the model holds what a file attachment and a sound SAY, and their bytes
+    // only for ones RawPage made -- so ones READ from the file are given theirs from the document now, as an export
+    // gives them (`IDocumentBackend::writeAnnotationExchange`); without them a paste had nothing to write, and refused.
+    for (core::Annotation& a : copied) {
+        if (a.subtype == core::AnnotationSubtype::FileAttachment && a.attachment && !a.attachment->carried) {
+            core::Result<QByteArray> bytes = services_.backend.attachmentData(document->handle(), core::AttachmentRef::ofAnnotation(a.id));
+            if (bytes) {
+                a.attachment->data = std::move(bytes).value();
+                a.attachment->carried = true;
+                a.attachment->size = a.attachment->data.size();
+            }
+        }
+        if (a.subtype == core::AnnotationSubtype::Sound && a.sound && !a.sound->carried) {
+            core::Result<QByteArray> samples = services_.backend.soundSamples(document->handle(), a.id);
+            if (samples) {
+                a.sound->samples = std::move(samples).value();
+                a.sound->carried = true;
+            }
+        }
+    }
     QJsonArray annotations;
     QJsonObject pages;
     QStringList words;

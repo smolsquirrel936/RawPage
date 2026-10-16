@@ -137,7 +137,7 @@ else()
     # build tool rather than a linked module, so it is deliberately NOT passed through
     # rawpage_link_qt(): qt-modules.txt is the LINK closure tools/license-audit audits, and adding
     # a tool we only execute would make that list mean something else.
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg LinguistTools)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Multimedia LinguistTools)
     # TA-8 can only run once Qt6_VERSION and Qt6_DIR exist. Skipped for the gate builds for
     # the same reason the rest of the pin is: a Linux gate build uses whatever QtCore the
     # distro ships, and must.

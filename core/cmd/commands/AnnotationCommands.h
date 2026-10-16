@@ -227,11 +227,15 @@ struct AnnotationAppearance {
     std::optional<ToolBlend> blendMode;                 // /BM (T8)
     std::optional<std::vector<QString>> lineEndings;    // /LE: two for a line or a polyline, one for a callout (T8)
     std::optional<double> cloudIntensity;               // /BE /I, above 0 and at most 2: a cloudy polygon's (T8)
+    // Stage 6 T14 (D6-25): a redaction mark's overlay text and repeat -- drawn in its `/RO`. On a mark a fill also
+    // turns `/DA`'s text colour to the one readable on it (`core::withRedactionFill`).
+    std::optional<QString> overlayText;                 // /OverlayText, at most `kMaxOverlayTextLength`
+    std::optional<bool> repeat;                         // /Repeat
 
     bool isEmpty() const noexcept
     {
         return !color && !interiorColor && !opacity && !borderWidth && !lineStyle && !blendMode && !lineEndings
-               && !cloudIntensity;
+               && !cloudIntensity && !overlayText && !repeat;
     }
     Annotation appliedTo(const Annotation& a) const;
     QJsonObject toJson() const;

@@ -392,6 +392,10 @@ RAWPAGE_ACTION(AnnotMeasurementScale,  "annot.measurementScale",  Viewer, "actio
 // lines) and calibration (the scale set from a length measured on the page).
 RAWPAGE_ACTION(AnnotDimension,         "annot.dimension",         Viewer, "action.annot.dimension")
 RAWPAGE_ACTION(AnnotMeasureCalibrate,  "annot.measureCalibrate",  Viewer, "action.annot.measureCalibrate")
+// Stage 6 T14 (D6-18), MINTED chordless -- two of the plan's candidates: a sound comment recorded, and one taken from a
+// WAV file.
+RAWPAGE_ACTION(AnnotRecordAudio,       "annot.recordAudio",       Viewer, "action.annot.recordAudio")
+RAWPAGE_ACTION(AnnotAttachAudio,       "annot.attachAudio",       Viewer, "action.annot.attachAudio")
 
 RAWPAGE_ACTION(AnnotKeepToolSelected,  "annot.keepToolSelected",  AnnotationTools, "action.annot.keepToolSelected")
 RAWPAGE_ACTION(AnnotProperties,        "annot.properties",        AnnotationTools, "action.annot.properties")

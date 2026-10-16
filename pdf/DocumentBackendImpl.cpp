@@ -448,6 +448,23 @@ core::Result<QByteArray> DocumentBackendImpl::attachmentData(core::DocumentHandl
     return ops::AttachmentFiles::read(opened.value().table, attachment);
 }
 
+// Stage 6 T14: as `attachmentData` -- the lock held only to find the entry. A document with no sink holds no sound the
+// model reads (its annotations are not read: D2-6), so it has none to give.
+core::Result<QByteArray> DocumentBackendImpl::soundSamples(core::DocumentHandle document, const core::AnnotationId& annotation)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr) {
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                           QString::number(static_cast<qulonglong>(document.id))};
+    }
+    if (!entry->sink) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.sound.noData"), annotation.toString()};
+    return entry->sink->soundSamples(annotation);
+}
+
 core::Result<core::Fdf> DocumentBackendImpl::readAnnotationExchange(const QString& path)
 {
     core::Result<core::Fdf> read = ops::FdfCodec::readFile(path);
@@ -467,6 +484,11 @@ core::Status DocumentBackendImpl::writeAnnotationExchange(core::DocumentHandle d
         return attachmentData(document, core::AttachmentRef::ofAnnotation(id));
     });
     if (!filled) return filled;
+    // Stage 6 T14: and each sound's samples.
+    const core::Status heard = ops::FdfCodec::carrySounds(carried, [this, document](const core::AnnotationId& id) {
+        return soundSamples(document, id);
+    });
+    if (!heard) return heard;
     if (const core::Status written = ops::FdfCodec::writeFile(carried, format, path, overwrite); !written) return written;
     RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
         << "backend: wrote" << static_cast<int>(carried.annotations.size()) << "annotation(s) of handle"

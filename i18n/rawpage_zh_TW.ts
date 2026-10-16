@@ -1551,6 +1551,14 @@
         <source>action.comment.migrate</source>
         <translation>從舊版本移轉註解...</translation>
     </message>
+    <message>
+        <source>action.annot.recordAudio</source>
+        <translation>錄製語音註解</translation>
+    </message>
+    <message>
+        <source>action.annot.attachAudio</source>
+        <translation>附加音訊檔案</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -2329,6 +2337,26 @@
     <message>
         <source>shell.tooltip.needsComments</source>
         <translation>文件含有註解時可用</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.overlayText</source>
+        <translation>覆蓋文字</translation>
+    </message>
+    <message>
+        <source>shell.propertiesBar.repeat</source>
+        <translation>重複</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolRedact</source>
+        <translation>%1：拖曳選取文字以標記為待塗黑，或在其他位置拖曳出方框。套用塗黑之前不會移除任何內容。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolRecordAudio</source>
+        <translation>%1：按一下語音註解要放置的位置，然後錄音。</translation>
+    </message>
+    <message>
+        <source>shell.status.annotationToolAttachAudio</source>
+        <translation>%1：按一下語音註解要放置的位置，然後選擇 WAV 檔案。</translation>
     </message>
 </context>
 <context>
@@ -3156,6 +3184,50 @@
     <message>
         <source>error.clipboard.nothingPastable</source>
         <translation>複製的註解都無法貼到這裡。</translation>
+    </message>
+    <message>
+        <source>error.sound.notWav</source>
+        <translation>此檔案不是 WAV 檔案。</translation>
+    </message>
+    <message>
+        <source>error.sound.malformed</source>
+        <translation>WAV 檔案已損毀（%1 區塊）。</translation>
+    </message>
+    <message>
+        <source>error.sound.notPcm</source>
+        <translation>WAV 檔案包含壓縮音訊（格式 %1）；只能附加未壓縮的 PCM 音訊。</translation>
+    </message>
+    <message>
+        <source>error.sound.unsupported</source>
+        <translation>RawPage 僅接受 1 或 2 聲道、8 或 16 位元、每秒 1,000 至 192,000 個取樣的音訊；此音訊不符（%1）。</translation>
+    </message>
+    <message>
+        <source>error.sound.tooLarge</source>
+        <translation>音訊超過 64 MB，這是單一註解可攜帶的上限（%1）。</translation>
+    </message>
+    <message>
+        <source>error.sound.unplayable</source>
+        <translation>無法播放此聲音（%1）。</translation>
+    </message>
+    <message>
+        <source>error.sound.noData</source>
+        <translation>這裡沒有可播放或儲存的聲音（%1）。</translation>
+    </message>
+    <message>
+        <source>error.sound.undecodable</source>
+        <translation>無法讀取聲音的取樣資料（%1）。</translation>
+    </message>
+    <message>
+        <source>error.sound.unreadable</source>
+        <translation>無法讀取 %1。</translation>
+    </message>
+    <message>
+        <source>error.sound.noDevice</source>
+        <translation>沒有可用的音訊裝置。</translation>
+    </message>
+    <message>
+        <source>error.sound.recordFailed</source>
+        <translation>無法開始錄音。</translation>
     </message>
 </context>
 <context>
@@ -5418,6 +5490,53 @@
     <message>
         <source>measure.history.empty</source>
         <translation>尚無測量</translation>
+    </message>
+</context>
+<context>
+    <name>audio</name>
+    <message>
+        <source>audio.dialog.title</source>
+        <translation>錄製語音註解</translation>
+    </message>
+    <message>
+        <source>audio.dialog.record</source>
+        <translation>錄音</translation>
+    </message>
+    <message>
+        <source>audio.dialog.stop</source>
+        <translation>停止</translation>
+    </message>
+    <message>
+        <source>audio.dialog.play</source>
+        <translation>播放</translation>
+    </message>
+    <message>
+        <source>audio.dialog.ready</source>
+        <translation>準備錄音。</translation>
+    </message>
+    <message>
+        <source>audio.dialog.recording</source>
+        <translation>錄音中… %1</translation>
+    </message>
+    <message>
+        <source>audio.dialog.recorded</source>
+        <translation>已錄製 %1。您可以播放、重新錄製，或選擇「確定」。</translation>
+    </message>
+    <message>
+        <source>audio.dialog.noInput</source>
+        <translation>沒有可用的麥克風，因此無法錄音。</translation>
+    </message>
+    <message>
+        <source>audio.attach.title</source>
+        <translation>附加音訊檔案</translation>
+    </message>
+    <message>
+        <source>audio.filter.wav</source>
+        <translation>WAV 音訊 (*.wav)</translation>
+    </message>
+    <message>
+        <source>audio.status.playing</source>
+        <translation>正在播放語音註解（%1）。</translation>
     </message>
 </context>
 </TS>
