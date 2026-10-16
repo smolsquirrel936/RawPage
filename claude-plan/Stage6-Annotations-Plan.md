@@ -466,7 +466,8 @@ sink can compose an annotation. Stages 2 to 5 put their go/no-go early for the s
   reload -- **paid at T4**; **flow D** gains the annotation intents at T3 -- **paid**; **flow F** the side files at T11 -- **paid at T11**.
 - `Tech-Stack-Plan.md` §3.3: *A2 at Stage 6* at T4 -- **paid at T4** -- and T15; A4's product row at T3 -- **paid** -- and M-03.
 - `Stage3-Mutation-Plan.md` D3-15's *Revisit* cell pointed at D6-2 at T4 -- **paid at T4**.
-- **`CLAUDE.md`'s *What works today* and *deliberately absent* paragraphs**, re-derived at T15 from the
+- **`Shipped-Surface.md`'s §1 *What works today* and §2 *deliberately absent*** (in `CLAUDE.md` until
+  2026-10-16, when they moved there), and `CLAUDE.md`'s status table, re-derived at T15 from the
   product: the command count, the unregistered count, the fuzz target count **5**, the waiver census —
   each re-measured, none predicted here.
 
