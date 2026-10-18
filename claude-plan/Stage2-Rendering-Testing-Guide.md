@@ -2262,7 +2262,11 @@ instrument phases 1 and 2 use (`measureLatency`, one copy) over the same page an
 difference is a `KnownCostRasterizer` that busy-waits **2.0 ms** a tile, with one worker. It exits 1 before
 printing any other figure unless all four checks hold: every tile timed; no tile below 2.0 ms; the first
 tile within 5 ms of 2.0; and the slowest tile at least half of (tiles − 1) × 2.0 ms, i.e. the queue was
-counted. **Its first run failed on resolution, and that was a real finding.** The first tile read
+counted. *(Since 2026-10-19 it measures up to three times, each on a fresh scheduler, and exits 1 only
+when no attempt holds all four. On GitHub's hosted runner one attempt's first delivery read 34.128 ms
+while its last read on time, a one-off stall that a quantized pump cannot mimic, because a quantized pump
+fails every attempt. `kControlAttempts` in `tests/bench/bench_pipeline.cpp` owns the reasoning, and
+`--stall-once` is the retry's positive control.)* **Its first run failed on resolution, and that was a real finding.** The first tile read
 **15.681 ms**, and phase 1's 40 tiles all read 14.08 ms: the pump only delivered on a timer tick (**I-41**).
 With that fixed, three runs gave min **2.078 / 2.087 / 2.079 ms**, p50 **40.1 ms** (20 × 2.0), max
 **80.1 ms** (40 × 2.0) and cost 2.004–2.006 ms a tile, which is the known cost and the queue behind it

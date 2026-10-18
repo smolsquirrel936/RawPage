@@ -95,10 +95,12 @@
 //     latency, which is D2-1's confusion and would make phase 1 comparable to the probe when it is
 //     not.
 //
-// Any failing exits 1 BEFORE any figure is printed: under the exit-code rule below, a dead
-// instrument is a measurement that was not possible. `--dead-instrument` and `--coarse-pump` are
+// Phase 0 measures up to `kControlAttempts` times, each on a fresh scheduler, and the instrument is
+// live when one attempt passes all three. Every attempt failing exits 1 BEFORE any figure is
+// printed: under the exit-code rule below, a dead instrument is a measurement that was not possible. `--dead-instrument` and `--coarse-pump` are
 // this control's own negative controls (convention 7), each breaking the instrument one way, and
-// each must make the run fail.
+// each must make the run fail on every attempt. `--stall-once` is the retry's positive control: one
+// stalled tile, which a later attempt must read past.
 //
 // ===============================================================================================
 // WHY IT IS NOT A PASS/FAIL CTEST CASE
@@ -213,11 +215,31 @@ double millisSince(Clock::time_point start)
 // the ~15.6 ms timer tick reads ~15.7 ms. Five sits well clear of both.
 constexpr double kControlResolutionMs = 5.0;
 
+// How many times phase 0 may measure before it calls the instrument dead. The quantized pump I-41
+// found is a property of the CODE and reads quantized on every attempt, so a retry cannot pass it
+// (`--coarse-pump` must still fail all of them). What a retry absorbs is a one-off STALL: on
+// GitHub's hosted `windows-2025` runner (run 39144214181, 2026-10-18) one attempt read min 34.128,
+// p50 40.661, max 80.777 ms at a measured 2.023 ms a tile: the first delivery read ~32 ms late
+// while the LAST read on time (40 x 2 ms), so the worker kept pace and delivery stalled once and
+// caught up -- not I-41's pump, which delays every tile to a tick, and not a slow worker, which
+// would push the last tile out too. The same phase passed in three other benches of that run. One attempt made the suite's
+// exit code depend on the runner's neighbours, which the file header's exit-code rule forbids.
+constexpr int kControlAttempts = 3;
+
 // The two NEGATIVE controls for phase 0 (convention 7), each breaking the instrument one way:
 // `--dead-instrument` makes every latency read zero (I-29's shape), and `--coarse-pump` restores the
 // tick-quantized pump I-41 found. Either must make the run fail at phase 0.
 bool g_deadInstrument = false;
 bool g_coarsePump = false;
+
+// And its POSITIVE control: `--stall-once` adds `kStallOnceMs` to the first known-cost tile of the
+// process only -- a one-off stall made on purpose. The runner's was in delivery and this one is in
+// the raster, which phase 0's resolution bound reads the same way: a first tile far above its known
+// cost (42.099 ms against 2.124 ms unstalled, measured 2026-10-19). Attempt 1 must then read not
+// live and a later attempt live, so the run passes; with `kControlAttempts` at 1 the same flag must
+// fail, which is what shows the retry is the thing that absorbed it.
+std::atomic<bool> g_stallOnce{false};
+constexpr double kStallOnceMs = 40.0;
 
 // THE LATENCY READING, in one place, so the control and the figures cannot use different ones.
 double latencySince(Clock::time_point sent)
@@ -410,7 +432,8 @@ public:
         image.format = core::PixelFormat::Bgrx8888;
         image.pixels = QByteArray(static_cast<qsizetype>(image.bytesPerLine) * image.height,
                                   static_cast<char>(0xFF));
-        while (millisSince(start) < kControlCostMs) {
+        const double cost = kControlCostMs + (g_stallOnce.exchange(false) ? kStallOnceMs : 0.0);
+        while (millisSince(start) < cost) {
         }
         return image;
     }
@@ -1852,6 +1875,10 @@ int main(int argc, char** argv)
             g_coarsePump = true;
             continue;
         }
+        if (arguments.at(at) == QLatin1String("--stall-once")) {
+            g_stallOnce = true;
+            continue;
+        }
         bool numeric = false;
         const int value = arguments.at(at).toInt(&numeric);
         if (numeric && value > 0) workerSweepMax = value;
@@ -1922,7 +1949,10 @@ int main(int argc, char** argv)
         // PHASE 0 -- the latency instrument's control (see the file header). Same page, same
         // tiles, same instrument as phase 1; only the rasterizer's cost is known.
         // ---------------------------------------------------------------------------------
-        {
+        bool instrumentLive = false;
+        for (int attempt = 1; attempt <= kControlAttempts && !instrumentLive; ++attempt) {
+            // A fresh cache and scheduler each attempt, so a retry is a second measurement rather
+            // than a warm re-read of the first.
             core::render::RenderCache cache;
             core::render::RenderScheduler::Config config;
             config.workerCount = 1;   // the queueing prediction below is for exactly one worker
@@ -1948,25 +1978,34 @@ int main(int argc, char** argv)
             const bool queueingSeen = maxMs >= queueFloorMs;
 
             std::printf("\n  phase 0 -- CONTROL: the same instrument over a rasterizer costing %.1f ms"
-                        " a tile, 1 worker\n", kControlCostMs);
+                        " a tile, 1 worker, attempt %d of %d\n", kControlCostMs, attempt,
+                        kControlAttempts);
             report("known cost", run.latencies, run.wallMs);
             std::printf("    tiles timed %zu of %lld   min %.3f ms (must be %.3f..%.3f)   max %.3f ms"
                         " (must be >= %.3f)   cost %.3f ms/tile\n",
                         run.latencies.size(), run.tiles, minMs, kControlCostMs,
                         kControlCostMs + kControlResolutionMs, maxMs, queueFloorMs, cost);
             if (!everyTileTimed || !noneBelowCost || !resolved || !queueingSeen) {
-                std::printf("    DEAD INSTRUMENT: %s%s%s%s-- no latency figure below would be"
-                            " evidence, so none is taken.\n",
+                std::printf("    %s: %s%s%s%s%s\n",
+                            attempt < kControlAttempts ? "NOT LIVE ON THIS ATTEMPT" : "DEAD INSTRUMENT",
                             everyTileTimed ? "" : "tiles went untimed; ",
                             noneBelowCost ? "" : "a tile read below its known cost; ",
                             resolved ? "" : "the first tile read far above its known cost, so"
-                                            " delivery is quantized; ",
-                            queueingSeen ? "" : "no tile read as having queued; ");
-                std::fprintf(stderr, "A2 product: the latency control failed\n");
-                backend->close(document->handle);
-                return 1;
+                                            " delivery is quantized or stalled; ",
+                            queueingSeen ? "" : "no tile read as having queued; ",
+                            attempt < kControlAttempts
+                                ? "-- measuring again on a fresh scheduler."
+                                : "-- no attempt read live, so no latency figure below would be"
+                                  " evidence, and none is taken.");
+                continue;
             }
             std::printf("    the instrument is live: it reads the known cost and the queue behind it\n");
+            instrumentLive = true;
+        }
+        if (!instrumentLive) {
+            std::fprintf(stderr, "A2 product: the latency control failed\n");
+            backend->close(document->handle);
+            return 1;
         }
 
         if (stage4) {
