@@ -2508,11 +2508,10 @@ the reader whose chords §8 copies, what this fixture prints on its own page (*"
 window with the CropBox"*), and what `corpus/PROVENANCE.md` means by calling the CropBox *"what a
 reader shows"*.
 
-**What is absent, and who owns it.** Nothing is fixed in the change that raises this. The repair
-touches one `switch` arm in `core/render/FitPolicy.cpp` and the assertion that currently pins the
-MediaBox — and it is not finished by those two: **a case has to assert Fit Page's ZOOM against the
-drawn page**, the shape A-68 already has for Fit Visible, or the next reader inherits a suite that
-would ratify the defect a second time. **CLOSED 2026-09-24, the same day, and the repair is three things rather than one.** (1)
+**CLOSED 2026-09-24, the same day, and the repair is three things rather than one.** The change
+that raised this fixed nothing, and it named a repair that two edits would not finish: one `switch`
+arm in `core/render/FitPolicy.cpp` and the assertion that then pinned the MediaBox, **plus a case
+asserting Fit Page's ZOOM against the drawn page**, the shape A-68 already had for Fit Visible. (1)
 `fitRect()` answers `boxes.crop` for `FitMode::Page`, which puts Page in the same arm as Width,
 Height and None — **`boxes.media` is now measured by no fit at all**, and it stays in `PageBoxes`
 because the struct is the page's three rectangles and because a print path (Stage 8) is the caller
