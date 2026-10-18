@@ -391,7 +391,7 @@ the tree at Stage 5's sign-off.
 **Steps** `$env:QT_QPA_PLATFORM="offscreen"`; `rawpage.exe --dump-ui-strings`, `--lang zh-TW --dump-ui-strings` and `--list-actions`, **through `cmd` redirection**.
 **Expect** Exit 0; every `annot.*`, `comments.*`, `measure.*` and `stamps.*` key resolves in `en` and `zh-TW` and **none resolves to itself**; the log says the backend is **4 of 7** and the platform **6 of 18** — Stage 6 adds no interface (plan §5.1). **If it fails** S2.
 
-**A-06 · Stage 6's `core/` uses only the Qt the portable presets have** ☐
+**A-06 · Stage 6's `core/` uses only the Qt the portable presets have** ✅ *the log read 2026-10-19 from CI run 38926974240's `portable-asan` job (on `f11d17b`, after T14): on ubuntu-24.04, "Setting up libqt6core6t64:amd64 (6.4.2+dfsg-21.1build5)", then `rawpage_core`'s `doc/AnnotationStore.cpp.o`, `doc/XfdfCodec.cpp.o`, `doc/CommentMigrator.cpp.o`, `doc/SoundData.cpp.o` and `Measure.cpp.o` built, and the job green, 990/990*
 **Goal** Convention 24: CI builds `core/` against Ubuntu's Qt **6.4**.
 **Steps** The `portable-asan` job's build log.
 **Expect** `core/doc/` (the store, `XfdfCodec` over `QXmlStreamReader`, `CommentMigrator`, `SoundData`) and `core/Measure` compile there. **If it fails** S2.
