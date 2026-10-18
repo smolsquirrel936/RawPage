@@ -3,7 +3,7 @@
 # (claude-plan/Stage3-Mutation-Plan.md §7, claude-plan/Stage3-Mutation-Testing-Guide.md §5.1).
 #
 # Invoked via `cmake -P`, like RunGateCase.cmake, so it needs no shell and behaves the same on the
-# self-hosted Windows runner and the Linux gates runner.
+# Windows runner and the Linux gates runner.
 #
 # WHY A FAILURE AND NEVER A SKIP. Decision D3-2 makes this tool the automated validator for A4.
 # "A4 cannot be judged" reading as "A4 passed" is an S1, and a case that vanishes when its tool is

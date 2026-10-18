@@ -405,7 +405,7 @@ sink can compose an annotation. Stages 2 to 5 put their go/no-go early for the s
 | Job | Before | After |
 |---|---|---|
 | `gates` (ubuntu, no Qt) | 119 cases on Ubuntu (run 37188585103) | The new corpus files and labels in `gates.corpus.*`; `gates.fuzz_count.*` at five; ~~**`qpdf --check`** over the suite's written files (Q8)~~ -- **moved at T3 to `portable-asan`, below**: this job runs no suite and has no file to judge |
-| `windows` (self-hosted) | 1422 cases | Plus every Stage 6 suite; audio capture skips offscreen and is a by-hand run on the `windows` platform |
+| `windows` (self-hosted; GitHub-hosted from 2026-10-18) | 1422 cases | Plus every Stage 6 suite; audio capture skips offscreen and is a by-hand run on the `windows` platform |
 | `portable-asan` (ubuntu) | `core/`, `pdf/cos/`, `pdf/ops/` | Plus every Stage 6 suite in those layers, read by name from the log; **and since T3 `qpdf --check` over every file `tst_annotationops` saved** (`tests/gates/check-qpdf.py`, Q8) |
 | `portable-fuzz` | four targets, 60 s each | **Five** — `fuzz_annot_pipeline` |
 | `fuzz-soak.yml` | four targets, ten minutes | Five |

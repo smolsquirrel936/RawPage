@@ -438,7 +438,7 @@ Stage-0-local decisions D0-1…D0-8, and the §7 precondition checklist) and
 | **T14** portable-asan proof | ✅ 2026-08-18 | Ran in CI on `ubuntu-latest`: **43 tests clean under ASan+UBSan** (16 gate + 27 unit); **45** since I-08, pending the next CI run. This is the layer contract proven mechanically rather than asserted — `core/` compiled by a *different compiler* on a *different OS*, with no display and no PDF engine present. `-fno-sanitize-recover=all` is set, so a finding aborts rather than printing and continuing. The 43-vs-50 gap is the seven toolchain-pin cases, correctly absent where there is no toolchain to pin |
 | **T15** verdicts and lockstep | ✅ 2026-08-18 | `Architecture-FileMap.md` gained **§3.18** (build system, scripts, CI) and every Stage 0 row is ✅ — the map previously described every planned `.cpp` and none of the machinery that compiles them. Testing guide reconciled against what actually ran. `Tech-Stack-Plan.md` carries the A5 and A6 verdicts, the corrected Hunspell licence, and the `-fanalyzer` finding |
 
-> **⚠️ `aqtinstall` cannot install Qt 6.11.1 — CI's Windows job needs a self-hosted runner.**
+> **⚠️ `aqtinstall` could not install Qt 6.11.1 — so CI's Windows job ran self-hosted from 2026-08-18 to 2026-10-18.**
 > Investigated 2026-08-18 rather than assumed. Qt 6.11.1 *is* published and `tools_mingw1310`
 > *is* listed; `Updates.xml` and its `.sha256` both return HTTP 200. With hash checking
 > disabled, aqt reveals the real error: it requests `…/qt6_6111/qt6_6111/Updates.xml` → **404**,
@@ -453,11 +453,20 @@ Stage-0-local decisions D0-1…D0-8, and the §7 precondition checklist) and
 > self-hosted runner as the fallback and said the pin is not negotiable to make CI easier; that
 > prediction came true on the first run.
 >
-> The job is now `runs-on: [self-hosted, windows]`, gated on repository variable
-> `RAWPAGE_HAS_WINDOWS_RUNNER` so the workflow stays honest until a runner is registered — a
-> queued-forever job, or one marked `continue-on-error`, would claim coverage that does not
-> exist. **Until then, Windows build/test coverage is local only**, and Stage 0's Definition of
-> Done cannot be met on that item.
+> The job became `runs-on: [self-hosted, windows]`, gated on repository variable
+> `RAWPAGE_HAS_WINDOWS_RUNNER` so the workflow stayed honest until a runner was registered — a
+> queued-forever job, or one marked `continue-on-error`, would have claimed coverage that did not
+> exist. It first ran on 2026-08-25 (`Stage1-AppShell-Testing-Guide.md` §8, I-30).
+>
+> **Resolved 2026-10-18: the job is GitHub-hosted again (`windows-2025`).** aqtinstall's release
+> 3.3.0 still fails the same way, but its main branch at commit `076e165` installs 6.11.1, and
+> measured file by file against the release machine's `C:\Qt` every binary is byte-identical — the
+> only differences are the `.prl`/`.pc`/`qt.conf`/`qtenv2.bat` files aqt rewrites with its install
+> path, and GCC, CMake 3.30.5 and Ninja 1.12.1 match without exception. It moved because the
+> repository is to be made public, and a fork's pull request runs its own copy of the workflow on
+> whatever runner it names. The job now asserts the SHA-256 of the five linked Qt DLLs and
+> `g++.exe`, so the exact-bytes property is checked rather than true by construction. The
+> measurement and the pins are `ci.yml`'s comment on the `windows` job.
 
 > **Two bugs the gate found in itself on first run, both fixed.** `$`-prefixed comment keys in
 > `spdx-map.json` were being read as components with no licence — JSON has no comment syntax, so the

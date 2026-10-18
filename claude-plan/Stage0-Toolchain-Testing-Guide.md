@@ -377,7 +377,9 @@ green history that hides a red run is not a history.
 > requests the old single-repo path, returning 404 behind a misleading "checksum" error. 3.3.0 and
 > 3.2.1 fail identically. Downgrading the Qt pin to suit CI was rejected — TA-8 asserts 6.11.1, and
 > testing against a different Qt than we ship is the ABI question A7 exists to prevent. The
-> consequence is an improvement: CI now builds with the **exact** toolchain bytes a release uses.
+> consequence was an improvement: CI built with the **exact** toolchain bytes a release uses.
+> *(2026-10-18: GitHub-hosted again — aqtinstall's main branch installs a byte-identical 6.11.1,
+> and the job now asserts those bytes by SHA-256; `Implementation-Plan.md` §4, Stage 0's block.)*
 
 **A-73 · The `gates` job needs no Qt**
 ✅ **Passed 2026-08-18.** Verified twice: locally with `VCPKG_ROOT` cleared and `RAWPAGE_QT_PREFIX`

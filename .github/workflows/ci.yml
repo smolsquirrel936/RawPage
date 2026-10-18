@@ -107,10 +107,11 @@ jobs:
   # 2. The shipping build.
   # =====================================================================================
   # -------------------------------------------------------------------------------------
-  # SELF-HOSTED, and here is why.
+  # GITHUB-HOSTED since 2026-10-18. It was self-hosted for the two months before, and the
+  # history is the reason for the shape of this job.
   #
-  # The first CI run failed at "Install Qt". Investigated 2026-08-18; it is not a flake and
-  # not our configuration:
+  # 2026-08-18: the first CI run failed at "Install Qt". It was not a flake and not our
+  # configuration:
   #
   #   * Qt 6.11.1 IS published, and tools_mingw1310 IS listed by aqt.
   #   * Both Updates.xml and its .sha256 return HTTP 200 from download.qt.io.
@@ -121,32 +122,105 @@ jobs:
   #   * aqtinstall 3.3.0 (latest) and 3.2.1 fail identically, and a trusted-mirror config
   #     does not help. The "checksum" error was masking the 404.
   #
-  # So aqtinstall cannot install Qt 6.11.1 at all today. The options were: downgrade the Qt
-  # pin to something aqt can fetch, or run this job on the machine that already has the
-  # pinned toolchain. Downgrading was rejected -- TA-8 asserts 6.11.1, and testing against a
-  # different Qt than we ship is precisely the ABI question risk A7 exists to prevent. The
-  # plan (Stage0-Toolchain-Plan.md §9) named the self-hosted runner as the fallback for
-  # exactly this, and said the pin is not negotiable to make CI easier.
+  # Downgrading the Qt pin to something aqt could fetch was rejected -- TA-8 asserts 6.11.1, and
+  # testing against a different Qt than we ship is precisely the ABI question risk A7 exists to
+  # prevent -- so the job ran on the developer machine, whose Qt install IS the release build
+  # environment. Stage0-Toolchain-Plan.md §9 had named that fallback.
   #
-  # This job is gated on a repository variable so the workflow stays green until a runner is
-  # registered. That is deliberate: a job queued forever, or one marked continue-on-error,
-  # would claim coverage the project does not have. Set RAWPAGE_HAS_WINDOWS_RUNNER=true once
-  # the runner exists.
+  # 2026-10-18: release 3.3.0 still fails the same way, but aqtinstall's main branch at commit
+  # 076e165 installs 6.11.1. Measured against the developer machine's C:\Qt, file by file:
+  #
+  #   * 6.11.1/mingw_64: 10,790 of aqt's 10,947 files byte-identical; the 157 that differ are
+  #     all .prl, .pc, qt.conf and qtenv2.bat -- the files aqt rewrites with its own install
+  #     path. No binary differs.
+  #   * Tools/mingw1310_64 (18,725 files), Tools/CMake_64 (3.30.5) and Tools/Ninja (1.12.1):
+  #     identical, without exception.
+  #   * The developer install also carries modules the build never links -- Charts (GPL-3.0,
+  #     D4), Quick3D, Image Formats. They are NOT installed here on purpose: a product that came
+  #     to depend on one fails in CI instead of only on the release machine.
+  #
+  # Why it moved: the repository is going public, and on a public repository a pull request
+  # from a fork runs ITS OWN copy of this file -- so a self-hosted runner would execute a
+  # stranger's code on the developer machine, under the developer's account. A hosted runner is
+  # a fresh VM per job, which also makes every run a clean-machine build instead of one that
+  # inherits the previous run's tree and vcpkg archives.
+  #
+  # "CI tests the bytes the release is built from" is no longer true by construction, so it is
+  # ASSERTED: "Verify the toolchain is the pinned one" checks the SHA-256 of the five Qt DLLs
+  # the build links (build/x64-release/qt-modules.txt) and of g++.exe against the developer
+  # install's, and fails the job on a mismatch.
+  #
+  # aqtinstall is pinned to a COMMIT, never to the branch: an unreleased main branch moves.
+  # Move to a release once one carries the per-architecture fix, and re-run the comparison.
+  # The cache key names every pin, so changing one re-installs rather than reusing.
   # -------------------------------------------------------------------------------------
   windows:
     name: Windows x64 (Qt 6.11.1, MinGW 13.1.0)
     needs: gates
-    if: vars.RAWPAGE_HAS_WINDOWS_RUNNER == 'true'
-    runs-on: [self-hosted, windows]
+    runs-on: windows-2025
+    timeout-minutes: 240
     # A4's automated signature validator (Stage 3 P-2, decision D3-2), named rather than searched
-    # for. Measured 2026-09-14: on this runner no OpenSSL is on the registry PATH -- miniconda's
-    # arrives only through `conda init` in the user's PowerShell profile -- so a job that found one
-    # was relying on a personal shell hook. Git for Windows' copy runs standalone.
+    # for. Measured 2026-09-14 on the then self-hosted runner: no OpenSSL was on the registry
+    # PATH -- miniconda's arrived only through `conda init` in the user's PowerShell profile --
+    # so a job that found one was relying on a personal shell hook. Git for Windows' copy runs
+    # standalone, and the hosted image installs Git for Windows at the same path.
     # tests/gates/ResolveOpenSSL.cmake explains why a set variable is the only place looked.
+    #
+    # VCPKG_DEFAULT_BINARY_CACHE is named so the cache steps below can name the same directory.
     env:
       RAWPAGE_OPENSSL: C:\Program Files\Git\mingw64\bin\openssl.exe
+      VCPKG_DEFAULT_BINARY_CACHE: C:\vcpkg-archives
     steps:
       - uses: actions/checkout@v4
+
+      # Restore and save are separate steps, not one actions/cache, because a combined step
+      # saves only when the whole job succeeds -- and a red test run would then re-download
+      # 1.4 GB of Qt on every retry. The install is saved the moment it exists.
+      - name: Restore the pinned Qt and its tools
+        id: qt-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\Qt
+          key: qt-6.11.1-qtmultimedia-mingw1310-cmake3.30.5-ninja1.12.1-aqt076e165-v1
+
+      - name: Install the pinned Qt and its tools
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          # Without this a failing native command does not stop the script, and only the LAST
+          # aqt call's exit code would decide the step.
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install "aqtinstall @ git+https://github.com/miurahr/aqtinstall@076e1659807d0b362a3ed684d54c2e9c775eb9c7"
+          python -m aqt install-qt  windows desktop 6.11.1 win64_mingw --outputdir C:\Qt -m qtmultimedia
+          python -m aqt install-tool windows desktop tools_mingw1310 qt.tools.win64_mingw1310 --outputdir C:\Qt
+          python -m aqt install-tool windows desktop tools_cmake qt.tools.cmake --outputdir C:\Qt
+          python -m aqt install-tool windows desktop tools_ninja qt.tools.ninja --outputdir C:\Qt
+
+      - name: Save the pinned Qt and its tools
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\Qt
+          key: ${{ steps.qt-cache.outputs.cache-primary-key }}
+
+      # The image ships vcpkg as VCPKG_INSTALLATION_ROOT. scripts/env.ps1 keeps a VCPKG_ROOT that is
+      # already set, so this decides which vcpkg the build uses rather than relying on the image to
+      # export both names (the Linux image does not -- see portable-asan). Which PORT versions
+      # resolve is decided by vcpkg-configuration.json's git-registry baseline, not by this clone.
+      - name: Point VCPKG_ROOT at the image's vcpkg
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe")) { throw "no vcpkg.exe under VCPKG_INSTALLATION_ROOT='$env:VCPKG_INSTALLATION_ROOT'" }
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+
+      - name: Restore vcpkg binaries
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\vcpkg-archives
+          key: vcpkg-mingw-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'tools/ports/**') }}
+          restore-keys: vcpkg-mingw-
 
       # MUST come before the first vcpkg invocation, not merely before the compile step.
       # Measured at T6: vcpkg's x64-mingw-dynamic triplet runs a detect_compiler probe that
@@ -154,9 +228,7 @@ jobs:
       # its own DLLs (0xC0000135). vcpkg reports that as "unable to detect the active
       # compiler's information", which reads exactly like a broken triplet or a missing port
       # and cost a false-negative A5 reading before the cause was found.
-      # On the self-hosted runner the pinned toolchain is the machine's own Qt install --
-      # which is stronger than a downloaded one: CI then tests with the exact bytes the
-      # release is built from, rather than a same-version copy.
+      # env.ps1's defaults are C:\Qt\..., which is exactly where the install step put everything.
       - name: Put the pinned toolchain on PATH
         shell: pwsh
         run: |
@@ -166,12 +238,29 @@ jobs:
           echo "RAWPAGE_QT_PREFIX=$env:RAWPAGE_QT_PREFIX"   | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "VCPKG_ROOT=$env:VCPKG_ROOT"             | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      # The version check, and then the bytes. The hashes are the developer install's (C:\Qt on the
+      # machine the release is built from, read 2026-10-18): this is what keeps "CI tests what we
+      # ship" a checked claim now that CI downloads its own copy. A module added to the link closure
+      # gets a row here in the same change.
       - name: Verify the toolchain is the pinned one
         shell: pwsh
         run: |
           g++ --version
           g++ -dumpmachine
           if ((g++ -dumpversion) -ne '13.1.0') { throw "expected GCC 13.1.0" }
+          $pinned = [ordered]@{
+            "$env:RAWPAGE_QT_PREFIX\bin\Qt6Core.dll"       = '10758b858b9985bfbfe70b7459bf5dbbdaf9874120e41c080c067d99e1cbd8e6'
+            "$env:RAWPAGE_QT_PREFIX\bin\Qt6Gui.dll"        = '94e1a542e7c10d4c3b816ef43ccedd5b799fbdbec1a96cbc7a25dd8dcd1e6f9e'
+            "$env:RAWPAGE_QT_PREFIX\bin\Qt6Widgets.dll"    = 'd345e3d7d693fa0150cb03a12112b6a3f27213bb59929bae2f5179b6fabf6d0b'
+            "$env:RAWPAGE_QT_PREFIX\bin\Qt6Svg.dll"        = '89a32215a10c1c25fe7f0022ea77d6ab6128c8bfac0e30ab144f2e4312b860f6'
+            "$env:RAWPAGE_QT_PREFIX\bin\Qt6Multimedia.dll" = 'd45968b53ea2b1776252427ba2424c1e5887644045af3679444946757eb06d97'
+            "$env:RAWPAGE_MINGW_ROOT\bin\g++.exe"          = 'cd65c087ad69a877e5a105c607cc910abfabcc52ba7e9448572f36567b51698c'
+          }
+          foreach ($file in $pinned.Keys) {
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash.ToLowerInvariant()
+            if ($actual -ne $pinned[$file]) { throw "$file is $actual, expected $($pinned[$file]) -- not the bytes the release is built from" }
+            Write-Host "pinned  $file"
+          }
 
       # Stage 3 P-2, the Windows half: the validator RAWPAGE_OPENSSL names, with its version. Before
       # Configure, so a missing one is reported before the build time is spent.
@@ -186,16 +275,26 @@ jobs:
       # ADDED 2026-09-06, after the engine had been in the tree since T2 (2026-09-01) with no CI
       # run in between -- the Windows job had never once configured against Stage 2's code. The
       # script verifies the pinned SHA-256 and generates the GNU import library upstream does not
-      # ship; it is idempotent, so on a self-hosted runner it is a no-op after the first run.
+      # ship; it is idempotent, so on a machine that already has it, it is a no-op.
       - name: Fetch the pinned PDFium
         shell: pwsh
         run: .\scripts\fetch-pdfium.ps1
 
-      # No vcpkg cache step here: a self-hosted runner keeps %LOCALAPPDATA%\vcpkg\archives
-      # between runs already, so an actions/cache round-trip would upload and re-download
-      # what is sitting on the disk it is running from.
+      # Configure is where vcpkg builds the manifest's ports, into VCPKG_DEFAULT_BINARY_CACHE.
       - name: Configure
+        id: configure
         run: cmake --preset x64-release
+
+      # Saved straight after Configure, even when Configure or a later step fails, for the reason
+      # the Qt cache is -- but never when Configure did not run, which would save an empty
+      # directory under the key. Only on a primary-key miss: a restore through restore-keys is a
+      # miss, and saving then records the new manifest's archives under the new key.
+      - name: Save vcpkg binaries
+        if: ${{ !cancelled() && steps.configure.outcome != 'skipped' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: C:\vcpkg-archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       # Run the gates again here, against the REAL configuration. The Linux job cannot see
       # qt-modules.txt or compiler-plugins.txt -- both are written at configure time from
@@ -467,20 +566,22 @@ jobs:
   # =====================================================================================
   # 5. The coverage this run did NOT have.
   #
-  # The `windows` job is gated on a repository variable, and an ungated job is skipped rather
-  # than failed -- which GitHub renders as a grey tick beside two green ones. Read quickly, a
-  # run with no Windows coverage at all looks exactly like a run with full coverage.
+  # A skipped job is rendered as a grey tick beside green ones. Read quickly, a run with no
+  # Windows coverage at all looks exactly like a run with full coverage.
   #
   # Stage1-AppShell-Testing-Guide.md's case A-80 says T15 must "either register the self-hosted
   # runner or record the deliberate absence rather than let a skipped job read as a passing one."
   # This job is that record, made by the machine on every run instead of by a sentence in a
-  # document that ages. It does not fail: keeping CI green without a runner is deliberate (see
-  # the long comment on the `windows` job), and a job that failed for missing infrastructure
-  # would train everyone to ignore a red build.
+  # document that ages. Until 2026-10-18 the `windows` job was gated on a repository variable
+  # (RAWPAGE_HAS_WINDOWS_RUNNER) and this job read the VARIABLE -- so a run whose Windows job
+  # failed or was cancelled still reported "ran". On the hosted runner there is no gate, and
+  # this job reads the job's RESULT instead: anything but `success` is reported as no coverage.
+  # It does not itself fail: a failed `windows` job already makes the run red, and a skipped or
+  # cancelled one is what the warning below exists to make visible.
   # =====================================================================================
   coverage-report:
     name: Coverage actually obtained
-    needs: [gates, portable-asan, portable-fuzz]
+    needs: [gates, windows, portable-asan, portable-fuzz]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -497,17 +598,18 @@ jobs:
             echo "| \`portable-fuzz\` | ${{ needs['portable-fuzz'].result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "${{ vars.RAWPAGE_HAS_WINDOWS_RUNNER }}" = "true" ]; then
-            echo "| \`windows\` | ran |" >> "$GITHUB_STEP_SUMMARY"
+          windows="${{ needs.windows.result }}"
+          if [ "$windows" = "success" ]; then
+            echo "| \`windows\` | success |" >> "$GITHUB_STEP_SUMMARY"
             echo "Windows coverage was obtained."
             exit 0
           fi
 
           {
-            echo "| \`windows\` | **SKIPPED -- no coverage** |"
+            echo "| \`windows\` | **${windows} -- no coverage** |"
             echo ""
-            echo "**\`RAWPAGE_HAS_WINDOWS_RUNNER\` is not \`true\`, so the \`windows\` job did not run.**"
-            echo "Nothing below has been exercised by this run:"
+            echo "**The \`windows\` job's result is \`${windows}\`, so this run claims no Windows coverage.**"
+            echo "Nothing below has been exercised to completion by this run:"
             echo ""
             echo "- \`ui.*\` — the widget suite (D1-4) AND \`ui.composition.*\`, the product's own composition (Stage 3 A-74)"
             echo "- \`platform.*\` — the Win32 layer"
@@ -520,10 +622,6 @@ jobs:
             echo "  and \`compiler-plugins.txt\` exist, so the Qt Charts and GCC-plugin checks"
             echo "  have teeth nowhere else"
             echo "- the \`msvcrt.dll\` / \`ucrtbase.dll\` linkage check"
-            echo ""
-            echo "Set the repository variable \`RAWPAGE_HAS_WINDOWS_RUNNER\` to \`true\` once a"
-            echo "self-hosted Windows runner carrying the pinned Qt 6.11.1 / MinGW 13.1.0 toolchain"
-            echo "is registered. Guide case **A-80** stays open until it has run."
           } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "::warning title=No Windows coverage::RAWPAGE_HAS_WINDOWS_RUNNER is unset, so the windows job was skipped. ui.*, platform.*, render.*, bench.* and the wrong-compiler fixtures did not run. Guide case A-80 stays open."
+          echo "::warning title=No Windows coverage::The windows job's result is ${windows}. ui.*, platform.*, render.*, bench.* and the wrong-compiler fixtures did not complete on this run."
