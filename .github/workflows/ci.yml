@@ -159,16 +159,9 @@ jobs:
     needs: gates
     runs-on: windows-2025
     timeout-minutes: 240
-    # A4's automated signature validator (Stage 3 P-2, decision D3-2), named rather than searched
-    # for. Measured 2026-09-14 on the then self-hosted runner: no OpenSSL was on the registry
-    # PATH -- miniconda's arrived only through `conda init` in the user's PowerShell profile --
-    # so a job that found one was relying on a personal shell hook. Git for Windows' copy runs
-    # standalone, and the hosted image installs Git for Windows at the same path.
-    # tests/gates/ResolveOpenSSL.cmake explains why a set variable is the only place looked.
-    #
     # VCPKG_DEFAULT_BINARY_CACHE is named so the cache steps below can name the same directory.
+    # RAWPAGE_OPENSSL, A4's validator, is set by the "Name the A4 signature validator" step.
     env:
-      RAWPAGE_OPENSSL: C:\Program Files\Git\mingw64\bin\openssl.exe
       VCPKG_DEFAULT_BINARY_CACHE: C:\vcpkg-archives
     steps:
       - uses: actions/checkout@v4
@@ -261,6 +254,32 @@ jobs:
             if ($actual -ne $pinned[$file]) { throw "$file is $actual, expected $($pinned[$file]) -- not the bytes the release is built from" }
             Write-Host "pinned  $file"
           }
+
+      # A4's automated signature validator (Stage 3 P-2, decision D3-2), NAMED rather than found on
+      # PATH. Measured 2026-09-14 on the then self-hosted runner: no OpenSSL was on the registry
+      # PATH -- miniconda's arrived only through `conda init` in the user's PowerShell profile -- so
+      # a job that found one was relying on a personal shell hook, and the job named Git for
+      # Windows' C:\Program Files\Git\mingw64\bin\openssl.exe. The first hosted run (39141612907,
+      # 2026-10-18) found no file there: the image's Git for Windows does not ship that copy.
+      #
+      # So the job names an ordered list of exact paths and takes the first that exists: the
+      # image's own OpenSSL install, then Git for Windows' two locations. Still a choice written
+      # here, never a PATH search -- every candidate's presence is printed, and the step fails if
+      # none exists. tests/gates/ResolveOpenSSL.cmake explains why a set variable is then the only
+      # place looked.
+      - name: Name the A4 signature validator
+        shell: pwsh
+        run: |
+          $candidates = @(
+            'C:\Program Files\OpenSSL\bin\openssl.exe',
+            'C:\Program Files\Git\usr\bin\openssl.exe',
+            'C:\Program Files\Git\mingw64\bin\openssl.exe'
+          )
+          foreach ($c in $candidates) { Write-Host ("{0,-8} {1}" -f $(if (Test-Path -LiteralPath $c -PathType Leaf) { 'present' } else { 'absent' }), $c) }
+          $chosen = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $chosen) { throw "none of the named OpenSSL paths exists on this image -- A4's validator cannot run" }
+          Write-Host "RAWPAGE_OPENSSL = $chosen"
+          echo "RAWPAGE_OPENSSL=$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # Stage 3 P-2, the Windows half: the validator RAWPAGE_OPENSSL names, with its version. Before
       # Configure, so a missing one is reported before the build time is spent.
