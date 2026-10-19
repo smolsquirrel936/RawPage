@@ -36,6 +36,7 @@
 // ---------------------------------------------------------------------------------------------
 // A note's pop-up is painted here -- the note's author and text in a box -- and opening, moving and
 // closing it constructs no command and changes no byte. `commenting/popupBehaviour` says when they show.
+// A CARET has one too, the same way (S6 guide I-26): its text is the words a person inserted.
 //
 // ---------------------------------------------------------------------------------------------
 // WHAT THE TOOLS MAKE (Stage 6 T6) -- one command each, D6-1
@@ -305,9 +306,9 @@ public:
     PopupBehaviour popupBehaviour() const noexcept { return popupBehaviour_; }
     // Whether moves with no button down are wanted: pop-ups that show on hover.
     bool wantsHover() const noexcept { return popupBehaviour_ == PopupBehaviour::OnHover; }
-    // The pointer is over `pos` (or has left, with `pos` null): repaints when the hovered note changes.
+    // The pointer is over `pos` (or has left, with `pos` null): repaints when the hovered note or caret changes.
     void hover(const Viewport& view, std::optional<QPoint> pos);
-    // A double click on a note pins its pop-up open, or closes it.
+    // A double click on a note or a caret pins its pop-up open, or closes it.
     bool togglePopup(const core::AnnotationId& id);
     bool isPopupShown(const core::AnnotationId& id) const;
     // Where a shown pop-up is drawn, in viewport logical pixels; empty when it is not shown.

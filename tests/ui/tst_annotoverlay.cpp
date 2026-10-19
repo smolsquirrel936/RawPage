@@ -63,8 +63,9 @@ core::PdfRect box(double l, double b, double r, double t)
 }
 
 // Four annotations on page 1 of a three-page fake document, read as the reader would hand them over:
-// a rectangle, a locked rectangle beside it, a highlight over a line of text, and a note.
-core::AnnotationStore annotatedStore()
+// a rectangle, a locked rectangle beside it, a highlight over a line of text, and a note -- and, `withCaret`,
+// a fifth: a caret holding inserted words (S6 guide I-26), kept out of the four every other case counts on.
+core::AnnotationStore annotatedStore(bool withCaret = false)
 {
     core::AnnotationStore::Reading reading;
     reading.pages.resize(3);
@@ -109,6 +110,18 @@ core::AnnotationStore annotatedStore()
     note.contents = QStringLiteral("Check this figure");
     note.hasAppearance = true;
     add(note);
+
+    if (withCaret) {
+        Annotation caret;
+        caret.id = AnnotationId::ofObject(14);
+        caret.subtype = AnnotationSubtype::Caret;
+        caret.rect = box(400, 400, 412, 412);
+        caret.author = QStringLiteral("Ana");
+        caret.contents = QStringLiteral("inserted words");
+        caret.color = {0, 0, 1};
+        caret.hasAppearance = true;
+        add(caret);
+    }
     return core::AnnotationStore::fromReading(std::move(reading));
 }
 
@@ -140,11 +153,11 @@ struct Annotated {
     ui::PageView* view = nullptr;
     ui::AnnotationOverlay* overlay = nullptr;
 
-    Annotated()
+    explicit Annotated(bool withCaret = false)
     {
         fixture.backend.pagesPerDocument = 3;
         fixture.backend.editable = true;
-        fixture.backend.annotations_ = annotatedStore();
+        fixture.backend.annotations_ = annotatedStore(withCaret);
         window = std::make_unique<ui::MainWindow>(fixture.services());
         window->resize(1100, 900);
         window->openFiles({fixture.writeFile(QStringLiteral("annotated.pdf"))});
@@ -194,6 +207,14 @@ struct Annotated {
     {
         QMouseEvent event(type, QPointF(pos), QPointF(view->viewport()->mapToGlobal(pos)), Qt::LeftButton,
                           type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, modifiers);
+        QCoreApplication::sendEvent(view->viewport(), &event);
+        QCoreApplication::processEvents();
+    }
+    // A move with NO button down -- a hover, through the page's own `mouseMoveEvent` (`mouse` holds the left button).
+    void hoverAt(QPoint pos) const
+    {
+        QMouseEvent event(QEvent::MouseMove, QPointF(pos), QPointF(view->viewport()->mapToGlobal(pos)), Qt::NoButton,
+                          Qt::NoButton, Qt::NoModifier);
         QCoreApplication::sendEvent(view->viewport(), &event);
         QCoreApplication::processEvents();
     }
@@ -580,6 +601,59 @@ TEST_CASE("a note's pop-up opens moves and closes as view state under each behav
     CHECK(a.journal().document().modelHash() == hash);
     CHECK(a.steps() == 0);
     CHECK(a.view->tiles().heldRequests() == tilesBefore);
+}
+
+// ==========================================================================================
+// S6 guide I-26 -- a caret's pop-up, as a note's
+// ==========================================================================================
+// M-02's preparation, 2026-10-20: a caret's text -- the words a person inserted -- could be read only in the Comments
+// pane and the properties bar, while Acrobat shows it on hover; the user asked for a caret to behave as a note does.
+// NOT COVERED (convention 19): the pop-up's paint -- `isPopupShown` and `popupRect` are what `paint` reads.
+
+TEST_CASE("a caret's pop-up shows its inserted text under each behaviour as a note's does", "[annotoverlay][I-26][D6-28]")
+{
+    Annotated a(true);
+    const QByteArray hash = a.journal().document().modelHash();
+    const AnnotationId caret = AnnotationId::ofObject(14);
+    REQUIRE(a.at(14).subtype == AnnotationSubtype::Caret);
+    const QRectF mark = a.rectOf(14);
+    const QPoint onCaret(qRound(mark.center().x()), qRound(mark.center().y()));
+    const QPoint away(qRound(mark.center().x()), qRound(mark.center().y() + 80));
+
+    // Never: nothing on hover.
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
+    a.hoverAt(onCaret);
+    CHECK_FALSE(a.overlay->isPopupShown(caret));
+    // On hover, through the page's own mouse moves: it shows over the caret and goes when the pointer leaves.
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::OnHover);
+    a.hoverAt(onCaret);
+    CHECK(a.overlay->isPopupShown(caret));
+    const std::optional<QRectF> shown = a.overlay->popupRect(a.view->annotationViewport(), caret);
+    REQUIRE(shown);
+    CHECK(shown->left() >= mark.right());   // beside the caret, where a note's opens when it has no Popup
+    a.hoverAt(away);
+    CHECK_FALSE(a.overlay->isPopupShown(caret));
+    // Always: the caret's and the note's, and still not the rectangle's or the highlight's.
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Always);
+    CHECK(a.overlay->isPopupShown(caret));
+    CHECK(a.overlay->isPopupShown(AnnotationId::ofObject(13)));
+    CHECK_FALSE(a.overlay->isPopupShown(AnnotationId::ofObject(10)));
+    CHECK_FALSE(a.overlay->isPopupShown(AnnotationId::ofObject(12)));
+
+    // A double click pins it under Never, and its cross closes it -- as a note's (A-47).
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
+    a.mouse(QEvent::MouseButtonPress, onCaret);
+    a.mouse(QEvent::MouseButtonRelease, onCaret);
+    a.mouse(QEvent::MouseButtonDblClick, onCaret);
+    a.mouse(QEvent::MouseButtonRelease, onCaret);
+    REQUIRE(a.overlay->isPopupShown(caret));
+    const QRectF pinned = *a.overlay->popupRect(a.view->annotationViewport(), caret);
+    a.click(QPoint(qRound(pinned.right() - 10), qRound(pinned.top() + 10)));
+    CHECK_FALSE(a.overlay->isPopupShown(caret));
+
+    // View state: no command, no byte.
+    CHECK(a.journal().document().modelHash() == hash);
+    CHECK(a.steps() == 0);
 }
 
 // ==========================================================================================

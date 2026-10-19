@@ -41,10 +41,13 @@ bool isTextMarkup(AnnotationSubtype subtype)
            || subtype == AnnotationSubtype::StrikeOut || subtype == AnnotationSubtype::Squiggly;
 }
 
-bool isNote(const Annotation& a)
+// WHAT HAS A POP-UP (D6-28): a note -- and, since M-01's walk, a CARET, whose text is the words a person inserted
+// and was otherwise read only in the Comments pane and the properties bar (S6 guide I-26). The same behaviour for
+// both: hover, `Always`, `Never`, and a double click to pin. Hidden or `NoView`, neither.
+bool hasPopup(const Annotation& a)
 {
-    return a.subtype == AnnotationSubtype::Text && !a.hasFlag(core::AnnotationFlag::Hidden)
-           && !a.hasFlag(core::AnnotationFlag::NoView);
+    return (a.subtype == AnnotationSubtype::Text || a.subtype == AnnotationSubtype::Caret)
+           && !a.hasFlag(core::AnnotationFlag::Hidden) && !a.hasFlag(core::AnnotationFlag::NoView);
 }
 
 // The overlay's own colours: a selection and its handles are CHROME drawn over the page, in the accent
@@ -328,7 +331,7 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
              if (popupBehaviour_ == PopupBehaviour::Always && store_ != nullptr && view.layout != nullptr) {
                  for (const core::render::PageSlot& slot : view.layout->slotsIntersecting(view.visible)) {
                      for (const std::size_t index : store_->onPage(slot.pageIndex)) {
-                         if (isNote(store_->at(index))) shown.push_back(store_->at(index).id);
+                         if (hasPopup(store_->at(index))) shown.push_back(store_->at(index).id);
                      }
                  }
              }
@@ -373,8 +376,8 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
         return true;
     }
 
-    // A double click on a note opens or closes its pop-up (D6-28).
-    if (clicks == 2 && isNote(*a)) {
+    // A double click on a note or a caret opens or closes its pop-up (D6-28, I-26).
+    if (clicks == 2 && hasPopup(*a)) {
         select({*hit});
         togglePopup(*hit);
         return true;
@@ -1120,7 +1123,7 @@ void AnnotationOverlay::hover(const Viewport& view, std::optional<QPoint> pos)
         }
         if (const std::optional<AnnotationId> hit = annotationAt(view, *pos)) {
             const Annotation* a = find(*hit);
-            if (a != nullptr && isNote(*a)) now = hit;
+            if (a != nullptr && hasPopup(*a)) now = hit;
         }
     }
     if (now == hovered_) return;
@@ -1131,7 +1134,7 @@ void AnnotationOverlay::hover(const Viewport& view, std::optional<QPoint> pos)
 bool AnnotationOverlay::togglePopup(const AnnotationId& id)
 {
     const Annotation* a = find(id);
-    if (a == nullptr || !isNote(*a)) return false;
+    if (a == nullptr || !hasPopup(*a)) return false;
     const auto at = std::find(pinned_.begin(), pinned_.end(), id);
     if (at != pinned_.end()) {
         pinned_.erase(at);
@@ -1146,7 +1149,7 @@ bool AnnotationOverlay::togglePopup(const AnnotationId& id)
 bool AnnotationOverlay::isPopupShown(const AnnotationId& id) const
 {
     const Annotation* a = find(id);
-    if (a == nullptr || !isNote(*a)) return false;
+    if (a == nullptr || !hasPopup(*a)) return false;
     // A double click is a person asking: it shows whatever the preference says about the rest.
     if (std::find(pinned_.begin(), pinned_.end(), id) != pinned_.end()) return true;
     switch (popupBehaviour_) {
@@ -1262,13 +1265,13 @@ void AnnotationOverlay::paint(QPainter& painter, const Viewport& view) const
         painter.setFont(before);
     }
 
-    // THE POP-UPS (D6-28): the note's author and text, never a tile and never a command.
+    // THE POP-UPS (D6-28): a note's or a caret's author and text, never a tile and never a command.
     std::vector<AnnotationId> shown = pinned_;
     if (hovered_) shown.push_back(*hovered_);
     if (popupBehaviour_ == PopupBehaviour::Always) {
         for (const core::render::PageSlot& slot : view.layout->slotsIntersecting(view.visible)) {
             for (const std::size_t index : store_->onPage(slot.pageIndex)) {
-                if (isNote(store_->at(index))) shown.push_back(store_->at(index).id);
+                if (hasPopup(store_->at(index))) shown.push_back(store_->at(index).id);
             }
         }
     }
