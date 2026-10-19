@@ -945,7 +945,7 @@ is what turns *"the target exists"* into *"the target runs"*. A real soak belong
 that is **Stage 3's** to add along with `tests/roundtrip/`; recorded here rather than left implicit,
 because the difference between a smoke test and a fuzz campaign is exactly the kind of thing a green
 tick makes invisible. *(Corrected 2026-09-14: the soak was added in Stage 2, not Stage 3. It is its own
-workflow, run by hand and weekly on Mondays at 03:17 UTC (nightly from 2026-09-21 to 2026-10-16), so no push
+workflow, run by hand and daily at 03:17 UTC (weekly on Mondays before 2026-09-21 and from 2026-10-16 to 2026-10-19), so no push
 triggers it and no push cancels it.)*
 **Result 2026-09-14 — the soak, run 34781013867** (`.github/workflows/fuzz-soak.yml`, dispatched by hand on `8d98ba1`, 600 s requested per target). Each target soaks in its own job, seeded from `corpus/malformed/` into a scratch corpus, under ASan + UBSan with `-fno-sanitize-recover=all`. The flags are `-timeout=30` (libFuzzer's default of 1200 s per input could never fail a ten-minute soak), `-error_exitcode=1` and `-timeout_exitcode=1`. The log is also grepped for a sanitizer line, which is I-38's lesson. **`fuzz_cos_lexer`: `Done 2271896 runs in 601 second(s)`**, 3,780 a second, 15,026 new units, slowest unit 0 s, peak RSS 524 MB. **The exit code was 0, and the job printed *no sanitizer line in fuzz_cos_lexer's log*.** **What it does NOT claim:** that the lexer is correct. A green soak says only that ten minutes of mutation from these seeds found no crash, leak, sanitizer report or 30-second input. The seeds are our own generated corpus, so the evidence is bounded by D2-11's.
 

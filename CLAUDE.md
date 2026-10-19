@@ -587,7 +587,7 @@ analyzer and normalizer over synthetic hostile geometry -- and **`fuzz_annot_pip
 annotation reader and store over the backend's first-party walk -- and, since Stage 6 T3, the appearance builder and a composed annotation update its own verify must accept. It needs clang and libFuzzer, neither of which is
 on this machine, so it runs only on Linux CI, in two places: `ci.yml`'s `portable-fuzz` job runs each
 target for 60 s on every push, and **`.github/workflows/fuzz-soak.yml` is the ten-minute soak** (guide
-cases A-25 and A-26). The soak runs weekly (Mondays) and by hand, never on push:
+cases A-25 and A-26). The soak runs daily and by hand, never on push:
 `gh workflow run fuzz-soak.yml -f seconds=600`. What each soak found is in the guide whose issue it
 raised (Stage 3 I-13, Stage 5 I-23, Stage 6 I-17). `tests/fuzz/CMakeLists.txt` fails configure when its target count is
 wrong — **5 since Stage 6 T2** — asserted by `cmake/RawPageFuzzTargets.cmake`, whose
