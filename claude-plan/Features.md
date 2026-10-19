@@ -1410,6 +1410,13 @@ with the one that produced it.)*
 | `Ctrl+Alt+A` | Area measurement — arms the tool (S6 decision D6-9) |
 | `Ctrl+Alt+K` | Mark for redaction — arms the tool (S6 decision D6-9) |
 
+**A `Ctrl+Alt` chord is a common target for other programs' system-wide hotkeys**, which Windows
+gives to the program that registered them before any window sees the key. On the walker's machine
+the NVIDIA overlay held `Ctrl+Alt+M`, and programs not identified held `Ctrl+Alt+L`, `Ctrl+Alt+A`
+and `Ctrl+Alt+K` (`Stage6-Annotations-Testing-Guide.md` §8, **I-23**, 2026-10-20). The rows are
+kept. The answer is to change the other program's hotkey, or to remap the action on Preferences'
+Shortcuts page.
+
 ### Write mode
 
 | Key | Command |
