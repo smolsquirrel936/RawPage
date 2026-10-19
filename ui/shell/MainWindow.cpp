@@ -438,6 +438,15 @@ MainWindow::~MainWindow()
     if (ribbon_) disconnect(ribbon_, nullptr, this, nullptr);
     if (tabs_) disconnect(tabs_, nullptr, this, nullptr);
 
+    // AND EVERY PANE'S TOOL (S6 guide I-24, convention 10). A note's editor COMMITS when the focus leaves it, and a
+    // commit puts the tool away -- so a window taken down with an editor open would reach `followTool`'s lambda
+    // in a half-destroyed MainWindow.
+    for (int index = 0; index < documentCount(); ++index) {
+        if (DocumentWindow* document = documentAt(index)) {
+            for (PageView* pane : document->split()->views()) disconnect(pane, &PageView::toolChanged, this, nullptr);
+        }
+    }
+
     // OUT OF THE SET, and out of `g_activeShell` with it. The registry outlives every window and
     // holds handlers that resolve `activeShell()` at dispatch time; a destroyed window left in the
     // set would be dispatched into. This is the same class of bug as I-12 -- an object reached
@@ -737,6 +746,7 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         disconnect(view, &PageView::viewChanged, this, nullptr);
         connect(view, &PageView::viewChanged, this,
                 [this](int, int, double) { updateViewChrome(); });
+        followTool(view);
     }
 
     // AND IT FOLLOWS THE SPLIT'S ACTIVE PANE (S4 T9). The connection above is to ONE view, and a
@@ -750,9 +760,12 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     // knows; walking at most four views costs nothing and cannot disagree.
     disconnect(document, &DocumentWindow::activeViewChanged, this, nullptr);
     connect(document, &DocumentWindow::activeViewChanged, this, [this, document](PageView* view) {
-        for (PageView* pane : document->split()->views())
+        for (PageView* pane : document->split()->views()) {
             disconnect(pane, &PageView::viewChanged, this, nullptr);
+            disconnect(pane, &PageView::toolChanged, this, nullptr);
+        }
         connect(view, &PageView::viewChanged, this, [this](int, int, double) { updateViewChrome(); });
+        followTool(view);
         updateViewChrome();
     });
 
@@ -2463,6 +2476,12 @@ void MainWindow::updateDocumentPanes()
         thumbnails_->setDocument(current->handle(), current->revision(),
                                  services_.backend.pages(current->handle()));
     }
+}
+
+void MainWindow::followTool(PageView* view)
+{
+    disconnect(view, &PageView::toolChanged, this, nullptr);
+    connect(view, &PageView::toolChanged, this, [this](ToolKind) { updateViewChrome(); });
 }
 
 void MainWindow::updateViewChrome()

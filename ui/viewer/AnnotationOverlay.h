@@ -65,6 +65,7 @@
 #include "core/doc/SoundData.h"
 #include "core/doc/TypedText.h"
 #include "core/render/PagePresentation.h"
+#include "core/settings/CommentingTypes.h"
 
 #include <QObject>
 #include <QPoint>
@@ -285,6 +286,19 @@ public:
     static constexpr double kNoteSize = 20.0;
     static constexpr double kPopupWidthPoints = 200.0;
     static constexpr double kPopupHeightPoints = 100.0;
+
+    // ---- An icon a click places (S6 guide I-25) --------------------------------------------------------
+    // The rectangle `tool`'s click at `at` makes -- a note's and a sound's icon hung from its top-left corner, a
+    // pushpin's foot centred on the point -- and its flags: what `addNote`, `addFileAttachment` and
+    // `core::newSoundComment` write. Nullopt for a tool whose click makes no icon of a fixed size.
+    static std::optional<core::Annotation> placedIcon(core::CommentingTool tool, int page, core::PdfPoint at);
+    // WHERE THE CLICK'S ICON IS HUNG SO ALL OF IT IS DRAWN: `at` moved the least distance that puts what a reader
+    // DRAWS -- `drawnRect`, which keeps a note upright on a turned page or view -- inside `page`'s crop box. A
+    // click on the desk arrives at the nearest page's EDGE (`PageView::pagePointAt`), and an icon hung outward
+    // from that edge was made where nothing draws it: in the file and the Comments pane, and not on the page
+    // (I-25). `at` unmoved when the icon fits, for a tool `placedIcon` knows nothing of, and when the page is not
+    // laid out; on a page narrower or shorter than the icon, its left or bottom edge in page space meets the page's.
+    static core::PdfPoint keepIconOnPage(const Viewport& view, int page, core::CommentingTool tool, core::PdfPoint at);
 
     // ---- Pop-ups (D6-28) --------------------------------------------------------------------------
     void setPopupBehaviour(PopupBehaviour behaviour);

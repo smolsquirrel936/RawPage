@@ -199,6 +199,49 @@ std::optional<core::PdfRect> AnnotationOverlay::drawnRect(const Viewport& view, 
                          core::PdfSize{std::abs(q->x - p->x), std::abs(q->y - p->y)}};
 }
 
+std::optional<Annotation> AnnotationOverlay::placedIcon(core::CommentingTool tool, int page, core::PdfPoint at)
+{
+    Annotation a;
+    a.page = page;
+    switch (tool) {
+    case core::CommentingTool::StickyNote:
+        // Acrobat's note: the `Comment` icon, `NoZoom` and `NoRotate` so it stays an upright icon, its top-left
+        // corner where the person clicked (a `NoRotate` icon is drawn from that corner, D6-30).
+        a.rect = core::PdfRect{core::PdfPoint{at.x, at.y - kNoteSize}, core::PdfSize{kNoteSize, kNoteSize}};
+        a.flags = core::AnnotationFlag::Print | core::AnnotationFlag::NoZoom | core::AnnotationFlag::NoRotate;
+        return a;
+    case core::CommentingTool::AttachFile:
+        a.rect = core::PdfRect{core::PdfPoint{at.x - kPushPinWidth / 2.0, at.y}, core::PdfSize{kPushPinWidth, kPushPinHeight}};
+        a.flags = core::AnnotationFlag::Print;
+        return a;
+    case core::CommentingTool::RecordAudio:
+    case core::CommentingTool::AttachAudio:
+        // The rectangle core makes, asked of core rather than written a second time.
+        return core::newSoundComment(page, at, core::SoundData{}, {}, QString(), 0);
+    default:
+        return std::nullopt;
+    }
+}
+
+core::PdfPoint AnnotationOverlay::keepIconOnPage(const Viewport& view, int page, core::CommentingTool tool, core::PdfPoint at)
+{
+    const std::optional<Annotation> icon = placedIcon(tool, page, at);
+    const core::render::PageSlot* slot = view.layout != nullptr ? view.layout->slotForPage(page) : nullptr;
+    if (!icon || slot == nullptr) return at;
+    // THE BOX TESTED IS THE BOX DRAWN: for an upright note on a turned page, another box than its rectangle -- and
+    // moving the rectangle in page space moves that box by the same amount, so the shift found is the shift made.
+    const std::optional<core::PdfRect> drawn = drawnRect(view, *icon);
+    if (!drawn) return at;
+    const core::PdfRect& crop = slot->cropBox;
+    const auto shift = [](double low, double high, double pageLow, double pageHigh) {
+        if (low < pageLow || high - low > pageHigh - pageLow) return pageLow - low;
+        if (high > pageHigh) return pageHigh - high;
+        return 0.0;
+    };
+    return core::PdfPoint{at.x + shift(drawn->left(), drawn->right(), crop.left(), crop.right()),
+                          at.y + shift(drawn->bottom(), drawn->top(), crop.bottom(), crop.top())};
+}
+
 std::optional<AnnotationId> AnnotationOverlay::annotationAt(const Viewport& view, QPoint pos) const
 {
     if (store_ == nullptr || view.layout == nullptr) return std::nullopt;
@@ -785,13 +828,14 @@ core::Status AnnotationOverlay::insertText(SelectionOverlay& text, int page, cor
 
 core::Status AnnotationOverlay::addNote(int page, core::PdfPoint at, const QString& contents, const Style& style)
 {
-    // THE NOTE: Acrobat's -- the `Comment` icon, `NoZoom` and `NoRotate` so it stays an upright icon -- its
-    // top-left corner where the person clicked (a `NoRotate` icon is drawn from that corner, D6-30).
+    // THE NOTE: Acrobat's `Comment` icon, its rectangle and flags `placedIcon`'s -- the box a click's placement was
+    // kept on the page by (I-25), so the two cannot disagree.
     Annotation note = newAnnotation(core::AnnotationSubtype::Text, page);
-    note.rect = core::PdfRect{core::PdfPoint{at.x, at.y - kNoteSize}, core::PdfSize{kNoteSize, kNoteSize}};
+    const std::optional<Annotation> icon = placedIcon(core::CommentingTool::StickyNote, page, at);
+    note.rect = icon->rect;
     note.icon = QStringLiteral("Comment");
     note.contents = contents;
-    note.flags = core::AnnotationFlag::Print | core::AnnotationFlag::NoZoom | core::AnnotationFlag::NoRotate;
+    note.flags = icon->flags;
     applyStyle(note, style);
 
     // ITS POP-UP, written once and closed (D6-28): beside the icon, where a reader opens it. No appearance,
@@ -839,7 +883,7 @@ core::Status AnnotationOverlay::addFileAttachment(int page, core::PdfPoint at, c
     if (bytes.size() > core::kMaxAttachmentBytes)
         return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.attachment.tooLarge"), name};
 
-    const core::PdfRect rect{core::PdfPoint{at.x - kPushPinWidth / 2.0, at.y}, core::PdfSize{kPushPinWidth, kPushPinHeight}};
+    const core::PdfRect rect = placedIcon(core::CommentingTool::AttachFile, page, at)->rect;
     core::EmbeddedFile embedded = core::newEmbeddedFile(name, std::move(bytes), QString(), now());
     // Acrobat's pushpin blue, the colour the corpus generator gives one -- a file attachment has no tool default.
     Annotation pin = core::newFileAttachment(page, rect, std::move(embedded), {0.13, 0.4, 0.86}, author(), now());

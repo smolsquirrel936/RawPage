@@ -172,6 +172,15 @@ public:
         return {};
     }
 
+    // S6 guide I-25: `pagePointAt`, moved so that the icon `tool`'s click hangs there is DRAWN whole on the page --
+    // a click on the desk arrives at a page's edge, and an icon hung outward from it was made where nothing draws
+    // it (`AnnotationOverlay::keepIconOnPage`). A host with no layout answers `pagePointAt`.
+    virtual PagePoint iconPointAt(QPoint pos, core::CommentingTool tool) const
+    {
+        (void)tool;
+        return pagePointAt(pos);
+    }
+
     // ---- The Snapshot tool's one (S5 T10, D5-11) --------------------------------------------------
     // Copy `band` -- a region of the viewport, in logical widget pixels -- as the document draws it. The
     // host re-rasterizes it (it owns the scheduler and the request builder; the tool owns neither) and

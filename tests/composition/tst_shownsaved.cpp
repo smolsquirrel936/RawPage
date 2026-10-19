@@ -14,6 +14,9 @@
 // All four in ONE document beside a pencil stroke, saved together, so a kind drawn right alone and wrong beside
 // another would show too.
 //
+// And S6 guide I-25 (§8): a note, a pushpin and a speaker clicked on the DESK beside each side of a turned page are
+// drawn whole on the page -- its own case below, with what it does not cover.
+//
 // WHAT THIS DOES NOT COVER (convention 19): the kinds the suites above compare are not compared AGAIN here -- the
 // sweep is the set of those cases and this one, and the guide's A-108 result names each; the recording (T14's
 // `annot.recordAudio`) makes the same `Sound` the attached WAV makes and is A-101's.
@@ -24,11 +27,14 @@
 
 #include "core/cmd/ActionRegistry.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/Redaction.h"
 #include "pdf/DocumentBackendImpl.h"
 #include "ui/viewer/ToolController.h"
 
+#include <QApplication>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QKeyEvent>
 #include <QMouseEvent>
 
 #include <cstdint>
@@ -271,4 +277,179 @@ TEST_CASE("an erase a paste a pushpin and a sound made with their tools are show
         fromOriginal += differingBytes(rasterOf(backend, handle, kShownViews[i].scale, kShownViews[i].rotation), original[i]);
     std::cout << "A-108: all five undone after the save: " << fromOriginal << " bytes from the original\n";
     CHECK(fromOriginal == 0);
+}
+
+// ==========================================================================================
+// S6 guide I-25: an icon a click places is DRAWN whole on its page
+// ==========================================================================================
+// A click on the desk arrives at the nearest page's EDGE (`PageView::pagePointAt`), and a note's icon is hung from its
+// top-left corner, upright on screen -- so a note clicked to the right of a page or below it lay wholly off the page,
+// where nothing draws it: in the file and the Comments pane, absent from the page (M-01's walk, 2026-10-20). A pushpin
+// and a speaker are hung from the same point in PAGE space, so on a turned page another side failed for them.
+//
+// Each tool clicked on the desk beside each side of each of `annots-rotated.pdf`'s four pages (`/Rotate` 0, 90, 180,
+// 270), and graded twice: what is DRAWN (`AnnotationOverlay::drawnRect`) inside the crop box; and -- rule 6, the
+// oracle the fix does not share -- the page as the engine draws it, before and after, changed over a box spanning at
+// least `kInkShare` of the icon on screen each way. An icon off the page changes nothing; one cut by an edge, less.
+// Each placement undone before the next, so no icon is graded over another.
+//
+// NOT COVERED (convention 19): a turned VIEW (`drawnRect` handles it; no case here turns one), a stamp (dragged to a
+// size, and placed by its own rule), and the pop-up, which RawPage paints over the view beside the icon and may lie
+// on the desk -- it is view state (D6-28), not page ink.
+
+namespace {
+
+QPoint widgetOf(const ui::PageView& view, core::DevicePoint content)
+{
+    const core::DeviceRect visible = view.controller().visibleRect();
+    const double dpr = view.devicePixelRatioF();
+    return QPoint(static_cast<int>(std::lround((content.x - visible.left()) / dpr)),
+                  static_cast<int>(std::lround((content.y - visible.top()) / dpr)));
+}
+
+// The bounding box of the pixels `after` changed, in the page image's pixels; empty when none did.
+QRect changedBox(const QImage& before, const QImage& after)
+{
+    REQUIRE(before.size() == after.size());
+    QRect box;
+    for (int y = 0; y < before.height(); ++y)
+        for (int x = 0; x < before.width(); ++x)
+            if (before.pixel(x, y) != after.pixel(x, y)) box |= QRect(x, y, 1, 1);
+    return box;
+}
+
+constexpr double kInkShare = 0.6;
+
+} // namespace
+
+TEST_CASE("an icon clicked beside a page is drawn whole on it", "[shownsaved][I-25]")
+{
+    Product product;
+    TwinsReset twins;
+    const QString attachedFile = QDir(product.scratch.path()).filePath(QStringLiteral("notes.txt"));
+    {
+        QFile file(attachedFile);
+        REQUIRE(file.open(QIODevice::WriteOnly));
+        file.write("I-25\n");
+    }
+    const QString wavFile = QDir(product.scratch.path()).filePath(QStringLiteral("tone.wav"));
+    {
+        QFile file(wavFile);
+        REQUIRE(file.open(QIODevice::WriteOnly));
+        file.write(toneWav());
+    }
+    ui::MainWindow::setAttachmentAnswersForTesting(
+        ui::MainWindow::AttachmentAnswers{[&] { return std::optional<QString>(attachedFile); }, {}, {}});
+    ui::MainWindow::setAudioAnswersForTesting(
+        ui::MainWindow::AudioAnswers{{}, [&]() -> std::optional<QString> { return wavFile; }});
+
+    ui::PageView* view = product.open("ordinary/annots-rotated.pdf");
+    view->setZoom(core::render::Zoom{0.35});   // every page whole in the viewport, with the desk round it
+    product.settle();
+    REQUIRE(view->pageCount() == 4);
+    core::CommandJournal& journal = *product.document()->journal();
+
+    struct Tool {
+        core::ActionId action;
+        AnnotationSubtype made;
+        double width;   // the icon's size in page units, as `AnnotationOverlay::placedIcon` hangs it
+        double height;
+        const char* name;
+    };
+    const Tool tools[] = {
+        {core::ActionId::AnnotStickyNote, AnnotationSubtype::Text, ui::AnnotationOverlay::kNoteSize,
+         ui::AnnotationOverlay::kNoteSize, "note"},
+        {core::ActionId::AnnotAttachFile, AnnotationSubtype::FileAttachment, ui::AnnotationOverlay::kPushPinWidth,
+         ui::AnnotationOverlay::kPushPinHeight, "pushpin"},
+        {core::ActionId::AnnotAttachAudio, AnnotationSubtype::Sound, core::kSoundIconSize, core::kSoundIconSize, "speaker"},
+    };
+    const char* const sides[] = {"right of", "below", "above", "left of"};
+
+    int placed = 0;
+    int whole = 0;
+    // THE PAGE'S SLOT, COPIED: every command reloads the document (D6-2) and lays it out again, so a pointer into the
+    // layout held across one dangles. Revealed first, since an undo may have scrolled the view.
+    const auto slotOf = [&](int page) {
+        const core::render::PageSlot* found = view->layoutEngine().layout().slotForPage(page);
+        REQUIRE(found != nullptr);
+        view->revealPageRect(page, found->cropBox);
+        product.settle();
+        found = view->layoutEngine().layout().slotForPage(page);
+        REQUIRE(found != nullptr);
+        return *found;
+    };
+    for (int page = 0; page < 4; ++page) {
+        (void)slotOf(page);
+        const QImage before = product.page(page, true);
+        for (int side = 0; side < 4; ++side) {
+            for (const Tool& tool : tools) {
+                const core::render::PageSlot slot = slotOf(page);
+                const core::DeviceRect r = slot.rect;
+                // The desk just outside this side, a third of the way along it.
+                const core::DevicePoint desk[] = {
+                    {r.right() + 6.0, r.top() + r.size.height / 3.0},
+                    {r.left() + r.size.width / 3.0, r.bottom() + 3.0},
+                    {r.left() + 2.0 * r.size.width / 3.0, r.top() - 3.0},
+                    {r.left() - 6.0, r.top() + 2.0 * r.size.height / 3.0},
+                };
+                const QPoint click = widgetOf(*view, desk[side]);
+                INFO("click " << click.x() << "," << click.y() << " in a viewport " << view->viewport()->width()
+                              << " x " << view->viewport()->height());
+                REQUIRE(view->viewport()->rect().contains(click));
+                REQUIRE(view->layoutEngine().layout().pageAt(desk[side]) == -1);   // on the desk, not on a page
+                INFO("page " << page << " (/Rotate " << page * 90 << "), " << tool.name << " clicked " << sides[side]
+                             << " it");
+                const std::size_t count = product.store().size();
+                REQUIRE(dispatch(product, tool.action));
+                mouse(*view, QEvent::MouseButtonPress, click);
+                mouse(*view, QEvent::MouseButtonRelease, click);
+                if (tool.made == AnnotationSubtype::Text) {
+                    QWidget* editor = QApplication::focusWidget();
+                    REQUIRE(editor != nullptr);
+                    QKeyEvent letter(QEvent::KeyPress, Qt::Key_N, Qt::NoModifier, QStringLiteral("n"));
+                    QCoreApplication::sendEvent(editor, &letter);
+                    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                    QCoreApplication::sendEvent(editor, &enter);
+                }
+                product.settle();
+                REQUIRE(product.store().size() > count);
+                std::optional<Annotation> made;
+                for (const Annotation& a : product.store().all())
+                    if (a.subtype == tool.made && a.id.kind == core::AnnotationId::Kind::Created && a.page == page) made = a;
+                REQUIRE(made);
+                ++placed;
+
+                // WHAT IS DRAWN lies inside the crop box.
+                const std::optional<core::PdfRect> drawn = ui::AnnotationOverlay::drawnRect(view->annotationViewport(), *made);
+                REQUIRE(drawn);
+                const core::PdfRect& crop = slot.cropBox;
+                INFO("drawn " << drawn->left() << " " << drawn->bottom() << " " << drawn->right() << " " << drawn->top()
+                              << ", rect " << made->rect.left() << " " << made->rect.bottom() << " " << made->rect.right()
+                              << " " << made->rect.top() << ", flags " << made->flags << ", crop " << crop.left() << " "
+                              << crop.bottom() << " " << crop.right() << " " << crop.top());
+                const bool inside = drawn->left() >= crop.left() - 1e-6 && drawn->right() <= crop.right() + 1e-6
+                                    && drawn->bottom() >= crop.bottom() - 1e-6 && drawn->top() <= crop.top() + 1e-6;
+                CHECK(inside);
+
+                // AND THE ENGINE DRAWS IT: the changed box spans most of the icon on screen. Upright on screen for a
+                // note; a pushpin and a speaker turn with the page, so their sides trade on a quarter turn.
+                const double scale = view->layoutEngine().layout().presentedScale();
+                const bool turned = tool.made != AnnotationSubtype::Text && core::swapsAxes(slot.rotation);
+                const double wide = (turned ? tool.height : tool.width) * scale;
+                const double tall = (turned ? tool.width : tool.height) * scale;
+                const QRect ink = changedBox(before, product.page(page, true));
+                INFO("ink " << ink.width() << " x " << ink.height() << " px of an icon " << wide << " x " << tall);
+                CHECK(ink.width() >= kInkShare * wide);
+                CHECK(ink.height() >= kInkShare * tall);
+                if (inside && ink.width() >= kInkShare * wide && ink.height() >= kInkShare * tall) ++whole;
+
+                REQUIRE(journal.undo());
+                product.settle();
+                REQUIRE(product.store().size() == count);
+            }
+        }
+    }
+    std::cout << "I-25: " << placed << " icons clicked on the desk beside four turned pages; " << whole
+              << " drawn whole on their page\n";
+    CHECK(placed == 4 * 4 * 3);
 }

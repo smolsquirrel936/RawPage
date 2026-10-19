@@ -15,6 +15,7 @@
 //   * **A-52.** An insertion clicked between two letters has its caret's ink centred within 1 pt of the
 //     boundary between the two letters' ink.
 //   * **A-53.** A note made where the pointer is, by the login name `app/` supplied, then by `identity/author`.
+//   * **I-24** (S6 guide §8). A tool put away after its use, or by `Esc`, is shown put away on the ribbon.
 //   * **A-34, A-35 through the tools.** One of each kind T6 makes, made through its tool, saved, the file
 //     reopened FRESH: 0 differing bytes at 72 and 144 dpi and turned 90°; and every one undone, 0 from the
 //     page as it was.
@@ -30,6 +31,7 @@
 #include "core/settings/Settings.h"
 #include "core/text/TextSelection.h"
 #include "pdf/DocumentBackendImpl.h"
+#include "ui/shell/RawPageAction.h"
 #include "ui/viewer/AnnotationTextEditor.h"
 #include "ui/viewer/SelectionOverlay.h"
 #include "ui/viewer/ToolController.h"
@@ -150,8 +152,9 @@ core::PdfPoint after(const core::text::PageReading& reading, int position)
 }
 
 // The tool's drag from the caret before `first` to the caret after `last`; the positions it selected, read
-// before the release lets the selection go.
-std::set<int> dragAcross(Product& product, int page, int first, int last)
+// before the release lets the selection go. `released`, when given, runs the moment the release is delivered,
+// BEFORE anything settles -- what a person sees then (I-24).
+std::set<int> dragAcross(Product& product, int page, int first, int last, const std::function<void()>& released = {})
 {
     const core::text::PageReading& reading = readingOf(product, page);
     ui::PageView& view = *product.view;
@@ -170,6 +173,7 @@ std::set<int> dragAcross(Product& product, int page, int first, int last)
         for (int p = span.begin; p < span.end; ++p) selected.insert(p);
     REQUIRE_FALSE(selected.empty());
     mouse(view, QEvent::MouseButtonRelease, to);
+    if (released) released();
     product.settle();
     return selected;
 }
@@ -752,6 +756,88 @@ TEST_CASE("a note is made where the pointer is and by whoever is set", "[markupi
 
     // `Esc` in the editor makes nothing.
     (void)makeNote(core::PdfPoint{400.0, 520.0}, QStringLiteral("abandoned"), false);
+}
+
+// ==========================================================================================
+// S6 guide I-24: a tool put away is SHOWN put away
+// ==========================================================================================
+// With `K` off a tool that made something goes back to the Selection tool -- and until I-24's fix nothing told the
+// window, so the ribbon went on showing the tool as armed until something else re-asked every action (M-01's walk,
+// 2026-10-20: the button lit after the first drag, a second drag making nothing). Graded on what the RIBBON's actions
+// say, not on `ActionRegistry::isChecked`, which asks the predicate afresh and is right whether or not anything told
+// the ribbon. NOT COVERED (convention 19): the button's paint -- the case reads the actions the buttons show.
+
+namespace {
+
+// Whether the window's actions for `id` are checked -- every one of them, or none; a mix is a failure of its own.
+bool shownChecked(const ui::MainWindow& window, core::ActionId id)
+{
+    int found = 0;
+    int checked = 0;
+    for (const ui::RawPageAction* action : window.findChildren<ui::RawPageAction*>()) {
+        if (action->id() != id) continue;
+        ++found;
+        if (action->isChecked()) ++checked;
+    }
+    REQUIRE(found > 0);
+    REQUIRE((checked == 0 || checked == found));
+    return checked == found;
+}
+
+void escape(ui::PageView& view)
+{
+    QKeyEvent override(QEvent::ShortcutOverride, Qt::Key_Escape, Qt::NoModifier);
+    override.ignore();
+    QCoreApplication::sendEvent(&view, &override);
+    key(&view, Qt::Key_Escape);
+}
+
+} // namespace
+
+TEST_CASE("a tool put away after its use is shown put away", "[markupink][I-24]")
+{
+    Product product;
+    ui::PageView* view = product.open("ordinary/text-a4.pdf");
+    view->setZoom(core::render::Zoom{1.0});
+    product.settle();
+    const core::text::PageReading& reading = readingOf(product, 0);
+    REQUIRE(reading.size() > 40);
+    view->revealPageRect(0, reading.charAt(10).box);
+    product.settle();
+    const ui::MainWindow& window = *product.window;
+
+    // ARMED, AND SHOWN ARMED -- the arming command re-asks every action itself.
+    REQUIRE(dispatch(product, core::ActionId::AnnotHighlight));
+    REQUIRE(view->tools().armedAnnotation() == ui::AnnotationToolKind::Highlight);
+    REQUIRE(shownChecked(window, core::ActionId::AnnotHighlight));
+    REQUIRE_FALSE(shownChecked(window, core::ActionId::ToolSelect));
+
+    // ONE HIGHLIGHT DRAGGED: the tool is put away, and the ribbon says so AT THE RELEASE. Read then, not after
+    // `settle()`, whose refresh of the view re-asks every action and would hide the defect (convention 19) -- the
+    // drag half failed only when read here, under the planted P2.
+    (void)dragAcross(product, 0, 0, 4, [&] {
+        REQUIRE(product.document()->journal()->position() == 1);
+        REQUIRE(view->tools().armed() == ui::ToolKind::Select);
+        CHECK_FALSE(shownChecked(window, core::ActionId::AnnotHighlight));
+        CHECK(shownChecked(window, core::ActionId::ToolSelect));
+    });
+
+    // THE CONTROL -- `K` on, the tool kept: still armed, and still shown armed.
+    REQUIRE(dispatch(product, core::ActionId::AnnotHighlight));
+    REQUIRE(dispatch(product, core::ActionId::AnnotKeepToolSelected));
+    REQUIRE(view->tools().keepToolSelected());
+    (void)dragAcross(product, 0, 6, 10, [&] {
+        REQUIRE(product.document()->journal()->position() == 2);
+        CHECK(view->tools().armedAnnotation() == ui::AnnotationToolKind::Highlight);
+        CHECK(shownChecked(window, core::ActionId::AnnotHighlight));
+    });
+
+    // `Esc` puts it away by a key, and no command runs: shown put away too.
+    escape(*view);
+    REQUIRE(view->tools().armed() == ui::ToolKind::Select);
+    CHECK_FALSE(shownChecked(window, core::ActionId::AnnotHighlight));
+    CHECK(shownChecked(window, core::ActionId::ToolSelect));
+    REQUIRE(dispatch(product, core::ActionId::AnnotKeepToolSelected));   // the setting back as the case found it
 }
 
 namespace {

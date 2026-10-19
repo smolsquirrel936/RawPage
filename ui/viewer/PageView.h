@@ -370,6 +370,8 @@ public:
     // S5 T5's two page mappings for the Selection tool (`ToolHost`).
     PagePoint pagePointAt(QPoint pos) const override;
     PagePoint pagePointOn(int page, QPoint pos) const override;
+    // S6 guide I-25: `pagePointAt`, with the icon `tool`'s click hangs there kept whole on its page.
+    PagePoint iconPointAt(QPoint pos, core::CommentingTool tool) const override;
 
     // How many presses in a row the last one was -- two, three and four select a word, a line and a
     // block. Counted here, where the presses arrive, from the platform's double-click interval and drag
@@ -600,6 +602,7 @@ private:
         SelectionOverlay* selection() const override { return view_.selection(); }
         PagePoint pagePointAt(QPoint pos) const override { return view_.pagePointAt(pos); }
         PagePoint pagePointOn(int page, QPoint pos) const override { return view_.pagePointOn(page, pos); }
+        PagePoint iconPointAt(QPoint pos, core::CommentingTool tool) const override { return view_.iconPointAt(pos, tool); }
         // A FROZEN PANE SNAPSHOTS WHAT IT SHOWS (S5 T10): the band is in this pane's coordinates.
         bool takeSnapshot(const QRect& band) override { return view_.takeSnapshot(band); }
         // S6 T6: the annotation tools make into the window's overlay, and type into this pane's editor.

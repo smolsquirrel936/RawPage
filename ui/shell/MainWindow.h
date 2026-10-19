@@ -539,6 +539,12 @@ private:
     // to stop saying "not available for this document" and start saying why.
     void updateViewChrome();
 
+    // THE CHROME FOLLOWS THE TOOL (S6 guide I-24): a tool can change with no command run -- an annotation tool goes
+    // back to the Selection tool after its use (`PageView::annotationToolUsed`), `Esc` puts one away -- and until
+    // then the ribbon went on showing the tool put away as armed. `view`'s `toolChanged` re-asks every action, as a
+    // command does; disconnected first, as `viewChanged` is, because a lambda cannot be a unique connection.
+    void followTool(PageView* view);
+
     // Raises the banners a document's own condition earns -- repaired, protected. Called on every
     // tab change, because the condition belongs to the tab and not to the window.
     void showDocumentConditions(DocumentWindow* document);

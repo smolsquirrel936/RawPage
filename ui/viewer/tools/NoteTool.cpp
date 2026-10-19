@@ -30,7 +30,7 @@ void NoteTool::release(ToolHost& host, QPoint pos)
     const QStyleHints* hints = QGuiApplication::styleHints();
     if ((pos - pressedAt_).manhattanLength() >= (hints != nullptr ? hints->startDragDistance() : 4)) return;
     AnnotationOverlay* annotations = host.annotationOverlay();
-    const PagePoint at = host.pagePointAt(pos);
+    const PagePoint at = host.iconPointAt(pos, AnnotationToolKind::StickyNote);   // the whole icon on the page (I-25)
     if (annotations == nullptr || !at.isValid()) return;
 
     const core::ToolDefaults defaults = host.toolDefaults(AnnotationToolKind::StickyNote);

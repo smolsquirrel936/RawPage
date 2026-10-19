@@ -29,7 +29,7 @@ void SoundTool::release(ToolHost& host, QPoint pos)
     const QStyleHints* hints = QGuiApplication::styleHints();
     if ((pos - pressedAt_).manhattanLength() >= (hints != nullptr ? hints->startDragDistance() : 4)) return;
     AnnotationOverlay* annotations = host.annotationOverlay();
-    const PagePoint at = host.pagePointAt(pos);
+    const PagePoint at = host.iconPointAt(pos, which_);   // the whole speaker on the page (I-25)
     if (annotations == nullptr || !at.isValid()) return;
     const bool made = which_ == AnnotationToolKind::RecordAudio ? annotations->recordSoundAt(at.page, at.point)
                                                                 : annotations->attachSoundAt(at.page, at.point);

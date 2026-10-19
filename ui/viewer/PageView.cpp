@@ -1077,6 +1077,13 @@ PagePoint PageView::pagePointOn(int page, QPoint pos) const
     return PagePoint{page, *point};
 }
 
+PagePoint PageView::iconPointAt(QPoint pos, core::CommentingTool tool) const
+{
+    PagePoint at = pagePointAt(pos);
+    if (at.isValid()) at.point = AnnotationOverlay::keepIconOnPage(annotationViewport(), at.page, tool, at.point);
+    return at;
+}
+
 void PageView::setInvertColors(bool invert)
 {
     if (invertColors_ == invert) return;
