@@ -15,6 +15,7 @@
 #include <QFile>
 #include <QFileInfo>
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <set>
@@ -302,7 +303,13 @@ std::string FdfCodec::write(const core::Fdf& exchange)
         return cos::CosRef{found->second, 0};
     };
 
+    // Each object's offset into `objects`, for the cross-reference table (see the header for why there is one).
     std::string objects;
+    std::map<long long, std::size_t> offsetOf;
+    const auto place = [&objects, &offsetOf](long long at, std::string text) {
+        offsetOf[at] = objects.size();
+        objects += text;
+    };
     std::vector<CosObject> listed;
     long long number = 2;
     for (const core::Annotation& a : exchange.annotations) {
@@ -329,7 +336,7 @@ std::string FdfCodec::write(const core::Fdf& exchange)
                 std::vector<CosObject::Entry> streamEntries{{"Type", CosObject::makeName("EmbeddedFile")}};
                 if (!file.mime.isEmpty()) streamEntries.push_back({"Subtype", CosObject::makeName(file.mime.toStdString())});
                 streamEntries.push_back({"Params", CosObject::makeDictionary(std::move(params))});
-                objects += serializedStream(stream, CosObject::makeDictionary(std::move(streamEntries)), file.data);
+                place(stream, serializedStream(stream, CosObject::makeDictionary(std::move(streamEntries)), file.data));
                 spec.push_back({"EF", CosObject::makeDictionary({{"F", CosObject::makeReference(stream, 0)}})});
             }
             d = AnnotationOps::withEntry(d, "FS", CosObject::makeDictionary(std::move(spec)));
@@ -337,16 +344,16 @@ std::string FdfCodec::write(const core::Fdf& exchange)
         // Stage 6 T14: a sound's samples as its `/Sound` stream, unfiltered as an attached file's are here.
         if (a.sound && a.sound->carried) {
             const long long stream = next++;
-            objects += serializedStream(stream, CosObject::makeDictionary({
+            place(stream, serializedStream(stream, CosObject::makeDictionary({
                 {"Type", CosObject::makeName("Sound")},
                 {"R", CosObject::makeInteger(a.sound->rate)},
                 {"C", CosObject::makeInteger(a.sound->channels)},
                 {"B", CosObject::makeInteger(a.sound->bits)},
                 {"E", CosObject::makeName(QString(core::soundEncodingName(a.sound->encoding)).toStdString())},
-            }), a.sound->samples);
+            }), a.sound->samples));
             d = AnnotationOps::withEntry(d, "Sound", CosObject::makeReference(stream, 0));
         }
-        objects += serialized(at, d);
+        place(at, serialized(at, d));
         listed.push_back(CosObject::makeReference(at, 0));
     }
 
@@ -362,9 +369,28 @@ std::string FdfCodec::write(const core::Fdf& exchange)
         {{"FDF", CosObject::makeDictionary(std::move(fdf))}, {"Type", CosObject::makeName("Catalog")}});
 
     std::string out = "%FDF-1.2\n%\xE2\xE3\xCF\xD3\n";
+    const std::size_t catalogAt = out.size();
     out += serialized(1, catalog);
+    const std::size_t objectsAt = out.size();
     out += objects;
-    out += "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+    // The cross-reference table: one subsection from 0 to the last number, each row exactly twenty bytes (ISO
+    // 32000-1 §7.5.4); a number no object took -- an annotation `exchangeDictionary` refused -- is free.
+    const long long size = next;
+    const auto padded = [](unsigned long long value, int width) {
+        std::string digits = std::to_string(value);
+        return std::string(static_cast<std::size_t>(std::max(0, width - static_cast<int>(digits.size()))), '0') + digits;
+    };
+    const std::size_t xrefAt = out.size();
+    out += "xref\n0 " + std::to_string(size) + "\n";
+    out += "0000000000 65535 f\r\n";
+    for (long long n = 1; n < size; ++n) {
+        const auto found = offsetOf.find(n);
+        if (n == 1) out += padded(catalogAt, 10) + " 00000 n\r\n";
+        else if (found != offsetOf.end()) out += padded(objectsAt + found->second, 10) + " 00000 n\r\n";
+        else out += "0000000000 00000 f\r\n";
+    }
+    out += "trailer\n<< /Root 1 0 R /Size " + std::to_string(size) + " >>\nstartxref\n" + std::to_string(xrefAt) + "\n%%EOF\n";
     return out;
 }
 

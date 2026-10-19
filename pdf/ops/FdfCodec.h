@@ -16,7 +16,12 @@
 //
 // Written the same way round: `pdf/ops/AnnotationOps::exchangeDictionary` -- the same field table a created
 // annotation is written from -- each annotation an object, a file attachment's file an `/EmbeddedFile` stream behind
-// a file specification, the catalog's `/FDF` naming them, and no cross-reference table.
+// a file specification, the catalog's `/FDF` naming them -- and, though §12.7.8.1 lets it go, A CROSS-REFERENCE
+// TABLE. Without one, reading our own file back was the repair scan, which walks a stream's bytes (as it must over a
+// damaged file) and keeps the LAST definition of a number: a sound's samples or an attached file that spelled `2 0
+// obj` replaced object 2, and a comment read back under a name it was not written under (S6 guide I-22, the fuzz
+// soak's run 39226515635). With the table `openWithRepair` reads the objects where the writer put them, and the scan
+// is left for the files other producers write without one.
 //
 // ===========================================================================================
 // THE FILE

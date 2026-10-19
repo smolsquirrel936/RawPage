@@ -40,7 +40,8 @@ on:
     # commit (Stage 4 T10's full-screen controller) that touches neither the lexer nor pdf/. Four
     # earlier soaks over the very same code had missed it -- each run reseeds from corpus/malformed
     # and keeps nothing, so every run is an independent draw. Daily buys about 365 draws a year,
-    # weekly about 52. The nightly runs found Stage 3 I-17, Stage 5 I-23 and Stage 6 I-17, each an S2.
+    # weekly about 52. The nightly runs found Stage 3 I-17, Stage 5 I-23 and Stage 6 I-17, and a
+    # weekly one Stage 6 I-22 (run 39226515635), each an S2.
     #
     # THE CADENCE'S HISTORY: weekly (Mondays) until 2026-09-21; nightly from then until 2026-10-16;
     # weekly again from 2026-10-16 to 2026-10-19, ONLY for the Actions quota -- the repository was

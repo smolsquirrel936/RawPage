@@ -25,6 +25,8 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/Fdf.h"
+#include "core/doc/Redaction.h"
+#include "core/doc/SoundData.h"
 #include "core/doc/XfdfCodec.h"
 #include "pdf/ops/FdfCodec.h"
 #include "pdf/ops/MutationSinkImpl.h"
@@ -994,4 +996,67 @@ TEST_CASE("an exchange file is written through pdf/ops and an existing one is re
     CHECK(pin->attachment->carried);
     CHECK(pin->attachment->data.size() == pin->attachment->size);
     CHECK_FALSE(pin->attachment->data.isEmpty());
+}
+
+TEST_CASE("an FDF we write reads back as written whatever a stream of it spells", "[fdf][exchange][fuzz][A-23][I-22]")
+{
+    // S6 guide I-22, the soak's finding (run 39226515635, `fuzz_annot_pipeline`): the writer gave its FDF no
+    // cross-reference table, so reading it back was `openWithRepair`'s scan for `N G obj` -- which walks a stream's
+    // bytes, as it must over a damaged file, and keeps the LAST definition of a number. A sound's samples spelling an
+    // object 2 replaced the real one: the comment read back under the name in the samples. A carried file's bytes
+    // are the same door. The impostor is placed AFTER the object it names, as last-wins needs.
+    Annotation first = core::newAnnotation(AnnotationSubtype::Square, 0, QStringLiteral("Imani Okoye"), 1791590400);
+    first.rect = core::PdfRect{core::PdfPoint{10, 10}, core::PdfSize{40, 40}};
+    first.nm = QStringLiteral("first");
+    first.id = AnnotationId::ofCreated(first.nm);
+    core::SoundData sound;
+    sound.samples = QByteArray("\n2 0 obj\n<< /Type /Annot /Subtype /Square /Rect [ 0 0 9 9 ] /Page 0 /NM (impostor) >>\nendobj\n");
+    sound.carried = true;
+    Annotation spoken = core::newSoundComment(0, core::PdfPoint{100, 700}, sound, {1.0, 0.85, 0.3}, QStringLiteral("Imani Okoye"), 1791590400);
+    spoken.nm = QStringLiteral("spoken");
+    spoken.id = AnnotationId::ofCreated(spoken.nm);
+    Fdf exchange;
+    exchange.annotations = {first, spoken};
+
+    const QByteArray written = QByteArray::fromStdString(pdf::ops::FdfCodec::write(exchange));
+    REQUIRE(written.contains("/NM (impostor)"));   // the stream really does spell an object in the file
+    const core::Result<Fdf> back = pdf::ops::FdfCodec::read(written);
+    REQUIRE(back);
+    std::set<QString> names;
+    for (const Annotation& a : back.value().annotations) names.insert(a.nm);
+    CHECK(names == std::set<QString>{QStringLiteral("first"), QStringLiteral("spoken")});
+    for (const Annotation& a : back.value().annotations) {
+        if (a.subtype == AnnotationSubtype::Square) CHECK(a.rect == first.rect);   // the comment, not the impostor
+        if (a.subtype != AnnotationSubtype::Sound) continue;
+        REQUIRE(a.sound);
+        CHECK(a.sound->samples == sound.samples);
+    }
+    // ... and the fuzz body's exchange branch over the written file, which writes and reads it once more.
+    const std::optional<std::string> failed = fuzz::exchangeFuzzOnce(written);
+    if (failed) UNSCOPED_INFO(*failed);
+    CHECK_FALSE(failed.has_value());
+
+    // The shape a person makes: a pushpin carrying a PDF, whose bytes spell `1 0 obj` -- a catalog, where the FDF's
+    // own catalog is object 1. Without the table the import found no `/FDF` and refused the whole file.
+    Annotation pin = core::newAnnotation(AnnotationSubtype::FileAttachment, 0, QStringLiteral("Imani Okoye"), 1791590400);
+    pin.rect = core::PdfRect{core::PdfPoint{60, 60}, core::PdfSize{16, 24}};
+    pin.nm = QStringLiteral("pinned");
+    pin.id = AnnotationId::ofCreated(pin.nm);
+    core::EmbeddedFile file;
+    file.name = QStringLiteral("attached.pdf");
+    file.mime = QStringLiteral("application/pdf");
+    file.data = QByteArray("%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [ ] /Count 0 >>\nendobj\n");
+    file.size = file.data.size();
+    file.carried = true;
+    pin.attachment = file;
+    Fdf carrying;
+    carrying.annotations = {pin};
+    const QByteArray withPdf = QByteArray::fromStdString(pdf::ops::FdfCodec::write(carrying));
+    REQUIRE(withPdf.contains("<< /Type /Catalog /Pages 2 0 R >>"));
+    const core::Result<Fdf> pinned = pdf::ops::FdfCodec::read(withPdf);
+    REQUIRE(pinned);
+    REQUIRE(pinned.value().annotations.size() == 1);
+    CHECK(pinned.value().annotations[0].nm == QStringLiteral("pinned"));
+    REQUIRE(pinned.value().annotations[0].attachment);
+    CHECK(pinned.value().annotations[0].attachment->data == file.data);
 }
