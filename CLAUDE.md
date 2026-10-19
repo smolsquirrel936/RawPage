@@ -707,7 +707,7 @@ guides' §8 logs. They survive their stage, so they live here rather than in a s
   suite cannot see it. Every widget case sends its `QKeyEvent` straight to the widget, below Windows'
   input queue. On this machine the NVIDIA App's overlay held `Alt+R`, so the find bar's regex toggle
   acted as a bare `Alt` in M-06's walk (S5 guide **I-17**, 2026-10-03); it held `Ctrl+Alt+M` too, the
-  sticky note's chord, and other programs held `Ctrl+Alt+L`, `A` and `K` (S6 guide **I-23**,
+  sticky note's chord, and other programs held other `Ctrl+Alt` chords at times (S6 guide **I-23**,
   2026-10-20). **Sweep a walk's chords before handing it over**, not after a dead key. When a walker reports a chord
   that does nothing, try `RegisterHotKey` on it first: `ERROR_HOTKEY_ALREADY_REGISTERED` (1409) means
   another program owns it. A real-input reproduction is `SendInput` into a window on the `windows`

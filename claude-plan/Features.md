@@ -1412,8 +1412,8 @@ with the one that produced it.)*
 
 **A `Ctrl+Alt` chord is a common target for other programs' system-wide hotkeys**, which Windows
 gives to the program that registered them before any window sees the key. On the walker's machine
-the NVIDIA overlay held `Ctrl+Alt+M`, and programs not identified held `Ctrl+Alt+L`, `Ctrl+Alt+A`
-and `Ctrl+Alt+K` (`Stage6-Annotations-Testing-Guide.md` §8, **I-23**, 2026-10-20). The rows are
+the NVIDIA overlay held `Ctrl+Alt+M`, and other programs held other `Ctrl+Alt` chords at times
+(`Stage6-Annotations-Testing-Guide.md` §8, **I-23**, 2026-10-20) -- any chord can be taken. The rows are
 kept. The answer is to change the other program's hotkey, or to remap the action on Preferences'
 Shortcuts page.
 
