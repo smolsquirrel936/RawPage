@@ -16,6 +16,7 @@
 #include "SaveSession.h"
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/doc/Attachments.h"
 #include "core/doc/Fdf.h"
 #include "core/doc/Redaction.h"
 #include "core/doc/TypedText.h"
@@ -28,12 +29,15 @@
 #include "pdf/ops/FdfCodec.h"
 #include "pdf/ops/PageOps.h"
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <cmath>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -450,5 +454,165 @@ TEST_CASE("a mark round-trips XFDF and FDF with its overlay and repeat", "[redac
         CHECK(a.quadPoints == made->quadPoints);
         CHECK(a.interiorColor == made->interiorColor);
         CHECK(a.defaultAppearance == made->defaultAppearance);
+    }
+}
+
+// ==========================================================================================
+// A-26, A-27 and A-32 for the kinds T11 and T14 write -- Stage 6 T15's sweep
+// ==========================================================================================
+// Each earlier task closed these three cases for the kinds it wrote; the pushpin (T11), the redaction mark and the
+// sound (T14) are the last. Here they are made by their own constructors (the tools' paths are A-108's and
+// `tst_redactink`'s), saved together, and read back FIRST-PARTY.
+
+namespace {
+
+// Every number in a JSON value to three decimals: what is written is `%.3f`-ish, what was made is a double.
+QJsonValue rounded(const QJsonValue& value)
+{
+    if (value.isDouble()) return std::round(value.toDouble() * 1000.0) / 1000.0;
+    if (value.isArray()) {
+        QJsonArray out;
+        for (const QJsonValue item : value.toArray()) out.append(rounded(item));
+        return out;
+    }
+    if (value.isObject()) {
+        QJsonObject out;
+        const QJsonObject in = value.toObject();
+        for (auto it = in.begin(); it != in.end(); ++it) out.insert(it.key(), rounded(it.value()));
+        return out;
+    }
+    return value;
+}
+
+// An annotation's every modelled field as JSON, less what a save legitimately changes: the identity (`Created` before,
+// `Object` after) and the PAYLOAD's bytes, which a made annotation carries and a read one is asked for (D6-17, D6-18 --
+// compared below by hash).
+QJsonObject modelled(const Annotation& a)
+{
+    QJsonObject json = a.toJson();
+    json.remove(QStringLiteral("id"));
+    for (const char* payload : {"attachment", "sound"}) {
+        if (!json.contains(QLatin1String(payload))) continue;
+        QJsonObject inner = json.value(QLatin1String(payload)).toObject();
+        inner.remove(QStringLiteral("data"));
+        inner.remove(QStringLiteral("samples"));
+        json.insert(QLatin1String(payload), inner);
+    }
+    return rounded(json).toObject();
+}
+
+QByteArray monoWav(int frames)
+{
+    QByteArray data;
+    for (int f = 0; f < frames; ++f) {
+        const auto sample = static_cast<std::uint16_t>(static_cast<std::int16_t>((f % 64) * 500 - 16000));
+        data.append(static_cast<char>(sample & 0xff));
+        data.append(static_cast<char>(sample >> 8));
+    }
+    const auto le32 = [](QByteArray& out, std::uint32_t v) { for (int i = 0; i < 4; ++i) out.append(static_cast<char>((v >> (8 * i)) & 0xff)); };
+    const auto le16 = [](QByteArray& out, std::uint16_t v) { out.append(static_cast<char>(v & 0xff)); out.append(static_cast<char>(v >> 8)); };
+    QByteArray body("WAVEfmt ", 8);
+    le32(body, 16);
+    le16(body, 1);
+    le16(body, 1);
+    le32(body, 11025);
+    le32(body, 22050);
+    le16(body, 2);
+    le16(body, 16);
+    body.append("data", 4);
+    le32(body, static_cast<std::uint32_t>(data.size()));
+    body.append(data);
+    QByteArray out("RIFF", 4);
+    le32(out, static_cast<std::uint32_t>(body.size()));
+    return out + body;
+}
+
+std::string sha256(const QByteArray& bytes)
+{
+    return QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex().toStdString();
+}
+
+} // namespace
+
+TEST_CASE("the pushpin the redaction mark and the sound keep their identity and every modelled field through a save",
+          "[redaction][A-27][A-32][D6-4][D6-17][D6-18][D6-25]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    const QByteArray carried("A-32: the pushpin's file\n");
+    const Annotation pin = core::newFileAttachment(0, core::PdfRect{core::PdfPoint{500, 600}, core::PdfSize{20, 20}},
+                                                   core::newEmbeddedFile(QStringLiteral("notes.txt"), carried, QStringLiteral("a note"), kNow),
+                                                   {0.2, 0.4, 0.9}, kAuthor, kNow);
+    const std::optional<Annotation> mark = core::newTextRedaction(0, twoLines(), styleWith(QStringLiteral("REDACTED"), true),
+                                                                  kAuthor, kNow);
+    REQUIRE(mark);
+    const core::Result<core::SoundData> wav = core::soundFromWav(monoWav(1500));
+    REQUIRE(wav);
+    const Annotation sound = core::newSoundComment(0, core::PdfPoint{500, 760}, wav.value(), {1.0, 0.85, 0.3}, kAuthor, kNow);
+    REQUIRE(session->journal->run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{pin, *mark, sound})));
+    ReadBack back(save(*session, QStringLiteral("T15-pushpin-mark-sound.pdf")));
+
+    for (const Annotation* made : {&pin, &*mark, &sound}) {
+        INFO(QString(core::annotationSubtypeName(made->subtype)).toStdString());
+        const Annotation* read = back.withNm(made->nm);
+        // A-27: found by the `/NM` RawPage gave it, an object of the file now, with the identity keys written.
+        REQUIRE(read != nullptr);
+        CHECK(read->id.kind == core::AnnotationId::Kind::Object);
+        const CosObject d = back.object(read->id.object);
+        CHECK(d.has("NM"));
+        CHECK(d.has("M"));
+        CHECK(d.has("CreationDate"));
+        CHECK(d.get("P").isReference());
+        CHECK(d.get("AP").get("N").isReference());
+        // A-32: every modelled field as made.
+        const QJsonObject want = modelled(*made);
+        const QJsonObject got = modelled(*read);
+        INFO("made " << QJsonDocument(want).toJson(QJsonDocument::Compact).toStdString());
+        INFO("read " << QJsonDocument(got).toJson(QJsonDocument::Compact).toStdString());
+        CHECK(got == want);
+    }
+    // And the payloads, by hash: the pushpin's file and the sound's samples, from a document opened on the saved file.
+    tests::CosBackend fresh;
+    auto handle = fresh.open(session->path, nullptr);
+    REQUIRE(handle);
+    const auto file = fresh.attachmentData(handle.value(), core::AttachmentRef::ofAnnotation(back.withNm(pin.nm)->id));
+    REQUIRE(file);
+    CHECK(sha256(file.value()) == sha256(carried));
+    const auto samples = fresh.soundSamples(handle.value(), back.withNm(sound.nm)->id);
+    REQUIRE(samples);
+    CHECK(sha256(samples.value()) == sha256(wav.value().samples));
+    (void)fresh.close(handle.value());
+}
+
+TEST_CASE("the corpus's mark recoloured keeps every key it does not model", "[redaction][A-26][D6-5][D6-25]")
+{
+    auto session = tests::openCopy("ordinary/annots-every-type.pdf");
+    REQUIRE(session);
+    ReadBack before(session->openedBytes);
+    std::vector<core::AnnotationId> ids;
+    for (const Annotation& a : session->journal->document().annotations().all())
+        if (a.subtype == AnnotationSubtype::Redact) ids.push_back(a.id);
+    REQUIRE(ids.size() == 1);   // the generator's mark, its own outline and overlay
+    REQUIRE(ids.front().kind == core::AnnotationId::Kind::Object);
+    core::AnnotationAppearance blue;
+    blue.color = std::vector<double>{0.0, 0.0, 1.0};
+    REQUIRE(session->journal->run(std::make_unique<core::SetAnnotationAppearanceCommand>(ids, blue, kNow)));
+    ReadBack after(save(*session, QStringLiteral("T15-corpus-mark-recoloured.pdf")));
+    const CosObject was = before.object(ids.front().object);
+    const CosObject now = after.object(ids.front().object);
+    // What a recolour owns: the colour, the instant, and the two appearances it redraws (D6-25's outline and `/RO`).
+    for (const CosObject::Entry& entry : was.entries()) {
+        if (entry.key == "C" || entry.key == "M" || entry.key == "AP" || entry.key == "RO") continue;
+        INFO(entry.key);
+        CosObject a = entry.value;
+        CosObject b = now.get(entry.key);
+        a.clearSpansRecursively();
+        b.clearSpansRecursively();
+        CHECK(a == b);
+    }
+    // And nothing added but what it owns.
+    for (const CosObject::Entry& entry : now.entries()) {
+        INFO(entry.key);
+        CHECK((was.has(entry.key) || entry.key == "C" || entry.key == "M" || entry.key == "AP" || entry.key == "RO"));
     }
 }

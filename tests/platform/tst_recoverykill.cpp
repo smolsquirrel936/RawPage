@@ -24,6 +24,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "tests/platform/killprobe/AnnotationSteps.h"
 #include "tests/unit/CosBackend.h"
 
 #include "core/cmd/CommandJournal.h"
@@ -285,5 +286,218 @@ TEST_CASE("recovery.kill_saves: twenty kills during saves leave the target at a 
     for (const auto& [where, count] : landed)
         std::cout << " " << where << ": " << count << ";";
     std::cout << std::endl;
+    CHECK(landed["between writing the temporary file and the replace"] >= 1);
+}
+
+// ==========================================================================================
+// Stage 6 guide A-107 -- a killed session recovers its annotations (Stage 6 T15, D6-23)
+// ==========================================================================================
+//
+// The same twenty kills, over the annotation cycle of `killprobe/AnnotationSteps.h` -- an ink, a highlight, a
+// move, a delete and a 200 KiB attachment that D6-23 puts in a SIDE FILE -- and the expectation is a SECOND
+// RUN of the same steps in this process: the cycle is deterministic, so what step k left in the probe is what
+// step k leaves here, compared by `Document::modelHash`, which covers every page's annotation listing and every
+// document-level attachment (Stage 6 T3, T11).
+//
+// WHAT THIS DOES NOT COVER (convention 19): the product's composition -- the replay is `tests::CosBackend`'s, as
+// A-68's is, and the product's own offer of a killed journal is `tst_recoveryproduct`'s (Stage 3 guide A-74);
+// a session that ENDS CLEANLY offering nothing is the product's close path, and is that file's too.
+
+namespace {
+
+// The model after the first `steps` steps of the cycle, run here on a pristine copy of `corpusRelative`.
+struct Expected {
+    QByteArray modelHash;
+    std::set<QString> names;          // the kill-* annotations listed
+    std::set<QString> attachments;    // the document-level attachments' keys
+};
+
+Expected expectedAfter(const QString& corpusRelative, int steps, const QString& scratch)
+{
+    const QString copy = QDir(scratch).filePath(QStringLiteral("expected-%1.pdf").arg(steps));
+    QFile::remove(copy);
+    REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/") + corpusRelative, copy));
+    tests::CosBackend backend;
+    auto handle = backend.open(copy, nullptr);
+    REQUIRE(handle);
+    core::Document document;
+    REQUIRE(document.hydrate(backend, handle.value()));
+    core::CommandJournal journal(std::move(document), backend.mutationSink(handle.value()));
+    for (int k = 1; k <= steps; ++k)
+        REQUIRE(journal.run(tests::killsteps::step(k, journal.document())));
+    Expected expected;
+    expected.modelHash = journal.document().modelHash();
+    for (const core::Annotation& a : journal.document().annotations().all())
+        if (a.nm.startsWith(QStringLiteral("kill-"))) expected.names.insert(a.nm);
+    for (const core::DocumentAttachment& file : journal.document().attachments().files()) expected.attachments.insert(file.key);
+    return expected;
+}
+
+int payloadSteps(int steps)
+{
+    int n = 0;
+    for (int k = 1; k <= steps; ++k)
+        if (tests::killsteps::isPayloadStep(k)) ++n;
+    return n;
+}
+
+} // namespace
+
+TEST_CASE("recovery.kill_annotations: twenty kills during annotation commands recover every acknowledged one and its payloads",
+          "[recovery][kill][A-107]")
+{
+    const quint32 seed = QRandomGenerator::global()->generate();
+    QRandomGenerator random(seed);
+    std::cout << "kill_annotations: seed " << seed << std::endl;
+
+    std::map<std::string, int> landed;
+    int runsWithPayload = 0;
+    int mostSteps = 0;
+    for (int run = 1; run <= kRuns; ++run) {
+        INFO("run " << run << " of " << kRuns << ", seed " << seed);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString document = dir.filePath(QStringLiteral("doc.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/ordinary/text-a4.pdf"), document));
+        const QString root = dir.filePath(QStringLiteral("recovery"));
+
+        auto probe = startProbe({QStringLiteral("annotations"), document, root, QString::number(kDwellMs)});
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
+        REQUIRE_FALSE(lines.isEmpty());
+
+        int acknowledged = 0;
+        for (const QByteArray& line : lines)
+            acknowledged = std::max(acknowledged, numberAfter(line, "ack"));
+        const QByteArray last = lines.last();
+        const std::string where = last.startsWith("writing") ? "between apply and the flush"
+                                  : last.startsWith("flushing") ? "inside the flush"
+                                  : last.startsWith("apply") ? "inside apply"
+                                                             : "between commands";
+        ++landed[where];
+
+        const auto candidates = core::RecoveryJournal::discover(root);
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().sourceMatches);
+
+        tests::CosBackend backend;
+        auto handle = backend.open(document, nullptr);
+        REQUIRE(handle);
+        core::Document fresh;
+        REQUIRE(fresh.hydrate(backend, handle.value()));
+        core::CommandJournal journal(std::move(fresh), backend.mutationSink(handle.value()));
+        auto report = core::RecoveryJournal::replay(candidates.front().directory, journal);
+        REQUIRE(report);
+        const int steps = report.value().stepsApplied;
+        INFO("killed " << where << " after ack " << acknowledged << "; replayed " << steps
+             << (report.value().tornTrailingLine ? " (a torn line reported)" : ""));
+        CHECK_FALSE(report.value().stoppedAtStep.has_value());
+        CHECK(steps >= acknowledged);          // nothing acknowledged is lost
+        CHECK(steps <= acknowledged + 1);      // and at most the one still inside run()
+        mostSteps = std::max(mostSteps, steps);
+
+        // THE STORE EQUALS THE JOURNAL'S LAST LINE: the replayed model is the one the same steps make here.
+        const Expected expected = expectedAfter(QStringLiteral("ordinary/text-a4.pdf"), steps, dir.path());
+        CHECK(journal.document().modelHash().toHex().toStdString() == expected.modelHash.toHex().toStdString());
+
+        // THE SIDE FILES: one per payload replayed -- and one more only when the kill fell between a side file's
+        // write and the line that names it, which D6-23 writes in that order.
+        const int payloads = payloadSteps(steps);
+        const int sides = static_cast<int>(
+            QDir(candidates.front().directory).entryList(QStringList{QStringLiteral("*.side")}, QDir::Files).size());
+        CHECK(sides >= payloads);
+        CHECK(sides <= payloads + 1);
+        // And each payload replayed is its bytes, from the side file, byte for byte (compared as SHA-256 --
+        // CLAUDE.md's reporter trap on two QByteArrays).
+        for (int k = 1; k <= steps; ++k) {
+            if (!tests::killsteps::isPayloadStep(k)) continue;
+            const auto bytes = backend.attachmentData(handle.value(),
+                                                      core::AttachmentRef::ofDocument(QStringLiteral("payload-%1.bin").arg(k)));
+            REQUIRE(bytes);
+            CHECK(QCryptographicHash::hash(bytes.value(), QCryptographicHash::Sha256).toHex().toStdString()
+                  == QCryptographicHash::hash(tests::killsteps::payload(k), QCryptographicHash::Sha256).toHex().toStdString());
+        }
+        if (payloads > 0) ++runsWithPayload;
+    }
+
+    std::cout << "kill_annotations: where the " << kRuns << " kills landed --";
+    for (const auto& [where, count] : landed)
+        std::cout << " " << where << ": " << count << ";";
+    std::cout << " runs replaying a side file: " << runsWithPayload << "; most steps replayed: " << mostSteps << std::endl;
+    // UNMEASURED IS A FAILURE, as A-68's: the windows reached, and a large payload among what was recovered.
+    CHECK(landed["inside the flush"] >= 1);
+    CHECK(landed["between apply and the flush"] >= 1);
+    CHECK(runsWithPayload >= 1);
+}
+
+TEST_CASE("recovery.kill_annotsaves: twenty kills during saves of annotation edits leave the target a whole revision",
+          "[recovery][kill][A-107]")
+{
+    const quint32 seed = QRandomGenerator::global()->generate();
+    QRandomGenerator random(seed);
+    std::cout << "kill_annotsaves: seed " << seed << std::endl;
+
+    std::map<std::string, int> landed;
+    int mostSaves = 0;
+    for (int run = 1; run <= kRuns; ++run) {
+        INFO("run " << run << " of " << kRuns << ", seed " << seed);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString target = dir.filePath(QStringLiteral("doc.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/ordinary/text-a4.pdf"), target));
+        QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        const std::string original = shaOf(target);
+
+        auto probe = startProbe({QStringLiteral("annotsaves"), target, QString::number(kDwellMs)});
+        const QList<QByteArray> lines = killProbe(*probe, 30000 + static_cast<qint64>(random.bounded(570000)));
+        REQUIRE_FALSE(lines.isEmpty());
+
+        // Each hash the target may have, with the number of steps that file holds: the last acknowledged save's
+        // (or the original's, 0), and the temporary file about to replace it if a replace had begun.
+        std::map<std::string, int> allowed{{original, 0}};
+        int acknowledged = 0;
+        for (const QByteArray& line : lines) {
+            if (numberAfter(line, "ack") > 0) {
+                acknowledged = numberAfter(line, "ack");
+                allowed = {{line.mid(line.indexOf("sha=") + 4).toStdString(), acknowledged}};
+            }
+        }
+        for (const QByteArray& line : lines)
+            if (numberAfter(line, "replacing") == acknowledged + 1)
+                allowed.emplace(line.mid(line.indexOf("sha=") + 4).toStdString(), acknowledged + 1);
+        mostSaves = std::max(mostSaves, acknowledged);
+
+        const QByteArray last = lines.last();
+        const std::string where = last.startsWith("written") ? "between writing the temporary file and the replace"
+                                  : last.startsWith("replacing") ? "inside the replace"
+                                  : last.startsWith("writing") ? "writing the temporary file"
+                                                               : "between saves";
+        ++landed[where];
+
+        INFO("killed " << where << " after save " << acknowledged);
+        REQUIRE(QFileInfo::exists(target));                        // a kill never leaves the path empty
+        const auto found = allowed.find(shaOf(target));
+        REQUIRE(found != allowed.end());                           // a whole revision, never anything else
+
+        // AND THAT REVISION READS BACK as the steps it holds: every kill-* annotation and attachment the same
+        // steps leave here, by name, through the first-party reader.
+        tests::CosBackend backend;
+        auto handle = backend.open(target, nullptr);
+        REQUIRE(handle);
+        core::Document reopened;
+        REQUIRE(reopened.hydrate(backend, handle.value()));
+        const Expected expected = expectedAfter(QStringLiteral("ordinary/text-a4.pdf"), found->second, dir.path());
+        std::set<QString> names;
+        for (const core::Annotation& a : reopened.annotations().all())
+            if (a.nm.startsWith(QStringLiteral("kill-"))) names.insert(a.nm);
+        std::set<QString> attachments;
+        for (const core::DocumentAttachment& file : reopened.attachments().files()) attachments.insert(file.key);
+        CHECK(names == expected.names);
+        CHECK(attachments == expected.attachments);
+    }
+
+    std::cout << "kill_annotsaves: where the " << kRuns << " kills landed --";
+    for (const auto& [where, count] : landed)
+        std::cout << " " << where << ": " << count << ";";
+    std::cout << " most saves acknowledged: " << mostSaves << std::endl;
     CHECK(landed["between writing the temporary file and the replace"] >= 1);
 }

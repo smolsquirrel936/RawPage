@@ -1,0 +1,1427 @@
+# The name of every CTest case registered at the END of Stage 5 -- taken 2026-10-19 at Stage 6 T15 from the
+# x64-release build of commit b49b13c (1422 cases), the Stage 5 sign-off tree, built in a worktree of its own.
+# Stage6-Annotations-Testing-Guide.md A-102 requires every name here to still be registered at T15;
+# a case renamed on purpose is named in the Stage 6 status block. Sorted; one name per line.
+
+bench.render.a2_probe
+bench.render.a2_product
+bench.render.a2_stage4
+bench.render.a2_stage5
+bench.ribbon.tab_switch
+bench.save.cost
+gates.corpus.compare
+gates.corpus.faults
+gates.corpus.provenance
+gates.corpus.reproducible
+gates.corpus.self_test
+gates.corpus.signed
+gates.corpus.signed_accepting_validator_stops
+gates.corpus.signed_rejecting_validator_fails
+gates.corpus.signed_shapes
+gates.corpus.signed_shapes_self_test
+gates.fuzz_count.four_of_four_with_a_helper
+gates.fuzz_count.helper_is_not_a_target
+gates.fuzz_count.three_of_four_fails
+gates.fuzz_count.three_of_three_with_a_helper
+gates.fuzz_count.two_of_three_fails
+gates.fuzz_count.zero_fails
+gates.headless_assert.clean_closure_is_allowed
+gates.headless_assert.direct_pdfium_edge
+gates.headless_assert.ops_carrying_pdfium_is_caught
+gates.headless_assert.ops_edge_is_allowed
+gates.headless_assert.pdfium_name_without_target
+gates.headless_assert.transitive_pdfium_edge
+gates.headless_assert.ui_edge_still_caught
+gates.i18n_lint.action_ids_are_not_catalog_keys
+gates.i18n_lint.action_label
+gates.i18n_lint.clean_tree
+gates.i18n_lint.explain_names_unshipped_locales
+gates.i18n_lint.literal_controls_are_clean
+gates.i18n_lint.literal_spellings
+gates.i18n_lint.missing_key
+gates.i18n_lint.missing_locales_is_exit_2
+gates.i18n_lint.missing_rules_is_exit_2
+gates.i18n_lint.namespace_reference_covers_generated_keys
+gates.i18n_lint.orphan_key_is_a_note_not_a_failure
+gates.i18n_lint.quoted_waiver_does_not_waive
+gates.i18n_lint.shipped_locale_without_catalog_is_exit_2
+gates.i18n_lint.unknown_key
+gates.i18n_lint.unknown_key_ignores_namespaces_and_filenames
+gates.i18n_lint.unknown_waiver_kind_does_not_waive
+gates.i18n_lint.waiver_applies
+gates.i18n_lint.waiver_without_code_does_not_waive
+gates.i18n_lint.wrong_context
+gates.layer_lint.argv_in_entry_point_is_allowed
+gates.layer_lint.argv_path_read
+gates.layer_lint.backend_header_includes_platform
+gates.layer_lint.clean_tree
+gates.layer_lint.cos_includes_platform
+gates.layer_lint.fpdf_handle_in_cos
+gates.layer_lint.fpdf_handle_outside_render
+gates.layer_lint.fpdf_in_cos
+gates.layer_lint.fpdf_outside_pdf
+gates.layer_lint.fpdf_render_allowed
+gates.layer_lint.fpdf_scoper_in_core
+gates.layer_lint.mention_in_comment_is_allowed
+gates.layer_lint.missing_rules_is_exit_2
+gates.layer_lint.outward_include
+gates.layer_lint.outward_include_angled
+gates.layer_lint.outward_include_casemix
+gates.layer_lint.outward_include_relative
+gates.layer_lint.pdf_cos_includes_ops
+gates.layer_lint.pdf_cos_includes_render
+gates.layer_lint.pdf_cos_ops_may_include_cos
+gates.layer_lint.pdf_impl_may_include_pdfium
+gates.layer_lint.pdf_render_may_include_platform
+gates.layer_lint.platform_header_includes_windows
+gates.layer_lint.platform_impl_may_include_windows
+gates.layer_lint.qaction_in_factory_is_allowed
+gates.layer_lint.qaction_mention_in_comment_is_allowed
+gates.layer_lint.qaction_menu_literal
+gates.layer_lint.qaction_new
+gates.layer_lint.qaction_stack
+gates.layer_lint.qaction_toolbar_literal
+gates.layer_lint.qt_write_outside_allowed
+gates.layer_lint.qtwidgets_in_core
+gates.layer_lint.quoted_waiver_does_not_waive
+gates.layer_lint.ui_includes_app_internals
+gates.layer_lint.ui_includes_pdf
+gates.layer_lint.ui_may_include_the_two_interface_headers
+gates.layer_lint.unknown_waiver_kind_does_not_waive
+gates.layer_lint.win32_delete_outside_allowed
+gates.layer_lint.win32_move_outside_allowed
+gates.layer_lint.win32_replace_outside_allowed
+gates.layer_lint.win32_setinfo_outside_allowed
+gates.layer_lint.win32_write_in_comment_is_allowed
+gates.layer_lint.write_escaped_is_allowed
+gates.layer_lint.write_outside_allowed
+gates.license_audit.bare_gpl_without_exception
+gates.license_audit.compiler_plugin_loaded
+gates.license_audit.emit_skipped_when_incomplete
+gates.license_audit.emit_writes_when_complete
+gates.license_audit.gcc_exception_is_allowed
+gates.license_audit.gpl_dependency
+gates.license_audit.lgpl_is_allowed
+gates.license_audit.missing_manifest_is_exit_2
+gates.license_audit.notice_states_render
+gates.license_audit.qt_charts_link
+gates.license_audit.qt_modules_allowed
+gates.license_audit.undeclared_transitive_gpl
+gates.license_audit.undeclared_transitive_permissive
+gates.mutation_lint.clean_tree
+gates.mutation_lint.complete_command_is_clean
+gates.mutation_lint.explain_names_blind_spots
+gates.mutation_lint.missing_table_is_exit_2
+gates.mutation_lint.no_revert_test
+gates.mutation_lint.no_row
+gates.mutation_lint.no_serialize_test
+gates.mutation_lint.row_without_class
+gates.mutation_lint.unreadable_row_is_exit_2
+gates.pdfium_pin.correct_tree_is_accepted
+gates.pdfium_pin.missing_import_library
+gates.pdfium_pin.unfetched_tree_says_run_the_script
+gates.pdfium_pin.unparseable_version_says_so
+gates.pdfium_pin.v8_enabled_is_refused
+gates.pdfium_pin.wrong_version_names_both
+gates.pdfium_pin.wrong_version_names_expected
+gates.text_bytes.self_test
+gates.text_bytes.tracked_tree
+gates.validators.openssl
+gates.validators.openssl_absent_fails
+gates.validators.openssl_override_not_a_file_fails
+gates.wrong_compiler.baseline_is_clean
+gates.wrong_compiler.compiler_cannot_run
+gates.wrong_compiler.qt_prefix_missing
+gates.wrong_compiler.qt_prefix_other_install
+gates.wrong_compiler.qt_version_mismatch
+gates.wrong_compiler.vcpkg_root_bogus
+gates.wrong_compiler.vcpkg_root_unset
+gates.wrong_compiler.wc1_wrong_version
+gates.wrong_compiler.wc2_ucrt_runtime
+gates.wrong_compiler.wc3_probe_self_check
+gates.wrong_compiler.wc4_bad_mingw_root
+gates.wrong_compiler.wc5_gcc_plugin
+gates.wrong_compiler.wc6_static_runtime
+platform.a family nobody has is SUBSTITUTED, and the substitute is named
+platform.a family that is installed resolves EXACTLY and names a readable file
+platform.a non-ASCII path survives the handoff byte for byte
+platform.a scope id that would escape the namespace is sanitized
+platform.a secondary's file list reaches the primary's handler
+platform.a serif request and a sans request get different substitutes
+platform.an empty bundle reports every interface as unimplemented
+platform.an empty requested family goes straight to the candidate list
+platform.census: the Windows bundle implements six of eighteen interfaces
+platform.displaytopology reports every monitor with separate scale and physical dpi
+platform.displaytopology sees the P-1 rig
+platform.displaytopology subscribe adds rather than replaces
+platform.displaytopology suppresses a notification that changed nothing
+platform.durable files know this process exists and a finished one does not
+platform.durable files remove a file and treat an absent one as already removed
+platform.durable replace carries the hidden attribute and not the replacement's
+platform.durable replace control: a plain rename over the target loses the stream
+platform.durable replace keeps the target's Zone.Identifier stream and creation time
+platform.durable replace moves the replacement to a target that does not exist
+platform.durable replace refuses a missing replacement and leaves the target
+platform.durable replace refuses a read-only target and leaves both files
+platform.durable replace refuses a target held open without delete sharing and leaves both files
+platform.durable replace succeeds past a reader that shares delete
+platform.durable replace through the classic rename keeps the stream and creation time
+platform.durable replace through the classic rename refuses a held target as in use whatever its sharing
+platform.durable sync flushes a written file and refuses a missing one by key
+platform.every declared interface has a name, and the names are unique
+platform.forwarding before claiming is refused rather than silently dropped
+platform.installedFamilies answers the machine and is sorted
+platform.powersession delivers the events its messages carry
+platform.powersession ignores a power broadcast for a setting it did not register for
+platform.powersession presentation mode is idempotent and released on destruction
+platform.powersession reports the machine's power source
+platform.rawpage.exe embeds a manifest that opts it into the segment heap
+platform.recovery.kill_commands: twenty kills during commands recover every acknowledged command
+platform.recovery.kill_saves: twenty kills during saves leave the target at a whole revision with its stream
+platform.registering and unregistering round-trips under a scratch root
+platform.registration without an executable path is refused
+platform.release is idempotent and safe on a bus that never claimed
+platform.releasing the claim lets the next instance become primary
+platform.sameTopology answers false for every field a real change moves
+platform.several handoffs in a row all arrive
+platform.the ProgID is the permanent public name it claims to be
+platform.the association can be queried without changing anything
+platform.the family name comes back from the collection, not echoed from the request
+platform.the first claim is primary and the second is not
+platform.the mutex is in the Local namespace, never Global
+platform.the pipe name carries the session id
+platform.the primary refuses to forward, and a secondary refuses to listen
+platform.the weight and the slant reach DirectWrite
+platform.two scopes do not collide
+render.A4 product saves a rotation into every signed corpus file
+render.CJK is found on text-tounicode's CJK page and whole words finds it too
+render.Fit Page over a real page fits the drawn page and not the sheet
+render.NO PDFium flag can draw a hairline at its true width -- issue I-11
+render.a 900-page file's open never holds the engine longer than one page's extraction
+render.a NON-widget annotation is drawn too -- the other half of PDFium's split
+render.a WIDGET annotation is drawn, and the annotations flag governs it
+render.a base-14 font is DECLINED rather than substituted -- the control that found I-13
+render.a cancelled folder search delivers nothing more and the next one runs
+render.a damaged PDF the engine cannot open is refused as damaged and not as not-a-PDF
+render.a document hydrated from the shipped backend copies the engine's pages
+render.a document with no Info dictionary answers empty rather than failing
+render.a document with no outline and no destinations answers empty
+render.a document with no presentation instructions reads empty, which is the ordinary answer
+render.a document with no readable page is refused rather than opened empty
+render.a folder search finds the top folder alone or every level and names each hit's file and page
+render.a folder search opens nothing on the calling thread and every engine piece on the engine thread
+render.a folder search skips an encrypted file with a reason and goes on past a broken one
+render.a folder search's snippets are the generator's words either side of the hit
+render.a font the document does not embed is substituted by a face this project chose
+render.a malformed date survives the reader exactly as the file wrote it
+render.a moved paragraph is one move and below the move length a deletion and an insertion
+render.a page with no objects has no content box and the fit falls back
+render.a rotated page is rasterized against its rotated extent
+render.a rotated view produces different pixels for the same tile
+render.a second document naming the same missing font re-maps it and still reads no face
+render.a second tile of the same page maps no font and reads no face
+render.a tagged document is ordered by geometry because no tag tree is passed
+render.a tile for a document that has been closed is refused, not crashed
+render.a4_product.openssl
+render.an attached PDF is searched one level deep from memory
+render.an embedded font never reaches the bridge either
+render.an identical pair reports nothing at every sensitivity and every ignore-list
+render.asking twice calls the engine once
+render.cjk-embedded's unmapped glyphs are reported by a search and matched by nothing
+render.cropbox-margins.pdf carries three distinct rectangles
+render.destinations of three kinds resolve and the dangling one is reported
+render.each anti-aliasing flag measurably changes the raster
+render.each class's hit in search-classes names the object the generator put the word in
+render.each class's word in search-classes is found only with its switch on and the control never
+render.each ignore-list removes its change and only its change
+render.eight threads racing from cold still enter the library once
+render.ensure() is idempotent -- the second call initializes nothing
+render.every character's box contains its rendered ink
+render.every labelled change in every pair is found with its kind and nothing else at text only
+render.extracted boxes are in unrotated page space and land on the ink at every rotation
+render.extraction flags line-end hyphens and generated whitespace
+render.extraction over the whole corpus fails a page alone and never invents a control character
+render.extraction reads each character's font name size and weight
+render.extraction reports cjk-embedded's hanzi as unmapped and invents nothing
+render.extraction returns the content's own runs for the unlabelled text files
+render.extraction returns the generator's text for every labelled page
+render.extraction through the shipped scheduler runs on its worker and delivers here
+render.golden.a page composed from tiles matches its whole-page baseline
+render.golden.a perturbed render fails the comparison and leaves an actionable diff
+render.golden.an unperturbed render of the same page passes the same comparison
+render.golden.golden baselines match at 144 dpi
+render.golden.golden baselines match at 192 dpi
+render.golden.golden baselines match at 96 dpi
+render.golden.golden-update refuses to regenerate a baseline without a stated reason
+render.golden.only the declared machine-dependent baselines resolved a face off this machine
+render.golden.the baselines were captured against the PDFium this build is pinned to
+render.golden.the golden manifest and capture log load and agree with the corpus
+render.hyphenated joins exam-ple and keeps well-known
+render.hyphenated's joins are found and its compound is not broken
+render.opening a document enters the engine only under the engine lock
+render.page walk agrees with the engine on every corpus file both open
+render.pages are aligned before words are diffed
+render.pdfium is initialized exactly once however many documents open
+render.pdfium opens a 900-page document and indexes it directly
+render.pdfium opens an empty-user-password file with no prompt
+render.pdfium opens an encrypted document with the right password
+render.pdfium opens every malformed corpus file or refuses by name
+render.pdfium opens every ordinary corpus file with a real page tree
+render.pdfium reads rotation as degrees rather than quarter turns
+render.pdfium reads the page count from the tree rather than from /Count
+render.pdfium refuses an encrypted document given the wrong password
+render.pdfium refuses an encrypted document when there is nobody to ask
+render.pdfium refuses bytes that are not a PDF by name
+render.pdfium reports a cancelled password prompt as cancelled
+render.pdfium resolves a rotation inherited from an ancestor Pages node
+render.rasterizer honours the render flags
+render.rasterizer produces exactly the requested pixel size and it is not blank
+render.rasterizer refuses an invalid request rather than returning an empty image
+render.rasterizer renders a tile as a REGION, not a scaled-down whole page
+render.rasterizer scales with deviceScale rather than resampling
+render.rasterizer survives eight concurrent workers over four documents
+render.right-to-left lines read in logical order on both emissions
+render.right-to-left order as the engine returns it is measured on both emissions
+render.save engine control: a wrong rotation is far outside the pixel tolerance
+render.save engine never reaches ReplaceFileW with a file its own reader rejects
+render.save engine reopens every saved corpus file and draws the saved rotation as the unsaved delta drew it
+render.search-classes' units are read once per part on the engine thread and only when a class needs them
+render.search/maxResults bounds a folder search across files and says so
+render.shutdown() puts the state back and ensure() can start it again
+render.text-tounicode's ligatures and decomposed accents are found by their letters
+render.the Info dictionary is read and XMP is not claimed
+render.the backend implements ITextExtractor and refuses a foreign handle
+render.the comparison runs on a thread of its own with progress that only grows and a cancel that stops it
+render.the content box is tight around the ink
+render.the content box reaches the backend interface
+render.the engine initializes with no display and reports the pinned version
+render.the engine lock serves a waiting thread before its holder can take it back
+render.the glyph cache's counters add up and its faces are bounded
+render.the layout analyzer meets the section 3.2 targets on the labelled corpus
+render.the ligatures of text-tounicode are found both ways
+render.the outline is read with its structure and its open state
+render.the per-page transitions are read first-party, and PDFium never sees them
+render.the second search of text-900 is instant by the guide's definition
+render.the sensitivities layer as D5-17 says
+render.the shipped backend decides what is a PDF by its bytes, not its name
+render.the shipped backend hands out a rasterizer and nulls for the unimplemented four
+render.the shipped backend implements IDocumentBackend and IPageRasterizer
+render.the shipped backend implements three of seven and hands out a sink per document
+render.the shipped backend lets every ordinary and signed corpus file be edited
+render.the shipped backend never reuses a handle
+render.the shipped backend refuses editing every encrypted corpus file by name
+render.the shipped backend refuses editing the file its two readers count differently
+render.the shipped backend takes the identity of the bytes it opened
+render.the shipped rasterizer factory renders real tiles on a real worker
+render.the substitution log is bounded however many documents ask
+render.the three fits over a real page give three different zooms
+render.the transparency flag changes the bitmap format and leaves the page unpainted
+render.the two cafes of text-tounicode are one word to the normalizer
+render.two unrelated documents finish inside the bound with every page replaced
+render.without the hook installed the engine substitutes silently -- the T16 before-picture
+ui.Alt and the wheel leave the magnification alone when the loupe is not the tool
+ui.Alt and the wheel step the loupe's magnification and move nothing else
+ui.Alt key tips are reachable through the registry
+ui.B and W blank and restore, and each toggles off the other
+ui.Clear empties the list and keeps the fields so the next Enter searches anew
+ui.Ctrl and the wheel step the reflow's text size as the zoom chords do
+ui.Ctrl+4 shows the reflow and Ctrl+4 again returns to the page
+ui.Ctrl+Alt+C from a key event dispatches compare.documents and opens the comparison
+ui.Ctrl+C copies a drag and Ctrl+A copies the whole document from key events
+ui.Ctrl+F inside the bar keeps the focus there and selects the query
+ui.Ctrl+F opens the bar from the thumbnails pane and hits show in both panes of a split
+ui.Ctrl+F6 walks the window set and refuses when there is one window
+ui.Ctrl+R in a widget declaring Page Thumbnails dispatches page.rotate there
+ui.Ctrl+R in the pane reaches Stage 3's page.rotate and the pane constructs nothing
+ui.Ctrl+Shift+B opens the bookmarks pane, and the destinations pane has no chord
+ui.Ctrl+Shift+F opens Advanced Search from the page and from the find bar
+ui.Ctrl+Shift+P opens the pane and puts the focus in it
+ui.Ctrl+Shift+T toggles two-up from every mode and preserves the continuity
+ui.Ctrl+Tab steps through the documents and wraps at both ends
+ui.Ctrl+] and Ctrl+[ are disabled without a comparison and step one when there is
+ui.Document Properties shows every fact it was given
+ui.Enter goes to the selected page, from a key event
+ui.Enter in a filter field narrows the list and opens nothing
+ui.Enter in the bookmarks pane goes to the bookmark's destination
+ui.Esc abandons a snapshot drag and a click is not a snapshot
+ui.Esc cancels a hand pan and puts the scroll back where the drag started
+ui.Esc cancels a marquee drag and the zoom and scroll are exactly as before
+ui.Esc clears a selection and with none is not consumed
+ui.Esc closes the bar clears every highlight and returns the focus to the page
+ui.Esc during a copy that is still extracting cancels it and leaves the clipboard alone
+ui.Esc with no drag in progress changes neither the tool nor the view
+ui.F9 collapses the ribbon to its tab strip and restores the active tab
+ui.Fit Page from 400 percent fits the page the reader was on
+ui.Fit Visible falls back to the CropBox when the page has no content
+ui.Fit Visible fits the content box rather than the CropBox
+ui.Fit Width from 400 percent fits the page the reader was on
+ui.Go to Page accepts a logical label
+ui.H V and Z arm their tool from a key event and the cursor follows
+ui.S arms the Snapshot tool from a key event and tool.snapshot is a sticky tool
+ui.Shift plus Tab arrives as Backtab and is still Shift plus Tab
+ui.Tab visits the groups in visual order after any change of the collapsed set
+ui.a 900-page document costs the visible slots plus one screen, not 900 requests
+ui.a DocumentWindow owns its handle, carries a viewer, and closes on destruction
+ui.a DocumentWindow with no valid handle is still a usable empty tab
+ui.a Fit destination sets the whole-page fit and FitB the content fit
+ui.a Global command acts on the window that is active
+ui.a Shift click extends the selection and a Shift drag still pans
+ui.a Viewer chord does not fire from the tool finder's search box
+ui.a background window asks for its viewport at Prefetch, not Visible
+ui.a button can be dragged to a new place unless the toolbar is locked
+ui.a button showing an action gains no connection when the action changes
+ui.a cancelled password prompt raises no could-not-open banner
+ui.a cascade steps diagonally and keeps every window inside the work area
+ui.a chain that declares nothing is Global
+ui.a change made elsewhere refreshes the page
+ui.a changed flag runs the search again under it
+ui.a chord resolves innermost context first then Common then Global
+ui.a chord whose command is not registered yet leaves the key alone
+ui.a clean file shows no message bar at all
+ui.a click with the marquee armed is not a zoom
+ui.a command that is declared but not built yet is shown disabled rather than hidden
+ui.a copy's HTML reaches Windows as CF_HTML with a consistent header
+ui.a crashed session is offered at launch and Recover restores the document its history and the dirty marker
+ui.a customization survives being written and read back
+ui.a default is a default, not a command that overrides the user
+ui.a degraded journal a failed save and a changed file each raise their own banner
+ui.a destination's XYZ point scrolls the view to it
+ui.a destination's fit reaches the view
+ui.a detached widget answers for itself and does not reach a former parent
+ui.a disabled control says WHICH kind of disabled it is
+ui.a document opens at the layout and zoom the settings name
+ui.a double click event is the next click of the gesture and not a lost one
+ui.a drag on an unextracted page asks at Visible and completes when the text arrives
+ui.a duplicate placement and an empty group are each refused
+ui.a filtered-out record still does not appear once it arrives live
+ui.a find hit leaves the reflow for the page at the hit
+ui.a fit is computed against the PHYSICAL dpi, not a nominal 96
+ui.a fit keeps its zoom while the reader scrolls onto a page of another size
+ui.a fit refuses to divide by zero and returns what it was given
+ui.a floated sidebar re-docks into its place by the float button and by double-click
+ui.a frozen pane is moved only through the body and the freeze holds
+ui.a full presentation pass changes no document and leaves the journal empty
+ui.a guide dragged near a grid line snaps to it at 50 and 400 percent
+ui.a guide dragged off a ruler lands at the pointer's page coordinate
+ui.a guide dropped in one pane of a split shows in the other
+ui.a guide moves with a drag, a locked one does not, and clear-all spares the locked
+ui.a guide pulled off a ruler is dotted until the release
+ui.a guide snaps to another guide but never to itself
+ui.a handoff raises the window before it opens the file
+ui.a horizontal split is two views over one handle, one journal and one revision
+ui.a key press becomes the chord Features section 8 spells
+ui.a key press on the window dispatches through the registry
+ui.a key press that is not a chord becomes nothing rather than a wrong chord
+ui.a key pressed in the comparison never reaches the tab behind it
+ui.a lone document can still be dropped onto another window's strip
+ui.a marquee zooms to the dragged rectangle within a stated tolerance
+ui.a modifier released outside the widget cannot survive into the next gesture
+ui.a new size re-keys every request rather than scaling the thumbnails it has
+ui.a non-command menu item is exempt, and only through the one function that stamps it
+ui.a page is actually painted, not merely requested
+ui.a page view destroyed with tiles in flight does not crash
+ui.a page's own duration overrides the auto-advance preference
+ui.a page's own transition overrides the preference, and a page without one does not
+ui.a path that does not exist and one the backend refuses are both refused
+ui.a planted QAction shortcut is named as a bypass
+ui.a planted QShortcut is named separately
+ui.a planted bare QAction is named as a bare QAction
+ui.a preference reaches every open tab, not only the one in front
+ui.a press on the rulers' corner box steps every tab to the next unit and wraps
+ui.a record logged while the pane is open arrives
+ui.a recovery that cannot happen says so in a banner and keeps the journal
+ui.a refined result opens under the query the list was refined by
+ui.a refusal names its own reason where the registration gave one
+ui.a refused file raises a red window-level banner that names it
+ui.a registered action is enabled and dispatches through the registry
+ui.a remap through the page reaches the store and the settings file
+ui.a repaired file shows a banner naming what was reconstructed
+ui.a replay that stops at step k keeps the steps before it and the banner names k
+ui.a ribbon narrower than its collapsed groups scrolls rather than clipping
+ui.a rotated page is laid out landscape before its pixels change and undo restores both
+ui.a rotation drops the rotated page from the index and the next search re-reads only it
+ui.a rotation in one pane of a split reaches both panes at the same revision
+ui.a rotation in one window appears in the second view of the same document
+ui.a ruler reads page coordinates in the chosen unit at every zoom
+ui.a save the file system refuses explains and then asks for another file
+ui.a saved command whose id no longer exists is dropped and named
+ui.a screen step is not a page step in a continuous mode
+ui.a search and its highlights enqueue no tile
+ui.a second connect on a legitimate action is named as a direct connection
+ui.a second window does not dispatch the first window's key
+ui.a second window keeps the UI font scale rather than compounding it
+ui.a selection shows in both panes of a split and belongs to its own tab
+ui.a shifted punctuation key offers the reported key then the unshifted one
+ui.a shortcut saved under a retired spelling survives the rename
+ui.a shorter document pulls the current page back with it
+ui.a shorter document pulls the scroll back with it
+ui.a snapshot carries none of the overlays or the inversion
+ui.a snapshot is asked for once at Visible and bypasses the tile cache
+ui.a snapshot taken in a rotated view is rotated
+ui.a snapshot's resolution is pageDisplay/snapshotDpi
+ui.a tab torn out keeps its identity and can be re-docked
+ui.a text field keeps the keys it edits with
+ui.a theme change reaches the manager without an explicit apply
+ui.a thumbnail that arrives is held and painted, and one that is hidden is not asked for
+ui.a toolbar saved with a retired command restores it and saves the current spelling
+ui.a toolbar the user emptied stays empty and a fresh profile gets the defaults
+ui.a topology change moves the presentation rather than losing it
+ui.a torn-off window closes when its last document is moved back
+ui.a user remap takes effect without anything being rebuilt
+ui.a vertical split puts the panes side by side, and a second press is not a second split
+ui.a view with no display topology falls back and says so
+ui.a view with no document paints no page
+ui.a well-formed key resolves through the catalog and a bare word does not
+ui.a whole A3 page at 600 dpi is reduced to fit 50 megapixels and says so
+ui.a width of zero is never remembered
+ui.a window that does not own itself is emptied but not closed
+ui.a window whose actions all came from the factory is sound
+ui.a window's only document is not detached into a new window
+ui.a word inside a label is findable and so is a scattered subsequence
+ui.a zoom from a command keeps the reader on their page
+ui.a zoom in a spreadsheet split zooms all four panes and the freeze keeps its place
+ui.activating a destination moves the view, and an unresolvable one does nothing
+ui.activating a result opens its file at the hit and an open file is not opened twice
+ui.activeContext follows the focus inside the binder's own window
+ui.add remove and reorder each change the row and refuse the no-op
+ui.adding a command starts with a right-click on the ribbon button
+ui.an Alt drag selects a column and copies it as a table
+ui.an OS that refuses presentation mode does not stop the presentation
+ui.an XYZ destination with no values changes nothing but the page
+ui.an absent Info field reads as absent rather than as empty
+ui.an action for an unregistered id is built disabled and says why
+ui.an action's tooltip is re-asked when the document changes
+ui.an anti-aliasing preference reaches the tile requests
+ui.an applied customization reports the shortcuts it DROPPED and not the ones it kept
+ui.an arranged window's title bar is on its monitor and no tile covers another
+ui.an empty query lists nothing and a query nothing matches lists nothing
+ui.an encrypted document disables rotate with the encryption reason
+ui.an exact name outranks a prefix which outranks a fuzzy subsequence
+ui.an invalid pattern or a missing folder is said and searches nothing
+ui.an invalid regular expression in the bar is the error and searches nothing
+ui.an opened comparison is remembered for its older file and a refused one is not
+ui.an unknown action id is refused with its own line number
+ui.an unknown label is refused without moving the view
+ui.an unknown monitor name falls back to the primary and still presents
+ui.an unreadable context property is ignored and the walk continues
+ui.an unresolved destination moves nothing
+ui.arranging with one window changes nothing, and the commands say why
+ui.auto-advance steps, and loop decides what happens after the last page
+ui.auto-hide and pin round trip and peeking is not a state change
+ui.auto-scroll pauses and reverses
+ui.auto-scroll refuses to start at zero and Esc stops it
+ui.auto-scroll runs at the configured speed and the speed changes the rate
+ui.auto-scroll stops at the end of the document rather than spinning
+ui.both kinds are reported together rather than the first one only
+ui.both rulers print their numbers inside themselves
+ui.choosing a result runs the command through the registry
+ui.clearing empties the pane and the buffer behind it
+ui.clicking a thumbnail moves the view, and the view moves the selection back once
+ui.clicking the edge strip of a closed sidebar opens it and of an auto-hidden one peeks
+ui.closing a dirty tab asks and each disposition does what it says
+ui.closing a tab closes its handle and drops its tiles
+ui.closing a window or quitting with dirty documents asks once per document
+ui.closing is reachable as a command and refuses when there is nothing to close
+ui.closing the comparison closes its two handles and nothing else
+ui.closing the last document empties the pane rather than leaving it stale
+ui.closing the leader detaches the second view rather than taking it down
+ui.collapse is monotone across twenty sweeps and never depends on resize history
+ui.composition.Advanced Search through the product finds every level of a folder and opens a result at its hit
+ui.composition.Ctrl and the wheel zoom the continuous overlay about the cursor on any pair
+ui.composition.Ctrl and the wheel zoom the overlay about the cursor
+ui.composition.Ctrl+A and Ctrl+C on a 900-page document copy every page after reading them at Background
+ui.composition.Ctrl+] and Ctrl+[ step both views and the pane through the report pair and wrap
+ui.composition.a comparison changes neither document
+ui.composition.a composition case never touches the real session file
+ui.composition.a difference stepped to in the continuous overlay is the current pair and in view
+ui.composition.a document closed with dont save comes back clean and unrotated
+ui.composition.a drag across a page break selects both pages in order
+ui.composition.a drag down a vertical column selects down it and copies right column first
+ui.composition.a drag from the foot of one column to the head of the next follows the reading order
+ui.composition.a drag selects the generator's text and the highlight is on its ink
+ui.composition.a quit and a relaunch bring back the documents the order and the layout
+ui.composition.a right-to-left line dragged from its right edge copies in logical order
+ui.composition.a search's highlights are on the ink of exactly the words it found
+ui.composition.a selection tints the paper clearly and keeps its glyphs at full contrast on either page colour
+ui.composition.a snapshot at 300 dpi is a render at 300 dpi and not the view scaled up
+ui.composition.a snapshot in a rotated view is the rotated page
+ui.composition.a snapshot is the document as drawn and nothing else
+ui.composition.a zoomed overlay brings the difference it steps to into view with both tints
+ui.composition.an Alt drag over a ruled table's second column copies that column as a table
+ui.composition.each class's hit in search-classes navigates as D5-12 says and an attachment hit opens nothing
+ui.composition.rememberPaneLayout off restores the documents with no panes
+ui.composition.rememberWindowLayout off restores the documents at default geometry
+ui.composition.restore skips a path recovery already opened
+ui.composition.restoreSession off restores nothing and captures nothing
+ui.composition.side by side keeps the report pair on corresponding pages after its inserted page
+ui.composition.side by side scrolls by aligned page after an inserted page
+ui.composition.the continuous overlay lays every pair one under another and scrolls through them
+ui.composition.the control -- with no crashed journal restore opens the document itself
+ui.composition.the find bar says cjk-embedded's glyphs cannot be searched and finds none of them
+ui.composition.the overlay is one grey image where the pair is identical and both tints where it differs
+ui.composition.the overlay of an identical pair is grey on every page
+ui.composition.the overlay shows a page only one side has in that side's tint
+ui.composition.the overlay wheel turns a fitted pair and scrolls a zoomed one before turning at its edge
+ui.composition.the product's composition offers and replays a journal the killed probe left behind
+ui.composition.the reflow of columns-two is the generator's blocks in reading order
+ui.composition.the reflow opens at the block at the top of the page and returns to the block at its own top
+ui.composition.the reflow's place survives a toggle both ways at every view rotation
+ui.composition.two three and four clicks select the generator's word line and block
+ui.declaring Common is refused rather than stored
+ui.destroying a pane with a record in flight is safe
+ui.diagnostics_ignore_the_bus
+ui.discard removes a crashed session's journal and the next launch offers nothing
+ui.each result carries the chord that would actually fire
+ui.each row's editor is the one its type asks for
+ui.each tab keeps its own find bar and search
+ui.entering either level asks the OS to hold the display awake
+ui.every Global default resolves to the action section 8 gives it
+ui.every Stage 2 Viewer chord dispatches from the viewer
+ui.every binding in the tables can be produced by a keyboard
+ui.every declarable key context is found on the widget that declares it
+ui.every declared key in a shipped group gets a row, and nothing else does
+ui.every declared token resolves in both themes
+ui.every divider of a spreadsheet split is the painted one
+ui.every editing chord in the bookmarks table is unregistered and leaves its key alone
+ui.every find chord works from a key event and is asserted on its effect
+ui.every key on a shipped page has a label the catalog can resolve
+ui.every key the shell can put on screen resolves to text and not to itself
+ui.every shifted punctuation binding resolves from the key a keyboard sends
+ui.every tab access key is typable and no two tabs claim the same one
+ui.every tab and group in the resource is present in the widget tree
+ui.every text token is legible against the surface it is drawn on
+ui.every text widget keeps its own Ctrl+C and Ctrl+A
+ui.every token has a name and no two names collide
+ui.every toolbar operation is reachable as a command through the registry
+ui.file.preferences dispatches headlessly and raises the dialog
+ui.fit width and fit page account for the margins
+ui.focus inside the page view resolves to Viewer, and nowhere else does
+ui.fullScreen/showCursor is read when the presentation starts
+ui.highlight all paints every hit or only the current one and stepping wraps and says so
+ui.hovering the edge strip peeks the auto-hidden pane
+ui.in a continuous mode the edge of the document is the end of the scrolling
+ui.in a paged mode the arrow keys turn the page at the edge
+ui.in a paged mode the wheel turns the page at the edge
+ui.in paged Two-Up the page turns to the next SPREAD
+ui.in paged Two-Up the wheel at the edge turns to the next spread
+ui.in paged Two-Up with a cover the spread step follows the cover's parity
+ui.inverting the page colours paints differently and rasterizes nothing
+ui.leaving reading mode restores the same panes and widths
+ui.level 1 keeps the viewer's context and level 2 does not
+ui.light and dark actually differ where it matters
+ui.locking is a command, is remembered, and a reset clears it
+ui.making extending and clearing a selection enqueues no tile
+ui.merge puts every detached tab back into one window, in order
+ui.moving a presentation to a monitor of another scale refits it to that monitor
+ui.no button the window builds gains connections as its commands change
+ui.no control exists that the resource did not declare
+ui.nothing is rasterized while the reflow shows and its keys scroll it
+ui.openFiles asks the backend rather than the filename
+ui.opening a file checks the name and never reads the bytes
+ui.opening a file gives it a tab and opening it twice does not
+ui.opening and scrolling a document asks for no text until something wants it
+ui.opening the find bar never widens the window and its options collapse behind More
+ui.pageDisplay/lineWeight is stored and reaches the view, and does nothing -- I-11
+ui.paging works from either end and refuses to go past it
+ui.performance/prefetchPages asks for pages beyond the viewport
+ui.plus and minus step the thumbnail size between its bounds, from a key event
+ui.presenting is refused with no document
+ui.reading mode hides the ribbon and the panes
+ui.reading mode restores a hidden pane as hidden
+ui.rebinding a shortcut saved under a retired spelling keeps the new chord
+ui.recording the same view twice does not grow the history
+ui.records already in the buffer are there when the pane opens
+ui.recover to a new file opens an untitled document that stays untitled and Save asks where
+ui.removing a split is refused when there is none
+ui.removing a split leaves one view and no tickets outstanding for the retired pane
+ui.reordering the strip reorders the documents behind it
+ui.reordering the toolbar is reachable by a person and stops at both ends
+ui.resetting a row gives the key back
+ui.resetting a shortcut saved under a retired spelling stays reset
+ui.restoring a page's defaults resets its keys and leaves other pages alone
+ui.restoring shortcut defaults clears every context, not just the one on screen
+ui.right and left expand and collapse the selected bookmark, from a key event
+ui.rotating the view rotates the layout and re-keys the tiles
+ui.saving a repaired document explains first and then asks for a new file
+ui.screen_metrics_invariant
+ui.scroll clamps at the document bounds in both directions
+ui.scrolling away cancels the tiles that left the viewport
+ui.scrolling the pane cancels what left and asks for what arrived
+ui.scrolling the view moves the pane's selection without navigating
+ui.several refusals in one open share one banner and name every file
+ui.showing a pane on an already-open document re-reads no model
+ui.showing the window with the dialog open keeps both self-checks clean
+ui.snapshot resolution is the sentinel the floor the ceiling and the bound
+ui.star and slash expand and collapse the whole tree, from a key event
+ui.stepping the zoom clears the fit mode
+ui.switching tabs shows the new document's thumbnails, without rebuilding the pane
+ui.synchronized scrolling is refused in a spreadsheet split
+ui.synchronized scrolling moves both panes, and turning it off frees them
+ui.tabs overflow to the chevron when the ribbon is too narrow for them
+ui.tearing a tab out makes a window that owns it
+ui.the Documents page's recovery folder redirects the next journal and the prompt looks there
+ui.the Internal group has no page and no row anywhere
+ui.the Rotate Pages dialog answers a choice and the plan is one command or one group
+ui.the Snapshot tool hands a band to its host and a click to nobody
+ui.the Two-Up control reports checked in BOTH two-up modes
+ui.the UI font scale is clamped by the schema rather than by the theme
+ui.the active pane follows focus, and every view command lands on it
+ui.the arrows move the selection and the view stays put
+ui.the auto-scroll speed reaches the controller from the settings key
+ui.the banner belongs to the tab, not to the window
+ui.the banner is painted in its own colour and follows the theme
+ui.the bar searches a page range and the selection and says what it cannot search
+ui.the bar's toggles are the search settings in both directions
+ui.the bookmarks pane shows the document's tree with the file's own open state
+ui.the compare dialog collects two paths and the four options
+ui.the comparison's bar writes the four settings and re-runs over the text it read
+ui.the content size follows the document and the zoom
+ui.the could-not-open banner is red enough to be told from everything beside it
+ui.the count names the files the listed results are in and the files searched apart
+ui.the cursor marker is red with its reading beside it, in both themes
+ui.the cursor readout is the reading at the marker in the ruler's unit
+ui.the customization blob round-trips and keeps a newer version's fields
+ui.the destinations pane lists every destination, the unresolvable one included
+ui.the destinations pane sorts by name and by page, and a page sorts as a number
+ui.the dirty marker follows the journal and disabled commands say why in both locales
+ui.the display request is paired on EVERY exit path
+ui.the dominant page is the one covering most of the viewport
+ui.the dotted preview sits where the snapped guide will land
+ui.the edge strip appears only on the side the pane is docked to
+ui.the file column cuts a long path in the middle and the other columns at the end
+ui.the find field takes a third of the room it shares with the status line
+ui.the five outcomes are distinguished and only two consume the key
+ui.the grid is painted over the tiles and never rasterized into them
+ui.the guide commands act on the guide the menu was raised over
+ui.the hand tool pans the page the way the hand moves
+ui.the innermost declaration wins over an outer one
+ui.the key tips go when the focus leaves the ribbon or the mouse is pressed
+ui.the keypad's minus and plus zoom like the main row's with Ctrl held
+ui.the laser and the cursor toggle, and leaving clears the blank
+ui.the layout chords select and toggle, and report which is in force
+ui.the layout gives the page view real pixels
+ui.the level filter narrows and the subsystem filter narrows
+ui.the loupe is armed by dispatch because section 8 gives it no chord
+ui.the loupe magnifies and moves neither the scroll nor the zoom
+ui.the loupe pins on a click and follows a drag pinned or not
+ui.the loupe's lens asks for its region once still and paints it sharp
+ui.the loupe's lens asks only for the part of its region on a page
+ui.the message banner is a colour of its own and not the desk grey
+ui.the message bar stacks kinds worst-first and dismisses one at a time
+ui.the modifier does not swap tools under a live drag
+ui.the move commands stay reachable although the menu no longer offers them
+ui.the mutation chords dispatch their commands from key events in the viewer
+ui.the newer field offers the file the older one was last compared against
+ui.the page chords move the page, and refuse at the ends
+ui.the page operations in the table stay unregistered and leave their keys alone
+ui.the page refuses a remap onto a chord the focused widget owns
+ui.the pages keep their width and zoom while the comparison reports its progress
+ui.the pane draws its edge on the side that faces the page wherever it is docked
+ui.the pane filters by metadata refines and exports what it lists
+ui.the pane holds no more lines than the buffer it mirrors
+ui.the pane searches the folder alone or its subfolders too and the UI thread opens nothing
+ui.the pane shows the search options and a changed one searches again
+ui.the pane's line shape is the log file's line shape
+ui.the presentation chords are refused when nothing is presenting
+ui.the presenting surface declares KeyContext::FullScreen and every present chord dispatches
+ui.the primary view survives every mode change
+ui.the reader's place survives a toggle both ways
+ui.the reading mode command toggles it
+ui.the readout follows the pointer over the page and leaves with it
+ui.the real window carries no shortcut that bypasses the binder
+ui.the real window, shown, has no action that bypasses the registry
+ui.the recovery dialog describes each journal and answers one disposition per row
+ui.the reflow's window grows as the reader scrolls to its end
+ui.the render request carries the RASTER scale and a real revision
+ui.the request count does not grow with the document's page count
+ui.the requested theme and the resolved theme are separate facts
+ui.the resolution cap reaches DpiPolicy
+ui.the resolved theme is handed to the style and not only to the palette
+ui.the rest of the Viewer table is still NotImplemented and leaves the key alone
+ui.the result list can always be put away
+ui.the ribbon height is constant while groups collapse and a contextual tab comes and goes
+ui.the ribbon's key tips show on Alt's release and never after Alt and the wheel
+ui.the rotate chords rotate from the key event a keyboard sends
+ui.the rulers measure the focused pane of a split
+ui.the rulers' corner box draws its widest unit whole
+ui.the scrollbars are in logical pixels and reach the end of the document
+ui.the second view keeps the entry when the first window closes its document
+ui.the selection tool selects nothing and says so
+ui.the seven unbuilt pane chords are NotImplemented and leave the key alone
+ui.the shadow report names the six shadows the document ships and no more
+ui.the shell composes the properties from the backend
+ui.the shipped ribbon resource is found and is sound
+ui.the shortcuts page shows one row per binding in the chosen context
+ui.the sidebar and the log pane draw the edge that faces the page
+ui.the sidebar now lists exactly three panes, and still no more
+ui.the sidebar's Stage 1 behaviours survive a real pane
+ui.the sidebar's pane list holds exactly the panes that exist
+ui.the split divider is distinct from the desk in both themes, and lights under the pointer
+ui.the spreadsheet split freezes a row and a column, each in its own axis only
+ui.the status bar says there is no document rather than showing a made-up one
+ui.the status bar shows the page label beside the physical index
+ui.the status bar shows the real page total and the real zoom
+ui.the string dump covers every shell key and every action label
+ui.the tab bar is allocated real width so the tabs are on screen
+ui.the tear-off gesture reports where the pointer was RELEASED
+ui.the temporary hand does not take over a held loupe button
+ui.the temporary hand modifier pans without disarming the armed tool
+ui.the temporary hand's modifier repaints the page and swaps the tool on the key alone
+ui.the three section 8 chords toggle their setting from a key event
+ui.the three tool chords arm a tool and report which is armed
+ui.the thumbnail size survives closing and reopening the pane in one session
+ui.the thumbnails pane declares KeyContext::PageThumbnails
+ui.the tiling orientation names the divider, and the minimum forces a grid
+ui.the toolbar starts at the factory defaults and renders every one of them
+ui.the toolbar stays on screen when emptied and when moved
+ui.the transparency grid changes what is BEHIND the page, not the page
+ui.the two new Preferences pages are built from the table, not laid out by hand
+ui.the view history records deliberate navigation and not scrolling
+ui.the wheel obeys pageDisplay/wheelZooms
+ui.the window builds the pane hidden and pane.log toggles it
+ui.the window list names every window and switching activates it
+ui.the window registers exactly the actions it can service
+ui.the window set drops a window as it is destroyed
+ui.the window title and the status bar follow the current document
+ui.the zoom chords change the reflow's text size and leave the page's zoom
+ui.the zoom chords move the zoom, and the fit chords set a mode
+ui.the zoom ladder always moves and stops at the ends
+ui.tiling covers the work area exactly and never overlaps
+ui.toggling the sidebar goes through the registry and keeps its width
+ui.turning a control writes the setting, and the setting reaches the file
+ui.two three and four clicks select the word the line and the block
+ui.two untitled recovered documents close the one that was asked about
+ui.two views of one document scroll together until window.syncScroll unlinks them
+ui.typing a page number in the status bar navigates, and a typo does not
+ui.typing a word in one burst runs one search and only the last query delivers
+ui.typing keeps reaching the search box after the result list opens
+ui.window.new opens a second view of one document, with its own handle and one journal
+ui.window.new puts the second view on the first view's index entry
+ui.with nobody to ask every journal is kept and an empty one is removed without asking
+ui.with warnOnRepairedSave off a repaired document still goes to Save As with no explanation
+ui.without its alias row a retired toolbar command is dropped
+ui.zoom about a point at the top-left corner does not drift
+ui.zoom about a point keeps that point under the cursor
+unit.'+' as a key survives, rather than being eaten as a separator
+unit.A-61 control: singleInstance=true does claim
+unit.A-61: a disabled instance refuses to forward or listen
+unit.A-61: no bus at all is Disabled, not a crash
+unit.A-61: singleInstance=false never touches the bus
+unit.A-61: the scope id is per install directory, case-folded
+unit.A4 and US Letter come out at their documented point sizes
+unit.A4 probe writes a comment and a rotation into every signed corpus file
+unit.CJK is found and with whole words each ideograph is a word
+unit.CommandRegistry refuses every malformed page rotation by Result
+unit.CommandRegistry returns NotFound for a type id it does not register
+unit.Fit Page produces the drawn page's zoom and not the sheet's
+unit.Fit Visible agrees with Fit Page when the content fills the sheet
+unit.Myers' diff in linear space is a minimal edit script
+unit.RAWPAGE_TRY propagates the error outward unchanged
+unit.Result carries a structured error
+unit.Result carries a value
+unit.Result construction does not throw
+unit.Result moves a non-copyable payload
+unit.Result<void> reports success and failure
+unit.RotatePageCommand normalizes a counter-clockwise turn and marks a non-quarter turn invalid
+unit.a CJK serif request tries a Ming face before a Gothic one
+unit.a PDF date parses in the forms producers actually write
+unit.a PDF text string decodes by its byte order mark and otherwise as PDFDocEncoding
+unit.a RasterImage validates its own stride rather than trusting width
+unit.a backend implementing none of the seven says so
+unit.a bare modifier is a chord, and is not the same as that modifier plus a key
+unit.a cancelled search delivers nothing and releases what it asked for
+unit.a candidate list never repeats a family
+unit.a caret lands on the side of the character the point is on
+unit.a change is on disk before anything shuts down
+unit.a checked predicate reports toggle state, and absence is not 'off'
+unit.a clamped set that changes nothing emits nothing
+unit.a column selection takes the cells under the rectangle and copies a table
+unit.a copy of unmapped glyphs writes nothing and says so
+unit.a copy writes lines as seen blocks as paragraphs and each run's style
+unit.a count of zero keeps no history, which is a setting rather than a bug
+unit.a disabled action's handler is never entered
+unit.a document larger than the whole budget is kept while it is searched and says so
+unit.a document never searched is evicted before any that was
+unit.a document that no longer exists is dropped and named once
+unit.a double dash makes everything after it a file path
+unit.a doubled style suffix is stripped in full
+unit.a drag between columns follows the reading order not the rectangle
+unit.a dropped evicted or invalidated document's pages are freed off the calling thread
+unit.a file at the current version loads unchanged
+unit.a file from a NEWER build is read but never rewritten
+unit.a file older than the schema is migrated and restamped
+unit.a file path is collected in order and left exactly as written
+unit.a file that already carries two General sections is read whole
+unit.a fit clamps into the product's zoom range
+unit.a fit is computed against the PHYSICAL dpi rather than a nominal 96
+unit.a fixed-pitch CJK request prefers COVERAGE over a fixed advance
+unit.a flat outline is one level deep
+unit.a flow selection crosses a page boundary and copies in order
+unit.a fresh file is not reported as migrated
+unit.a fresh list is empty and takes its capacity from the schema
+unit.a general key set on a file that already has a General section reads back
+unit.a hand-edited file that both pins and lists a path yields one entry
+unit.a hand-edited out-of-range value is clamped at load and reported
+unit.a hand-written [general] section is honoured, and normalized on the next write
+unit.a handler that logs does not deadlock the buffer it is logging into
+unit.a highlight is one rectangle per line at the line's height
+unit.a known arrangement is used rather than the most recent
+unit.a leading slash is dropped and a hyphenated family keeps its hyphen
+unit.a ligature glyph is found by the letters it stands for
+unit.a line end hyphen before a lowercase letter is joined and a compound is not
+unit.a live id always wins over an alias of the same spelling
+unit.a live id claimed by an alias row is not renamed
+unit.a live id outranks an alias of the same spelling
+unit.a log directory that cannot be created is not fatal
+unit.a malformed date does not parse and the stored text survives
+unit.a match of no characters is never a hit
+unit.a move whose run could slide is matched at the place it took
+unit.a moved paragraph is one move and below the move length a deletion and an insertion
+unit.a moved paragraph of common words is one move
+unit.a mutation's scope re-extracts exactly the pages it names
+unit.a newer build's file is renamed in memory and never rewritten
+unit.a non-CJK language hint changes nothing
+unit.a nonsense enum value in the file falls back rather than being invented
+unit.a one-element string list survives the QSettings INI round trip
+unit.a page another owner still wants keeps its request when one lets go
+unit.a page range searches and extracts only its pages
+unit.a page the engine cannot read is reported and the rest are searched
+unit.a page with no content box falls back to the CropBox
+unit.a page's snippet is read in reading order with a break as a space
+unit.a path logged at the level a settings file selects is redacted above debug
+unit.a path no ANSI code page can represent survives the parser byte for byte
+unit.a pinned entry survives eviction and does not spend a history slot
+unit.a query takes its flags and its bound from the settings
+unit.a rect keeps positive extents under every rotation
+unit.a redacted value is hidden at info and above
+unit.a redacted value is visible at debug and below
+unit.a refined search keeps only the pages both searches found
+unit.a registered action dispatches and receives its context
+unit.a registration without a handler is rejected
+unit.a regular expression matches and the same text literally does not
+unit.a remap round-trips through the settings key family
+unit.a remap takes effect and the old meaning stops
+unit.a remap that shadows a Global chord is reported, not forbidden
+unit.a retired spelling resolves to its current action
+unit.a right-to-left line copies in logical order and keeps its digits in order
+unit.a rotated view rotates the whole layout, not only the tiles
+unit.a rotated view swaps the page's tile bounds
+unit.a rotation drops the in-flight tile of its page and re-keys the other pages' tiles
+unit.a saved shortcut for an id that no longer exists is dropped and counted
+unit.a saved shortcut for an unknown action is dropped, not fatal
+unit.a search of a document that closes under it is dropped silently
+unit.a search reports the pages whose glyphs have no Unicode and matches none of them
+unit.a search unit part the reader cannot read is reported and the rest are searched
+unit.a search unit's offsets are its own string's and a replacement glyph matches nothing
+unit.a search unit's text is matched under every flag as page text is
+unit.a search waiting for a page's units asks again for its text when the text is dropped meanwhile
+unit.a second registration is an error and the first handler survives
+unit.a selection scope searches its pages and only inside it
+unit.a session file we cannot use leaves the product startable
+unit.a session round-trips through the file field by field
+unit.a set to the current value emits nothing
+unit.a shortcut override round-trips through the family
+unit.a shortcut saved under a retired spelling loads under the current one
+unit.a shortcuts path is a family member only if both halves resolve
+unit.a snippet is five whole words either side of the hit with the hit its own field
+unit.a string in neither table resolves to nothing
+unit.a styled standard face normalizes onto its standard family
+unit.a subscriber hears every record until it unsubscribes
+unit.a subset tag is stripped and a family containing a plus is not
+unit.a symbolic request never falls through to a text face first
+unit.a toolbar saved with a retired command loads with the current one
+unit.a truncated file starts on defaults
+unit.a two word query is found across a line break and not across a block
+unit.a unit is the word the line or the block under the point
+unit.a value below the minimum clamps upward
+unit.a widget-native row resolves to no action but is still a known binding
+unit.a window already on screen is not moved by a single pixel
+unit.a window larger than the desktop is shrunk onto it
+unit.a window on a monitor that is gone comes back onto one that exists
+unit.a window straddling two adjacent screens is left alone
+unit.a window that already fits is not moved when others are clamped
+unit.a window whose title bar is off the top is brought down
+unit.a window with only a sliver on screen is pulled back
+unit.a4_probe.openssl
+unit.actionFromStringId round-trips every declared action
+unit.all seven engine interfaces are declared and named
+unit.all twelve Write-mode chords resolve to their word-processor meaning
+unit.allActions reports every declared id with its registration state
+unit.an absent Info dictionary is empty rather than an error
+unit.an absent enable predicate means always enabled
+unit.an absent file yields every declared default
+unit.an embedded file tree whose kids loop ends
+unit.an empty argument list is a plain GUI launch
+unit.an empty outline is empty rather than absent
+unit.an empty path is refused rather than pinned
+unit.an empty pattern is refused rather than matching everything
+unit.an empty topology hashes to something stable rather than crashing
+unit.an enable predicate is consulted on every dispatch, not cached
+unit.an inserted page leaves every later page matched to its counterpart
+unit.an internal key is declared but is not a Preferences row
+unit.an invalid query starts no run and asks the engine for nothing
+unit.an invalid regular expression is refused naming the pattern
+unit.an option missing its value is an error naming the option
+unit.an out-of-range value set from code is clamped too
+unit.an outline counts every node at every depth
+unit.an unimplemented backend refuses by name rather than succeeding quietly
+unit.an unimplemented sub-interface is null, not an empty stub
+unit.an unknown arrangement falls back to the most recent one
+unit.an unknown key from a newer build survives a normal rewrite
+unit.an unknown logging subsystem name is dropped, not fatal
+unit.an unknown option is reported and carries the documented exit code
+unit.an unknown string id resolves to nothing rather than to action zero
+unit.an unparseable value falls back to its default rather than guessing
+unit.an unresolved destination is a value rather than an absence
+unit.an unusable session file is replaced by the next clean quit
+unit.arithmetic stays in points
+unit.case is folded unless match case is on
+unit.chords round-trip through their canonical spelling
+unit.class 1 is exactly the six chords a context takes back from Global
+unit.class 2 is exactly the nine permitted Common overrides
+unit.clear() clears the history and keeps the pins
+unit.clearing an override removes it from the file, not just from memory
+unit.clearing empties the records and deliberately keeps the discard count
+unit.combine adds two rotations without ever producing 450 degrees
+unit.commandline.compile.arguments_list_control
+unit.commandline.compile.argv_overload
+unit.cos filters decode the DCT images at their declared size
+unit.cos filters decode the corpus filter chain to the exact source bitmap
+unit.cos filters decode the flate predictor image to the exact source bitmap
+unit.cos filters decode the two CCITT files to the same bitmap
+unit.cos filters handle the ascii85 partial group and its z shorthand
+unit.cos filters keep what a truncated flate stream produced
+unit.cos filters name an unknown filter and Crypt differently
+unit.cos filters pad an odd hex digit count rather than failing
+unit.cos filters reach OpenJPEG for the JPX image
+unit.cos filters refuse JBIG2 by name rather than returning a blank image
+unit.cos filters refuse to encode the four that are not reversible
+unit.cos filters round-trip every lossless filter
+unit.cos filters ship nine kinds and CryptFilter is not one of them
+unit.cos filters survive nonsense without crashing
+unit.cos filters undo the PNG and TIFF predictors
+unit.cos lexer clamps an out-of-range integer instead of wrapping
+unit.cos lexer consumes a stray delimiter and keeps going
+unit.cos lexer counts the notes it produced
+unit.cos lexer holds its invariants on adversarial input
+unit.cos lexer holds its invariants over the whole malformed corpus
+unit.cos lexer leaves a real outside long long alone instead of converting it
+unit.cos lexer note names are stable and complete
+unit.cos lexer pads an odd hex digit count
+unit.cos lexer peek does not consume, and does not double-count notes
+unit.cos lexer reads a decimal real as the nearest double
+unit.cos lexer reads hex strings
+unit.cos lexer reads integers and reals
+unit.cos lexer reads keywords and comments
+unit.cos lexer reads literal strings
+unit.cos lexer reads names, including the empty one
+unit.cos lexer reads the delimiters
+unit.cos lexer records the byte span of every token
+unit.cos lexer reports an unterminated string rather than failing
+unit.cos lexer seek is clamped to the buffer
+unit.cos lexer skips junk inside a hex string
+unit.cos lexer survives a null buffer and a zero length
+unit.cos lexer tolerates a bad name escape
+unit.cos lexer tolerates a doubled sign
+unit.cos lexer tolerates a number with letters in it
+unit.cos lexer tolerates a second decimal point
+unit.cos lexer treats NUL as whitespace
+unit.cos parser accepts CRLF and LF and a non-conforming lone CR after `stream`
+unit.cos parser allocates nothing for a /Length of four gigabytes
+unit.cos parser cannot reach the corpus object streams until T7 supplies Flate
+unit.cos parser carries a lexer note into its report exactly once
+unit.cos parser closes and reports an unterminated container
+unit.cos parser dictionary lookup resolves a duplicated key to the last one
+unit.cos parser distinguishes an absent key from a null one
+unit.cos parser holds its invariants on adversarial input
+unit.cos parser holds its invariants over the whole corpus
+unit.cos parser names a failed object header and leaves the position untouched
+unit.cos parser names a missing or non-integer /Length rather than guessing
+unit.cos parser note names are stable and complete
+unit.cos parser object equality is semantic and ignores spans
+unit.cos parser reads a stream and keeps its data as a span
+unit.cos parser reads an indirect object and tolerates a missing endobj
+unit.cos parser reads an indirect reference and not two integers
+unit.cos parser reads an object stream's pair table and its packed objects
+unit.cos parser reads consecutive objects and reports its position
+unit.cos parser reads each packed object only up to the next one
+unit.cos parser reads every direct object kind
+unit.cos parser reads nested containers
+unit.cos parser recovers a /Length that is too long as well as too short
+unit.cos parser recovers a stream whose /Length lies -- and the control proves the path ran
+unit.cos parser refuses 4000 levels of nesting by name rather than by stack overflow
+unit.cos parser reports an object stream offset too large to add to /First
+unit.cos parser reports an object stream with a wrong /First rather than crashing
+unit.cos parser resolves an indirect /Length when a resolver is supplied and scans when not
+unit.cos parser round-trips every object in every ordinary corpus file
+unit.cos parser runs a stream with no endstream to the end and says so
+unit.cos parser skips and reports a dictionary key that is not a name
+unit.cos parser spans reproduce the exact source spelling
+unit.cos parser survives a null buffer and a zero length
+unit.cos repair allocates nothing for a four-gigabyte length claim
+unit.cos repair declines a file with no objects at all
+unit.cos repair declines an encrypted document by name
+unit.cos repair entries name the object and the severity
+unit.cos repair leaves an undamaged file alone
+unit.cos repair never places an object number an object stream claims past the limit
+unit.cos repair patches only the bad entries when the table is mostly good
+unit.cos repair rebuilds the whole table when there is no startxref
+unit.cos repair scans object headers without being fooled by stream bytes
+unit.cos repair summarises with a catalog key and never a sentence
+unit.cos repair takes the last definition of a duplicated object
+unit.cos repair terminates on the two hang fixtures
+unit.cos repair yields a report and never a crash for every malformed file
+unit.cos serializer round-trips every object in the ordinary corpus
+unit.cos serializer spells awkward values so they parse back equal
+unit.cos writer adds a fourth generation to a three-generation file
+unit.cos writer appends a classic section after a hybrid file and keeps its packed objects
+unit.cos writer appends a rotation after a classic table
+unit.cos writer appends an xref stream after an xref stream and lifts a packed page out
+unit.cos writer gives a repaired file a complete table that opens without repair
+unit.cos writer is deterministic and changes only the second ID element
+unit.cos writer leaves every other object the same bytes at the same offset
+unit.cos writer refuses what it cannot write and produces nothing
+unit.cos writer replaces a stream and writes its true Length
+unit.cos writer's second update after a hybrid file keeps what the first update wrote
+unit.cos xref clears the spans of every value inside a packed object
+unit.cos xref declines an encrypted document by name
+unit.cos xref ends a circular Prev chain instead of hanging
+unit.cos xref finds startxref even with trailing junk
+unit.cos xref loads every ordinary corpus file
+unit.cos xref names a missing or unusable startxref
+unit.cos xref never hangs on a malformed corpus file
+unit.cos xref note names are stable and complete
+unit.cos xref notices a Size that disagrees with the table
+unit.cos xref reaches objects that only a hybrid file's XRefStm lists
+unit.cos xref reads a classic table and its trailer
+unit.cos xref reads a cross-reference stream and its packed objects
+unit.cos xref reports a wrong offset rather than returning the wrong object
+unit.cos xref table never places a classic subsection that starts past the limit
+unit.cos xref table never places an xref stream index range that starts past the limit
+unit.cos xref walks a three-generation incremental file and the newest wins
+unit.cos.compile.fuzz_entrypoint
+unit.cos.compile.fuzz_entrypoint_parser
+unit.cos.compile.fuzz_entrypoint_roundtrip
+unit.descriptive notations are rejected rather than guessed at
+unit.device and pdf conversions are inverses
+unit.diacritics are matched unless ignore diacritics is on
+unit.dispatching an unregistered id returns an Error, not a no-op
+unit.doc page clips every box to the MediaBox
+unit.doc page normalizes rotation including negative and out-of-range values
+unit.doc page resolves an absent box through the inheritance chain
+unit.doc page transposes its display size on a quarter turn
+unit.doc pagetree finds a label without confusing it with an index
+unit.doc pagetree measures widest and tallest independently
+unit.doc pagetree renumbers its pages rather than trusting them
+unit.doc revision cannot be built from a bare integer
+unit.doc revision distinguishes a default-constructed one from a real one
+unit.doc revision is monotonic and never returns to a previous value
+unit.doc scope answers page questions and rounds unknown answers outwards
+unit.doc scope defaults to nothing rather than to everything
+unit.doc scope kind names are stable and complete
+unit.doc scope merges outwards and never narrows
+unit.doc scope treats an empty set as nothing rather than as an empty something
+unit.document hydrates a copy of the backend's pages for every corpus file
+unit.document hydration of an unknown handle changes nothing
+unit.document id normalizes paths by hand and identically on every host
+unit.document id notices a changed file and not a respelled path
+unit.document rotation changes the model and not the backend
+unit.dump-ui-strings is a flag and composes with lang
+unit.each content class is found only with its switch on and in document order
+unit.enums are persisted by name, not by number
+unit.every Commands.def row round-trips through CommandRegistry
+unit.every KeyContext value has a name, and the count matches the Features key-binding tables
+unit.every Stage 2 key round-trips through a real settings file
+unit.every candidate list is non-empty and ends with the last resort
+unit.every command name is a catalog key present in both shipped locales
+unit.every declared action has a string id, a label key and a default context
+unit.every declared action's default context is a real context
+unit.every declared key has a unique path and a real group
+unit.every documented chord is in the store, in its own context
+unit.every fit mode has a stable name
+unit.every restored window is clamped onto a desktop that exists
+unit.every stored default is documented, with no invented bindings
+unit.every type round-trips through a real file
+unit.every unit round-trips
+unit.filtered records evaluate none of their arguments
+unit.fitRect measures the crop box and the content box and never the sheet
+unit.font identity says bold and italic from weight then flags then the standard name
+unit.formatting carries the unit symbol
+unit.fuzz.roundtrip_seeds
+unit.glyphs with no Unicode are matched by nothing
+unit.guides survive a capture, a save and a restore
+unit.help is a kind of intent, not an error
+unit.inside a selection only hits inside it are found
+unit.journal folds a nested group into the outer one and records nothing for an empty group
+unit.journal is clean after rotate save rotate undo although the revision rose
+unit.journal leaves no trace of a command that refuses or is refused
+unit.journal reports a command that changed the document and returned false
+unit.journal runs undoes and redoes the newest step
+unit.journal saved position becomes unreachable when redo past it is discarded
+unit.journal tells subscribers once per operation and nothing after unsubscribing
+unit.journal undo with nothing to undo changes nothing
+unit.journal undoes a group of twelve rotations as one step
+unit.lang takes its value as a separate argument or after an equals sign
+unit.layout finds a ruled table and an aligned one and not aligned prose
+unit.layout is deterministic under a shuffled model and passes no tag tree
+unit.layout keeps a jittered baseline and a superscript in one line
+unit.layout reads a column longer than its neighbour whole before the next column
+unit.layout reads vertical CJK top to bottom and its columns right to left
+unit.layout reorders a right-to-left line into logical order
+unit.layout separates two columns at a 12 pt gutter and not at a 2 pt gap
+unit.layout survives hostile geometry within its bounds
+unit.list-actions is a flag the parser recognises
+unit.lowering the count in Preferences takes effect without a restart
+unit.matching runs on its own worker and a newer query cancels the older
+unit.mutation sink computes against the newest revision after a save
+unit.mutation sink declines an encrypted document by name
+unit.mutation sink is the core MutationSink
+unit.mutation sink lifts a packed page out of its object stream
+unit.mutation sink normalizes rotations and refuses impossible ones without trace
+unit.mutation sink refuses to adopt a file with a different page count
+unit.mutation sink rotating one kid changes no other object
+unit.mutation sink writes an inherited rotation on the page and only there
+unit.mutation sink writes nothing for a rotation undone before a save
+unit.normalizer drops unmapped glyphs and collapses whitespace
+unit.normalizer finds a ligature both ways
+unit.normalizer folds case and says what simple folding does not do
+unit.normalizer joins a line-final hyphen before a lowercase letter and nothing else
+unit.normalizer maps a hit back to whole glyphs
+unit.normalizer matches precomposed and decomposed accents as D5-5 says
+unit.notImplementedError names the interface and carries a catalog key
+unit.nothing is dropped when every document is still there
+unit.nothing is unresolved when every destination resolves
+unit.noting an already-pinned path leaves it pinned
+unit.noting puts the most recent first and never duplicates
+unit.object allocator does not trust a Size smaller than the objects present
+unit.object allocator never allocates object zero
+unit.object allocator never reuses a free-list entry below Size
+unit.object allocator starts at the file's own Size
+unit.one older file reached through other separators or capitals is one key
+unit.only Global and Common are layers
+unit.page geometry can be built from user-facing units
+unit.page rotation normalizes as the engine does
+unit.page rotation writes the page's own dictionary and drops a Rotate it would inherit
+unit.page walk finds every page in order and ignores Count
+unit.page walk reads every ordinary file cleanly and ends on every malformed one
+unit.page walk resolves own and inherited rotation
+unit.page walk terminates on a page tree that loops
+unit.pageDisplay/snapshotDpi is one sentinel and a clamped resolution
+unit.parsing accepts a suffix, a space, or neither
+unit.parsing refuses garbage rather than guessing
+unit.permissions allow editing when both readers agree
+unit.permissions do not compare a size the file never stated
+unit.permissions name the page a disagreement is on
+unit.permissions refuse by name where this build cannot write
+unit.permissions refuse until assessed
+unit.records reach the sink with subsystem and level
+unit.recovery degrades to memory once when its directory cannot be written and editing goes on
+unit.recovery gives two journals of one file their own directories and offers only the one whose owner is gone
+unit.recovery journal records every operation and replays the document and its undo history
+unit.recovery journal truncates its lines on save and names the saved file
+unit.recovery keeps an untitled document untitled in its meta until it is saved
+unit.recovery never opens a journal in a directory that is already on disk
+unit.recovery offers a changed source as a new file and a rotation of a missing page stops there
+unit.recovery refuses to replay into a journal that is itself recording
+unit.recovery replay abandons a group that fails part-way and keeps the group before it
+unit.recovery replay drops an unterminated trailing group and reports it
+unit.recovery replay ignores and reports a torn trailing line
+unit.recovery replay stops at a malformed step and keeps the steps before it
+unit.recovery replays an undo after a save as the command's revert
+unit.recovery survives hostile journals and meta files
+unit.rect containment respects each axis direction
+unit.reflow joins a line-final hyphen before a lowercase letter and nowhere else
+unit.reflow reads two columns as the analyzer does, not across
+unit.reflow shows no unmapped glyph and counts what it left out
+unit.reflow writes each block as one paragraph in reading order
+unit.remapping onto a widget-native chord is refused
+unit.remove takes an entry out whether it was pinned or not
+unit.render cache evicts least-recently-used under its cap
+unit.render cache hits, misses and refuses what cannot fit
+unit.render cache invalidation drops the scope and re-keys the rest
+unit.render cache measures what open decision O7 is waiting for
+unit.render cache's disk tier is the same interface and honours its own cap
+unit.render cache's disk tier refuses rather than pretends when unusable
+unit.render dpipolicy answers the same going up as coming down
+unit.render dpipolicy never returns an unusable resolution
+unit.render dpipolicy resolves Actual Size at the monitor's physical DPI
+unit.render dpipolicy survives both zoom extremes
+unit.render presentation gives every column the widest page's width
+unit.render presentation lays out at the PRESENTED scale
+unit.render presentation lays the four modes out in document order
+unit.render presentation maps a point both ways and back
+unit.render presentation reports the slots a viewport touches
+unit.render presentation shifts every pair's parity for a cover page
+unit.render presentation's RTL binding swaps the spread, not the order
+unit.render request carries no pointer, so its key is by value
+unit.render request equality covers every field that changes the pixels
+unit.render request hashes in agreement with its equality
+unit.render request refuses to be valid without a real revision
+unit.render scheduler DELIVERS a failed extraction rather than dropping it
+unit.render scheduler WAKES for a tile it served from the cache
+unit.render scheduler bounds its queue by dropping the most speculative work
+unit.render scheduler coalesces duplicate requests into one rasterization
+unit.render scheduler counts a job started while a more urgent one waited and only then
+unit.render scheduler delivers a bypassing tile without looking it up or keeping it
+unit.render scheduler delivers on the pumping thread and nowhere else
+unit.render scheduler drops a superseded result rather than caching it
+unit.render scheduler extracts text on its worker and delivers it on the pumping thread
+unit.render scheduler forgets a FINISHED tile of a document that was cancelled
+unit.render scheduler gives each worker its own rasterizer
+unit.render scheduler is not idle until the wake handler has returned
+unit.render scheduler keeps text out of the tile cache and out of supersession
+unit.render scheduler never enters the extractor for a cancelled text job
+unit.render scheduler never runs a cancelled engine task and forgets a closed document's
+unit.render scheduler never starts a cancelled request
+unit.render scheduler raises a background text job a visible ask joins
+unit.render scheduler refuses a request that could never be a cache key
+unit.render scheduler refuses an invalid text request by ticket
+unit.render scheduler reports a failed tile rather than delivering an empty one
+unit.render scheduler runs a visible tile before background text queued ahead of it
+unit.render scheduler runs an engine task on its worker and reports it on the pumping thread
+unit.render scheduler runs visible work before prefetched work
+unit.render scheduler serves a cached tile without rasterizing it
+unit.render scheduler starts an exclusive task only when nothing of its document runs
+unit.render scheduler survives being destroyed with work in flight
+unit.render tilegrid covers the page exactly, partial tiles included
+unit.render tilegrid does not enumerate the page at extreme zoom
+unit.render tilegrid evicts exactly what left both sets
+unit.render tilegrid returns only the tiles the viewport touches
+unit.render tilegrid sanitizes a nonsense configuration
+unit.render tilegrid tiles the RASTER size, not the presented one
+unit.render tilegrid's prefetch ring is disjoint from its visible set
+unit.reset and isAtDefault agree with the declared default
+unit.resolution is innermost, then Common, then Global
+unit.restoring from a state that was never loaded gives nothing rather than crashing
+unit.results sort by relevance by page and by file each differently
+unit.reversibility harness fails a command whose revert lies
+unit.reversibility of every registered command over every editable corpus file
+unit.rotateBy is correct for negative turns, which is the half that is easy to get wrong
+unit.rotation swaps the device extent
+unit.roundtrip I-12 a number the file references and never defines is not given to a new object
+unit.roundtrip I-12 a page that is also an object stream keeps the objects packed inside it
+unit.roundtrip I-12 an object numbered 0 is never recovered
+unit.roundtrip I-12 an object that runs to the end of the file keeps its meaning after the update
+unit.roundtrip I-17 a second save of a hybrid file keeps what the first save wrote
+unit.roundtrip I-23 a damaged object stream is read in time linear in its payload
+unit.roundtrip Save As moves the document to the new file and leaves the original alone
+unit.roundtrip Save As of an unchanged document is a byte-identical copy
+unit.roundtrip chains three saves and an undo after a save writes the page back
+unit.roundtrip fuzz body holds its invariants over every corpus file
+unit.roundtrip fuzz body reports each planted fault by the invariant it breaks
+unit.roundtrip never appends to a file changed on disk since it was opened
+unit.roundtrip never replaces the target with a file its own reader rejects
+unit.roundtrip over every editable corpus file saves the rotation and keeps the opened bytes
+unit.save coordinator keeps the journal dirty when the backend cannot adopt the saved file
+unit.save coordinator leaves the target and the journal alone when a step fails
+unit.save coordinator names its temporary file beside the target and by its writer
+unit.save coordinator refuses without durable files and without changes
+unit.save coordinator removes a dead writer's temporary file and keeps a live one
+unit.save coordinator sends a file changed on disk to Save-As
+unit.save coordinator sends a repaired document to Save-As
+unit.scale combines dpi and zoom
+unit.search survives hostile geometry within its bounds
+unit.search units are read once per part on the engine thread and only for the classes asked
+unit.search_settings.restart
+unit.seeing an arrangement again moves it rather than duplicating it
+unit.selection survives hostile geometry within its bounds
+unit.serif and sans requests differ in their first choice
+unit.settings.compile.declared_key_control
+unit.settings.compile.string_key
+unit.settings.compile.undeclared_key
+unit.settings.compile.wrong_type
+unit.shadows() reports class 1 and never class 2
+unit.string ids are unique
+unit.string ids look like a persisted public name
+unit.subsystem and level names are stable
+unit.symbolic beats fixed pitch, and fixed pitch beats serif
+unit.text model builds its string with and without the generated whitespace
+unit.text model deduplicates fonts and refuses an index outside its table
+unit.text model has no extractable text when every shown glyph is unmapped
+unit.text model stores an unmapped glyph as U+FFFD whatever it arrived as
+unit.the Features key-binding tables parse without an unexplained row
+unit.the HTML joins a line-final hyphen before a lowercase letter and nowhere else
+unit.the PDF version is not an Info field and is empty when unknown
+unit.the Stage 3 keys default to the default root and to explaining
+unit.the Stage 3 keys round-trip through a real settings file
+unit.the alias macro builds a table whose size matches its rows
+unit.the alias table is well formed and never shadows a live id
+unit.the arrangement store is bounded and evicts the least recently seen
+unit.the arrow glyphs the document uses map to spelled names
+unit.the block at the top of a page view is read along the screen's down, not the page's
+unit.the block at the top of a page view is the first not wholly above it
+unit.the bound keeps the first hits in document order and says it was reached
+unit.the budget evicts whole documents least recently searched first
+unit.the buffer keeps the last N records and counts what fell off
+unit.the candidate list depends on the request's attributes and not on its name
+unit.the catalog key is exactly 'action.' + the string id
+unit.the census reports exactly twelve Write-mode collisions, split 8 + 4 + 0
+unit.the change carries the key's group
+unit.the class-1 chords each mean the right thing in each context
+unit.the comma form and the PostScript suffixes are stripped
+unit.the compare memory keeps the most recent pairs and records no pair of one file
+unit.the compare memory offers each older file the newer one it was last compared against
+unit.the defining ratios are exact
+unit.the descriptor table is indexed by its own enum value
+unit.the destination table finds by exact name and counts what did not resolve
+unit.the diagnostic switches are recognised rather than treated as unknown
+unit.the diff stops at its cap and not before
+unit.the embedded files of search-classes are read with their names and descriptions in tree order
+unit.the empty subsystem set is a value, not an absence
+unit.the entry goes with its last handle and a leaving handle's requests are re-sent
+unit.the export is UTF-8 CSV with a byte order mark and RFC 4180 quoting
+unit.the fingerprint changes when the arrangement does
+unit.the fingerprint ignores what platform.h says is not identity
+unit.the fingerprint is blind to the order monitors were enumerated in
+unit.the five standard families are declined and their look-alikes are not
+unit.the four Han regions get four different first choices
+unit.the four comparison keys are Documents rows that report every change by default
+unit.the four defaults that used to live in C++ now live in the table
+unit.the grid snaps to its finest line, measured from its origin
+unit.the history is bounded by documents/recentCount
+unit.the index budget's default is the search index setting's default
+unit.the index holds only what was asked for until a search asks for the rest
+unit.the list survives a restart, pins and order included
+unit.the log file opens, writes, and retains only the newest files
+unit.the log file writes the same line shape the console sink does
+unit.the logging keys decode into the values core/Log.h consumes
+unit.the metadata filter keeps exactly the files whose Info says so
+unit.the migration chain runs in order and only over the versions it spans
+unit.the next unit walks all five in order and wraps
+unit.the parser does not accept something merely date-shaped
+unit.the per-context row counts are reported and non-trivial
+unit.the ranged Stage 2 keys clamp rather than refuse
+unit.the recovery root is the setting when it is absolute, then the composition's, then the default
+unit.the run makes the pages' readings on its own thread, before it compares
+unit.the run works on its own thread and delivers on the pump
+unit.the running header is found over both documents and ignored only when asked
+unit.the same document reached two ways is one entry
+unit.the script subtag wins over the region, and a bare zh is Simplified
+unit.the search keys default to finding what was typed
+unit.the search keys read back from a copy of the file
+unit.the second search extracts nothing and normalizes nothing
+unit.the shipped wrappers agree with the algorithm over the shipped tables
+unit.the sixteen Stage 2 keys are declared, in the two groups the plan names
+unit.the snap precedence is object then guide then grid
+unit.the snap threshold is the same number of SCREEN pixels at 50 and at 400 per cent
+unit.the ten Stage 5 search keys are the whole Search group
+unit.the text pipeline fuzz body holds its invariants on adversarial bytes
+unit.the three fits give three different zooms
+unit.the threshold filters lower levels out
+unit.the twelve Stage 1 keys are all declared
+unit.the two Stage 3 keys are declared in the Documents group and only Stage 5's four joined it
+unit.the two enums are stored as their own names, not as numbers
+unit.the y axis flips between the two spaces
+unit.two handles over one file share one entry and extract nothing twice
+unit.two renames deep, both old spellings still resolve
+unit.two view rotations of one tile are different cache entries
+unit.unpinning returns the entry to the history rather than dropping it
+unit.unregistered and disabled are distinct error codes
+unit.valueOr yields the fallback without touching the error
+unit.when two keys land on one current path the newer spelling wins
+unit.whole words applies to a regular expression too
+unit.whole words finds lore alone and not inside lorem
+unit.with an EMPTY alias table a retired spelling resolves to nothing
+unit.with no screens at all nothing is moved
+unit.without its alias row a retired shortcut is dropped as stale
+unit.zoomToFit refuses nonsense rather than propagating it

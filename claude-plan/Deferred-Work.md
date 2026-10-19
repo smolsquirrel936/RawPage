@@ -36,6 +36,7 @@ takes it.
 | **DW-1** | **Substitute page colours** — the second half of `Features.md` §1.2's *"invert / substitute page colors for high-contrast reading"* | `Stage4-ViewingSurface-Testing-Guide.md` §8 **I-07** (S4), Stage 4 T8, 2026-09-21 | ⚪ **Deferred** by the user, 2026-09-27 | **Unassigned** — no stage's plan names it |
 | **DW-2** | **A vector snapshot** — `Features.md` §8's `S` (*"copy a dragged region as an image"*) as a vector metafile that stays sharp when scaled, rather than a bitmap | `Stage5-TextSearch-Plan.md` §0 **Q3** and **D5-10**, written 2026-09-29 before any Stage 5 code | ⚪ **Deferred** by the user, 2026-09-29 (option B of three) | **Unassigned** — no stage's plan names it |
 | **DW-3** | **Typed comments in scripts outside WinAnsi and the four CJK collections** — `Features.md` §4.1's text box, callout, typewriter and dynamic stamp showing Cyrillic, Greek, Hebrew, Arabic, Thai, Devanagari and every other script a font must be embedded for | `Stage6-Annotations-Plan.md` §0 **Q3** and **D6-7**, written 2026-10-04 before any Stage 6 code | ⚪ **Deferred** by the user, 2026-10-04 (Q3 approved as proposed) | **Unassigned** — no stage's plan names it |
+| **DW-4** | **An annotation burst inside A2's frame budget** -- `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*, which neither T4's bench nor T15's product reading met | `Stage6-Annotations-Plan.md` **D6-24**, Stage 6 T4 (2026-10-05) and T15 (guide **A-104**), 2026-10-20 | ⚪ **Deferred** by the user, 2026-10-20 (the first of three options) | **Unassigned** -- no stage's plan names it |
 
 ---
 
@@ -151,5 +152,53 @@ record the gap here (`Stage6-Annotations-Plan.md` D6-7).
 **What is absent:** a font subsetter; a policy for choosing a system face per script and checking its
 embedding permission (`OS/2.fsType`); `/ToUnicode` generation for an embedded subset; and any measurement
 of how Acrobat and Firefox draw a subset RawPage embeds. The stage that takes this decides.
+
+**Taken by:** —
+
+---
+
+### DW-4 · An annotation burst inside A2's frame budget
+
+**The capability.** `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*: while annotation edits
+arrive -- one every 100 ms for 30 s on page 450 of `pages-900.pdf` -- the scrolled viewport's p95 queued latency
+inside **16.667 ms**, and an edit's time to the pixels **≤ 100 ms** at p95 and **≤ 250 ms** at most. Not a
+`Features.md` line: a performance bound on every annotation tool (`Tech-Stack-Plan.md` §3.3, *A2 at Stage 6*).
+
+**Why it was deferred.** *A2 at Stage 6* was measured twice, by `Stage6-Annotations-Plan.md` D6-24. At T4
+(`bench_pipeline --stage6`) the user chose **`go, with named custom work`** and the work was built in the task -- an
+annotation edit drops only the tiles its rectangle reaches, and a revision re-keys every tile it does not reach
+(guide **I-06**) -- and the figures were still outside §3.1. At T15 the figure was re-read through the shipped
+surfaces (`bench_surface --stage6`, guide **A-104**: the real pencil drawing in one pane of a split window while the
+other scrolls) and through T4's bench with §3.1's real edit, an ink stroke of 200 samples. **Both are still outside
+§3.1.** Offered on 2026-10-20 a choice of recording it, building a compose that stops growing with the unsaved
+annotations inside T15, or re-grading the verdict as `no-go` (which changes D6-2 to a mirror that T4 measured would
+share both costs), **the user chose to keep the verdict, record the figures, and defer the rest here.**
+
+**What exists today** (measured 2026-10-20, Stage 6 T15):
+
+- **The product's figure** (`rawpage_bench_surface --stage6`, nine 30-second runs in three sets, offscreen, 288 dpi
+  over a 1920x1080 viewport divided between the two panes): the scrolling pane's Visible p95 **21.9-29.4 ms**
+  against **1.38-1.61 ms** with nothing drawn; edit-to-pixels p95 **201-505 ms**, max **0.87-4.2 s**; the release --
+  the stroke made and its command run on the UI thread -- p95 **88-143 ms**; 300 strokes and 300 commands a run. The
+  first set read faster than the other two (release p95 88-90 against 135-143 ms) and the machine, not the code, moved:
+  the bench's viewer-alone column, which runs no annotation code, read 20-28 % slower in the later session too.
+- **The bench's figure** (`rawpage_bench_pipeline --stage6`, four runs over two sessions, the edit an ink stroke of
+  200 samples): viewport p95 **107-273 ms** on the three files against **9.2-16.8 ms** with no edits; edit-to-pixels
+  p95 **307-414 ms**, max **353-526 ms**; `journal.run` p95 **90-133 ms** (compose and verify, the verify alone p95
+  41-43 ms on the 900-page files in the first session); the reload p95 **2.2-3.0 ms**; a tile of the edited page p95
+  **50-70 ms**, 11.8 s of the engine's 30; the path geometry of a page p95 **0.11-0.30 ms** (these pages hold no
+  paths).
+- **Two causes, measured, neither one the reload:** (1) **a tile of a page carrying hundreds of annotations
+  costs ~50 ms by itself** -- PDFium draws every annotation of the page into every tile it renders -- so the
+  scrolled pane's tiles queue behind the edited page's; (2) **the journal's show step composes and verifies the
+  whole update on the UI thread on every edit**, re-serializing every unsaved annotation and re-reading the
+  file, so `journal.run` grows with the unsaved annotations (p95 88-143 ms by 300 strokes, over both sessions) and the pump waits
+  behind it.
+- **Manual case M-12** (`Stage6-Annotations-Testing-Guide.md` §6) is a person's judgement of twenty strokes and
+  a scroll on the same file; not walked on this date.
+
+**What is absent:** a show step whose cost does not grow with the unsaved annotations; a re-render of an
+annotated page whose per-tile cost does not grow with the page's annotations; and a figure for a person's rate
+of drawing rather than §3.1's burst. The stage that takes this decides how.
 
 **Taken by:** —

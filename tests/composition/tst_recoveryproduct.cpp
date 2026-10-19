@@ -18,6 +18,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "tests/platform/killprobe/AnnotationSteps.h"
+
 #include "app/CompositionRoot.h"
 #include "app/RecoveryPrompt.h"
 #include "core/cmd/ActionRegistry.h"
@@ -28,11 +30,13 @@
 #include "core/doc/PageTree.h"
 #include "platform/platform.h"
 #include "ui/dialogs/RecoveryDialog.h"
+#include "ui/dialogs/UnsavedChangesDialog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/MessageBar.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -206,4 +210,91 @@ TEST_CASE("the product's composition offers and replays a journal the killed pro
     window.reset();
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     root.reset();
+}
+
+// =====================================================================================================
+// Stage 6 guide A-107, its last clause: NO RECOVERY IS OFFERED FOR A SESSION THAT ENDED CLEANLY (Stage 6 T15)
+// =====================================================================================================
+// The kill half is `tests/platform/tst_recoverykill.cpp`'s, twenty kills over the annotation cycle. This is the
+// other side, through the product's own close: two documents annotated by the same cycle -- a side file among
+// the steps (D6-23) -- the window closed, one answered SAVE and one DON'T SAVE, and the root asked afterwards.
+// The answers are the dialog's twin (convention 16), as `tst_restore`'s A-76 answers it.
+
+TEST_CASE("a session whose annotations end in a save or a discard leaves nothing to offer", "[recoveryproduct][A-107]")
+{
+    struct CloseReset {
+        ~CloseReset() { ui::UnsavedChangesDialog::setAnswerForTesting({}); }
+    } closeReset;
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    const QString saved = QDir(scratch.path()).filePath(QStringLiteral("saved.pdf"));
+    const QString discarded = QDir(scratch.path()).filePath(QStringLiteral("discarded.pdf"));
+    for (const QString& copy : {saved, discarded}) {
+        REQUIRE(QFile::copy(corpusFile("ordinary/text-a4.pdf"), copy));
+        QFile::setPermissions(copy, QFile::ReadOwner | QFile::WriteOwner);
+    }
+    const auto shaOf = [](const QString& path) {
+        QFile file(path);
+        REQUIRE(file.open(QIODevice::ReadOnly));
+        return QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256).toHex().toStdString();
+    };
+    const std::string savedBefore = shaOf(saved);
+    const std::string discardedBefore = shaOf(discarded);
+    const QString recoveryRoot = QDir(scratch.path()).filePath(QStringLiteral("recovery"));
+
+    app::CompositionRoot::Options options;
+    options.settingsPath = QDir(scratch.path()).filePath(QStringLiteral("settings.ini"));
+    options.sessionPath = QDir(scratch.path()).filePath(QStringLiteral("session.json"));
+    options.recoveryRoot = recoveryRoot;
+    auto root = std::make_unique<app::CompositionRoot>(std::move(options));
+    auto window = std::make_unique<ui::MainWindow>(root->services());
+    window->resize(1000, 800);
+    window->show();
+    QCoreApplication::processEvents();
+    window->openFiles({saved, discarded});
+    REQUIRE(window->documentCount() == 2);
+
+    // FIVE STEPS EACH, THROUGH THE DOCUMENT'S OWN JOURNAL -- its show step and its recorder the product's.
+    std::vector<QString> directories;
+    for (int index = 0; index < 2; ++index) {
+        ui::DocumentWindow* document = window->documentAt(index);
+        REQUIRE(document != nullptr);
+        REQUIRE(document->journal() != nullptr);
+        REQUIRE(document->recovery() != nullptr);
+        for (int k = 1; k <= tests::killsteps::kCycle; ++k)
+            REQUIRE(document->journal()->run(tests::killsteps::step(k, document->journal()->document())));
+        CHECK(document->isDirty());
+        const QDir directory(document->recovery()->directory());
+        REQUIRE(directory.exists());
+        CHECK(directory.entryList(QStringList{QStringLiteral("*.side")}, QDir::Files).size() == 1);   // step 5's payload
+        directories.push_back(directory.absolutePath());
+    }
+    // Live, so never offered -- the lock is held.
+    CHECK(core::RecoveryJournal::discover(recoveryRoot).empty());
+
+    // THE CLOSE: the window's, which asks once per unsaved document.
+    std::vector<QString> asked;
+    ui::UnsavedChangesDialog::setAnswerForTesting([&asked](const QString& name) {
+        asked.push_back(name);
+        return std::optional<ui::CloseDisposition>(name.startsWith(QStringLiteral("saved")) ? ui::CloseDisposition::Save
+                                                                                            : ui::CloseDisposition::Discard);
+    });
+    REQUIRE(window->close());
+    QCoreApplication::processEvents();
+    CHECK(asked.size() == 2);
+    window.reset();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    root.reset();
+
+    // NOTHING TO OFFER, and no directory left behind -- the saved session's and the discarded one's alike.
+    for (const QString& directory : directories) {
+        INFO(directory.toStdString());
+        CHECK_FALSE(QDir(directory).exists());
+    }
+    CHECK(core::RecoveryJournal::discover(recoveryRoot).empty());
+    // And the files say which answer each got: the saved one changed, the discarded one byte-identical.
+    CHECK(shaOf(saved) != savedBefore);
+    CHECK(shaOf(discarded) == discardedBefore);
+    std::cout << "A-107: two annotated sessions closed -- one saved, one discarded -- left "
+              << core::RecoveryJournal::discover(recoveryRoot).size() << " journal(s) to offer\n";
 }

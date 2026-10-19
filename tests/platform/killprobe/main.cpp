@@ -11,6 +11,11 @@
 //   rawpage_killprobe saves <document> <dwell ms>
 //       Opens <document> and saves a rotation of page 1 through SaveCoordinator and the REAL
 //       WinDurableFiles, forever.
+//   rawpage_killprobe annotations <document> <recovery root> <dwell ms>
+//       `commands`, but each step is the annotation cycle of `AnnotationSteps.h` -- an ink, a highlight, a
+//       move, a delete and a 200 KiB attachment, the last a SIDE FILE (D6-23). Stage 6 T15, guide A-107.
+//   rawpage_killprobe annotsaves <document> <dwell ms>
+//       `saves`, but each save follows one step of that cycle. Stage 6 T15, guide A-107.
 //
 // THE PROTOCOL, one line per event on stdout, each flushed before the step it announces:
 //   ready <pid>
@@ -22,6 +27,7 @@
 // an SSD, and twenty kills at random would almost never land in them. So the TEST-ONLY phase observers
 // sleep <dwell ms> at those phases. The product code is unchanged; the sleep holds a real phase open.
 
+#include "tests/platform/killprobe/AnnotationSteps.h"
 #include "tests/unit/CosBackend.h"
 
 #include "core/cmd/CommandJournal.h"
@@ -87,7 +93,14 @@ int main(int argc, char** argv)
     core::CommandJournal journal(std::move(document), backend.mutationSink(handle.value()));
     const int pages = journal.document().pages().count();
 
-    if (mode == QLatin1String("commands") && args.size() >= 5) {
+    const bool annotating = mode == QLatin1String("annotations") || mode == QLatin1String("annotsaves");
+    // Step `k` of what this mode edits: a rotation, or the annotation cycle (A-107).
+    const auto stepFor = [&](int k, int rotatePage) -> std::unique_ptr<core::Command> {
+        if (annotating) return tests::killsteps::step(k, journal.document());
+        return std::make_unique<core::RotatePageCommand>(rotatePage, 90);
+    };
+
+    if ((mode == QLatin1String("commands") || mode == QLatin1String("annotations")) && args.size() >= 5) {
         const int dwellMs = args.at(4).toInt();
         auto recovery = core::RecoveryJournal::open(args.at(3), documentPath, journal.document().id(), &durableFiles);
         if (!recovery->isRecoverable())
@@ -111,14 +124,14 @@ int main(int argc, char** argv)
         say("ready " + std::to_string(QCoreApplication::applicationPid()));
         for (current = 1; current < 1000000; ++current) {
             say("apply " + std::to_string(current));
-            if (!journal.run(std::make_unique<core::RotatePageCommand>(current % pages, 90)))
+            if (!journal.run(stepFor(current, current % pages)))
                 return 5;
             say("ack " + std::to_string(current));
         }
         return 0;
     }
 
-    if (mode == QLatin1String("saves")) {
+    if (mode == QLatin1String("saves") || mode == QLatin1String("annotsaves")) {
         const int dwellMs = args.at(3).toInt();
         core::SaveCoordinator coordinator(backend, &durableFiles);
         core::SaveCoordinator::setPhaseObserverForTesting([dwellMs](core::SaveCoordinator::Phase phase, const QString& temporary) {
@@ -140,7 +153,7 @@ int main(int argc, char** argv)
         });
         say("ready " + std::to_string(QCoreApplication::applicationPid()));
         for (current = 1; current < 1000000; ++current) {
-            if (!journal.run(std::make_unique<core::RotatePageCommand>(0, 90)))
+            if (!journal.run(stepFor(current, 0)))
                 return 5;
             auto saved = coordinator.save(journal, documentPath);
             if (!saved || saved.value().kind != core::SaveOutcome::Kind::Saved)

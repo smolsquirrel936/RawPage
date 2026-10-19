@@ -87,12 +87,47 @@
 //     whose machine runs it.
 //   * T3 also counted priority inversions and the longest piece; those need the job stamps only the
 //     pipeline bench owns, and are T3's and T9's figures, not re-measured here.
+//
+// ---------------------------------------------------------------------------------------------
+// A2 AT STAGE 6, RE-READ THROUGH THE SHIPPED SURFACES -- Stage 6 T15, decision D6-24; guide case
+// A-104 (`Stage6-Annotations-Testing-Guide.md` §5.18), graded on that guide's §3.1
+// ---------------------------------------------------------------------------------------------
+// T4 measured Stage 6's workload with `bench_pipeline --stage6` BEFORE any tool existed: it constructed each
+// `AddAnnotationCommand` itself and asked for the tiles itself. This is the second reading. `--stage6` runs
+// two columns over `pages-900.pdf` in a window split in two (`SplitViewContainer::Mode::Horizontal`, the
+// scroll NOT synchronized -- what a person drawing in one pane and reading in the other has):
+//   * **annotation viewer**: the top pane parked on page 450, the bottom pane scrolled a screen a round at
+//     D4-16's pace. Nothing is drawn. It is the control.
+//   * **+ pencil**: the same, and every 100 ms a STROKE in the top pane -- the pencil armed by its own
+//     command (`annot.pencil`, with `annot.keepToolSelected` so it stays armed), a press, 199 moves a pixel
+//     apart along a wave and a release, sent to the pane's viewport as a person's mouse would send them. The
+//     release is the shipped `InkTool` making ONE `Ink` annotation of ~200 samples through the overlay and
+//     the journal, whose show step composes, verifies and queues the reload (D6-2); `PageView` asks for the
+//     page again; and every tile is the product's, at the lane the product chose. Nothing here enqueues.
+//
+// **What is graded is split by PANE**, which the latency probe alone cannot do: the scheduler calls the
+// probe and then, for the SAME tile, every ready subscriber, so a subscriber of this file's reads the
+// probe's last figure and files it under the tile's page. Page 450 is the drawing pane's; every other page
+// is the scrolling pane's, which never reaches page 450 in a run. The SCROLLING pane's Visible p95 is §3.1's
+// viewport figure -- T4's quantity -- and both panes together are printed beside it.
+//
+// **Edit-to-pixels** is from the release RETURNING (the command run, its compose and verify inside it) to
+// the delivery of a page-450 tile at the edit's revision or later, at the drawing pane's scale, that covers
+// the stroke and whose pixels CHANGED from that tile's previous delivery (rule 1). An edit no such tile ever
+// reached is counted and printed.
+//
+// Its bounds, beside the ones above: one pencil, not every tool -- the pencil is §3.1's edit; the release's
+// time includes the overlay's own work beside the journal's, which `bench_pipeline` does not have; the moves
+// are sent back to back, so the stroke takes a few milliseconds where a hand takes most of a second, which
+// puts the strokes closer together than a person's -- an upper bound on the rate, as §3.1's burst is.
 
 #include "app/Application.h"
 #include "app/CompositionRoot.h"
 
 #include "core/Log.h"
 #include "core/cmd/ActionId.h"
+#include "core/cmd/ActionRegistry.h"
+#include "core/cmd/CommandJournal.h"
 #include "core/render/RenderCache.h"
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
@@ -112,6 +147,7 @@
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/SplitViewContainer.h"
 #include "ui/viewer/TilePresenter.h"
+#include "ui/viewer/ToolController.h"
 #include "ui/viewer/ViewportController.h"
 #include "ui/write/FindReplaceBar.h"
 
@@ -131,12 +167,15 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -277,6 +316,10 @@ struct Column {
     const char* document = "ordinary/pages-900.pdf";
     TextWork work = TextWork::None;
     bool stage5 = false;
+    // Stage 6 T15 (D6-24, guide A-104): the split's top pane on page 450, the bottom pane scrolling; `pencil`
+    // draws a stroke in the top pane every 100 ms.
+    bool stage6 = false;
+    bool pencil = false;
 };
 
 // The longest a Stage 5 column scrolls waiting for its work to finish, in rounds: two minutes at
@@ -303,6 +346,219 @@ struct Pooled {
     int busyRounds = 0;
     std::vector<std::pair<int, double>> byRound;   // the text viewer's: its control for the others
 };
+
+// ---------------------------------------------------------------------------------------------
+// STAGE 6 (T15, guide A-104): THE SPLIT, ONE PANE DRAWN IN AND ONE SCROLLED
+// ---------------------------------------------------------------------------------------------
+constexpr int kStage6Page = 449;          // the guide's page 450, 0-based
+constexpr int kStage6PeriodMs = 100;      // one stroke every 100 ms (§3.1)
+constexpr int kStrokeMoves = 199;         // a press, 199 moves a logical pixel apart and a release: ~200 samples
+constexpr int kStrokeAdvance = 210;       // logical pixels between two strokes' starts in a row
+constexpr int kStrokeRow = 24;            // and between two rows
+
+struct Stage6Run {
+    std::vector<double> scroll;       // the SCROLLING pane's Visible tiles -- §3.1's viewport figure
+    std::vector<double> scope;        // the drawing pane's (page 450) Visible tiles
+    std::vector<double> all;          // both
+    std::vector<double> toPixels;     // edit -> pixels
+    std::vector<double> releaseMs;    // the release's whole handling: the stroke made, its command run
+    int strokes = 0;
+    int made = 0;
+    long long unseen = 0;             // an edit no changed tile ever covered
+    long long unchanged = 0;          // a page-450 tile delivered over an edit with the pixels it had before
+    double longestStallMs = 0.0;      // the UI thread's longest gap between two event-loop slices
+    int stallsOverBudget = 0;
+    int rounds = 0;
+    std::string refused;              // why the column could not be measured, if it could not
+};
+
+// One stroke of the pencil on the drawing pane: a wave starting `index` strokes into a grid over the part of
+// page 450 the pane shows, its phase moved a quarter turn a lap so a stroke never retraces an earlier one.
+// Returns the device rectangle it covers, page-local -- the coordinates a tile's request is in -- or nothing
+// when the page shows no room for it.
+std::optional<QRect> drawStroke(ui::PageView& pane, int index)
+{
+    // THE PAGE'S PLACE COPIED, NOT POINTED AT: the release below runs the command, the view lays its pages out again,
+    // and a `PageSlot*` taken here then points into a layout that is gone -- the first version of this file read one
+    // and reported a stroke at y = 1,517,453 that no tile could ever cover.
+    const core::render::PageSlot* found = pane.layoutEngine().layout().slotForPage(kStage6Page);
+    if (found == nullptr) return std::nullopt;
+    const core::DeviceRect page = found->rect;
+    const core::DeviceRect visible = pane.controller().visibleRect();
+    const double dpr = pane.devicePixelRatioF() > 0.0 ? pane.devicePixelRatioF() : 1.0;
+    // The page's visible part, in the viewport's logical pixels.
+    const QRectF sheet((page.left() - visible.left()) / dpr, (page.top() - visible.top()) / dpr,
+                       page.size.width / dpr, page.size.height / dpr);
+    const QRect region = sheet.toAlignedRect().intersected(pane.viewport()->rect()).adjusted(12, 12, -12, -12);
+    const int columns = (region.width() - kStrokeMoves) / kStrokeAdvance + 1;
+    const int rows = region.height() / kStrokeRow;
+    if (columns < 1 || rows < 1) return std::nullopt;
+    const int cell = index % (columns * rows);
+    const int lap = index / (columns * rows);
+    const int x0 = region.left() + (cell % columns) * kStrokeAdvance;
+    const int middle = region.top() + (cell / columns) * kStrokeRow + kStrokeRow / 2;
+    const auto pointAt = [&](int step) {
+        return QPoint(x0 + step, middle + static_cast<int>(std::lround(7.0 * std::sin(step * 2.0 * 3.14159265358979 / 50.0
+                                                                                        + lap * 3.14159265358979 / 2.0))));
+    };
+    const auto send = [&pane](QEvent::Type type, QPoint at) {
+        QMouseEvent event(type, QPointF(at), pane.viewport()->mapToGlobal(QPointF(at)), Qt::LeftButton,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(pane.viewport(), &event);
+    };
+    QRect logical(pointAt(0), QSize(1, 1));
+    send(QEvent::MouseButtonPress, pointAt(0));
+    for (int step = 1; step <= kStrokeMoves; ++step) {
+        send(QEvent::MouseMove, pointAt(step));
+        logical |= QRect(pointAt(step), QSize(1, 1));
+    }
+    send(QEvent::MouseButtonRelease, pointAt(kStrokeMoves));
+    // Grown by the pen's half-width and anti-aliasing, then into the page's device pixels.
+    logical.adjust(-4, -4, 4, 4);
+    return QRect(static_cast<int>(std::floor(visible.left() + logical.left() * dpr - page.left())),
+                 static_cast<int>(std::floor(visible.top() + logical.top() * dpr - page.top())),
+                 static_cast<int>(std::ceil(logical.width() * dpr)), static_cast<int>(std::ceil(logical.height() * dpr)));
+}
+
+Stage6Run measureStage6(app::CompositionRoot& root, ui::DocumentWindow& tab, ui::PageView& drawPane,
+                        ui::PageView& scrollPane, bool pencil, int seconds, int pumpMs)
+{
+    Stage6Run run;
+    core::render::RenderScheduler& scheduler = root.renderScheduler();
+    core::CommandJournal* journal = tab.journal();
+    if (journal == nullptr) {
+        run.refused = "the tab has no journal";
+        return run;
+    }
+
+    // THE PROBE AND A SUBSCRIBER, PAIRED: the scheduler times a tile, then hands the same tile to every
+    // subscriber, so the figure the probe gave last is this tile's.
+    struct Last {
+        bool valid = false;
+        RenderPriority lane = RenderPriority::Visible;
+        double ms = 0.0;
+    } last;
+    scheduler.setLatencyProbe([&last](RenderPriority lane, double ms) { last = Last{true, lane, ms}; });
+
+    struct Pending {
+        core::Revision revision;
+        qint64 returnedNs;
+        QRect device;
+    };
+    std::deque<Pending> pending;
+    std::map<std::string, QByteArray> lastPixels;
+    QElapsedTimer clock;
+    clock.start();
+    const double scale = drawPane.layoutEngine().layout().presentedScale();
+    const core::render::RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
+        [&](const core::render::RenderRequest& request, const core::RasterImage& image) {
+            const Last probed = last;
+            last.valid = false;
+            if (probed.valid && probed.lane == RenderPriority::Visible) {
+                run.all.push_back(probed.ms);
+                (request.pageIndex == kStage6Page ? run.scope : run.scroll).push_back(probed.ms);
+            }
+            if (request.document != drawPane.document() || request.pageIndex != kStage6Page) return;
+            if (std::abs(request.deviceScale - scale) > 1e-9) return;
+            const std::string key = std::to_string(request.tile.x) + "," + std::to_string(request.tile.y) + ","
+                                    + std::to_string(request.tile.width) + "," + std::to_string(request.tile.height) + "/"
+                                    + std::to_string(static_cast<int>(request.viewRotation)) + "/"
+                                    + std::to_string(static_cast<unsigned>(request.flags));
+            const auto previous = lastPixels.find(key);
+            const bool changed = previous == lastPixels.end() || previous->second != image.pixels;
+            lastPixels[key] = image.pixels;
+            const QRect tile(request.tile.x, request.tile.y, request.tile.width, request.tile.height);
+            bool covers = false;
+            for (const Pending& edit : pending)
+                if (request.revision.value() >= edit.revision.value() && tile.intersects(edit.device)) covers = true;
+            if (!covers) return;
+            if (!changed) {
+                ++run.unchanged;
+                return;
+            }
+            const qint64 now = clock.nsecsElapsed();
+            for (auto it = pending.begin(); it != pending.end();) {
+                if (request.revision.value() >= it->revision.value() && tile.intersects(it->device)) {
+                    run.toPixels.push_back(static_cast<double>(now - it->returnedNs) / 1.0e6);
+                    it = pending.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        });
+
+    // THE EVENT LOOP, its slices timed: a gap well past a slice's 10 ms is the UI thread busy -- here, mostly
+    // the release, whose command composes and verifies on this thread.
+    qint64 lastSlice = clock.nsecsElapsed();
+    const auto pumpUntil = [&](qint64 untilNs) {
+        do {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+            const qint64 now = clock.nsecsElapsed();
+            const double gap = static_cast<double>(now - lastSlice) / 1.0e6;
+            lastSlice = now;
+            run.longestStallMs = std::max(run.longestStallMs, gap);
+            if (gap > kFrameBudgetMs) ++run.stallsOverBudget;
+        } while (clock.nsecsElapsed() < untilNs);
+    };
+
+    const std::size_t positionBefore = journal->position();
+    const int beats = std::max(1, pumpMs / kStage6PeriodMs);
+    run.rounds = std::max(1, seconds * 1000 / pumpMs);
+    qint64 next = clock.nsecsElapsed();
+    for (int round = 0; round < run.rounds; ++round) {
+        scrollPane.nextScreen();
+        for (int beat = 0; beat < beats; ++beat) {
+            if (pencil) {
+                const std::size_t before = journal->position();
+                const qint64 began = clock.nsecsElapsed();
+                const std::optional<QRect> device = drawStroke(drawPane, run.strokes);
+                const qint64 returned = clock.nsecsElapsed();
+                ++run.strokes;
+                if (device) {
+                    run.releaseMs.push_back(static_cast<double>(returned - began) / 1.0e6);
+                    if (journal->position() == before + 1) {
+                        ++run.made;
+                        pending.push_back(Pending{journal->revision(), returned, *device});
+                    }
+                }
+            }
+            next += static_cast<qint64>(kStage6PeriodMs) * 1000000;
+            pumpUntil(next);
+        }
+    }
+    // Drain: every edit given up to three seconds to reach the pixels, the scroll still.
+    const qint64 drainUntil = clock.nsecsElapsed() + 3000LL * 1000000;
+    while (!pending.empty() && clock.nsecsElapsed() < drainUntil) pumpUntil(clock.nsecsElapsed() + 20LL * 1000000);
+    run.unseen = static_cast<long long>(pending.size());
+    // AN EDIT THAT NEVER REACHED THE PIXELS IS NAMED, with the tiles over it as they last arrived -- so a stroke
+    // the product left unshown can be told from one this file looked for in the wrong place.
+    for (const Pending& edit : pending) {
+        std::printf("      unseen: revision %llu, device (%d, %d) %dx%d, made at %.0f ms\n",
+                    static_cast<unsigned long long>(edit.revision.value()), edit.device.x(), edit.device.y(),
+                    edit.device.width(), edit.device.height(), static_cast<double>(edit.returnedNs) / 1.0e6);
+    }
+    scheduler.unsubscribeReady(token);
+    scheduler.setLatencyProbe({});
+
+    if (pencil) {
+        // THE PROOF THE PENCIL DID IT (convention 7): a command a stroke, EVERY stroke, every one an `Ink`. Its first
+        // version compared the commands with the inks and the journal only, and planted P7 -- the pencil disarmed after
+        // each stroke -- stayed green over "strokes 40, commands 1": one stroke drawn, a column graded as forty.
+        int inks = 0;
+        for (const core::Annotation& a : journal->document().annotations().all())
+            if (a.id.kind == core::AnnotationId::Kind::Created && a.subtype == core::AnnotationSubtype::Ink) ++inks;
+        if (run.made == 0 || run.made != run.strokes || journal->position() != positionBefore + static_cast<std::size_t>(run.made)
+            || inks != run.made)
+            run.refused = "the pencil made " + std::to_string(run.made) + " command(s) of " + std::to_string(run.strokes)
+                          + " stroke(s) and the store holds " + std::to_string(inks) + " ink(s)";
+        else if (run.toPixels.empty())
+            run.refused = "no edit reached the pixels";
+        else if (run.unseen > 0)
+            run.refused = std::to_string(run.unseen) + " edit(s) never reached the pixels -- named above";
+    }
+    if (run.scroll.empty()) run.refused = "the scrolling pane delivered no visible tile";
+    return run;
+}
 
 } // namespace
 
@@ -344,6 +600,8 @@ int main(int argc, char** argv)
     QString only;
     bool stage4Only = false;
     bool stage5Only = false;
+    bool stage6Only = false;
+    int stage6Seconds = 30;   // §3.1's 30 s a column
     // An ATTRIBUTION switch, not a workload: the comparison at *text only*, which asks for no raster,
     // so its difference from the shipped column is what the 72-dpi rasters cost the viewport.
     bool comparisonTextOnly = false;
@@ -354,6 +612,8 @@ int main(int argc, char** argv)
         if (argument == QLatin1String("--native")) continue;
         if (argument == QLatin1String("--stage4")) { stage4Only = true; continue; }
         if (argument == QLatin1String("--stage5")) { stage5Only = true; continue; }
+        if (argument == QLatin1String("--stage6")) { stage6Only = true; continue; }
+        if (argument == QLatin1String("--seconds") && hasValue) { stage6Seconds = std::max(1, arguments.at(++at).toInt()); continue; }
         if (argument == QLatin1String("--comparison-text-only")) { comparisonTextOnly = true; continue; }
         if (argument == QLatin1String("--pump") && hasValue) { pumpMs = arguments.at(++at).toInt(); continue; }
         if (argument == QLatin1String("--repeat") && hasValue) { repeats = std::max(1, arguments.at(++at).toInt()); continue; }
@@ -370,8 +630,8 @@ int main(int argc, char** argv)
         }
     }
 
-    std::printf("\nA2 THROUGH THE SHIPPED SURFACES -- Stage 4 T14 (D4-16, its guide A-72) and Stage 5 T14"
-                " (D5-22, its guide A-112)\n");
+    std::printf("\nA2 THROUGH THE SHIPPED SURFACES -- Stage 4 T14 (D4-16, its guide A-72), Stage 5 T14"
+                " (D5-22, its guide A-112) and Stage 6 T15 (D6-24, its guide A-104)\n");
     std::printf("    %d round(s), %d ms of event loop a round, Stage 5 columns %d time(s) each, platform %s\n",
                 rounds, pumpMs, repeats, QGuiApplication::platformName().toStdString().c_str());
     std::printf("    A2's configuration, ASKED FOR: %.0f dpi over a %dx%d device-pixel viewport."
@@ -384,7 +644,7 @@ int main(int argc, char** argv)
                 "    window, T11's named work) are reported beside it and are NOT graded. A Stage 5\n"
                 "    column grades only the tiles delivered WHILE ITS TEXT WORK RAN.\n");
 
-    Column columns[9] = {
+    Column columns[11] = {
         {"viewer",       false, false, false},
         {"+ split",      true,  false, false},
         {"+ pane",       true,  true,  false},
@@ -394,6 +654,8 @@ int main(int argc, char** argv)
         {"+ find"},
         {"+ folder search"},
         {"+ comparison"},
+        {"annotation viewer", true},
+        {"+ pencil",          true},
     };
     const TextWork stage5Work[] = {TextWork::None, TextWork::Find, TextWork::Folder, TextWork::Compare};
     for (int at = 0; at < 4; ++at) {
@@ -401,13 +663,17 @@ int main(int argc, char** argv)
         columns[5 + at].work = stage5Work[at];
         columns[5 + at].stage5 = true;
     }
+    columns[9].stage6 = true;
+    columns[10].stage6 = true;
+    columns[10].pencil = true;
+    std::map<std::string, Stage6Run> stage6Runs;
 
     // THE FOLDER, ONCE: a scratch copy of the corpus tree, as T3's and T9's folder column searched,
     // because a search over the tester's own files would depend on them (`Stage5-TextSearch-Plan.md`
     // §5.6). Copied only when the folder column will run.
     QTemporaryDir folderScratch;
     int folderFiles = 0;
-    if (!stage4Only && (only.isEmpty() || only == QLatin1String("+ folder search"))) {
+    if (!stage4Only && !stage6Only && (only.isEmpty() || only == QLatin1String("+ folder search"))) {
         if (!folderScratch.isValid()) {
             std::fprintf(stderr, "surface: no scratch directory for the folder\n");
             return 1;
@@ -434,8 +700,9 @@ int main(int argc, char** argv)
 
     for (const Column& column : columns) {
         if (!only.isEmpty() && only != QLatin1String(column.label)) continue;
-        if (stage4Only && column.stage5) continue;
+        if (stage4Only && (column.stage5 || column.stage6)) continue;
         if (stage5Only && !column.stage5) continue;
+        if (stage6Only && !column.stage6) continue;
         const QString document = corpusFile(column.document);
         const int runs = column.stage5 ? repeats : 1;
         for (int run = 0; run < runs; ++run) {
@@ -473,6 +740,9 @@ int main(int argc, char** argv)
 
             if (column.split && tab->split() != nullptr)
                 tab->split()->setMode(ui::SplitViewContainer::Mode::Horizontal);
+            // STAGE 6: one pane drawn in, the other read -- so the two do NOT scroll together, or the pane
+            // being drawn in would be scrolled away from its page under the pencil.
+            if (column.stage6 && tab->split() != nullptr) tab->split()->setSynchronizedScrolling(false);
 
             // THE PANE IS THERE UNLESS THIS COLUMN HIDES IT, and that is a correction rather than a
             // refinement. A `MainWindow` is built with the sidebar OPEN and `SidebarDock::addPane`
@@ -539,11 +809,20 @@ int main(int argc, char** argv)
 
             // AND GROW THE WINDOW UNTIL THE VIEWPORT IS A2's, or until the platform stops giving. Two
             // passes, because the ribbon and the status bar take their height from the first layout.
-            for (int attempt = 0; attempt < 2; ++attempt) {
+            //
+            // A STAGE 6 COLUMN GROWS UNTIL ITS TWO PANES TOGETHER ARE A2's VIEWPORT, because a split divides ONE
+            // window (D4-13, and Stage 4 guide A-72's own correction at T2: two panes are 1920x540 each, the visible
+            // pixel count unchanged). Up to six passes, as each pass grows two panes by half of it.
+            for (int attempt = 0; attempt < (column.stage6 ? 6 : 2); ++attempt) {
                 const ui::PageView* pane = tab->view();
                 if (pane == nullptr) break;
                 const double haveWidth = pane->controller().visibleRect().size.width;
-                const double haveHeight = pane->controller().visibleRect().size.height;
+                double haveHeight = pane->controller().visibleRect().size.height;
+                if (column.stage6) {
+                    haveHeight = 0.0;
+                    for (const ui::PageView* each : tab->split()->views())
+                        haveHeight += each->controller().visibleRect().size.height;
+                }
                 if (haveWidth >= kDeviceViewportWidth && haveHeight >= kDeviceViewportHeight) break;
                 const int growX = static_cast<int>((kDeviceViewportWidth - haveWidth) / kA2MonitorScale);
                 const int growY = static_cast<int>((kDeviceViewportHeight - haveHeight) / kA2MonitorScale);
@@ -590,6 +869,36 @@ int main(int argc, char** argv)
                             pane->controller().visibleRect().size.height);
             }
 
+            // STAGE 6: THE TOP PANE TO PAGE 450 AND THE PENCIL ARMED IN IT, by the product's own commands -- the
+            // active pane is the one a command acts on, and it is the primary until a pane is focused.
+            ui::PageView* drawPane = nullptr;
+            ui::PageView* scrollPane = nullptr;
+            if (column.stage6) {
+                const std::vector<ui::PageView*>& panes = tab->split()->views();
+                if (panes.size() < 2 || tab->view() != panes.front()) {
+                    std::fprintf(stderr, "surface: %s -- no split of two panes, the top one active\n", column.label);
+                    return 1;
+                }
+                drawPane = panes.front();
+                scrollPane = panes.back();
+                std::printf("    the split: the drawing pane %.0fx%.0f device px over the scrolling pane %.0fx%.0f -- ONE"
+                            " window divided, so the two together are the viewport\n",
+                            drawPane->controller().visibleRect().size.width, drawPane->controller().visibleRect().size.height,
+                            scrollPane->controller().visibleRect().size.width, scrollPane->controller().visibleRect().size.height);
+                drawPane->goToPage(kStage6Page);
+                if (column.pencil) {
+                    (void)root.actions().dispatch(core::ActionId::AnnotKeepToolSelected, core::KeyContext::Viewer);
+                    (void)root.actions().dispatch(core::ActionId::AnnotPencil, core::KeyContext::Viewer);
+                    pump(60);
+                    if (drawPane->tools().armedAnnotation() != ui::AnnotationToolKind::Pencil
+                        || !drawPane->tools().keepToolSelected()) {
+                        std::fprintf(stderr, "surface: %s -- the pencil is not armed and kept in the top pane\n",
+                                     column.label);
+                        return 1;
+                    }
+                }
+            }
+
             // THE LOUPE, ARMED THROUGH THE PRODUCT'S OWN PATH -- `PageView::setTool`, which `tool.loupe`
             // dispatches to -- so the lens is the shipped one, fed by the shipped scheduler.
             ui::PageView* lensView = column.loupe ? tab->view() : nullptr;
@@ -605,6 +914,42 @@ int main(int argc, char** argv)
             // Settle: the first paint, the first tiles, the pane's first stream. Everything measured
             // below is steady-state scrolling, and counting the open would measure a document opening.
             pump(pumpMs * 2);
+
+            // STAGE 6: ITS OWN MEASUREMENT (above main), then the same teardown as every column.
+            if (column.stage6) {
+                const Stage6Run measured = measureStage6(root, *tab, *drawPane, *scrollPane, column.pencil,
+                                                         stage6Seconds, pumpMs);
+                std::printf("\n    %-18s SCROLLING pane VISIBLE p95 %7.3f ms  median %7.3f  n %zu   (both panes p95 %.3f,"
+                            " n %zu; page 450's p95 %.3f, n %zu)\n",
+                            column.label, percentile(measured.scroll, 0.95), percentile(measured.scroll, 0.50),
+                            measured.scroll.size(), percentile(measured.all, 0.95), measured.all.size(),
+                            percentile(measured.scope, 0.95), measured.scope.size());
+                std::printf("                       %d round(s) of a screen each in the bottom pane; the UI thread's longest"
+                            " stall %.1f ms, %d over the frame budget\n",
+                            measured.rounds, measured.longestStallMs, measured.stallsOverBudget);
+                if (column.pencil) {
+                    std::printf("                       strokes %d, commands %d; edit->pixels p95 %.1f ms  max %.1f  n %zu;"
+                                " never seen changed %lld; page-450 tiles over an edit unchanged %lld\n",
+                                measured.strokes, measured.made, percentile(measured.toPixels, 0.95),
+                                percentile(measured.toPixels, 1.0), measured.toPixels.size(), measured.unseen,
+                                measured.unchanged);
+                    std::printf("                       the release (the stroke made and its command run) p50 %.1f  p95 %.1f"
+                                "  max %.1f ms\n",
+                                percentile(measured.releaseMs, 0.50), percentile(measured.releaseMs, 0.95),
+                                percentile(measured.releaseMs, 1.0));
+                }
+                if (!measured.refused.empty()) {
+                    std::fprintf(stderr, "surface: %s -- %s: no measurement\n", column.label, measured.refused.c_str());
+                    measuredAll = false;
+                }
+                stage6Runs[column.label] = measured;
+                root.renderScheduler().setLatencyProbe({});
+                window.reset();
+                QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+                pump(50);
+                continue;
+            }
+
             // THE WORK'S OWN COUNTERS from here, before it starts -- the lanes and the cache from where the
             // grading starts, below.
             const core::render::RenderScheduler::Stats beforeWork = root.renderScheduler().stats();
@@ -934,7 +1279,7 @@ int main(int argc, char** argv)
         }
     }
 
-    if (only.isEmpty() && !stage5Only) {
+    if (only.isEmpty() && !stage5Only && !stage6Only) {
         std::printf("\n    THE PRODUCT'S OWN FIGURE, beside T2's bench figure (Tech-Stack-Plan.md 3.3):\n");
         std::printf("      one viewport ........................................ %7.3f ms"
                     "   (T2's bench: 9.78-9.82)\n", viewerP95);
@@ -1010,6 +1355,31 @@ int main(int argc, char** argv)
         std::printf("      frame budget ......................................... %7.3f ms\n", kFrameBudgetMs);
         std::printf("\n    Graded on Stage5-TextSearch-Testing-Guide.md 3.1 and recorded in Tech-Stack-Plan.md 3.3"
                     " beside T3's\n    figure, never instead of it. This bench never fails on speed.\n\n");
+    }
+
+    // A2 AT STAGE 6, THE PRODUCT'S FIGURE (guide A-104), graded on the guide's §3.1 beside T4's bench figure.
+    const auto viewerRun = stage6Runs.find("annotation viewer");
+    const auto pencilRun = stage6Runs.find("+ pencil");
+    if (pencilRun != stage6Runs.end()) {
+        const Stage6Run& p = pencilRun->second;
+        const double scrollP95 = percentile(p.scroll, 0.95);
+        const double toPixelsP95 = percentile(p.toPixels, 0.95);
+        const double toPixelsMax = percentile(p.toPixels, 1.0);
+        std::printf("\n    A2 AT STAGE 6, THE PRODUCT'S FIGURE (guide A-104) -- pages-900.pdf, a stroke every %d ms on page 450"
+                    " for %d s:\n", kStage6PeriodMs, stage6Seconds);
+        if (viewerRun != stage6Runs.end())
+            std::printf("      the scrolling pane, nothing drawn ..................... %7.3f ms\n",
+                        percentile(viewerRun->second.scroll, 0.95));
+        std::printf("      the scrolling pane, the pencil drawing beside it ....... %7.3f ms  %s (frame budget %.3f)\n",
+                    scrollP95, scrollP95 < kFrameBudgetMs ? "inside" : "OUTSIDE", kFrameBudgetMs);
+        std::printf("      both panes ............................................. %7.3f ms\n", percentile(p.all, 0.95));
+        std::printf("      edit -> pixels p95 ..................................... %7.1f ms  %s (<= 100)\n", toPixelsP95,
+                    toPixelsP95 <= 100.0 ? "inside" : "OUTSIDE");
+        std::printf("      edit -> pixels max ..................................... %7.1f ms  %s (<= 250)%s\n", toPixelsMax,
+                    toPixelsMax <= 250.0 ? "inside" : "OUTSIDE",
+                    p.unseen > 0 ? "   -- SOME EDITS NEVER REACHED THE PIXELS" : "");
+        std::printf("\n    Graded on Stage6-Annotations-Testing-Guide.md 3.1 and recorded in Tech-Stack-Plan.md 3.3 beside"
+                    " T4's\n    bench figure, never instead of it. This bench never fails on speed.\n\n");
     }
 
     return measuredAll ? 0 : 1;

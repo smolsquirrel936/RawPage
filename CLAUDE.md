@@ -25,10 +25,10 @@ already lives in its owner — the task's row in `Implementation-Plan.md` §4, t
 
 | | |
 |---|---|
-| **Stage** | **Stage 6 (annotations and review) in progress: T1 … T14 done**, T14 (redaction marks and audio) on 2026-10-16. Each task's detail, deviations, issues found and CI runs are its row in `Implementation-Plan.md`'s Stage 6 block; its cases and issue log are `Stage6-Annotations-Testing-Guide.md` §5–§8. Stages 0–5 signed off; the one open issue carried from them is Stage 4 guide **I-07** (S4, `Stage4-ViewingSurface-Testing-Guide.md` §8), deferred as `DW-1` (`Deferred-Work.md`). |
-| **Next action** | **Stage 6 T15 — the re-measurement, the census, CI and the lockstep** (`Stage6-Annotations-Plan.md` §6, D6-24): *A2 at Stage 6* re-read through the shipped surfaces (guide A-104), the figure T4 left outside its scale; `--list-actions` against the census cases; §9's CI; §10's lockstep. **And the user's walk of all thirteen manual cases, M-01 … M-13** (`Stage6-Annotations-Testing-Guide.md` §6), none walked yet, **and, with the user's leave, A-101's by-hand recording run** (`$env:QT_QPA_PLATFORM='windows'; .\build\x64-release\bin\rawpage_composition_tests.exe "[A-101-record]"` — it records about a second from the default microphone and PLAYS IT ALOUD). |
-| **Owed** | D6-24's bench edit is still a highlight where ink is now writable, and the path-geometry time it should report (T15). **A2 at Stage 6 is `go, with named custom work`** (the user's choice, 2026-10-05), and the bench's figures are still outside the guide's §3.1 — the remaining causes are named in `Tech-Stack-Plan.md` §3.3 for T15. |
-| **Latest tests** | **2026-10-19, Stage 6 guide I-22's fix: 1809/1809 on `x64-release` and on `x64-debug`**, five named skips — the battery case (no battery), Stage 4 guide A-85 `[I-14]` and A-94 `[I-23]` (real desktop), Stage 5 guide A-50 `[D5-10]` (system clipboard), Stage 6 guide A-101 `[A-101-record]` (microphone) — the middle three passed by hand on the `windows` platform, A-101's run is owed (above); `gates` **137/137**; `checks` clean. Last measured at T14 (2026-10-16) and not re-run since: `mutation-lint` twelve commands, `layer-lint` 15 escapes, `license-audit` five Qt modules; `rawpage_ui_tests.exe` whole 497 cases (3 skipped), `rawpage_composition_tests.exe` whole 83 (1 skipped); a clean `x64-debug` build, 0 `warning:` over 433 C++ objects. Earlier runs: each task's row in `Implementation-Plan.md` §4. |
+| **Stage** | **Stage 6 (annotations and review): T1 … T15 done, its code complete**, T15 (the re-measurement, the census, CI and the lockstep) on 2026-10-20; **not signed off** -- its manual half is unwalked. Each task's detail, deviations, issues found and CI runs are its row in `Implementation-Plan.md`'s Stage 6 block; its cases and issue log are `Stage6-Annotations-Testing-Guide.md` §5–§8, its sign-off checklist §9. Stages 0–5 signed off; the one open issue carried from them is Stage 4 guide **I-07** (S4, `Stage4-ViewingSurface-Testing-Guide.md` §8), deferred as `DW-1` (`Deferred-Work.md`). |
+| **Next action** | **The user's walk of all thirteen manual cases, M-01 … M-13** (`Stage6-Annotations-Testing-Guide.md` §6), none walked yet and every one walkable -- Stage 6's sign-off waits on it (§9 item 3); **with the user's leave, A-101's by-hand recording run** (`$env:QT_QPA_PLATFORM='windows'; .\build\x64-release\bin\rawpage_composition_tests.exe "[A-101-record]"` — it records about a second from the default microphone and PLAYS IT ALOUD); **and, once T15 is pushed, its CI run read** -- the `portable-asan` log over T15's two new `tst_redaction` cases (guide A-04). |
+| **Owed** | **A2 at Stage 6 is `go, with named custom work`** (the user's choice, kept 2026-10-20) and **still outside the guide's §3.1 through the shipped surfaces** -- the scrolling pane p95 21.9–29.4 ms beside the shipped pencil, edit-to-pixels p95 201–505 ms (`Tech-Stack-Plan.md` §3.3); the two remaining causes are **`DW-4`** (`Deferred-Work.md`), unassigned. |
+| **Latest tests** | **2026-10-20, Stage 6 T15, after clean builds: 1816/1816 on `x64-release` and on `x64-debug`**, five named skips — the battery case (no battery), Stage 4 guide A-85 `[I-14]` and A-94 `[I-23]` (real desktop), Stage 5 guide A-50 `[D5-10]` (system clipboard), Stage 6 guide A-101 `[A-101-record]` (microphone) — the middle three passed by hand on the `windows` platform, A-101's run is owed (above); `gates` **137/137**; `checks` clean -- `mutation-lint` twelve commands, `layer-lint` 15 escapes, `license-audit` five Qt modules; `rawpage_ui_tests.exe` whole 497 cases (3 skipped) on both presets in declaration order and under three seeds, `rawpage_composition_tests.exe` whole 85 (1 skipped); 0 `warning:` over 434 C++ objects on each preset. Earlier runs: each task's row in `Implementation-Plan.md` §4. |
 | **Latest CI read** | Run **39267069191** on `bc2bb44` (Stage 6 guide I-22's fix, `Stage6-Annotations-Testing-Guide.md` §8), all five jobs green, the Windows job GitHub-hosted, read 2026-10-19 by its jobs' conclusions. Fuzz soak **39267194087** on `bc2bb44`, read from its logs 2026-10-19: all five targets clean, `fuzz_annot_pipeline` 15,802 runs. Per-run figures: `Implementation-Plan.md`'s Stage 6 block and its Stage 0 block. |
 | **Authority for status** | The stage status blocks in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue — and each stage's testing guide, which owns its cases, results and issue log. **Read them rather than trusting a figure remembered from here.** |
 
@@ -66,7 +66,7 @@ than restate. **When something changes, fix the owning document; never re-decide
 | `claude-plan/Stage<N>-<Area>-Plan.md` | *Optional per stage.* One stage's task-level execution order, its stage-local design decisions (`D<N>-n`) and its blocking preconditions. **Seven exist:** `Stage0-Toolchain-Plan.md`, `Stage1-AppShell-Plan.md`, `Stage2-Rendering-Plan.md`, `Stage3-Mutation-Plan.md`, `Stage4-ViewingSurface-Plan.md`, `Stage5-TextSearch-Plan.md` (2026-09-29, its §0 answered the same day) and `Stage6-Annotations-Plan.md` (2026-10-04, its §0 answered the same day), each written before that stage's code. **A stage plan owns no product facts and no live status** — those stay in the four documents above. |
 | `claude-plan/Stage<N>-<Area>-Testing-Guide.md` | How one stage is verified — **both** the automated pass I run and the manual pass you walk, plus that stage's **issue log** (§8). **Seven exist**, one for each of Stages 0 to 6, each written from its plan **before that stage's code**. **Each guide owns its own case counts, results, manual walks and issue states — its status line says which cases carry a result; read them there rather than from a figure quoted elsewhere.** Every guide has its own `A-nn`/`M-nn`/`I-nn` namespace, so a bare `I-34` means Stage 1's. Some cases are Linux jobs this machine cannot run (sanitizers, fuzzing) and are recorded as such rather than as pending. Do not write one for a stage that is not next; do not treat its absence as a gap. |
 | `claude-plan/Shipped-Surface.md` | A reader's overview of **what the built product lets a person do** today, and what is **deliberately absent** so it is not reported as a defect (moved out of this file 2026-10-16). Read on demand. No per-task status and no test figures. |
-| `claude-plan/Deferred-Work.md` | **Work a stage deliberately did not do and that no later stage's plan has taken in** (`DW-n`, created 2026-09-27): each item's ownership state, what exists today and what is absent. Not the capability (`Features.md`), not the finding (the raising guide's §8), not the repair. **When a stage's plan takes an item, record it there and mark the entry taken — never delete a row.** Three entries, none taken (re-read 2026-10-09): `DW-1`, substitute page colours (S4 guide I-07); `DW-2`, a vector snapshot (S5 plan Q3); `DW-3`, typed comments outside WinAnsi and CJK (S6 plan Q3). |
+| `claude-plan/Deferred-Work.md` | **Work a stage deliberately did not do and that no later stage's plan has taken in** (`DW-n`, created 2026-09-27): each item's ownership state, what exists today and what is absent. Not the capability (`Features.md`), not the finding (the raising guide's §8), not the repair. **When a stage's plan takes an item, record it there and mark the entry taken — never delete a row.** Four entries, none taken (re-read 2026-10-20): `DW-1`, substitute page colours (S4 guide I-07); `DW-2`, a vector snapshot (S5 plan Q3); `DW-3`, typed comments outside WinAnsi and CJK (S6 plan Q3); `DW-4`, an annotation burst inside A2's frame budget (S6 D6-24, T15). |
 
 `claude-plan/README.md` is an index only and owns no facts.
 
@@ -294,7 +294,7 @@ names that disagrees with the commands it runs is the bug.
 Two rules are escapable, both with an inline marker **on the same line as the match** — not the
 line above — and both censused by that gate's `--explain`:
 `// layer-lint: allow-filesystem-write(reason)` and `// i18n-lint: allow-literal(reason)`.
-**Fifteen filesystem-write waivers are live and no literal waiver is** (re-derived 2026-10-16 at Stage 6 T14, unmoved since Stage 5 T9; why each later task added none is its row in `Implementation-Plan.md` §4) —
+**Fifteen filesystem-write waivers are live and no literal waiver is** (re-derived 2026-10-20 at Stage 6 T15, unmoved since Stage 5 T9; why each later task added none is its row in `Implementation-Plan.md` §4) —
 three in `app/CrashHandler.cpp`, two in `app/LogFile.cpp`, two in `core/render/DiskTileStore.cpp`
 (one write and one delete, because every deletion in that file is funnelled through a single helper
 to keep the census at two), one on the named-pipe `CreateFileW` in
@@ -413,7 +413,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 1809/1809 as of 2026-10-19 (S6 I-22), 5 skipped
+ctest --preset x64-release --output-on-failure        # 1816/1816 as of 2026-10-20 (S6 T15), 5 skipped
 ```
 
 The corpus is data, but it is **checked** like code — and the checks need Python, which is a
@@ -460,7 +460,7 @@ Diagnostics the entry point answers (T1), all usable under `QT_QPA_PLATFORM=offs
 .\build\x64-debug\bin\rawpage.exe   --crash-test           # debug only; writes a minidump
 .\scripts\symbolize.ps1 -Dump <path.dmp>                   # resolves the faulting frame
 .\build\x64-release\bin\rawpage.exe --dump-ui-strings     # every shell key + action label, resolved
-.\build\x64-release\bin\rawpage.exe --list-actions        # 389 declared / 173 registered / 216 not (2026-10-16, S6 T14), + effective chords (A-72)
+.\build\x64-release\bin\rawpage.exe --list-actions        # 389 declared / 173 registered / 216 not (2026-10-20, S6 T15), + effective chords (A-72)
 .\build\x64-release\bin\rawpage.exe --print-screen-metrics # the QScreen-to-MonitorInfo join, and which source won (I-20)
 .\build\x64-release\bin\rawpage.exe --lang zh-TW --dump-ui-strings   # guide case A-72
 .\build\x64-release\bin\rawpage.exe --help                # the parser's own vocabulary; exit 2 on a usage error
@@ -517,7 +517,12 @@ Two checks that are neither a `ctest` case nor a gate, and each has a recorded r
                                                     #   comparison -- each graded on the tiles delivered
                                                     #   WHILE its work ran, beside the viewer alone over the
                                                     #   same rounds. `--stage4` / `--stage5` run one group,
-                                                    #   `--repeat N` the Stage 5 runs (3)
+                                                    #   `--repeat N` the Stage 5 runs (3). And since S6 T15
+                                                    #   (D6-24, S6 guide A-104) `--stage6`: a window split
+                                                    #   in two, the SHIPPED PENCIL drawing a stroke every
+                                                    #   100 ms on page 450 in one pane while the other
+                                                    #   scrolls, graded on the scrolling pane; `--seconds N`
+                                                    #   for a short run (CTest's, `bench.surface.a2_stage6`)
 .\build\x64-release\bin\rawpage_bench_pipeline.exe # A2's PRODUCT figure (S2 T18), through the shipped
                                                     #   scheduler and cache -- plus O7's and D2-14's
                                                     #   numbers. `8` sweeps the worker count;
@@ -556,7 +561,7 @@ be a worse defect than the one it checks. It has to, because Qt resolves `AppDat
 redirect the file.
 
 ```powershell
-.\build\x64-release\bin\layer-lint.exe    --root . --explain   # includes, rules, 15 live waivers (2026-10-16)
+.\build\x64-release\bin\layer-lint.exe    --root . --explain   # includes, rules, 15 live waivers (2026-10-20)
 .\build\x64-release\bin\i18n-lint.exe     --root . --explain   # locales, shipped flags, unfinished count
 .\build\x64-release\bin\mutation-lint.exe --root . --explain   # rules, blind spots, each command's row and tags
 .\build\x64-release\bin\license-audit.exe --manifest vcpkg.json --spdx-map tools\license-audit\spdx-map.json `
@@ -756,8 +761,8 @@ guides' §8 logs. They survive their stage, so they live here rather than in a s
   for that file and read the compiler's own verdict.
 - **A warning census from an incremental build is inherited, not measured** — a built tree compiles
   nothing and prints *"ninja: no work to do"*. Use `--clean-first` when the claim is about warnings
-  (S3 guide A-01). The object count grows every task — 433 C++ objects on `x64-debug` at Stage 6
-  T14 — so re-derive it from the clean build's log rather than quote it.
+  (S3 guide A-01). The object count grows every task — 434 C++ objects on `x64-debug` at Stage 6
+  T15 — so re-derive it from the clean build's log rather than quote it.
 - **A target that does not call `rawpage_common_flags` is not compiling this project's language, and
   it will build until the day it does not.** Four targets had been compiled at the compiler's default
   standard — `rawpage_fuzz_seeds` since Stage 3 T13, the three `tests/fuzz` drivers since Stage 2 T5,

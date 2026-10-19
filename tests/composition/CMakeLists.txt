@@ -97,6 +97,9 @@ add_executable(rawpage_composition_tests
     # S6 T14 -- guide A-101's product half: a WAV attached and a recording made through the two sound tools, saved and
     # read back byte for byte, played as their samples; a non-PCM WAV refused; and a by-hand recording on `windows`.
     tst_audioproduct.cpp
+    # S6 T15 -- guide A-108, the stage-wide sweep of A-34 over what no suite above compared in pixels: an erase, a
+    # paste, the pushpin and a sound beside a pencil stroke, made with their tools, saved and reopened fresh.
+    tst_shownsaved.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp

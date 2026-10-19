@@ -57,7 +57,9 @@
 //
 // **PHASE 7, `--stage6`** (Stage 6 T4, D6-24) is A2 AT STAGE 6: the viewport while annotation commands
 // make the engine RELOAD the composed revision (D6-2), and how long an edit takes to reach the pixels --
-// see the phase's own header, below phase 6.
+// see the phase's own header, below phase 6. Since Stage 6 T15 its edit is §3.1's ink stroke of 200 samples
+// and its edit column reads each page's path geometry (D6-14); the product's own reading of the same scale
+// is `bench_surface --stage6` (guide A-104), and this one is never quoted as that.
 //
 // **O7** -- is the render cache's disk tier shared between documents or per-document? D2-14 says
 // that is answered by MEASUREMENT over the corpus rather than by preference, and `CacheStats` plus
@@ -119,6 +121,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/Document.h"
+#include "core/doc/DrawnShapes.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Revision.h"
 #include "core/render/DiskTileStore.h"
@@ -146,6 +149,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <deque>
 #include <functional>
 #include <cstdio>
@@ -1441,13 +1445,19 @@ int runStage5Workload(core::IDocumentBackend& backend, const OpenFn& open, const
 //   * `run` (the journal's whole call, compose and verify inside it), compose and verify alone, and the
 //     reload under the engine lock -- reported, not graded.
 //
-// **A DEVIATION FROM §3.1, STATED WHERE IT IS MADE:** §3.1's annotation is an ink stroke of 200 samples;
-// the sink writes Highlight alone until T8, so each edit here is a HIGHLIGHT OF 50 QUADRILATERALS -- 400
-// coordinates, as 200 ink samples are -- in its own 24 x 18 pt cell of a 20 x 15 grid over the scope
-// page's top-left 480 x 270 pt, which is what the viewport shows at A2's 4 px/pt. Each edit therefore
-// lands on paper no earlier edit covered, so its pixels change. The annotations ACCUMULATE: by the end
-// of 30 s the page carries 300 and the update every compose writes holds them all, which is the honest
-// shape of a burst. **The path-geometry time (D6-14) is not reported: `pageGeometry` is T12's.**
+// **THE EDIT IS §3.1's: AN INK STROKE OF 200 SAMPLES** (Stage 6 T15). At T4 the sink wrote Highlight alone,
+// so the edit was a highlight of 50 quadrilaterals -- 400 coordinates, as 200 samples are -- and the guide's
+// A-38 records that deviation; T8 made ink writable and T15 put the stroke back. Each stroke is a wave
+// across its own 24 x 18 pt cell of a 20 x 15 grid over the scope page's top-left 480 x 270 pt, which is
+// what the viewport shows at A2's 4 px/pt, with its rectangle fitted to the curve as the pencil's is
+// (`core::fittedShape`). Each edit therefore lands on paper no earlier edit covered, so its pixels change.
+// The annotations ACCUMULATE: by the end of 30 s the page carries 300 and the update every compose writes
+// holds them all, which is the honest shape of a burst.
+//
+// **THE PATH GEOMETRY (D6-14), the engine's other new work, is LOADED in the edit column and reported**
+// (T15; `pageGeometry` arrived at T12). A measurement tool armed while a person scrolls reads each page's
+// paths ONCE, as an engine task at `Visible` (`ui/viewer/SnapTargets`); so does this column, for the scope
+// page and for every page the scroll reaches, and the time each read took in the engine is its column.
 //
 // The page geometry assumes the scope page is unrotated with its crop box at the media box's corner,
 // which `pages-900.pdf`, `text-900.pdf` and `objstm-xrefstream.pdf` are; the bench prints which page
@@ -1460,7 +1470,7 @@ constexpr int kStage6GridColumns = 20;
 constexpr int kStage6GridRows = 15;
 constexpr double kStage6CellWidth = 24.0;
 constexpr double kStage6CellHeight = 18.0;
-constexpr int kStage6Quads = 50;
+constexpr int kStage6Samples = 200;
 
 struct Stage6Outcome {
     std::vector<double> viewport;
@@ -1488,27 +1498,44 @@ struct Stage6Outcome {
     double scrollEngineMs = 0.0;   // worker time on the scroll's tiles
     std::vector<double> scopeTileMs;   // one scope-page tile in the engine, each
     long long reRequested = 0;     // viewport tiles waiting when an edit landed, asked again
+    // THE PATH GEOMETRY (T15): each page's read in the engine, and how many segments it gave.
+    std::vector<double> geometryMs;
+    long long geometrySegments = 0;
+    long long geometryFailures = 0;
 };
 
-core::Annotation stage6Highlight(int page, const core::Page& info, int index)
+// What the engine tasks of one column write from the render thread, read after the column drains.
+struct GeometryLog {
+    std::mutex mutex;
+    std::vector<double> ms;
+    long long segments = 0;
+    long long failures = 0;
+};
+
+// ONE STROKE OF 200 SAMPLES, a wave across its cell -- §3.1's edit. 20 pt wide is 80 device pixels at A2's
+// 4 px/pt, so the samples are 0.4 px apart and the pencil's quarter-pixel deduplication (D6-15) keeps all
+// of them, as it would keep a person's.
+core::Annotation stage6Ink(int page, const core::Page& info, int index)
 {
     const core::PdfRect crop = info.cropBox();
     const int cell = index % (kStage6GridColumns * kStage6GridRows);
     const double left = crop.left() + 6.0 + (cell % kStage6GridColumns) * kStage6CellWidth;
-    const double top = crop.top() - 6.0 - (cell / kStage6GridColumns) * kStage6CellHeight;
+    const double middle = crop.top() - (cell / kStage6GridColumns) * kStage6CellHeight - kStage6CellHeight / 2.0;
     const double width = kStage6CellWidth - 4.0;
-    const double band = (kStage6CellHeight - 4.0) / kStage6Quads;
-    core::Annotation a = core::newAnnotation(core::AnnotationSubtype::Highlight, page, QStringLiteral("A2 Stage 6"),
+    const double amplitude = (kStage6CellHeight - 8.0) / 2.0;
+    core::Annotation a = core::newAnnotation(core::AnnotationSubtype::Ink, page, QStringLiteral("A2 Stage 6"),
                                              1791504000 + index);
-    for (int q = 0; q < kStage6Quads; ++q) {
-        const double y0 = top - q * band;
-        const double y1 = y0 - band * 0.8;
-        a.quadPoints.insert(a.quadPoints.end(), {left, y0, left + width, y0, left, y1, left + width, y1});
+    std::vector<double> stroke;
+    stroke.reserve(2 * kStage6Samples);
+    for (int s = 0; s < kStage6Samples; ++s) {
+        const double t = static_cast<double>(s) / (kStage6Samples - 1);
+        stroke.push_back(left + t * width);
+        stroke.push_back(middle + amplitude * std::sin(t * 6.0 * 3.14159265358979));
     }
-    a.rect = *core::boundsOfPoints(a.quadPoints);
-    a.color = {1.0, 0.85, 0.0};
-    a.opacity = 0.6;
-    return a;
+    a.inkList = {std::move(stroke)};
+    a.color = {0.85, 0.1, 0.1};
+    a.borderWidth = 1.5;
+    return *core::fittedShape(std::move(a));
 }
 
 Stage6Outcome runStage6Column(const QString& relative, int scopePage, const Resolution& view, bool edits,
@@ -1625,23 +1652,48 @@ Stage6Outcome runStage6Column(const QString& relative, int scopePage, const Reso
             }
         };
 
+        // A PAGE'S PATHS, ONCE, as `DocumentIndex::requestGeometry` asks the engine for them on behalf of a
+        // measurement tool (`SnapTargets`): an engine task at `Visible`, the reader `app/CompositionRoot` wires.
+        // Edit columns only -- the viewer column is the control with nothing behind it.
+        auto geometry = std::make_shared<GeometryLog>();
+        const auto readGeometry = [&](int page) {
+            if (!edits) return;
+            (void)scheduler.enqueueTask(handle, RenderPriority::Visible, [&backend, handle, page, geometry] {
+                core::PageGeometry into;
+                const Clock::time_point began = Clock::now();
+                const core::Status read = backend.pageGeometry(handle, page, into);
+                const double ms = std::chrono::duration<double, std::milli>(Clock::now() - began).count();
+                const std::lock_guard<std::mutex> guard(geometry->mutex);
+                if (!read) {
+                    ++geometry->failures;
+                    return;
+                }
+                geometry->ms.push_back(ms);
+                geometry->segments += static_cast<long long>(into.overLimit() ? into.counted() : into.segments().size());
+            });
+        };
+
         const Clock::time_point start = Clock::now();
         Clock::time_point nextEdit = start;
         Clock::time_point nextScroll = start + std::chrono::milliseconds(kStage6PeriodMs / 2);
         const auto end = start + std::chrono::seconds(seconds);
         int scroll = 0;
         enqueueViewport(scopePage, false);
+        readGeometry(scopePage);
         while (Clock::now() < end) {
             if (Clock::now() >= nextScroll) {
-                // Another page, never the scope page: the scroll measures the viewport.
+                // Another page, never the scope page: the scroll measures the viewport. 7 is prime to every
+                // page count here, so a 30-second column reaches 300 pages none of which it reached before --
+                // and so asks for each one's paths once.
                 int page = (scroll * 7 + 1) % pages->count();
                 if (page == scopePage) page = (page + 1) % pages->count();
                 enqueueViewport(page, true);
+                readGeometry(page);
                 ++scroll;
                 nextScroll += std::chrono::milliseconds(kStage6PeriodMs);
             }
             if (edits && Clock::now() >= nextEdit) {
-                const core::Annotation added = stage6Highlight(scopePage, *scopeInfo, static_cast<int>(outcome.edits));
+                const core::Annotation added = stage6Ink(scopePage, *scopeInfo, static_cast<int>(outcome.edits));
                 const Clock::time_point began = Clock::now();
                 const core::Status ran = journal.run(
                     std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{added}));
@@ -1688,6 +1740,12 @@ Stage6Outcome runStage6Column(const QString& relative, int scopePage, const Reso
         }
         scheduler.cancelDocument(handle);
         scheduler.waitForIdle(30000);
+        {
+            const std::lock_guard<std::mutex> guard(geometry->mutex);
+            outcome.geometryMs = geometry->ms;
+            outcome.geometrySegments = geometry->segments;
+            outcome.geometryFailures = geometry->failures;
+        }
 
         // --- what the worker did -------------------------------------------------------------
         const std::string scopeMark = "/" + std::to_string(scopePage) + "/";
@@ -1731,12 +1789,12 @@ int runStage6Workload(const Resolution& a2)
                 " engine (D6-2)\n");
     std::printf("    viewport      at A2's configuration -> %.1f dpi, %.3f px/pt, %dx%d, at Visible\n",
                 view.dpi, view.rasterScale(), kViewportWidth, kViewportHeight);
-    std::printf("    edits         one AddAnnotation every %d ms for %d s: a highlight of %d quadrilaterals"
-                " (400 coordinates, for a 200-sample ink stroke -- the sink writes Highlight alone until T8),"
-                " each in a fresh %.0fx%.0f pt cell;\n                  a scroll to another page half a period"
-                " later; the scope page's viewport asked again after each edit\n",
-                kStage6PeriodMs, g_stage6Seconds, kStage6Quads, kStage6CellWidth, kStage6CellHeight);
-    std::printf("    not reported  the path-geometry time (D6-14): `pageGeometry` is Stage 6 T12's\n");
+    std::printf("    edits         one AddAnnotation every %d ms for %d s: an INK stroke of %d samples (the guide's 3.1;"
+                " T4's run drew a highlight in its place), each in a fresh %.0fx%.0f pt cell;\n                  a scroll"
+                " to another page half a period later; the scope page's viewport asked again after each edit\n",
+                kStage6PeriodMs, g_stage6Seconds, kStage6Samples, kStage6CellWidth, kStage6CellHeight);
+    std::printf("    geometry      the edit column reads the scope page's paths and each scrolled page's ONCE, an engine"
+                " task at Visible, as a measuring tool does (D6-14, T15)\n");
     std::printf("    re-requests   after each edit the scroll's waiting tiles are asked again at the new revision, timed"
                 " from when they were FIRST asked, as `PageView::modelChanged` asks again\n");
 
@@ -1785,6 +1843,14 @@ int runStage6Workload(const Resolution& a2)
         reportDistribution("compose+verify", edited.composeMs);
         reportDistribution("  the verify", edited.verifyMs);
         reportDistribution("reload", edited.reloadMs);
+        reportDistribution("path geometry", edited.geometryMs);
+        std::printf("      path geometry: %zu page(s) read, %lld segment(s), %lld refused\n", edited.geometryMs.size(),
+                    edited.geometrySegments, edited.geometryFailures);
+        if (edited.geometryMs.empty()) {
+            std::fprintf(stderr, "A2 at Stage 6: %s read no page's paths -- the column did not carry its load\n",
+                         file.relative);
+            return 1;
+        }
         std::printf("      edits %lld (%lld refused, %lld never seen changed), %d scrolls; reloads %lld, coalesced"
                     " %lld, failed %lld; scope tiles delivered over an edit unchanged %lld\n",
                     edited.edits, edited.editsRefused, edited.editsUnseen, edited.scrolls, edited.reloads,

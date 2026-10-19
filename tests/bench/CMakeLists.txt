@@ -270,6 +270,18 @@ target_compile_definitions(rawpage_bench_surface PRIVATE
 add_dependencies(rawpage_bench_surface rawpage_translations rawpage_resources)
 rawpage_common_flags(rawpage_bench_surface)
 
+# Stage 6 T15 (D6-24, guide A-104) added A2 AT STAGE 6's columns -- a split window, the shipped pencil drawing a
+# stroke every 100 ms in one pane while the other scrolls -- and the ONE CTest registration this program has: the
+# Stage 6 columns SHORT (`--seconds 4`), for `bench.render.a2_stage6`'s reason, so the pencil column cannot rot
+# unnoticed. The graded run is 30 s, by hand. The exit code is only whether the measurement was possible: a
+# pencil that made no command, an edit no tile showed, a pane that delivered nothing.
+add_test(NAME bench.surface.a2_stage6 COMMAND rawpage_bench_surface --stage6 --seconds 4)
+set_tests_properties(bench.surface.a2_stage6 PROPERTIES
+    TIMEOUT 600
+    ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)
+
 # THE PRODUCT'S MANIFEST, EMBEDDED IN THE BENCHES THAT STAND IN FOR THE PRODUCT (Stage 2 issue I-35).
 # app/rawpage.manifest opts rawpage.exe into the segment heap, which changes both how much memory a
 # long session keeps and how fast a tile renders -- so a figure taken without it describes a different
