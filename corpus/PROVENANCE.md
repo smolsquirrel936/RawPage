@@ -287,7 +287,9 @@ Acrobat itself is guide case M-04. The shapes are Acrobat 26's: an FDF names its
 that file's `/ID`, gives each annotation `/Page` (an index) instead of `/P`, carries no appearance and
 no cross-reference table; an XFDF lives in `http://ns.adobe.com/xfdf/`, carries `/NM` as `name`, a
 parent's `/NM` as `inreplyto`, a group as `replyType="group"`, a pop-up as a child element and
-embedded data as hex.
+embedded data as hex. **`threads.*` were written from the standard, not from Acrobat's output**, and
+M-04's walk measured Acrobat 26.2.21931 differing from them twice (guide I-27, I-28): those two
+differences are `threads-acrobat26.*`'s, and `threads.*` keep the standard's forms.
 
 | File | Target | What it is for |
 |---|---|---|
@@ -295,6 +297,8 @@ embedded data as hex.
 | `exchange/every-type.xfdf` | `ordinary/annots-every-type.pdf` | The same in XFDF: one element per subtype, `data` in hex, the free text's `defaultappearance`, `defaultstyle` and `contents-richtext` |
 | `exchange/threads.fdf` | `ordinary/annots-threads.pdf` | `/IRT`, `/RT /Group`, the Review and Marked state replies, and the cycle, the missing parent and the cross-page reply as they are in the PDF |
 | `exchange/threads.xfdf` | `ordinary/annots-threads.pdf` | The same in XFDF; the reply whose parent is missing names `inreplyto="missing-parent"`, an `/NM` nothing carries |
+| `exchange/threads-acrobat26.xfdf` | `ordinary/annots-threads.pdf` | `threads.xfdf`'s comments with each one's text **only** as `<contents-richtext>` — Acrobat's paragraph and span, a state reply's bare paragraph — and **no `<contents>`**, as Acrobat 26.2.21931 exported them in Stage 6's M-04 walk (guide I-27, 2026-10-20). An importer must give each its plain text |
+| `exchange/threads-acrobat26.fdf` | `ordinary/annots-threads.pdf` | `threads.fdf` with every `/IRT` its parent's `/NM` as a **string**, not a reference — the missing parent's `(missing-parent)` — as Acrobat 26.2.21931 exported them in M-04 (guide I-28). An importer must keep each thread |
 | `exchange/malformed.xfdf` | — | **Damage:** `threads.xfdf` cut 40 bytes before `</annots>`, mid-element. It must be refused, by name, with nothing imported |
 | `exchange/external-entity.xfdf` | — | **Hostile:** `threads.xfdf` with a DOCTYPE declaring `<!ENTITY rawpageprobe SYSTEM "file:///C:/Windows/win.ini">` and a note's `<contents>` referencing it. An importer must never resolve it (D6-20) |
 

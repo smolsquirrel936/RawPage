@@ -456,7 +456,11 @@ TEST_CASE("the Acrobat-shaped exports import with every field the label holds", 
     for (const Fixture& f : {Fixture{"exchange/every-type.xfdf", "ordinary/annots-every-type.pdf", "labels/annots-every-type.json", eightBits},
                              Fixture{"exchange/every-type.fdf", "ordinary/annots-every-type.pdf", "labels/annots-every-type.json", 1e-6},
                              Fixture{"exchange/threads.xfdf", "ordinary/annots-threads.pdf", "labels/annots-threads.json", eightBits},
-                             Fixture{"exchange/threads.fdf", "ordinary/annots-threads.pdf", "labels/annots-threads.json", 1e-6}}) {
+                             Fixture{"exchange/threads.fdf", "ordinary/annots-threads.pdf", "labels/annots-threads.json", 1e-6},
+                             // Acrobat 26.2's two measured differences (S6 guide I-27, I-28): every comment's text in
+                             // `<contents-richtext>` alone, every reply's `/IRT` its parent's `/NM` as a string.
+                             Fixture{"exchange/threads-acrobat26.xfdf", "ordinary/annots-threads.pdf", "labels/annots-threads.json", eightBits},
+                             Fixture{"exchange/threads-acrobat26.fdf", "ordinary/annots-threads.pdf", "labels/annots-threads.json", 1e-6}}) {
         INFO(f.exchange);
         Imported imported = importInto(f.target, QLatin1String(f.exchange));
 
@@ -515,20 +519,52 @@ TEST_CASE("the Acrobat-shaped exports import with every field the label holds", 
 TEST_CASE("a reply whose parent the file does not hold arrives as a comment of its own and is said to",
           "[fdf][exchange][A-94][D6-20]")
 {
-    Imported imported = importInto("ordinary/annots-threads.pdf", QStringLiteral("exchange/threads.xfdf"));
-    const auto dropped = std::find_if(imported.plan.result.notes.begin(), imported.plan.result.notes.end(), [](const core::ExchangeNote& n) {
-        return n.kind == core::ExchangeNoteKind::ReferenceDropped && n.name == QLatin1String("16491127-19db-64ad-4c48-c117c4f4abe9");
-    });
-    CHECK(dropped != imported.plan.result.notes.end());
-    const std::map<QString, std::size_t> got = byName(*imported.reopened->store);
-    const auto orphan = got.find(QStringLiteral("16491127-19db-64ad-4c48-c117c4f4abe9"));
-    REQUIRE(orphan != got.end());
-    CHECK_FALSE(imported.reopened->store->at(orphan->second).inReplyTo.has_value());
-    CHECK(imported.reopened->store->isTopLevel(orphan->second));
-    // A reply on page 2 to the page 1 note keeps its reference (D6-12 shows it top-level, as the label's file does).
-    const auto across = got.find(QStringLiteral("0e00be23-c814-48b3-e88d-e9a4102f7a9d"));
-    REQUIRE(across != got.end());
-    CHECK(imported.reopened->store->at(across->second).inReplyTo.has_value());
+    // XFDF's `inreplyto`, and since S6 guide I-28 an FDF `/IRT` string -- each naming an `/NM` nothing carries.
+    for (const char* exchange : {"exchange/threads.xfdf", "exchange/threads-acrobat26.fdf"}) {
+        INFO(exchange);
+        Imported imported = importInto("ordinary/annots-threads.pdf", QLatin1String(exchange));
+        const auto dropped = std::find_if(imported.plan.result.notes.begin(), imported.plan.result.notes.end(), [](const core::ExchangeNote& n) {
+            return n.kind == core::ExchangeNoteKind::ReferenceDropped && n.name == QLatin1String("16491127-19db-64ad-4c48-c117c4f4abe9");
+        });
+        CHECK(dropped != imported.plan.result.notes.end());
+        const std::map<QString, std::size_t> got = byName(*imported.reopened->store);
+        const auto orphan = got.find(QStringLiteral("16491127-19db-64ad-4c48-c117c4f4abe9"));
+        REQUIRE(orphan != got.end());
+        CHECK_FALSE(imported.reopened->store->at(orphan->second).inReplyTo.has_value());
+        CHECK(imported.reopened->store->isTopLevel(orphan->second));
+        // A reply on page 2 to the page 1 note keeps its reference (D6-12 shows it top-level, as the label's file does).
+        const auto across = got.find(QStringLiteral("0e00be23-c814-48b3-e88d-e9a4102f7a9d"));
+        REQUIRE(across != got.end());
+        CHECK(imported.reopened->store->at(across->second).inReplyTo.has_value());
+    }
+}
+
+TEST_CASE("a comment whose XFDF text is rich text alone is given its plain text", "[fdf][exchange][A-94][I-27]")
+{
+    // Acrobat 26.2 writes `<contents-richtext>` with no `<contents>` (S6 guide I-27). The plain text is the body's: a
+    // paragraph a line, as `AnnotationOps::richTextFor` writes them, an empty paragraph an empty line, `<br/>` a break,
+    // the file's own line-broken layout between elements not text -- and a `<contents>` beside it is the text as given.
+    const auto textOf = [](const QString& annotation) {
+        const QByteArray xml = (QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                               "<xfdf xmlns=\"http://ns.adobe.com/xfdf/\" xml:space=\"preserve\"><annots>")
+                                + annotation + QStringLiteral("</annots></xfdf>"))
+                                   .toUtf8();
+        core::Result<Fdf> read = core::XfdfCodec::read(xml);
+        REQUIRE(read);
+        REQUIRE(read.value().annotations.size() == 1);
+        return read.value().annotations.front().contents;
+    };
+    const QString open = QStringLiteral("<text name=\"n\" page=\"0\" rect=\"0,0,20,20\"><contents-richtext>"
+                                        "<body xmlns=\"http://www.w3.org/1999/xhtml\">");
+    const QString close = QStringLiteral("</body></contents-richtext></text>");
+    CHECK(text(textOf(open + QStringLiteral("<p dir=\"ltr\"><span style=\"font-weight:normal\">one</span></p>") + close)) == "one");
+    CHECK(text(textOf(open + QStringLiteral("<p>one</p><p></p><p>two</p>") + close)) == "one\n\ntwo");
+    CHECK(text(textOf(open + QStringLiteral("<p>one<br/>two</p>") + close)) == "one\ntwo");
+    CHECK(text(textOf(open + QStringLiteral("\n<p\n>one</p\n>\n<p>t<span>w</span> o</p>") + close)) == "one\ntw o");
+    CHECK(text(textOf(QStringLiteral("<text name=\"n\" page=\"0\" rect=\"0,0,20,20\"><contents>as given</contents>"
+                                     "<contents-richtext><body xmlns=\"http://www.w3.org/1999/xhtml\"><p>other</p></body>"
+                                     "</contents-richtext></text>")))
+          == "as given");
 }
 
 // ==========================================================================================
@@ -923,12 +959,13 @@ TEST_CASE("a truncated malformed or foreign exchange file is refused by key and 
 TEST_CASE("the annotation fuzz body's exchange branch holds over every exchange fixture and its truncations",
           "[fdf][exchange][fuzz][A-23][A-97][D6-29]")
 {
-    // The branch `fuzz_annot_pipeline` runs on Linux, replayed here over the corpus's six exchange files and each cut
+    // The branch `fuzz_annot_pipeline` runs on Linux, replayed here over the corpus's eight exchange files and each cut
     // at a quarter, a half and three quarters -- known inputs find nothing new by construction (convention 19); this
     // proves the branch runs and agrees with them.
     int files = 0;
     std::size_t annotations = 0;
-    for (const char* name : {"every-type.xfdf", "every-type.fdf", "threads.xfdf", "threads.fdf", "external-entity.xfdf", "malformed.xfdf"}) {
+    for (const char* name : {"every-type.xfdf", "every-type.fdf", "threads.xfdf", "threads.fdf", "threads-acrobat26.xfdf",
+                             "threads-acrobat26.fdf", "external-entity.xfdf", "malformed.xfdf"}) {
         const QByteArray bytes = tests::readAllBytes(tests::corpusFile(std::string("exchange/") + name));
         for (const qsizetype cut : {bytes.size(), bytes.size() / 4, bytes.size() / 2, bytes.size() * 3 / 4}) {
             INFO(name << " cut at " << cut);

@@ -454,6 +454,20 @@ def check_annots(files):
                                    b'statemodel="Marked"', b"<contents-richtext>"):
                         claim(name, marker in data, "%s is missing" % marker.decode())
 
+    # S6 guide I-27 and I-28: the two places Acrobat 26.2.21931's exports were measured to differ from
+    # `threads.*`, each file carrying its own and nothing of the standard's form beside it.
+    name = "exchange/threads-acrobat26.xfdf"
+    data = need(name)
+    if data is not None:
+        claim(name, b"<contents-richtext>" in data and b"<contents>" not in data,
+              "its text is not in <contents-richtext> alone")
+    name = "exchange/threads-acrobat26.fdf"
+    data = need(name)
+    if data is not None:
+        claim(name, re.search(rb"/IRT \(", data) is not None
+              and re.search(rb"/IRT \d+ 0 R", data) is None,
+              "its /IRT is not the parent's /NM as a string")
+
     name = "exchange/malformed.xfdf"
     data = need(name)
     if data is not None:

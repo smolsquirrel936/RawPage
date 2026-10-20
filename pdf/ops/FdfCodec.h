@@ -12,7 +12,10 @@
 // a field an FDF carries means what it means in a PDF. What differs is how they are tied together: `/Page` is the
 // page's INDEX, and `/IRT`, `/Popup` and `/Parent` point at other objects OF THE FDF -- which this reader turns into
 // the exchange's names (`core/doc/Fdf.h`). A reference to an object that is no annotation of the file is dropped and
-// noted. A file attachment's bytes are read from its `/FS`'s `/EF` stream, as a PDF's are.
+// noted. EXCEPT THAT Acrobat 26.2 writes a reply's `/IRT` as its parent's `/NM`, a STRING (measured in Stage 6's
+// M-04 walk, S6 guide I-28) -- read until then as no `/IRT` at all, so every reply and status Acrobat exported
+// arrived as a comment of its own, unsaid. A string `/IRT` is taken as a name, as XFDF's `inreplyto` is, and the
+// merge finds it in the file or the document or drops and notes it. A file attachment's bytes are read from its `/FS`'s `/EF` stream, as a PDF's are.
 //
 // Written the same way round: `pdf/ops/AnnotationOps::exchangeDictionary` -- the same field table a created
 // annotation is written from -- each annotation an object, a file attachment's file an `/EmbeddedFile` stream behind

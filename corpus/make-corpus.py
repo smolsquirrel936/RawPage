@@ -36,6 +36,7 @@ import hashlib
 import importlib.util
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -297,6 +298,17 @@ def self_test(files):
     control("unrowed exchange file is UNLISTED",
             check_provenance(clean, [row for row in rows if row != "exchange/threads.xfdf"]),
             "UNLISTED  exchange/threads.xfdf")
+    # S6 guide I-27, I-28: each Acrobat 26.2 file given back the standard's form it exists without.
+    plain = dict(clean)
+    plain["exchange/threads-acrobat26.xfdf"] = clean["exchange/threads-acrobat26.xfdf"].replace(
+        b"<contents-richtext>", b"<contents>x</contents><contents-richtext>", 1)
+    control("a <contents> in threads-acrobat26.xfdf is FAULT", check_faults(plain),
+            "FAULT     exchange/threads-acrobat26.xfdf")
+    referenced = dict(clean)
+    referenced["exchange/threads-acrobat26.fdf"] = re.sub(
+        rb"/IRT \([^)]*\)", b"/IRT 2 0 R", clean["exchange/threads-acrobat26.fdf"], count=1)
+    control("an /IRT reference in threads-acrobat26.fdf is FAULT", check_faults(referenced),
+            "FAULT     exchange/threads-acrobat26.fdf")
 
     for name, fired, sample in results:
         print("  %-32s %s%s" % (name, "detected" if fired else "NOT DETECTED",

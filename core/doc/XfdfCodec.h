@@ -27,7 +27,10 @@
 //
 // A rich-text body (`/RC`) is XHTML: it is written INSIDE `<contents-richtext>` as the elements it is -- which is
 // why this file writes XML by hand rather than through `QXmlStreamWriter`, which writes elements only from calls
-// and would re-prefix the body's namespaces -- and read back as the same text, its declaration restored.
+// and would re-prefix the body's namespaces -- and read back as the same text, its declaration restored. A comment
+// whose text comes ONLY as `<contents-richtext>`, which is how Acrobat 26.2 writes every one (measured in Stage 6's
+// M-04 walk, S6 guide I-27), is given the body's plain text as its `/Contents`: a paragraph a line, as RawPage writes
+// them. Until then such a comment arrived with no text the Comments pane could show.
 //
 // Bounded as the FDF reader is (`core/doc/Fdf.h`): the file's size, the annotation count, each annotation's
 // coordinates (`pdf/ops/AnnotationReader::kMaxCoordinates`'s 200,000) and each text field's length; past a bound an

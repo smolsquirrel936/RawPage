@@ -57,6 +57,33 @@ const char* elementOf(AnnotationSubtype subtype)
     return nullptr;
 }
 
+// The plain text a rich-text body says (ISO 32000-1 §12.7.3.4): its characters, a line break between two paragraphs
+// and at each `<br/>` -- the inverse of `pdf/ops/AnnotationOps::richTextFor`, which writes one `<p>` per line. White
+// space between elements that holds a line break is the file's layout, not its text. Nothing for a body that is not
+// well-formed, or that names an entity.
+QString plainTextOf(const QString& richText)
+{
+    QXmlStreamReader xml(richText);
+    QString out;
+    bool sawParagraph = false;
+    while (!xml.atEnd()) {
+        const QXmlStreamReader::TokenType token = xml.readNext();
+        if (token == QXmlStreamReader::DTD || token == QXmlStreamReader::EntityReference) return QString();
+        if (token == QXmlStreamReader::StartElement) {
+            if (xml.name() == QLatin1String("p")) {
+                if (sawParagraph) out += QLatin1Char('\n');
+                sawParagraph = true;
+            } else if (xml.name() == QLatin1String("br")) {
+                out += QLatin1Char('\n');
+            }
+        } else if (token == QXmlStreamReader::Characters) {
+            if (xml.isWhitespace() && xml.text().contains(QLatin1Char('\n'))) continue;
+            out += xml.text();
+        }
+    }
+    return xml.hasError() ? QString() : out;
+}
+
 // ---- The flags, by XFDF's names (ISO 32000-1 Table 165) ---------------------------------------------------------
 
 constexpr std::array<std::pair<const char*, std::uint32_t>, 10> kFlags{{
@@ -594,6 +621,9 @@ struct Reader {
             }
         }
         if (truncated) note(ExchangeNoteKind::GeometryTruncated, a.nm, a.page);
+        // ITS TEXT when the file gives only the rich form, as Acrobat 26.2 does (S6 guide I-27): the body's own -- else
+        // every comment Acrobat exported arrived with no text a person could read.
+        if (a.contents.isEmpty() && !a.richText.isEmpty()) a.contents = plainTextOf(a.richText);
         if (subtype == AnnotationSubtype::FileAttachment && !file.name.isEmpty()) a.attachment = std::move(file);
         if (sound) a.sound = std::move(sound);
 

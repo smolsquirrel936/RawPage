@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xfdf xmlns="http://ns.adobe.com/xfdf/" xml:space="preserve">
+<annots>
+<text color="#FFD94C" creationdate="D:20260901091500+08'00'" flags="print,nozoom,norotate" date="D:20260901091500+08'00'" name="4ea586ce-c29f-ed99-b8e0-2cfd3216b523" page="0" rect="500,752,520,772" subject="Sticky Note" title="Ana Lima" icon="Comment">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Is this figure current?</span></p></body></contents-richtext>
+<popup flags="print,nozoom,norotate" open="no" page="0" rect="380,640,560,740"/>
+</text>
+<text color="#FFD94C" creationdate="D:20260903140200+01'00'" flags="print,nozoom,norotate" date="D:20260903140200+01'00'" name="562b57a9-2e0f-cd8a-62c3-2be720dc056a" page="0" rect="500,752,520,772" subject="Sticky Note" title="Ben Okafor" icon="Comment" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Updated last week from the source.</span></p></body></contents-richtext>
+</text>
+<text color="#FFD94C" creationdate="D:20260905084000Z" flags="print,nozoom,norotate" date="D:20260905084000Z" name="ad56a1e4-9ed9-e3e1-1b1a-08517363fcaf" page="0" rect="500,752,520,772" subject="Sticky Note" title="Zoë Müller" icon="Comment" inreplyto="562b57a9-2e0f-cd8a-62c3-2be720dc056a">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Confirmed against the source table.</span></p></body></contents-richtext>
+</text>
+<text color="#FFD94C" creationdate="D:20260906180500-05'00'" flags="print,nozoom,norotate" date="D:20260906180500-05'00'" name="6e698bef-9984-be43-19d9-191277f1e8af" page="0" rect="500,752,520,772" subject="Sticky Note" title="Ana Lima" icon="Comment" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Thanks, both of you.</span></p></body></contents-richtext>
+</text>
+<text creationdate="D:20260908100000+01'00'" flags="hidden,print,nozoom,norotate" date="D:20260908100000+01'00'" name="376c1217-c852-ed4c-511a-c727da933526" page="0" rect="500,752,520,772" subject="Sticky Note" title="Ben Okafor" icon="Comment" statemodel="Review" state="Accepted" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Accepted set by Ben Okafor</p></body></contents-richtext>
+</text>
+<text creationdate="D:20260912113000Z" flags="hidden,print,nozoom,norotate" date="D:20260912113000Z" name="52a6b50a-85cc-2770-75d7-09aeb881e6ab" page="0" rect="500,752,520,772" subject="Sticky Note" title="Zoë Müller" icon="Comment" statemodel="Review" state="Rejected" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Rejected set by Zoë Müller</p></body></contents-richtext>
+</text>
+<text creationdate="D:20260920164500+01'00'" flags="hidden,print,nozoom,norotate" date="D:20260920164500+01'00'" name="2ba02c5d-12c7-bba4-d247-de14af01e0a2" page="0" rect="500,752,520,772" subject="Sticky Note" title="Ben Okafor" icon="Comment" statemodel="Review" state="Completed" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Completed set by Ben Okafor</p></body></contents-richtext>
+</text>
+<text creationdate="D:20260910090000+08'00'" flags="hidden,print,nozoom,norotate" date="D:20260910090000+08'00'" name="043f3528-3c80-db9d-0fdb-2cc4452b6134" page="0" rect="500,752,520,772" subject="Sticky Note" title="Ana Lima" icon="Comment" statemodel="Marked" state="Marked" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Marked set by Ana Lima</p></body></contents-richtext>
+</text>
+<highlight color="#FFEB3B" creationdate="D:20260902073000Z" flags="print" date="D:20260902073000Z" name="9b08761b-616c-8c96-1fee-d951d70e0a1a" page="0" rect="209.414,717.723,281.563,727.898" subject="Highlight" title="Zoë Müller" coords="209.414,727.898,281.563,727.898,209.414,717.723,281.563,717.723">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Source for this number?</span></p></body></contents-richtext>
+</highlight>
+<text color="#FFD94C" creationdate="D:20260904120000+08'00'" flags="print,nozoom,norotate" date="D:20260904120000+08'00'" name="b6fb6761-6196-1b2e-4792-85f27260966f" page="0" rect="540,713.723,560,733.723" subject="Sticky Note" title="Ana Lima" icon="Comment" inreplyto="9b08761b-616c-8c96-1fee-d951d70e0a1a">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Table 4 of the engine report.</span></p></body></contents-richtext>
+</text>
+<text creationdate="D:20260925093000+08'00'" flags="hidden,print,nozoom,norotate" date="D:20260925093000+08'00'" name="304fa8a8-3b85-c631-44ae-d5369fb8f4c3" page="0" rect="540,713.723,560,733.723" subject="Sticky Note" title="Ana Lima" icon="Comment" statemodel="Review" state="Cancelled" inreplyto="9b08761b-616c-8c96-1fee-d951d70e0a1a">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Cancelled set by Ana Lima</p></body></contents-richtext>
+</text>
+<text creationdate="D:20260926100000Z" flags="hidden,print,nozoom,norotate" date="D:20260926100000Z" name="500ed983-c758-7ce7-66ea-dab1b8ecfe7f" page="0" rect="540,713.723,560,733.723" subject="Sticky Note" title="Zoë Müller" icon="Comment" statemodel="Marked" state="Marked" inreplyto="9b08761b-616c-8c96-1fee-d951d70e0a1a">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Marked set by Zoë Müller</p></body></contents-richtext>
+</text>
+<text creationdate="D:20260927100000Z" flags="hidden,print,nozoom,norotate" date="D:20260927100000Z" name="3cf1ad9c-174a-c745-a874-4967b3060823" page="0" rect="540,713.723,560,733.723" subject="Sticky Note" title="Zoë Müller" icon="Comment" statemodel="Marked" state="Unmarked" inreplyto="9b08761b-616c-8c96-1fee-d951d70e0a1a">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p>Unmarked set by Zoë Müller</p></body></contents-richtext>
+</text>
+<caret color="#2166DB" creationdate="D:20260909130000+01'00'" flags="print" date="D:20260909130000+01'00'" name="824b6c60-ecf5-30dd-df62-c54e1db836c1" page="0" rect="371.853,735.723,379.853,745.723" subject="Replace Text" title="Ben Okafor" symbol="None">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">decision</span></p></body></contents-richtext>
+</caret>
+<strikeout color="#2166DB" creationdate="D:20260909130000+01'00'" flags="print" date="D:20260909130000+01'00'" name="7279abbc-f63d-213b-e1a1-268fbdf2c4ef" page="0" rect="309.668,737.723,373.853,747.898" subject="Replace Text" title="Ben Okafor" coords="309.668,747.898,373.853,747.898,309.668,737.723,373.853,737.723" inreplyto="824b6c60-ecf5-30dd-df62-c54e1db836c1" replyType="group">
+</strikeout>
+<text color="#FFD94C" creationdate="D:20260914090000+01'00'" flags="print,nozoom,norotate" date="D:20260914090000+01'00'" name="8c9c4beb-031f-14a1-e24b-df653b31b813" page="0" rect="500,600,520,620" subject="Sticky Note" title="Ben Okafor" icon="Comment" inreplyto="1af53fc0-d176-1d92-dfa3-1e410a3f61c6">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Which of these came first?</span></p></body></contents-richtext>
+</text>
+<text color="#FFD94C" creationdate="D:20260914090500Z" flags="print,nozoom,norotate" date="D:20260914090500Z" name="1af53fc0-d176-1d92-dfa3-1e410a3f61c6" page="0" rect="530,600,550,620" subject="Sticky Note" title="Zoë Müller" icon="Comment" inreplyto="8c9c4beb-031f-14a1-e24b-df653b31b813">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Neither, apparently.</span></p></body></contents-richtext>
+</text>
+<text color="#FFD94C" creationdate="D:20260916100000+08'00'" flags="print,nozoom,norotate" date="D:20260916100000+08'00'" name="16491127-19db-64ad-4c48-c117c4f4abe9" page="0" rect="500,560,520,580" subject="Sticky Note" title="Ana Lima" icon="Comment" inreplyto="missing-parent">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Replying to a deleted comment.</span></p></body></contents-richtext>
+</text>
+<text color="#FFD94C" creationdate="D:20260930170000Z" flags="print,nozoom,norotate" date="D:20260930170000Z" name="0e00be23-c814-48b3-e88d-e9a4102f7a9d" page="1" rect="500,752,520,772" subject="Sticky Note" title="Zoë Müller" icon="Comment" inreplyto="4ea586ce-c29f-ed99-b8e0-2cfd3216b523">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Answering the page 1 note from here.</span></p></body></contents-richtext>
+</text>
+<text color="#FFD94C" creationdate="D:20260928080000+01'00'" flags="print,nozoom,norotate" date="D:20260928080000+01'00'" name="d327399d-482c-acfd-11f3-f018f2cc0a18" page="1" rect="500,700,520,720" subject="Sticky Note" title="Ben Okafor" icon="Comment">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">A thread of its own on page 2.</span></p></body></contents-richtext>
+<popup flags="print,nozoom,norotate" open="no" page="1" rect="380,590,560,690"/>
+</text>
+<text color="#FFD94C" creationdate="D:20260929083000+08'00'" flags="print,nozoom,norotate" date="D:20260929083000+08'00'" name="0aafdaca-b726-eb85-9f4d-7dc445c875b1" page="1" rect="500,700,520,720" subject="Sticky Note" title="Ana Lima" icon="Comment" inreplyto="d327399d-482c-acfd-11f3-f018f2cc0a18">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" xfa:spec="2.0.2"><p dir="ltr"><span dir="ltr" style="font-size:-14.0pt;text-align:left;font-weight:normal;font-style:normal">Agreed.</span></p></body></contents-richtext>
+</text>
+</annots>
+<f href="annots-threads.pdf"/>
+<ids original="A58B0AD219B1833FCE730D8D030681A8" modified="A58B0AD219B1833FCE730D8D030681A8"/>
+</xfdf>

@@ -22,6 +22,11 @@ WHY THE EXCHANGE FILES ARE GENERATED IN ACROBAT'S SHAPES and not taken from Acro
 byte is ours. The shapes are the ones Acrobat 26 writes (an FDF with `/Page` in place of `/P` and no
 cross-reference table, an XFDF in Adobe's namespace with `name` carrying `/NM`), and an exchange
 with Acrobat itself is manual case M-04, because a file Acrobat wrote cannot enter this corpus.
+`threads.*` were written from the standard rather than from Acrobat's output, and M-04's walk
+measured Acrobat 26.2.21931 differing from them twice -- an XFDF comment's text in
+`<contents-richtext>` with NO `<contents>`, and an FDF reply's /IRT as its parent's /NM STRING
+rather than a reference (S6 guide I-27, I-28). Both are reproduced in `threads-acrobat26.*`, and
+`threads.*` keep the standard's forms, which other producers -- and RawPage -- write.
 
 DETERMINISM. No clock, no `random`, no `uuid4`, and no `math.sin`/`math.cos`: a last-bit
 difference in the platform's libm would move a rounded coordinate and the file would stop
@@ -87,6 +92,14 @@ KAPPA = 0.5522847498              # the cubic Bezier quarter-circle constant
 XHTML = ('<?xml version="1.0"?><body xmlns="http://www.w3.org/1999/xhtml" '
          'xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" '
          'xfa:spec="2.0.2"><p>%s</p></body>')
+# The rich-text body Acrobat 26.2.21931 wrote into an XFDF's `<contents-richtext>` in Stage 6's M-04
+# walk, with no `<contents>` beside it (S6 guide I-27): its paragraph's attributes, then its text.
+ACROBAT_XHTML = ('<body xmlns="http://www.w3.org/1999/xhtml" '
+                 'xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:26.2.0" '
+                 'xfa:spec="2.0.2"><p%s>%s</p></body>')
+# The /NM the reply whose parent is missing names in an exchange that refers by name -- one nothing
+# in its target carries.
+MISSING_PARENT_NM = "missing-parent"
 
 
 def r3(value):
@@ -656,10 +669,12 @@ class Fixture:
             shared[key] = number
         return number
 
-    def annot_dict(self, spec, mode, shared, ref_of=None, fdf_pdf=None):
+    def annot_dict(self, spec, mode, shared, ref_of=None, fdf_pdf=None, irt_by_name=False):
         """The annotation's dictionary. `mode` is "pdf" or "fdf": an FDF annotation names its page
         by index (`/Page`) rather than by reference, carries no appearance (an importer generates
-        one), and refers to its parent and pop-up by FDF object number."""
+        one), and refers to its parent and pop-up by FDF object number -- or, with `irt_by_name`,
+        to its parent by the parent's /NM as a STRING, which is what Acrobat 26.2 writes (S6 guide
+        I-28)."""
         pdf = fdf_pdf if mode == "fdf" else self.pdf
         ref_of = ref_of or (lambda other: other["obj"])
         pairs = [(b"/Type", b"/Annot"), (b"/Subtype", pb.name(spec["subtype"])),
@@ -726,9 +741,11 @@ class Fixture:
         if "symbol" in spec:
             pairs.append((b"/Sy", pb.name(spec["symbol"])))
         if "irt" in spec:
-            pairs.append((b"/IRT", pb.ref(ref_of(spec["irt"]))))
+            pairs.append((b"/IRT", pb.literal(spec["irt"]["nm"]) if irt_by_name
+                          else pb.ref(ref_of(spec["irt"]))))
         if "irt_missing" in spec:
-            pairs.append((b"/IRT", pb.ref(spec["irt_missing"])))
+            pairs.append((b"/IRT", pb.literal(MISSING_PARENT_NM) if irt_by_name
+                          else pb.ref(spec["irt_missing"])))
         if "rt" in spec:
             pairs.append((b"/RT", pb.name(spec["rt"])))
         if "state_model" in spec:
@@ -894,10 +911,11 @@ def file_spec(pdf, attachment):
 # Exchange files -- FDF and XFDF in the shapes Acrobat writes
 # ---------------------------------------------------------------------------------------------
 
-def fdf_bytes(fixture):
+def fdf_bytes(fixture, irt_by_name=False):
     """An FDF over every annotation of `fixture`: one catalog naming the target file and its /ID,
     one indirect object per annotation (pop-ups too), no cross-reference table -- Acrobat writes
-    none, and a reader that insists on one is wrong about FDF (ISO 32000-1 section 12.7.8)."""
+    none, and a reader that insists on one is wrong about FDF (ISO 32000-1 section 12.7.8).
+    `irt_by_name` writes each /IRT as the parent's /NM string, as Acrobat 26.2 does."""
     fdf = pb.Pdf()
     catalog = fdf.reserve()
     numbers_by_serial = {spec["serial"]: fdf.reserve() for spec in fixture.specs}
@@ -906,7 +924,8 @@ def fdf_bytes(fixture):
         return numbers_by_serial[other["serial"]]
     for spec in fixture.specs:
         fdf.set(numbers_by_serial[spec["serial"]],
-                fixture.annot_dict(spec, "fdf", {}, ref_of=ref_of, fdf_pdf=fdf))
+                fixture.annot_dict(spec, "fdf", {}, ref_of=ref_of, fdf_pdf=fdf,
+                                   irt_by_name=irt_by_name))
     target = fixture.name
     fdf.set(catalog, pb.dictionary([
         (b"/FDF", pb.dictionary([
@@ -944,9 +963,12 @@ def _xfdf_flags(flags):
     return ",".join(n.lower() for n, bit in FLAGS.items() if flags & bit)
 
 
-def xfdf_bytes(fixture, missing_parent_nm="missing-parent"):
+def xfdf_bytes(fixture, missing_parent_nm=MISSING_PARENT_NM, rich_only=False):
     """An XFDF over every annotation of `fixture`, in Adobe's namespace: `name` carries /NM,
-    `inreplyto` a parent's /NM, `replyType` "group" for /RT /Group, a pop-up as a child element."""
+    `inreplyto` a parent's /NM, `replyType` "group" for /RT /Group, a pop-up as a child element.
+    `rich_only` writes a comment's text as Acrobat 26.2 does -- ONLY as `<contents-richtext>`, no
+    `<contents>` beside it (S6 guide I-27): a paragraph and a span for a comment, a bare paragraph
+    for a state reply's generated text."""
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<xfdf xmlns="http://ns.adobe.com/xfdf/" xml:space="preserve">', "<annots>"]
     for spec in fixture.specs:
@@ -1002,9 +1024,16 @@ def xfdf_bytes(fixture, missing_parent_nm="missing-parent"):
         head = "<%s %s>" % (element, " ".join("%s=%s" % (k, quoteattr(v))
                                               for k, v in (a for a in attrs if a)))
         lines.append(head)
-        if "contents" in spec and "rich" not in spec:
+        if rich_only and "contents" in spec:
+            body = escape(spec["contents"])
+            if "state_model" not in spec:
+                body = ('<span dir="ltr" style="font-size:-14.0pt;text-align:left;'
+                        'font-weight:normal;font-style:normal">%s</span>' % body)
+            lines.append("<contents-richtext>%s</contents-richtext>"
+                         % ACROBAT_XHTML % ("" if "state_model" in spec else ' dir="ltr"', body))
+        elif "contents" in spec and "rich" not in spec:
             lines.append("<contents>%s</contents>" % escape(spec["contents"]))
-        if "rich" in spec:
+        elif "rich" in spec:
             lines.append("<contents>%s</contents>" % escape(spec["contents"]))
             lines.append("<contents-richtext>%s</contents-richtext>"
                          % (XHTML % escape(spec["rich"])).split("?>", 1)[1])
@@ -1405,10 +1434,13 @@ def annots_threads():
     return data, label
 
 
-def threads_exchange():
+def threads_exchange(acrobat26=False):
+    """`threads.*`, or with `acrobat26` the same comments in the two places Acrobat 26.2.21931's
+    exports were MEASURED to differ from them in M-04 (S6 guide I-27, I-28): an XFDF comment's text
+    in `<contents-richtext>` alone, and an FDF reply's /IRT as its parent's /NM string."""
     f, _ = threads_fixture()
     f.build()
-    return fdf_bytes(f), xfdf_bytes(f)
+    return fdf_bytes(f, irt_by_name=acrobat26), xfdf_bytes(f, rich_only=acrobat26)
 
 
 FLAG_CASES = [("Locked", "Square"), ("LockedContents", "FreeText"), ("ReadOnly", "Square"),
@@ -1939,6 +1971,9 @@ def generate():
     out["exchange/threads.fdf"] = fdf
     out["exchange/threads.xfdf"] = xfdf
     good = xfdf
+    acrobat_fdf, acrobat_xfdf = threads_exchange(acrobat26=True)
+    out["exchange/threads-acrobat26.fdf"] = acrobat_fdf
+    out["exchange/threads-acrobat26.xfdf"] = acrobat_xfdf
     # The two hostile XFDF files are derived from a valid one, so each differs from it in exactly
     # the damage it is named for.
     cut = good.index(b"</annots>")

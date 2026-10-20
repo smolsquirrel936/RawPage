@@ -147,6 +147,7 @@ core::Result<core::Fdf> FdfCodec::read(const QByteArray& bytes)
         core::Annotation annotation;
         std::optional<long long> object;     // its number in the FDF; none for a direct dictionary
         std::optional<long long> irt, popup, parent;
+        QString irtName;                     // an `/IRT` written as its parent's `/NM` (see the header)
         bool kept = true;
     };
     std::vector<Entry> entries;
@@ -205,6 +206,7 @@ core::Result<core::Fdf> FdfCodec::read(const QByteArray& bytes)
             }
         }
         entry.irt = referenceNumber(a.inReplyTo);
+        if (!entry.irt) entry.irtName = textOf(d->find("IRT"));
         entry.popup = referenceNumber(a.popup);
         entry.parent = referenceNumber(a.parent);
         a.inReplyTo.reset();
@@ -271,6 +273,10 @@ core::Result<core::Fdf> FdfCodec::read(const QByteArray& bytes)
                 a.inReplyTo = core::AnnotationId::ofCreated(found->second);
             else
                 note(core::ExchangeNoteKind::ReferenceDropped, a.nm, a.page);
+        } else if (!e.irtName.isEmpty()) {
+            // A name, as XFDF's `inreplyto` is one: the merge finds it in the file or the document, or drops and notes it.
+            if (e.irtName.size() <= core::kMaxExchangeNameLength) a.inReplyTo = core::AnnotationId::ofCreated(e.irtName);
+            else note(core::ExchangeNoteKind::ReferenceDropped, a.nm, a.page);
         }
         if (popupsOf.count(a.nm) != 0) a.popup = core::AnnotationId::ofCreated(core::popupNameFor(a.nm));
     }
