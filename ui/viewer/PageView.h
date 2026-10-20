@@ -313,6 +313,9 @@ public:
     using ToolHost::requestAnnotationText;
     bool requestAnnotationText(const AnnotationTextRequest& request, std::function<void(const QString&)> commit) override;
     AnnotationTextEditor* annotationTextEditor() const;
+    // S6 guide I-29: a reply to `thread` typed under its pop-up -- the pop-up's REPLY button. The pop-up is pinned
+    // while the editor is open; `Enter` makes ONE `ReplyToAnnotationCommand` to the thread's root, `Esc` nothing.
+    bool openReplyEditor(const core::AnnotationId& thread);
     int displayedRotation(int page) const override;
     core::TypedFont hanPreference() const override;
     double pixelsPerPoint() const override;

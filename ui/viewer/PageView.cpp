@@ -832,6 +832,32 @@ bool PageView::requestAnnotationText(const AnnotationTextRequest& request, std::
     return true;
 }
 
+bool PageView::openReplyEditor(const core::AnnotationId& thread)
+{
+    if (annotations_ == nullptr || !annotations_->pinPopup(thread)) return false;
+    // The pop-up stays open while the person types -- pinned, as a double click pins it -- and the editor sits under
+    // it at its width; above it when the pane has no room below, so it never covers the thread being answered; and
+    // pulled inside the pane when it has room for neither.
+    const std::optional<core::AnnotationId> owner = annotations_->popupOwner(thread);
+    const std::optional<QRectF> box = owner ? annotations_->popupRect(annotationViewport(), *owner) : std::nullopt;
+    if (!box) return false;
+    constexpr int kReplyEditorHeight = 64;
+    constexpr int kGap = 4;
+    AnnotationTextRequest request;
+    const int width = std::max(120, qRound(box->width()));
+    const int below = qRound(box->bottom()) + kGap;
+    const int above = qRound(box->top()) - kGap - kReplyEditorHeight;
+    const int y = below + kReplyEditorHeight <= viewport()->height() ? below
+                  : above >= 0                                       ? above
+                                                                     : std::clamp(below, 0, std::max(0, viewport()->height() - kReplyEditorHeight));
+    request.box = QRect(qRound(box->left()), y, width, kReplyEditorHeight);
+    request.wrap = true;
+    const core::AnnotationId answered = *owner;
+    return requestAnnotationText(request, [this, answered](const QString& text) {
+        if (annotations_ != nullptr) (void)annotations_->reply(annotationViewport(), answered, text);
+    });
+}
+
 AnnotationTextEditor* PageView::annotationTextEditor() const
 {
     return editor_ != nullptr && !editor_->isFinished() ? editor_.data() : nullptr;
@@ -1201,6 +1227,15 @@ void PageView::mousePressEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    // S6 guide I-29: A POP-UP'S REPLY BUTTON opens this pane's editor under the pop-up -- the pane's, because the
+    // overlay is every pane's and the editor is a widget of the one that was pressed.
+    if (event->button() == Qt::LeftButton && overlayFirst()) {
+        if (const std::optional<core::AnnotationId> thread = annotations_->replyButtonAt(annotationViewport(), event->pos())) {
+            (void)openReplyEditor(*thread);
+            event->accept();
+            return;
+        }
+    }
     if (event->button() == Qt::LeftButton && overlayFirst()
         && annotations_->press(annotationViewport(), event->pos(), event->modifiers(), clicks_)) {
         event->accept();
@@ -1466,6 +1501,15 @@ void PageView::wheelEvent(QWheelEvent* event)
             loupeWheel_ -= notches * kWheelNotch;
             (void)tools_->stepLoupeMagnification(notches);
         }
+        event->accept();
+        return;
+    }
+
+    // A THREAD'S POP-UP SCROLLS UNDER THE WHEEL (S6 guide I-29) when its thread is taller than it -- before a frozen
+    // pane hands the wheel on, because the pop-up is drawn in this pane. `Ctrl` with it is the zoom's, and a pop-up
+    // with nothing to scroll leaves the wheel to the page.
+    if (!held.testFlag(Qt::ControlModifier) && annotations_ != nullptr
+        && annotations_->scrollPopup(annotationViewport(), event->position().toPoint(), event->angleDelta().y())) {
         event->accept();
         return;
     }

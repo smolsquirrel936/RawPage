@@ -501,6 +501,8 @@ void DocumentWindow::build(const Recovery* recovery)
             annotations_->setAuthor([this] {
                 return core::identityAuthor(services_.settings.get(core::keys::identity::author), services_.loginName);
             });
+            // A THREAD'S POP-UP ANSWERS FROM ITS FOOT (S6 guide I-29): its button says what `comment.reply` says.
+            annotations_->setReplyLabel(catalog::translateAction(core::ActionId::CommentReply));
 
             // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES (S6 T4, D6-2): every command, undo and redo is
             // composed, verified and handed to the engine before it counts -- one Save could not write

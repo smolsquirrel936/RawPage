@@ -38,6 +38,16 @@
 // closing it constructs no command and changes no byte. `commenting/popupBehaviour` says when they show.
 // A CARET has one too, the same way (S6 guide I-26): its text is the words a person inserted.
 //
+// A POP-UP IS A THREAD'S (S6 guide I-29, D6-28 amended). A reply to a note sits at the note's own rectangle
+// with the same icon -- Acrobat's and `core::newReply`'s alike -- so a pop-up per annotation put the reply's
+// over the note's and left the note's text unreachable on the page. A pop-up belongs to its OWNER: the highest
+// annotation up the `/RT /R` chain that has one (`popupOwner`), so the pointer on a note or on any reply over it
+// reaches one pop-up, which lists the thread -- its root's text, then every reply under it with its author,
+// a state reply never (`popupThread`). It grows with the thread up to `kPopupMaxShare` of the pane's height,
+// and past that its body scrolls under the wheel (`scrollPopup`) -- still view state. At its foot a REPLY
+// button (`replyButtonAt`): the pane opens its editor under the pop-up, and the text becomes ONE
+// `ReplyToAnnotationCommand` to the thread's root (`reply`) -- the one thing in a pop-up that is a command.
+//
 // ---------------------------------------------------------------------------------------------
 // WHAT THE TOOLS MAKE (Stage 6 T6) -- one command each, D6-1
 // ---------------------------------------------------------------------------------------------
@@ -308,11 +318,36 @@ public:
     bool wantsHover() const noexcept { return popupBehaviour_ == PopupBehaviour::OnHover; }
     // The pointer is over `pos` (or has left, with `pos` null): repaints when the hovered note or caret changes.
     void hover(const Viewport& view, std::optional<QPoint> pos);
-    // A double click on a note or a caret pins its pop-up open, or closes it.
+    // A double click on a note or a caret -- or a reply over one -- pins its owner's pop-up open, or closes it.
     bool togglePopup(const core::AnnotationId& id);
     bool isPopupShown(const core::AnnotationId& id) const;
     // Where a shown pop-up is drawn, in viewport logical pixels; empty when it is not shown.
     std::optional<QRectF> popupRect(const Viewport& view, const core::AnnotationId& id) const;
+
+    // ---- A thread's pop-up (S6 guide I-29) -- see the header ----------------------------------------
+    // A pop-up grows with its thread to at most this share of the pane's height, then scrolls.
+    static constexpr double kPopupMaxShare = 0.6;
+    // The annotation whose pop-up `id` opens: the highest up its reply chain that has one; none for one
+    // with no pop-up up the chain.
+    std::optional<core::AnnotationId> popupOwner(const core::AnnotationId& id) const;
+    // What `id`'s pop-up lists, in order: its thread's root, then each reply under it, depth first, oldest first.
+    std::vector<core::AnnotationId> popupThread(const core::AnnotationId& id) const;
+    // The REPLY button's label -- the window's, from the catalog (`ui/viewer/` holds no key). Empty: no button.
+    void setReplyLabel(QString label);
+    // Where a shown pop-up's reply button is drawn; empty when it has none.
+    std::optional<QRectF> replyButtonRect(const Viewport& view, const core::AnnotationId& id) const;
+    // The pop-up whose reply button is at `pos`, if it is one.
+    std::optional<core::AnnotationId> replyButtonAt(const Viewport& view, QPoint pos) const;
+    // `id`'s pop-up kept open, as a double click keeps it -- while a reply is typed under it.
+    bool pinPopup(const core::AnnotationId& id);
+    // `text` as a reply to `id`'s thread's root: ONE `ReplyToAnnotationCommand` (`core::newReply`, by the
+    // person, now). Nothing for text that is only white space.
+    core::Status reply(const Viewport& view, const core::AnnotationId& id, const QString& text);
+    // The wheel over a shown pop-up whose thread is taller than its body scrolls it, `angleDeltaY` in Qt's
+    // eighths of a degree. False -- the page's -- anywhere else, or over a pop-up with nothing to scroll.
+    bool scrollPopup(const Viewport& view, QPoint pos, int angleDeltaY);
+    // How far `id`'s pop-up is scrolled, in logical pixels.
+    double popupScroll(const core::AnnotationId& id) const;
 
     // ---- Sequence numbers (S6 T9, guide A-72) -------------------------------------------------------
     // The Comments pane's numbers, painted beside each numbered annotation -- over the tiles, never in them, and
@@ -380,6 +415,27 @@ private:
     void applyStyle(core::Annotation& a, const Style& style) const;
     void retryPendingMark();
 
+    // S6 guide I-29: a shown pop-up, laid out -- its parts in viewport logical pixels, its thread measured.
+    struct PopupEntry {
+        core::AnnotationId id;
+        QString author;    // empty for the root: the title says it
+        QString text;
+        int depth = 0;
+        double top = 0.0;  // in the body, before the scroll
+        double height = 0.0;
+    };
+    struct PopupLayout {
+        QRectF box, title, close, body, button;   // `button` empty when there is none
+        std::vector<PopupEntry> entries;
+        double content = 0.0;                     // the thread's height
+        double scroll = 0.0;                      // clamped to what overflows the body
+    };
+    std::optional<PopupLayout> popupLayout(const Viewport& view, const core::AnnotationId& id) const;
+    // The pop-ups shown in `view`, the one a press reaches first first: hovered, pinned, then `Always`'s.
+    std::vector<core::AnnotationId> shownPopups(const Viewport& view) const;
+    // The root of `index`'s `/RT /R` chain.
+    std::size_t threadRoot(std::size_t index) const;
+
     const core::AnnotationStore* store_ = nullptr;
     Runner runner_;
     Clock clock_;
@@ -411,6 +467,8 @@ private:
     std::vector<core::AnnotationId> pinned_;               // shown by a double click
     std::optional<core::AnnotationId> hovered_;
     std::map<core::AnnotationId, QPointF> popupOffset_;    // moved by a drag of its title, logical px
+    std::map<core::AnnotationId, double> popupScroll_;     // S6 guide I-29: scrolled by the wheel, logical px
+    QString replyLabel_;                                   // S6 guide I-29: empty, no reply button
     std::map<core::AnnotationId, int> numbers_;            // S6 T9: the Comments pane's, while numbering is on
 };
 

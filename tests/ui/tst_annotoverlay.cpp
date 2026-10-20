@@ -27,6 +27,7 @@
 #include "ui/shell/StatusBar.h"
 #include "ui/shell/ToolFinder.h"
 #include "ui/viewer/AnnotationOverlay.h"
+#include "ui/viewer/AnnotationTextEditor.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/TilePresenter.h"
@@ -46,6 +47,7 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QSpinBox>
+#include <QWheelEvent>
 
 #include <cmath>
 
@@ -654,6 +656,123 @@ TEST_CASE("a caret's pop-up shows its inserted text under each behaviour as a no
     // View state: no command, no byte.
     CHECK(a.journal().document().modelHash() == hash);
     CHECK(a.steps() == 0);
+}
+
+// ==========================================================================================
+// S6 guide I-29 -- a pop-up is its thread's, and a reply is made from its foot
+// ==========================================================================================
+// M-04's re-walk, 2026-10-20: a reply to a note sits at the note's own rectangle with the same icon -- Acrobat's and
+// `core::newReply`'s alike -- so the pointer on the note reached the reply's pop-up alone and the note's text could not
+// be read on the page. The user asked for one pop-up for the thread, scrolling when it is long, with a reply button.
+// NOT COVERED (convention 19): the paint -- `popupThread`, `popupRect`, `replyButtonRect` and `popupScroll` are what
+// `paint` reads; and the click and the wheel under a real pointer: both are sent to the viewport.
+
+TEST_CASE("a note's pop-up is its thread's and scrolls and a reply is made from its foot", "[annotoverlay][I-29][D6-28]")
+{
+    Annotated a;
+    const AnnotationId note = AnnotationId::ofObject(13);
+    const auto view = [&a] { return a.view->annotationViewport(); };
+
+    // A REPLY OVER THE NOTE -- made by the pop-up's own path, so at the note's rectangle -- and a STATUS, hidden.
+    REQUIRE(a.overlay->reply(view(), note, QStringLiteral("I checked it")));
+    REQUIRE(a.journal().run(std::make_unique<core::SetAnnotationStatusCommand>(std::vector<Annotation>{
+        core::newStateReply(a.at(13), QStringLiteral("Review"), QStringLiteral("Accepted"), QStringLiteral("Ana"), 1791590400)})));
+    std::vector<std::size_t> replies = a.store().replies(*a.store().findObject(13));
+    REQUIRE(replies.size() == 1);
+    const Annotation reply = a.store().at(replies.front());
+    CHECK(reply.rect == a.at(13).rect);   // over the note's icon: the case the issue is
+    CHECK(reply.contents == QStringLiteral("I checked it"));
+    CHECK(reply.author == a.overlay->author());
+    CHECK(a.steps() == 2);
+    // Nothing for white space: no command.
+    REQUIRE(a.overlay->reply(view(), note, QStringLiteral("  \n ")));
+    CHECK(a.steps() == 2);
+
+    // HOVER where both icons are: the topmost is the reply, and the pop-up is the NOTE's, listing the thread -- the
+    // status reply not in it.
+    const QRectF icon = a.rectOf(13);
+    const QPoint onNote(qRound(icon.center().x()), qRound(icon.center().y()));
+    REQUIRE(a.overlay->annotationAt(view(), onNote) == std::optional<AnnotationId>(reply.id));
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::OnHover);
+    a.hoverAt(onNote);
+    CHECK(a.overlay->isPopupShown(note));
+    CHECK_FALSE(a.overlay->isPopupShown(reply.id));
+    CHECK(a.overlay->popupThread(note) == std::vector<AnnotationId>{note, reply.id});
+    CHECK(a.overlay->popupThread(reply.id) == std::vector<AnnotationId>{note, reply.id});
+    // Always: ONE pop-up for the thread, the note's.
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Always);
+    CHECK(a.overlay->isPopupShown(note));
+    CHECK_FALSE(a.overlay->isPopupShown(reply.id));
+    // A double click on the reply pins the note's under Never.
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
+    a.mouse(QEvent::MouseButtonPress, onNote);
+    a.mouse(QEvent::MouseButtonRelease, onNote);
+    a.mouse(QEvent::MouseButtonDblClick, onNote);
+    a.mouse(QEvent::MouseButtonRelease, onNote);
+    REQUIRE(a.overlay->isPopupShown(note));
+
+    // THE REPLY BUTTON, through the page: an editor under the pop-up, the pop-up kept open; `Enter` makes ONE reply to
+    // the thread's root; `Esc` makes nothing.
+    const QRectF shown = *a.overlay->popupRect(view(), note);
+    const std::optional<QRectF> button = a.overlay->replyButtonRect(view(), note);
+    REQUIRE(button);
+    CHECK(shown.contains(*button));
+    CHECK(button->bottom() > shown.center().y());   // at its foot
+    a.click(button->center().toPoint());
+    ui::AnnotationTextEditor* editor = a.view->annotationTextEditor();
+    REQUIRE(editor != nullptr);
+    // Beside the thread it answers -- under it, or above it where the pane has no room below -- never over it.
+    INFO("pop-up " << shown.top() << ".." << shown.bottom() << ", editor " << editor->geometry().top() << ".."
+                   << editor->geometry().bottom() << ", pane " << a.view->viewport()->height());
+    CHECK_FALSE(QRectF(editor->geometry()).intersects(shown));
+    CHECK(editor->geometry().left() == qRound(shown.left()));
+    CHECK(a.overlay->isPopupShown(note));
+    editor->setPlainText(QStringLiteral("Thanks"));
+    a.key(Qt::Key_Return, Qt::NoModifier, editor);
+    CHECK(a.steps() == 3);
+    replies = a.store().replies(*a.store().findObject(13));
+    REQUIRE(replies.size() == 2);
+    CHECK(a.store().at(replies.back()).contents == QStringLiteral("Thanks"));
+    CHECK(a.overlay->popupThread(note).size() == 3);
+    CHECK(a.overlay->isPopupShown(note));
+    a.click(a.overlay->replyButtonRect(view(), note)->center().toPoint());
+    REQUIRE(a.view->annotationTextEditor() != nullptr);
+    a.view->annotationTextEditor()->setPlainText(QStringLiteral("never sent"));
+    a.key(Qt::Key_Escape, Qt::NoModifier, a.view->annotationTextEditor());
+    CHECK(a.steps() == 3);
+
+    // A LONG THREAD grows to `kPopupMaxShare` of the pane and scrolls under the wheel; the page does not move under it.
+    QString longText;
+    for (int line = 1; line <= 80; ++line) longText += QStringLiteral("Line %1 of a long reply.\n").arg(line);
+    REQUIRE(a.overlay->reply(view(), note, longText));
+    const QRectF tall = *a.overlay->popupRect(view(), note);
+    const double paneHeight = view().visible.size.height / view().dpr;
+    CHECK(tall.height() > shown.height());
+    CHECK(tall.height() <= paneHeight * ui::AnnotationOverlay::kPopupMaxShare + 1.0);
+    const auto wheel = [&a](QPoint at, int delta) {
+        QWheelEvent event(QPointF(at), QPointF(a.view->viewport()->mapToGlobal(at)), QPoint(), QPoint(0, delta),
+                          Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(a.view->viewport(), &event);
+        QCoreApplication::processEvents();
+    };
+    const double pageTop = view().visible.top();
+    const QPoint inBody(qRound(tall.center().x()), qRound(tall.center().y()));
+    CHECK(a.overlay->popupScroll(note) == 0.0);
+    wheel(inBody, -120);
+    const double once = a.overlay->popupScroll(note);
+    CHECK(once > 0.0);
+    CHECK(view().visible.top() == pageTop);
+    for (int notch = 0; notch < 200; ++notch) wheel(inBody, -120);
+    const double end = a.overlay->popupScroll(note);
+    CHECK(end > once);
+    wheel(inBody, -120);
+    CHECK(a.overlay->popupScroll(note) == end);   // clamped at the thread's end
+    wheel(inBody, 120);
+    CHECK(a.overlay->popupScroll(note) < end);
+    CHECK(view().visible.top() == pageTop);
+    // The control: off the pop-up, the same wheel is the page's.
+    wheel(QPoint(qRound(tall.left()) - 120, inBody.y()), -120);
+    CHECK(view().visible.top() != pageTop);
 }
 
 // ==========================================================================================

@@ -334,7 +334,10 @@ QString newAnnotationName();
 // generator's convention (`corpus/make-annots.py`): the parent's own when the parent is a note, so the reply's
 // icon sits under it; otherwise a note-sized square in the right margin at the parent's height, 52 points in
 // from `pageBox`'s right edge. `colour` is used where the parent is not a note (a note's reply takes its
-// colour). No pop-up: the Comments pane is where a reply is read and written.
+// colour). No `Popup` annotation of its own: it is read and written in the Comments pane and in its thread's
+// pop-up (S6 guide I-29).
+// What a reply to anything but a note is drawn in: the sticky note's own default (`core/settings/ToolDefaults.def`).
+inline const std::vector<double> kReplyColour{1.0, 1.0, 0.0};
 Annotation newReply(const Annotation& parent, const PdfRect& pageBox, const QString& contents,
                     const std::vector<double>& colour, const QString& author, std::int64_t utcNow);
 

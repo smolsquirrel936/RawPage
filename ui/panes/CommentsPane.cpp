@@ -48,10 +48,6 @@ constexpr int kColumnDate = 3;
 constexpr int kColumnStatus = 4;
 constexpr int kColumnCount = 5;
 
-// The sticky note's own default (`core/settings/ToolDefaults.def`): what a reply to anything but a note is drawn
-// in. A note's reply takes the note's colour (`core::newReply`).
-const std::vector<double> kReplyColour{1.0, 1.0, 0.0};
-
 // The instant an item is dated by -- the store's rule: `/M`, else `/CreationDate`.
 std::optional<std::int64_t> dateOf(const Annotation& a)
 {
@@ -975,7 +971,7 @@ void CommentsPane::openTextEditor(bool replying)
             const core::PdfRect box = answered.page >= 0 && static_cast<std::size_t>(answered.page) < pageBoxes_.size()
                                           ? pageBoxes_[static_cast<std::size_t>(answered.page)]
                                           : core::PdfRect{core::PdfPoint{0, 0}, core::PdfSize{612, 792}};
-            Annotation reply = core::newReply(answered, box, text, kReplyColour, identity(), this->now());
+            Annotation reply = core::newReply(answered, box, text, core::kReplyColour, identity(), this->now());
             done = run(std::make_unique<core::ReplyToAnnotationCommand>(std::vector<Annotation>{std::move(reply)}));
         } else {
             if (text == answered.contents) return;
