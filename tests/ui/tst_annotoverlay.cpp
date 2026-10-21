@@ -162,6 +162,7 @@ struct Annotated {
         fixture.backend.annotations_ = annotatedStore(withCaret);
         window = std::make_unique<ui::MainWindow>(fixture.services());
         window->resize(1100, 900);
+        window->setDeleteAnswerForTesting([](const QString&) { return true; });   // `Delete` asks first (I-32)
         window->openFiles({fixture.writeFile(QStringLiteral("annotated.pdf"))});
         driveLayout(window.get());
         document = window->currentDocument();
@@ -581,14 +582,12 @@ TEST_CASE("a note's pop-up opens moves and closes as view state under each behav
     // Always: every note's.
     a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Always);
     CHECK(a.overlay->isPopupShown(AnnotationId::ofObject(13)));
-    CHECK_FALSE(a.overlay->isPopupShown(AnnotationId::ofObject(10)));   // a rectangle has none
+    CHECK_FALSE(a.overlay->isPopupShown(AnnotationId::ofObject(10)));   // a rectangle with no text has none (I-34)
 
-    // A double click pins it under any behaviour; dragging its title moves it; its cross closes it.
+    // A CLICK opens it under any behaviour (I-34; a double click until then); dragging its title moves it; its cross
+    // closes it.
     a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
-    a.mouse(QEvent::MouseButtonPress, onNote);
-    a.mouse(QEvent::MouseButtonRelease, onNote);
-    a.mouse(QEvent::MouseButtonDblClick, onNote);
-    a.mouse(QEvent::MouseButtonRelease, onNote);
+    a.click(onNote);
     REQUIRE(a.overlay->isPopupShown(AnnotationId::ofObject(13)));
     const QRectF shown = *a.overlay->popupRect(a.view->annotationViewport(), AnnotationId::ofObject(13));
     const QPoint title(qRound(shown.left() + 20), qRound(shown.top() + 8));
@@ -642,12 +641,9 @@ TEST_CASE("a caret's pop-up shows its inserted text under each behaviour as a no
     CHECK_FALSE(a.overlay->isPopupShown(AnnotationId::ofObject(10)));
     CHECK_FALSE(a.overlay->isPopupShown(AnnotationId::ofObject(12)));
 
-    // A double click pins it under Never, and its cross closes it -- as a note's (A-47).
+    // A click opens it under Never (I-34), and its cross closes it -- as a note's (A-47).
     a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
-    a.mouse(QEvent::MouseButtonPress, onCaret);
-    a.mouse(QEvent::MouseButtonRelease, onCaret);
-    a.mouse(QEvent::MouseButtonDblClick, onCaret);
-    a.mouse(QEvent::MouseButtonRelease, onCaret);
+    a.click(onCaret);
     REQUIRE(a.overlay->isPopupShown(caret));
     const QRectF pinned = *a.overlay->popupRect(a.view->annotationViewport(), caret);
     a.click(QPoint(qRound(pinned.right() - 10), qRound(pinned.top() + 10)));
@@ -703,12 +699,9 @@ TEST_CASE("a note's pop-up is its thread's and scrolls and a reply is made from 
     a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Always);
     CHECK(a.overlay->isPopupShown(note));
     CHECK_FALSE(a.overlay->isPopupShown(reply.id));
-    // A double click on the reply pins the note's under Never.
+    // A click on the reply opens the note's under Never (I-34).
     a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
-    a.mouse(QEvent::MouseButtonPress, onNote);
-    a.mouse(QEvent::MouseButtonRelease, onNote);
-    a.mouse(QEvent::MouseButtonDblClick, onNote);
-    a.mouse(QEvent::MouseButtonRelease, onNote);
+    a.click(onNote);
     REQUIRE(a.overlay->isPopupShown(note));
 
     // THE REPLY BUTTON, through the page: an editor under the pop-up, the pop-up kept open; `Enter` makes ONE reply to
@@ -773,6 +766,126 @@ TEST_CASE("a note's pop-up is its thread's and scrolls and a reply is made from 
     // The control: off the pop-up, the same wheel is the page's.
     wheel(QPoint(qRound(tall.left()) - 120, inBody.y()), -120);
     CHECK(view().visible.top() != pageTop);
+}
+
+// ==========================================================================================
+// S6 guide I-34 -- every comment with text has a pop-up, and one click opens it
+// ==========================================================================================
+// After M-05, 2026-10-22: a highlight's, a shape's and a stamp's text could be read only in the Comments pane, and a
+// pop-up opened by a double click. The user asked for one click to open any comment's pop-up -- typed text's excepted,
+// its text being on the page -- and a press anywhere else to close it.
+// NOT COVERED (convention 19): the paint, `(Empty)` included -- `isPopupShown`, `popupRect` and `popupThread` are what
+// `paint` reads; and a press under a real pointer: events are sent to the viewport.
+
+TEST_CASE("one click opens any comment's pop-up and a press anywhere else on the page closes it", "[annotoverlay][I-34][D6-28]")
+{
+    Annotated a;
+    const auto view = [&a] { return a.view->annotationViewport(); };
+    const AnnotationId square = AnnotationId::ofObject(10);
+    const AnnotationId highlight = AnnotationId::ofObject(12);
+    const AnnotationId note = AnnotationId::ofObject(13);
+    a.overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);   // a click asks, whatever this says
+
+    // NO TEXT, NO POP-UP: the square and the highlight as the fixture has them -- a click selects and opens nothing.
+    CHECK_FALSE(a.overlay->hasPopup(square));
+    CHECK_FALSE(a.overlay->hasPopup(highlight));
+    a.click(a.onBorderOf(10));
+    CHECK(a.overlay->selection() == std::vector<AnnotationId>{square});
+    CHECK_FALSE(a.overlay->openedPopup());
+
+    // GIVEN TEXT, each kind has one.
+    Annotation boxed = a.at(10);
+    boxed.contents = QStringLiteral("Is this box right?");
+    Annotation marked = a.at(12);
+    marked.contents = QStringLiteral("Source for this?");
+    REQUIRE(a.journal().run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{boxed, marked})));
+    CHECK(a.overlay->hasPopup(square));
+    CHECK(a.overlay->hasPopup(highlight));
+
+    // ONE CLICK on the highlight -- text markup, which opens at the release that makes it a click.
+    const QRectF band = a.rectOf(12);
+    const QPoint onHighlight(qRound(band.center().x()), qRound(band.center().y()));
+    a.click(onHighlight);
+    CHECK(a.overlay->selection() == std::vector<AnnotationId>{highlight});
+    CHECK(a.overlay->openedPopup() == std::optional<AnnotationId>(highlight));
+    CHECK(a.overlay->isPopupShown(highlight));
+    // A drag over the highlight's words is the tool's, a text selection, and opens nothing -- the one open goes.
+    a.drag(onHighlight, onHighlight + QPoint(60, 0));
+    CHECK_FALSE(a.overlay->openedPopup());
+
+    // ONE AT A TIME: the square's, then the note's in its place; a second click on the note leaves it open (a double
+    // click no longer toggles it).
+    a.click(a.onBorderOf(10));
+    CHECK(a.overlay->openedPopup() == std::optional<AnnotationId>(square));
+    const QRectF icon = a.rectOf(13);
+    const QPoint onNote(qRound(icon.center().x()), qRound(icon.center().y()));
+    a.click(onNote);
+    CHECK(a.overlay->openedPopup() == std::optional<AnnotationId>(note));
+    CHECK_FALSE(a.overlay->isPopupShown(square));
+    a.mouse(QEvent::MouseButtonDblClick, onNote);
+    a.mouse(QEvent::MouseButtonRelease, onNote);
+    CHECK(a.overlay->isPopupShown(note));
+
+    // A PRESS ON ITS POP-UP keeps it; a press where nothing is closes it, and lets the selection go.
+    const QRectF shown = *a.overlay->popupRect(view(), note);
+    a.click(QPoint(qRound(shown.left() + 30), qRound(shown.center().y())));
+    CHECK(a.overlay->isPopupShown(note));
+    const QPoint nowhere(qRound(icon.center().x()), qRound(icon.bottom() + 150));
+    REQUIRE_FALSE(a.overlay->annotationAt(view(), nowhere));
+    a.click(nowhere);
+    CHECK_FALSE(a.overlay->openedPopup());
+    CHECK_FALSE(a.overlay->isPopupShown(note));
+    CHECK_FALSE(a.overlay->hasSelection());
+
+    // WITH ANOTHER TOOL -- the hand, which the overlay never sees: a press off the pop-up still closes it, one on it not.
+    REQUIRE(a.overlay->openPopup(note));
+    a.view->tools().arm(ui::ToolKind::Hand);
+    const QRectF held = *a.overlay->popupRect(view(), note);
+    a.click(QPoint(qRound(held.left() + 30), qRound(held.center().y())));
+    CHECK(a.overlay->isPopupShown(note));
+    a.click(nowhere);
+    CHECK_FALSE(a.overlay->openedPopup());
+    a.view->tools().arm(ui::ToolKind::Select);
+
+    // TYPED TEXT HAS NONE -- its text is on the page -- and a REPLY WITH TEXT gives an empty comment its thread's.
+    Annotation typed = core::newAnnotation(AnnotationSubtype::FreeText, 0, QStringLiteral("Ana"), 1791590400);
+    typed.rect = box(400, 100, 500, 140);
+    typed.contents = QStringLiteral("typed on the page");
+    REQUIRE(a.journal().run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{typed})));
+    CHECK_FALSE(a.overlay->hasPopup(typed.id));
+    Annotation emptied = a.at(10);
+    emptied.contents.clear();
+    REQUIRE(a.journal().run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{emptied})));
+    CHECK_FALSE(a.overlay->hasPopup(square));
+    REQUIRE(a.overlay->reply(view(), square, QStringLiteral("It is.")));
+    CHECK(a.overlay->hasPopup(square));
+    REQUIRE(a.overlay->openPopup(square));
+    CHECK(a.overlay->popupThread(square).size() == 2);
+    // A comment that loses the last of its text closes its pop-up.
+    REQUIRE(a.journal().undo());   // the reply
+    CHECK_FALSE(a.overlay->openedPopup());
+
+    // A REPLACEMENT: a click on its strikeout opens its CARET's pop-up, the words put in (a group member is its head's).
+    Annotation caret = core::newAnnotation(AnnotationSubtype::Caret, 0, QStringLiteral("Ana"), 1791590400);
+    caret.rect = box(400, 300, 412, 312);
+    caret.contents = QStringLiteral("the new words");
+    Annotation struck = core::newAnnotation(AnnotationSubtype::StrikeOut, 0, QStringLiteral("Ana"), 1791590400);
+    struck.rect = box(300, 300, 400, 316);
+    struck.quadPoints = {300, 316, 400, 316, 300, 300, 400, 300};
+    struck.inReplyTo = caret.id;
+    struck.replyType = core::ReplyType::Group;
+    REQUIRE(a.journal().run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{caret, struck})));
+    CHECK(a.overlay->popupOwner(struck.id) == std::optional<AnnotationId>(caret.id));
+    const std::optional<QRectF> struckAt = ui::AnnotationOverlay::widgetRectOf(view(), 0, struck.rect);
+    REQUIRE(struckAt);
+    a.click(QPoint(qRound(struckAt->center().x()), qRound(struckAt->center().y())));
+    CHECK(a.overlay->openedPopup() == std::optional<AnnotationId>(caret.id));
+
+    // HIDDEN: none, whatever its text (D6-27).
+    Annotation hidden = a.at(13);
+    hidden.flags |= AnnotationFlag::Hidden;
+    REQUIRE(a.journal().run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{hidden})));
+    CHECK_FALSE(a.overlay->hasPopup(note));
 }
 
 // ==========================================================================================

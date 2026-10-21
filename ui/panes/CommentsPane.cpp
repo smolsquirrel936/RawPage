@@ -4,6 +4,7 @@
 #include "ui/panes/CommentsPane.h"
 
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "ui/panes/CommentIcon.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/ShortcutBinder.h"
@@ -264,9 +265,15 @@ public:
         const Annotation& a = store_->at(n->index);
         switch (role) {
         case Qt::DisplayRole: return display(*n, a, index.column());
+        case Qt::DecorationRole:
+            if (index.column() != kColumnComment) return {};
+            return iconFor(n->index, a);
         case Qt::ToolTipRole:
             if (index.column() == kColumnStatus) return history(n->index);
-            if (index.column() == kColumnComment) return a.contents;
+            // The KIND's word, which the picture stands for in the row (I-33), and the whole text.
+            if (index.column() == kColumnComment)
+                return a.contents.trimmed().isEmpty() ? typeWord(a.subtype)
+                                                      : catalog::translate(catalog::key::CommentsItem).arg(typeWord(a.subtype), a.contents);
             return {};
         case Qt::CheckStateRole:
             if (index.column() != kColumnComment) return {};
@@ -320,7 +327,9 @@ private:
     {
         switch (column) {
         case kColumnComment: {
-            QString text = catalog::translate(catalog::key::CommentsItem).arg(typeWord(a.subtype), firstLine(a.contents));
+            // The text alone: the picture before it says the kind (I-33), and one with none says so.
+            QString text = firstLine(a.contents);
+            if (text.isEmpty()) text = catalog::translate(catalog::key::CommentsEmptyText);
             const std::vector<int>& numbers = pane_.numbers();
             if (n.index < numbers.size() && numbers[n.index] > 0)
                 text = catalog::translate(catalog::key::CommentsNumbered).arg(numbers[n.index]).arg(text);
@@ -340,6 +349,17 @@ private:
         case kColumnStatus: return statusWord(store_->reviewStatus(n.index));
         default: return {};
         }
+    }
+
+    // ONE ICON PER KIND AND COLOUR, kept: 9,000 rows share a handful (I-33).
+    QIcon iconFor(std::size_t index, const Annotation& a) const
+    {
+        const CommentGlyph glyph = glyphFor(*store_, index);
+        const QColor fill = colourOf(a.color);
+        const std::pair<int, QRgb> key{static_cast<int>(glyph), fill.isValid() ? fill.rgba() : QRgb(0)};
+        auto found = icons_.find(key);
+        if (found == icons_.end()) found = icons_.emplace(key, commentIcon(glyph, fill, pane_.view_)).first;
+        return found->second;
     }
 
     QString history(std::size_t index) const
@@ -363,6 +383,7 @@ private:
     std::vector<int> roots_;
     int deepest_ = 0;
     std::map<std::size_t, int> byAnnotation_;
+    mutable std::map<std::pair<int, QRgb>, QIcon> icons_;
 };
 
 // The comment column's cells, CLIPPED to themselves (I-30). The style places a cell's check box at the cell's left
@@ -524,7 +545,17 @@ CommentsPane::CommentsPane(QWidget* parent) : QWidget(parent)
             [this](const QModelIndex& current, const QModelIndex& previous) {
                 if (previous.isValid()) onCurrentChanged(current);
             });
-    connect(view_, &QTreeView::clicked, this, [this](const QModelIndex& index) { onCurrentChanged(index); });
+    // A CLICK -- not an arrow -- also asks for the comment's pop-up on the page (I-34), once the page has followed.
+    connect(view_, &QTreeView::clicked, this, [this](const QModelIndex& index) {
+        onCurrentChanged(index);
+        const CommentsModel::Node* n = model_->node(index);
+        if (n != nullptr && !n->group && store_ != nullptr && store_->find(n->id)) emit popupRequested(n->id);
+    });
+    // THE RIGHT-CLICK MENU (I-32) -- and the Menu key's, which Qt sends at the current row.
+    itemMenu_ = new QMenu(this);
+    itemMenu_->setObjectName(QStringLiteral("commentsItemMenu"));
+    view_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(view_, &QWidget::customContextMenuRequested, this, [this](const QPoint& pos) { (void)showItemMenu(pos); });
     column->addWidget(view_, 1);
 
     // THE EDITOR -- a reply's, or an edit in place -- below the list, made when asked for.
@@ -594,6 +625,11 @@ void CommentsPane::setClock(Clock clock)
     clock_ = std::move(clock);
 }
 
+void CommentsPane::setChordText(std::function<QString(core::ActionId)> chordText)
+{
+    chordText_ = std::move(chordText);
+}
+
 void CommentsPane::setUtcOffset(int seconds)
 {
     if (utcOffset_ == seconds) return;
@@ -638,8 +674,11 @@ int CommentsPane::commentColumnMinimum() const
     const QStyle* style = view_->style();
     const int box = style->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, view_)
                     + 2 * (style->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, view_) + 1);
+    // The picture after the box (I-33), and the gap the style leaves after it.
+    const int picture = style->pixelMetric(QStyle::PM_SmallIconSize, nullptr, view_)
+                        + 2 * (style->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, view_) + 1);
     constexpr int kCharacters = 12;
-    return view_->indentation() * levels + box + view_->fontMetrics().averageCharWidth() * kCharacters;
+    return view_->indentation() * levels + box + picture + view_->fontMetrics().averageCharWidth() * kCharacters;
 }
 
 void CommentsPane::fitCommentColumn()
@@ -883,6 +922,57 @@ void CommentsPane::showSortMenu()
 {
     sortBox_->setFocus(Qt::OtherFocusReason);
     sortBox_->showPopup();
+}
+
+void CommentsPane::populateItemMenu()
+{
+    // `clear` takes the items and leaves the submenu they opened -- a child of this menu -- so it goes by hand.
+    for (QMenu* submenu : itemMenu_->findChildren<QMenu*>(QString(), Qt::FindDirectChildrenOnly)) delete submenu;
+    itemMenu_->clear();
+    // A REGISTERED COMMAND, by its label and the chord it has now, dispatched by the window -- so the menu's Delete
+    // asks what the key's does (I-32). The chord is shown after a tab, as a menu shows one; no shortcut is made
+    // (convention 15).
+    const auto command = [this](QMenu* menu, core::ActionId id) {
+        QString label = catalog::translateAction(id);
+        if (chordText_) {
+            if (const QString chord = chordText_(id); !chord.isEmpty()) label += QLatin1Char('\t') + chord;
+        }
+        connect(ActionFactory::addNonCommandMenuItem(menu, label), &QAction::triggered, this, [this, id] { emit actionRequested(id); });
+    };
+    command(itemMenu_, core::ActionId::CommentReply);
+    command(itemMenu_, core::ActionId::CommentEditInPlace);
+    command(itemMenu_, core::ActionId::CommentOpenEditor);
+    ActionFactory::addMenuSeparator(itemMenu_);
+
+    // THE FIVE STATES, the one it has ticked -- each `setStatus`, as `Ctrl+Shift+K`'s menu sets it.
+    QMenu* statuses = itemMenu_->addMenu(catalog::translateAction(core::ActionId::CommentSetStatus));
+    statuses->setObjectName(QStringLiteral("commentsItemStatusMenu"));
+    const std::optional<std::size_t> at = currentIndex();
+    const QString now = at ? store_->reviewStatus(*at) : QString();
+    for (const char* state : {"Accepted", "Rejected", "Cancelled", "Completed", "None"}) {
+        const QString name = QString::fromLatin1(state);
+        QAction* action = ActionFactory::addNonCommandMenuItem(statuses, statusWord(name));
+        action->setData(name);
+        action->setCheckable(true);
+        action->setChecked(name == now);
+        connect(action, &QAction::triggered, this, [this, name] {
+            if (const core::Status done = setStatus(name); !done) emit refused(done.error());
+        });
+    }
+    ActionFactory::addMenuSeparator(itemMenu_);
+    command(itemMenu_, core::ActionId::CommentDelete);
+}
+
+bool CommentsPane::showItemMenu(const QPoint& pos)
+{
+    const QModelIndex at = view_->indexAt(pos);
+    const CommentsModel::Node* n = model_->node(at);
+    if (n == nullptr || n->group || !canChange() || !store_->find(n->id)) return false;
+    // The row it was opened on is the one it acts on -- a person's gesture, so the page follows.
+    if (model_->node(view_->currentIndex()) != n) makeCurrent(at.siblingAtColumn(kColumnComment), true);
+    populateItemMenu();
+    itemMenu_->popup(view_->viewport()->mapToGlobal(pos));
+    return true;
 }
 
 // ---- The current comment -----------------------------------------------------------------------

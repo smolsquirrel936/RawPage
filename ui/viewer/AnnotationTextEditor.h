@@ -65,6 +65,8 @@ protected:
 private:
     // Whether `text` may enter; when not, says which character, once.
     bool admits(const QString& text);
+    // Holding the focus as it finishes, hands it to what it was opened over (S6 guide I-34).
+    void returnFocus();
 
     bool finished_ = false;
     bool refuses_ = false;

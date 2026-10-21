@@ -90,7 +90,8 @@ public:
     // A separator is a QAction too -- Qt has no other way to express one -- and it is not a
     // command. Built here and stamped, so `wiringComplaints()` recognises it rather than reporting
     // every menu's dividers as bare actions.
-    QAction* addMenuSeparator(QMenu* menu);
+    // Static: it stamps, and needs no registry -- a pane without a factory of its own divides its menu here too.
+    static QAction* addMenuSeparator(QMenu* menu);
 
     // Re-reads enablement and check state from the registry for every action this factory made.
     // Called when document state changes; at Stage 1 that is only ever composition time.

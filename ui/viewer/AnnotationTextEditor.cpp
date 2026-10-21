@@ -26,11 +26,21 @@ AnnotationTextEditor::AnnotationTextEditor(QWidget* parent) : QPlainTextEdit(par
     setFrameShape(QFrame::Box);
 }
 
+// THE FOCUS GOES BACK TO WHAT THE EDITOR WAS OPENED OVER, BEFORE IT HIDES. A focused widget that hides hands the focus
+// to the next in the window's chain -- on the page, out of the page and past the refocus that would bring it back, so
+// a pop-up the editor answered closed as if the person had gone elsewhere (S6 guide I-34). One that has lost the
+// focus already -- the person clicked away -- leaves it where they put it.
+void AnnotationTextEditor::returnFocus()
+{
+    if (hasFocus() && parentWidget() != nullptr) parentWidget()->setFocus(Qt::OtherFocusReason);
+}
+
 bool AnnotationTextEditor::commit()
 {
     if (finished_) return false;
     finished_ = true;
     const QString text = toPlainText();
+    returnFocus();
     hide();
     deleteLater();
     emit committed(text);
@@ -41,6 +51,7 @@ bool AnnotationTextEditor::abandon()
 {
     if (finished_) return false;
     finished_ = true;
+    returnFocus();
     hide();
     deleteLater();
     emit abandoned();

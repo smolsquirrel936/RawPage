@@ -834,8 +834,8 @@ bool PageView::requestAnnotationText(const AnnotationTextRequest& request, std::
 
 bool PageView::openReplyEditor(const core::AnnotationId& thread)
 {
-    if (annotations_ == nullptr || !annotations_->pinPopup(thread)) return false;
-    // The pop-up stays open while the person types -- pinned, as a double click pins it -- and the editor sits under
+    if (annotations_ == nullptr || !annotations_->openPopup(thread)) return false;
+    // The pop-up stays open while the person types -- the one a click opened (I-34) -- and the editor sits under
     // it at its width; above it when the pane has no room below, so it never covers the thread being answered; and
     // pulled inside the pane when it has room for neither.
     const std::optional<core::AnnotationId> owner = annotations_->popupOwner(thread);
@@ -1241,6 +1241,9 @@ void PageView::mousePressEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    // S6 guide I-34: A PRESS THE OVERLAY DOES NOT SEE -- the hand, a drawing tool -- is still a press somewhere else,
+    // so the pop-up a click opened goes, unless the press is on it.
+    if (annotations_ != nullptr && !overlayFirst()) (void)annotations_->dismissPopupAt(annotationViewport(), event->pos());
 
     if (!tools_->press(event->pos(), event->button(), event->modifiers(), clicks_)) {
         QAbstractScrollArea::mousePressEvent(event);

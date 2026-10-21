@@ -56,6 +56,7 @@
 
 #include <QImage>
 #include <QMainWindow>
+#include <QPoint>
 #include <QPointer>
 #include <QStringList>
 
@@ -338,6 +339,17 @@ public:
     };
     static void setAttachmentAnswersForTesting(AttachmentAnswers answers);
 
+    // ---- DELETING A COMMENT ASKS FIRST (S6 guide I-32) ---------------------------------------------------
+    // Every delete of comments -- the Comments pane's `Delete` and its menu's, *Delete All*, *Delete the Filtered
+    // Comments*, and `Delete` on what the page has selected -- asks `question` and goes ahead only on a yes. Where
+    // nobody can be asked and no answer is installed, each is DISABLED (convention 16); the pane's and the overlay's
+    // own methods are the twins that ask nobody.
+    bool confirmDelete(const QString& question);
+    bool canAskToDelete() const;
+    // What a case answers in the dialog's place, per window: given the question, whether to delete. Empty: asked.
+    using DeleteAnswer = std::function<bool(const QString& question)>;
+    void setDeleteAnswerForTesting(DeleteAnswer answer) { deleteAnswer_ = std::move(answer); }
+
     // ---- MEASUREMENT (S6 T12, D6-14) --------------------------------------------------------------------
     // The scale dialog asked -- from two lengths, or (`measuredPoints`) to CALIBRATE from a length measured on the
     // page -- and the three `measuring/*` keys written from what it chose. False when nothing was chosen.
@@ -505,6 +517,12 @@ private:
     void showExchangeReport(ExchangeReport report);
     void updateCommentNumbers();
     void revealComment(const core::AnnotationId& id, int page, const core::PdfRect& rect);
+    // S6 guide I-34: the pop-up a click opened goes when the person presses, or moves the focus, anywhere in this
+    // window but the page -- whose own presses decide -- and a row of the Comments list. `target` is the widget that
+    // received the press (or the focus); `pos` the press in its coordinates, none for a focus change.
+    void dismissCommentPopup(QWidget* target, std::optional<QPoint> pos);
+    // S6 guide I-32: the question a delete of `items` comments asks -- one, one with replies, or many.
+    static QString deleteQuestion(std::size_t items, bool replies);
     void updateAutoHideStrips();
 
     // The Quick Access Toolbar's two placements (`Features.md` §1.1) are two positions in the
@@ -642,6 +660,9 @@ private:
     AttachmentsPane*  attachments_ = nullptr;   // S6 T11
     // S6 T9: the overlay the pane's sequence numbers were last given -- cleared when the tab in front changes.
     QPointer<AnnotationOverlay> numberedOverlay_;
+    // S6 guide I-32 and I-34: a case's answer to the delete question, and what watches the application's presses.
+    DeleteAnswer deleteAnswer_;
+    QObject* pressWatcher_ = nullptr;
     LogPane*          logPane_ = nullptr;
     SearchPane*       searchPane_ = nullptr;
     StampPalettePane* stampPalette_ = nullptr;   // S6 T10

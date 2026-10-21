@@ -784,10 +784,12 @@ still resolves. `platform::ISpeech`, `platform/win/WinSpeech` and `ui/shell/Read
 - Make a comment read-only for other reviewers.
 - Set a comment's subject line independently of its body.
 - Show comment pop-ups always, on hover, or never.
+- Open a comment's pop-up with one click -- on the page, or on its row in the Comments pane -- for every kind of comment that holds text but typed text, whose text is on the page; a press anywhere else closes it.
 
 ### 4.2 Comment management
 
-- Comments pane listing every comment in the document.
+- Comments pane listing every comment in the document, each row headed by a picture of its kind.
+- A right-click menu on a comment: reply, edit in place, open its editor, set its status, delete it with its replies.
 - Group the list by page, author, date, type, status, or checkmark.
 - Sort the list within a grouping.
 - Filter by author, type, status, checkmark, or date range.
@@ -797,7 +799,7 @@ still resolves. `platform::ISpeech`, `platform/win/WinSpeech` and `ui/shell/Read
 - Set a review status: Accepted, Rejected, Cancelled, Completed, None.
 - Set a personal checkmark, independent of status.
 - See the status history with author and timestamp.
-- Delete a comment; delete all comments; delete everything matching the current filter.
+- Delete a comment; delete all comments; delete everything matching the current filter -- each delete asking first.
 - Spell check comment text.
 - Import comments from an FDF or XFDF file.
 - Export comments to FDF or XFDF.

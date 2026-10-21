@@ -503,6 +503,8 @@ void DocumentWindow::build(const Recovery* recovery)
             });
             // A THREAD'S POP-UP ANSWERS FROM ITS FOOT (S6 guide I-29): its button says what `comment.reply` says.
             annotations_->setReplyLabel(catalog::translateAction(core::ActionId::CommentReply));
+            // S6 guide I-34: and a comment only its replies wrote in says so at its head.
+            annotations_->setEmptyLabel(catalog::translate(catalog::key::CommentsEmptyText));
 
             // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES (S6 T4, D6-2): every command, undo and redo is
             // composed, verified and handed to the engine before it counts -- one Save could not write

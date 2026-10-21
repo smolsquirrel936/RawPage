@@ -5150,6 +5150,34 @@
         <source>comments.exchange.column.reason</source>
         <translation>原因</translation>
     </message>
+    <message>
+        <source>comments.emptyText</source>
+        <translation>（空白）</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.title</source>
+        <translation>刪除註解</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.one</source>
+        <translation>要刪除這個註解嗎？</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.thread</source>
+        <translation>要刪除這個註解及其回覆嗎？</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.many</source>
+        <translation>要刪除 %1 個註解及其回覆嗎？</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.selected</source>
+        <translation>要刪除選取的 %1 個註解嗎？</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.button</source>
+        <translation>刪除</translation>
+    </message>
 </context>
 <context>
     <name>stamps</name>

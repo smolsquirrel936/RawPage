@@ -5150,6 +5150,34 @@
         <source>comments.exchange.column.reason</source>
         <translation>Why</translation>
     </message>
+    <message>
+        <source>comments.emptyText</source>
+        <translation>(Empty)</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.title</source>
+        <translation>Delete Comments</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.one</source>
+        <translation>Delete this comment?</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.thread</source>
+        <translation>Delete this comment and its replies?</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.many</source>
+        <translation>Delete %1 comments and their replies?</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.selected</source>
+        <translation>Delete the %1 selected comments?</translation>
+    </message>
+    <message>
+        <source>comments.confirmDelete.button</source>
+        <translation>Delete</translation>
+    </message>
 </context>
 <context>
     <name>stamps</name>

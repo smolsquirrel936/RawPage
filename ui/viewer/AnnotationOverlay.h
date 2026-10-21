@@ -48,6 +48,16 @@
 // button (`replyButtonAt`): the pane opens its editor under the pop-up, and the text becomes ONE
 // `ReplyToAnnotationCommand` to the thread's root (`reply`) -- the one thing in a pop-up that is a command.
 //
+// EVERY COMMENT WITH TEXT HAS ONE, AND ONE CLICK OPENS IT (S6 guide I-34, D6-28 amended, 2026-10-22). Asked for by
+// the user after M-05: a highlight's, a shape's, a stamp's text could be read only in the Comments pane. Now every
+// kind `core::isCommentSubtype` names has a pop-up -- but TYPED TEXT, whose text is on the page already -- when it
+// or a reply in its thread holds text; one whose own text is empty shows the window's `(Empty)` above its replies
+// (`setEmptyLabel`). A replacement's strikeout opens its caret's. A CLICK on one opens its pop-up, under any
+// `commenting/popupBehaviour` -- a click is a person asking -- and so does a click on its row in the Comments pane
+// (`openPopup`, the window's). ONE is open at a time, and it closes when the person presses anywhere else: on the
+// page, where nothing or another comment is (`press`, `dismissPopupAt`), or anywhere else in the window (the
+// window's). The double click that pinned a pop-up is gone; a double click still edits typed text and plays a sound.
+//
 // ---------------------------------------------------------------------------------------------
 // WHAT THE TOOLS MAKE (Stage 6 T6) -- one command each, D6-1
 // ---------------------------------------------------------------------------------------------
@@ -316,10 +326,19 @@ public:
     PopupBehaviour popupBehaviour() const noexcept { return popupBehaviour_; }
     // Whether moves with no button down are wanted: pop-ups that show on hover.
     bool wantsHover() const noexcept { return popupBehaviour_ == PopupBehaviour::OnHover; }
-    // The pointer is over `pos` (or has left, with `pos` null): repaints when the hovered note or caret changes.
+    // The pointer is over `pos` (or has left, with `pos` null): repaints when the hovered comment changes.
     void hover(const Viewport& view, std::optional<QPoint> pos);
-    // A double click on a note or a caret -- or a reply over one -- pins its owner's pop-up open, or closes it.
-    bool togglePopup(const core::AnnotationId& id);
+    // S6 guide I-34: whether `id` has a pop-up of its own -- a comment, not typed text, shown, with text in it or in a
+    // reply under it.
+    bool hasPopup(const core::AnnotationId& id) const;
+    // `id`'s owner's pop-up OPENED -- a click on it, on the page or on its row in the Comments pane -- in place of any
+    // other a click opened. False, and that other closed, when `id` has none up its chain.
+    bool openPopup(const core::AnnotationId& id);
+    // The pop-up a click opened, closed. False when none was open.
+    bool closePopup();
+    std::optional<core::AnnotationId> openedPopup() const noexcept { return opened_; }
+    // A press at `pos` that is not the overlay's -- another tool's -- closes the opened pop-up unless it is on it.
+    bool dismissPopupAt(const Viewport& view, QPoint pos);
     bool isPopupShown(const core::AnnotationId& id) const;
     // Where a shown pop-up is drawn, in viewport logical pixels; empty when it is not shown.
     std::optional<QRectF> popupRect(const Viewport& view, const core::AnnotationId& id) const;
@@ -334,12 +353,12 @@ public:
     std::vector<core::AnnotationId> popupThread(const core::AnnotationId& id) const;
     // The REPLY button's label -- the window's, from the catalog (`ui/viewer/` holds no key). Empty: no button.
     void setReplyLabel(QString label);
+    // What a pop-up says for a comment with no text of its own (S6 guide I-34) -- the window's, from the catalog.
+    void setEmptyLabel(QString label);
     // Where a shown pop-up's reply button is drawn; empty when it has none.
     std::optional<QRectF> replyButtonRect(const Viewport& view, const core::AnnotationId& id) const;
     // The pop-up whose reply button is at `pos`, if it is one.
     std::optional<core::AnnotationId> replyButtonAt(const Viewport& view, QPoint pos) const;
-    // `id`'s pop-up kept open, as a double click keeps it -- while a reply is typed under it.
-    bool pinPopup(const core::AnnotationId& id);
     // `text` as a reply to `id`'s thread's root: ONE `ReplyToAnnotationCommand` (`core::newReply`, by the
     // person, now). Nothing for text that is only white space.
     core::Status reply(const Viewport& view, const core::AnnotationId& id, const QString& text);
@@ -370,7 +389,7 @@ public:
     static std::optional<core::PdfRect> drawnRect(const Viewport& view, const core::Annotation& a);
 
     // The document changed -- a command, an undo, a redo. A selected annotation the store no longer
-    // holds leaves the selection; a pinned pop-up likewise.
+    // holds leaves the selection; an opened pop-up likewise, and one that lost its text (I-34).
     void modelChanged();
 
     // The page and the rectangle the drag in flight would leave behind, in page space -- for a case.
@@ -420,6 +439,7 @@ private:
         core::AnnotationId id;
         QString author;    // empty for the root: the title says it
         QString text;
+        bool empty = false;   // no text of its own: `text` is the empty label (I-34)
         int depth = 0;
         double top = 0.0;  // in the body, before the scroll
         double height = 0.0;
@@ -431,10 +451,12 @@ private:
         double scroll = 0.0;                      // clamped to what overflows the body
     };
     std::optional<PopupLayout> popupLayout(const Viewport& view, const core::AnnotationId& id) const;
-    // The pop-ups shown in `view`, the one a press reaches first first: hovered, pinned, then `Always`'s.
+    // The pop-ups shown in `view`, the one a press reaches first first: hovered, opened, then `Always`'s.
     std::vector<core::AnnotationId> shownPopups(const Viewport& view) const;
     // The root of `index`'s `/RT /R` chain.
     std::size_t threadRoot(std::size_t index) const;
+    // S6 guide I-34: `a`'s kind has a pop-up, it is shown, and it or a reply under it holds text.
+    bool popupFor(const core::Annotation& a) const;
 
     const core::AnnotationStore* store_ = nullptr;
     Runner runner_;
@@ -464,11 +486,12 @@ private:
     double nudgeY_ = 0.0;
 
     PopupBehaviour popupBehaviour_ = PopupBehaviour::OnHover;
-    std::vector<core::AnnotationId> pinned_;               // shown by a double click
+    std::optional<core::AnnotationId> opened_;             // S6 guide I-34: opened by a click, one at a time
     std::optional<core::AnnotationId> hovered_;
     std::map<core::AnnotationId, QPointF> popupOffset_;    // moved by a drag of its title, logical px
     std::map<core::AnnotationId, double> popupScroll_;     // S6 guide I-29: scrolled by the wheel, logical px
     QString replyLabel_;                                   // S6 guide I-29: empty, no reply button
+    QString emptyLabel_;                                   // S6 guide I-34: a comment with no text of its own
     std::map<core::AnnotationId, int> numbers_;            // S6 T9: the Comments pane's, while numbering is on
 };
 

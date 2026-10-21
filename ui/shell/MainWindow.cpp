@@ -79,6 +79,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QApplication>
+#include <QMouseEvent>
+#include <QPushButton>
+#include <QTreeView>
 #include <QShowEvent>
 #include <QStackedWidget>
 #include <QToolButton>
@@ -167,6 +171,30 @@ MainWindow::MeasurementScaleAnswer& installedMeasurementScaleAnswer()
     static MainWindow::MeasurementScaleAnswer answer;
     return answer;
 }
+
+// S6 guide I-34: the application's presses, handed to the window and never consumed. A filter on the APPLICATION,
+// because a press on the ribbon, a toolbar or another pane reaches no widget the window owns a signal of -- and most
+// of them take no focus, so the focus alone would not see them.
+class PressWatcher : public QObject {
+public:
+    PressWatcher(QObject* parent, std::function<void(QWidget*, QPoint)> pressed)
+        : QObject(parent), pressed_(std::move(pressed))
+    {
+    }
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() == QEvent::MouseButtonPress) {
+            if (auto* widget = qobject_cast<QWidget*>(watched))
+                pressed_(widget, static_cast<QMouseEvent*>(event)->position().toPoint());
+        }
+        return false;
+    }
+
+private:
+    std::function<void(QWidget*, QPoint)> pressed_;
+};
 
 } // namespace
 
@@ -328,6 +356,28 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     });
     connect(comments_, &CommentsPane::actionRequested, this,
             [this](core::ActionId id) { (void)services_.actions.dispatch(id, core::KeyContext::Comments); });
+    // S6 guide I-32: the pane's right-click menu shows each command's chord as it is NOW -- a remap included.
+    comments_->setChordText([this](core::ActionId id) {
+        for (const core::KeyContext context : {core::KeyContext::Comments, core::KeyContext::Common, core::KeyContext::Global}) {
+            if (const std::optional<core::Chord> chord = services_.keyBindings.primaryChordFor(id, context))
+                return QString::fromStdString(chord->toString());
+        }
+        return QString();
+    });
+    // S6 guide I-34: A CLICK ON A ROW OPENS THE COMMENT'S POP-UP on the page -- after `activated` has revealed and
+    // selected it -- and the pop-up goes when the person presses or moves the focus anywhere else in the window.
+    connect(comments_, &CommentsPane::popupRequested, this, [this](const core::AnnotationId& id) {
+        if (DocumentWindow* document = currentDocument()) {
+            if (AnnotationOverlay* overlay = document->annotations()) (void)overlay->openPopup(id);
+        }
+    });
+    pressWatcher_ = new PressWatcher(this, [this](QWidget* target, QPoint pos) { dismissCommentPopup(target, pos); });
+    qApp->installEventFilter(pressWatcher_);
+    // WHERE THE FOCUS SETTLES, not where it passes: an editor on the page that finishes hands the focus to whatever
+    // is next for a moment before giving it back to the page -- queued, and read again, so that moment is not a move.
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget*) {
+        if (QWidget* now = QApplication::focusWidget()) dismissCommentPopup(now, std::nullopt);
+    }, Qt::QueuedConnection);
     connect(comments_, &CommentsPane::refused, this, [this](const core::Error& error) {
         if (status_)
             status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
@@ -417,6 +467,9 @@ MainWindow::~MainWindow()
     // the event system rather than through a signal.
     if (leftStrip_) leftStrip_->removeEventFilter(this);
     if (rightStrip_) rightStrip_->removeEventFilter(this);
+    // AND THE APPLICATION'S PRESSES AND FOCUS (S6 guide I-34): both reach `dismissCommentPopup` from outside.
+    if (pressWatcher_) qApp->removeEventFilter(pressWatcher_);
+    disconnect(qApp, nullptr, this, nullptr);
 
     // NOT `= default`, and the reason is a real crash rather than a precaution.
     //
@@ -3607,14 +3660,24 @@ void MainWindow::registerAnnotationActions()
     // selected -- and Annotation tools is only the context with a tool armed or something selected.
     if (!services_.actions.isRegistered(ActionId::AnnotDeleteSelected)) {
         core::ActionRegistry::Registration remove;
+        // S6 guide I-32: ASKED FIRST, as every delete of comments is -- one, one with its replies, or how many.
         remove.handler = [documentInFront](KeyContext) {
-            if (DocumentWindow* document = documentInFront()) {
-                if (AnnotationOverlay* annotations = document->annotations()) (void)annotations->deleteSelection();
-            }
+            DocumentWindow* document = documentInFront();
+            AnnotationOverlay* annotations = document ? document->annotations() : nullptr;
+            MainWindow* window = activeShell();
+            if (annotations == nullptr || window == nullptr || annotations->store() == nullptr) return;
+            // The page deletes what is selected and its pop-ups, never its replies (`deleteSelection`): it says so.
+            const std::size_t count = annotations->selection().size();
+            const QString question = count == 1 ? catalog::translate(catalog::key::CommentsConfirmDeleteOne)
+                                                : catalog::translate(catalog::key::CommentsConfirmDeleteSelected).arg(static_cast<qulonglong>(count));
+            if (!window->confirmDelete(question)) return;
+            (void)annotations->deleteSelection();
         };
         remove.enable = [documentInFront] {
             const DocumentWindow* document = documentInFront();
-            return document != nullptr && document->annotations() != nullptr && document->annotations()->hasSelection();
+            const MainWindow* window = activeShell();
+            return document != nullptr && document->annotations() != nullptr && document->annotations()->hasSelection()
+                   && window != nullptr && window->canAskToDelete();
         };
         remove.unavailableKey = "shell.tooltip.needsSelection";
         services_.actions.register_(ActionId::AnnotDeleteSelected, std::move(remove));
@@ -4323,7 +4386,56 @@ void MainWindow::revealComment(const core::AnnotationId& id, int page, const cor
     // A comment is a place ON A PAGE: reflow is left first, as a find hit leaves it (S5 T11).
     document->setReflowing(false);
     if (PageView* view = currentView()) view->revealPageRect(page, rect);
-    if (AnnotationOverlay* overlay = document->annotations()) overlay->select({id});
+    if (AnnotationOverlay* overlay = document->annotations()) {
+        // The pop-up a click opened belongs to the comment it was opened on; a click on this one opens its own after
+        // (`popupRequested`), and an arrow or `Ctrl+.` opens none (I-34, the user's choice).
+        overlay->closePopup();
+        overlay->select({id});
+    }
+}
+
+void MainWindow::dismissCommentPopup(QWidget* target, std::optional<QPoint> pos)
+{
+    // Only this window's widgets -- a menu, a dialog, another window are elsewhere and leave it be.
+    if (target == nullptr || target->window() != this) return;
+    DocumentWindow* document = currentDocument();
+    AnnotationOverlay* overlay = document ? document->annotations() : nullptr;
+    if (overlay == nullptr || !overlay->openedPopup()) return;
+    // THE PAGE decides its own presses: on the pop-up, on a comment, on nothing (`AnnotationOverlay::press`).
+    for (const QWidget* up = target; up != nullptr; up = up->parentWidget()) {
+        if (qobject_cast<const PageView*>(up) != nullptr) return;
+    }
+    // A ROW OF THE COMMENTS LIST is the pane's: a click there opens that row's. Its blank space is somewhere else.
+    if (comments_ != nullptr && comments_->view() != nullptr) {
+        QTreeView* list = comments_->view();
+        if (target == list && !pos) return;   // the focus coming to the list
+        if (target == list->viewport() && (!pos || list->indexAt(*pos).isValid())) return;
+    }
+    overlay->closePopup();
+}
+
+QString MainWindow::deleteQuestion(std::size_t items, bool replies)
+{
+    if (items == 1)
+        return catalog::translate(replies ? catalog::key::CommentsConfirmDeleteThread : catalog::key::CommentsConfirmDeleteOne);
+    return catalog::translate(catalog::key::CommentsConfirmDeleteMany).arg(static_cast<qulonglong>(items));
+}
+
+bool MainWindow::canAskToDelete() const
+{
+    return static_cast<bool>(deleteAnswer_) || canPromptTheUser();
+}
+
+bool MainWindow::confirmDelete(const QString& question)
+{
+    if (deleteAnswer_) return deleteAnswer_(question);
+    if (!canPromptTheUser()) return false;
+    QMessageBox box(QMessageBox::Question, catalog::translate(catalog::key::CommentsConfirmDeleteTitle), question,
+                    QMessageBox::Cancel, this);
+    QPushButton* remove = box.addButton(catalog::translate(catalog::key::CommentsConfirmDeleteButton), QMessageBox::DestructiveRole);
+    box.setDefaultButton(remove);   // `Delete`, then `Enter`: the keyboard's way through, as a person expects
+    box.exec();
+    return box.clickedButton() == remove;
 }
 
 void MainWindow::updateCommentNumbers()
@@ -4408,8 +4520,26 @@ void MainWindow::registerCommentActions()
                 hasCurrent, "shell.tooltip.needsComment");
     registerOne(ActionId::CommentReply, [pane](KeyContext) { if (CommentsPane* p = pane()) (void)p->reply(); },
                 hasCurrent, "shell.tooltip.needsComment");
-    registerOne(ActionId::CommentDelete, [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->deleteCurrent()); },
-                hasCurrent, "shell.tooltip.needsComment");
+    // S6 guide I-32: EVERY DELETE OF COMMENTS ASKS FIRST -- the key, the right-click menu's item, the two bulk ones and
+    // the page's -- and where nobody can be asked it is disabled (convention 16); `deleteCurrent` and its kin ask nobody.
+    const auto canAsk = [] {
+        const MainWindow* window = activeShell();
+        return window != nullptr && window->canAskToDelete();
+    };
+    const auto ask = [](std::size_t items, bool replies) {
+        MainWindow* window = activeShell();
+        return window != nullptr && window->confirmDelete(deleteQuestion(items, replies));
+    };
+    registerOne(ActionId::CommentDelete,
+                [pane, sayRefused, ask](KeyContext) {
+                    CommentsPane* p = pane();
+                    if (p == nullptr || p->store() == nullptr) return;
+                    const std::optional<core::AnnotationId> id = p->currentComment();
+                    const std::optional<std::size_t> at = id ? p->store()->find(*id) : std::nullopt;
+                    if (!at || !ask(1, !p->store()->replies(*at).empty())) return;
+                    sayRefused(p->deleteCurrent());
+                },
+                [hasCurrent, canAsk] { return hasCurrent() && canAsk(); }, "shell.tooltip.needsComment");
     registerOne(ActionId::CommentToggleCheckmark,
                 [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->toggleCheckmark()); },
                 hasCurrent, "shell.tooltip.needsComment");
@@ -4440,11 +4570,30 @@ void MainWindow::registerCommentActions()
     registerOne(ActionId::NavPrevComment, stepper(-1), hasStore, "shell.tooltip.needsDocument");
 
     // The pane's commands beside the table.
-    registerOne(ActionId::CommentDeleteAll, [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->deleteAll()); },
-                canChange, "shell.tooltip.needsDocument");
+    // The bulk deletes ask with how many (I-32); one comment asks as the key does.
+    const auto askFor = [ask](const core::AnnotationStore& store, const std::vector<core::AnnotationId>& items) {
+        if (items.empty()) return true;   // nothing to delete: the method says so
+        const std::optional<std::size_t> first = store.find(items.front());
+        return ask(items.size(), items.size() == 1 && first && !store.replies(*first).empty());
+    };
+    registerOne(ActionId::CommentDeleteAll,
+                [pane, sayRefused, askFor](KeyContext) {
+                    CommentsPane* p = pane();
+                    if (p == nullptr || p->store() == nullptr) return;
+                    std::vector<core::AnnotationId> items;
+                    for (const std::size_t at : p->store()->topLevel()) items.push_back(p->store()->at(at).id);
+                    if (!askFor(*p->store(), items)) return;
+                    sayRefused(p->deleteAll());
+                },
+                [canChange, canAsk] { return canChange() && canAsk(); }, "shell.tooltip.needsDocument");
     registerOne(ActionId::CommentDeleteMatching,
-                [pane, sayRefused](KeyContext) { if (CommentsPane* p = pane()) sayRefused(p->deleteMatching()); },
-                canChange, "shell.tooltip.needsDocument");
+                [pane, sayRefused, askFor](KeyContext) {
+                    CommentsPane* p = pane();
+                    if (p == nullptr || p->store() == nullptr) return;
+                    if (!askFor(*p->store(), p->listedComments())) return;
+                    sayRefused(p->deleteMatching());
+                },
+                [canChange, canAsk] { return canChange() && canAsk(); }, "shell.tooltip.needsDocument");
     registerOne(ActionId::CommentNumbering, [pane](KeyContext) { if (CommentsPane* p = pane()) p->setNumbering(!p->numbering()); },
                 always, nullptr, [pane] {
                     const CommentsPane* p = pane();

@@ -10,6 +10,7 @@
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/Fdf.h"
 #include "core/doc/Stamps.h"
 #include "core/text/TextSelection.h"
 #include "ui/viewer/SelectionOverlay.h"
@@ -39,15 +40,6 @@ bool isTextMarkup(AnnotationSubtype subtype)
 {
     return subtype == AnnotationSubtype::Highlight || subtype == AnnotationSubtype::Underline
            || subtype == AnnotationSubtype::StrikeOut || subtype == AnnotationSubtype::Squiggly;
-}
-
-// WHAT HAS A POP-UP (D6-28): a note -- and, since M-01's walk, a CARET, whose text is the words a person inserted
-// and was otherwise read only in the Comments pane and the properties bar (S6 guide I-26). The same behaviour for
-// both: hover, `Always`, `Never`, and a double click to pin. Hidden or `NoView`, neither.
-bool hasPopup(const Annotation& a)
-{
-    return (a.subtype == AnnotationSubtype::Text || a.subtype == AnnotationSubtype::Caret)
-           && !a.hasFlag(core::AnnotationFlag::Hidden) && !a.hasFlag(core::AnnotationFlag::NoView);
 }
 
 // The overlay's own colours: a selection and its handles are CHROME drawn over the page, in the accent
@@ -111,7 +103,7 @@ void AnnotationOverlay::setStore(const core::AnnotationStore* store)
 {
     store_ = store;
     selection_.clear();
-    pinned_.clear();
+    opened_.reset();
     hovered_.reset();
     drag_ = Drag{};
     emit selectionChanged();
@@ -349,7 +341,7 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
         const std::optional<PopupLayout> popup = popupLayout(view, id);
         if (!popup || !popup->box.contains(pos)) continue;
         if (popup->close.contains(pos)) {
-            pinned_.erase(std::remove(pinned_.begin(), pinned_.end(), id), pinned_.end());
+            if (opened_ == id) opened_.reset();
             if (hovered_ == id) hovered_.reset();
             emit changed();
             return true;
@@ -370,8 +362,10 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
     const std::optional<AnnotationId> hit = annotationAt(view, pos);
     if (!hit) {
         // A press on the page lets the selection go -- unless it adds to one (`Ctrl`) or pans (`Shift`,
-        // the temporary hand), neither of which is a person choosing nothing.
+        // the temporary hand), neither of which is a person choosing nothing. The pop-up a click opened goes
+        // whatever the keys (I-34): the person pressed somewhere else.
         if (!(modifiers & (Qt::ControlModifier | Qt::ShiftModifier))) clearSelection();
+        closePopup();
         return false;
     }
     const Annotation* a = find(*hit);
@@ -386,12 +380,6 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
         return true;
     }
 
-    // A double click on a note or a caret -- or a reply over one -- opens or closes its pop-up (D6-28, I-26, I-29).
-    if (clicks == 2 && hasPopup(*a)) {
-        select({*hit});
-        togglePopup(*hit);
-        return true;
-    }
     // S6 T14: a double click on a sound plays it -- the window's player; no byte changes.
     if (clicks == 2 && a->subtype == AnnotationSubtype::Sound) {
         select({*hit});
@@ -399,12 +387,16 @@ bool AnnotationOverlay::press(const Viewport& view, QPoint pos, Qt::KeyboardModi
         return true;
     }
 
-    // TEXT MARKUP BELONGS TO ITS WORDS (D6-30): a drag on it is the tool's, a click selects it.
+    // TEXT MARKUP BELONGS TO ITS WORDS (D6-30): a drag on it is the tool's, a click selects it -- and opens its
+    // pop-up, at the release that makes it a click (I-34). Until then the one open goes: this press is elsewhere.
     if (isTextMarkup(a->subtype) && !(modifiers & Qt::AltModifier)) {
+        closePopup();
         drag_ = Drag{DragKind::MarkupClick, *hit, a->page, pos, pos};
         return false;
     }
 
+    // ONE CLICK OPENS ITS POP-UP (I-34) -- a reply's opens its thread's; one with none closes the one open.
+    openPopup(*hit);
     if (std::find(selection_.begin(), selection_.end(), *hit) == selection_.end()) select({*hit});
     if (modifiers & Qt::AltModifier) {
         drag_ = Drag{DragKind::Duplicate, *hit, a->page, pos, pos};
@@ -510,6 +502,7 @@ bool AnnotationOverlay::release(const Viewport& view, QPoint pos, Qt::KeyboardMo
     case DragKind::MarkupClick:
         drag_ = Drag{};
         select({drag.id});
+        openPopup(drag.id);
         return false;   // the tool's release ends its own (click) gesture
     case DragKind::Popup:
         drag_ = Drag{};
@@ -1139,36 +1132,76 @@ void AnnotationOverlay::hover(const Viewport& view, std::optional<QPoint> pos)
     emit changed();
 }
 
-bool AnnotationOverlay::togglePopup(const AnnotationId& id)
+bool AnnotationOverlay::popupFor(const Annotation& a) const
+{
+    // A COMMENT, but typed text -- its text is on the page -- and shown (D6-28, I-26, I-34).
+    if (!core::isCommentSubtype(a.subtype) || a.subtype == AnnotationSubtype::FreeText) return false;
+    if (a.hasFlag(core::AnnotationFlag::Hidden) || a.hasFlag(core::AnnotationFlag::NoView)) return false;
+    if (!a.contents.trimmed().isEmpty()) return true;
+    // NO TEXT OF ITS OWN: one still when a reply under it has some -- its pop-up is where the thread is read. Walked
+    // iteratively over `replies`, which a cycle and a missing parent never reach, and bounded by the store's size.
+    if (store_ == nullptr) return false;
+    const std::optional<std::size_t> at = store_->find(a.id);
+    if (!at) return false;
+    std::vector<std::size_t> stack = store_->replies(*at);
+    for (std::size_t steps = 0; !stack.empty() && steps < store_->size(); ++steps) {
+        const std::size_t reply = stack.back();
+        stack.pop_back();
+        if (!store_->at(reply).contents.trimmed().isEmpty()) return true;
+        for (const std::size_t deeper : store_->replies(reply)) stack.push_back(deeper);
+    }
+    return false;
+}
+
+bool AnnotationOverlay::hasPopup(const AnnotationId& id) const
+{
+    const Annotation* a = find(id);
+    return a != nullptr && popupFor(*a);
+}
+
+bool AnnotationOverlay::openPopup(const AnnotationId& id)
 {
     const std::optional<AnnotationId> owner = popupOwner(id);
-    if (!owner) return false;
-    const auto at = std::find(pinned_.begin(), pinned_.end(), *owner);
-    if (at != pinned_.end()) {
-        pinned_.erase(at);
-        if (hovered_ == *owner) hovered_.reset();
-    } else {
-        pinned_.push_back(*owner);
+    if (!owner) {
+        closePopup();
+        return false;
     }
+    if (opened_ != owner) {
+        opened_ = owner;
+        emit changed();
+    }
+    return true;
+}
+
+bool AnnotationOverlay::closePopup()
+{
+    if (!opened_) return false;
+    if (hovered_ == opened_) hovered_.reset();   // pressed away from: not left showing under a still pointer
+    opened_.reset();
     emit changed();
     return true;
 }
 
-bool AnnotationOverlay::pinPopup(const AnnotationId& id)
+bool AnnotationOverlay::dismissPopupAt(const Viewport& view, QPoint pos)
 {
-    const std::optional<AnnotationId> owner = popupOwner(id);
-    if (!owner) return false;
-    if (std::find(pinned_.begin(), pinned_.end(), *owner) == pinned_.end()) pinned_.push_back(*owner);
+    if (!opened_) return false;
+    if (const std::optional<QRectF> box = popupRect(view, *opened_); box && box->contains(pos)) return false;
+    return closePopup();
+}
+
+void AnnotationOverlay::setEmptyLabel(QString label)
+{
+    if (emptyLabel_ == label) return;
+    emptyLabel_ = std::move(label);
     emit changed();
-    return true;
 }
 
 bool AnnotationOverlay::isPopupShown(const AnnotationId& id) const
 {
     const Annotation* a = find(id);
-    if (a == nullptr || !hasPopup(*a)) return false;
-    // A double click is a person asking: it shows whatever the preference says about the rest.
-    if (std::find(pinned_.begin(), pinned_.end(), id) != pinned_.end()) return true;
+    if (a == nullptr || !popupFor(*a)) return false;
+    // A click is a person asking: it shows whatever the preference says about the rest.
+    if (opened_ == id) return true;
     switch (popupBehaviour_) {
     case PopupBehaviour::Always: return popupOwner(id) == id;   // a reply's thread is its owner's pop-up (I-29)
     case PopupBehaviour::OnHover: return hovered_ == id;
@@ -1206,8 +1239,10 @@ std::optional<AnnotationId> AnnotationOverlay::popupOwner(const AnnotationId& id
     std::optional<std::size_t> owner;
     for (std::size_t steps = 0; at && steps <= store_->all().size(); ++steps) {
         const Annotation& a = store_->at(*at);
-        if (hasPopup(a)) owner = at;
-        if (a.replyType != core::ReplyType::Reply) break;
+        // A GROUP MEMBER -- a replacement's strikeout -- is its head's item, so its head's pop-up is the one (I-34).
+        const bool member = a.replyType == core::ReplyType::Group && store_->parentOf(*at).has_value();
+        if (!member && popupFor(a)) owner = at;
+        if (a.replyType != core::ReplyType::Reply && !member) break;
         at = store_->parentOf(*at);
     }
     if (!owner) return std::nullopt;
@@ -1250,7 +1285,7 @@ std::vector<AnnotationId> AnnotationOverlay::shownPopups(const Viewport& view) c
         if (std::find(shown.begin(), shown.end(), id) == shown.end()) shown.push_back(id);
     };
     if (hovered_) add(*hovered_);
-    for (const AnnotationId& id : pinned_) add(id);
+    if (opened_) add(*opened_);
     if (popupBehaviour_ == PopupBehaviour::Always && store_ != nullptr && view.layout != nullptr) {
         for (const core::render::PageSlot& slot : view.layout->slotsIntersecting(view.visible)) {
             for (const std::size_t index : store_->onPage(slot.pageIndex)) {
@@ -1277,6 +1312,10 @@ std::optional<AnnotationOverlay::PopupLayout> AnnotationOverlay::popupLayout(con
         const std::optional<QRectF> note = drawn ? widgetRectOf(view, a->page, *drawn) : std::nullopt;
         if (!note) return std::nullopt;
         base = QRectF(note->right() + 6, note->top(), kPopupWidth, kPopupHeight);
+        // NO ROOM BESIDE IT -- a highlight across a line, a wide shape (I-34): below it, inside the pane's width.
+        const double paneWidth = view.visible.size.width / std::max(0.01, view.dpr);
+        if (base->right() > paneWidth - 4)
+            base->moveTo(std::max(4.0, std::min(note->left(), paneWidth - 4 - kPopupWidth)), note->bottom() + 6);
     }
     if (const auto moved = popupOffset_.find(id); moved != popupOffset_.end()) base->translate(moved->second);
 
@@ -1303,6 +1342,10 @@ std::optional<AnnotationOverlay::PopupLayout> AnnotationOverlay::popupLayout(con
             y += 6.0;   // the rule between two entries
         }
         e.text = entry->contents;
+        if (e.text.trimmed().isEmpty()) {   // the root of a thread only its replies wrote in (I-34)
+            e.text = emptyLabel_;
+            e.empty = true;
+        }
         const double indent = e.depth * kPopupIndent;
         e.top = y;
         e.height = (e.author.isEmpty() ? 0.0 : bold.lineSpacing()) + wrappedHeight(plain, width - indent, e.text);
@@ -1526,9 +1569,13 @@ void AnnotationOverlay::paint(QPainter& painter, const Viewport& view) const
                 y += boldLine;
             }
             font.setBold(false);
+            font.setItalic(e.empty);   // `(Empty)` is the product's word, not the comment's
             painter.setFont(font);
+            if (e.empty) painter.setPen(QColor(0x60, 0x60, 0x60));
             painter.drawText(QRectF(popup->body.left() + indent, y, popup->body.width() - 6 - indent, e.height - (y - top) + 1),
                              Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, e.text);
+            font.setItalic(false);
+            painter.setPen(Qt::black);
         }
         painter.restore();
 
@@ -1565,9 +1612,9 @@ void AnnotationOverlay::modelChanged()
     }
     const bool selectionMoved = kept.size() != selection_.size();
     selection_ = std::move(kept);
-    pinned_.erase(std::remove_if(pinned_.begin(), pinned_.end(), [this](const AnnotationId& id) { return find(id) == nullptr; }),
-                  pinned_.end());
-    if (hovered_ && find(*hovered_) == nullptr) hovered_.reset();
+    // A pop-up whose comment went, or lost the last of its text, closes (I-34).
+    if (opened_ && !hasPopup(*opened_)) opened_.reset();
+    if (hovered_ && !hasPopup(*hovered_)) hovered_.reset();
     for (auto at = popupScroll_.begin(); at != popupScroll_.end();) at = find(at->first) == nullptr ? popupScroll_.erase(at) : std::next(at);
     if (selectionMoved) emit selectionChanged();
     emit changed();

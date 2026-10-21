@@ -729,6 +729,17 @@ RAWPAGE_SHELL_STRING(ExchangeReportColumnOutcome, "comments.exchange.column.outc
 RAWPAGE_SHELL_STRING(ExchangeReportColumnReason, "comments.exchange.column.reason")
 RAWPAGE_SHELL_STRING(TooltipNeedsComments, "shell.tooltip.needsComments")
 
+// --- The Comments pane's menu and pop-ups (S6 guide I-32 ... I-34) -- the `comments.` family -------------------
+// What a comment with no text of its own says (its row, and its pop-up's head), and the question every delete of a
+// comment asks first: one, one with its replies, many with theirs, and -- the page's, which keeps replies -- many selected.
+RAWPAGE_SHELL_STRING(CommentsEmptyText, "comments.emptyText")
+RAWPAGE_SHELL_STRING(CommentsConfirmDeleteTitle, "comments.confirmDelete.title")
+RAWPAGE_SHELL_STRING(CommentsConfirmDeleteOne, "comments.confirmDelete.one")
+RAWPAGE_SHELL_STRING(CommentsConfirmDeleteThread, "comments.confirmDelete.thread")
+RAWPAGE_SHELL_STRING(CommentsConfirmDeleteMany, "comments.confirmDelete.many")
+RAWPAGE_SHELL_STRING(CommentsConfirmDeleteSelected, "comments.confirmDelete.selected")
+RAWPAGE_SHELL_STRING(CommentsConfirmDeleteButton, "comments.confirmDelete.button")
+
 // --- A sound comment (S6 T14, D6-18) -- a new family, `audio.` ------------------------------------------------
 // A new namespace, as `measure.` was at T12, added to `tools/i18n-lint/rules.json` in the same change: the recorder
 // dialog, the WAV question and what the status bar says while one plays. NOT `sound.`, which nothing names, and NOT

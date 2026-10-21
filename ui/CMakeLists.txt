@@ -263,6 +263,9 @@ add_library(rawpage_ui STATIC
     panes/BookmarksPane.cpp
     panes/CommentsPane.h
     panes/CommentsPane.cpp
+    # S6 guide I-33 -- the picture at the head of each Comments pane row, drawn in code.
+    panes/CommentIcon.h
+    panes/CommentIcon.cpp
     panes/AttachmentsPane.h
     panes/AttachmentsPane.cpp
     panes/DestinationsPane.h

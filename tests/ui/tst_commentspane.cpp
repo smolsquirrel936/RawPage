@@ -20,6 +20,11 @@
 //     pane scrolls sideways, and a cell too narrow for its box paints nothing beyond itself.
 //   * I-31 (guide §8): the properties bar `Enter` shows asks the window for no width, so the sidebar can still be
 //     dragged wider, and its focused text field is scrolled into sight.
+//   * I-32 (guide §8): a right click on a comment offers §8's rows and its status, and every delete of comments --
+//     the menu's, the key's, the bulk ones and the page's -- asks first, and is disabled where nobody can be asked.
+//   * I-33 (guide §8): each row starts with a picture of its kind, and says its text alone, or `(Empty)`.
+//   * I-34 (guide §8): a click on a row -- not an arrow -- opens the comment's pop-up on the page, and a press or the
+//     focus anywhere else in the window closes it.
 //
 // WHAT IT DOES NOT COVER (convention 19): what the sink writes -- the fake sink accepts everything; the bytes are
 // `tests/unit/tst_annotthreads`'s -- and the engine's pixels (A-72's tile half is
@@ -33,6 +38,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/settings/Settings.h"
 #include "tests/ui/ShellFixture.h"
+#include "ui/panes/CommentIcon.h"
 #include "ui/panes/CommentsPane.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentWindow.h"
@@ -47,6 +53,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -56,6 +64,7 @@
 #include <QLayout>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -63,6 +72,8 @@
 #include <QStyleOptionViewItem>
 #include <QStyleFactory>
 #include <QTreeView>
+
+#include <set>
 
 using namespace rawpage;
 using core::Annotation;
@@ -147,6 +158,9 @@ struct Commented {
     ui::DocumentWindow* document = nullptr;
     ui::PageView* view = nullptr;
     ui::CommentsPane* pane = nullptr;
+    // The delete question (I-32): what was asked, and what the case answers.
+    std::vector<QString> questions;
+    bool answer = true;
 
     Commented()
     {
@@ -156,6 +170,11 @@ struct Commented {
         fixture.settings.set(core::keys::identity::author, kAna);
         window = std::make_unique<ui::MainWindow>(fixture.services());
         window->resize(1200, 900);
+        // Every delete asks first (I-32); a case that means No says so itself.
+        window->setDeleteAnswerForTesting([this](const QString& question) {
+            questions.push_back(question);
+            return answer;
+        });
         window->openFiles({fixture.writeFile(QStringLiteral("comments.pdf"))});
         window->show();
         layout();
@@ -220,6 +239,40 @@ struct Commented {
         const QWidget* focus = QApplication::focusWidget();
         return focus != nullptr && pane->isAncestorOf(focus);
     }
+    // The middle of `id`'s row in the list's viewport -- made current quietly to find it, as nothing a person sees.
+    QPoint rowOf(const AnnotationId& id) const
+    {
+        REQUIRE(pane->selectComment(id));
+        return pane->view()->visualRect(pane->view()->currentIndex()).center();
+    }
+    // A press and a release at `at`, on `target` (the list's viewport by default), with `button`.
+    void clickAt(QPoint at, QWidget* target = nullptr, Qt::MouseButton button = Qt::LeftButton) const
+    {
+        QWidget* to = target != nullptr ? target : pane->view()->viewport();
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), QPointF(to->mapToGlobal(at)), button, button, Qt::NoModifier);
+        QCoreApplication::sendEvent(to, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(at), QPointF(to->mapToGlobal(at)), button, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(to, &release);
+        QCoreApplication::processEvents();
+    }
+    // A right click on the list at `at`: the context-menu event Qt sends after the press.
+    void rightClickAt(QPoint at) const
+    {
+        clickAt(at, nullptr, Qt::RightButton);
+        QWidget* to = pane->view()->viewport();
+        QContextMenuEvent event(QContextMenuEvent::Mouse, at, to->mapToGlobal(at));
+        QCoreApplication::sendEvent(to, &event);
+        QCoreApplication::processEvents();
+    }
+    // The right-click menu's item whose label starts with `label`.
+    QAction* itemNamed(QMenu* menu, const QString& label) const
+    {
+        for (QAction* action : menu->actions())
+            if (!action->isSeparator() && action->text().startsWith(label)) return action;
+        return nullptr;
+    }
+    ui::AnnotationOverlay* overlay() const { return document->annotations(); }
 };
 
 } // namespace
@@ -730,4 +783,287 @@ TEST_CASE("Enter's properties bar leaves the sidebar free to be dragged wider", 
     auto* scroll = bar->findChild<QScrollArea*>(QStringLiteral("propertiesScroll"));
     REQUIRE(scroll != nullptr);
     CHECK(scroll->horizontalScrollBar()->maximum() > 0);   // narrower than its row: it scrolls
+}
+
+// ==========================================================================================
+// S6 guide I-32 -- a right-click menu, and every delete of comments asks first
+// ==========================================================================================
+// After M-05, 2026-10-22: the pane had no right-click menu, and a delete -- of one comment or of all of them -- went
+// without a word. The user asked for a two-level menu (the rows, the status beneath), a delete that takes the comment
+// with its replies, and a question before every delete.
+// NOT COVERED (convention 19): the dialog itself -- each case answers in its place, so its wording and buttons are
+// read here, never clicked; and the menu under a real pointer: the events are sent to the list's viewport.
+
+TEST_CASE("a right click offers the comment's rows and its status and every delete asks first", "[commentspane][I-32]")
+{
+    Commented c;
+    c.open();
+    const AnnotationId note = AnnotationId::ofObject(10);
+    const AnnotationId highlight = AnnotationId::ofObject(14);
+    QMenu* menu = c.pane->itemMenu();
+    REQUIRE(menu != nullptr);
+
+    // A RIGHT CLICK ON A ROW makes it current -- a person's gesture, so the page follows -- and opens the menu.
+    const QPoint onHighlight = c.rowOf(highlight);
+    REQUIRE(c.pane->selectComment(note));
+    c.rightClickAt(onHighlight);
+    CHECK(c.pane->currentComment() == highlight);
+    CHECK(c.overlay()->selection() == std::vector<AnnotationId>{highlight});
+    REQUIRE(menu->isVisible());
+
+    // §8's ROWS by their labels, each with its chord after a tab and never as a shortcut (convention 15); the
+    // checkmark not among them -- its box is a click away.
+    for (const core::ActionId id : {core::ActionId::CommentReply, core::ActionId::CommentEditInPlace,
+                                    core::ActionId::CommentOpenEditor, core::ActionId::CommentDelete}) {
+        INFO(ui::catalog::translateAction(id).toStdString());
+        QAction* item = c.itemNamed(menu, ui::catalog::translateAction(id));
+        REQUIRE(item != nullptr);
+        CHECK(item->text().contains(QLatin1Char('\t')));
+        CHECK(item->shortcut().isEmpty());
+    }
+    CHECK(c.itemNamed(menu, ui::catalog::translateAction(core::ActionId::CommentToggleCheckmark)) == nullptr);
+
+    // SET STATUS, the second level: the five states, the comment's own ticked; one sets it, as ONE command.
+    const auto states = [&c, menu]() -> QMenu* {
+        QAction* item = c.itemNamed(menu, ui::catalog::translateAction(core::ActionId::CommentSetStatus));
+        return item != nullptr ? item->menu() : nullptr;
+    };
+    const auto ticked = [&states] {
+        QStringList out;
+        for (QAction* state : states()->actions())
+            if (state->isChecked()) out << state->data().toString();
+        return out;
+    };
+    REQUIRE(states() != nullptr);
+    CHECK(states()->actions().size() == 5);
+    CHECK(ticked() == QStringList{QStringLiteral("None")});
+    std::size_t steps = c.steps();
+    for (QAction* state : states()->actions())
+        if (state->data().toString() == QLatin1String("Accepted")) state->trigger();
+    QCoreApplication::processEvents();
+    CHECK(c.steps() == steps + 1);
+    CHECK(c.store().reviewStatus(*c.store().findObject(14)) == QStringLiteral("Accepted"));
+    menu->hide();
+    c.rightClickAt(c.rowOf(highlight));
+    CHECK(ticked() == QStringList{QStringLiteral("Accepted")});
+    // Made afresh each time, and the submenu it replaced is gone with it.
+    CHECK(menu->findChildren<QMenu*>(QString(), Qt::FindDirectChildrenOnly).size() == 1);
+
+    // DELETE ASKS FIRST. No: nothing is deleted.
+    c.answer = false;
+    c.itemNamed(menu, ui::catalog::translateAction(core::ActionId::CommentDelete))->trigger();
+    QCoreApplication::processEvents();
+    REQUIRE_FALSE(c.questions.empty());
+    CHECK(c.questions.back() == ui::catalog::translate(ui::catalog::key::CommentsConfirmDeleteOne));
+    CHECK(c.store().findObject(14));
+    CHECK(c.steps() == steps + 1);
+    // Yes: the comment goes, as ONE step.
+    c.answer = true;
+    menu->hide();
+    c.rightClickAt(c.rowOf(highlight));
+    c.itemNamed(menu, ui::catalog::translateAction(core::ActionId::CommentDelete))->trigger();
+    QCoreApplication::processEvents();
+    CHECK_FALSE(c.store().findObject(14));
+    CHECK(c.steps() == steps + 2);
+    menu->hide();
+
+    // A COMMENT WITH REPLIES says so -- and the KEY asks what the menu asks.
+    c.answer = false;
+    REQUIRE(c.pane->selectComment(note));
+    c.pane->view()->setFocus();
+    QCoreApplication::processEvents();
+    const std::size_t asked = c.questions.size();
+    c.key(Qt::Key_Delete);
+    REQUIRE(c.questions.size() == asked + 1);
+    CHECK(c.questions.back() == ui::catalog::translate(ui::catalog::key::CommentsConfirmDeleteThread));
+    CHECK(c.store().findObject(10));
+    // THE BULK DELETES ask with how many: notes 10 and 16 and the hidden square are left.
+    REQUIRE(c.fixture.actions.dispatch(core::ActionId::CommentDeleteAll, core::KeyContext::Comments));
+    CHECK(c.questions.back() == ui::catalog::translate(ui::catalog::key::CommentsConfirmDeleteMany).arg(3));
+    REQUIRE(c.fixture.actions.dispatch(core::ActionId::CommentDeleteMatching, core::KeyContext::Comments));
+    CHECK(c.questions.back() == ui::catalog::translate(ui::catalog::key::CommentsConfirmDeleteMany).arg(3));
+    CHECK(c.store().findObject(10));
+    // THE PAGE'S `Delete` asks too -- for what is selected, which keeps its replies.
+    c.overlay()->select({note});
+    c.view->setFocus();
+    QCoreApplication::processEvents();
+    c.key(Qt::Key_Delete);
+    CHECK(c.questions.back() == ui::catalog::translate(ui::catalog::key::CommentsConfirmDeleteOne));
+    CHECK(c.store().findObject(10));
+    CHECK(c.steps() == steps + 2);   // four questions answered No: nothing more
+
+    // NO ROW, NO MENU.
+    CHECK_FALSE(c.pane->showItemMenu(QPoint(5, c.pane->view()->viewport()->height() - 2)));
+    CHECK_FALSE(menu->isVisible());
+
+    // CONVENTION 16: with nobody to ask and no answer installed, every delete is DISABLED -- and, the control, each
+    // is enabled while an answer is.
+    REQUIRE(c.pane->selectComment(note));
+    c.overlay()->select({note});
+    const core::ActionId deletes[] = {core::ActionId::CommentDelete, core::ActionId::CommentDeleteAll,
+                                      core::ActionId::CommentDeleteMatching, core::ActionId::AnnotDeleteSelected};
+    for (const core::ActionId id : deletes) CHECK(c.fixture.actions.isEnabled(id));
+    c.window->setDeleteAnswerForTesting({});
+    for (const core::ActionId id : deletes) CHECK_FALSE(c.fixture.actions.isEnabled(id));
+}
+
+// ==========================================================================================
+// S6 guide I-33 -- a picture of its kind at the head of each row
+// ==========================================================================================
+// After M-05, 2026-10-22: a row said its kind as a word before its text. The user asked for a picture after the check
+// box -- a note, a highlight, an insertion and the rest told apart -- in the comment's own colour.
+// NOT COVERED (convention 19): where the style puts the picture -- Qt's `QStyledItemDelegate` lays out the check box,
+// the decoration and the text -- and the pictures' look, which the user judges.
+
+TEST_CASE("each comment's row starts with a picture of its kind and says its text alone", "[commentspane][I-33]")
+{
+    Commented c;
+    c.open();
+    const auto glyphOf = [&c](long long object) { return ui::glyphFor(c.store(), *c.store().findObject(object)); };
+    CHECK(glyphOf(10) == ui::CommentGlyph::Note);
+    CHECK(glyphOf(12) == ui::CommentGlyph::Note);   // a reply is a note
+    CHECK(glyphOf(14) == ui::CommentGlyph::Highlight);
+    CHECK(glyphOf(15) == ui::CommentGlyph::Drawing);
+
+    // THE ROW'S PICTURE is the comment column's decoration, and no other column's.
+    for (const long long object : {10LL, 12LL, 14LL, 15LL, 16LL}) {
+        INFO("object " << object);
+        REQUIRE(c.pane->selectComment(AnnotationId::ofObject(object)));
+        const QModelIndex row = c.pane->view()->currentIndex();
+        const QIcon icon = row.siblingAtColumn(0).data(Qt::DecorationRole).value<QIcon>();
+        CHECK_FALSE(icon.isNull());
+        CHECK_FALSE(icon.pixmap(QSize(16, 16)).isNull());
+        CHECK_FALSE(row.siblingAtColumn(1).data(Qt::DecorationRole).isValid());
+    }
+
+    // EACH KIND ITS OWN PICTURE, and the comment's colour in it: twelve pictures, all different, and a highlight
+    // drawn yellow is not the same highlight drawn blue.
+    const auto hashOf = [&c](ui::CommentGlyph glyph, QColor fill) {
+        const QImage image = ui::commentIcon(glyph, fill, c.pane->view()).pixmap(QSize(16, 16)).toImage();
+        return QCryptographicHash::hash(QByteArrayView(image.constBits(), image.sizeInBytes()), QCryptographicHash::Sha256).toHex();
+    };
+    std::set<QByteArray> pictures;
+    for (int g = 0; g <= static_cast<int>(ui::CommentGlyph::Other); ++g)
+        pictures.insert(hashOf(static_cast<ui::CommentGlyph>(g), QColor(255, 255, 0)));
+    CHECK(pictures.size() == static_cast<std::size_t>(ui::CommentGlyph::Other) + 1);
+    CHECK(hashOf(ui::CommentGlyph::Highlight, QColor(255, 255, 0)) != hashOf(ui::CommentGlyph::Highlight, QColor(0, 0, 255)));
+    CHECK(ui::colourOf({1, 1, 0}) == QColor(255, 255, 0));
+    CHECK_FALSE(ui::colourOf({}).isValid());
+
+    // THE TEXT ALONE in the row; the kind's word in its tooltip.
+    CHECK(c.pane->textOf(AnnotationId::ofObject(14), 0) == QStringLiteral("Source for this number?"));
+    REQUIRE(c.pane->selectComment(AnnotationId::ofObject(14)));
+    const QString tip = c.pane->view()->currentIndex().siblingAtColumn(0).data(Qt::ToolTipRole).toString();
+    CHECK(tip.contains(ui::catalog::translate(QStringLiteral("comments.type.Highlight"))));
+    CHECK(tip.contains(QStringLiteral("Source for this number?")));
+
+    // NO TEXT: `(Empty)`.
+    Annotation emptied = c.at(16);
+    emptied.contents.clear();
+    REQUIRE(c.journal().run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{emptied})));
+    QCoreApplication::processEvents();
+    CHECK(c.pane->textOf(AnnotationId::ofObject(16), 0) == ui::catalog::translate(ui::catalog::key::CommentsEmptyText));
+
+    // AN INSERTION, and a REPLACEMENT -- the caret holding a strikeout as its group member (D6-12).
+    Annotation caret = core::newAnnotation(AnnotationSubtype::Caret, 0, kAna, 1791763200);
+    caret.rect = box(300, 500, 312, 512);
+    caret.contents = QStringLiteral("new words");
+    REQUIRE(c.journal().run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{caret})));
+    CHECK(ui::glyphFor(c.store(), *c.store().find(caret.id)) == ui::CommentGlyph::Insert);
+    Annotation struck = core::newAnnotation(AnnotationSubtype::StrikeOut, 0, kAna, 1791763200);
+    struck.rect = box(200, 500, 300, 512);
+    struck.quadPoints = {200, 512, 300, 512, 200, 500, 300, 500};
+    struck.inReplyTo = caret.id;
+    struck.replyType = core::ReplyType::Group;
+    REQUIRE(c.journal().run(std::make_unique<core::AddAnnotationCommand>(std::vector<Annotation>{struck})));
+    CHECK(ui::glyphFor(c.store(), *c.store().find(caret.id)) == ui::CommentGlyph::Replace);
+}
+
+// ==========================================================================================
+// S6 guide I-34 -- a click on a row opens the comment's pop-up on the page
+// ==========================================================================================
+// After M-05, 2026-10-22: a click on a row selected the comment on the page and opened nothing. The user asked for the
+// click to open its pop-up while the list keeps the focus -- a click, not an arrow -- and for a press or the focus
+// anywhere else (the list's blank space, the page, a toolbar) to close it.
+// NOT COVERED (convention 19): the paint (`isPopupShown` is what `paint` reads); and a press under a real pointer --
+// the events are sent to the widget, so a press on the ribbon is represented by one on the pane's search field, a
+// widget of the window that is neither the page nor a row.
+
+TEST_CASE("a click on a row opens its pop-up on the page and a press anywhere else closes it", "[commentspane][I-34]")
+{
+    Commented c;
+    c.open();
+    ui::AnnotationOverlay* overlay = c.overlay();
+    const AnnotationId note = AnnotationId::ofObject(10);
+    const AnnotationId reply = AnnotationId::ofObject(12);
+    const AnnotationId highlight = AnnotationId::ofObject(14);
+    const std::size_t steps = c.steps();
+    const auto opened = [overlay] { return overlay->openedPopup(); };
+    const QPoint blank(5, c.pane->view()->viewport()->height() - 2);
+
+    // A CLICK opens it on the page -- whatever the preference -- and the list keeps the focus.
+    overlay->setPopupBehaviour(ui::AnnotationOverlay::PopupBehaviour::Never);
+    c.pane->view()->setFocus();
+    c.clickAt(c.rowOf(highlight));
+    CHECK(c.pane->currentComment() == highlight);
+    CHECK(overlay->selection() == std::vector<AnnotationId>{highlight});
+    CHECK(opened() == std::optional<AnnotationId>(highlight));
+    CHECK(overlay->isPopupShown(highlight));
+    CHECK(QApplication::focusWidget() == c.pane->view());
+    // A reply's row opens its thread's.
+    c.clickAt(c.rowOf(reply));
+    CHECK(opened() == std::optional<AnnotationId>(note));
+
+    // AN ARROW moves the page and opens nothing; the one open goes with the comment it was opened on.
+    REQUIRE(c.key(Qt::Key_Down));
+    CHECK(c.pane->currentComment() == highlight);
+    CHECK(overlay->selection() == std::vector<AnnotationId>{highlight});
+    CHECK_FALSE(opened());
+
+    // THE LIST'S BLANK SPACE is somewhere else.
+    c.clickAt(c.rowOf(highlight));
+    REQUIRE(opened());
+    REQUIRE_FALSE(c.pane->view()->indexAt(blank).isValid());
+    c.clickAt(blank);
+    CHECK_FALSE(opened());
+    // A RIGHT CLICK ON ITS ROW keeps it: the menu acts on that comment.
+    c.clickAt(c.rowOf(highlight));
+    c.rightClickAt(c.rowOf(highlight));
+    CHECK(opened() == std::optional<AnnotationId>(highlight));
+    c.pane->itemMenu()->hide();
+
+    // ANOTHER WIDGET OF THE WINDOW: a press on it, and the focus moved to it.
+    c.clickAt(QPoint(5, 5), c.pane->searchField());
+    CHECK_FALSE(opened());
+    c.pane->view()->setFocus();
+    c.clickAt(c.rowOf(highlight));
+    REQUIRE(opened());
+    c.pane->searchField()->setFocus();
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    CHECK_FALSE(opened());
+
+    // THE PAGE: a press where nothing is.
+    c.pane->view()->setFocus();
+    c.clickAt(c.rowOf(highlight));
+    REQUIRE(opened());
+    const QPoint emptyPage(10, 10);
+    REQUIRE_FALSE(overlay->annotationAt(c.view->annotationViewport(), emptyPage));
+    c.clickAt(emptyPage, c.view->viewport());
+    CHECK_FALSE(opened());
+
+    // A COMMENT WITH NO TEXT opens none -- and the control: given text, it does.
+    Annotation emptied = c.at(16);
+    emptied.contents.clear();
+    REQUIRE(c.journal().run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{emptied})));
+    QCoreApplication::processEvents();
+    c.pane->view()->setFocus();
+    c.clickAt(c.rowOf(AnnotationId::ofObject(16)));
+    CHECK(c.pane->currentComment() == AnnotationId::ofObject(16));
+    CHECK_FALSE(opened());
+    c.clickAt(c.rowOf(note));
+    CHECK(opened() == std::optional<AnnotationId>(note));
+
+    // VIEW STATE: the one command is the case's own edit.
+    CHECK(c.steps() == steps + 1);
 }

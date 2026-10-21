@@ -44,6 +44,18 @@
 // deeper the reply. The column's cells are also CLIPPED to themselves, for a thread deeper than the floor allows
 // for (`kDeepestIndented`): such a row loses its box rather than painting it into the next column.
 //
+// ---------------------------------------------------------------------------------------------
+// A RIGHT-CLICK MENU, A PICTURE PER KIND, AND A CLICK THAT OPENS (guide I-32, I-33, I-34)
+// ---------------------------------------------------------------------------------------------
+// Asked for by the user after M-05's sign-off, 2026-10-22. A right click on a comment -- or the Menu key on the
+// current one -- makes it current and offers §8's rows by their labels and chords: Reply, Edit in Place, Open
+// Editor, Set Status with its five states (the one it has ticked), and Delete. Each but a state is the WINDOW's
+// registered command (`actionRequested`), so Delete asks the same question there as the key does (I-32); a state is
+// `setStatus`, as `Ctrl+Shift+K`'s menu sets it. The checkmark is not on it: its box is a click away. Each row
+// starts, after its check box, with a picture of its kind (`ui/panes/CommentIcon`, I-33); the kind's word, which
+// used to lead the text, is the tooltip, and a comment with no text says `(Empty)`. And a CLICK on a row -- not an
+// arrow -- asks the window to open the comment's pop-up on the page (`popupRequested`, I-34).
+//
 // It holds no `Command` beyond the ones it constructs, and words nothing in English: every string is a
 // `comments.` or `panes.` catalog key.
 
@@ -73,6 +85,7 @@ class QLabel;
 class QLineEdit;
 class QMenu;
 class QModelIndex;
+class QPoint;
 class QToolButton;
 class QTreeView;
 class QVBoxLayout;
@@ -115,6 +128,9 @@ public:
     void setIdentity(Identity identity);
     QString identity() const;
     void setClock(Clock clock);
+    // The chord a command has now, as the right-click menu shows it beside its label -- the window's, from
+    // `KeyBindingStore` (I-32). None: labels alone.
+    void setChordText(std::function<QString(core::ActionId)> chordText);
     // The host's offset from UTC, in seconds -- which calendar day a date is (convention 11).
     void setUtcOffset(int seconds);
     // The document changed: the list re-asked, the current comment kept by identity. Deferred while the pane is
@@ -166,6 +182,9 @@ public:
     core::Status deleteMatching();           // comment.deleteMatching: every comment the list shows
     void showFilterMenu();                   // comment.filter
     void showSortMenu();                     // comment.sort
+    // The right-click menu (I-32) for the comment at `pos` in the list's viewport, made current first. False -- and
+    // no menu -- on a group, on no row, or for a document nothing may change.
+    bool showItemMenu(const QPoint& pos);
 
     // ---- What a case can assert, rather than a screenshot ---------------------------------------
     QTreeView* view() const noexcept { return view_; }
@@ -174,6 +193,7 @@ public:
     QComboBox* sortBox() const noexcept { return sortBox_; }
     QMenu* statusMenu() const noexcept { return statusMenu_; }
     QMenu* filterMenu() const noexcept { return filterMenu_; }
+    QMenu* itemMenu() const noexcept { return itemMenu_; }
     AnnotationTextEditor* editor() const noexcept { return editor_; }
     QLabel* countLabel() const noexcept { return count_; }
     // The rows the view would DRAW -- expanded children included (convention 12's count).
@@ -187,7 +207,7 @@ public:
     // How long the last rebuild of the list took, in milliseconds (guide §3.6).
     double lastRebuildMs() const noexcept { return lastRebuildMs_; }
     // The narrowest the comment column is made (I-30): the deepest listed row's indentation, at most
-    // `kDeepestIndented` levels, its check box and a dozen characters.
+    // `kDeepestIndented` levels, its check box, its picture (I-33) and a dozen characters.
     int commentColumnMinimum() const;
     static constexpr int kDeepestIndented = 6;
 
@@ -196,6 +216,8 @@ signals:
     void activated(const core::AnnotationId& id, int page, const core::PdfRect& rect);
     // `Enter`: open the comment's own editor on the page (the window's properties bar).
     void openEditorRequested(const core::AnnotationId& id);
+    // A CLICK on a comment's row (I-34) -- after `activated` -- asks for its pop-up on the page.
+    void popupRequested(const core::AnnotationId& id);
     // A command from the pane's own menu -- dispatched by the window, so it is the registered command.
     void actionRequested(core::ActionId id);
     // A command the pane constructed was refused -- by a lock, a page that cannot be edited. The window words it.
@@ -216,6 +238,7 @@ private:
     void ensureFresh();
     void updateCount();
     void populateFilterMenu();
+    void populateItemMenu();
     core::Status run(std::unique_ptr<core::Command> command);
     std::int64_t now() const;
     std::optional<std::size_t> currentIndex() const;
@@ -233,6 +256,7 @@ private:
     Runner runner_;
     Clock clock_;
     Identity identity_;
+    std::function<QString(core::ActionId)> chordText_;
     int utcOffset_ = 0;
     std::vector<core::PdfRect> pageBoxes_;
     std::vector<int> rotations_;
@@ -263,6 +287,7 @@ private:
     QMenu* filterMenu_ = nullptr;
     QMenu* moreMenu_ = nullptr;
     QMenu* statusMenu_ = nullptr;
+    QMenu* itemMenu_ = nullptr;   // I-32: the right-click menu, made afresh each time it shows
     QWidget* dateRow_ = nullptr;
     QDateEdit* fromEdit_ = nullptr;
     QDateEdit* toEdit_ = nullptr;
