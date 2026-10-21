@@ -34,6 +34,16 @@
 // window reveals and selects it; a selection made on the page comes back here SILENTLY (`selectComment`), so the
 // two never chase each other.
 //
+// ---------------------------------------------------------------------------------------------
+// THE COMMENT COLUMN HAS A FLOOR, AND A NARROW PANE SCROLLS (guide I-30)
+// ---------------------------------------------------------------------------------------------
+// The comment column takes what the other four leave, but never less than `commentColumnMinimum`: the deepest
+// listed row's indentation, its check box and a dozen characters. Below that the list scrolls sideways. Until
+// I-30 it was a `Stretch` section, which a narrow pane squeezed to a few pixels while each reply's indentation
+// and check box kept their size -- so the box was painted over the author and page columns, further right the
+// deeper the reply. The column's cells are also CLIPPED to themselves, for a thread deeper than the floor allows
+// for (`kDeepestIndented`): such a row loses its box rather than painting it into the next column.
+//
 // It holds no `Command` beyond the ones it constructs, and words nothing in English: every string is a
 // `comments.` or `panes.` catalog key.
 
@@ -176,6 +186,10 @@ public:
     QString textOf(const core::AnnotationId& id, int column) const;
     // How long the last rebuild of the list took, in milliseconds (guide §3.6).
     double lastRebuildMs() const noexcept { return lastRebuildMs_; }
+    // The narrowest the comment column is made (I-30): the deepest listed row's indentation, at most
+    // `kDeepestIndented` levels, its check box and a dozen characters.
+    int commentColumnMinimum() const;
+    static constexpr int kDeepestIndented = 6;
 
 signals:
     // A person made this comment current -- a click, an arrow, `Ctrl+.` -- and the page follows it.
@@ -191,11 +205,14 @@ signals:
 
 protected:
     void showEvent(QShowEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     friend class CommentsModel;
 
     void rebuild();
+    // The comment column: what the other columns leave of the viewport, and never under its minimum (I-30).
+    void fitCommentColumn();
     void ensureFresh();
     void updateCount();
     void populateFilterMenu();

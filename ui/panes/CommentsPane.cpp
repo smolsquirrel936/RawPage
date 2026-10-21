@@ -20,8 +20,11 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPainter>
 #include <QRegularExpression>
 #include <QShowEvent>
+#include <QStyle>
+#include <QStyledItemDelegate>
 #include <QTimeZone>
 #include <QToolButton>
 #include <QTreeView>
@@ -108,6 +111,7 @@ public:
         bool group = false;
         int parent = -1;            // node index, -1 for the root
         int row = 0;
+        int depth = 0;              // 0 for a root, one more for each level under it
         std::vector<int> children;
         std::size_t index = 0;      // an item's annotation in the store, when the model was built
         AnnotationId id;            // ... and WHICH annotation: a stale model is resolved by this, never the index
@@ -122,6 +126,7 @@ public:
         beginResetModel();
         nodes_.clear();
         roots_.clear();
+        deepest_ = 0;
         store_ = store;
         grouping_ = grouping;
         identity_ = identity;
@@ -138,6 +143,8 @@ public:
                     const int me = static_cast<int>(nodes_.size());
                     Node node;
                     node.parent = owner == kTop ? parent : owner;
+                    node.depth = node.parent < 0 ? 0 : nodes_[static_cast<std::size_t>(node.parent)].depth + 1;
+                    deepest_ = std::max(deepest_, node.depth);
                     node.index = at;
                     node.id = store->at(at).id;
                     nodes_.push_back(std::move(node));   // before `into` is taken: this may move every node
@@ -189,6 +196,8 @@ public:
     }
     const std::vector<int>& roots() const noexcept { return roots_; }
     const std::vector<Node>& nodes() const noexcept { return nodes_; }
+    // The deepest node's depth -- a group's items are 1, their replies 2 and on.
+    int deepest() const noexcept { return deepest_; }
 
     QModelIndex index(int row, int column, const QModelIndex& parent) const override
     {
@@ -352,8 +361,29 @@ private:
     QString identity_;
     std::vector<Node> nodes_;
     std::vector<int> roots_;
+    int deepest_ = 0;
     std::map<std::size_t, int> byAnnotation_;
 };
+
+// The comment column's cells, CLIPPED to themselves (I-30). The style places a cell's check box at the cell's left
+// edge whatever the cell's width, and the tree view sets no clip between columns -- so a cell narrower than the box
+// painted it over the next column. The column's minimum keeps that from happening up to `kDeepestIndented` levels;
+// this keeps a deeper row from doing it at all -- a row indented past its column's edge too, whose cell the tree
+// view hands over with a NEGATIVE width (the clip is then empty).
+namespace {
+class ClippedCellDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        painter->save();
+        painter->setClipRect(option.rect, Qt::IntersectClip);
+        QStyledItemDelegate::paint(painter, option, index);
+        painter->restore();
+    }
+};
+} // namespace
 
 // ==========================================================================================
 // CommentsPane
@@ -476,9 +506,17 @@ CommentsPane::CommentsPane(QWidget* parent) : QWidget(parent)
     view_->setSelectionBehavior(QAbstractItemView::SelectRows);
     view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     view_->setAllColumnsShowFocus(true);
+    view_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    view_->setItemDelegateForColumn(kColumnComment, new ClippedCellDelegate(view_));
+    // THE COMMENT COLUMN IS SIZED HERE, NOT BY THE HEADER (I-30): what the other columns leave, never under its
+    // minimum -- fitted when the viewport or another column changes width, and after every rebuild.
     view_->header()->setStretchLastSection(false);
-    view_->header()->setSectionResizeMode(kColumnComment, QHeaderView::Stretch);
+    view_->header()->setSectionResizeMode(kColumnComment, QHeaderView::Fixed);
     for (int c = 1; c < kColumnCount; ++c) view_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
+    view_->viewport()->installEventFilter(this);
+    connect(view_->header(), &QHeaderView::sectionResized, this, [this](int logical, int, int) {
+        if (logical != kColumnComment) fitCommentColumn();
+    });
     // A CURRENT ROW FROM NOTHING CURRENT IS NOT A GESTURE: Qt makes the first row current when the list takes the
     // focus, and opening the pane must not send the page to its first comment. A CLICK is a gesture whatever was
     // current before, and so is every move from one row to another.
@@ -587,6 +625,34 @@ void CommentsPane::showEvent(QShowEvent* event)
     ensureFresh();
 }
 
+bool CommentsPane::eventFilter(QObject* watched, QEvent* event)
+{
+    if (view_ != nullptr && watched == view_->viewport() && event->type() == QEvent::Resize) fitCommentColumn();
+    return QWidget::eventFilter(watched, event);
+}
+
+int CommentsPane::commentColumnMinimum() const
+{
+    // A root row is indented once too, for its expand arrow.
+    const int levels = std::min(model_->deepest(), kDeepestIndented) + (view_->rootIsDecorated() ? 1 : 0);
+    const QStyle* style = view_->style();
+    const int box = style->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, view_)
+                    + 2 * (style->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, view_) + 1);
+    constexpr int kCharacters = 12;
+    return view_->indentation() * levels + box + view_->fontMetrics().averageCharWidth() * kCharacters;
+}
+
+void CommentsPane::fitCommentColumn()
+{
+    QHeaderView* header = view_->header();
+    int others = 0;
+    for (int c = 0; c < kColumnCount; ++c) {
+        if (c != kColumnComment) others += header->sectionSize(c);
+    }
+    const int width = std::max(view_->viewport()->width() - others, commentColumnMinimum());
+    if (header->sectionSize(kColumnComment) != width) header->resizeSection(kColumnComment, width);
+}
+
 AnnotationStore::Filter CommentsPane::filter() const
 {
     AnnotationStore::Filter f;
@@ -625,6 +691,7 @@ void CommentsPane::rebuild()
     }
     silent_ = false;
     stale_ = false;
+    fitCommentColumn();   // the deepest row may have changed
     updateCount();
     lastRebuildMs_ = static_cast<double>(timer.nsecsElapsed()) / 1.0e6;
     if (numbering_) emit numbersChanged();

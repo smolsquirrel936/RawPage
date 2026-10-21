@@ -8,6 +8,7 @@
 #include "core/doc/Stamps.h"
 #include "ui/shell/Catalog.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
@@ -19,6 +20,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPixmap>
+#include <QPointer>
+#include <QResizeEvent>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 
 #include <algorithm>
@@ -105,6 +110,45 @@ QString token(std::string_view name)
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
+// The row's scroll area (I-31): as tall as the row, and the scroll bar under it when the row does not fit -- and
+// NO minimum width, which is the point.
+class RowScrollArea : public QScrollArea {
+public:
+    explicit RowScrollArea(QWidget* parent) : QScrollArea(parent)
+    {
+        setFrameShape(QFrame::NoFrame);
+        setWidgetResizable(true);
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+    QSize sizeHint() const override
+    {
+        return {widget() != nullptr ? widget()->sizeHint().width() : 0, heightAt(width())};
+    }
+    QSize minimumSizeHint() const override { return {0, heightAt(width())}; }
+
+protected:
+    void resizeEvent(QResizeEvent* event) override
+    {
+        QScrollArea::resizeEvent(event);
+        if (heightAt(width()) != height()) updateGeometry();   // the scroll bar came or went
+        // The control being typed into stays in sight as the bar narrows.
+        QWidget* focus = QApplication::focusWidget();
+        if (focus != nullptr && widget() != nullptr && widget()->isAncestorOf(focus)) ensureWidgetVisible(focus);
+    }
+
+private:
+    int heightAt(int width) const
+    {
+        if (widget() == nullptr) return 0;
+        int height = widget()->sizeHint().height();
+        if (widget()->minimumSizeHint().width() > width) height += horizontalScrollBar()->sizeHint().height();
+        return height;
+    }
+};
+
 constexpr std::array<core::LineStyle, 3> kLineStyles = {core::LineStyle::Solid, core::LineStyle::Dashed,
                                                         core::LineStyle::Dotted};
 constexpr std::array<core::ToolBlend, 8> kBlends = {
@@ -137,7 +181,23 @@ const std::vector<QString>& PropertiesBar::endingNames()
 PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
 {
     setObjectName(QStringLiteral("propertiesBar"));
-    auto* row = new QHBoxLayout(this);
+    // THE ROW SCROLLS RATHER THAN WIDENING THE DOCUMENT AREA (I-31). Every control below is made with the bar as
+    // its parent; the row's layout moves it into the scroll area's content.
+    auto* outer = new QHBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
+    scroll_ = new RowScrollArea(this);
+    scroll_->setObjectName(QStringLiteral("propertiesScroll"));
+    auto* content = new QWidget(scroll_);
+    auto* row = new QHBoxLayout(content);
+    outer->addWidget(scroll_);
+    // A control that takes the focus is scrolled into sight -- QUEUED, because `Enter` shows the bar and focuses its
+    // text in one handler, before the row has been laid out, when the field's place is not yet known.
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget* now) {
+        if (now == nullptr || scroll_->widget() == nullptr || !scroll_->widget()->isAncestorOf(now)) return;
+        QMetaObject::invokeMethod(this, [this, target = QPointer<QWidget>(now)] {
+            if (target) scroll_->ensureWidgetVisible(target);
+        }, Qt::QueuedConnection);
+    });
     row->setContentsMargins(6, 2, 6, 2);
     row->setSpacing(6);
 
@@ -249,6 +309,7 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
     row->addWidget(new QLabel(catalog::translate(catalog::key::PropertiesBarText), this));
     text_ = new QLineEdit(this);
     text_->setObjectName(QStringLiteral("propertiesText"));
+    text_->setMinimumWidth(text_->fontMetrics().averageCharWidth() * 24);   // I-31: a row that scrolls gives it no more
     text_->installEventFilter(this);
     row->addWidget(text_, 1);
 
@@ -256,6 +317,7 @@ PropertiesBar::PropertiesBar(QWidget* parent) : QWidget(parent)
     contentsLocked_ = new QCheckBox(catalog::translate(catalog::key::PropertiesBarContentsLocked), this);
     readOnly_ = new QCheckBox(catalog::translate(catalog::key::PropertiesBarReadOnly), this);
     for (QCheckBox* box : {locked_, contentsLocked_, readOnly_}) row->addWidget(box);
+    scroll_->setWidget(content);   // after the row is whole, so the area sizes from it
 
     connect(colour_, &QComboBox::currentIndexChanged, this, [this] {
         if (refreshing_) return;

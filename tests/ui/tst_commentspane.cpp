@@ -16,6 +16,10 @@
 //   * A-43: a Hidden comment is listed, and said to be hidden.
 //   * I-13 (guide §8): the store changing while the pane is hidden, then a selection on the page coming back to
 //     it, is no out-of-range read of a stale row.
+//   * I-30 (guide §8): the comment column keeps room for its deepest row's indentation and check box, a narrow
+//     pane scrolls sideways, and a cell too narrow for its box paints nothing beyond itself.
+//   * I-31 (guide §8): the properties bar `Enter` shows asks the window for no width, so the sidebar can still be
+//     dragged wider, and its focused text field is scrolled into sight.
 //
 // WHAT IT DOES NOT COVER (convention 19): what the sink writes -- the fake sink accepts everything; the bytes are
 // `tests/unit/tst_annotthreads`'s -- and the engine's pixels (A-72's tile half is
@@ -46,11 +50,18 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHeaderView>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLayout>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPainter>
+#include <QScrollArea>
 #include <QScrollBar>
+#include <QStyle>
+#include <QStyleOptionViewItem>
+#include <QStyleFactory>
 #include <QTreeView>
 
 using namespace rawpage;
@@ -564,4 +575,159 @@ TEST_CASE("a selection coming back to a hidden pane after the store changed read
     QCoreApplication::processEvents();
     CHECK(c.pane->currentComment() == AnnotationId::ofObject(10));
     CHECK(c.pane->listedComments() == std::vector<AnnotationId>{AnnotationId::ofObject(10), AnnotationId::ofObject(16)});
+}
+
+// ==========================================================================================
+// I-30 -- a narrow pane scrolls; it never paints a check box over the next column
+// ==========================================================================================
+
+namespace {
+
+// The sidebar asked to be `asked` pixels wide, laid out; how wide it is.
+int dockTo(const Commented& c, int asked)
+{
+    c.window->resizeDocks({c.window->sidebar()}, {asked}, Qt::Horizontal);
+    c.layout();
+    return c.window->sidebar()->width();
+}
+
+int sectionsWidth(const QTreeView* view)
+{
+    int sum = 0;
+    for (int s = 0; s < view->header()->count(); ++s) sum += view->header()->sectionSize(s);
+    return sum;
+}
+
+} // namespace
+
+TEST_CASE("the comment column keeps room for its deepest row and a narrow pane scrolls", "[commentspane][I-30]")
+{
+    Commented c;
+    c.window->resize(1800, 900);
+    c.open();
+    // A reply to the reply: the thread three deep, as `annots-threads.pdf`'s is.
+    c.pane->selectComment(AnnotationId::ofObject(12));
+    c.pane->view()->setFocus();
+    REQUIRE(c.pane->reply());
+    c.type(QStringLiteral("deeper"));
+    REQUIRE(c.key(Qt::Key_Return));
+    c.layout();
+    REQUIRE(c.pane->visibleRowCount() == 6);
+    QTreeView* view = c.pane->view();
+    QHeaderView* header = view->header();
+
+    // THE FLOOR: the deepest row's two indents, the root's arrow, a check box and text beside it.
+    const int floor = c.pane->commentColumnMinimum();
+    const int box = view->style()->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, view);
+    CHECK(floor >= view->indentation() * 3 + box + view->fontMetrics().averageCharWidth() * 10);
+
+    // WIDE: the comment column takes what the others leave, and nothing scrolls.
+    REQUIRE(dockTo(c, 900) > 700);
+    CHECK(header->sectionSize(0) > floor);
+    CHECK(sectionsWidth(view) == view->viewport()->width());
+    CHECK(view->horizontalScrollBar()->maximum() == 0);
+
+    // NARROW -- I-30: the pane at its minimum. Before the fix the column was squeezed under its own indentation
+    // (32 pixels against 30 an indent, on the `windows` platform) and the box drawn over the author and the page.
+    dockTo(c, 0);
+    REQUIRE(view->viewport()->width() > 0);
+    CHECK(header->sectionSize(0) == floor);
+    CHECK(sectionsWidth(view) > view->viewport()->width());
+    CHECK(view->horizontalScrollBar()->maximum() > 0);   // the rest is reached by scrolling
+
+    // AND WIDE AGAIN: the floor is not where it stays.
+    dockTo(c, 900);
+    CHECK(sectionsWidth(view) == view->viewport()->width());
+}
+
+TEST_CASE("a comment cell narrower than its check box paints nothing beyond itself", "[commentspane][I-30]")
+{
+    // The guard for a thread deeper than the floor allows for: the cell is clipped to itself -- in EVERY style this
+    // Qt has. The overflow is a style's: the native one draws the box at the cell's left edge whatever its width (the
+    // user's screenshot, `windows11`), while `Fusion`, offscreen's default, drew nothing outside -- so a case run in
+    // the default style alone cannot fail under `ctest`.
+    Commented c;
+    c.open();
+    QTreeView* view = c.pane->view();
+    const QModelIndex cell = view->model()->index(0, 0);
+    REQUIRE((view->model()->flags(cell) & Qt::ItemIsUserCheckable) != 0);
+    QAbstractItemDelegate* delegate = view->itemDelegateForIndex(cell);
+    REQUIRE(delegate != nullptr);
+
+    const QStringList styles = QStyleFactory::keys();
+    REQUIRE_FALSE(styles.isEmpty());
+    for (const QString& name : styles) {
+        CAPTURE(name);
+        const std::unique_ptr<QStyle> style(QStyleFactory::create(name));
+        REQUIRE(style != nullptr);
+        // The cell at x 20, `width` wide, painted in this style into a white image: the pixels changed from `from`.
+        const auto paintedFrom = [&](int width, int from) {
+            QWidget host;
+            host.setStyle(style.get());
+            QImage image(200, 30, QImage::Format_ARGB32);
+            image.fill(Qt::white);
+            {
+                QPainter painter(&image);
+                QStyleOptionViewItem option;
+                option.initFrom(&host);
+                option.widget = &host;
+                option.rect = QRect(20, 0, width, 30);
+                option.state |= QStyle::State_Enabled;
+                delegate->paint(&painter, option, cell);
+            }
+            int changed = 0;
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = from; x < image.width(); ++x)
+                    if (image.pixel(x, y) != QColor(Qt::white).rgb()) ++changed;
+            return changed;
+        };
+        CHECK(paintedFrom(4, 24) == 0);    // four pixels: no room for the box, and nothing beyond them
+        // NEGATIVE: what the tree view hands a row indented past its column's right edge -- the deep reply of I-30's
+        // screenshot, whose box was drawn over the page column.
+        CHECK(paintedFrom(-10, 0) == 0);
+        // THE CONTROL: the same cell 60 pixels wide paints -- so a blank image above is the guard, not nothing drawn.
+        CHECK(paintedFrom(60, 20) > 0);
+    }
+}
+
+// ==========================================================================================
+// I-31 -- the properties bar asks for no width, so the sidebar beside it still moves
+// ==========================================================================================
+
+TEST_CASE("Enter's properties bar leaves the sidebar free to be dragged wider", "[commentspane][I-31]")
+{
+    Commented c;
+    c.window->resize(2600, 900);
+    c.open();
+    QWidget* central = c.window->centralWidget();
+    const int centralMinimum = central->minimumSizeHint().width();
+    const int wide = dockTo(c, 900);
+    REQUIRE(wide > 700);
+
+    // `Enter` -- the bar, its text focused.
+    c.pane->selectComment(AnnotationId::ofObject(14));
+    c.pane->view()->setFocus();
+    REQUIRE(c.key(Qt::Key_Return));
+    c.layout();
+    ui::PropertiesBar* bar = c.document->propertiesBar();
+    REQUIRE(c.document->propertiesBarShown());
+    CHECK(QApplication::focusWidget() == bar->textField());
+    CHECK_FALSE(bar->textField()->visibleRegion().isEmpty());   // focused where it can be seen
+
+    // THE DOCUMENT AREA ASKS FOR NO MORE THAN IT DID. Before the fix the bar's row was its minimum: 2418 pixels on
+    // the `windows` platform, and the sidebar could be dragged no wider than its own minimum, 287.
+    CHECK(bar->minimumSizeHint().width() < 100);
+    CHECK(central->minimumSizeHint().width() <= centralMinimum);
+    dockTo(c, 300);
+    CHECK(dockTo(c, 900) == wide);   // dragged wider again, with the bar shown
+
+    // THE ROW STILL READS: one row tall (and the scroll bar), its text field focused and in sight.
+    CHECK(bar->height() < 3 * bar->textField()->height());
+    CHECK(QApplication::focusWidget() == bar->textField());
+    CHECK_FALSE(bar->textField()->visibleRegion().isEmpty());   // and still, after the bar narrowed and widened
+    REQUIRE(dockTo(c, 1600) > wide + 500);   // the sidebar wider than when the field took the focus: the bar narrower
+    CHECK_FALSE(bar->textField()->visibleRegion().isEmpty());
+    auto* scroll = bar->findChild<QScrollArea*>(QStringLiteral("propertiesScroll"));
+    REQUIRE(scroll != nullptr);
+    CHECK(scroll->horizontalScrollBar()->maximum() > 0);   // narrower than its row: it scrolls
 }

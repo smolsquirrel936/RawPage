@@ -19,6 +19,12 @@
 //
 // `Esc` in its text field puts the field back as it was, and is the field's: `edit.cancel` stays
 // unregistered (Stage 4's I-06), so the key reaches the widget that has it (guide case A-46).
+//
+// IT ASKS FOR NO WIDTH (guide I-31). Its row of some thirty controls is some 2,400 pixels at its narrowest, and
+// as a row of the document's column that was the document area's minimum: once `Enter` in the Comments pane or
+// `Ctrl+E` showed the bar, the sidebar beside it could not be dragged wider than its own minimum. The row is in a
+// scroll area that claims no width -- a horizontal scroll bar under the row when it does not fit -- and a control
+// that takes the focus is scrolled into view, so `Enter`'s text field is never focused out of sight.
 
 #ifndef RAWPAGE_UI_VIEWER_PROPERTIESBAR_H
 #define RAWPAGE_UI_VIEWER_PROPERTIESBAR_H
@@ -42,6 +48,7 @@ class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
+class QScrollArea;
 class QSpinBox;
 
 namespace rawpage::ui {
@@ -113,6 +120,7 @@ private:
     void enableAll(bool enabled);
     std::vector<QString> chosenEndings(bool callout) const;
 
+    QScrollArea* scroll_ = nullptr;   // I-31: holds the row
     Subject subject_ = Subject::Nothing;
     bool refreshing_ = false;
     bool calloutSelected_ = false;
