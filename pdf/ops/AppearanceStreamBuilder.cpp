@@ -197,12 +197,28 @@ double markupStroke(double height)
     return std::max(1.0, height / 14.0);
 }
 
+// A squiggle's height, which is also its step along the line: each zigzag stroke rises or falls at 45 degrees.
+double squiggleAmplitude(double height)
+{
+    return std::max(0.6, 0.09 * height);
+}
+
 core::Result<Appearance> textLine(const core::Annotation& a)
 {
     const QLatin1String name = core::annotationSubtypeName(a.subtype);
     if (!quadsDrawable(a)) return appearanceError("error.pdf.appearanceGeometry", name);
     const std::optional<std::vector<double>> color = colourOf(a, {0.0, 0.0, 0.0});
     if (!color) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (a.subtype == core::AnnotationSubtype::Squiggly) {
+        // One `lineTo` per step, so the steps are counted before any is drawn: a quadrilateral read from a file may
+        // run 10^13 points, and the zigzag along it ran the fuzz soak out of memory (S6 guide I-36). A NaN or an
+        // infinite count is refused with the rest.
+        double steps = 0.0;
+        for (std::size_t quad = 0; quad < a.quadPoints.size(); quad += 8) {
+            if (const std::optional<QuadFrame> f = frameOf(a.quadPoints, quad)) steps += f->length / squiggleAmplitude(f->height);
+        }
+        if (!(steps <= static_cast<double>(core::kMaxDrawnSteps))) return appearanceError("error.pdf.appearanceGeometry", name);
+    }
 
     cos::ContentStreamBuilder content;
     content.save().graphicsState("GS0").strokeColor(color->data(), static_cast<int>(color->size()));
@@ -217,7 +233,7 @@ core::Result<Appearance> textLine(const core::Annotation& a)
             // 1 wide at every size -- spilled above the baseline and below the descenders of 10-point text
             // (rows 297-305 against a band of 298-303, measured at T6 on `text-a4.pdf`).
             const double base = 0.07 * f->height;
-            const double amp = std::max(0.6, 0.09 * f->height);
+            const double amp = squiggleAmplitude(f->height);
             content.lineWidth(std::max(0.5, f->height / 28.0)).lineJoin(1);
             const auto [sx, sy] = f->at(0.0, base + amp);
             content.moveTo(sx, sy);

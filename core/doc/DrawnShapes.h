@@ -41,6 +41,7 @@
 
 #include <QString>
 
+#include <cstddef>
 #include <optional>
 #include <vector>
 
@@ -82,14 +83,25 @@ std::vector<CubicSegment> inkCurve(const std::vector<double>& stroke);
 // deduplication; the tool passes 0.25 device pixels in page units).
 std::vector<double> dedupedSamples(const std::vector<double>& xy, double minimum);
 
+// ---- Shapes drawn in steps along their length ----------------------------------------------------------
+// The most steps one annotation's border or mark drawn in repeated steps may take, summed over the annotation --
+// a cloud's bumps (here) and a squiggly's zigzag (`pdf/ops/AppearanceStreamBuilder`). Past it the shape is NOT
+// DRAWN, and the builder refuses it by key: a length read from a file is any finite number, and a step of a fixed
+// size along 10^13 points is a path no memory holds (S6 guide I-36, the fuzz soak's out-of-memory). A million is
+// far past anything on a page: a squiggly's step is at least 0.6 point, so 600,000 points of squiggle -- about 30
+// diagonals of the largest page ISO 32000-1 Annex C has a reader keep, 14,400 units a side, and some 25 Letter
+// pages of 8-point text squiggled whole (67 lines of 468 points at a step of 0.81, ~39,000 steps a page); and a
+// cloud's bump is at least 5 points.
+inline constexpr std::size_t kMaxDrawnSteps = 1000000;
+
 // ---- Clouds (ISO 32000-1 Table 167) ----------------------------------------------------------------
 // A cloudy border's bump: each edge is cut into spans no shorter than this, each span a half circle bulging
 // OUTWARD. 5 points plus 5 per unit of intensity: intensity 1 is 10 points, the corpus generator's, and 2 is 15.
 double cloudBump(double intensity);
 
 // The closed path of a cloudy border round `vertices` (x y pairs, at least three corners), as cubics -- two per
-// bump, each a quarter circle. Empty for fewer than three corners or no area. The bumps bulge away from the
-// polygon's inside, whichever way round it is written.
+// bump, each a quarter circle. Empty for fewer than three corners, no area, or more than `kMaxDrawnSteps` bumps
+// (S6 guide I-37). The bumps bulge away from the polygon's inside, whichever way round it is written.
 std::vector<CubicSegment> cloudPath(const std::vector<double>& vertices, double intensity);
 
 // How far a cloud's bumps reach past its edges: the largest bump's radius.

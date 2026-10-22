@@ -236,6 +236,9 @@ std::vector<CloudEdge> cloudEdges(const std::vector<double>& vertices, double in
         area += vertices[2 * j] * vertices[2 * i + 1] - vertices[2 * i] * vertices[2 * j + 1];
     if (!(std::abs(area) > 1e-9)) return edges;
     const double bump = cloudBump(intensity);
+    // Counted in doubles BEFORE the cast: an edge of 10^300 points is 10^299 bumps, which no `int` holds (S6 guide
+    // I-37) -- and past the bound there is no cloud at all, rather than one cut short.
+    double bumps = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
         const Vec a{vertices[2 * i], vertices[2 * i + 1]};
         const Vec b{vertices[2 * ((i + 1) % n)], vertices[2 * ((i + 1) % n) + 1]};
@@ -246,7 +249,10 @@ std::vector<CloudEdge> cloudEdges(const std::vector<double>& vertices, double in
         edge.u = (b - a) * (1.0 / span);
         // Counter-clockwise (positive area): the inside is on the left, so outward is the right-hand normal.
         edge.n = area > 0.0 ? Vec{edge.u.y, -edge.u.x} : Vec{-edge.u.y, edge.u.x};
-        edge.count = std::max(1, static_cast<int>(std::floor(span / bump)));
+        const double count = std::max(1.0, std::floor(span / bump));
+        bumps += count;
+        if (!(bumps <= static_cast<double>(kMaxDrawnSteps))) return {};
+        edge.count = static_cast<int>(count);
         edge.step = span / edge.count;
         edges.push_back(edge);
     }

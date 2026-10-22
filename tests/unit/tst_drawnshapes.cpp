@@ -340,6 +340,51 @@ TEST_CASE("a cloud's bumps bulge outward whichever way it is written and its rec
     CHECK_FALSE(core::hitsAnnotation(*fitted, PdfPoint{150, 100 - reach - 4.0}, 0.1));
 }
 
+TEST_CASE("a cloud of more bumps than the bound is no cloud and one within it is drawn", "[drawnshapes][D6-35][I-37]")
+{
+    // S6 guide I-37, found reading I-36's code: an edge's bumps were counted with no bound -- an edge of 10^9 points
+    // is 10^8 bumps, 13 GB of cubics -- and cast to `int` however many there were, which past INT_MAX is undefined.
+    // A thin triangle at intensity 1 (10-point bumps): its two long edges are `side / 10` bumps each, its short one 1.
+    const double bound = static_cast<double>(core::kMaxDrawnSteps);
+    const auto triangle = [](double side) { return std::vector<double>{0, 0, side, 0, 0, 10}; };
+    REQUIRE(core::cloudBump(1.0) == 10.0);
+
+    // The control: within the bound the cloud is there, every bump of it (`cloudReach` walks the same edges as
+    // `cloudPath` and allocates nothing, so the control costs no 100 MB path).
+    CHECK(core::cloudReach(triangle(0.45 * bound * 10.0), 1.0) > 0.0);
+    CHECK(core::cloudPath(triangle(1000.0), 1.0).size() == 2 * (100 + 100 + 1));
+    // Past it, no cloud: no path, no reach, no rectangle -- and the builder refuses it by key, as any cloud with none.
+    REQUIRE(core::cloudPath(triangle(0.55 * bound * 10.0), 1.0).empty());   // REQUIRE: unbounded, what follows is 25 GB
+    CHECK(core::cloudReach(triangle(0.55 * bound * 10.0), 1.0) == 0.0);
+    CHECK(core::cloudPath(triangle(1.0e300), 1.0).empty());   // 10^299 bumps: the cast that was undefined
+    const auto polygon = [&](double side) {
+        Annotation a = core::newAnnotation(AnnotationSubtype::Polygon, 0, QString(), 0);
+        a.vertices = triangle(side);
+        a.cloudIntensity = 1.0;
+        a.color = {1.0, 0.0, 0.0};
+        a.rect = core::PdfRect{PdfPoint{0, 0}, core::PdfSize{side, 10}};
+        return a;
+    };
+    const auto refused = [](const Annotation& a) {
+        const auto built = pdf::ops::AppearanceStreamBuilder::normal(a);
+        return !built && built.error().messageKey == QLatin1String("error.pdf.appearanceGeometry");
+    };
+    CHECK(core::fittedShape(polygon(1000.0)));   // each refusal's control: the same shape, short, drawn
+    CHECK(pdf::ops::AppearanceStreamBuilder::normal(polygon(1000.0)));
+    CHECK_FALSE(core::fittedShape(polygon(1.0e9)));
+    CHECK(refused(polygon(1.0e9)));
+    // A cloudy SQUARE draws its rectangle's four sides the same way: 4e7 points of side is 4e6 bumps.
+    const auto square = [](double side) {
+        Annotation a = core::newAnnotation(AnnotationSubtype::Square, 0, QString(), 0);
+        a.cloudIntensity = 1.0;
+        a.color = {1.0, 0.0, 0.0};
+        a.rect = core::PdfRect{PdfPoint{0, 0}, core::PdfSize{side, side}};
+        return a;
+    };
+    CHECK(pdf::ops::AppearanceStreamBuilder::normal(square(100.0)));
+    CHECK(refused(square(1.0e7)));
+}
+
 TEST_CASE("a shape that draws nothing has no rectangle to fit", "[drawnshapes][D6-35]")
 {
     Annotation line = core::newAnnotation(AnnotationSubtype::Line, 0, QString(), 0);

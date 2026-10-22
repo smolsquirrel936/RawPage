@@ -19,6 +19,7 @@
 
 #include "SaveSession.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/doc/DrawnShapes.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/AnnotationReader.h"
@@ -215,6 +216,47 @@ TEST_CASE("a vertical line is underlined along its side", "[annotmarkup][appeara
     CHECK(path[1].x == 401.0);
     CHECK(path[0].y == 700.0);
     CHECK(path[1].y == 600.0);
+}
+
+TEST_CASE("a squiggle of more steps than the bound is refused by key and one within it is drawn", "[annotmarkup][appearance][I-36]")
+{
+    // S6 guide I-36, the soak's finding (run 39748541751, `fuzz_annot_pipeline`): a squiggly whose quadrilateral's
+    // foot ran 1.2e13 points drew one `lineTo` per step of its zigzag until the fuzzer's 2 GB ran out. On a line
+    // 5 points tall the step is its smallest, 0.6 point, so a foot of `steps * 0.6` points is `steps` steps.
+    const double bound = static_cast<double>(core::kMaxDrawnSteps);
+    const auto squiggle = [](std::vector<double> feet) {
+        std::vector<double> quads;
+        for (const double length : feet) {
+            const double y = 700.0 - 10.0 * static_cast<double>(quads.size() / 8);
+            for (const double v : {100.0, y + 5, 100.0 + length, y + 5, 100.0, y, 100.0 + length, y}) quads.push_back(v);
+        }
+        return markup(AnnotationSubtype::Squiggly, std::move(quads));
+    };
+    const auto lineTos = [](const std::string& data) {
+        std::size_t count = 0;
+        for (std::size_t at = data.find(" l\n"); at != std::string::npos; at = data.find(" l\n", at + 1)) ++count;
+        return count;
+    };
+    const auto refused = [](const Annotation& a) {
+        const auto built = AppearanceStreamBuilder::normal(a);
+        return !built && keyOf(built.error()) == "error.pdf.appearanceGeometry";
+    };
+
+    // The control: within the bound it is drawn whole -- the bound refuses no squiggle it can draw.
+    const auto within = AppearanceStreamBuilder::normal(squiggle({0.9 * bound * 0.6}));
+    REQUIRE(within);
+    CHECK(lineTos(within.value().data) >= static_cast<std::size_t>(0.9 * bound));
+    CHECK(pdf::cos::ContentStreamBuilder::check(within.value().data));
+    // Past it, refused by key -- in one quadrilateral, and in two that are each within it: the bound is the annotation's.
+    REQUIRE(refused(squiggle({1.1 * bound * 0.6})));
+    CHECK(refused(squiggle({0.6 * bound * 0.6, 0.6 * bound * 0.6})));
+    // The soak's own quadrilateral, in Acrobat's order: a foot from (0, 1.18506e13) to (1626, 1), its top 1,469
+    // points away -- a step of 132 points, and 9e10 steps.
+    Annotation soak = markup(AnnotationSubtype::Squiggly, {156.812, 76, 0, 0, 0, 1.18506e+13, 1626, 1});
+    CHECK(refused(soak));
+    // The other text lines are one stroke per quadrilateral whatever its length, and are drawn.
+    CHECK(AppearanceStreamBuilder::normal(markup(AnnotationSubtype::Underline, soak.quadPoints)));
+    CHECK(AppearanceStreamBuilder::normal(markup(AnnotationSubtype::StrikeOut, soak.quadPoints)));
 }
 
 TEST_CASE("a caret and the two note icons are drawn and any other icon is refused by key", "[annotmarkup][appearance]")
