@@ -100,6 +100,9 @@ add_executable(rawpage_composition_tests
     # S6 T15 -- guide A-108, the stage-wide sweep of A-34 over what no suite above compared in pixels: an erase, a
     # paste, the pushpin and a sound beside a pencil stroke, made with their tools, saved and reopened fresh.
     tst_shownsaved.cpp
+    # Stage 6 guide I-35 -- a REAL console Ctrl+C, sent by rawpage_ctrlcprobe (below) to itself in a console of its own:
+    # the windows close, a refused close leaves the process for the next one, a second while the first waits ends it.
+    tst_consoleinterrupt.cpp
     ${CMAKE_SOURCE_DIR}/tests/bench/HeapCensus.cpp
 
     ${CMAKE_SOURCE_DIR}/app/Application.cpp
@@ -115,6 +118,7 @@ target_compile_definitions(rawpage_composition_tests PRIVATE
     RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus"
     RAWPAGE_GOLDEN_MANIFEST="${CMAKE_SOURCE_DIR}/golden/manifest.json"
     RAWPAGE_KILLPROBE_PATH="$<TARGET_FILE:rawpage_killprobe>"
+    RAWPAGE_CTRLCPROBE_PATH="$<TARGET_FILE:rawpage_ctrlcprobe>"
     RAWPAGE_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(rawpage_composition_tests PRIVATE
@@ -131,9 +135,19 @@ target_link_libraries(rawpage_composition_tests PRIVATE
 set_target_properties(rawpage_composition_tests PROPERTIES AUTOMOC ON)
 
 # The catalogs and the ribbon beside the binary, as rawpage.exe has them; the probe, because A-74 runs it.
-add_dependencies(rawpage_composition_tests rawpage_translations rawpage_resources rawpage_killprobe)
+add_dependencies(rawpage_composition_tests rawpage_translations rawpage_resources rawpage_killprobe
+    rawpage_ctrlcprobe)
 
 rawpage_common_flags(rawpage_composition_tests)
+
+# rawpage_ctrlcprobe -- Stage 6 guide I-35: a HELPER EXECUTABLE, not a test target, as rawpage_killprobe is. A console
+# program with one window that sends itself a Ctrl+C, with app/ConsoleInterrupt.cpp compiled in as rawpage.exe has it;
+# tst_consoleinterrupt reads its exit code.
+add_executable(rawpage_ctrlcprobe ctrlcprobe/main.cpp ${CMAKE_SOURCE_DIR}/app/ConsoleInterrupt.cpp)
+target_include_directories(rawpage_ctrlcprobe PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(rawpage_ctrlcprobe PRIVATE rawpage_core)
+rawpage_link_qt(rawpage_ctrlcprobe Widgets)
+rawpage_common_flags(rawpage_ctrlcprobe)
 
 include(Catch)
 catch_discover_tests(rawpage_composition_tests

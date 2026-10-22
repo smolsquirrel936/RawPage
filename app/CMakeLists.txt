@@ -34,6 +34,11 @@ add_executable(rawpage
     RecoveryPrompt.h
     RecoveryPrompt.cpp
 
+    # Stage 6 guide I-35 -- a Ctrl+C in the console the process borrowed asks every window to close instead of ending
+    # the process; a second one while the first still waits ends it. tests/composition's rawpage_ctrlcprobe compiles it in.
+    ConsoleInterrupt.h
+    ConsoleInterrupt.cpp
+
     # The application manifest, embedded as RT_MANIFEST 1. It opts the process into the Windows 10
     # segment heap -- Stage 2 issue I-35, and rawpage.manifest carries the measurement.
     rawpage.rc

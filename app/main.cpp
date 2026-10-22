@@ -25,6 +25,7 @@
 #include "app/Application.h"
 #include "app/CommandLine.h"
 #include "app/CompositionRoot.h"
+#include "app/ConsoleInterrupt.h"
 #include "app/CrashHandler.h"
 #include "app/LogFile.h"
 #include "app/RecoveryPrompt.h"
@@ -523,6 +524,12 @@ int main(int argc, char** argv)
                               root.platform().displayTopology.get());
     session.install(application);
     session.restore(window, root.services());
+
+    // A CTRL+C IN THE CONSOLE THIS PROCESS BORROWED (`attachParentConsole`) CLOSES THE WINDOWS rather than ending the
+    // process -- Stage 6 guide I-35, and `app/ConsoleInterrupt.h` says why a second one still ends it. Installed here,
+    // at the event loop, because every return above this line exits at once with nothing to close; declared last, so it
+    // is gone before the window and the application it posts to.
+    app::ConsoleInterrupt interrupt(application, &app::ConsoleInterrupt::closeAllWindows);
 
     return application.exec();
 }
