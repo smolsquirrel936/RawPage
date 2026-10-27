@@ -9,12 +9,23 @@
 #include <QKeyEvent>
 #include <QMimeData>
 
+#include <algorithm>
+
 namespace rawpage::ui {
 namespace {
 
 bool isEnter(int key)
 {
     return key == Qt::Key_Return || key == Qt::Key_Enter;
+}
+
+// A KEY'S TEXT IS NOT ALWAYS TEXT ENTERING. Windows gives the editing keys text of their own -- Backspace U+0008,
+// `Ctrl+A` … `Ctrl+Z` U+0001 … U+001A, Delete U+007F -- which the editor acts on and never inserts. Checked as
+// typed text, each was refused and swallowed, so nothing typed could be corrected (S6 guide I-38). Text made of
+// control characters alone is an edit; anything else is checked, a surrogate pair included.
+bool isEditingKeyText(const QString& text)
+{
+    return std::all_of(text.cbegin(), text.cend(), [](QChar c) { return c.category() == QChar::Other_Control; });
 }
 
 } // namespace
@@ -83,7 +94,7 @@ void AnnotationTextEditor::keyPressEvent(QKeyEvent* event)
         event->accept();
         return;
     }
-    if (!event->text().isEmpty() && !admits(event->text())) {
+    if (!event->text().isEmpty() && !isEditingKeyText(event->text()) && !admits(event->text())) {
         event->accept();
         return;
     }

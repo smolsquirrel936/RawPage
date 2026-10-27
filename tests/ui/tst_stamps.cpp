@@ -8,6 +8,9 @@
 //   * A custom stamp added through the window, over a SCRATCH library: listed under its category and Favourites,
 //     chosen with its pixels decoded once, refiled, unfavoured and deleted -- each written at once (A-79's palette
 //     half).
+//   * What M-07's walk asked for (S6 guide I-39 … I-41): the highlight goes when the stamp tool is put away, so one
+//     click on the same stamp arms it again; Favourites first even when empty, a right click adding a stamp to it or
+//     taking it out, and a right press arming nothing; and Move to… offering the categories in use and a new one.
 //   * A-78's dialog half: the dialog's browser lists image types only; a PDF is refused BY NAME and nothing can be
 //     made; a PNG is kept as its bytes, any other image as a PNG of itself; drawn and typed initials are PNGs filed
 //     under Signatures.
@@ -29,6 +32,7 @@
 #include "core/settings/ProfileStore.h"
 #include "tests/ui/ShellFixture.h"
 #include "ui/dialogs/CustomStampDialog.h"
+#include "ui/dialogs/StampCategoryDialog.h"
 #include "ui/panes/StampPalettePane.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentWindow.h"
@@ -43,6 +47,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
@@ -51,10 +56,13 @@
 #include <QKeyEvent>
 #include <QLayout>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTemporaryDir>
+#include <QToolButton>
 #include <QTreeWidget>
 
 using namespace rawpage;
@@ -167,6 +175,18 @@ struct Stamping {
         QCoreApplication::processEvents();
     }
 
+    // A left click `offset` from the middle of the page view, as a person places a stamp.
+    void clickPage(QPoint offset = QPoint()) const
+    {
+        const QPoint pos = view->viewport()->rect().center() + offset;
+        for (const QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+            QMouseEvent event(type, QPointF(pos), QPointF(view->viewport()->mapToGlobal(pos)), Qt::LeftButton,
+                              type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(view->viewport(), &event);
+            QCoreApplication::processEvents();
+        }
+    }
+
     std::size_t journalPosition() const { return document->journal()->position(); }
     std::vector<Annotation> created() const
     {
@@ -188,6 +208,25 @@ std::vector<QString> keysUnder(const ui::StampPalettePane& palette, const QStrin
         for (int k = 0; k < heading->childCount(); ++k) keys.push_back(heading->child(k)->data(0, Qt::UserRole + 1).toString());
     }
     return keys;
+}
+
+// The palette's item for `key` under its own category -- never the copy under Favourites.
+QTreeWidgetItem* itemWithKey(const ui::StampPalettePane& palette, const QString& key)
+{
+    const QString favourites = ui::catalog::translate(QStringLiteral("stamps.category.favourites"));
+    QTreeWidget* tree = palette.tree();
+    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* heading = tree->topLevelItem(i);
+        if (heading->text(0) == favourites) continue;
+        for (int k = 0; k < heading->childCount(); ++k)
+            if (heading->child(k)->data(0, Qt::UserRole + 1).toString() == key) return heading->child(k);
+    }
+    return nullptr;
+}
+
+QString keyOfItem(const QTreeWidgetItem* item)
+{
+    return item != nullptr ? item->data(0, Qt::UserRole + 1).toString() : QString();
 }
 
 } // namespace
@@ -267,7 +306,7 @@ TEST_CASE("a custom stamp is listed, chosen, refiled, unfavoured and deleted thr
 
     // Refiled and unfavoured -- each WRITTEN at once, as a second store over the same root reads.
     REQUIRE(palette->fileUnder(QStringLiteral("Seals")));
-    REQUIRE(palette->setFavourite(false));
+    REQUIRE(palette->setFavourite(key, false));
     core::ProfileStore again(s.library->root());
     again.load();
     REQUIRE(again.stamps().size() == 1);
@@ -276,7 +315,7 @@ TEST_CASE("a custom stamp is listed, chosen, refiled, unfavoured and deleted thr
     CHECK(keysUnder(*palette, QStringLiteral("Seals")) == std::vector<QString>{key});
     // A built-in stamp may be a favourite, and cannot be refiled or deleted.
     REQUIRE(palette->choose(QStringLiteral("standard:Draft")));
-    REQUIRE(palette->setFavourite(true));
+    REQUIRE(palette->setFavourite(QStringLiteral("standard:Draft"), true));
     CHECK(s.library->isFavourite(QStringLiteral("Draft")));
     CHECK_FALSE(palette->fileUnder(QStringLiteral("Mine")));
     CHECK_FALSE(palette->deleteChosen());
@@ -286,6 +325,158 @@ TEST_CASE("a custom stamp is listed, chosen, refiled, unfavoured and deleted thr
     CHECK(s.library->stamps().empty());
     CHECK(keysUnder(*palette, QStringLiteral("Seals")).empty());
     CHECK(ui::currentStamp().kind == ui::StampChoice::Kind::Standard);   // the tool falls back to a built-in
+}
+
+// S6 guide I-39: a stamp placed left its palette item current, so a click on it changed nothing and armed nothing
+// -- placing the same stamp again took a click on another first.
+TEST_CASE("the palette's highlight goes when the stamp tool is put away and one click on the same stamp arms it again",
+          "[stamps][I-39]")
+{
+    Stamping s;
+    ui::StampPalettePane* palette = s.window->stampPalette();
+    QTreeWidget* tree = palette->tree();
+    // Armed by its chord, nothing clicked in the palette: the stamp it places is the one highlighted.
+    Stamping::key(s.view, Qt::Key_S, kCtrlAlt);
+    REQUIRE(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+    CHECK(keyOfItem(tree->currentItem()) == QStringLiteral("standard:Approved"));
+
+    QTreeWidgetItem* draft = itemWithKey(*palette, QStringLiteral("standard:Draft"));
+    REQUIRE(draft != nullptr);
+    tree->setCurrentItem(draft);   // a click
+    QCoreApplication::processEvents();
+    REQUIRE(ui::currentStamp().name == QStringLiteral("Draft"));
+
+    // Placed: the tool put away, and the highlight with it.
+    s.clickPage();
+    REQUIRE(s.created().size() == 1u);
+    CHECK_FALSE(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+    CHECK(tree->currentItem() == nullptr);
+    CHECK(tree->selectedItems().isEmpty());
+    CHECK(palette->chosenKey().isEmpty());
+
+    // The SAME stamp, one click: armed again, and placed again.
+    tree->setCurrentItem(draft);
+    QCoreApplication::processEvents();
+    CHECK(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+    CHECK(palette->chosenKey() == QStringLiteral("standard:Draft"));
+    s.clickPage(QPoint(0, 150));   // clear of the first
+    CHECK(s.created().size() == 2u);
+    CHECK(tree->currentItem() == nullptr);
+
+    // `Esc` puts it away as a placement does; the chord brings back the highlight on what it places, Draft.
+    tree->setCurrentItem(draft);
+    QCoreApplication::processEvents();
+    REQUIRE(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+    Stamping::key(s.view, Qt::Key_Escape);
+    CHECK(tree->currentItem() == nullptr);
+    Stamping::key(s.view, Qt::Key_S, kCtrlAlt);
+    CHECK(keyOfItem(tree->currentItem()) == QStringLiteral("standard:Draft"));
+}
+
+// S6 guide I-41: a Favourite button the user found no use for, and a Favourites heading shown only once it held a
+// stamp. NOT covered (convention 19): the menu under a real pointer -- Windows opens it on the right RELEASE, which
+// reaches the view; here the press is sent and the menu asked for by `showItemMenu`, as the view's signal would.
+TEST_CASE("Favourites heads the palette even empty and a right click adds a stamp to it or takes it out",
+          "[stamps][I-41]")
+{
+    Stamping s(true);
+    s.window->showStampPalette();
+    for (QWidget* widget : s.window->findChildren<QWidget*>())
+        if (QLayout* layout = widget->layout()) layout->activate();
+    QCoreApplication::processEvents();
+    ui::StampPalettePane* palette = s.window->stampPalette();
+    QTreeWidget* tree = palette->tree();
+    REQUIRE(tree->viewport()->height() > 100);   // the geometry first (convention 12)
+    const QString favourites = ui::catalog::translate(QStringLiteral("stamps.category.favourites"));
+    REQUIRE(tree->topLevelItemCount() > 1);
+    CHECK(tree->topLevelItem(0)->text(0) == favourites);
+    CHECK(tree->topLevelItem(0)->childCount() == 0);
+    CHECK_FALSE(tree->topLevelItem(0)->toolTip(0).isEmpty());
+    CHECK(palette->findChild<QToolButton*>(QStringLiteral("stampFavourite")) == nullptr);   // the button is gone
+
+    const auto rightPress = [tree](QPoint at) {
+        for (const QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+            QMouseEvent event(type, QPointF(at), QPointF(tree->viewport()->mapToGlobal(at)), Qt::RightButton,
+                              type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::RightButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(tree->viewport(), &event);
+        }
+        QCoreApplication::processEvents();
+    };
+    const auto pointOf = [tree, palette](const QString& key) {
+        QTreeWidgetItem* item = itemWithKey(*palette, key);
+        REQUIRE(item != nullptr);
+        tree->scrollToItem(item);
+        QCoreApplication::processEvents();
+        return tree->visualItemRect(item).center();
+    };
+    const auto menuRow = [palette]() {
+        const QList<QAction*> rows = palette->itemMenu()->actions();
+        REQUIRE(rows.size() == 1);
+        return rows.front();
+    };
+
+    // A RIGHT PRESS on a stamp chooses nothing and arms nothing.
+    QPoint at = pointOf(QStringLiteral("standard:Draft"));
+    rightPress(at);
+    CHECK(keyOfItem(tree->currentItem()) != QStringLiteral("standard:Draft"));
+    CHECK_FALSE(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+
+    // Its menu's one row adds it: written at once, and listed first under Favourites.
+    REQUIRE(palette->showItemMenu(at));
+    CHECK(menuRow()->text() == ui::catalog::translate(QStringLiteral("stamps.favourite.add")));
+    menuRow()->trigger();
+    palette->itemMenu()->close();
+    CHECK(s.library->isFavourite(QStringLiteral("Draft")));
+    CHECK(tree->topLevelItem(0)->text(0) == favourites);
+    CHECK(keysUnder(*palette, favourites) == std::vector<QString>{QStringLiteral("standard:Draft")});
+
+    // The same stamp's menu now takes it out; the heading stays, empty.
+    at = pointOf(QStringLiteral("standard:Draft"));
+    REQUIRE(palette->showItemMenu(at));
+    CHECK(menuRow()->text() == ui::catalog::translate(QStringLiteral("stamps.favourite.remove")));
+    menuRow()->trigger();
+    palette->itemMenu()->close();
+    CHECK_FALSE(s.library->isFavourite(QStringLiteral("Draft")));
+    CHECK(tree->topLevelItem(0)->text(0) == favourites);
+    CHECK(tree->topLevelItem(0)->childCount() == 0);
+
+    // A heading has no menu.
+    tree->scrollToItem(tree->topLevelItem(1));
+    QCoreApplication::processEvents();
+    CHECK_FALSE(palette->showItemMenu(tree->visualItemRect(tree->topLevelItem(1)).center()));
+}
+
+// S6 guide I-40: Move to… asked for a category as free text, so a person had to remember and retype one.
+// NOT covered (convention 19): *New…*'s own prompt, a `QInputDialog` offscreen cannot answer -- `addCategory` is
+// what it does with the name typed; and the dialog's `exec` from the palette's button.
+TEST_CASE("Move to offers the categories in use and New adds one", "[stamps][I-40]")
+{
+    ui::StampCategoryDialog dialog(QStringList{QLatin1String(core::ProfileStore::kSignaturesCategory),
+                                               QStringLiteral("Office"), QStringLiteral("Seals")},
+                                   QStringLiteral("Office"));
+    QComboBox* list = dialog.list();
+    CHECK_FALSE(list->isEditable());   // chosen from the list, never retyped
+    REQUIRE(list->count() == 3);
+    CHECK(list->itemText(0) == ui::catalog::translate(QStringLiteral("stamps.category.signatures")));
+    CHECK(list->itemData(0).toString() == QLatin1String(core::ProfileStore::kSignaturesCategory));
+    CHECK(dialog.chosenCategory() == QStringLiteral("Office"));   // the stamp's own, first
+    CHECK(dialog.newButton()->text() == ui::catalog::translate(QStringLiteral("stamps.refile.new")));
+
+    CHECK(dialog.addCategory(QStringLiteral("  Approvals ")));
+    CHECK(dialog.chosenCategory() == QStringLiteral("Approvals"));
+    CHECK(list->count() == 4);
+    CHECK(dialog.addCategory(QStringLiteral("Seals")));   // one in the list is chosen, not added twice
+    CHECK(dialog.chosenCategory() == QStringLiteral("Seals"));
+    CHECK(dialog.addCategory(ui::catalog::translate(QStringLiteral("stamps.category.signatures"))));
+    CHECK(dialog.chosenCategory() == QLatin1String(core::ProfileStore::kSignaturesCategory));
+    CHECK(list->count() == 4);
+    CHECK_FALSE(dialog.addCategory(QStringLiteral("   ")));
+    CHECK(dialog.chosenCategory() == QLatin1String(core::ProfileStore::kSignaturesCategory));
+
+    // Signatures is offered with a library that has none filed there.
+    ui::StampCategoryDialog empty(QStringList{}, QString());
+    REQUIRE(empty.list()->count() == 1);
+    CHECK(empty.chosenCategory() == QLatin1String(core::ProfileStore::kSignaturesCategory));
 }
 
 TEST_CASE("the custom stamp dialog takes images only and refuses a PDF by name", "[stamps][A-78]")

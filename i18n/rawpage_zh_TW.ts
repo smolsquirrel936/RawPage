@@ -5210,12 +5210,32 @@
         <translation>最愛</translation>
     </message>
     <message>
+        <source>stamps.favourite.add</source>
+        <translation>加入最愛</translation>
+    </message>
+    <message>
+        <source>stamps.favourite.remove</source>
+        <translation>從最愛移除</translation>
+    </message>
+    <message>
+        <source>stamps.favourite.hint</source>
+        <translation>在印章上按右鍵即可加入最愛</translation>
+    </message>
+    <message>
         <source>stamps.refile</source>
         <translation>移至…</translation>
     </message>
     <message>
         <source>stamps.refile.prompt</source>
         <translation>類別：</translation>
+    </message>
+    <message>
+        <source>stamps.refile.new</source>
+        <translation>新增…</translation>
+    </message>
+    <message>
+        <source>stamps.refile.newPrompt</source>
+        <translation>新類別：</translation>
     </message>
     <message>
         <source>stamps.delete</source>

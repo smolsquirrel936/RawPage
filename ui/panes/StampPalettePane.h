@@ -4,7 +4,8 @@
 // ===========================================================================================
 // WHAT IT LISTS
 // ===========================================================================================
-// One tree, by category: FAVOURITES (whatever the library marks, built-in or custom), STANDARD (ISO 32000-1
+// One tree, by category: FAVOURITES (whatever the library marks, built-in or custom -- first, and shown when it
+// holds nothing, so a person knows it is there: S6 guide I-41, the user's request at M-07), STANDARD (ISO 32000-1
 // Table 181's fourteen), DYNAMIC (RawPage's five that bake who and when), SIGNATURES (scanned signatures and
 // drawn or typed initials -- markup, not a digital signature, which is Stage 11's) and then each category the
 // person filed custom stamps under. A built-in stamp is named in the person's language (`stamps.name.<Name>`)
@@ -15,9 +16,13 @@
 // WHAT IT DOES
 // ===========================================================================================
 // Choosing a stamp makes it the stamp tool's (`ui::setCurrentStamp`) and asks the window to arm the tool
-// (`chosen`) -- a custom stamp's image is read and decoded HERE, once, never per click. The buttons favour,
-// refile and delete a library stamp and ask for a new one (`customRequested`, which the window answers with
-// `CustomStampDialog`). Nothing here changes a DOCUMENT: the library is the person's (`core::ProfileStore`), and
+// (`chosen`) -- a custom stamp's image is read and decoded HERE, once, never per click. The highlight is the
+// TOOL'S: the window reports it put away (`followTool`) and the highlight goes, because a choice is a change of
+// the current item and the item a person just used would otherwise stay current, unclickable (I-39). The buttons
+// refile -- into a category chosen from a list, `StampCategoryDialog` (I-40) -- and delete a library stamp and
+// ask for a new one (`customRequested`, which the window answers with `CustomStampDialog`); a RIGHT click on any
+// stamp adds it to Favourites or removes it (I-41), and a right press is the menu's alone -- it chooses nothing
+// and arms nothing. Nothing here changes a DOCUMENT: the library is the person's (`core::ProfileStore`), and
 // placing a stamp is the tool's one command. A window composed with no library (a case, a diagnostic run --
 // `app::Services::stamps` null) lists the built-in stamps alone and offers no custom one.
 //
@@ -33,6 +38,7 @@
 #include <QPixmap>
 #include <QString>
 
+class QMenu;
 class QPushButton;
 class QToolButton;
 class QTreeWidget;
@@ -63,14 +69,27 @@ public:
     // The key of the stamp the tool places now, as this palette last chose it.
     QString chosenKey() const;
 
-    // The chosen stamp marked a favourite or not (built-in or custom), filed under `category` (custom only), or
-    // deleted (custom only) -- each written to the library at once.
-    core::Status setFavourite(bool favourite);
+    // A stamp by its key marked a favourite or not (built-in or custom) -- the right-click menu's one row (I-41) --
+    // and the chosen stamp filed under `category` (custom only) or deleted (custom only); each written to the
+    // library at once.
+    core::Status setFavourite(const QString& key, bool favourite);
     core::Status fileUnder(const QString& category);
     core::Status deleteChosen();
 
+    // The window says whether the stamp tool is armed: put away, the highlight goes, so one click on the same
+    // stamp chooses it again (I-39); armed -- by `Ctrl+Alt+S` too -- the stamp it places is highlighted.
+    void followTool(bool armed);
+
+    // The right-click menu at `pos` in the tree's viewport: *Add to* or *Remove from Favourites* for the stamp
+    // there. False, and no menu, on a heading, on nothing, or with no library.
+    bool showItemMenu(const QPoint& pos);
+    QMenu* itemMenu() const noexcept { return itemMenu_; }
+
     // A preview of a built-in stamp's words in its colour, `height` logical pixels tall.
     static QPixmap builtInPreview(const QString& name, int height = 24);
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 signals:
     // A stamp was chosen: the window arms the stamp tool.
@@ -88,11 +107,13 @@ private:
     core::ProfileStore* library_ = nullptr;
     QTreeWidget* tree_ = nullptr;
     QPushButton* custom_ = nullptr;
-    QToolButton* favourite_ = nullptr;
     QToolButton* refile_ = nullptr;
     QToolButton* delete_ = nullptr;
+    QMenu* itemMenu_ = nullptr;
+    QTreeWidgetItem* favourites_ = nullptr;   // the heading, rebuilt with the tree
     QString chosen_;
     bool rebuilding_ = false;
+    bool toolArmed_ = false;
 };
 
 } // namespace rawpage::ui

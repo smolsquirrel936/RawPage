@@ -20,8 +20,9 @@
 // appearance, in five faces; a character none of them holds would be drawn as a box or as nothing. With
 // `setRefusesUnshowable`, every way text enters -- a key, an input method's commit, a paste, a drop -- is
 // checked BEFORE it reaches the document (`core::firstRefusedCharacter`), refused whole, and the first refused
-// character reported (`characterRefused`) so the page can name it. A note's text is never drawn, and refuses
-// nothing.
+// character reported (`characterRefused`) so the page can name it. An editing key is not text entering, though
+// Windows gives it a control character as its text -- Backspace, Delete, `Ctrl+A`, `Ctrl+Z`, `Ctrl+V` -- and it
+// is never checked (S6 guide I-38). A note's text is never drawn, and refuses nothing.
 //
 // It holds no catalog key: what it shows is what the person types.
 

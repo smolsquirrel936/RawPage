@@ -6,16 +6,20 @@
 #include "core/cmd/ActionId.h"
 #include "core/doc/Stamps.h"
 #include "core/settings/ProfileStore.h"
+#include "ui/dialogs/StampCategoryDialog.h"
+#include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DockEdge.h"
 #include "ui/viewer/tools/StampTool.h"
 
+#include <QAction>
 #include <QFont>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
-#include <QInputDialog>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
@@ -31,6 +35,14 @@ constexpr int kKeyRole = Qt::UserRole + 1;
 QString standardKey(const QString& name) { return QStringLiteral("standard:") + name; }
 QString dynamicKey(const QString& name) { return QStringLiteral("dynamic:") + name; }
 QString customKey(const QString& id) { return QStringLiteral("custom:") + id; }
+
+// The key of the stamp the tool places now.
+QString keyOf(const StampChoice& choice)
+{
+    return choice.kind == StampChoice::Kind::Custom    ? customKey(choice.libraryId)
+           : choice.kind == StampChoice::Kind::Dynamic ? dynamicKey(choice.name)
+                                                        : standardKey(choice.name);
+}
 
 // The person's word for a built-in stamp: `stamps.name.<Name>` -- a dynamic one by its name less `Dynamic`, which is
 // the same word with the time added.
@@ -107,7 +119,11 @@ StampPalettePane::StampPalettePane(core::ProfileStore* library, QWidget* parent)
     tree_->setHeaderHidden(true);
     tree_->setIconSize(QSize(96, 32));
     tree_->setRootIsDecorated(true);
+    tree_->setContextMenuPolicy(Qt::CustomContextMenu);
+    tree_->viewport()->installEventFilter(this);
     column->addWidget(tree_, 1);
+    itemMenu_ = new QMenu(this);
+    itemMenu_->setObjectName(QStringLiteral("stampItemMenu"));
 
     auto* row = new QHBoxLayout;
     custom_ = new QPushButton(catalog::translateAction(core::ActionId::AnnotCustomStamp), body);
@@ -115,17 +131,12 @@ StampPalettePane::StampPalettePane(core::ProfileStore* library, QWidget* parent)
     custom_->setEnabled(library_ != nullptr);
     row->addWidget(custom_);
     row->addStretch(1);
-    favourite_ = new QToolButton(body);
-    favourite_->setObjectName(QStringLiteral("stampFavourite"));
-    favourite_->setText(catalog::translate(catalog::key::StampsFavourite));
-    favourite_->setCheckable(true);
     refile_ = new QToolButton(body);
     refile_->setObjectName(QStringLiteral("stampRefile"));
     refile_->setText(catalog::translate(catalog::key::StampsRefile));
     delete_ = new QToolButton(body);
     delete_->setObjectName(QStringLiteral("stampDelete"));
     delete_->setText(catalog::translate(catalog::key::StampsDelete));
-    row->addWidget(favourite_);
     row->addWidget(refile_);
     row->addWidget(delete_);
     column->addLayout(row);
@@ -137,10 +148,8 @@ StampPalettePane::StampPalettePane(core::ProfileStore* library, QWidget* parent)
         if (key.isEmpty()) return;   // a category heading
         if (choose(key)) emit chosen();
     });
+    connect(tree_, &QWidget::customContextMenuRequested, this, [this](const QPoint& pos) { (void)showItemMenu(pos); });
     connect(custom_, &QPushButton::clicked, this, [this] { emit customRequested(); });
-    connect(favourite_, &QToolButton::clicked, this, [this](bool on) {
-        if (core::Status done = setFavourite(on); !done) emit refused(done.error());
-    });
     connect(refile_, &QToolButton::clicked, this, [this] { moveChosenTo(); });
     connect(delete_, &QToolButton::clicked, this, [this] {
         if (core::Status done = deleteChosen(); !done) emit refused(done.error());
@@ -160,6 +169,7 @@ void StampPalettePane::rebuild()
 {
     rebuilding_ = true;
     tree_->clear();
+    favourites_ = nullptr;
     const auto heading = [this](const QString& title) {
         auto* item = new QTreeWidgetItem(tree_, QStringList{title});
         item->setFlags(Qt::ItemIsEnabled);
@@ -179,21 +189,19 @@ void StampPalettePane::rebuild()
         return item;
     };
 
-    // FAVOURITES first, and only when there are any: a heading over nothing is a question nobody asked.
-    QTreeWidgetItem* favourites = nullptr;
-    const auto favouritesHeading = [&]() {
-        if (favourites == nullptr) favourites = heading(catalog::translate(catalog::key::StampsCategoryFavourites));
-        return favourites;
-    };
+    // FAVOURITES first, and there even when it holds nothing: a person told where favourites go finds the right
+    // click that puts one there (I-41) -- the heading says so. Not without a library, which could hold none.
     if (library_ != nullptr) {
+        favourites_ = heading(catalog::translate(catalog::key::StampsCategoryFavourites));
+        favourites_->setToolTip(0, catalog::translate(catalog::key::StampsFavouritesHint));
         for (const QLatin1String name : core::standardStampNames()) {
-            if (library_->isFavourite(QString(name))) builtIn(favouritesHeading(), standardKey(QString(name)), QString(name));
+            if (library_->isFavourite(QString(name))) builtIn(favourites_, standardKey(QString(name)), QString(name));
         }
         for (const QLatin1String name : core::dynamicStampNames()) {
-            if (library_->isFavourite(QString(name))) builtIn(favouritesHeading(), dynamicKey(QString(name)), QString(name));
+            if (library_->isFavourite(QString(name))) builtIn(favourites_, dynamicKey(QString(name)), QString(name));
         }
         for (const core::CustomStamp& stamp : library_->stamps()) {
-            if (stamp.favourite) custom(favouritesHeading(), stamp);
+            if (stamp.favourite) custom(favourites_, stamp);
         }
     }
     QTreeWidgetItem* standard = heading(catalog::translate(catalog::key::StampsCategoryStandard));
@@ -209,16 +217,31 @@ void StampPalettePane::rebuild()
         }
     }
     tree_->expandAll();
-    // The choice survives a rebuild where it still exists; one deleted falls back to the first standard stamp.
-    if (chosen_.isEmpty() || itemFor(chosen_) == nullptr) {
-        chosen_.clear();
-        const StampChoice& current = currentStamp();
-        const QString key = current.kind == StampChoice::Kind::Custom ? customKey(current.libraryId)
-                            : current.kind == StampChoice::Kind::Dynamic ? dynamicKey(current.name)
-                                                                         : standardKey(current.name);
-        if (itemFor(key) != nullptr) chosen_ = key;
-    }
+    // The choice survives a rebuild where it still exists. With the tool armed, a choice deleted falls back to the
+    // stamp the tool places now -- the first standard stamp -- and with it put away nothing is highlighted (I-39).
+    if (itemFor(chosen_) == nullptr) chosen_.clear();
+    if (chosen_.isEmpty() && toolArmed_ && itemFor(keyOf(currentStamp())) != nullptr) chosen_ = keyOf(currentStamp());
     if (QTreeWidgetItem* item = itemFor(chosen_)) tree_->setCurrentItem(item);
+    rebuilding_ = false;
+    updateButtons();
+}
+
+void StampPalettePane::followTool(bool armed)
+{
+    toolArmed_ = armed;
+    rebuilding_ = true;
+    if (!armed) {
+        // Nothing current: the next click on ANY stamp -- the one just used included -- is a change, and chooses.
+        chosen_.clear();
+        tree_->setCurrentItem(nullptr);
+        tree_->clearSelection();
+    } else if (chosen_ != keyOf(currentStamp())) {
+        // Armed with no click here (`Ctrl+Alt+S`): show the stamp it places.
+        if (QTreeWidgetItem* item = itemFor(keyOf(currentStamp()))) {
+            chosen_ = keyOf(currentStamp());
+            tree_->setCurrentItem(item);
+        }
+    }
     rebuilding_ = false;
     updateButtons();
 }
@@ -227,17 +250,16 @@ QTreeWidgetItem* StampPalettePane::itemFor(const QString& key) const
 {
     if (key.isEmpty()) return nullptr;
     // The first occurrence under its OWN category, not under Favourites: a choice is shown where it lives.
-    QTreeWidgetItem* first = nullptr;
+    QTreeWidgetItem* inFavourites = nullptr;
     for (int top = 0; top < tree_->topLevelItemCount(); ++top) {
         QTreeWidgetItem* heading = tree_->topLevelItem(top);
         for (int i = 0; i < heading->childCount(); ++i) {
-            if (heading->child(i)->data(0, kKeyRole).toString() == key) {
-                if (top > 0 || tree_->topLevelItemCount() == 1) return heading->child(i);
-                if (first == nullptr) first = heading->child(i);
-            }
+            if (heading->child(i)->data(0, kKeyRole).toString() != key) continue;
+            if (heading != favourites_) return heading->child(i);
+            if (inFavourites == nullptr) inFavourites = heading->child(i);
         }
     }
-    return first;
+    return inFavourites;
 }
 
 bool StampPalettePane::choose(const QString& key)
@@ -307,13 +329,43 @@ core::Error noLibrary()
 
 } // namespace
 
-core::Status StampPalettePane::setFavourite(bool favourite)
+core::Status StampPalettePane::setFavourite(const QString& key, bool favourite)
 {
     if (library_ == nullptr) return noLibrary();
-    if (chosen_.isEmpty()) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.stamps.unknown"), QString()};
-    const core::Status done = library_->setFavourite(libraryName(chosen_), favourite);
+    if (libraryName(key).isEmpty()) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.stamps.unknown"), key};
+    const core::Status done = library_->setFavourite(libraryName(key), favourite);
     if (done) rebuild();
     return done;
+}
+
+bool StampPalettePane::showItemMenu(const QPoint& pos)
+{
+    if (library_ == nullptr) return false;
+    const QTreeWidgetItem* item = tree_->itemAt(pos);
+    const QString key = item != nullptr ? item->data(0, kKeyRole).toString() : QString();
+    if (key.isEmpty()) return false;   // nothing, or a heading
+    const bool favourite = library_->isFavourite(libraryName(key));
+    itemMenu_->clear();
+    QAction* toggle = ActionFactory::addNonCommandMenuItem(
+        itemMenu_, catalog::translate(favourite ? catalog::key::StampsFavouriteRemove : catalog::key::StampsFavouriteAdd));
+    toggle->setObjectName(QStringLiteral("stampFavouriteToggle"));
+    connect(toggle, &QAction::triggered, this, [this, key, favourite] {
+        if (core::Status done = setFavourite(key, !favourite); !done) emit refused(done.error());
+    });
+    itemMenu_->popup(tree_->viewport()->mapToGlobal(pos));
+    return true;
+}
+
+bool StampPalettePane::eventFilter(QObject* watched, QEvent* event)
+{
+    // A RIGHT PRESS IS THE MENU'S ALONE. The view would make the item under it current, and a current item is a
+    // choice that arms the tool -- so asking for a stamp's menu would have picked it up (I-41). Windows opens the
+    // menu on the release, which still reaches the view.
+    if (watched == tree_->viewport()
+        && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)
+        && static_cast<QMouseEvent*>(event)->button() == Qt::RightButton)
+        return true;
+    return QDockWidget::eventFilter(watched, event);
 }
 
 core::Status StampPalettePane::fileUnder(const QString& category)
@@ -345,23 +397,15 @@ void StampPalettePane::moveChosenTo()
     if (library_ == nullptr || !chosen_.startsWith(QLatin1String("custom:"))) return;
     const std::optional<core::CustomStamp> stamp = library_->find(libraryName(chosen_));
     if (!stamp) return;
-    bool accepted = false;
-    const QString category = QInputDialog::getText(this, catalog::translate(catalog::key::StampsRefile),
-                                                   catalog::translate(catalog::key::StampsRefilePrompt), QLineEdit::Normal,
-                                                   categoryTitle(stamp->category), &accepted);
-    if (!accepted) return;
-    // The reserved category is offered by its shown word, in whatever language that is.
-    const QString target = category == categoryTitle(QLatin1String(core::ProfileStore::kSignaturesCategory))
-                               ? QLatin1String(core::ProfileStore::kSignaturesCategory)
-                               : category;
-    if (core::Status done = fileUnder(target); !done) emit refused(done.error());
+    // A list of the categories in use and *New…* (I-40), not a name to remember and retype.
+    StampCategoryDialog dialog(library_->categories(), stamp->category, this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    if (core::Status done = fileUnder(dialog.chosenCategory()); !done) emit refused(done.error());
 }
 
 void StampPalettePane::updateButtons()
 {
     const bool custom = library_ != nullptr && chosen_.startsWith(QLatin1String("custom:"));
-    favourite_->setEnabled(library_ != nullptr && !chosen_.isEmpty());
-    favourite_->setChecked(library_ != nullptr && !chosen_.isEmpty() && library_->isFavourite(libraryName(chosen_)));
     refile_->setEnabled(custom);
     delete_->setEnabled(custom);
 }

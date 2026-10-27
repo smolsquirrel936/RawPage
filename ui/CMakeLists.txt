@@ -293,6 +293,9 @@ add_library(rawpage_ui STATIC
     # Stage 6 T10 (D6-16): a custom stamp from an image, or initials drawn or typed, for the library.
     dialogs/CustomStampDialog.h
     dialogs/CustomStampDialog.cpp
+    # S6 guide I-40: where Move to… files a custom stamp -- the categories in use, or a new one.
+    dialogs/StampCategoryDialog.h
+    dialogs/StampCategoryDialog.cpp
     # Stage 6 T12 (D6-14): the measurement scale from two lengths, and calibration from one measured.
     dialogs/MeasurementScaleDialog.h
     dialogs/MeasurementScaleDialog.cpp

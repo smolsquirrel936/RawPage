@@ -2562,6 +2562,13 @@ void MainWindow::updateViewChrome()
             thumbnails_->setCurrentPage(view->controller().currentPage());
     }
 
+    // THE PALETTE'S HIGHLIGHT IS THE STAMP TOOL'S (S6 guide I-39): put away -- a stamp placed, `Esc`, another tool,
+    // a tab whose tool is another -- and it goes, so one click on the same stamp arms it again.
+    if (stampPalette_) {
+        const PageView* view = currentView();
+        stampPalette_->followTool(view != nullptr && view->tools().armedAnnotation() == AnnotationToolKind::Stamp);
+    }
+
     // EVERY ACTION IS RE-ASKED, not only the ones that obviously moved. Enablement predicates read
     // the active window's state, so opening a document changes the answer for commands nothing in
     // this function mentions -- and `refresh()` re-computes the TOOLTIP too, which is I-53's half:

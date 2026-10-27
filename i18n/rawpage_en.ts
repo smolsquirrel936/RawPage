@@ -5210,12 +5210,32 @@
         <translation>Favourite</translation>
     </message>
     <message>
+        <source>stamps.favourite.add</source>
+        <translation>Add to Favourites</translation>
+    </message>
+    <message>
+        <source>stamps.favourite.remove</source>
+        <translation>Remove from Favourites</translation>
+    </message>
+    <message>
+        <source>stamps.favourite.hint</source>
+        <translation>Right-click a stamp to add it to Favourites</translation>
+    </message>
+    <message>
         <source>stamps.refile</source>
         <translation>Move to…</translation>
     </message>
     <message>
         <source>stamps.refile.prompt</source>
         <translation>Category:</translation>
+    </message>
+    <message>
+        <source>stamps.refile.new</source>
+        <translation>New…</translation>
+    </message>
+    <message>
+        <source>stamps.refile.newPrompt</source>
+        <translation>New category:</translation>
     </message>
     <message>
         <source>stamps.delete</source>

@@ -212,6 +212,47 @@ TEST_CASE("a typed editor refuses an input method's commit and a paste it cannot
     CHECK(note.toPlainText() == QStringLiteral("\u03A9"));
 }
 
+// S6 guide I-38: Backspace was refused as an unshowable character, so a typed comment could not be corrected.
+// The key events carry the text Windows gives each key -- a control character -- written in by hand: NOT covered
+// (convention 19) is Windows' own key-to-text, nor `Ctrl+V` (offscreen has no system clipboard), whose text
+// U+0016 is the same kind as `Ctrl+A`'s and `Ctrl+Z`'s.
+TEST_CASE("a typed editor's editing keys edit and are never refused as characters", "[annottools][I-38]")
+{
+    ui::AnnotationTextEditor editor;
+    editor.setRefusesUnshowable(true);
+    std::vector<uint> refused;
+    QObject::connect(&editor, &ui::AnnotationTextEditor::characterRefused, [&refused](uint c) { refused.push_back(c); });
+    editor.show();
+    QCoreApplication::processEvents();
+    const auto press = [&editor](int key, Qt::KeyboardModifiers modifiers, const QString& text) {
+        QKeyEvent event(QEvent::KeyPress, key, modifiers, text);
+        QCoreApplication::sendEvent(&editor, &event);
+    };
+
+    press(Qt::Key_W, Qt::NoModifier, QStringLiteral("w"));
+    press(Qt::Key_O, Qt::NoModifier, QStringLiteral("o"));
+    press(Qt::Key_R, Qt::NoModifier, QStringLiteral("r"));
+    press(Qt::Key_D, Qt::NoModifier, QStringLiteral("d"));
+    REQUIRE(editor.toPlainText() == QStringLiteral("word"));
+
+    press(Qt::Key_Backspace, Qt::NoModifier, QStringLiteral("\b"));
+    CHECK(editor.toPlainText() == QStringLiteral("wor"));
+    press(Qt::Key_Home, Qt::NoModifier, QString());
+    press(Qt::Key_Delete, Qt::NoModifier, QStringLiteral("\x7F"));
+    CHECK(editor.toPlainText() == QStringLiteral("or"));
+    press(Qt::Key_A, Qt::ControlModifier, QStringLiteral("\x01"));
+    CHECK(editor.textCursor().selectedText() == QStringLiteral("or"));
+    press(Qt::Key_Z, Qt::ControlModifier, QStringLiteral("\x1A"));
+    CHECK(editor.toPlainText() == QStringLiteral("wor"));
+    CHECK(refused.empty());
+
+    // The control: a letter no face shows is still refused by its key, and leaves the text as it was.
+    const QString before = editor.toPlainText();
+    press(Qt::Key_unknown, Qt::NoModifier, QStringLiteral("\u03BB"));
+    CHECK(editor.toPlainText() == before);
+    CHECK(refused == std::vector<uint>{0x03BB});
+}
+
 TEST_CASE("the callout and the typewriter arm from their commands and say how they are used", "[annottools][D6-8]")
 {
     Page page;
