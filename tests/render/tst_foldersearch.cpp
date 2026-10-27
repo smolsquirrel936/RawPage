@@ -452,7 +452,7 @@ TEST_CASE("search/maxResults bounds a folder search across files and says so", "
 // T9's bound -- a 900-page file's open never holds the engine longer than one page's extraction
 // =============================================================================================
 
-TEST_CASE("a 900-page file's open never holds the engine longer than one page's extraction", "[foldersearch][T9]")
+TEST_CASE("a 900-page file's open never holds the engine longer than one page's extraction", "[foldersearch][T9][run-serial]")
 {
     QTemporaryDir directory;
     REQUIRE(directory.isValid());

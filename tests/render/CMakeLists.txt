@@ -169,6 +169,10 @@ add_test(NAME render.a4_product.annotation.openssl
             -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
 set_tests_properties(render.a4_product.annotation.openssl PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+# Both alone under ctest -j: each re-runs a Catch2 case that ctest also runs as a test of its own, and
+# the two write the same files in one directory -- one could delete or rewrite a file while OpenSSL
+# reads the other's (cmake/RawPageSerialTests.cmake).
+set_tests_properties(render.a4_product.openssl render.a4_product.annotation.openssl PROPERTIES RUN_SERIAL TRUE)
 
 include(Catch)
 catch_discover_tests(rawpage_render_tests
@@ -179,3 +183,5 @@ catch_discover_tests(rawpage_render_tests
     # a test failure.
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+rawpage_serial_tests(rawpage_render_tests PREFIX "render."
+    DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")

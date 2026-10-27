@@ -127,7 +127,7 @@ SearchQuery literal(const QString& pattern)
 // A-63 -- the second search of a 900-page file is instant, graded on §3.3; A-24's search lane
 // =============================================================================================
 
-TEST_CASE("the second search of text-900 is instant by the guide's definition", "[render][search][A-63][A-24]")
+TEST_CASE("the second search of text-900 is instant by the guide's definition", "[render][search][A-63][A-24][run-serial]")
 {
     Searching text("ordinary/text-900.pdf");
     REQUIRE(text.pageCount == 900);

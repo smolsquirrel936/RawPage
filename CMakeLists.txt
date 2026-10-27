@@ -95,6 +95,7 @@ include(RawPageWarnings)
 include(RawPageQt)
 include(RawPageChecks)
 include(RawPageLanguageStandard)
+include(RawPageSerialTests)
 
 # --- The PDFium pin (Stage 2 T2, decision D2-3) ------------------------------
 # The second pinned dependency, asserted rather than assumed for the same reason as the first: a

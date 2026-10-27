@@ -410,7 +410,7 @@ TEST_CASE("an identical pair reports nothing at every sensitivity and every igno
     }
 }
 
-TEST_CASE("two unrelated documents finish inside the bound with every page replaced", "[comparecorpus][A-97]")
+TEST_CASE("two unrelated documents finish inside the bound with every page replaced", "[comparecorpus][A-97][run-serial]")
 {
     const auto pair = loadPair("unrelated");
     REQUIRE(pair->base.pages.size() == 50);

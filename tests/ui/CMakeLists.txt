@@ -210,6 +210,7 @@ catch_discover_tests(rawpage_ui_tests
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )
+rawpage_serial_tests(rawpage_ui_tests PREFIX "ui." DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin")
 
 # A-84 -- and it drives `rawpage.exe` rather than linking anything, because the input it varies
 # (`QT_SCALE_FACTOR`) is read when the `QGuiApplication` is built and is therefore a property of a

@@ -308,7 +308,7 @@ bool hasNote(const AnnotationStore& store, AnnotationNoteKind kind)
 
 } // namespace
 
-TEST_CASE("a rectangle beyond any double is read clamped and finite", "[annotstore][A-22]")
+TEST_CASE("a rectangle beyond any double is read clamped and finite", "[annotstore][A-22][run-serial]")
 {
     // A number too long for a double. PDF syntax has no NaN and no infinity, and `pdf/cos/Lexer` CLAMPS an
     // out-of-range number (Stage 2's choice: a hostile run of digits yields a value, never garbage) -- so
@@ -332,7 +332,7 @@ TEST_CASE("a rectangle beyond any double is read clamped and finite", "[annotsto
     for (const double sample : store.at(1).inkList[0]) CHECK(std::isfinite(sample));
 }
 
-TEST_CASE("a million-point ink list is truncated and reported", "[annotstore][A-22]")
+TEST_CASE("a million-point ink list is truncated and reported", "[annotstore][A-22][run-serial]")
 {
     std::string ink;
     ink.reserve(8000000);
@@ -347,7 +347,7 @@ TEST_CASE("a million-point ink list is truncated and reported", "[annotstore][A-
     CHECK(hasNote(store, AnnotationNoteKind::GeometryTruncated));
 }
 
-TEST_CASE("a ten-thousand-deep reply chain and a ten-thousand-member cycle thread in time", "[annotstore][A-22]")
+TEST_CASE("a ten-thousand-deep reply chain and a ten-thousand-member cycle thread in time", "[annotstore][A-22][run-serial]")
 {
     constexpr int kDepth = 10000;
     // Annotation k replies to annotation k-1; the cycle's first member replies to its last.
@@ -382,7 +382,7 @@ TEST_CASE("a ten-thousand-deep reply chain and a ten-thousand-member cycle threa
           }) == kDepth);
 }
 
-TEST_CASE("an Annots dictionary lists nothing and is reported", "[annotstore][A-22]")
+TEST_CASE("an Annots dictionary lists nothing and is reported", "[annotstore][A-22][run-serial]")
 {
     const AnnotationStore store = readWithinASecond(tests::annotatedDocument(1, [](int, tests::TinyPdf&, int) {
         return std::string("<< /Type /Annot /Subtype /Square /Rect [ 0 0 1 1 ] >>");
@@ -392,7 +392,7 @@ TEST_CASE("an Annots dictionary lists nothing and is reported", "[annotstore][A-
     CHECK(hasNote(store, AnnotationNoteKind::AnnotsNotArray));
 }
 
-TEST_CASE("one annotation listed by a thousand pages is one annotation", "[annotstore][A-22]")
+TEST_CASE("one annotation listed by a thousand pages is one annotation", "[annotstore][A-22][run-serial]")
 {
     int shared = 0;
     int owner = 0;

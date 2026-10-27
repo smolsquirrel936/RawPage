@@ -681,7 +681,7 @@ TEST_CASE("roundtrip I-17 a second save of a hybrid file keeps what the first sa
 // 37111952480): a damaged object stream parsed in time quadratic in its payload
 // ==========================================================================================
 
-TEST_CASE("roundtrip I-23 a damaged object stream is read in time linear in its payload", "[save][roundtrip][fuzz]")
+TEST_CASE("roundtrip I-23 a damaged object stream is read in time linear in its payload", "[save][roundtrip][fuzz][run-serial]")
 {
     // The soak's input was a mutated 900-page file whose object stream decoded to 149 KB of damage:
     // every packed object read on to the end of the payload, 300 ms a parse in `x64-release` and

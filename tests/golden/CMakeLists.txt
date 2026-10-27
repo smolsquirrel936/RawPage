@@ -78,3 +78,5 @@ catch_discover_tests(rawpage_golden_tests
     # 0xC0000135, which looks nothing like a test failure.
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+rawpage_serial_tests(rawpage_golden_tests PREFIX "render.golden."
+    DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")

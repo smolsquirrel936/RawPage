@@ -271,7 +271,7 @@ TEST_CASE("layout is deterministic under a shuffled model and passes no tag tree
     }
 }
 
-TEST_CASE("layout survives hostile geometry within its bounds", "[core][text][A-41]")
+TEST_CASE("layout survives hostile geometry within its bounds", "[core][text][A-41][run-serial]")
 {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const double inf = std::numeric_limits<double>::infinity();

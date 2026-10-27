@@ -315,6 +315,26 @@ to prevent, one level up — and **CI runs
    Windows suite cannot catch this class at all, which is the whole reason it is written down
    rather than left to be re-learned.
 
+25. **A Catch2 case that GRADES A DURATION carries the tag `[run-serial]`, because the x64 suites
+   run in parallel.** The `x64-debug` and `x64-release` test presets set `"jobs": 8`. Measured
+   2026-10-28: the release suite took about 7 min one case at a time and **168–169 s** at `-j 8`
+   over three consecutive runs, 1843/1843 each, with **about 100 s of that the cases that must run
+   alone** — and **193 s** once the three script tests below ran alone too. A case asserting a p95, a bound in seconds, or one piece's time against another's is
+   measuring the machine, and seven other cases sharing it become part of the measurement. The tag
+   is read at ctest time by `cmake/RawPageSerialTests.cmake`, which sets `RUN_SERIAL` on every tagged
+   case; **every `bench.*` row is serial without a tag**, from `tests/bench/CMakeLists.txt`'s
+   directory census. Verify it with `ctest --preset x64-release --show-only=json-v1` (25 tests
+   carried `RUN_SERIAL` when this was written). **Two tests writing ONE fixed path race as well**,
+   and the tag does not find them: the three `*.openssl` script tests (`unit.a4_probe.openssl`,
+   `render.a4_product.openssl`, `render.a4_product.annotation.openssl`) re-run a Catch2 case that
+   ctest also runs on its own, into the same `a4-probe/` or `a4-product*/` directory, so each is
+   `RUN_SERIAL` in its `CMakeLists.txt`. A new test that writes into a fixed build-tree path another
+   test also writes is the same race. **What none of this covers**: a case that waits on a deadline
+   without grading it — a worker given 3 s to start — is untagged and could still time out on a
+   loaded enough machine. *(Found while measuring why a full cycle of both presets took about 25
+   minutes; the three races were found by auditing every build-tree path a test is given, after the
+   first parallel runs had passed over them.)*
+
 ---
 
 ## 2. Cross-cutting testing strategy

@@ -335,3 +335,11 @@ set_tests_properties(bench.save.cost PROPERTIES
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+
+# EVERY bench runs alone. The x64 test presets run ctest in parallel, and a bench's figure is the
+# machine's time -- two at once skew each other's figures (S5 T3), and so does any case beside them.
+# Read from the directory rather than listed, so a bench added above inherits it without anyone
+# remembering. A Catch2 case that grades a duration carries [run-serial] instead
+# (cmake/RawPageSerialTests.cmake).
+get_property(_rawpage_benches DIRECTORY PROPERTY TESTS)
+set_tests_properties(${_rawpage_benches} PROPERTIES RUN_SERIAL TRUE)

@@ -155,3 +155,5 @@ catch_discover_tests(rawpage_composition_tests
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+rawpage_serial_tests(rawpage_composition_tests PREFIX "ui.composition."
+    DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")

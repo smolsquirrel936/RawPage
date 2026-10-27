@@ -855,7 +855,7 @@ TEST_CASE("an export of a filtered list carries exactly those comments and their
 // A-97 -- a hostile XFDF
 // ==========================================================================================
 
-TEST_CASE("an XFDF with a document type declaration is refused by key before any entity exists", "[fdf][exchange][A-97][D6-20]")
+TEST_CASE("an XFDF with a document type declaration is refused by key before any entity exists", "[fdf][exchange][A-97][D6-20][run-serial]")
 {
     tests::CosBackend backend;
     SECTION("the corpus's external entity")
@@ -910,7 +910,7 @@ TEST_CASE("an XFDF with a document type declaration is refused by key before any
 }
 
 TEST_CASE("a truncated malformed or foreign exchange file is refused by key and a huge one read bounded",
-          "[fdf][exchange][A-97][D6-20]")
+          "[fdf][exchange][A-97][D6-20][run-serial]")
 {
     tests::CosBackend backend;
     core::Result<Fdf> truncated = backend.readAnnotationExchange(tests::corpusFile("exchange/malformed.xfdf"));

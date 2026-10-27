@@ -77,3 +77,4 @@ catch_discover_tests(rawpage_platform_tests
     TEST_PREFIX "platform."
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )
+rawpage_serial_tests(rawpage_platform_tests PREFIX "platform." DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin")

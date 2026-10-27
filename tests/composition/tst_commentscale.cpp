@@ -94,7 +94,7 @@ double percentile95(std::vector<double> values)
 // A-73 -- the pane at 9,000 comments (guide §3.6)
 // ==========================================================================================
 
-TEST_CASE("the Comments pane over 9000 comments is inside every bound of the guide", "[commentscale][A-73]")
+TEST_CASE("the Comments pane over 9000 comments is inside every bound of the guide", "[commentscale][A-73][run-serial]")
 {
     // THE STORE HYDRATED FROM THE FILE as the backend hydrates it at open -- the cross-reference, the page walk,
     // the first-party reader -- and its live heap, three times.

@@ -262,6 +262,8 @@ catch_discover_tests(rawpage_tests
     # 0xC0000135 -- a failure that looks nothing like a test failure.
     DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin"
 )
+# A case tagged [run-serial] grades a duration and runs alone under ctest -j (cmake/RawPageSerialTests.cmake).
+rawpage_serial_tests(rawpage_tests PREFIX "unit." DL_PATHS "${RAWPAGE_MINGW_ROOT}/bin")
 
 # --- A-28: risk A4's probe, judged by OpenSSL (Stage 3 T2, decision D3-1) --------------------
 # The writing case is also discovered above and runs on its own; this one runs it FIRST and then
@@ -278,6 +280,10 @@ if(WIN32)
     set_tests_properties(unit.a4_probe.openssl PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin")
 endif()
+# Alone under ctest -j: this re-runs the probe's own Catch2 case, which ctest also runs as a test of
+# its own, and both write the same four files in a4-probe/ -- one could delete or rewrite a file while
+# OpenSSL reads the other's (cmake/RawPageSerialTests.cmake).
+set_tests_properties(unit.a4_probe.openssl PROPERTIES RUN_SERIAL TRUE)
 # The verdict is the EXIT CODE: CheckSignatures.cmake fails unless every control is rejected and
 # every signature verifies. No PASS_REGULAR_EXPRESSION, which would make CTest ignore the exit code
 # -- tests/gates/RunGateCase.cmake's header records why that is a trap.
