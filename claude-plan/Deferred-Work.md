@@ -145,6 +145,10 @@ record the gap here (`Stage6-Annotations-Plan.md` D6-7).
 - Stage 5 T1 measured PDFium drawing a non-embedded `STSong-Light` through `UniGB-UCS2-H` with this
   machine's face (`STSong -> SimSun`, `corpus/ordinary/cjk-readable.pdf`) — the path D6-7 relies on for
   CJK.
+- Stage 6's M-06 measured that path's bound in Acrobat, 2026-10-28 (`Stage6-Annotations-Testing-Guide.md`
+  I-47): Acrobat DC without Adobe's optional font pack lacks the predefined CJK CMaps and draws none of
+  RawPage's CJK typed comments; Firefox and SumatraPDF draw them. The user accepted it rather than embed —
+  so the non-embedded CJK faces, too, are what an embedded subset would replace.
 - `vcpkg.json`'s `shaping` feature (HarfBuzz and ICU) is **off** (`Stage5-TextSearch-Plan.md` D5-5).
 - No first-party code reads, subsets or writes a font program -- T7 writes font DICTIONARIES naming the
   base-14 Helvetica and the four CJK collections, and no program.
