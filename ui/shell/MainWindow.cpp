@@ -45,6 +45,7 @@
 #include "ui/viewer/ToolController.h"
 #include "ui/viewer/tools/StampTool.h"
 #include "ui/dialogs/MeasurementScaleDialog.h"
+#include "ui/dialogs/StampCategoryDialog.h"
 #include "core/doc/Stamps.h"
 #include "core/settings/ProfileStore.h"
 #include "ui/shell/QuickAccessToolbar.h"
@@ -3810,11 +3811,9 @@ void MainWindow::registerAnnotationActions()
             if (window == nullptr || window->services_.stamps == nullptr) return;
             CustomStampDialog dialog(window->services_.stamps->categories(), window);
             if (dialog.exec() != QDialog::Accepted) return;
-            if (const std::optional<CustomStampDialog::Made> made = dialog.made()) {
-                if (const core::Status added = window->addCustomStamp(*made); !added && window->status_)
-                    window->status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
-                                                    .arg(catalog::translateError(QString(added.error().messageKey), added.error().context)));
-            }
+            if (const core::Status added = window->addCustomStamps(dialog.madeAll()); !added && window->status_)
+                window->status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
+                                                .arg(catalog::translateError(QString(added.error().messageKey), added.error().context)));
         };
         custom.enable = [] {
             MainWindow* window = activeShell();
@@ -3871,23 +3870,46 @@ void MainWindow::showStampPalette()
 
 core::Status MainWindow::addCustomStamp(const CustomStampDialog::Made& made)
 {
+    return addCustomStamps({made});
+}
+
+core::Status MainWindow::addCustomStamps(const std::vector<CustomStampDialog::Made>& made)
+{
     core::ProfileStore* library = services_.stamps;
     if (library == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.stamps.noLibrary"), QString()};
-    core::Result<core::CustomStamp> added =
-        library->add(made.name, made.category, made.image, QDateTime::currentSecsSinceEpoch(), made.sourceName);
-    if (!added) return added.error();
-    if (made.favourite) {
-        if (const core::Status marked = library->setFavourite(added.value().id, true); !marked) return marked;
-    }
-    if (stampPalette_ == nullptr) return core::Status{};
-    stampPalette_->reload();
-    showStampPalette();
-    if (stampPalette_->choose(QStringLiteral("custom:") + added.value().id)) {
-        if (PageView* view = currentView()) {
-            view->tools().armAnnotation(AnnotationToolKind::Stamp);
-            updateViewChrome();
+    // Each one written as it comes: one the library refuses is reported and the rest are still made, as the dialog
+    // left out the files that were not images (S6 guide I-43). The first refusal is the one said.
+    std::optional<core::Error> refused;
+    std::vector<QString> ids;
+    for (const CustomStampDialog::Made& one : made) {
+        // A built-in heading's name is no category (I-42) -- the dialog refuses it, and so does this.
+        if (StampCategoryDialog::isReservedName(one.category)) {
+            if (!refused) refused = core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.stamps.reservedCategory"), one.category.trimmed()};
+            continue;
+        }
+        core::Result<core::CustomStamp> added =
+            library->add(one.name, one.category, one.image, QDateTime::currentSecsSinceEpoch(), one.sourceName);
+        if (!added) {
+            if (!refused) refused = added.error();
+            continue;
+        }
+        ids.push_back(added.value().id);
+        if (one.favourite) {
+            if (const core::Status marked = library->setFavourite(added.value().id, true); !marked && !refused) refused = marked.error();
         }
     }
+    if (stampPalette_ != nullptr && !ids.empty()) {
+        stampPalette_->reload();
+        showStampPalette();
+        // ONE stamp is chosen and its tool armed; several are listed and none armed -- which of them would be a guess.
+        if (ids.size() == 1 && stampPalette_->choose(QStringLiteral("custom:") + ids.front())) {
+            if (PageView* view = currentView()) {
+                view->tools().armAnnotation(AnnotationToolKind::Stamp);
+                updateViewChrome();
+            }
+        }
+    }
+    if (refused) return *refused;
     return core::Status{};
 }
 

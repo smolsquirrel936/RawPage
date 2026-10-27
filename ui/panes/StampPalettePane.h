@@ -88,6 +88,11 @@ public:
     // A preview of a built-in stamp's words in its colour, `height` logical pixels tall.
     static QPixmap builtInPreview(const QString& name, int height = 24);
 
+    // Every custom stamp filed under a built-in heading's name (`StampCategoryDialog::isReservedName`) moved to the
+    // default category, *My stamps* in the person's language, each logged; how many moved (S6 guide I-42). Run
+    // when a palette is built over a library -- the name refused from then on.
+    static int refileReservedCategories(core::ProfileStore& library);
+
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 

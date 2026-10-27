@@ -2970,6 +2970,10 @@
         <translation>%1 不是影像：印章需以 PNG、JPEG、BMP 或 GIF 製作</translation>
     </message>
     <message>
+        <source>error.stamps.reservedCategory</source>
+        <translation>「%1」是內建分類的名稱：請為分類另取名稱</translation>
+    </message>
+    <message>
         <source>error.stamps.unknown</source>
         <translation>該印章已不在印章庫中（%1）</translation>
     </message>
@@ -5296,6 +5300,26 @@
     <message>
         <source>stamps.dialog.need.category</source>
         <translation>請選擇或輸入類別</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.names</source>
+        <translation>請為每個印章命名</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.column.file</source>
+        <translation>檔案</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.column.name</source>
+        <translation>名稱</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.leftOut</source>
+        <translation>不是影像，已略過：%1</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.makeCount</source>
+        <translation>建立 %1 個印章</translation>
     </message>
     <message>
         <source>stamps.name.Approved</source>

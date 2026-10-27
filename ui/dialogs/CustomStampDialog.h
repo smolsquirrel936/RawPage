@@ -19,6 +19,19 @@
 // in black on a transparent ground; TYPED initials, set in the system's script face where there is one, else
 // an italic. Both are kept as PNGs and filed under Signatures by default -- markup, not a digital signature
 // (Stage 11).
+//
+// ===========================================================================================
+// SEVERAL IMAGES AT ONCE (S6 guide I-43, the user's request, 2026-10-27)
+// ===========================================================================================
+// The browser takes several files. Two or more usable images become a LIST -- each file beside a name, the file's
+// own to start with and edited in place -- and the single Name box goes, its row hidden; one category and one
+// Favourite tick serve them all, and OK says how many stamps it makes. A file that is not an image is LEFT OUT and
+// named under the list, while the rest are made; only when nothing usable is left is that a refusal. `madeAll`
+// answers every stamp; `made` the one, when there is exactly one.
+//
+// A CATEGORY MAY NOT BE A BUILT-IN HEADING'S NAME (S6 guide I-42): one typed as Favourites, Standard, Dynamic or
+// Signatures, in any shipped language or case, is refused by name (`StampCategoryDialog::isReservedName`) --
+// Signatures is chosen from the list, never typed.
 
 #ifndef RAWPAGE_UI_DIALOGS_CUSTOMSTAMPDIALOG_H
 #define RAWPAGE_UI_DIALOGS_CUSTOMSTAMPDIALOG_H
@@ -38,7 +51,9 @@ class QComboBox;
 class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
+class QFormLayout;
 class QTabWidget;
+class QTableWidget;
 
 namespace rawpage::ui {
 
@@ -90,15 +105,26 @@ public:
     // The image file, as the browser or a person typing would set it: read, checked, previewed. False, and the
     // refusal shown naming the file, for one that is not an image.
     bool setImagePath(const QString& path);
+    // Several, as the browser sets them (I-43): each usable image kept, each other file left out by name. False
+    // when none is usable.
+    bool setImagePaths(const QStringList& paths);
     void setName(const QString& name);
     void setCategory(const QString& category);
     void setFavourite(bool favourite);
     void setTypedInitials(const QString& text);
     InitialsPad* pad() const noexcept { return pad_; }
 
-    // What `accept` would make now, or nothing -- and why, as the line under the source says it.
+    // What `accept` would make now, or nothing -- and why, as the line under the source says it. `made` is the one
+    // stamp when exactly one would be made; `madeAll` every one, empty when refused.
     std::optional<Made> made() const;
+    std::vector<Made> madeAll() const;
     QString refusal() const;
+    // The files left out of a choice of several, said under the list; empty when none was.
+    QString notice() const;
+    // The list of two or more images: the file in column 0, its stamp's name, editable, in column 1.
+    QTableWidget* namesTable() const noexcept { return names_; }
+    // Whether the single Name box is shown -- not while the list is.
+    bool nameBoxShown() const;
     // The browser's filter: image types only (A-78).
     static QString imageFilter();
 
@@ -109,6 +135,7 @@ private:
     void browse();
     void refresh();
     QImage typedPicture() const;
+    void showPreview(int image);
 
     QTabWidget* sources_ = nullptr;
     QLineEdit* path_ = nullptr;
@@ -116,15 +143,23 @@ private:
     InitialsPad* pad_ = nullptr;
     QLineEdit* typed_ = nullptr;
     QLabel* typedPreview_ = nullptr;
+    QTableWidget* names_ = nullptr;
+    QFormLayout* form_ = nullptr;
     QLineEdit* name_ = nullptr;
     QComboBox* category_ = nullptr;
     QCheckBox* favourite_ = nullptr;
     QLabel* refusal_ = nullptr;
     QDialogButtonBox* buttons_ = nullptr;
 
-    QByteArray imageBytes_;
-    QString imageSource_;
-    QString imageRefusal_;
+    struct Picked {
+        QString path;
+        QByteArray bytes;   // a PNG or a JPEG's, as it will be kept
+        QImage image;       // for the preview
+    };
+    std::vector<Picked> images_;
+    QStringList leftOut_;     // the files chosen that are not images, by name
+    QString shownPaths_;      // what the path box was given, so an edit of it is told from it
+    QString okText_;
 };
 
 } // namespace rawpage::ui

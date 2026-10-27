@@ -11,6 +11,8 @@
 //   * What M-07's walk asked for (S6 guide I-39 … I-41): the highlight goes when the stamp tool is put away, so one
 //     click on the same stamp arms it again; Favourites first even when empty, a right click adding a stamp to it or
 //     taking it out, and a right press arming nothing; and Move to… offering the categories in use and a new one.
+//     And after it (I-42, I-43): a built-in heading's name refused as a category -- the rule's word table held to
+//     the shipped catalogs -- and a stamp already filed under one moved; several images made stamps at once.
 //   * A-78's dialog half: the dialog's browser lists image types only; a PDF is refused BY NAME and nothing can be
 //     made; a PNG is kept as its bytes, any other image as a PNG of itself; drawn and typed initials are PNGs filed
 //     under Signatures.
@@ -53,6 +55,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLayout>
 #include <QLineEdit>
@@ -60,10 +65,14 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSpinBox>
+#include <QTableWidget>
 #include <QTemporaryDir>
 #include <QToolButton>
 #include <QTreeWidget>
+
+#include <map>
 
 using namespace rawpage;
 using core::Annotation;
@@ -467,16 +476,185 @@ TEST_CASE("Move to offers the categories in use and New adds one", "[stamps][I-4
     CHECK(list->count() == 4);
     CHECK(dialog.addCategory(QStringLiteral("Seals")));   // one in the list is chosen, not added twice
     CHECK(dialog.chosenCategory() == QStringLiteral("Seals"));
-    CHECK(dialog.addCategory(ui::catalog::translate(QStringLiteral("stamps.category.signatures"))));
-    CHECK(dialog.chosenCategory() == QLatin1String(core::ProfileStore::kSignaturesCategory));
     CHECK(list->count() == 4);
     CHECK_FALSE(dialog.addCategory(QStringLiteral("   ")));
-    CHECK(dialog.chosenCategory() == QLatin1String(core::ProfileStore::kSignaturesCategory));
+    CHECK(dialog.chosenCategory() == QStringLiteral("Seals"));
 
     // Signatures is offered with a library that has none filed there.
     ui::StampCategoryDialog empty(QStringList{}, QString());
     REQUIRE(empty.list()->count() == 1);
     CHECK(empty.chosenCategory() == QLatin1String(core::ProfileStore::kSignaturesCategory));
+}
+
+namespace {
+
+// A shipped catalog's translation of `key`, read from its .ts as the build reads it.
+QString catalogWord(const QString& locale, const QString& key)
+{
+    QFile file(QStringLiteral(RAWPAGE_CORPUS_DIR "/../i18n/rawpage_%1.ts").arg(locale));
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    const QString text = QString::fromUtf8(file.readAll());
+    const QRegularExpression entry(QStringLiteral("<source>") + QRegularExpression::escape(key)
+                                   + QStringLiteral("</source>\\s*<translation>([^<]*)</translation>"));
+    const QRegularExpressionMatch match = entry.match(text);
+    REQUIRE(match.hasMatch());
+    return match.captured(1);
+}
+
+} // namespace
+
+// S6 guide I-42: a category could be named as a built-in heading -- the user's library held one called Dynamic, shown
+// as a second Dynamic heading.
+TEST_CASE("a built-in heading's name is refused as a category in every shipped language and an old one is moved",
+          "[stamps][I-42]")
+{
+    // THE TABLE IS THE CATALOGS': every shipped locale's four heading words, in order, and no other row.
+    QFile locales(QStringLiteral(RAWPAGE_CORPUS_DIR "/../i18n/locales.json"));
+    REQUIRE(locales.open(QIODevice::ReadOnly));
+    const QJsonArray declared = QJsonDocument::fromJson(locales.readAll()).object().value(QStringLiteral("locales")).toArray();
+    QStringList expected;
+    for (const QJsonValue& locale : declared) {
+        if (!locale.toObject().value(QStringLiteral("shipped")).toBool()) continue;
+        const QString code = locale.toObject().value(QStringLiteral("code")).toString();
+        for (const char* key : {"stamps.category.favourites", "stamps.category.standard", "stamps.category.dynamic",
+                                "stamps.category.signatures"})
+            expected << catalogWord(code, QLatin1String(key));
+    }
+    REQUIRE(expected.size() == 8);   // en and zh_TW
+    CHECK(ui::StampCategoryDialog::reservedNames() == expected);
+
+    // Any case, trimmed, either language -- and nothing merely LIKE one.
+    for (const QString& name : {QStringLiteral("dynamic"), QStringLiteral("  DYNAMIC "), QStringLiteral("Signatures"),
+                                QStringLiteral("favourites"), QStringLiteral("\u52D5\u614B"), QStringLiteral("\u6211\u7684\u6700\u611B")})
+        CHECK(ui::StampCategoryDialog::isReservedName(name));
+    for (const QString& name : {QStringLiteral("Dynamics"), QStringLiteral("My stamps"), QStringLiteral("Standard seals"), QString()})
+        CHECK_FALSE(ui::StampCategoryDialog::isReservedName(name));
+
+    // MOVE TO… › NEW… refuses one by name and adds nothing.
+    ui::StampCategoryDialog moveTo(QStringList{QStringLiteral("Office")}, QStringLiteral("Office"));
+    CHECK_FALSE(moveTo.addCategory(QStringLiteral(" dynamic")));
+    CHECK(moveTo.refusal().contains(QStringLiteral("dynamic")));
+    CHECK(moveTo.list()->count() == 2);
+    CHECK(moveTo.chosenCategory() == QStringLiteral("Office"));
+    CHECK(moveTo.addCategory(QStringLiteral("Approvals")));   // the control: a name of its own is added
+    CHECK(moveTo.refusal().isEmpty());
+
+    // THE CUSTOM STAMP DIALOG refuses one typed, and takes Signatures chosen from its list.
+    ui::CustomStampDialog dialog(QStringList{QStringLiteral("Office")});
+    REQUIRE(dialog.setImagePath(QStringLiteral(RAWPAGE_CORPUS_DIR "/stamps/seal-rgba.png")));
+    dialog.setCategory(QStringLiteral("Standard"));
+    CHECK_FALSE(dialog.made());
+    CHECK(dialog.refusal().contains(QStringLiteral("Standard")));
+    dialog.setCategory(QLatin1String(core::ProfileStore::kSignaturesCategory));
+    REQUIRE(dialog.made());
+    CHECK(dialog.made()->category == QLatin1String(core::ProfileStore::kSignaturesCategory));
+
+    // A STAMP ALREADY FILED under one is moved to the default category when a palette is built over the library.
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    core::ProfileStore library(scratch.path());
+    library.load();
+    const QByteArray png = corpusBytes("stamps/seal-rgba.png");
+    REQUIRE(library.add(QStringLiteral("one"), QStringLiteral("Dynamic"), png, 1791106200));
+    REQUIRE(library.add(QStringLiteral("two"), QStringLiteral("standard "), png, 1791106200));
+    REQUIRE(library.add(QStringLiteral("three"), QStringLiteral("Office"), png, 1791106200));
+    const QString mine = ui::catalog::translate(QStringLiteral("stamps.category.default"));
+    {
+        ui::StampPalettePane palette(&library);
+        core::ProfileStore again(scratch.path());   // WRITTEN, as a second store over the root reads
+        again.load();
+        std::map<QString, QString> categoryOf;
+        for (const core::CustomStamp& stamp : again.stamps()) categoryOf[stamp.name] = stamp.category;
+        CHECK(categoryOf[QStringLiteral("one")] == mine);
+        CHECK(categoryOf[QStringLiteral("two")] == mine);
+        CHECK(categoryOf[QStringLiteral("three")] == QStringLiteral("Office"));   // the control: one of its own stays
+        int dynamicHeadings = 0;
+        for (int i = 0; i < palette.tree()->topLevelItemCount(); ++i)
+            if (palette.tree()->topLevelItem(i)->text(0) == ui::catalog::translate(QStringLiteral("stamps.category.dynamic"))) ++dynamicHeadings;
+        CHECK(dynamicHeadings == 1);
+        CHECK(ui::StampPalettePane::refileReservedCategories(library) == 0);   // nothing left to move
+
+        // And refiled into one by the palette's own call: refused by key.
+        REQUIRE(palette.choose(QStringLiteral("custom:") + library.stamps().front().id));
+        const core::Status into = palette.fileUnder(QStringLiteral("DYNAMIC"));
+        REQUIRE_FALSE(into);
+        CHECK(QString(into.error().messageKey) == QStringLiteral("error.stamps.reservedCategory"));
+    }
+}
+
+// S6 guide I-43: one image made one stamp; several were a dialog each.
+TEST_CASE("several images chosen at once are listed by name and each made a stamp", "[stamps][I-43]")
+{
+    const QString png = QStringLiteral(RAWPAGE_CORPUS_DIR "/stamps/seal-rgba.png");
+    const QString jpg = QStringLiteral(RAWPAGE_CORPUS_DIR "/stamps/signature.jpg");
+    const QString pdf = QStringLiteral(RAWPAGE_CORPUS_DIR "/ordinary/text-a4.pdf");
+    ui::CustomStampDialog dialog(QStringList{QStringLiteral("Office")});
+    dialog.show();
+    QCoreApplication::processEvents();
+    QTableWidget* names = dialog.namesTable();
+    QPushButton* ok = dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+    const QString okText = ok->text();
+
+    // Two images and a PDF: the list of two, the Name box gone, the PDF left out BY NAME and the rest still made.
+    REQUIRE(dialog.setImagePaths({png, pdf, jpg}));
+    QCoreApplication::processEvents();
+    REQUIRE(names->rowCount() == 2);
+    CHECK(names->isVisible());
+    CHECK_FALSE(dialog.nameBoxShown());
+    CHECK_FALSE(dialog.findChild<QLineEdit*>(QStringLiteral("stampName"))->isVisible());
+    CHECK(names->item(0, 0)->text() == QStringLiteral("seal-rgba.png"));
+    CHECK(names->item(0, 1)->text() == QStringLiteral("seal-rgba"));
+    CHECK(names->item(1, 1)->text() == QStringLiteral("signature"));
+    CHECK_FALSE(names->item(0, 0)->flags().testFlag(Qt::ItemIsEditable));   // the file is not renamed here
+    CHECK(dialog.refusal().isEmpty());
+    CHECK(dialog.notice().contains(QStringLiteral("text-a4.pdf")));
+    CHECK(ok->isEnabled());
+    CHECK(ok->text() == ui::catalog::translate(QStringLiteral("stamps.dialog.makeCount")).arg(2));
+
+    // Each named as its row says, its bytes its file's, all in the one category.
+    names->item(1, 1)->setText(QStringLiteral("My signature"));
+    std::vector<ui::CustomStampDialog::Made> made = dialog.madeAll();
+    REQUIRE(made.size() == 2u);
+    CHECK(made[0].name == QStringLiteral("seal-rgba"));
+    CHECK(made[0].image == corpusBytes("stamps/seal-rgba.png"));
+    CHECK(made[1].name == QStringLiteral("My signature"));
+    CHECK(made[1].image == corpusBytes("stamps/signature.jpg"));
+    CHECK(made[0].category == QStringLiteral("Office"));
+    CHECK(made[1].category == QStringLiteral("Office"));
+    CHECK_FALSE(dialog.made());   // not one stamp
+
+    // A row with no name makes nothing.
+    names->item(0, 1)->setText(QStringLiteral("  "));
+    CHECK(dialog.madeAll().empty());
+    CHECK(dialog.refusal() == ui::catalog::translate(QStringLiteral("stamps.dialog.need.names")));
+    CHECK_FALSE(ok->isEnabled());
+
+    // Initials need the Name box back.
+    dialog.setSource(ui::CustomStampDialog::Source::Drawn);
+    CHECK(dialog.nameBoxShown());
+    dialog.setSource(ui::CustomStampDialog::Source::ImageFile);
+
+    // Nothing usable: a refusal naming them, nothing made.
+    CHECK_FALSE(dialog.setImagePaths({pdf}));
+    CHECK(dialog.refusal().contains(QStringLiteral("text-a4.pdf")));
+    CHECK(dialog.madeAll().empty());
+
+    // ONE image again: the Name box, no list, the button its own.
+    REQUIRE(dialog.setImagePaths({png}));
+    QCoreApplication::processEvents();
+    CHECK(dialog.nameBoxShown());
+    CHECK_FALSE(names->isVisible());
+    CHECK(ok->text() == okText);
+    CHECK(dialog.made());
+
+    // THROUGH THE WINDOW: both in the library and listed, and -- several -- none armed.
+    Stamping s(true);
+    REQUIRE(dialog.setImagePaths({png, jpg}));
+    dialog.setCategory(QStringLiteral("Office"));   // the Drawn tab above moved it to Signatures, as initials go
+    REQUIRE(s.window->addCustomStamps(dialog.madeAll()));
+    REQUIRE(s.library->stamps().size() == 2u);
+    CHECK(keysUnder(*s.window->stampPalette(), QStringLiteral("Office")).size() == 2u);
+    CHECK_FALSE(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
 }
 
 TEST_CASE("the custom stamp dialog takes images only and refuses a PDF by name", "[stamps][A-78]")

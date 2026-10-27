@@ -3,6 +3,7 @@
 
 #include "ui/panes/StampPalettePane.h"
 
+#include "core/Log.h"
 #include "core/cmd/ActionId.h"
 #include "core/doc/Stamps.h"
 #include "core/settings/ProfileStore.h"
@@ -157,7 +158,29 @@ StampPalettePane::StampPalettePane(core::ProfileStore* library, QWidget* parent)
 
     // THE EDGE THAT FACES THE PAGE, drawn (`ui/shell/DockEdge`, the user's request at Stage 5, A-123).
     new DockEdge(this);
+    if (library_ != nullptr) (void)refileReservedCategories(*library_);
     rebuild();
+}
+
+int StampPalettePane::refileReservedCategories(core::ProfileStore& library)
+{
+    // Here, not where the library loads: the default category is a word of the person's language, and the
+    // catalogs load after the library (`app/main.cpp`). A second window's palette finds nothing left to move.
+    const QString target = catalog::translate(catalog::key::StampsCategoryDefault);
+    int moved = 0;
+    const std::vector<core::CustomStamp> stamps = library.stamps();   // a copy: each move rewrites the list
+    for (const core::CustomStamp& stamp : stamps) {
+        if (!StampCategoryDialog::isReservedName(stamp.category)) continue;
+        if (const core::Status done = library.setCategory(stamp.id, target); !done) {
+            RAWPAGE_LOG_WARNING(core::LogSubsystem::Ui) << "stamps: could not move" << stamp.name << "out of the category"
+                                                        << stamp.category << "--" << QString(done.error().messageKey);
+            continue;
+        }
+        RAWPAGE_LOG_INFO(core::LogSubsystem::Ui) << "stamps:" << stamp.name << "moved from" << stamp.category << "to"
+                                                 << target << "-- a built-in heading's name (S6 guide I-42)";
+        ++moved;
+    }
+    return moved;
 }
 
 void StampPalettePane::reload()
@@ -373,6 +396,8 @@ core::Status StampPalettePane::fileUnder(const QString& category)
     if (library_ == nullptr) return noLibrary();
     if (!chosen_.startsWith(QLatin1String("custom:")))
         return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.stamps.builtIn"), QString()};
+    if (StampCategoryDialog::isReservedName(category))
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.stamps.reservedCategory"), category.trimmed()};
     const core::Status done = library_->setCategory(libraryName(chosen_), category);
     if (done) rebuild();
     return done;

@@ -2970,6 +2970,10 @@
         <translation>%1 is not an image: a stamp is made from a PNG, JPEG, BMP or GIF</translation>
     </message>
     <message>
+        <source>error.stamps.reservedCategory</source>
+        <translation>“%1” is the name of a built-in heading: choose another name for the category</translation>
+    </message>
+    <message>
         <source>error.stamps.unknown</source>
         <translation>That stamp is no longer in the library (%1)</translation>
     </message>
@@ -5296,6 +5300,26 @@
     <message>
         <source>stamps.dialog.need.category</source>
         <translation>Choose or type a category</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.names</source>
+        <translation>Give every stamp a name</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.column.file</source>
+        <translation>File</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.column.name</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.leftOut</source>
+        <translation>Not images, left out: %1</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.makeCount</source>
+        <translation>Make %1 Stamps</translation>
     </message>
     <message>
         <source>stamps.name.Approved</source>

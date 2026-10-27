@@ -280,6 +280,10 @@ public:
     // A custom stamp, as the dialog made it, added to the library -- marked a favourite when asked -- listed,
     // chosen and its tool armed. `error.stamps.noLibrary` in a window composed with none.
     core::Status addCustomStamp(const CustomStampDialog::Made& made);
+    // Several at once, as the dialog makes them from several images (S6 guide I-43): each added, the palette
+    // re-listed, and NONE chosen or armed unless there is exactly one. One the library refuses -- or whose category
+    // is a built-in heading's name (I-42) -- is skipped, the rest made, and the first refusal returned.
+    core::Status addCustomStamps(const std::vector<CustomStampDialog::Made>& made);
     // D6-22's image half: `image` placed as an image stamp at the middle of what the tab in front shows -- ONE
     // command. What `edit.paste` does with an image on the clipboard.
     core::Status pasteImage(const QImage& image);

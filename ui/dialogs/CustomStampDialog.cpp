@@ -4,6 +4,7 @@
 #include "ui/dialogs/CustomStampDialog.h"
 
 #include "core/settings/ProfileStore.h"
+#include "ui/dialogs/StampCategoryDialog.h"
 #include "ui/shell/Catalog.h"
 
 #include <QBuffer>
@@ -16,6 +17,7 @@
 #include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QImageWriter>
 #include <QLabel>
 #include <QLineEdit>
@@ -23,7 +25,10 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
+#include <QSignalBlocker>
+#include <QStyledItemDelegate>
 #include <QTabWidget>
+#include <QTableWidget>
 #include <QVBoxLayout>
 
 #include <cmath>
@@ -61,6 +66,18 @@ QRect inkBounds(const QImage& image, int margin)
     if (right < 0) return {};
     return QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-margin, -margin, margin, margin).intersected(image.rect());
 }
+
+// The list's name column is edited in a line edit held to the library's longest name, as the Name box is.
+class NameDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        QWidget* editor = QStyledItemDelegate::createEditor(parent, option, index);
+        if (auto* line = qobject_cast<QLineEdit*>(editor)) line->setMaxLength(core::ProfileStore::kMaxNameLength);
+        return editor;
+    }
+};
 
 } // namespace
 
@@ -172,6 +189,18 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     fileRow->addWidget(path_, 1);
     fileRow->addWidget(browseButton);
     fileColumn->addLayout(fileRow);
+    names_ = new QTableWidget(0, 2, filePage);
+    names_->setObjectName(QStringLiteral("stampImageNames"));
+    names_->setHorizontalHeaderLabels({catalog::translate(catalog::key::StampsDialogColumnFile),
+                                       catalog::translate(catalog::key::StampsDialogColumnName)});
+    names_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    names_->horizontalHeader()->setStretchLastSection(true);
+    names_->verticalHeader()->hide();
+    names_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    names_->setSelectionMode(QAbstractItemView::SingleSelection);
+    names_->setItemDelegateForColumn(1, new NameDelegate(names_));
+    names_->hide();
+    fileColumn->addWidget(names_, 1);
     preview_ = new QLabel(filePage);
     preview_->setObjectName(QStringLiteral("stampImagePreview"));
     preview_->setMinimumHeight(96);
@@ -199,7 +228,8 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     sources_->addTab(typePage, catalog::translate(catalog::key::StampsDialogSourceTyped));
     column->addWidget(sources_, 1);
 
-    auto* form = new QFormLayout;
+    form_ = new QFormLayout;
+    QFormLayout* form = form_;
     name_ = new QLineEdit(this);
     name_->setObjectName(QStringLiteral("stampName"));
     name_->setMaxLength(core::ProfileStore::kMaxNameLength);
@@ -209,7 +239,9 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     category_->addItem(catalog::translate(catalog::key::StampsCategorySignatures),
                        QString::fromLatin1(core::ProfileStore::kSignaturesCategory));
     for (const QString& category : categories) {
-        if (category != QLatin1String(core::ProfileStore::kSignaturesCategory)) category_->addItem(category, category);
+        // A built-in heading's name is no category to offer (I-42); the palette has moved any such stamp already.
+        if (category != QLatin1String(core::ProfileStore::kSignaturesCategory) && !StampCategoryDialog::isReservedName(category))
+            category_->addItem(category, category);
     }
     favourite_ = new QCheckBox(catalog::translate(catalog::key::StampsFavourite), this);
     favourite_->setObjectName(QStringLiteral("stampFavouriteOnMake"));
@@ -224,13 +256,16 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     column->addWidget(refusal_);
     buttons_ = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     column->addWidget(buttons_);
+    okText_ = buttons_->button(QDialogButtonBox::Ok)->text();
 
     connect(buttons_, &QDialogButtonBox::accepted, this, &CustomStampDialog::accept);
     connect(buttons_, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(browseButton, &QPushButton::clicked, this, [this] { browse(); });
     connect(path_, &QLineEdit::editingFinished, this, [this] {
-        if (path_->text() != imageSource_) (void)setImagePath(path_->text());
+        if (path_->text() != shownPaths_) (void)setImagePath(path_->text());
     });
+    connect(names_, &QTableWidget::itemChanged, this, [this] { refresh(); });
+    connect(names_, &QTableWidget::currentCellChanged, this, [this](int row) { showPreview(row); });
     connect(clearButton, &QPushButton::clicked, pad_, &InitialsPad::clear);
     connect(pad_, &InitialsPad::changed, this, [this] { refresh(); });
     connect(typed_, &QLineEdit::textChanged, this, [this] { refresh(); });
@@ -266,35 +301,81 @@ void CustomStampDialog::setTypedInitials(const QString& text) { typed_->setText(
 
 void CustomStampDialog::browse()
 {
-    const QString path = QFileDialog::getOpenFileName(this, catalog::translate(catalog::key::StampsDialogBrowse), QString(),
-                                                      imageFilter());
-    if (!path.isEmpty()) (void)setImagePath(path);
+    const QStringList paths = QFileDialog::getOpenFileNames(this, catalog::translate(catalog::key::StampsDialogBrowse),
+                                                            QString(), imageFilter());
+    if (!paths.isEmpty()) (void)setImagePaths(paths);
 }
 
 bool CustomStampDialog::setImagePath(const QString& path)
 {
-    const QString shown = QFileInfo(path).fileName();
-    imageBytes_.clear();
-    imageSource_ = path;
-    imageRefusal_.clear();
-    path_->setText(path);
+    return setImagePaths(QStringList{path});
+}
+
+bool CustomStampDialog::setImagePaths(const QStringList& paths)
+{
+    images_.clear();
+    leftOut_.clear();
     preview_->clear();
-    QFile file(path);
-    QByteArray bytes;
-    if (file.open(QIODevice::ReadOnly) && file.size() <= kMaxImageFile) bytes = file.readAll();
-    const QImage image = QImage::fromData(bytes);
-    if (bytes.isEmpty() || image.isNull()) {
-        // NOT AN IMAGE -- a PDF among them: refused by name, and nothing will be made (A-78).
-        imageRefusal_ = catalog::translateError(QStringLiteral("error.stamps.notAnImage"), shown);
-        refresh();
-        return false;
+    for (const QString& path : paths) {
+        QFile file(path);
+        QByteArray bytes;
+        if (file.open(QIODevice::ReadOnly) && file.size() <= kMaxImageFile) bytes = file.readAll();
+        const QImage image = QImage::fromData(bytes);
+        if (bytes.isEmpty() || image.isNull()) {
+            // NOT AN IMAGE -- a PDF among them: left out by name, and nothing made of it (A-78).
+            leftOut_ << QFileInfo(path).fileName();
+            continue;
+        }
+        // A PNG or a JPEG as it is -- a JPEG keeps its bytes into the document (A-77); any other image as a PNG of
+        // itself.
+        images_.push_back(Picked{path, core::ProfileStore::imageFormatOf(bytes).isEmpty() ? pngOf(image) : bytes, image});
     }
-    // A PNG or a JPEG as it is -- a JPEG keeps its bytes into the document (A-77); any other image as a PNG of itself.
-    imageBytes_ = core::ProfileStore::imageFormatOf(bytes).isEmpty() ? pngOf(image) : bytes;
-    preview_->setPixmap(QPixmap::fromImage(image.scaled(320, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
-    if (name_->text().trimmed().isEmpty()) name_->setText(QFileInfo(path).completeBaseName());
+    if (paths.size() == 1) {
+        shownPaths_ = paths.front();
+    } else {
+        QStringList quoted;
+        for (const QString& path : paths) quoted << QLatin1Char('"') + path + QLatin1Char('"');
+        shownPaths_ = quoted.join(QLatin1Char(' '));
+    }
+    path_->setText(shownPaths_);
+
+    // TWO OR MORE: the list, each file beside its stamp's name, the file's own to start with (I-43).
+    {
+        const QSignalBlocker quiet(names_);
+        names_->setRowCount(0);
+        if (images_.size() >= 2) {
+            names_->setRowCount(static_cast<int>(images_.size()));
+            for (int row = 0; row < names_->rowCount(); ++row) {
+                const QFileInfo file(images_[static_cast<std::size_t>(row)].path);
+                auto* source = new QTableWidgetItem(file.fileName());
+                source->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                names_->setItem(row, 0, source);
+                names_->setItem(row, 1, new QTableWidgetItem(file.completeBaseName().left(core::ProfileStore::kMaxNameLength)));
+            }
+            names_->setCurrentCell(0, 1);
+        } else if (images_.size() == 1 && name_->text().trimmed().isEmpty()) {
+            name_->setText(QFileInfo(images_.front().path).completeBaseName());
+        }
+    }
+    names_->setVisible(images_.size() >= 2);
+    showPreview(0);
     refresh();
-    return true;
+    return !images_.empty();
+}
+
+void CustomStampDialog::showPreview(int image)
+{
+    if (image < 0 || static_cast<std::size_t>(image) >= images_.size()) {
+        preview_->clear();
+        return;
+    }
+    preview_->setPixmap(QPixmap::fromImage(images_[static_cast<std::size_t>(image)].image.scaled(
+        320, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+}
+
+bool CustomStampDialog::nameBoxShown() const
+{
+    return !(source() == Source::ImageFile && images_.size() >= 2);
 }
 
 QImage CustomStampDialog::typedPicture() const
@@ -322,20 +403,40 @@ QImage CustomStampDialog::typedPicture() const
 
 std::optional<CustomStampDialog::Made> CustomStampDialog::made() const
 {
-    if (!refusal().isEmpty()) return std::nullopt;
-    Made out;
-    out.name = name_->text().trimmed();
+    std::vector<Made> all = madeAll();
+    if (all.size() != 1) return std::nullopt;
+    return std::move(all.front());
+}
+
+std::vector<CustomStampDialog::Made> CustomStampDialog::madeAll() const
+{
+    std::vector<Made> out;
+    if (!refusal().isEmpty()) return out;
+    Made base;
     const int index = category_->currentIndex();
     const bool picked = index >= 0 && category_->itemText(index) == category_->currentText();
-    out.category = picked ? category_->itemData(index).toString() : category_->currentText().trimmed();
-    out.favourite = favourite_->isChecked();
+    base.category = picked ? category_->itemData(index).toString() : category_->currentText().trimmed();
+    base.favourite = favourite_->isChecked();
     switch (source()) {
     case Source::ImageFile:
-        out.image = imageBytes_;
-        out.sourceName = QFileInfo(imageSource_).fileName();
+        for (std::size_t i = 0; i < images_.size(); ++i) {
+            Made one = base;
+            one.name = images_.size() >= 2 ? names_->item(static_cast<int>(i), 1)->text().trimmed() : name_->text().trimmed();
+            one.image = images_[i].bytes;
+            one.sourceName = QFileInfo(images_[i].path).fileName();
+            out.push_back(std::move(one));
+        }
         break;
-    case Source::Drawn: out.image = pngOf(pad_->picture()); break;
-    case Source::Typed: out.image = pngOf(typedPicture()); break;
+    case Source::Drawn:
+        base.name = name_->text().trimmed();
+        base.image = pngOf(pad_->picture());
+        out.push_back(std::move(base));
+        break;
+    case Source::Typed:
+        base.name = name_->text().trimmed();
+        base.image = pngOf(typedPicture());
+        out.push_back(std::move(base));
+        break;
     }
     return out;
 }
@@ -344,8 +445,11 @@ QString CustomStampDialog::refusal() const
 {
     switch (source()) {
     case Source::ImageFile:
-        if (!imageRefusal_.isEmpty()) return imageRefusal_;
-        if (imageBytes_.isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedImage);
+        if (images_.empty()) {
+            if (!leftOut_.isEmpty())
+                return catalog::translateError(QStringLiteral("error.stamps.notAnImage"), leftOut_.join(QStringLiteral(", ")));
+            return catalog::translate(catalog::key::StampsDialogNeedImage);
+        }
         break;
     case Source::Drawn:
         if (pad_->isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedDrawing);
@@ -354,11 +458,29 @@ QString CustomStampDialog::refusal() const
         if (typed_->text().trimmed().isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedText);
         break;
     }
-    if (name_->text().trimmed().isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedName);
+    if (nameBoxShown()) {
+        if (name_->text().trimmed().isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedName);
+    } else {
+        for (int row = 0; row < names_->rowCount(); ++row) {
+            const QTableWidgetItem* name = names_->item(row, 1);
+            if (name == nullptr || name->text().trimmed().isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedNames);
+        }
+    }
     const QString category = category_->currentText().trimmed();
     if (category.isEmpty() || (category.startsWith(QLatin1Char(':')) && category != QLatin1String(core::ProfileStore::kSignaturesCategory)))
         return catalog::translate(catalog::key::StampsDialogNeedCategory);
+    // A heading's name TYPED is refused; Signatures chosen from the list is the reserved category (I-42).
+    const int index = category_->currentIndex();
+    const bool picked = index >= 0 && category_->itemText(index) == category_->currentText();
+    if (!picked && StampCategoryDialog::isReservedName(category))
+        return catalog::translateError(QStringLiteral("error.stamps.reservedCategory"), category);
     return QString();
+}
+
+QString CustomStampDialog::notice() const
+{
+    if (source() != Source::ImageFile || images_.empty() || leftOut_.isEmpty()) return QString();
+    return catalog::translate(catalog::key::StampsDialogLeftOut).arg(leftOut_.join(QStringLiteral(", ")));
 }
 
 void CustomStampDialog::refresh()
@@ -368,14 +490,19 @@ void CustomStampDialog::refresh()
         typedPreview_->setPixmap(typed.isNull() ? QPixmap()
                                                 : QPixmap::fromImage(typed.scaled(320, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
     }
+    form_->setRowVisible(name_, nameBoxShown());
     const QString why = refusal();
-    refusal_->setText(why);
-    if (QPushButton* ok = buttons_->button(QDialogButtonBox::Ok)) ok->setEnabled(why.isEmpty());
+    refusal_->setText(why.isEmpty() ? notice() : why);
+    if (QPushButton* ok = buttons_->button(QDialogButtonBox::Ok)) {
+        ok->setEnabled(why.isEmpty());
+        const bool several = source() == Source::ImageFile && images_.size() >= 2;
+        ok->setText(several ? catalog::translate(catalog::key::StampsDialogMakeCount).arg(images_.size()) : okText_);
+    }
 }
 
 void CustomStampDialog::accept()
 {
-    if (!made()) {
+    if (madeAll().empty()) {
         refresh();
         return;
     }
