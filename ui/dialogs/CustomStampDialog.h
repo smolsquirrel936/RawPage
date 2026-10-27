@@ -27,7 +27,10 @@
 // own to start with and edited in place -- and the single Name box goes, its row hidden; one category and one
 // Favourite tick serve them all, and OK says how many stamps it makes. A file that is not an image is LEFT OUT and
 // named under the list, while the rest are made; only when nothing usable is left is that a refusal. `madeAll`
-// answers every stamp; `made` the one, when there is exactly one.
+// answers every stamp; `made` the one, when there is exactly one. The list is held tall enough for every row and
+// the dialog grows to it, up to the screen's height, past which it scrolls; the row whose image is previewed is a
+// plain wash, not the style's selection, whose Windows 11 accent bar covered each cell's first letter (I-46) -- a
+// bar the table paints under each cell itself, so the list carries a style of its own that passes that row unselected.
 //
 // A CATEGORY MAY NOT BE A BUILT-IN HEADING'S NAME (S6 guide I-42): one typed as Favourites, Standard, Dynamic or
 // Signatures, in any shipped language or case, is refused by name (`StampCategoryDialog::isReservedName`) --
@@ -136,6 +139,8 @@ private:
     void refresh();
     QImage typedPicture() const;
     void showPreview(int image);
+    // The list held tall enough for every row, the dialog grown to it, up to the screen (I-46).
+    void fitList();
 
     QTabWidget* sources_ = nullptr;
     QLineEdit* path_ = nullptr;

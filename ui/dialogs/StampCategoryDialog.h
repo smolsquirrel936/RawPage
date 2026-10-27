@@ -17,8 +17,13 @@
 // the PALETTE'S, not the library's: `core::ProfileStore` reads any category, and a stamp already filed under such a
 // name is moved to the default category when the palette is built (`StampPalettePane::refileReservedCategories`).
 //
-// *New…* asks with a `QInputDialog`, which offscreen cannot answer; `addCategory` is what it does with the name,
-// and what a case drives.
+// NOR IS A CATEGORY ALREADY LISTED (S6 guide I-45, the user's choice, 2026-10-27): *New…* given a name the list holds
+// -- in any case -- refuses it rather than quietly choosing it, so a person who meant a new category is told it is
+// not one. A refusal of either kind is a WARNING BOX, not a line in this dialog, and the name is then asked again
+// with what was typed in it.
+//
+// *New…* asks with a `QInputDialog` and warns with a `QMessageBox`, which offscreen cannot answer; `addCategory` is
+// what it does with the name, `refusal()` what the box would say, and what a case drives.
 
 #ifndef RAWPAGE_UI_DIALOGS_STAMPCATEGORYDIALOG_H
 #define RAWPAGE_UI_DIALOGS_STAMPCATEGORYDIALOG_H
@@ -28,7 +33,6 @@
 #include <QStringList>
 
 class QComboBox;
-class QLabel;
 class QPushButton;
 
 namespace rawpage::ui {
@@ -40,12 +44,13 @@ public:
     // `categories` as `core::ProfileStore::categories()` gives them; `current`, the stamp's own, is selected.
     StampCategoryDialog(const QStringList& categories, const QString& current, QWidget* parent = nullptr);
 
-    // What *New…* does with the name typed: added to the list -- or found there -- and selected. False, and the
-    // refusal shown, for a name that is empty once trimmed or a built-in heading's (`isReservedName`).
+    // What *New…* does with the name typed: added to the list and selected. False for a name that is empty once
+    // trimmed, a built-in heading's (`isReservedName`) or one the list holds already, in any case -- the last two
+    // with a `refusal()`, which *New…* shows in a warning box (I-45).
     bool addCategory(const QString& name);
     // The category chosen, as the library stores it.
     QString chosenCategory() const;
-    // Why the last name offered was not added; empty when it was.
+    // Why the last name offered was not added; empty when it was, or when it was empty.
     QString refusal() const;
 
     // The built-in headings' names, in every shipped language: what no category may be called.
@@ -61,7 +66,7 @@ private:
 
     QComboBox* list_ = nullptr;
     QPushButton* new_ = nullptr;
-    QLabel* refusal_ = nullptr;
+    QString refusal_;
 };
 
 } // namespace rawpage::ui

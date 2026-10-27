@@ -12,7 +12,10 @@
 //     click on the same stamp arms it again; Favourites first even when empty, a right click adding a stamp to it or
 //     taking it out, and a right press arming nothing; and Move to… offering the categories in use and a new one.
 //     And after it (I-42, I-43): a built-in heading's name refused as a category -- the rule's word table held to
-//     the shipped catalogs -- and a stamp already filed under one moved; several images made stamps at once.
+//     the shipped catalogs -- and a stamp already filed under one moved; several images made stamps at once. And the
+//     changes asked for after M-07 (I-44 … I-46): Move to… and Delete in a library stamp's right-click menu, acting on
+//     the stamp right-clicked; *New…* refusing a category already listed; and the list of several images held tall
+//     enough for every row, its chosen row without the windows11 style's accent bar.
 //   * A-78's dialog half: the dialog's browser lists image types only; a PDF is refused BY NAME and nothing can be
 //     made; a PNG is kept as its bytes, any other image as a PNG of itself; drawn and typed initials are PNGs filed
 //     under Signatures.
@@ -59,13 +62,18 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScreen>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -314,7 +322,7 @@ TEST_CASE("a custom stamp is listed, chosen, refiled, unfavoured and deleted thr
     CHECK(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
 
     // Refiled and unfavoured -- each WRITTEN at once, as a second store over the same root reads.
-    REQUIRE(palette->fileUnder(QStringLiteral("Seals")));
+    REQUIRE(palette->fileUnder(key, QStringLiteral("Seals")));
     REQUIRE(palette->setFavourite(key, false));
     core::ProfileStore again(s.library->root());
     again.load();
@@ -326,11 +334,11 @@ TEST_CASE("a custom stamp is listed, chosen, refiled, unfavoured and deleted thr
     REQUIRE(palette->choose(QStringLiteral("standard:Draft")));
     REQUIRE(palette->setFavourite(QStringLiteral("standard:Draft"), true));
     CHECK(s.library->isFavourite(QStringLiteral("Draft")));
-    CHECK_FALSE(palette->fileUnder(QStringLiteral("Mine")));
-    CHECK_FALSE(palette->deleteChosen());
+    CHECK_FALSE(palette->fileUnder(QStringLiteral("standard:Draft"), QStringLiteral("Mine")));
+    CHECK_FALSE(palette->deleteStamp(QStringLiteral("standard:Draft")));
 
     REQUIRE(palette->choose(key));
-    REQUIRE(palette->deleteChosen());
+    REQUIRE(palette->deleteStamp(key));
     CHECK(s.library->stamps().empty());
     CHECK(keysUnder(*palette, QStringLiteral("Seals")).empty());
     CHECK(ui::currentStamp().kind == ui::StampChoice::Kind::Standard);   // the tool falls back to a built-in
@@ -455,10 +463,88 @@ TEST_CASE("Favourites heads the palette even empty and a right click adds a stam
     CHECK_FALSE(palette->showItemMenu(tree->visualItemRect(tree->topLevelItem(1)).center()));
 }
 
-// S6 guide I-40: Move to… asked for a category as free text, so a person had to remember and retype one.
-// NOT covered (convention 19): *New…*'s own prompt, a `QInputDialog` offscreen cannot answer -- `addCategory` is
-// what it does with the name typed; and the dialog's `exec` from the palette's button.
-TEST_CASE("Move to offers the categories in use and New adds one", "[stamps][I-40]")
+// S6 guide I-44: Move to… and Delete were buttons under the tree, acting on the stamp CHOSEN -- which arms the tool.
+// NOT covered (convention 19): the two rows' dialogs -- *Move to…*'s `exec` and Delete's yes-or-no -- which offscreen
+// cannot answer and so do not open; `fileUnder` and `deleteStamp` are what each does once answered, driven here with
+// the key the menu was opened on.
+TEST_CASE("a library stamp's right-click menu moves and deletes the stamp under the pointer", "[stamps][I-44]")
+{
+    Stamping s(true);
+    s.window->showStampPalette();
+    for (QWidget* widget : s.window->findChildren<QWidget*>())
+        if (QLayout* layout = widget->layout()) layout->activate();
+    QCoreApplication::processEvents();
+    ui::StampPalettePane* palette = s.window->stampPalette();
+    QTreeWidget* tree = palette->tree();
+    REQUIRE(tree->viewport()->height() > 100);   // the geometry first (convention 12)
+    // The buttons are gone; the one left asks for a new stamp.
+    CHECK(palette->findChild<QToolButton*>(QStringLiteral("stampRefile")) == nullptr);
+    CHECK(palette->findChild<QToolButton*>(QStringLiteral("stampDelete")) == nullptr);
+    CHECK(palette->findChild<QPushButton*>(QStringLiteral("stampCustom")) != nullptr);
+
+    // Two library stamps; the second added is the one chosen and armed.
+    ui::CustomStampDialog::Made made;
+    made.category = QStringLiteral("Office");
+    made.image = corpusBytes("stamps/seal-rgba.png");
+    made.name = QStringLiteral("first");
+    REQUIRE(s.window->addCustomStamp(made));
+    made.name = QStringLiteral("second");
+    REQUIRE(s.window->addCustomStamp(made));
+    REQUIRE(s.library->stamps().size() == 2u);
+    const QString first = QStringLiteral("custom:") + s.library->stamps()[0].id;
+    const QString second = QStringLiteral("custom:") + s.library->stamps()[1].id;
+    REQUIRE(palette->chosenKey() == second);
+
+    const auto rows = [palette](const QString& key) {
+        QTreeWidgetItem* item = itemWithKey(*palette, key);
+        REQUIRE(item != nullptr);
+        palette->tree()->scrollToItem(item);
+        QCoreApplication::processEvents();
+        REQUIRE(palette->showItemMenu(palette->tree()->visualItemRect(item).center()));
+        QStringList names;
+        for (QAction* row : palette->itemMenu()->actions()) names << (row->isSeparator() ? QStringLiteral("|") : row->objectName());
+        palette->itemMenu()->close();
+        return names;
+    };
+    // A built-in stamp: Favourites alone. A library stamp: Favourites, then Move to… and Delete, in the catalog's words.
+    CHECK(rows(QStringLiteral("standard:Draft"))
+          == QStringList{QStringLiteral("stampFavouriteToggle")});
+    CHECK(rows(first) == QStringList{QStringLiteral("stampFavouriteToggle"), QStringLiteral("|"),
+                                     QStringLiteral("stampRefile"), QStringLiteral("stampDelete")});
+    CHECK(palette->itemMenu()->findChild<QAction*>(QStringLiteral("stampRefile"))->text()
+          == ui::catalog::translate(QStringLiteral("stamps.refile")));
+    CHECK(palette->itemMenu()->findChild<QAction*>(QStringLiteral("stampDelete"))->text()
+          == ui::catalog::translate(QStringLiteral("stamps.delete")));
+    // Offscreen, nobody can answer either row's dialog, so neither opens -- and nothing changes.
+    palette->itemMenu()->findChild<QAction*>(QStringLiteral("stampDelete"))->trigger();
+    palette->itemMenu()->findChild<QAction*>(QStringLiteral("stampRefile"))->trigger();
+    CHECK(s.library->stamps().size() == 2u);
+
+    // THE STAMP RIGHT-CLICKED, not the one chosen: the first moved and deleted, the second still chosen and armed.
+    REQUIRE(palette->fileUnder(first, QStringLiteral("Seals")));
+    CHECK(keysUnder(*palette, QStringLiteral("Seals")) == std::vector<QString>{first});
+    CHECK(palette->chosenKey() == second);
+    REQUIRE(palette->deleteStamp(first));
+    REQUIRE(s.library->stamps().size() == 1u);
+    CHECK(palette->chosenKey() == second);
+    CHECK(ui::currentStamp().libraryId == s.library->stamps()[0].id);
+
+    // The TOOL'S stamp deleted with the tool put away -- nothing chosen (I-39) -- leaves it a built-in, never a
+    // library id that is gone.
+    Stamping::key(s.view, Qt::Key_Escape);
+    REQUIRE(palette->chosenKey().isEmpty());
+    REQUIRE(ui::currentStamp().kind == ui::StampChoice::Kind::Custom);
+    REQUIRE(palette->deleteStamp(second));
+    CHECK(s.library->stamps().empty());
+    CHECK(ui::currentStamp().kind == ui::StampChoice::Kind::Standard);
+}
+
+// S6 guide I-40: Move to… asked for a category as free text, so a person had to remember and retype one. And I-45:
+// a name refused was a line in the dialog, and a category already listed was quietly chosen.
+// NOT covered (convention 19): *New…*'s own prompt, a `QInputDialog`, and the warning box, a `QMessageBox` --
+// offscreen cannot answer either; `addCategory` is what *New…* does with the name typed and `refusal()` what the box
+// says; and the dialog's `exec` from the palette's menu.
+TEST_CASE("Move to offers the categories in use and New adds one", "[stamps][I-40][I-45]")
 {
     ui::StampCategoryDialog dialog(QStringList{QLatin1String(core::ProfileStore::kSignaturesCategory),
                                                QStringLiteral("Office"), QStringLiteral("Seals")},
@@ -474,11 +560,17 @@ TEST_CASE("Move to offers the categories in use and New adds one", "[stamps][I-4
     CHECK(dialog.addCategory(QStringLiteral("  Approvals ")));
     CHECK(dialog.chosenCategory() == QStringLiteral("Approvals"));
     CHECK(list->count() == 4);
-    CHECK(dialog.addCategory(QStringLiteral("Seals")));   // one in the list is chosen, not added twice
-    CHECK(dialog.chosenCategory() == QStringLiteral("Seals"));
+    // One in the list already is REFUSED, in any case, by the name it is listed under -- not quietly chosen (I-45).
+    CHECK_FALSE(dialog.addCategory(QStringLiteral("Seals")));
+    CHECK(dialog.refusal() == ui::catalog::translateError(QStringLiteral("error.stamps.categoryExists"), QStringLiteral("Seals")));
+    CHECK_FALSE(dialog.addCategory(QStringLiteral(" approvals ")));   // one New… added a moment ago
+    CHECK(dialog.refusal().contains(QStringLiteral("Approvals")));
+    CHECK(dialog.chosenCategory() == QStringLiteral("Approvals"));
     CHECK(list->count() == 4);
     CHECK_FALSE(dialog.addCategory(QStringLiteral("   ")));
-    CHECK(dialog.chosenCategory() == QStringLiteral("Seals"));
+    CHECK(dialog.refusal().isEmpty());   // an empty name: nothing to warn of
+    CHECK(dialog.chosenCategory() == QStringLiteral("Approvals"));
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("stampCategoryRefusal")) == nullptr);   // a box, not a line (I-45)
 
     // Signatures is offered with a library that has none filed there.
     ui::StampCategoryDialog empty(QStringList{}, QString());
@@ -576,7 +668,8 @@ TEST_CASE("a built-in heading's name is refused as a category in every shipped l
 
         // And refiled into one by the palette's own call: refused by key.
         REQUIRE(palette.choose(QStringLiteral("custom:") + library.stamps().front().id));
-        const core::Status into = palette.fileUnder(QStringLiteral("DYNAMIC"));
+        const core::Status into =
+            palette.fileUnder(QStringLiteral("custom:") + library.stamps().front().id, QStringLiteral("DYNAMIC"));
         REQUIRE_FALSE(into);
         CHECK(QString(into.error().messageKey) == QStringLiteral("error.stamps.reservedCategory"));
     }
@@ -655,6 +748,118 @@ TEST_CASE("several images chosen at once are listed by name and each made a stam
     REQUIRE(s.library->stamps().size() == 2u);
     CHECK(keysUnder(*s.window->stampPalette(), QStringLiteral("Office")).size() == 2u);
     CHECK_FALSE(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+}
+
+namespace {
+
+// Pixels of a strongly blue hue in `image` -- an accent bar's, where nothing else in the list is blue: its text is
+// dark, its ground white or grey.
+int bluePixels(const QImage& image)
+{
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.blue() - pixel.red() > 80 && pixel.blue() > pixel.green()) ++count;
+        }
+    }
+    return count;
+}
+
+// What the windows11 style draws for a selected item-view ROW panel outside high contrast: NO fill of the row, and
+// its accent bar at the rect's left (`QWindows11Style::drawPrimitive`, `PE_PanelItemViewRow`, Qt 6.11.1), here a
+// strong blue. The base it wraps -- offscreen, Fusion -- is handed the panel UNSELECTED, because Fusion fills a
+// selected one with the palette's highlight: a blue fill the count took for the bar when the case ran alone, and a
+// pale one, over the bar, when the binary ran whole and an earlier case had left the product's highlight behind.
+class AccentRowStyle final : public QProxyStyle {
+public:
+    void drawPrimitive(PrimitiveElement element, const QStyleOption* option, QPainter* painter,
+                       const QWidget* widget) const override
+    {
+        const auto* row = qstyleoption_cast<const QStyleOptionViewItem*>(option);
+        if (element != PE_PanelItemViewRow || row == nullptr || !option->state.testFlag(State_Selected)) {
+            QProxyStyle::drawPrimitive(element, option, painter, widget);
+            return;
+        }
+        QStyleOptionViewItem plain(*row);
+        plain.state.setFlag(State_Selected, false);
+        QProxyStyle::drawPrimitive(element, &plain, painter, widget);
+        const QRect& rect = option->rect;
+        painter->fillRect(QRect(rect.left() + 3, rect.top() + rect.height() / 4, 2, rect.height() / 2),
+                          QColor(0x00, 0x78, 0xD4));
+    }
+};
+
+} // namespace
+
+// S6 guide I-46: a list of several images took what height the dialog had, so a third row already scrolled; and the
+// row shown carried Windows 11's accent bar at the left of each cell, over the first letter of a file and a name --
+// a bar the TABLE paints under each cell (`PE_PanelItemViewRow`), which the first fix, a delegate, never reached: its
+// case asked the real windows11 style offscreen, where an Unknown colour scheme is high contrast and the style draws
+// no bar at all, so its control counted the high-contrast highlight fill instead (the guide's I-46, its second walk).
+// NOT covered (convention 19): the windows11 style itself -- a stand-in paints its bar here, on the list alone; the
+// real style under the `windows` platform, in the system's scheme and accent, is M-07 step 7's -- and a real
+// screen's height, offscreen's being the platform's fixed one.
+TEST_CASE("the list of several images shows every row and its chosen row carries no accent bar", "[stamps][I-46]")
+{
+    const QString png = QStringLiteral(RAWPAGE_CORPUS_DIR "/stamps/seal-rgba.png");
+    const QString jpg = QStringLiteral(RAWPAGE_CORPUS_DIR "/stamps/signature.jpg");
+    ui::CustomStampDialog dialog(QStringList{QStringLiteral("Office")});
+    dialog.show();
+    QCoreApplication::processEvents();
+    QTableWidget* names = dialog.namesTable();
+    const auto settle = [&dialog] {
+        dialog.layout()->activate();
+        QCoreApplication::processEvents();
+    };
+
+    // SIX: every row shown, nothing to scroll, the dialog inside the screen.
+    QStringList six;
+    for (int i = 0; i < 6; ++i) six << (i % 2 == 0 ? png : jpg);
+    REQUIRE(dialog.setImagePaths(six));
+    settle();
+    REQUIRE(names->rowCount() == 6);
+    REQUIRE(names->isVisible());
+    CHECK(names->verticalScrollBar()->maximum() == 0);
+    CHECK(names->visualRect(names->model()->index(5, 1)).bottom() < names->viewport()->height());
+    CHECK(names->mapTo(&dialog, QPoint(0, names->height())).y() <= dialog.height());   // and the list inside the dialog
+    const int available = dialog.screen()->availableGeometry().height();
+    CHECK(dialog.frameGeometry().height() <= available);
+
+    // Too many for the screen: the dialog stops at it and the list scrolls.
+    QStringList many;
+    for (int i = 0; i < 80; ++i) many << png;
+    REQUIRE(dialog.setImagePaths(many));
+    settle();
+    CHECK(dialog.frameGeometry().height() <= available);
+    CHECK(names->verticalScrollBar()->maximum() > 0);
+
+    // ONE again: the list's hold let go.
+    REQUIRE(dialog.setImagePaths({png}));
+    settle();
+    CHECK(names->minimumHeight() == 0);
+
+    // THE ACCENT BAR, from a stand-in for the windows11 style: offscreen, its colour scheme Unknown, that style draws
+    // no bar at all (it reads Unknown as high contrast, and a request for Light is ignored there -- measured). The
+    // stand-in paints what windows11 paints, where it paints it: a bar at the left of each selected ROW panel.
+    REQUIRE(dialog.setImagePaths({png, jpg}));
+    settle();
+    REQUIRE(names->selectionModel()->isRowSelected(0, QModelIndex()));
+    auto* accentRows = new AccentRowStyle;
+    auto* ours = qobject_cast<QProxyStyle*>(names->style());
+    REQUIRE(ours != nullptr);
+    // The CONTROL first (convention 7): the dialog's own delegate, under the stand-in alone, shows the bar -- so the
+    // bar is the row's, out of any delegate's reach, and a count of none below is the list's style.
+    names->setStyle(accentRows);
+    CHECK(bluePixels(names->viewport()->grab().toImage()) > 0);
+    ours->setBaseStyle(accentRows);   // the proxy owns its base from here
+    names->setStyle(ours);
+    const QImage plain = names->viewport()->grab().toImage();
+    CHECK(bluePixels(plain) == 0);
+    // And the row is still told apart -- a wash on the chosen row's ground, right of its text, against the other's.
+    const QRect chosen = names->visualRect(names->model()->index(0, 1));
+    const QRect other = names->visualRect(names->model()->index(1, 1));
+    CHECK(plain.pixelColor(chosen.right() - 4, chosen.center().y()) != plain.pixelColor(other.right() - 4, other.center().y()));
 }
 
 TEST_CASE("the custom stamp dialog takes images only and refuses a PDF by name", "[stamps][A-78]")

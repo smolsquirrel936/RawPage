@@ -16,15 +16,16 @@
 #include <QAction>
 #include <QFont>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
-#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -132,14 +133,6 @@ StampPalettePane::StampPalettePane(core::ProfileStore* library, QWidget* parent)
     custom_->setEnabled(library_ != nullptr);
     row->addWidget(custom_);
     row->addStretch(1);
-    refile_ = new QToolButton(body);
-    refile_->setObjectName(QStringLiteral("stampRefile"));
-    refile_->setText(catalog::translate(catalog::key::StampsRefile));
-    delete_ = new QToolButton(body);
-    delete_->setObjectName(QStringLiteral("stampDelete"));
-    delete_->setText(catalog::translate(catalog::key::StampsDelete));
-    row->addWidget(refile_);
-    row->addWidget(delete_);
     column->addLayout(row);
     setWidget(body);
 
@@ -151,10 +144,6 @@ StampPalettePane::StampPalettePane(core::ProfileStore* library, QWidget* parent)
     });
     connect(tree_, &QWidget::customContextMenuRequested, this, [this](const QPoint& pos) { (void)showItemMenu(pos); });
     connect(custom_, &QPushButton::clicked, this, [this] { emit customRequested(); });
-    connect(refile_, &QToolButton::clicked, this, [this] { moveChosenTo(); });
-    connect(delete_, &QToolButton::clicked, this, [this] {
-        if (core::Status done = deleteChosen(); !done) emit refused(done.error());
-    });
 
     // THE EDGE THAT FACES THE PAGE, drawn (`ui/shell/DockEdge`, the user's request at Stage 5, A-123).
     new DockEdge(this);
@@ -246,7 +235,6 @@ void StampPalettePane::rebuild()
     if (chosen_.isEmpty() && toolArmed_ && itemFor(keyOf(currentStamp())) != nullptr) chosen_ = keyOf(currentStamp());
     if (QTreeWidgetItem* item = itemFor(chosen_)) tree_->setCurrentItem(item);
     rebuilding_ = false;
-    updateButtons();
 }
 
 void StampPalettePane::followTool(bool armed)
@@ -266,7 +254,6 @@ void StampPalettePane::followTool(bool armed)
         }
     }
     rebuilding_ = false;
-    updateButtons();
 }
 
 QTreeWidgetItem* StampPalettePane::itemFor(const QString& key) const
@@ -330,7 +317,6 @@ bool StampPalettePane::choose(const QString& key)
         tree_->setCurrentItem(item);
         rebuilding_ = false;
     }
-    updateButtons();
     return true;
 }
 
@@ -375,6 +361,17 @@ bool StampPalettePane::showItemMenu(const QPoint& pos)
     connect(toggle, &QAction::triggered, this, [this, key, favourite] {
         if (core::Status done = setFavourite(key, !favourite); !done) emit refused(done.error());
     });
+    // A LIBRARY STAMP is also refiled and deleted here (I-44) -- the stamp under the pointer, which the right press
+    // did not choose. A built-in stamp is neither, and is offered neither.
+    if (key.startsWith(QLatin1String("custom:"))) {
+        ActionFactory::addMenuSeparator(itemMenu_);
+        QAction* refile = ActionFactory::addNonCommandMenuItem(itemMenu_, catalog::translate(catalog::key::StampsRefile));
+        refile->setObjectName(QStringLiteral("stampRefile"));
+        connect(refile, &QAction::triggered, this, [this, key] { askMoveTo(key); });
+        QAction* remove = ActionFactory::addNonCommandMenuItem(itemMenu_, catalog::translate(catalog::key::StampsDelete));
+        remove->setObjectName(QStringLiteral("stampDelete"));
+        connect(remove, &QAction::triggered, this, [this, key] { askDelete(key); });
+    }
     itemMenu_->popup(tree_->viewport()->mapToGlobal(pos));
     return true;
 }
@@ -391,48 +388,68 @@ bool StampPalettePane::eventFilter(QObject* watched, QEvent* event)
     return QDockWidget::eventFilter(watched, event);
 }
 
-core::Status StampPalettePane::fileUnder(const QString& category)
+core::Status StampPalettePane::fileUnder(const QString& key, const QString& category)
 {
     if (library_ == nullptr) return noLibrary();
-    if (!chosen_.startsWith(QLatin1String("custom:")))
+    if (!key.startsWith(QLatin1String("custom:")))
         return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.stamps.builtIn"), QString()};
     if (StampCategoryDialog::isReservedName(category))
         return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.stamps.reservedCategory"), category.trimmed()};
-    const core::Status done = library_->setCategory(libraryName(chosen_), category);
+    const core::Status done = library_->setCategory(libraryName(key), category);
     if (done) rebuild();
     return done;
 }
 
-core::Status StampPalettePane::deleteChosen()
+core::Status StampPalettePane::deleteStamp(const QString& key)
 {
     if (library_ == nullptr) return noLibrary();
-    if (!chosen_.startsWith(QLatin1String("custom:")))
+    if (!key.startsWith(QLatin1String("custom:")))
         return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.stamps.builtIn"), QString()};
-    const core::Status done = library_->remove(libraryName(chosen_));
+    const core::Status done = library_->remove(libraryName(key));
     if (done) {
-        chosen_.clear();
-        setCurrentStamp(StampChoice{});   // back to the first standard stamp
+        // The menu reaches any stamp, so the one deleted may be the tool's while nothing is chosen (I-39): the
+        // tool goes back to the first standard stamp either way, never to a library id that is gone.
+        if (chosen_ == key) chosen_.clear();
+        if (keyOf(currentStamp()) == key) setCurrentStamp(StampChoice{});
         rebuild();
     }
     return done;
 }
 
-void StampPalettePane::moveChosenTo()
+namespace {
+
+// WHETHER THERE IS ANYBODY TO ASK (Stage 1's I-23): a modal dialog under the offscreen platform is shown to nobody
+// and never returns. `MainWindow`'s own predicate, for the menu's two dialogs.
+bool canPromptTheUser()
 {
-    if (library_ == nullptr || !chosen_.startsWith(QLatin1String("custom:"))) return;
-    const std::optional<core::CustomStamp> stamp = library_->find(libraryName(chosen_));
+    return QGuiApplication::platformName() != QLatin1String("offscreen");
+}
+
+} // namespace
+
+void StampPalettePane::askMoveTo(const QString& key)
+{
+    if (library_ == nullptr || !canPromptTheUser()) return;
+    const std::optional<core::CustomStamp> stamp = library_->find(libraryName(key));
     if (!stamp) return;
     // A list of the categories in use and *New…* (I-40), not a name to remember and retype.
     StampCategoryDialog dialog(library_->categories(), stamp->category, this);
     if (dialog.exec() != QDialog::Accepted) return;
-    if (core::Status done = fileUnder(dialog.chosenCategory()); !done) emit refused(done.error());
+    if (core::Status done = fileUnder(key, dialog.chosenCategory()); !done) emit refused(done.error());
 }
 
-void StampPalettePane::updateButtons()
+void StampPalettePane::askDelete(const QString& key)
 {
-    const bool custom = library_ != nullptr && chosen_.startsWith(QLatin1String("custom:"));
-    refile_->setEnabled(custom);
-    delete_->setEnabled(custom);
+    if (library_ == nullptr || !canPromptTheUser()) return;
+    const std::optional<core::CustomStamp> stamp = library_->find(libraryName(key));
+    if (!stamp) return;
+    // ASKED FIRST (I-44, the user's choice): a stamp deleted is gone from the library, and no undo brings it back.
+    if (QMessageBox::question(this, catalog::translate(catalog::key::StampsDelete),
+                              catalog::translate(catalog::key::StampsDeleteConfirm).arg(stamp->name),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+        != QMessageBox::Yes)
+        return;
+    if (core::Status done = deleteStamp(key); !done) emit refused(done.error());
 }
 
 } // namespace rawpage::ui

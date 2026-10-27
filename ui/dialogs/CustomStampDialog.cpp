@@ -24,7 +24,10 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QProxyStyle>
 #include <QPushButton>
+#include <QScreen>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
@@ -67,10 +70,53 @@ QRect inkBounds(const QImage& image, int margin)
     return QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-margin, -margin, margin, margin).intersected(image.rect());
 }
 
-// The list's name column is edited in a line edit held to the library's longest name, as the Name box is.
-class NameDelegate final : public QStyledItemDelegate {
+// THE ROW SHOWN IS A PLAIN WASH, never the style's selection (S6 guide I-46). The wash is the text colour, faint, so
+// it reads in both themes (convention 20) -- and the cell is then painted as unselected, in its own text colour.
+// The accent bar is NOT the delegate's to remove: see `PlainRowStyle`.
+class PlainRowDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        QStyleOptionViewItem plain(option);
+        if (plain.state.testFlag(QStyle::State_Selected)) {
+            QColor wash = option.palette.color(QPalette::Text);
+            wash.setAlpha(28);
+            painter->fillRect(option.rect, wash);
+            plain.state.setFlag(QStyle::State_Selected, false);
+        }
+        QStyledItemDelegate::paint(painter, plain, index);
+    }
+};
+
+// THE ACCENT BAR IS THE ROW'S, NOT THE CELL'S (S6 guide I-46, its second walk). `QTableView` paints
+// `PE_PanelItemViewRow` under EVERY cell, carrying the selection, before any delegate runs, and Windows 11 draws its
+// accent bar at that rect's left -- so each cell of the chosen row had one over its first letter, whatever the
+// delegate did. Measured on the `windows` platform, 2026-10-27. This passes the row on unselected and leaves every
+// other element to the application's style. Offscreen the bar never shows: Qt reads an Unknown colour scheme as
+// high contrast, which draws no bar.
+class PlainRowStyle final : public QProxyStyle {
+public:
+    using QProxyStyle::QProxyStyle;
+    void drawPrimitive(PrimitiveElement element, const QStyleOption* option, QPainter* painter,
+                       const QWidget* widget) const override
+    {
+        if (element == PE_PanelItemViewRow && option->state.testFlag(State_Selected)) {
+            if (const auto* row = qstyleoption_cast<const QStyleOptionViewItem*>(option)) {
+                QStyleOptionViewItem plain(*row);
+                plain.state.setFlag(State_Selected, false);
+                QProxyStyle::drawPrimitive(element, &plain, painter, widget);
+                return;
+            }
+        }
+        QProxyStyle::drawPrimitive(element, option, painter, widget);
+    }
+};
+
+// The list's name column is edited in a line edit held to the library's longest name, as the Name box is.
+class NameDelegate final : public PlainRowDelegate {
+public:
+    using PlainRowDelegate::PlainRowDelegate;
     QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const override
     {
         QWidget* editor = QStyledItemDelegate::createEditor(parent, option, index);
@@ -198,6 +244,10 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     names_->verticalHeader()->hide();
     names_->setSelectionBehavior(QAbstractItemView::SelectRows);
     names_->setSelectionMode(QAbstractItemView::SingleSelection);
+    auto* rowStyle = new PlainRowStyle;
+    rowStyle->setParent(names_);   // a widget's style is not owned by it
+    names_->setStyle(rowStyle);
+    names_->setItemDelegate(new PlainRowDelegate(names_));
     names_->setItemDelegateForColumn(1, new NameDelegate(names_));
     names_->hide();
     fileColumn->addWidget(names_, 1);
@@ -360,7 +410,46 @@ bool CustomStampDialog::setImagePaths(const QStringList& paths)
     names_->setVisible(images_.size() >= 2);
     showPreview(0);
     refresh();
+    fitList();   // last: the Name row hidden and the preview set first, so the height is measured as it will be
     return !images_.empty();
+}
+
+void CustomStampDialog::fitList()
+{
+    // EVERY ROW SHOWN, the dialog grown to hold them (S6 guide I-46): the list took a share of the height the dialog
+    // happened to have, so a third image already scrolled. Held as the list's MINIMUM, so the preview below cannot
+    // take the room back -- and never past the screen: what the rest of the dialog needs comes off the list, which
+    // scrolls beyond that.
+    //
+    // A child's new minimum reaches this dialog's layout only through a posted layout request per level -- the page,
+    // the tab widget's stack, the tab widget, each CACHING its child's size in its parent's layout -- so every level
+    // is told at once and the dialog measured now, not after the event loop has run.
+    const auto relayout = [this] {
+        for (QWidget* level = names_; level != nullptr && level != this; level = level->parentWidget()) level->updateGeometry();
+        layout()->activate();
+    };
+    names_->setMinimumHeight(0);
+    if (images_.size() < 2) {
+        relayout();
+        return;
+    }
+    relayout();
+    int wanted = names_->horizontalHeader()->sizeHint().height() + 2 * names_->frameWidth();
+    for (int row = 0; row < names_->rowCount(); ++row) wanted += names_->rowHeight(row);
+    if (names_->horizontalHeader()->length() > names_->viewport()->width())
+        wanted += names_->horizontalScrollBar()->sizeHint().height();
+    // The cap is measured BEFORE the minimum is set: a window grows to a minimum raised past its height, and does not
+    // shrink when it is lowered again.
+    if (const QScreen* screen = this->screen()) {
+        // The title bar is outside `height()`; before the dialog is first shown it measures nothing, so a margin
+        // stands in for it.
+        const int frame = isVisible() ? frameGeometry().height() - height() : 48;
+        const int rest = minimumSizeHint().height() - names_->minimumSizeHint().height();
+        wanted = std::min(wanted, screen->availableGeometry().height() - frame - rest);
+    }
+    names_->setMinimumHeight(std::max(names_->minimumSizeHint().height(), wanted));
+    relayout();
+    if (height() < minimumSizeHint().height()) resize(width(), minimumSizeHint().height());
 }
 
 void CustomStampDialog::showPreview(int image)

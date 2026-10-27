@@ -2950,6 +2950,10 @@
         <translation>A built-in stamp cannot be moved or deleted</translation>
     </message>
     <message>
+        <source>error.stamps.categoryExists</source>
+        <translation>A category named “%1” already exists: choose it from the list, or choose another name</translation>
+    </message>
+    <message>
         <source>error.stamps.damaged</source>
         <translation>The stamp's image file is damaged (%1)</translation>
     </message>
@@ -5244,6 +5248,10 @@
     <message>
         <source>stamps.delete</source>
         <translation>Delete</translation>
+    </message>
+    <message>
+        <source>stamps.delete.confirm</source>
+        <translation>Delete the stamp “%1” from your library? This cannot be undone.</translation>
     </message>
     <message>
         <source>stamps.dialog.title</source>

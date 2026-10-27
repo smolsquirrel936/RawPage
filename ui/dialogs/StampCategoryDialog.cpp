@@ -1,4 +1,4 @@
-// ui/dialogs/StampCategoryDialog -- implementation. Stage 6 guide I-40, I-42. See the header.
+// ui/dialogs/StampCategoryDialog -- implementation. Stage 6 guide I-40, I-42, I-45. See the header.
 
 #include "ui/dialogs/StampCategoryDialog.h"
 
@@ -10,6 +10,7 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -64,12 +65,6 @@ StampCategoryDialog::StampCategoryDialog(const QStringList& categories, const QS
     row->addWidget(new_);
     column->addLayout(row);
 
-    refusal_ = new QLabel(this);
-    refusal_->setObjectName(QStringLiteral("stampCategoryRefusal"));
-    refusal_->setWordWrap(true);
-    refusal_->hide();
-    column->addWidget(refusal_);
-
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     column->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
@@ -80,20 +75,23 @@ StampCategoryDialog::StampCategoryDialog(const QStringList& categories, const QS
 bool StampCategoryDialog::addCategory(const QString& name)
 {
     const QString trimmed = name.trimmed();
-    refusal_->clear();
-    refusal_->hide();
+    refusal_.clear();
     if (trimmed.isEmpty()) return false;
     if (isReservedName(trimmed)) {
-        refusal_->setText(catalog::translateError(QStringLiteral("error.stamps.reservedCategory"), trimmed));
-        refusal_->show();
+        refusal_ = catalog::translateError(QStringLiteral("error.stamps.reservedCategory"), trimmed);
         return false;
     }
-    int at = list_->findData(trimmed);
-    if (at < 0) {
-        list_->addItem(trimmed, trimmed);
-        at = list_->count() - 1;
+    // ONE IN THE LIST ALREADY is no NEW category (I-45, the user's choice): said, in any case, by the name it is
+    // listed under -- a second heading differing only in case is what this refuses.
+    for (int at = 0; at < list_->count(); ++at) {
+        if (list_->itemData(at).toString().compare(trimmed, Qt::CaseInsensitive) == 0
+            || list_->itemText(at).compare(trimmed, Qt::CaseInsensitive) == 0) {
+            refusal_ = catalog::translateError(QStringLiteral("error.stamps.categoryExists"), list_->itemText(at));
+            return false;
+        }
     }
-    list_->setCurrentIndex(at);
+    list_->addItem(trimmed, trimmed);
+    list_->setCurrentIndex(list_->count() - 1);
     return true;
 }
 
@@ -104,16 +102,22 @@ QString StampCategoryDialog::chosenCategory() const
 
 QString StampCategoryDialog::refusal() const
 {
-    return refusal_->text();
+    return refusal_;
 }
 
 void StampCategoryDialog::askNewCategory()
 {
-    bool accepted = false;
-    const QString name = QInputDialog::getText(this, catalog::translate(catalog::key::StampsRefile),
-                                               catalog::translate(catalog::key::StampsRefileNewPrompt), QLineEdit::Normal,
-                                               QString(), &accepted);
-    if (accepted) (void)addCategory(name);
+    // A REFUSAL IS A WARNING BOX, and the name is asked again with what was typed in it (I-45): a line under the list
+    // was easy to miss, and the person had to press *New…* and retype the whole name to correct one letter.
+    QString typed;
+    for (;;) {
+        bool accepted = false;
+        typed = QInputDialog::getText(this, catalog::translate(catalog::key::StampsRefile),
+                                      catalog::translate(catalog::key::StampsRefileNewPrompt), QLineEdit::Normal, typed,
+                                      &accepted);
+        if (!accepted || addCategory(typed) || refusal_.isEmpty()) return;   // an empty name: nothing to say
+        QMessageBox::warning(this, catalog::translate(catalog::key::StampsRefile), refusal_);
+    }
 }
 
 } // namespace rawpage::ui

@@ -2950,6 +2950,10 @@
         <translation>內建印章無法移動或刪除</translation>
     </message>
     <message>
+        <source>error.stamps.categoryExists</source>
+        <translation>已有名為「%1」的類別：請從清單中選擇，或另取名稱</translation>
+    </message>
+    <message>
         <source>error.stamps.damaged</source>
         <translation>印章的影像檔已損毀（%1）</translation>
     </message>
@@ -5244,6 +5248,10 @@
     <message>
         <source>stamps.delete</source>
         <translation>刪除</translation>
+    </message>
+    <message>
+        <source>stamps.delete.confirm</source>
+        <translation>要從印章庫刪除印章「%1」嗎？此動作無法復原。</translation>
     </message>
     <message>
         <source>stamps.dialog.title</source>
