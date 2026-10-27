@@ -2,7 +2,8 @@
 // (`Stage6-Annotations-Testing-Guide.md` §5.14).
 //
 // What the widgets decide: `Ctrl+Shift+A` through the shortcut binder, the pane's list of both kinds of attachment,
-// a pane that never widens its window (found at T11 by `tst_restore`, below), a command that needs a person to name
+// a pane that never widens its window (found at T11 by `tst_restore`, below) and whose four buttons are each as wide as
+// their word (S6 guide I-50, found in M-13's walk), a command that needs a person to name
 // a file DISABLED where nobody can be asked (convention 16), and a pushpin deleted with its pop-up. WHAT IT DOES NOT
 // COVER (convention 19): the fake backend reads no file and writes what it is told -- the bytes, the open and the
 // session folder are `tests/composition/tst_attachmentproduct.cpp`'s, over the real engine.
@@ -24,6 +25,7 @@
 #include <QApplication>
 #include <QKeyEvent>
 #include <QLayout>
+#include <QToolButton>
 #include <QTreeWidget>
 
 #include <memory>
@@ -178,6 +180,33 @@ TEST_CASE("the Attachments pane never widens its window", "[attachments][D6-17]"
     a.layout();
     CHECK(a.window->sidebar()->currentPane() == ActionId::PaneAttachments);
     CHECK(a.window->width() == 1400);
+}
+
+TEST_CASE("the Attachments pane's four buttons are each as wide as the word they say", "[attachments][D6-17][I-50]")
+{
+    // S6 GUIDE I-50, FOUND IN M-13'S WALK: the case above made the buttons give way -- each IGNORED its width, beside a
+    // stretch -- and a layout that hands the spare width by stretch gave all of it to the stretch and none to them. Four
+    // buttons ZERO pixels wide, at every width of the pane, while every case reached their commands without a click: a
+    // pane that is narrow enough was the only thing asked. This asks the other half (convention 22), at the sidebar's
+    // width in two windows, after the layout has run (convention 12).
+    Attached a;
+    CHECK(a.key(Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier));
+    for (const int width : {1000, 1400}) {
+        a.window->resize(width, 800);
+        a.layout();
+        REQUIRE(a.window->sidebar()->currentPane() == ActionId::PaneAttachments);
+        REQUIRE(a.pane().isVisible());
+        const QList<QToolButton*> buttons = a.pane().findChildren<QToolButton*>();
+        REQUIRE(buttons.size() == 4);
+        for (const QToolButton* b : buttons) {
+            const int word = b->fontMetrics().horizontalAdvance(b->text());
+            INFO("window " << width << ", pane " << a.pane().width() << ": '" << b->text().toStdString() << "' "
+                           << b->width() << " px wide for a word of " << word);
+            CHECK(b->isVisible());
+            CHECK(b->width() >= word);
+            CHECK(a.pane().rect().contains(b->geometry()));
+        }
+    }
 }
 
 TEST_CASE("an attachment command that needs a person to name a file is disabled where nobody can be asked",

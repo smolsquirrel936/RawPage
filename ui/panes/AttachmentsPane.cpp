@@ -65,10 +65,12 @@ AttachmentsPane::AttachmentsPane(QWidget* parent) : QWidget(parent)
     column->setSpacing(6);
 
     // THE PANE'S COMMANDS -- each asks the window, which runs the registered command.
-    // SHORT WORDS, AND BUTTONS THAT GIVE WAY: the four action labels side by side asked the sidebar -- and so the
-    // window -- for 490 more pixels than it had, and widened a 1400-pixel window to 1892 (found by `tst_restore`
-    // at T11, the find bar's S5 I-10 in a new place). Each button says one word and carries its command's full
-    // label as its tooltip, and none holds the pane wider than the list beside it.
+    // SHORT WORDS: the four action labels side by side asked the sidebar -- and so the window -- for 490 more pixels
+    // than it had, and widened a 1400-pixel window to 1892 (found by `tst_restore` at T11, the find bar's S5 I-10 in a
+    // new place). Each button says one word and carries its command's full label as its tooltip. THE WORD IS ITS
+    // WIDTH, AND IT KEEPS IT (S6 guide I-50): the T11 fix also made each button IGNORE its width, and beside the stretch
+    // below, which a box layout hands every spare pixel to, that left all four ZERO pixels wide at any width of the
+    // pane -- the short words are what keep the pane narrow, not the buttons giving way.
     auto* buttons = new QHBoxLayout;
     open_ = button(core::ActionId::AttachmentOpen, catalog::key::AttachmentsButtonOpen);
     extract_ = button(core::ActionId::AttachmentExtract, catalog::key::AttachmentsButtonExtract);
@@ -116,7 +118,6 @@ QToolButton* AttachmentsPane::button(core::ActionId id, QLatin1String word)
     b->setText(catalog::translate(word));
     b->setToolTip(catalog::translateAction(id));
     b->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    b->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);   // its minimum is no claim on the pane's width
     connect(b, &QToolButton::clicked, this, [this, id] { emit actionRequested(id); });
     return b;
 }
