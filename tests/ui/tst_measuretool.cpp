@@ -40,6 +40,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDoubleSpinBox>
@@ -198,6 +199,22 @@ struct Measuring {
         QCoreApplication::sendEvent(view->viewport(), &event);
         mouse(QEvent::MouseButtonRelease, pos);
     }
+    // A right press and its release, then the context menu event Windows sends after them (S6 guide I-48). Returns
+    // whether the page ACCEPTED the menu event -- taken by a finished measurement -- rather than ignored it.
+    bool rightClick(QPoint pos) const
+    {
+        const QPointF global(view->viewport()->mapToGlobal(pos));
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(pos), global, Qt::RightButton, Qt::RightButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(view->viewport(), &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(pos), global, Qt::RightButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(view->viewport(), &release);
+        QContextMenuEvent menu(QContextMenuEvent::Mouse, pos, global.toPoint());
+        QCoreApplication::sendEvent(view->viewport(), &menu);
+        QCoreApplication::processEvents();
+        return menu.isAccepted();
+    }
     bool key(Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) const
     {
         QWidget* focus = QApplication::focusWidget();
@@ -312,6 +329,78 @@ TEST_CASE("a perimeter and an area are clicked point by point and finished by En
     CHECK(area.intent == QStringLiteral("PolygonDimension"));
     CHECK(area.vertices.size() == 8);
     CHECK(readingOf(area).find("sq ft") != std::string::npos);
+}
+
+TEST_CASE("a perimeter and an area are finished by a right click which places no point", "[measuretool][I-48]")
+{
+    // S6 guide I-48, the user's: a right click finishes a perimeter or an area as `Enter` does. The control halves:
+    // with nothing in progress, and with a distance anchored, the right click is not the tool's and makes nothing.
+    Measuring m;
+    m.fixture.settings.set(core::keys::units::snapToObjects, false);
+    m.setScale(48.0, core::MeasureUnit::Feet);
+    const std::size_t steps = m.historySize();
+
+    m.arm(core::ActionId::AnnotMeasurePerimeter);
+    CHECK_FALSE(m.rightClick(m.at(450, 700)));   // nothing in progress: the page's, not the tool's
+    CHECK(m.made().empty());
+    for (const QPoint p : {m.at(100, 500), m.at(100, 644), m.at(316, 644)}) m.click(p);
+    CHECK(m.made().empty());
+    CHECK(m.rightClick(m.at(450, 700)));   // taken, and its menu with it
+    REQUIRE(m.made().size() == 1);
+    CHECK(m.historySize() == steps + 1);   // ONE command
+    const Annotation perimeter = m.made().back();
+    CHECK(perimeter.intent == QStringLiteral("PolyLineDimension"));
+    CHECK(perimeter.vertices.size() == 6);   // three points: the right click placed none
+    CHECK_FALSE(m.view->tools().measuring().inProgress());
+
+    REQUIRE(m.key(Qt::Key_A, kCtrlAlt));
+    for (const QPoint p : {m.at(100, 500), m.at(316, 500), m.at(316, 644)}) m.click(p);
+    CHECK(m.rightClick(m.at(450, 700)));
+    REQUIRE(m.made().size() == 2);
+    const Annotation area = m.made().back();
+    CHECK(area.intent == QStringLiteral("PolygonDimension"));
+    CHECK(area.vertices.size() == 6);
+    CHECK(readingOf(area).find("sq ft") != std::string::npos);
+
+    // A DISTANCE anchored by a click is not finished by a right click: it needs its second point.
+    REQUIRE(m.key(Qt::Key_D, kCtrlAlt));
+    m.click(m.at(100, 400));
+    REQUIRE(m.view->tools().measuring().inProgress());
+    CHECK_FALSE(m.rightClick(m.at(450, 700)));
+    CHECK(m.view->tools().measuring().inProgress());
+    CHECK(m.made().size() == 2);
+}
+
+TEST_CASE("the pointer is hidden while a snap marker is shown and the cross is back when none is",
+          "[measuretool][I-49]")
+{
+    // S6 guide I-49, the user's choice: a snap's marker lies within eight device pixels of the pointer, under its
+    // cross, so the cursor is hidden while one is shown. WHAT THIS DOES NOT COVER (convention 19): what Windows draws
+    // -- offscreen there is no pointer; the shape the viewport was GIVEN is read, and a person sees it in M-09.
+    Measuring m;
+    REQUIRE(m.key(Qt::Key_D, kCtrlAlt));
+    m.loadPaths(m.at(100, 500));
+    const auto shape = [&m] { return m.view->viewport()->cursor().shape(); };
+
+    m.hover(m.at(100, 500) + QPoint(3, 0));   // three pixels from a corner
+    REQUIRE(m.view->tools().measuring().showsSnapMarker());
+    CHECK(shape() == Qt::BlankCursor);
+    m.hover(m.at(450, 700));   // nowhere near a path
+    CHECK_FALSE(m.view->tools().measuring().showsSnapMarker());
+    CHECK(shape() == Qt::CrossCursor);
+    // Mid-gesture too: the first point anchored, the pointer on a midpoint.
+    m.click(m.at(100, 400));
+    m.hover(m.at(244, 400) + QPoint(0, 3));
+    CHECK(shape() == Qt::BlankCursor);
+    REQUIRE(m.key(Qt::Key_Escape));
+
+    // THE CONTROL: with object snapping off nothing is caught, and the cross stays where the corner is.
+    m.fixture.settings.set(core::keys::units::snapToObjects, false);
+    QCoreApplication::processEvents();
+    REQUIRE(m.key(Qt::Key_D, kCtrlAlt));
+    m.hover(m.at(100, 500) + QPoint(3, 0));
+    CHECK_FALSE(m.view->tools().measuring().showsSnapMarker());
+    CHECK(shape() == Qt::CrossCursor);
 }
 
 TEST_CASE("an area that crosses itself is refused by name and nothing is made", "[measuretool][A-87]")

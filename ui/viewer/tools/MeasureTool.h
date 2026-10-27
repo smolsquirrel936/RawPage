@@ -7,13 +7,19 @@
 //     second measures.
 //   * **A dimension callout**: the two points as a distance, then the pointer moves the dimension line off them on
 //     leader lines and a click sets it there (`/LL`); `Enter` sets it where it is.
-//   * **A perimeter or an area**: a click at each point, `Enter` (`annot.finishShape`) or a double click to finish
-//     -- two points at least for a perimeter, three for an area; `Esc` abandons and returns to the Selection tool.
+//   * **A perimeter or an area**: a click at each point, `Enter` (`annot.finishShape`), a double click or -- since
+//     S6 guide I-48 -- a right click to finish, the right click placing no point, as `Enter` places none; two points
+//     at least for a perimeter, three for an area; `Esc` abandons and returns to the Selection tool.
 // Every point is SNAPPED where it lands (`ToolHost::snapMeasured`: the page's path endpoints, midpoints and
 // crossings first, then a point on a path, the annotations' sides, the guides and the grid -- `core/Snap.h`), unless
 // `Shift` holds the new segment to 45-degree steps from the last point instead. While a gesture is in flight the
 // tool paints the snap it would take -- a square at an endpoint, a triangle at a midpoint, a cross at a crossing, a
 // ring on a path -- and the RUNNING READING beside the pointer, in the scale the `measuring/*` keys state.
+//
+// THE POINTER IS HIDDEN WHILE A SNAP IS SHOWN (S6 guide I-49, the user's choice). A snap catches within eight device
+// pixels of the pointer, so its marker always lay under the cross, and Windows draws the pointer above anything a
+// widget paints: the person could not tell a square from a triangle. While a marker is up the cursor is
+// `Qt::BlankCursor` and the marker is what the person aims with; with nothing caught the cross comes back.
 //
 // What is MADE is `core::newMeasurement`'s: the subtype and `/IT` of its kind, `/Measure` at the scale, the reading
 // in `/Contents` when `measuring/writeToComment` is on, styled from the tool's defaults and fitted to what it draws
@@ -43,7 +49,8 @@ public:
     static std::optional<core::MeasureKind> kindOf(AnnotationToolKind kind) noexcept;
 
     ToolKind kind() const override { return ToolKind::Annotate; }
-    Qt::CursorShape cursor() const override { return Qt::CrossCursor; }
+    // The cross, or none while a snap marker is shown (I-49, see the header).
+    Qt::CursorShape cursor() const override { return showsSnapMarker() ? Qt::BlankCursor : Qt::CrossCursor; }
     bool paintsOverlay() const override { return true; }
     // The snap a click would take is shown before the first one.
     bool tracksHover() const override { return true; }
@@ -60,6 +67,8 @@ public:
     void move(ToolHost& host, QPoint pos) override;
     void moveWith(ToolHost& host, QPoint pos, Qt::KeyboardModifiers modifiers) override;
     void release(ToolHost& host, QPoint pos) override;
+    // A perimeter's or an area's right click finishes it (I-48); taken only while one is in progress.
+    bool secondaryPress(ToolHost& host, QPoint pos) override;
     void cancel(ToolHost& host) override;
     bool isDragging() const override { return dragging_ || !points_.empty(); }
     void paint(QPainter& painter, const ToolHost& host) const override;
@@ -74,6 +83,8 @@ public:
     const std::vector<core::PdfPoint>& points() const noexcept { return points_; }
     const std::optional<core::SnapResult>& hover() const noexcept { return hover_; }
     QString runningReading(const ToolHost& host) const;
+    // A snap marker is painted where the next click would land -- the case for the hidden pointer (I-49).
+    bool showsSnapMarker() const noexcept;
 
 private:
     // Where `pos` lands on the gesture's page (the page under it, for the first point): `Shift`'s 45 degrees from the

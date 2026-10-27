@@ -43,6 +43,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace rawpage::ui {
 namespace {
@@ -1245,7 +1246,9 @@ void PageView::mousePressEvent(QMouseEvent* event)
     // so the pop-up a click opened goes, unless the press is on it.
     if (annotations_ != nullptr && !overlayFirst()) (void)annotations_->dismissPopupAt(annotationViewport(), event->pos());
 
-    if (!tools_->press(event->pos(), event->button(), event->modifiers(), clicks_)) {
+    const bool taken = tools_->press(event->pos(), event->button(), event->modifiers(), clicks_);
+    if (event->button() == Qt::RightButton) rightPressTaken_ = taken;
+    if (!taken) {
         QAbstractScrollArea::mousePressEvent(event);
         return;
     }
@@ -1731,6 +1734,14 @@ bool PageView::event(QEvent* event)
 
 void PageView::contextMenuEvent(QContextMenuEvent* event)
 {
+    // S6 guide I-48: a right click that FINISHED a measurement was the tool's, so no menu follows it -- not even a
+    // guide's, under a point the person aimed at. Windows sends this event after the release, so the press marks it.
+    const bool taken = std::exchange(rightPressTaken_, false);
+    if (taken && event->reason() == QContextMenuEvent::Mouse) {
+        event->accept();
+        return;
+    }
+
     // The position arrives in THIS widget's coordinates; the guides are hit-tested in the
     // viewport's, which differ by the scroll area's frame.
     const QPoint inViewport = viewport()->mapFrom(this, event->pos());

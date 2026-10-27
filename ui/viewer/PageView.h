@@ -728,6 +728,9 @@ private:
     int               clicks_ = 0;
     qint64            lastPressMs_ = 0;
     QPoint            lastPressPos_;
+    // S6 guide I-48: the last right press was a tool's -- a measurement finished -- so the context menu that
+    // follows it is not shown.
+    bool              rightPressTaken_ = false;
 };
 
 } // namespace rawpage::ui

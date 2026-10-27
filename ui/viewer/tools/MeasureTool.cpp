@@ -176,6 +176,21 @@ void MeasureTool::release(ToolHost& host, QPoint pos)
     secondPlaced(host);
 }
 
+bool MeasureTool::secondaryPress(ToolHost& host, QPoint pos)
+{
+    // S6 guide I-48: a perimeter or an area IN PROGRESS finishes, as `Enter` does -- no point placed where the right
+    // click fell. A distance, a dimension, or nothing in progress leaves the press to the page.
+    if (which_ != AnnotationToolKind::MeasurePerimeter && which_ != AnnotationToolKind::MeasureArea) return false;
+    at_ = pos;
+    return finish(host);   // false with no point placed
+}
+
+bool MeasureTool::showsSnapMarker() const noexcept
+{
+    // What `paint` draws a marker for: a point snapped to, or a guide or the grid caught.
+    return hover_.has_value() && (hover_->pointKind.has_value() || hover_->snapped());
+}
+
 void MeasureTool::secondPlaced(ToolHost& host)
 {
     if (which_ == AnnotationToolKind::Dimension && !calibrating_) {
@@ -283,7 +298,8 @@ void MeasureTool::paint(QPainter& painter, const ToolHost& host) const
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    // THE SNAP THE NEXT CLICK WOULD TAKE, by its kind -- before the first click too.
+    // THE SNAP THE NEXT CLICK WOULD TAKE, by its kind -- before the first click too. While one is drawn the pointer
+    // is hidden (`cursor()`, S6 guide I-49), so this is all the person sees of where they aim.
     if (hover_) {
         const int page = points_.empty() ? -1 : page_;
         std::optional<QPointF> at;

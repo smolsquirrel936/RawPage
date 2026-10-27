@@ -305,6 +305,12 @@ void ToolController::setModifiers(Qt::KeyboardModifiers modifiers)
 bool ToolController::press(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers modifiers, int clicks)
 {
     setModifiers(modifiers);
+    // S6 guide I-48: a RIGHT press is the tool's only when it says so -- a perimeter or an area finishing.
+    if (button == Qt::RightButton) {
+        if (!activeTool().secondaryPress(host_, pos)) return false;
+        emitCursor();
+        return true;
+    }
     if (button != Qt::LeftButton) return false;
 
     Tool& tool = activeTool();

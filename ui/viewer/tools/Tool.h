@@ -319,6 +319,16 @@ public:
     }
     virtual void release(ToolHost& host, QPoint pos) = 0;
 
+    // A RIGHT press (S6 guide I-48): whether the tool took it. Only a measuring tool's perimeter or area in progress
+    // does -- it finishes, as `Enter` would. Every other press falls through to the page, whose right click is the
+    // guides' menu, which is what the default says.
+    virtual bool secondaryPress(ToolHost& host, QPoint pos)
+    {
+        (void)host;
+        (void)pos;
+        return false;
+    }
+
     // Abandon whatever is in progress and leave the view as it was before it started. Called by
     // `Esc`, and by `ToolController` when the armed tool changes under a live drag.
     virtual void cancel(ToolHost& host) = 0;
