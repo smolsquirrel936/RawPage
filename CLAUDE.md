@@ -580,7 +580,7 @@ reads the *previous* command's — use `Start-Process -Wait -PassThru` and read 
 missing wait garbles the terminal**: the prompt is drawn before the product's log, and PSReadLine redraws
 it on the next key at the line it remembers, so the log is overwritten in place — launch a walk's build
 with `.\scripts\run.ps1 <args>` (`-Preset x64-debug` for the debug one), which waits (Stage 6 guide
-**I-35**). **Never with `Start-Process -NoNewWindow`**: that hands the child the console's handles, so
+**I-35**) and reports a non-zero exit code even when a Ctrl+C ended it (**I-51**). **Never with `Start-Process -NoNewWindow`**: that hands the child the console's handles, so
 `app/main.cpp` never calls `AttachConsole` and a Ctrl+C never reaches it (measured 2026-10-22). A
 Ctrl+C in the console asks the product to close its windows; a second while the first waits ends it
 (`app/ConsoleInterrupt.h`). And an

@@ -64,6 +64,8 @@ $saved = @{}
 foreach ($name in 'PATH', 'VCPKG_ROOT', 'RAWPAGE_QT_PREFIX', 'RAWPAGE_MINGW_ROOT') {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
+$process = $null
+$code = 0
 try {
     . (Join-Path $PSScriptRoot 'env.ps1') -Quiet
 
@@ -79,10 +81,16 @@ try {
     # A blocking .NET call, so a Ctrl+C here does not abandon the wait: the same Ctrl+C reaches the product,
     # which closes, and PowerShell acts on it only once the call returns -- below the product's last line.
     $process.WaitForExit()
-    $code = $process.ExitCode
 } finally {
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+
+    # The exit code is reported HERE, not after the block: that same Ctrl+C reaches PowerShell too, which stops
+    # this script the moment WaitForExit() returns, and only a finally still runs -- so a line after it never
+    # printed the code of a forced end, 0xC000013A, the one end worth flagging (Stage 6 guide I-51).
+    if ($process -and $process.HasExited) {
+        $code = $process.ExitCode
+        if ($code -ne 0) { Write-Host ("rawpage exited with code {0} (0x{0:X8})" -f $code) -ForegroundColor Yellow }
+    }
 }
 
-if ($code -ne 0) { Write-Host ("rawpage exited with code {0} (0x{0:X8})" -f $code) -ForegroundColor Yellow }
 exit $code
