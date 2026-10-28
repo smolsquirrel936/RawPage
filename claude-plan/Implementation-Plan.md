@@ -412,12 +412,17 @@ guide case A-62's own *"report not applicable explicitly rather than pass vacuou
 ## 3. Stage dependency order
 
 ```
-0 ─▶ 1 ─▶ 2 ─▶ 3 ─▶ 4 ─▶ 5 ─▶ ┬─▶ 6 ─┬─▶ 8 ─▶ ┬─▶  9 ─┬─▶ 11 ─▶ 12 ─▶ 13 ─▶ 14 ─▶ 15 ─▶ 16
-                              └─▶ 7 ─┘         └─▶ 10 ─┘
+0 ─▶ 1 ─▶ 2 ─▶ 3 ─▶ 4 ─▶ 5 ─▶ ┬─▶ 6 ──┬─▶ 8 ─▶ ┬─▶  9 ─┬─▶ 11 ─▶ 12 ─▶ 13 ─▶ 14 ─▶ 15 ─▶ 16
+                              └─▶ 7a ─┘         └─▶ 10 ─┘
+                                   └─▶ 7b ────────────▶ 10
 ```
 
 - **0 → 1 → 2 → 3** is strictly sequential and is [the first milestone](./Tech-Stack-Plan.md#7-recommended-first-milestone-foundation-vertical-slice). Nothing parallelizes here; each proves a decision the next one builds on.
 - **6 and 7** may run in parallel — annotations and page assembly touch disjoint parts of the model.
+- **7 is signed off in two halves** (`Stage7-Assembly-Plan.md` Q3, 2026-10-29): **8 depends on 7a** (T1 … T13 —
+  pages, copying, `FullWriter`, new documents, the thumbnails pane, merge, bookmarks, links), and **7b** (T14 … T19 —
+  decorations, imposition, layers, tags) may run beside 8; **10 depends on 7b**, whose `LayerTree` and `TagTree`
+  the content-rewriting capabilities Q2 moved to Stage 10 extend.
 - **9 and 10** may run in parallel after 8.
 - **11** needs 10 (encryption re-keying shares `pdf/cos` crypt code) and 8 (incremental save of a signature dictionary).
 - **13** is the largest stage and depends on 5's `LayoutAnalyzer`; it may be split 13a/13b and its two halves parallelized after 13a's model lands.
@@ -1741,13 +1746,20 @@ slips, it slips alone.
 
 ### Stage 7 — Document assembly
 
-**Status:** ⚪ **Not started.** May run in parallel with Stage 6.
+**Status:** ⚪ **Not started — no Stage 7 code.** Its plan, [`Stage7-Assembly-Plan.md`](./Stage7-Assembly-Plan.md), and its testing guide, [`Stage7-Assembly-Testing-Guide.md`](./Stage7-Assembly-Testing-Guide.md), were **drafted 2026-10-28**, the day Stage 6 was signed off; **the plan's §0 is open in part**: Q1, a new document's writer, **answered 2026-10-29** — a first-party assembler (*Components*, below); Q2, content rewriting, **answered the same day** — seven capabilities moved to Stage 10 (*Objectives*, below); Q3, **answered the same day** — the stage is signed off as **7a** (T1 … T13), after which Stage 8 may start, and **7b** (T14 … T19); and, outside the five the same day, `pdf/cos/FullWriter` **taken from Stage 8** for Save As that rewrites and compacts, Save a Copy and every new document, with the bookmark and tag-tree exports (the plan's D7-25, *Objectives* and *Components* below); Q4, **answered the same day** — `DW-4`'s second cause (`Deferred-Work.md`) taken as the plan's T4; Q5, **answered the same day** — non-PDF merge inputs and pages from non-RawPage clipboard content to Stage 12, imposition at print time to Stage 8, Bates over documents that are not open to Stage 14, and drawn text under Stage 6's fonts with `DW-3` widened. **§0 is fully answered**; the plan's P-3, a duplex printer for the booklet walk, is open, each of which would amend this entry once answered (the plan's §10 lists what). May run in parallel with Stage 6.
 
 **Objectives.** All of [`Features.md` §5](./Features.md#5-assemble) except batch: page operations,
 merge, bookmark editing, tags, layers, headers/footers/Bates, watermarks, imposition, and links —
 **and [`Features.md` §4.1](./Features.md#41-annotation-tools)'s *create a custom stamp from a PDF
 page***, taken from Stage 6 on 2026-10-04 by the user's answer to its plan's Q7
-(`Stage6-Annotations-Plan.md` D6-16): Stage 6 builds custom stamps from images only.
+(`Stage6-Annotations-Plan.md` D6-16): Stage 6 builds custom stamps from images only. **Except seven
+capabilities of §5.5 and §5.6 that rewrite existing page content** — *flatten all layers*, *delete a layer and its content*, *assign selected content to a layer*, *auto-tag an untagged document*, *mark content as an artifact* and *set a language on a run* — **moved to Stage 10 on
+2026-10-29** by the user's answer to `Stage7-Assembly-Plan.md` Q2: each must parse and rewrite marked content in
+someone else's streams, and `pdf/cos/ContentStreamParser` is Stage 10's (`Stage5-TextSearch-Plan.md` D5-19).
+Stage 7 keeps every layer and tag operation that needs no parser. **And from
+[`Features.md` §2.5](./Features.md#25-save-and-export)**: Save As rewritten and compacted, Save a Copy, export
+bookmarks as an indented text outline and export the document's tag tree — **taken from Stage 8 on 2026-10-29**
+(`Stage7-Assembly-Plan.md` D7-25, the user's choice).
 
 **Components & responsibilities.**
 - **`pdf/ops/ObjectGraphCopier`** — copies a page's content and every object it reaches from one
@@ -1755,10 +1767,22 @@ page***, taken from Stage 6 on 2026-10-04 by the user's answer to its plan's Q7
   Stage 6 on 2026-10-04** (Q7): its consumers are this stage's merge and insert-from-file, and the
   custom stamp made from a PDF page, which writes the copied page as a form XObject into a Stage 6
   `Stamp` annotation's appearance through Stage 6's `AppearanceStreamBuilder` and `ProfileStore`.
+- **`pdf/ops/DocumentAssembler`** — writes a NEW single-revision PDF from page graphs `ObjectGraphCopier`
+  copied: one classic cross-reference section, no object streams, no compaction, no version target, read
+  back and verified before it counts; the writer of extract, split, merge and imposition. **Added
+  2026-10-29** by the user's answer to `Stage7-Assembly-Plan.md` Q1 (D7-5): each of those makes a
+  document that did not exist, which the incremental writer cannot, and `pdf/cos/FullWriter` (Stage 8)
+  rewrites existing documents and stays Stage 8's. ***Amended the same day*** (D7-25): the assembler
+  BUILDS the document and `pdf/cos/FullWriter`, brought into this stage, WRITES and verifies it.
+- **`pdf/cos/FullWriter`** — `Result<void> write(QIODevice&, const Document&, WriteOptions)`. **Taken from
+  Stage 8 on 2026-10-29** (`Stage7-Assembly-Plan.md` D7-25): Save As writes one revision of what is reachable,
+  **every surviving object keeping its number and generation**, so identities, the journal and undo survive it;
+  Save a Copy; `documents/saveMode`; a signed document asks first, an encrypted one is copied and appended.
+  Dense renumbering, object streams, version targets and linearization stay Stage 8's.
 - `core/doc/PageTree` (full mutation set), `Outline` (full editing + generators),
   `Destinations`, `LayerTree`, `TagTree`.
-- `core/cmd/commands/PageCommands` (all: insert, delete, move, duplicate, extract, replace, crop,
-  resize, renumber), `BookmarkCommands`, `StructureCommands`, `DecorationCommands`.
+- `core/cmd/commands/PageCommands` (all: insert, delete, move, duplicate, replace, crop,
+  resize, renumber — *extract* is not a command since 2026-10-29: it changes no open document, Q1), `BookmarkCommands`, `StructureCommands`, `DecorationCommands`.
 - `pdf/ops/PageOps` (full), `DecorationOps` — `void applyWatermark(const WatermarkSpec&, Range)`,
   `void applyHeaderFooter(const HfSpec&, Range)`, `void applyBates(const BatesSpec&, Range)`;
   `ImpositionOps` — `Result<Document> impose(const Document&, const ImpositionSpec&)`.
@@ -1776,15 +1800,20 @@ The rest of [Bookmarks](./Features.md#bookmarks-pane): `F2`, `Delete`, `Ctrl+B`,
 `documents/splitMode`, `documents/splitValue`, `documents/mergeBookmarkPerFile`,
 `documents/renameCollidingFields`, `documents/watermarkProfile`, `documents/headerFooterProfile`,
 `documents/batesStart`, `documents/batesDigits`, `documents/batesPrefix`, `documents/batesSuffix`,
-`documents/impositionProfile`, `documents/autoDetectUrls`, `documents/linkAppearance`.
+`documents/impositionProfile`, `documents/autoDetectUrls`, `documents/linkAppearance` — and
+`documents/saveMode` (incremental | full), taken from Stage 8 with `FullWriter` on 2026-10-29 (D7-25).
 
 **Cross-cutting additions.** Commands: `InsertPages`, `DeletePages`, `MovePages`, `DuplicatePages`,
-`ExtractPages`, `ReplacePages`, `CropPages`, `ResizePages`, `RenumberPages`, `MergeDocuments`,
+~~`ExtractPages`~~, `ReplacePages`, `CropPages`, `ResizePages`, `RenumberPages`, ~~`MergeDocuments`~~,
 `CreateBookmark`, `RenameBookmark`, `DeleteBookmark`, `ReparentBookmark`, `SetBookmarkTarget`,
-`GenerateBookmarks`, `CreateLayer`, `DeleteLayer`, `MergeLayers`, `FlattenLayers`, `SetLayerUsage`,
-`RetagElement`, `AutoTag`, `ApplyWatermark`, `RemoveWatermark`, `ApplyHeaderFooter`,
+`GenerateBookmarks`, `CreateLayer`, `DeleteLayer`, `MergeLayers`, ~~`FlattenLayers`~~, `SetLayerUsage`,
+`RetagElement`, ~~`AutoTag`~~, `ApplyWatermark`, `RemoveWatermark`, `ApplyHeaderFooter`,
 `RemoveHeaderFooter`, `ApplyBates`, `RemoveBates`, `CreateLink`, `EditLink`, `DeleteLink`,
-`CreateDestination`, `RenameDestination`, `DeleteDestination`. i18n: `pages.*`, `bookmarks.*`,
+`CreateDestination`, `RenameDestination`, `DeleteDestination`. **`ExtractPages` and `MergeDocuments` struck
+2026-10-29** (`Stage7-Assembly-Plan.md` Q1, D7-5): each writes a new document through
+`pdf/ops/DocumentAssembler` and changes no open one, so neither is a command; *extract and delete* is the
+assembly, verified, followed by one `DeletePages`. **`FlattenLayers` and `AutoTag` moved to Stage 10
+2026-10-29** (`Stage7-Assembly-Plan.md` Q2): both rewrite content streams. i18n: `pages.*`, `bookmarks.*`,
 `layers.*`, `tags.*`, `decorate.*`, `links.*`.
 
 **Algorithms & notes.**
@@ -1798,7 +1827,8 @@ The rest of [Bookmarks](./Features.md#bookmarks-pane): `F2`, `Delete`, `Ctrl+B`,
   non-linear in pages.
 - Bates numbering across a document set is one logical run: the allocator is shared and the report
   states the first and last number per document.
-- `MergeDocuments` is the only page command that can hit form-field name collisions; the policy
+- A merge is the only assembly that can hit form-field name collisions (it was the command
+  `MergeDocuments` until Q1, 2026-10-29); the policy
   (rename versus deliberately merge) is a setting, and the result is reported either way.
 
 **Testing.**
@@ -1806,8 +1836,8 @@ The rest of [Bookmarks](./Features.md#bookmarks-pane): `F2`, `Delete`, `Ctrl+B`,
 destinations, tags survive every reordering), `tst_outline` (hierarchy ops and all three generators),
 `tst_layers`, `tst_tags`, `tst_decoration` (apply → remove → byte-compare against the original),
 `tst_imposition` (n-up and booklet page order for 2/4/8/16 and odd counts), `tst_merge` (bookmarks,
-links, fields, layers preserved; collisions reported); reversibility and round-trip for all 36
-commands.
+links, fields, layers preserved; collisions reported); reversibility and round-trip for all
+commands (36 as first listed; `Stage7-Assembly-Plan.md` §4 owns the list since Q1, 2026-10-29).
 *Manual:* → queued **`Stage7-Assembly-Testing-Guide.md`**. Emphasis: drag pages between two open
 documents; a 30-way merge; booklet imposition printed duplex on paper and physically folded.
 
@@ -1817,24 +1847,41 @@ headers/footers apply, update, and remove cleanly; imposition output is correct 
 tree can be viewed, retyped and reordered.
 
 **Deferrals.** Batch (Stage 14). Scanner-sourced page insert (Stage 16). Flatten (Stage 8).
-Portfolios (Stage 16).
+Portfolios (Stage 16). The seven content-rewriting capabilities of §5.5 and §5.6 (Stage 10, `Stage7-Assembly-Plan.md` Q2,
+2026-10-29). **By the plan's Q5, 2026-10-29:** non-PDF inputs converted during a merge, and pages inserted from clipboard
+content that is not RawPage pages or an image (Stage 12); imposition at print time (Stage 8); Bates numbering
+across documents that are not open (Stage 14). Text Stage 7 draws on pages — headers, footers, watermarks, Bates
+prefixes and suffixes, the table-of-contents page — is Latin and CJK only, under `Stage6-Annotations-Plan.md`
+D6-7's fonts; every other script is `DW-3` (`Deferred-Work.md`).
 
 ---
 
 ### Stage 8 — Save, export, and optimize
 
 **Status:** ⚪ **Not started.** This is the stage that makes the product's output *shippable* — up to
-here every path has been incremental-save only.
+here every path has been incremental-save only. **It may start once Stage 7a is signed off**
+(`Stage7-Assembly-Plan.md` Q3, 2026-10-29), and **Save As that rewrites is already Stage 7's** (D7-25). **Found
+answering Q3, for this stage's plan to settle:** two §2.5 items — *flatten layers into a single visible layer*
+and *discard hidden layer content* — rewrite content streams, which `pdf/cos/ContentStreamParser` (Stage 10)
+does, and read Stage 7b's `LayerTree`; as listed here they cannot be built before Stage 10.
 
-**Objectives.** All of [`Features.md` §2.5](./Features.md#25-save-and-export): full-rewrite Save-As,
-version and conformance targets, export to every listed format, content reuse, optimization, and
+**Objectives.** All of [`Features.md` §2.5](./Features.md#25-save-and-export) **except** Save As's rewrite and
+compaction, Save a Copy and the bookmark and tag-tree exports, Stage 7's since 2026-10-29 (`Stage7-Assembly-Plan.md`
+D7-25): dense renumbering and object-stream packing on Save-As, version and conformance targets, export to every listed format, content reuse, optimization, and
 flattening — **and the two PDF outputs of [`Features.md` §1.5](./Features.md#15-document-comparison-)'s
-comparison**, taken from Stage 5 on 2026-09-29 (below) — **and [`Features.md` §4.2](./Features.md#42-comment-management)'s
+comparison**, taken from Stage 5 on 2026-09-29 (below) — **and [`Features.md` §5.9](./Features.md#59-imposition)'s
+*impose only at print time***, taken from Stage 7 on 2026-10-29 by the user's answer to `Stage7-Assembly-Plan.md`
+Q5(b): imposition is printed through this stage's `PrintDialog`, and Stage 7 produces imposed documents — **and [`Features.md` §4.2](./Features.md#42-comment-management)'s
 comments summary in its four layouts and printing with comments**, taken from Stage 6 on 2026-10-04
 (below).
 
 **Components & responsibilities.**
-- `pdf/cos/FullWriter` — `Result<void> write(QIODevice&, const Document&, WriteOptions)`.
+- `pdf/cos/FullWriter` — `Result<void> write(QIODevice&, const Document&, WriteOptions)`. **Not the
+  only whole-file writer from Stage 7 on** (2026-10-29, `Stage7-Assembly-Plan.md` Q1, D7-5), and
+  **built at Stage 7 for its first half** (D7-25, the same day): the rewrite that drops unreachable objects and
+  superseded revisions while every surviving object keeps its number, Save a Copy, and the writing of every
+  new document `pdf/ops/DocumentAssembler` builds. **This stage adds** dense renumbering, object-stream
+  packing, version targets and what conformance needs.
 - `pdf/cos/Linearizer`.
 - `pdf/ops/OptimizeOps` — `Result<Savings> optimize(Document&, const OptimizeProfile&)`,
   `SpaceAudit audit(const Document&) const`.
@@ -1866,9 +1913,10 @@ comments summary in its four layouts and printing with comments**, taken from St
 `convertFrom/exportColourSpace`, `convertFrom/textLayoutPreserving`,
 `convertFrom/officeEngine` (firstParty | officeBridge), `documents/optimizeProfile`,
 `documents/targetPdfVersion`, `documents/conformanceTarget`, `documents/linearizeOnSave`,
-`documents/flattenTargets`, `documents/saveMode` (incremental | full) — **moved here from Stage 3**
-(`Stage3-Mutation-Plan.md` D3-9), because `full` is `FullWriter`'s. **`Ctrl+Shift+S` is registered
-from Stage 3**, where Save-As copies and appends (D3-16); this stage changes what it writes, not
+`documents/flattenTargets`. ~~`documents/saveMode`~~ (incremental | full) — moved here from Stage 3
+(`Stage3-Mutation-Plan.md` D3-9), because `full` is `FullWriter`'s, and **on to Stage 7 with `FullWriter` on
+2026-10-29** (`Stage7-Assembly-Plan.md` D7-25). **`Ctrl+Shift+S` is registered
+from Stage 3**, where Save-As copies and appends (D3-16); Stage 7 changes what it writes (D7-25), not
 whether it exists. **`commenting/summaryLayout` and `commenting/printComments`** — moved here from
 Stage 6 on 2026-10-04 (its plan's Q4), with the summary and printing they configure.
 
@@ -1985,12 +2033,18 @@ operation in the product whose correctness is a **security** property — a reda
 text recoverable is a data breach, not a bug.
 
 **Objectives.** [`Features.md` §7.1–§7.5 and §7.9](./Features.md#7-secure--sign-): passwords,
-certificate encryption, security schemes, redaction, hidden-content removal, and the trust manager.
+certificate encryption, security schemes, redaction, hidden-content removal, and the trust manager —
+**and seven capabilities of [`Features.md` §5.5 and §5.6](./Features.md#55-tags-and-document-structure)**: *flatten all layers*, *delete a layer and its content*, *assign selected content to a layer*, *auto-tag an untagged document*, *mark content as an artifact* and *set a language on a run*, **taken from Stage 7 on 2026-10-29** by the user's answer to
+`Stage7-Assembly-Plan.md` Q2, because each rewrites marked content inside existing streams and this stage builds the parser that
+can. Stage 7's `LayerTree`, `TagTree` and their panes are what they extend.
 
 **Components & responsibilities.**
 - `core/doc/Permissions` — `bool may(Operation) const`.
 - `core/security/{EncryptionPolicy,SecurityScheme,SecuritySchemeStore,RedactionPlan,HiddenContentScanner,TrustPolicy}`.
 - `core/cmd/commands/SecurityCommands`.
+- The content-rewriting half of `core/cmd/commands/StructureCommands` — `FlattenLayers`, `AutoTag` and
+  the commands the other five capabilities need — over `ContentStreamParser`. **Taken from Stage 7 on
+  2026-10-29** (`Stage7-Assembly-Plan.md` Q2).
 - `pdf/cos/{StandardSecurityHandler,PublicKeySecurityHandler}`.
 - `pdf/cos/ContentStreamParser` — content-stream operators into a token stream with graphics-state
   tracking, which `RedactionOps` needs to find and rewrite what a mark covers. **Moved here from Stage 5
@@ -2118,7 +2172,10 @@ the offline state reports honestly.
 
 **Objectives.** The v1 subset of [`Features.md` §2.1](./Features.md#21-create-a-pdf): blank PDF,
 from one or many files, from the clipboard, from a screen-region capture, and from an open document's
-page range.
+page range — **and two §5 capabilities taken from Stage 7 on 2026-10-29** by the user's answer to
+`Stage7-Assembly-Plan.md` Q5: *include non-PDF files in a merge, converting them* (§5.3, Q5(a)), and
+*insert pages from the clipboard* when the clipboard holds text, HTML or Office content rather than RawPage
+pages or an image (§5.1, Q5(d)) — each the conversion this stage builds, placed in front of Stage 7's copier.
 
 **Components & responsibilities.**
 - `core/create/DocumentBuilder` — `Result<Document> blank(const PageSpec&)`,
@@ -2271,7 +2328,11 @@ generation. Merging revisions from two writable documents.
 **Status:** ⚪ **Not started.**
 
 **Objectives.** [`Features.md` §5.11, §9.5–§9.7](./Features.md#511-batch-processing): batch
-sequences, the full command line, logging and diagnostics, and the complete Preferences set.
+sequences, the full command line, logging and diagnostics, and the complete Preferences set — **and
+*Bates numbering continued across many documents* over a file list or a folder** (`Features.md` §5.7), taken
+from Stage 7 on 2026-10-29 by the user's answer to `Stage7-Assembly-Plan.md` Q5(c): Stage 7 numbers across the
+open documents a person picks; documents that are not open need this stage's input sources, output naming and
+run log.
 
 > ⤵ **Read Aloud and the accessibility pass were removed from this stage on 2026-08-23** — see
 > [`Features.md` → *Removed from scope*](./Features.md#removed-from-scope--accessibility-2026-08-23).
@@ -2433,7 +2494,7 @@ Each guide carries **two sections**, per §2:
 Stages whose surface is entirely headless still get a guide — its manual section is short or empty,
 and that is a finding worth recording rather than a reason to skip the file. **Stages 0, 1, 2, 3 and 4 have theirs**, each
 written from its plan before its code — Stage 4's on 2026-09-18, the day Stage 3 was signed off — **and Stage 5's** (2026-09-29, with its plan, before
-any Stage 5 code), **and Stage 6's** (2026-10-04, with its plan, before any Stage 6 code); every
+any Stage 5 code), **and Stage 6's** (2026-10-04, with its plan, before any Stage 6 code), **and Stage 7's** (2026-10-28, drafted with its plan before any Stage 7 code, the plan's §0 answered 2026-10-29); every
 other row below is a schedule, not a backlog of missing documents.
 
 **A stage's §4 entry may also be expanded into a `Stage<N>-<Area>-Plan.md` execution document** when
@@ -2442,8 +2503,9 @@ its task-level detail would swamp this file — [`Stage0-Toolchain-Plan.md`](./S
 [`Stage2-Rendering-Plan.md`](./Stage2-Rendering-Plan.md),
 [`Stage3-Mutation-Plan.md`](./Stage3-Mutation-Plan.md),
 [`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md),
-[`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md) and
-[`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md) are the seven
+[`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md),
+[`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md) and
+[`Stage7-Assembly-Plan.md`](./Stage7-Assembly-Plan.md) (its §0 answered 2026-10-29) are the eight
 that exist. Such a document
 owns **only** that stage's
 task ordering and its stage-local design choices; the objectives, components, and exit criteria stay
@@ -2460,7 +2522,7 @@ guide.**
 | 4 — Viewing surface | [`Stage4-ViewingSurface-Testing-Guide.md`](./Stage4-ViewingSurface-Testing-Guide.md) | ✅ **Written 2026-09-18** from [`Stage4-ViewingSurface-Plan.md`](./Stage4-ViewingSurface-Plan.md), the same day and **before any Stage 4 code** · ✅ **automated half COMPLETE, and the manual half COMPLETE — all twelve cases walked and signed off, the last on 2026-09-27; every §9 item met, and THE STAGE SIGNED OFF BY THE USER ON 2026-09-27 — T1 to T14 recorded, the last on 2026-09-23, and A-04 read from Linux CI's `portable-asan` log on 2026-09-24**: **108 automated** (A-01…A-107 plus **A-66(a)**), **12 manual** (M-01…M-12), **all 108 carry a result** (re-derived 2026-09-27 from the guide itself — 108 headers; A-105 to A-107 came with I-30's and I-31's fixes; A-103 and A-104 came with I-28's and I-29's fixes, after the walk; A-101 and A-102 came with decision D4-22; A-99 and A-100 came with decision D4-20, the sharp lens, A-100 a `bench_surface` column; A-97 and A-98 came with I-26's and I-27's fixes; A-95 and A-96 came with I-24's and I-25's fixes, none still boxed; A-94 came with I-23's fix and, like A-85, is a `windows`-platform run; A-90 and A-91 came with I-18's and I-19's fixes on 2026-09-27, A-91 rewritten with I-20's, A-92 with I-21's, and A-93 with I-22's guard; the 81st is A-80, added with I-10's fix, A-81 to A-83, A-85 and A-86 came with I-11's to I-15's on 2026-09-26, A-84 with decision D4-18, A-87 and A-88 with I-16's and I-17's fixes, and A-89 with the user's dotted-preview request; A-85's result is a `windows`-platform run, because under `ctest` it skips): the T1 corpus cases, T2’s four A2 cases, T3’s seven session cases, T4’s four reader cases, T5’s seven pane cases, T6’s two plus the two re-reads T5 owed — A-30's pane half and A-37 against all three panes, both now ✅ — **T7’s five tool cases**, **T8’s eight ruler, grid, guide and snap cases**, **T9’s four split cases**, **T10’s seven**, **T11’s four**, **T12’s six** and **T13’s five session-restore cases, A-75 … A-79**, the last including **A-11 and A-29, which T1 and T4 had recorded amber and grey because the observables they are written against did not exist until T12 built them**. A-01 to A-09 are the stage-wide gate and suite cases that T14 runs. **All twelve manual cases are walked and signed off: M-11, 2026-09-24, passed — and it raised I-10 (S2), which is what a manual half is for; M-01, 2026-09-26, failed its first walk — it raised I-11 (S2) and I-12 (S3), both fixed the same day — and passed its re-walk the same day; M-02, 2026-09-26, passed — and it raised I-14 (S2), fixed the same day; M-06, M-03 and M-04, 2026-09-26, passed with no finding; M-05, 2026-09-26, failed at step 5 — I-15, fixed that day — and passed that step's re-walk; M-07, 2026-09-26, passed with no finding, on the build that fixed I-16 and I-17, both found while preparing it; and M-08, 2026-09-27, FAILED its first walk at step 1 — I-18 and I-19 — and its first re-walk of that step — I-20 and I-21 — all four fixed that day — and passed its second re-walk the same day; and M-09, 2026-09-27, FAILED its first walk at the cascade — I-23, fixed that day — and passed its re-walk the same day; and M-10, 2026-09-27, stopped at step 3 of its first walk — I-24 and I-25, fixed that day — and passed its resumed walk the same day, step 5 by decision D4-19; and M-12, 2026-09-27, raising I-26 and I-27 at step 2, both fixed that day, and passing its Loupe re-walk on D4-20's sharp lens and D4-22's `Alt`+wheel the same day — pen and touch not run, for want of hardware.** Carries the **A2-at-Stage-4** verdict, **recorded at T2 as `go, with named custom work` and re-read at T14 through the shipped panes as a plain `go`**, which also answered `platform::IAcceleratedSurface`: **not built**. **The manual half is the largest of any stage** and says why: this stage's subject is what a person sees on hardware the harness does not have — two monitors at different scaling, a monitor removed mid-presentation, a session restored onto a desktop that changed shape, a 900-page thumbnails pane judged for smoothness. **All four preconditions are cleared** (P-2 is `Win`+`P`, P-4 a wheel mouse with no pen or touch). It inherited Stage 2's **I-28** (Fit Visible), **which T12 closed in Stage 2's own guide on 2026-09-23**, with the measurement; its own §8 holds **thirty-one issues, one open: I-07 (S4, deferred as `DW-1` in `Deferred-Work.md`, no stage owning it yet); I-30 (S3), the kill harness's instants locked to the timer tick, and I-31 (S1), a save killed inside `ReplaceFileW` leaving no file at the document's path since Stage 3 T7, closed 2026-09-27; I-28 (S3), cases leaving process-wide state behind so the UI binary could not run whole, and I-29 (S2), a second window compounding the UI font scale, were found after the walk on 2026-09-27 by investigating the first, and closed the same day with A-103 and A-104; I-26 (S3), a loupe drag pinning the lens, and I-27 (S3), the temporary hand leaving the lens on screen, were raised by M-12's walk on 2026-09-27 and closed the same day with A-97 and A-98; I-24 (S2), a re-docked sidebar left out of the window, and I-25 (S3), a closed sidebar's edge strip that opened nothing, were raised by M-10's walk on 2026-09-27 and closed the same day with A-95 and A-96; I-23 (S2), an arranged window's title bar off the screen, was raised by M-09's walk on 2026-09-27 and closed the same day with A-94; I-22 (S3), four document paths holding control bytes where their backslashes had been, was found by a byte-level read on 2026-09-27 and closed with a `gates` check, A-93; I-18 (S2), a zoom reaching one pane of a spreadsheet split, and I-19 (S2), a frozen pane scrolling on its own, were raised by M-08's walk on 2026-09-27, and I-20 (S2), a defect in I-19's fix, and I-21 (S3), the keypad's `+`, by its re-walk, all closed the same day; I-10 (S2, raised 2026-09-24 by M-11's walk — Fit Page measured the sheet while the product draws the crop — was closed the same day, as were I-11 (S2) and I-12 (S3), raised 2026-09-26 by M-01's walk — a fit measuring the wrong page of a mixed document, and a split with no visible divider — I-13 (S3), the vertical ruler with no numbers, raised by the user that day, I-14 (S2), a moved presentation keeping its physical size, raised by M-02's walk that day, I-15 (S2), no general preference surviving a restart, raised by M-05's walk that day, I-16 (S2), a guide snap no gesture called, found by reading the code before M-07's walk, and I-17 (S3), no cursor readout anywhere, raised by the user preparing that walk; the other eight are closed — I-05 at T12, the task this guide named as its owner, and I-01 and I-09 at T13** |
 | 5 — Text, selection, search | [`Stage5-TextSearch-Testing-Guide.md`](./Stage5-TextSearch-Testing-Guide.md) | ✅ **Written 2026-09-29** from [`Stage5-TextSearch-Plan.md`](./Stage5-TextSearch-Plan.md), **before any Stage 5 code**, and its plan's §0 answered the same day; **the stage signed off by the user on 2026-10-04** · **automated half run — every case carries a result (all 114 by T14, 2026-10-02, and A-115 … A-123 on 2026-10-03 and A-124 … A-129 on 2026-10-04); the manual half fully walked — M-01 and M-02 passed, 2026-10-02, M-03, M-04, M-05, M-06 and M-07 on 2026-10-03 (M-06's one finding, guide I-17, the walker's machine; M-07's three, I-18 … I-20, closed after it), M-08 and M-09 on 2026-10-04 (I-24 raised while preparing M-08, closed before its walk; A-129 asked for in M-09's); the guide's status line is authoritative.** **129 automated** (A-01…A-129 — A-114 added with the answer to Q3, A-115 and A-116 with the user's requests for the rulers' corner box and a narrower find field, A-117 … A-119 with the fixes to I-18 … I-20, A-120 … A-122 with I-21's and I-22's and the user's design for `Enter` in Advanced Search, A-123 with the user's request for the pane's edge, A-124 with the user's request for the sidebar's and the log pane's, A-125 with I-23's fix, found by the nightly fuzz soak, A-126 with the user's request for the Compare dialog to remember each older file's newer one, A-127 with I-24's fix, the overlay's zoom and scroll, A-128 with the user's request for a continuous overlay, A-129 with the user's request in M-09's walk for `Ctrl`+wheel in Reflow view), **9 manual** (M-01…M-09). Carries the **A2-at-Stage-5** verdict, the **layout baseline** evidence for R1, and **O7**'s revisit, each with its scale fixed in the guide's §3 before the measurement. The manual half walks **generated documents** — the user's decision of 2026-09-29 (plan D5-23), so every Stage 5 claim, manual included, is bounded to the generated corpus — with Word and Excel from Office LTSC Professional Plus 2024 for the paste (plan §7, P-1 … P-5, **all answered**) |
 | 6 — Annotations | [`Stage6-Annotations-Testing-Guide.md`](./Stage6-Annotations-Testing-Guide.md) | ✅ **Written 2026-10-04** from [`Stage6-Annotations-Plan.md`](./Stage6-Annotations-Plan.md), **before any Stage 6 code**, and its plan's §0 answered the same day, all eight · **automated half run** — every automated case carries its result since T15 (2026-10-20), its two owed halves since made (A-04's log over T15's push, read 2026-10-20; A-101's by-hand recording run, 2026-10-28); fifty-one issues, I-01 … I-51, all closed -- I-48 and I-49 (S3) raised and closed while preparing M-09, I-50 (S2) by M-13's first walk and I-51 (S3) by I-35's walk, 2026-10-28; **M-01 … M-04 passed and signed off by the user 2026-10-20** (M-04 on its second walk, after I-27 … I-29), **M-05 passed and signed off 2026-10-22** (on its second walk, after I-30 and I-31) -- and its steps 4 to 6, added the same day for I-32 … I-34, passed and signed off the same day -- **M-07 passed and signed off 2026-10-27, M-06, M-08, M-09, M-10, M-11, M-12 and M-13 2026-10-28** (M-13 on its second walk, after I-50) -- all thirteen walked and signed off; **the stage signed off by the user 2026-10-28**. The guide's status line is authoritative. **108 automated** (A-01 … A-108), **13 manual** (M-01 … M-13); every case written against a §0 proposal re-read against its answer (A-78 and M-07 rewritten by Q7's). Carries **A2 at Stage 6** (D6-2's display path, graded before any tool) and **A4's product half**, carried from Stage 3 |
-| 7 — Assembly | `Stage7-Assembly-Testing-Guide.md` | ⚪ Queued |
+| 7 — Assembly | [`Stage7-Assembly-Testing-Guide.md`](./Stage7-Assembly-Testing-Guide.md) | ⚪ **Written 2026-10-28** from [`Stage7-Assembly-Plan.md`](./Stage7-Assembly-Plan.md)'s draft, **before any Stage 7 code**, the plan's §0 open in part (Q1, Q2 and Q3 answered 2026-10-29, D7-25 decided and Q4 and Q5 answered the same day — §0 fully answered); no case has a result. The guide's status line is authoritative for its counts. Carries **A2 at Stage 7** and the roadmap's *imposition correct on paper*, which **needs a duplex printer (the plan's P-3, open: none on this machine, 2026-10-28)** |
 | 8 — Save & export | `Stage8-SaveExport-Testing-Guide.md` | ⚪ Queued |
 | 9 — Forms | `Stage9-Forms-Testing-Guide.md` | ⚪ Queued |
 | 10 — Security | `Stage10-Security-Testing-Guide.md` | ⚪ Queued — **needs an independent extraction tool and a hex editor in the rig** |
@@ -2503,7 +2565,7 @@ guide.**
 | §2.2 PDF Portfolios | 16 |
 | §2.3 Batch conversion | 12 (profiles), 14 (batch engine, CLI, watched folders) |
 | §2.4 Office & printer integration | 16 |
-| §2.5 Save and export | 3 (incremental save), 8 (Save-As, export, optimize, flatten, conformance) |
+| §2.5 Save and export | 3 (incremental save), 7 (Save As rewritten and compacted, Save a Copy, bookmark and tag-tree export — `Stage7-Assembly-Plan.md` D7-25, 2026-10-29), 8 (dense renumbering, object streams, versions, linearization, export, optimize, flatten, conformance) |
 | §3.1 Dual-mode model | 13 |
 | §3.2 Review-mode editing | 6 (typewriter), 13 (text, objects, article threads), 3 (metadata) |
 | §3.3 Write-mode editing | 13a (text, paragraph, styles, page layout, spelling), 13b (tables, illustrations, TOC, revisions) |
@@ -2511,14 +2573,14 @@ guide.**
 | §4.1 Annotation tools | 6 (all but one), 7 (a custom stamp from a PDF page — Stage 6's Q7, 2026-10-04), 10 (redaction marks' apply path) |
 | §4.2 Comment management | 6 (all but three), 8 (the comments summary in four layouts, and printing with comments — Stage 6's Q4, 2026-10-04), 13 (spell-checking comment text — Stage 6's Q6, 2026-10-04) |
 | §4.3 Sharing and collaboration | 16 |
-| §5.1–5.2 Pages & thumbnails | 3 (rotate), 4 (thumbnail navigation), 7 (everything else) |
-| §5.3 Merge | 7 |
+| §5.1–5.2 Pages & thumbnails | 3 (rotate), 4 (thumbnail navigation), 7 (everything else), 12 (pages from clipboard text, HTML or Office content — `Stage7-Assembly-Plan.md` Q5(d)), 16 (scanner) |
+| §5.3 Merge | 7, 12 (non-PDF inputs converted — `Stage7-Assembly-Plan.md` Q5(a)) |
 | §5.4 Bookmarks | 4 (navigate), 7 (edit, generate, TOC page) |
-| §5.5 Tags & document structure | 7 (tag tree, autotag), 13 (Write mode's structure, decision O2). *Accessibility removed 2026-08-23; the structure it sat on is retained for Write mode.* |
-| §5.6 Layers | 7 |
-| §5.7 Headers, footers, Bates | 7 |
+| §5.5 Tags & document structure | 7 (tag tree: view, retype, reorder, languages, order overlay), 10 (auto-tag, artifacts, a language on a run — `Stage7-Assembly-Plan.md` Q2, 2026-10-29), 13 (Write mode's structure, decision O2). *Accessibility removed 2026-08-23; the structure it sat on is retained for Write mode.* |
+| §5.6 Layers | 7 (all but three), 10 (flatten, delete with content, assign content — `Stage7-Assembly-Plan.md` Q2, 2026-10-29) |
+| §5.7 Headers, footers, Bates | 7, 14 (Bates across documents that are not open — `Stage7-Assembly-Plan.md` Q5(c)) |
 | §5.8 Watermarks | 7 |
-| §5.9 Imposition | 7 |
+| §5.9 Imposition | 7, 8 (at print time — `Stage7-Assembly-Plan.md` Q5(b)) |
 | §5.10 Links and destinations | 7 |
 | §5.11 Batch processing | 14 |
 | §6 Forms | 9 |

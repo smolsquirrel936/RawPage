@@ -35,8 +35,8 @@ takes it.
 |---|---|---|---|---|
 | **DW-1** | **Substitute page colours** — the second half of `Features.md` §1.2's *"invert / substitute page colors for high-contrast reading"* | `Stage4-ViewingSurface-Testing-Guide.md` §8 **I-07** (S4), Stage 4 T8, 2026-09-21 | ⚪ **Deferred** by the user, 2026-09-27 | **Unassigned** — no stage's plan names it |
 | **DW-2** | **A vector snapshot** — `Features.md` §8's `S` (*"copy a dragged region as an image"*) as a vector metafile that stays sharp when scaled, rather than a bitmap | `Stage5-TextSearch-Plan.md` §0 **Q3** and **D5-10**, written 2026-09-29 before any Stage 5 code | ⚪ **Deferred** by the user, 2026-09-29 (option B of three) | **Unassigned** — no stage's plan names it |
-| **DW-3** | **Typed comments in scripts outside WinAnsi and the four CJK collections** — `Features.md` §4.1's text box, callout, typewriter and dynamic stamp showing Cyrillic, Greek, Hebrew, Arabic, Thai, Devanagari and every other script a font must be embedded for | `Stage6-Annotations-Plan.md` §0 **Q3** and **D6-7**, written 2026-10-04 before any Stage 6 code | ⚪ **Deferred** by the user, 2026-10-04 (Q3 approved as proposed) | **Unassigned** — no stage's plan names it |
-| **DW-4** | **An annotation burst inside A2's frame budget** -- `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*, which neither T4's bench nor T15's product reading met | `Stage6-Annotations-Plan.md` **D6-24**, Stage 6 T4 (2026-10-05) and T15 (guide **A-104**), 2026-10-20 | ⚪ **Deferred** by the user, 2026-10-20 (the first of three options) | **Unassigned** -- no stage's plan names it |
+| **DW-3** | **Typed comments in scripts outside WinAnsi and the four CJK collections** — `Features.md` §4.1's text box, callout, typewriter and dynamic stamp showing Cyrillic, Greek, Hebrew, Arabic, Thai, Devanagari and every other script a font must be embedded for — **and, since 2026-10-29, the text Stage 7 draws on pages**: headers, footers, watermarks, Bates prefixes and suffixes, the table-of-contents page (`Stage7-Assembly-Plan.md` §0 **Q5(e)**) | `Stage6-Annotations-Plan.md` §0 **Q3** and **D6-7**, written 2026-10-04 before any Stage 6 code | ⚪ **Deferred** by the user, 2026-10-04 (Q3 approved as proposed) | **Unassigned** — no stage's plan names it |
+| **DW-4** | **An annotation burst inside A2's frame budget** -- `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*, which neither T4's bench nor T15's product reading met | `Stage6-Annotations-Plan.md` **D6-24**, Stage 6 T4 (2026-10-05) and T15 (guide **A-104**), 2026-10-20 | ⚪ **Deferred** by the user, 2026-10-20 (the first of three options); **split 2026-10-29** | **Cause (2), the show step: taken by Stage 7** -- `Stage7-Assembly-Plan.md` §0 **Q4**, task **T4** (approved by the user 2026-10-29). **Cause (1), the annotated page's tile: unassigned** -- no stage's plan names it |
 
 ---
 
@@ -122,7 +122,11 @@ would make the *vector* snapshot partly a bitmap anyway. The stage that takes th
 **The capability.** `Features.md` §4.1's typed annotations — *Text callout*, *Free text box*,
 *Typewriter-style free text* and the *dynamic stamp* that fills in the author — showing whatever a person
 types. Stage 6 shows **Latin in WinAnsi** (base-14 Helvetica) and **Chinese, Japanese and Korean** (the four
-predefined Adobe CID collections, not embedded). Every other script is this entry.
+predefined Adobe CID collections, not embedded). Every other script is this entry. **Widened 2026-10-29** by the
+user's answer to `Stage7-Assembly-Plan.md` Q5(e): the text Stage 7 DRAWS into page content — headers, footers,
+a watermark's text, Bates prefixes and suffixes, a table-of-contents page — follows the same fonts and the same
+refusal by name, for the same reason. Text Stage 7 only STORES (bookmark titles, layer and destination names)
+is not drawn and is not this entry.
 
 **Why it was deferred.** A typed annotation's appearance stream needs a font that every reader can draw.
 Base-14 fonts cover WinAnsi alone, and the predefined CID fonts cover the four CJK collections because
@@ -206,4 +210,9 @@ share both costs), **the user chose to keep the verdict, record the figures, and
 annotated page whose per-tile cost does not grow with the page's annotations; and a figure for a person's rate
 of drawing rather than §3.1's burst. The stage that takes this decides how.
 
-**Taken by:** —
+**Taken by:** **cause (2), the show step that grows with the unsaved update -- Stage 7, task T4**
+(`Stage7-Assembly-Plan.md` §0 **Q4**, approved by the user 2026-10-29; graded by
+`Stage7-Assembly-Testing-Guide.md` §3.7). Stage 7 took it because its commands make the unsaved update large in
+one gesture -- an insert of copied pages, a header on every page -- where Stage 6 needed hundreds of strokes.
+**Cause (1), a tile of a page carrying hundreds of annotations: unassigned.** The entry stays open until both
+are done.
