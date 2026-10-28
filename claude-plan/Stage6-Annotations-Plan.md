@@ -14,7 +14,7 @@
 > | How Stage 6 is verified | [`Stage6-Annotations-Testing-Guide.md`](./Stage6-Annotations-Testing-Guide.md) — written from this plan, **before** the code |
 >
 > **Status:** ⚪ **Written 2026-10-04, the day Stage 5 was signed off, as a draft; §0 ANSWERED the
-> same day, all eight — so this is now the plan.** No Stage 6 code exists. Q1 … Q6 and Q8 were
+> same day, all eight — so this is now the plan.** No Stage 6 code existed when it was written; T1 … T15 built it, 2026-10-05 to 2026-10-20. Q1 … Q6 and Q8 were
 > approved as proposed; Q7 was answered by moving the custom stamp from a PDF page, with its copier,
 > to Stage 7. **Q1 carried one consequence the proposal had not named**: `Ctrl+Alt+M` in the Viewer
 > collides with Write mode's margin comment, so `Features.md` §8's *twelve deliberate collisions*
@@ -382,7 +382,7 @@ sink can compose an annotation. Stages 2 to 5 put their go/no-go early for the s
 | **P-1** | **Adobe Acrobat with a signature panel and comment import/export** — owner: **you** | Interop (M-02), A4 through the product (M-03), FDF/XFDF exchange (M-04) | ✅ **Acrobat 26.2.21931** at `C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe` (read 2026-10-04; Stage 3 used 26.001.21771) |
 | **P-2** | **A second reader that is NOT PDFium** — owner: **you** | D6-6's fourth oracle: Chrome and Edge render with PDFium | ✅ **Firefox 157** (pdf.js) at `C:\Program Files\Mozilla Firefox\` (read 2026-10-04). **A phone reader is optional**: the roadmap names one, and the guide records whichever you walk |
 | **P-3** | **A microphone** — owner: **you** | M-08 (Q5, approved 2026-10-04) | ✅ A headset microphone is present (*Headset Microphone (Jabra EVOLVE 20 MS)*, read 2026-10-04) |
-| **P-4** | **`qpdf` on CI's Ubuntu `gates` job** — owner: **me** (Q8, approved 2026-10-04) | D6-6's third oracle | 🟡 **Added at T3 (2026-10-05) to `ci.yml`'s `portable-asan` job, not `gates`**: that job runs the headless suite, whose `tst_annotationops` writes the files `tests/gates/check-qpdf.py` judges; the `gates` job builds no Qt and runs no suite, so it has nothing to judge (guide A-31). Its first log is owed. Not needed on this machine |
+| **P-4** | **`qpdf` on CI's Ubuntu `gates` job** — owner: **me** (Q8, approved 2026-10-04) | D6-6's third oracle | ✅ **Added at T3 (2026-10-05) to `ci.yml`'s `portable-asan` job, not `gates`**: that job runs the headless suite, whose `tst_annotationops` writes the files `tests/gates/check-qpdf.py` judges; the `gates` job builds no Qt and runs no suite, so it has nothing to judge (guide A-31). Its log first read 2026-10-08 (CI run 37655927348, 44 files, 0 failed); 71 files, 0 failed, in run 40626533138, 2026-10-28. Not needed on this machine |
 | **P-5** | **Python 3** on every job that runs the corpus checks | T1's generator | ✅ As Stage 5 |
 
 ---

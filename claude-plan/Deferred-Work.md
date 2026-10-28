@@ -199,7 +199,8 @@ share both costs), **the user chose to keep the verdict, record the figures, and
   file, so `journal.run` grows with the unsaved annotations (p95 88-143 ms by 300 strokes, over both sessions) and the pump waits
   behind it.
 - **Manual case M-12** (`Stage6-Annotations-Testing-Guide.md` §6) is a person's judgement of twenty strokes and
-  a scroll on the same file; not walked on this date.
+  a scroll on the same file; not walked on this date -- walked 2026-10-28 and passed (64 strokes on page 450 and
+  three highlights judged immediate and smooth); A-104's figures above are unchanged by it.
 
 **What is absent:** a show step whose cost does not grow with the unsaved annotations; a re-render of an
 annotated page whose per-tile cost does not grow with the page's annotations; and a figure for a person's rate

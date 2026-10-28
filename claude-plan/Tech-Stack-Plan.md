@@ -731,7 +731,7 @@ is PDFium's), or re-grade it `no-go` (D6-2 to the mirror, which T4 measured woul
 to record and defer**: the verdict stays `go, with named custom work`, the named work done (T4's rectangles and
 re-keying), and the two remaining causes are `DW-4`. **What this does NOT claim:** offscreen, one rig, our own
 generated corpus; a burst of 300 strokes on one page at ten a second, §3.1's scale and not a person's rate --
-whether a person's drawing feels immediate is **M-12**'s, not walked on this date.
+whether a person's drawing feels immediate is **M-12**'s, not walked on this date -- walked 2026-10-28 and passed, the user judging 64 strokes on page 450 and three highlights immediate and smooth (`Stage6-Annotations-Testing-Guide.md` §6), A-104's figures unchanged by it.
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
