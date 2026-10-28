@@ -3,9 +3,8 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stages 0 to 5 are complete and signed off, the last (Stage 5) on 2026-10-04. Stage 6,
-> annotations and review, is code complete and every one of its manual cases is walked and signed
-> off; the stage awaits its own sign-off.**
+> **Status: Stages 0 to 6 are complete and signed off, the last (Stage 6, annotations and review)
+> on 2026-10-28.**
 > `rawpage.exe` opens real PDFs into tabs and draws their pages through the pinned PDFium behind our
 > own facade, over a first-party COS reader. What a person can do with it today:
 >

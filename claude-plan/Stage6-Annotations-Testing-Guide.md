@@ -6,7 +6,9 @@
 > **before any Stage 6 code exists** — which is the point: verification written afterwards only ever
 > confirms whatever got built, including the parts built wrong.
 >
-> **Status:** ⚪ **Written 2026-10-04 from the plan's draft, the day Stage 5 was signed off, and before
+> **Status:** ✅ **SIGNED OFF BY THE USER, 2026-10-28, every §9 item met** -- the last, item 3, when M-13 was walked and passed that day. **CI over the signed-off tree:** the last run is **40626533138**, on `f052a09`, green in all five jobs. The four commits after it -- the soak and CI record, the documents re-derived against the tree, I-35's walk and I-51's fix to `scripts/run.ps1` -- were not pushed at sign-off, so no CI job has run over them; none changed product code, and the suites' last local run is I-50's, 1846/1846 on `x64-release` and on `x64-debug`.
+>
+> **Written 2026-10-04 from the plan's draft, the day Stage 5 was signed off, and before
 > any Stage 6 code. The plan's §0 was ANSWERED the same day, all eight — Q1 … Q6 and Q8 approved as
 > proposed, and Q7 by moving the custom stamp from a PDF page to Stage 7, which rewrote A-78 and M-07.
 > No case had a result until T1.** **T1 (2026-10-05): A-13 … A-16 ✅**, each with its evidence. **T2
@@ -1594,3 +1596,5 @@ restated as a checklist.
    forced end's exit code -- closed the same day.
 10. ✅ **2026-10-20, T15**: `Architecture-FileMap.md` rows flipped with their files; the plan's §10 debt paid;
     `Implementation-Plan.md`'s Stage 6 block updated to reality, deviations included.
+
+**Signed off by the user, 2026-10-28**, every item above met: *"Sign off stage 6 and commit."* **CI over the signed-off tree:** the last run is **40626533138**, on `f052a09`, green in all five jobs. The four commits after it -- the soak and CI record, the documents re-derived against the tree, I-35's walk and I-51's fix to `scripts/run.ps1` -- were not pushed at sign-off, so no CI job has run over them; none changed product code, and the suites' last local run is I-50's, 1846/1846 on `x64-release` and on `x64-debug`.
