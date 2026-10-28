@@ -1,0 +1,206 @@
+{
+ "file": "assembly/annots-on-pages.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "AN-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "object": 10,
+     "subtype": "Text",
+     "role": "note",
+     "popup": 11,
+     "nm": "an-note-1"
+    },
+    {
+     "object": 11,
+     "subtype": "Popup",
+     "role": "popup",
+     "parent": 10
+    },
+    {
+     "object": 12,
+     "subtype": "Text",
+     "role": "reply",
+     "irt": 10,
+     "nm": "an-reply-1"
+    },
+    {
+     "object": 13,
+     "subtype": "Link",
+     "role": "link",
+     "targetPage": 5,
+     "targetIdentity": "AN-0002"
+    },
+    {
+     "object": 15,
+     "subtype": "Widget",
+     "role": "widget",
+     "field": "field-1"
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "AN-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "object": 17,
+     "subtype": "Text",
+     "role": "note",
+     "popup": 18,
+     "nm": "an-note-2"
+    },
+    {
+     "object": 18,
+     "subtype": "Popup",
+     "role": "popup",
+     "parent": 17
+    },
+    {
+     "object": 19,
+     "subtype": "Text",
+     "role": "reply",
+     "irt": 17,
+     "nm": "an-reply-2"
+    },
+    {
+     "object": 20,
+     "subtype": "Link",
+     "role": "link",
+     "targetPage": 6,
+     "targetIdentity": "AN-0003"
+    },
+    {
+     "object": 22,
+     "subtype": "Widget",
+     "role": "widget",
+     "field": "field-2"
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "AN-0003",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "object": 24,
+     "subtype": "Text",
+     "role": "note",
+     "popup": 25,
+     "nm": "an-note-3"
+    },
+    {
+     "object": 25,
+     "subtype": "Popup",
+     "role": "popup",
+     "parent": 24
+    },
+    {
+     "object": 26,
+     "subtype": "Text",
+     "role": "reply",
+     "irt": 24,
+     "nm": "an-reply-3"
+    },
+    {
+     "object": 27,
+     "subtype": "Link",
+     "role": "link",
+     "targetPage": 7,
+     "targetIdentity": "AN-0004"
+    },
+    {
+     "object": 29,
+     "subtype": "Widget",
+     "role": "widget",
+     "field": "field-3"
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "AN-0004",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "annots": [
+    {
+     "object": 31,
+     "subtype": "Text",
+     "role": "note",
+     "popup": 32,
+     "nm": "an-note-4"
+    },
+    {
+     "object": 32,
+     "subtype": "Popup",
+     "role": "popup",
+     "parent": 31
+    },
+    {
+     "object": 33,
+     "subtype": "Text",
+     "role": "reply",
+     "irt": 31,
+     "nm": "an-reply-4"
+    },
+    {
+     "object": 34,
+     "subtype": "Link",
+     "role": "link",
+     "targetPage": 4,
+     "targetIdentity": "AN-0001"
+    },
+    {
+     "object": 36,
+     "subtype": "Widget",
+     "role": "widget",
+     "field": "field-4"
+    }
+   ]
+  }
+ ],
+ "fields": [
+  "field-1",
+  "field-2",
+  "field-3",
+  "field-4"
+ ]
+}

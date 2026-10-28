@@ -73,14 +73,16 @@ TEST_CASE("the shipped backend refuses editing every encrypted corpus file by na
     CHECK(files == 5);
 }
 
-TEST_CASE("the shipped backend lets every ordinary and signed corpus file be edited", "[render][backend][permissions]")
+TEST_CASE("the shipped backend lets every ordinary, signed and assembly corpus file be edited", "[render][backend][permissions]")
 {
     // THE CONTROL for the refusals: an assessment that refused everything would pass the case above.
+    // Stage 7 T1 added assembly/, whose inherit-resources.pdf was refused whole until Stage 7 guide I-01's
+    // fix: the engine read its inherited boxes as US Letter and the first-party walk as A4.
     DocumentBackendImpl backend;
     std::size_t files = 0;
-    for (const char* directory : {"ordinary", "signed"}) {
+    for (const char* directory : {"ordinary", "signed", "assembly"}) {
         for (const auto& entry : std::filesystem::directory_iterator(corpus(directory))) {
-            if (entry.path().extension() != ".pdf")
+            if (entry.path().extension() != ".pdf" || entry.path().filename() == "merge-not-a-pdf.pdf")
                 continue;
             INFO("file: " << directory << "/" << entry.path().filename().string());
             auto handle = backend.open(QString::fromStdString(entry.path().string()), nullptr);
@@ -94,7 +96,7 @@ TEST_CASE("the shipped backend lets every ordinary and signed corpus file be edi
             ++files;
         }
     }
-    CHECK(files >= 36);
+    CHECK(files >= 36 + 21);   // Stage 7 T1: the 21 assembly PDFs
 }
 
 TEST_CASE("the shipped backend refuses editing the file its two readers count differently", "[render][backend][permissions]")

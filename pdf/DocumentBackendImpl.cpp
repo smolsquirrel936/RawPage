@@ -341,8 +341,18 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
             core::CosPageFacts fact;
             fact.rotation = page.effectiveRotate();
             if (page.mediaBox) {
-                const auto& box = *page.mediaBox;
-                fact.mediaSize = core::PdfSize{box[2] - box[0], box[3] - box[1]};
+                // The DRAWN box, as `core::CosPageFacts` says: media intersected with crop, each own or
+                // inherited (Stage 7 guide I-01). Edges are normalized first, as the engine's are.
+                const auto rectOf = [](const std::array<double, 4>& box) {
+                    const double x0 = std::min(box[0], box[2]);
+                    const double y0 = std::min(box[1], box[3]);
+                    return core::PdfRect{core::PdfPoint{x0, y0},
+                                         core::PdfSize{std::max(box[0], box[2]) - x0, std::max(box[1], box[3]) - y0}};
+                };
+                core::PdfRect drawn = rectOf(*page.mediaBox);
+                if (page.cropBox)
+                    drawn = core::intersect(drawn, rectOf(*page.cropBox));
+                fact.drawnSize = drawn.size;
             }
             facts.push_back(fact);
         }

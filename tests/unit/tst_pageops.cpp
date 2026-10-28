@@ -167,6 +167,43 @@ TEST_CASE("page walk resolves own and inherited rotation", "[ops][pages]")
     }
 }
 
+TEST_CASE("page walk resolves the media and crop boxes a page inherits", "[ops][pages][I-01]")
+{
+    // STAGE 7 GUIDE I-01: the backend compares the box each reader says is DRAWN, so the walk carries
+    // /CropBox down as it carries /MediaBox. `assembly/inherit-resources.pdf` gives every page both from
+    // different ancestors -- A4 media from the root and a crop from the second level for the first three,
+    // Letter media from the first level and a crop from the third for the last two. The expected boxes are
+    // the generator's, from `labels/assembly-inherit-resources.json`.
+    Opened file = open("assembly/inherit-resources.pdf");
+    auto walk = PageOps::walk(file.table);
+    REQUIRE(walk);
+    const auto& pages = walk.value().pages;
+    REQUIRE(pages.size() == 5);
+    const std::array<double, 4> a4{0, 0, 595.276, 841.89};
+    const std::array<double, 4> letter{0, 0, 612, 792};
+    const std::array<double, 4> cropA4{20, 20, 575.276, 821.89};
+    const std::array<double, 4> cropLetter{30, 30, 582, 762};
+    for (std::size_t at = 0; at < pages.size(); ++at) {
+        INFO("page index " << at);
+        REQUIRE(pages[at].mediaBox.has_value());
+        REQUIRE(pages[at].cropBox.has_value());
+        CHECK(*pages[at].mediaBox == (at < 3 ? a4 : letter));
+        CHECK(*pages[at].cropBox == (at < 3 ? cropA4 : cropLetter));
+    }
+
+    // THE CONTROL: a page that states its own crop box keeps it, and one that states none anywhere has
+    // none -- `boxes.pdf`'s first page and `refs-none.pdf`'s.
+    Opened own = open("assembly/boxes.pdf");
+    auto ownWalk = PageOps::walk(own.table);
+    REQUIRE(ownWalk);
+    REQUIRE(ownWalk.value().pages[0].cropBox.has_value());
+    CHECK(*ownWalk.value().pages[0].cropBox == (std::array<double, 4>{18, 18, 594, 774}));
+    Opened none = open("assembly/refs-none.pdf");
+    auto noneWalk = PageOps::walk(none.table);
+    REQUIRE(noneWalk);
+    CHECK_FALSE(noneWalk.value().pages[0].cropBox.has_value());
+}
+
 TEST_CASE("page walk reads every ordinary file cleanly and ends on every malformed one", "[ops][pages][corpus]")
 {
     std::size_t ordinary = 0;

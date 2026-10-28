@@ -16,7 +16,9 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** No case has a result. **P-3, a duplex printer for M-04, is open.** **Cases
+> as written.** **T1 done 2026-10-29: A-13 … A-16 carry a result, all ✅; no other case has one.** It raised
+> **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its boxes at US Letter,
+> uncropped, and refused its document for editing (§8). **P-3, a duplex printer for M-04, is open.** **Cases
 > written against a §0 proposal name it in their heading or row** (Q*n* ✅); none was declined, so none moved
 > or was struck. **127
 > automated** (A-01 … A-127) and **14 manual** (M-01 … M-14).
@@ -422,22 +424,26 @@ by a later task says so in its result.
 
 ### 5.3 The corpus this stage is judged on (T1)
 
-**A-13 · The corpus regenerates byte-identically, and nothing old moved** ☐ *T1*
+**A-13 · The corpus regenerates byte-identically, and nothing old moved** ✅ *2026-10-29, T1*
 **Steps** `python corpus/make-corpus.py --verify`; `git diff --stat db09265 -- corpus/` excluding the new files.
 **Expect** `--verify` reports every file byte-identical; **every file that existed at `db09265` is byte-unchanged**. **If it fails** S1 — the golden baselines and every earlier stage's labels stand on those bytes.
+**Result** `--verify`: *"197 files regenerate byte-identically"* — the 154 of Stage 6's sign-off and 43 new: 22 files in `assembly/` (21 PDFs and `merge-not-a-pdf.pdf`) and 21 labels `labels/assembly-*.json`; the in-process rerun agreed. `git diff --stat db09265 -- corpus/`: three files, all tooling — `PROVENANCE.md`, `fixturecheck.py`, `make-corpus.py` — and **no data file**; every other change is an untracked new file.
 
-**A-14 · Provenance both ways, and the self-test fires** ☐ *T1*
+**A-14 · Provenance both ways, and the self-test fires** ✅ *2026-10-29, T1*
 **Steps** `python corpus/make-corpus.py --check-provenance`; `--self-test`.
 **Expect** Every new file has a `PROVENANCE.md` row and every row a file; each self-test detection fires on its planted fault. **If it fails** S3.
+**Result** `--check-provenance`: *"140 PROVENANCE.md rows, one per file; 43 labels and 14 comparison records name files that exist"* — a new `assembly/` section of 22 rows, each naming what the file carries and its control. `--self-test`: *"19 of 19 controls fired"*; the three new ones each matched to the file it damaged — a wrong identity for page 3 of `refs-every-kind`'s label (*"page 3 shows ['P-0004'], the label says P-0099"*), `/Resources` planted on `inherit-resources.pdf`'s first page, and `labels/assembly-layers.json` removed (`UNLABELLED assembly/layers.pdf`). `gates.corpus.self_test` now expects *19 of 19*.
 
-**A-15 · Each fixture carries what its row claims — read from the bytes, and from the engine** ☐ *T1*
+**A-15 · Each fixture carries what its row claims — read from the bytes, and from the engine** ✅ *2026-10-29, T1*
 **Goal** Rule 7's oracle must itself be true.
 **Steps** `python corpus/make-corpus.py --check-faults` for the assembly fixtures; `ctest -R "assembly.labels"`, which opens each fixture in PDFium.
 **Expect** Every page's identity text **extracted by PDFium** equals its label; every reference in the label exists in the file in the form its row names (outline item, both destination forms, `/Dest` by reference and by name, `GoToR`, label range, `/Pg`, bead, `/OpenAction`); `inherit-resources.pdf`'s pages carry **no** `/Resources` of their own; `layers.pdf`'s groups are as labelled. **The control:** a label naming a wrong identity for one page fails the case. **If it fails** S2.
+**Result** **The bytes:** `--check-faults` *"every Stage 5, 6 and 7 fixture carries what its row claims"* — `fixturecheck.py`'s new `check_assembly` walks each file's page tree from the trailer and holds it to the label's page order, reads each page's identity from the strings its content shows, and checks every reference in its written form and at the page whose identity it names; per fixture, its feature (no `/Resources`, `/MediaBox` or `/CropBox` on an inheriting page and its ancestor path; each layer's lock, state, radio group, usage and `/Properties` entry; the heading twins' identical text; the blank pages' three kinds; the content box; another producer's decorations with no `/RawPageDecoration`). **A throwaway probe planted 24 faults, one per detection, and all 24 fired** — the one that first fired for another page's reason was re-planted on the page with no `/Contents` and fired for its own. **The engine:** `render.assembly labels: every page shows PDFium the identity its label gives` — all 21 labels, **114 pages**, each page's extracted identity tokens equal to the label's, and **its control** (page 0 relabelled `ZZ-9999`) reported as one mismatch; `render.assembly labels: the engine's outline and named destinations land on the pages labelled` — **20 outline items and 5 named destinations**, each resolved by PDFium to the page showing the identity its label names. **Measured, not graded:** PDFium resolves `refs-by-index.pdf`'s integer destination `[ 2 /Fit ]` to page index 2 (`X-0003`) — a lenient reading of a destination ISO 32000-1 makes legal only in remote form, which a repair must leave as written. 517 assertions over the three `[assembly]` cases.
 
-**A-16 · Every new corpus file is a golden case or excluded with a reason** ☐ *T1*
+**A-16 · Every new corpus file is a golden case or excluded with a reason** ✅ *2026-10-29, T1*
 **Steps** `golden-update.exe --check-manifest`.
 **Expect** Green both ways; `103` baselines before T1, each new file counted on one side. **If it fails** S3.
+**Result** *"130 corpus files, 124 with baselines and 6 excluded with a reason"* — the 21 PDFs cases, `merge-not-a-pdf.pdf` excluded (`error.open.notPdf`, measured by `--survey`). **99 baselines** in one filtered capture (`--filter assembly/`), **every page looked at first** in a scratch golden root — which is how I-01 was found, and two fixtures were corrected (the merge sources' field rows overprinted the identity; `boxes.pdf`'s caption crossed its ArtBox) — captured AFTER I-01's fix, so no baseline holds the wrong page size; **no tracked PNG changed**.
 
 ### 5.4 Moving pages without breaking what points at them (T2)
 
@@ -1127,7 +1133,34 @@ missed it, and the control that was run red before the fix — the shape every e
 
 | # | Sev | Title | State |
 |---|---|---|---|
-| — | — | *No issue raised yet* | — |
+| **I-01** | S2 | A page that inherits its `/MediaBox` or `/CropBox` from a `/Pages` node was shown at US Letter, uncropped, and its whole document refused for editing | **Closed** at T1, 2026-10-29 |
+
+**I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
+the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
+turned 90° came out 1056 × 816 px, US Letter, uncropped, the identity off-centre. *Mechanism:*
+`pdf/render/PdfiumDocument` read each page's boxes with `FPDFPage_GetMediaBox` and `FPDFPage_GetCropBox`,
+which read the PAGE DICTIONARY only — PDFium's own renderer inherits, those two calls do not — and took
+their silence for *"no box anywhere"*, substituting US Letter. So the page model disagreed with what the
+engine drew, and with `pdf/ops/PageOps`' walk, which inherits `/MediaBox`: `Permissions::assess` compared
+the two media sizes and refused the WHOLE document by `error.edit.pageSizeDisagrees`. *Why no suite saw
+it:* **no corpus file before T1 inherited either box** (a scan of every page dictionary in `ordinary/`,
+`signed/`, `compare/` and the seeds, 2026-10-29) — `rotate-inherited.pdf` inherits `/Rotate` and states
+its `/MediaBox` on every page. *Fix:* the page's own boxes where it states them; otherwise
+`FPDF_GetPageBoundingBox` — the box the engine DRAWS, media intersected with crop, which does inherit —
+as the media box when the page states none, and as the crop box when it is smaller than the media box the
+page states. `PageOps`' walk carries `/CropBox` down as it carries `/MediaBox`, and `Permissions` compares
+the DRAWN box of both readers (`CosPageFacts::drawnSize`), the one box both can state through
+inheritance. *Bound, stated at the code:* PDFium exposes no inherited media box apart from the crop, so a
+page inheriting its `/MediaBox` AND a smaller `/CropBox` reports the drawn box as its media box — what is
+shown is right; the media box is first read apart from the crop by the plan's page-box commands (D7-15,
+T9). *Regression:* `render.assembly labels: a page shows the boxes and rotation it inherits (I-01)` (each
+page's drawn box and rotation against the label, the document editable, and `boxes.pdf`'s own boxes as
+the control); `unit.page walk resolves the media and crop boxes a page inherits`; and
+`render.the shipped backend lets every ordinary, signed and assembly corpus file be edited`, which now
+sweeps `assembly/`. *Control:* with the facade change reverted alone, the I-01 case failed on every
+page's drawn box (off by 20 pt and the crop's width) and the sweep refused `inherit-resources.pdf` by
+`error.edit.pageSizeDisagrees` on page 1; restored, both pass. The 99 baselines were captured after the
+fix.
 
 ---
 

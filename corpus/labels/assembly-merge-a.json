@@ -1,0 +1,129 @@
+{
+ "file": "assembly/merge-a.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "MA-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "MA-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "MA-0003",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  }
+ ],
+ "title": "Merge source A",
+ "outline": [
+  {
+   "object": 22,
+   "title": "MA-0001",
+   "form": "dest",
+   "targetPage": 4,
+   "targetIdentity": "MA-0001",
+   "open": true,
+   "children": [
+    {
+     "object": 23,
+     "title": "MA-0002",
+     "form": "dest",
+     "targetPage": 5,
+     "targetIdentity": "MA-0002",
+     "open": null,
+     "children": []
+    },
+    {
+     "object": 24,
+     "title": "MA-0003",
+     "form": "dest",
+     "targetPage": 6,
+     "targetIdentity": "MA-0003",
+     "open": null,
+     "children": []
+    }
+   ]
+  }
+ ],
+ "links": [
+  {
+   "page": 0,
+   "object": 17,
+   "form": "dest",
+   "targetPage": 6,
+   "targetIdentity": "MA-0003"
+  }
+ ],
+ "comments": [
+  {
+   "object": 16,
+   "subtype": "Text",
+   "pageIdentity": "MA-0003"
+  }
+ ],
+ "fields": [
+  {
+   "name": "name",
+   "object": 10,
+   "kids": null,
+   "value": "Ana Lima"
+  },
+  {
+   "name": "date",
+   "object": 12,
+   "kids": null,
+   "value": "2026-10-01"
+  },
+  {
+   "name": "a-only",
+   "object": 14,
+   "kids": null,
+   "value": "first source"
+  }
+ ],
+ "layers": [
+  {
+   "object": 7,
+   "name": "Draft"
+  },
+  {
+   "object": 8,
+   "name": "Source A notes"
+  }
+ ],
+ "collidingFields": [
+  "name",
+  "date"
+ ]
+}

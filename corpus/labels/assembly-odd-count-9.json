@@ -1,0 +1,121 @@
+{
+ "file": "assembly/odd-count-9.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "C09-0001",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "C09-0002",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "C09-0003",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "C09-0004",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 4,
+   "object": 8,
+   "identity": "C09-0005",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 5,
+   "object": 9,
+   "identity": "C09-0006",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 6,
+   "object": 10,
+   "identity": "C09-0007",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 7,
+   "object": 11,
+   "identity": "C09-0008",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 8,
+   "object": 12,
+   "identity": "C09-0009",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  }
+ ],
+ "count": 9
+}

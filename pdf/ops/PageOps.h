@@ -20,7 +20,9 @@
 //
 // INHERITANCE is resolved on the way DOWN, not by following `/Parent` back up: the parent chain is
 // another claim a damaged file can get wrong, while the path the walk took to a page is a fact. Only
-// the two attributes Stage 3 reads are carried -- `/Rotate` and `/MediaBox`.
+// the attributes a reader of the walk needs are carried -- `/Rotate` and `/MediaBox` (Stage 3), and
+// `/CropBox` since Stage 7 T1, so the backend can compare the box each reader says is DRAWN (Stage 7
+// guide I-01: `corpus/assembly/inherit-resources.pdf` inherits both boxes).
 //
 // -------------------------------------------------------------------------------------------
 // WRITING A ROTATION: D3-5, and one refinement of it
@@ -60,6 +62,7 @@ struct PageEntry {
     int inheritedRotate = 0;                 // what an ancestor supplies, normalized; 0 if none
     int effectiveRotate() const noexcept { return ownRotate.value_or(inheritedRotate); }
     std::optional<std::array<double, 4>> mediaBox;   // own or inherited /MediaBox, as written
+    std::optional<std::array<double, 4>> cropBox;    // own or inherited /CropBox, as written
 };
 
 enum class PageWalkNote {

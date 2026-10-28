@@ -387,6 +387,996 @@
         },
         {
             "dpi": 96,
+            "file": "assembly/annots-on-pages.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/annots-on-pages.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/annots-on-pages.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/boxes.pdf",
+            "height": 1008,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 768
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/boxes.pdf",
+            "height": 1512,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1152
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/boxes.pdf",
+            "height": 2016,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1536
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/boxes.pdf",
+            "height": 856,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 534
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/boxes.pdf",
+            "height": 1284,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 800
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/boxes.pdf",
+            "height": 1712,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1067
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/boxes.pdf",
+            "height": 1123,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/boxes.pdf",
+            "height": 1684,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/boxes.pdf",
+            "height": 2246,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/decorated-elsewhere.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/decorated-elsewhere.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/decorated-elsewhere.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 741,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1070
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1111,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1604
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1481,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 2139
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 741,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1070
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1111,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1604
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1481,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 2139
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 976,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 736
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1464,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1104
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1952,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1472
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 976,
+            "page": 4,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 736
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1464,
+            "page": 4,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1104
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/inherit-resources.pdf",
+            "height": 1952,
+            "page": 4,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1472
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/layers.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/layers.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/layers.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/layers.pdf",
+            "height": 1123,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/layers.pdf",
+            "height": 1684,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/layers.pdf",
+            "height": 2246,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/merge-a.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/merge-a.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/merge-a.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/merge-b.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/merge-b.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/merge-b.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/merge-c.pdf",
+            "height": 794,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 560
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/merge-c.pdf",
+            "height": 1191,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 840
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/merge-c.pdf",
+            "height": 1588,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1119
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/merge-c.pdf",
+            "height": 560,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/merge-c.pdf",
+            "height": 840,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/merge-c.pdf",
+            "height": 1119,
+            "page": 1,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/merge-c.pdf",
+            "height": 1056,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/merge-c.pdf",
+            "height": 1584,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/merge-c.pdf",
+            "height": 2112,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/merge-c.pdf",
+            "height": 1123,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/merge-c.pdf",
+            "height": 1684,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/merge-c.pdf",
+            "height": 2246,
+            "page": 3,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-1.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-1.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-1.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-17.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-17.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-17.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-2.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-2.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-2.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-3.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-3.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-3.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-5.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-5.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-5.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-7.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-7.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-7.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/odd-count-9.pdf",
+            "height": 1056,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 816
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/odd-count-9.pdf",
+            "height": 1584,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1224
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/odd-count-9.pdf",
+            "height": 2112,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1632
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/refs-by-index.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/refs-by-index.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/refs-by-index.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/refs-every-kind.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/refs-every-kind.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/refs-every-kind.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/refs-none.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/refs-none.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/refs-none.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/split-blanks.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1123,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1684,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/split-blanks.pdf",
+            "height": 2246,
+            "page": 2,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1123,
+            "page": 5,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1684,
+            "page": 5,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/split-blanks.pdf",
+            "height": 2246,
+            "page": 5,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1123,
+            "page": 6,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/split-blanks.pdf",
+            "height": 1684,
+            "page": 6,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/split-blanks.pdf",
+            "height": 2246,
+            "page": 6,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/tagged-headings.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/tagged-headings.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/tagged-headings.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
+            "file": "assembly/untagged-headings.pdf",
+            "height": 1123,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 794
+        },
+        {
+            "dpi": 144,
+            "file": "assembly/untagged-headings.pdf",
+            "height": 1684,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1191
+        },
+        {
+            "dpi": 192,
+            "file": "assembly/untagged-headings.pdf",
+            "height": 2246,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 1588
+        },
+        {
+            "dpi": 96,
             "file": "compare/base.pdf",
             "height": 1123,
             "page": 0,
@@ -4058,7 +5048,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-16T13:06:28Z",
+    "capturedUtc": "2026-10-28T22:30:23Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 6 T14 (D6-25, D6-18): new appearance cases -- redaction marks, their /RO overlay, and the sound icons; no existing baseline touched"
+    "reason": "Stage 7 T1: the assembly corpus (Stage7-Assembly-Plan.md 5.2), captured after Stage 7 guide I-01's fix; every page looked at in a scratch capture first"
 }

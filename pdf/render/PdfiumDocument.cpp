@@ -1254,16 +1254,41 @@ core::Status PdfiumDocument::Opening::step()
             float right = 0.0F;
             float top = 0.0F;
 
+            // **`FPDFPage_GetMediaBox` and `FPDFPage_GetCropBox` read the PAGE DICTIONARY ALONE** --
+            // neither follows inheritance, though PDFium's own renderer does. Until Stage 7 T1 this
+            // took their silence for "no box anywhere", so a page inheriting its /MediaBox from a
+            // /Pages node was laid out as US Letter while the engine drew it as A4, and a page
+            // inheriting its /CropBox was shown uncropped (Stage 7 guide I-01,
+            // `corpus/assembly/inherit-resources.pdf`, the first corpus file to inherit either box).
+            //
+            // `FPDF_GetPageBoundingBox` is the one call that does inherit: it is the box the engine
+            // DRAWS, the media box intersected with the crop box. So the page's own boxes are taken
+            // where it states them, and the drawn box stands in for what it inherits: as the media
+            // box when it states none (there is no inherited media box to be had apart from the crop
+            // box), and as the crop box when the drawn box is smaller than the media box it states.
+            // What that leaves inexact, and says so here rather than in a plan: a page inheriting
+            // its /MediaBox AND a smaller /CropBox reports the drawn box as its media box. What is
+            // SHOWN is right either way -- `cropBox()` is the drawn box -- and the media box itself
+            // is first set or read apart from the crop by Stage 7's page-box commands (plan D7-15).
             core::Page built(index, core::PdfRect{});
-            if (FPDFPage_GetMediaBox(page, &left, &bottom, &right, &top)) {
+            FS_RECTF drawnEdges{};
+            const bool drawnRead = FPDF_GetPageBoundingBox(page, &drawnEdges) != 0;
+            const core::PdfRect drawn = rectFrom(drawnEdges.left, drawnEdges.bottom, drawnEdges.right, drawnEdges.top);
+            const bool ownMedia = FPDFPage_GetMediaBox(page, &left, &bottom, &right, &top) != 0;
+            if (ownMedia) {
                 built.setMediaBox(rectFrom(left, bottom, right, top));
+            } else if (drawnRead && drawn.size.width > 0.0 && drawn.size.height > 0.0) {
+                built.setMediaBox(drawn);
             } else {
                 // No /MediaBox anywhere up the inheritance chain. US Letter is what every reader
                 // substitutes, and a page of zero size would divide by zero in layout.
                 built.setMediaBox(core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}});
             }
-            if (FPDFPage_GetCropBox(page, &left, &bottom, &right, &top))
+            if (FPDFPage_GetCropBox(page, &left, &bottom, &right, &top)) {
                 built.setCropBox(rectFrom(left, bottom, right, top));
+            } else if (ownMedia && drawnRead && !(drawn == built.mediaBox())) {
+                built.setCropBox(drawn);
+            }
             if (FPDFPage_GetBleedBox(page, &left, &bottom, &right, &top))
                 built.setBleedBox(rectFrom(left, bottom, right, top));
             if (FPDFPage_GetTrimBox(page, &left, &bottom, &right, &top))

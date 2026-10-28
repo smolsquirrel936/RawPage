@@ -188,11 +188,39 @@
     { "file": "compare/unrelated-a.pdf", "pages": [0] },
     { "file": "compare/unrelated-b.pdf", "pages": [0] },
     { "file": "compare/report-v1.pdf", "pages": [0] },
-    { "file": "compare/report-v2.pdf", "pages": [0] }
+    { "file": "compare/report-v2.pdf", "pages": [0] },
+
+    { "file": "assembly/refs-every-kind.pdf", "pages": [0],
+      "note": "Stage 7 T1. Twelve identity pages; their references are not drawn, and every page is the same kind" },
+    { "file": "assembly/refs-none.pdf", "pages": [0] },
+    { "file": "assembly/refs-by-index.pdf", "pages": [0] },
+    { "file": "assembly/inherit-resources.pdf", "pages": [0, 2, 3, 4],
+      "note": "Stage 7 T1. Boxes, resources and rotation inherited from three levels: page 0 the shared image, page 2 the root's resources, page 3 Letter turned 180, page 4 its own /Rotate 0 -- the pages Stage 7 guide I-01 drew at US Letter, uncropped" },
+    { "file": "assembly/annots-on-pages.pdf", "pages": [0] },
+    { "file": "assembly/merge-a.pdf", "pages": [0] },
+    { "file": "assembly/merge-b.pdf", "pages": [0] },
+    { "file": "assembly/merge-c.pdf", "pages": [0, 1, 2, 3],
+      "note": "Stage 7 T1. Four page sizes, for the reason mixed-page-sizes' four are captured" },
+    { "file": "assembly/layers.pdf", "pages": [0, 1],
+      "note": "Stage 7 T1. Page 1 draws the default states: one radio group member off, the print-only group off on screen" },
+    { "file": "assembly/tagged-headings.pdf", "pages": [0] },
+    { "file": "assembly/untagged-headings.pdf", "pages": [0] },
+    { "file": "assembly/split-blanks.pdf", "pages": [0, 2, 5, 6],
+      "note": "Stage 7 T1. The three pages with no visible ink -- no /Contents, a stream of q Q, white on white -- each must stay blank" },
+    { "file": "assembly/boxes.pdf", "pages": [0, 1, 2],
+      "note": "Stage 7 T1. Five boxes, a crop box outside the media box, and a known content box: three different drawn boxes" },
+    { "file": "assembly/decorated-elsewhere.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-1.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-2.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-3.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-5.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-7.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-9.pdf", "pages": [0] },
+    { "file": "assembly/odd-count-17.pdf", "pages": [0] }
   ],
 
   "$comment-excluded": [
-    "Five files, and every one of them is a file the ENGINE will not give us a page for. That is",
+    "Six files, and every one of them is a file the ENGINE will not give us a page for. That is",
     "correct behaviour and it is asserted elsewhere -- guide cases A-42 and A-43 own opening and",
     "refusing -- so a golden entry here would be a second copy of that claim with no pixels in it.",
     "",
@@ -210,6 +238,8 @@
     { "file": "malformed/truncated-mid-stream.pdf",
       "reason": "the engine refuses it (error.open.damaged); nothing to rasterize" },
     { "file": "malformed/objstm-corrupt.pdf",
-      "reason": "the engine refuses it (error.open.noPages): it opens with no readable page, which is refused rather than shown empty (Stage 2 I-31)" }
+      "reason": "the engine refuses it (error.open.noPages): it opens with no readable page, which is refused rather than shown empty (Stage 2 I-31)" },
+    { "file": "assembly/merge-not-a-pdf.pdf",
+      "reason": "the engine refuses it (error.open.notPdf): it is a text file named .pdf, the input Stage 7's merge must skip and report (plan D7-16)" }
   ]
 }

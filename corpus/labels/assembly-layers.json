@@ -1,0 +1,165 @@
+{
+ "file": "assembly/layers.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 12,
+   "identity": "L-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "properties": {
+    "oc1": 3,
+    "oc2": 5,
+    "oc3": 6
+   }
+  },
+  {
+   "index": 1,
+   "object": 13,
+   "identity": "L-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "properties": {
+    "en": 7,
+    "fr": 8,
+    "pr": 9,
+    "sc": 10
+   }
+  }
+ ],
+ "groups": [
+  {
+   "key": "base",
+   "object": 3,
+   "name": "Base drawing",
+   "parent": null,
+   "orderLabel": null,
+   "locked": true,
+   "defaultOn": true,
+   "radioGroup": null,
+   "usage": null,
+   "pages": [
+    0
+   ]
+  },
+  {
+   "key": "annotations",
+   "object": 4,
+   "name": "Annotations",
+   "parent": null,
+   "orderLabel": null,
+   "locked": false,
+   "defaultOn": true,
+   "radioGroup": null,
+   "usage": null,
+   "pages": []
+  },
+  {
+   "key": "notes",
+   "object": 5,
+   "name": "Reviewer notes",
+   "parent": "annotations",
+   "orderLabel": null,
+   "locked": false,
+   "defaultOn": true,
+   "radioGroup": null,
+   "usage": null,
+   "pages": [
+    0
+   ]
+  },
+  {
+   "key": "markup",
+   "object": 6,
+   "name": "Markup",
+   "parent": "annotations",
+   "orderLabel": null,
+   "locked": false,
+   "defaultOn": true,
+   "radioGroup": null,
+   "usage": null,
+   "pages": [
+    0
+   ]
+  },
+  {
+   "key": "en",
+   "object": 7,
+   "name": "English",
+   "parent": null,
+   "orderLabel": "Languages",
+   "locked": false,
+   "defaultOn": true,
+   "radioGroup": 0,
+   "usage": null,
+   "pages": [
+    1
+   ]
+  },
+  {
+   "key": "fr",
+   "object": 8,
+   "name": "French",
+   "parent": null,
+   "orderLabel": "Languages",
+   "locked": false,
+   "defaultOn": false,
+   "radioGroup": 0,
+   "usage": null,
+   "pages": [
+    1
+   ]
+  },
+  {
+   "key": "print",
+   "object": 9,
+   "name": "Print only",
+   "parent": null,
+   "orderLabel": null,
+   "locked": false,
+   "defaultOn": false,
+   "radioGroup": null,
+   "usage": {
+    "print": "ON",
+    "view": "OFF"
+   },
+   "pages": [
+    1
+   ]
+  },
+  {
+   "key": "screen",
+   "object": 10,
+   "name": "Screen only",
+   "parent": null,
+   "orderLabel": null,
+   "locked": false,
+   "defaultOn": true,
+   "radioGroup": null,
+   "usage": {
+    "print": "OFF",
+    "view": "ON"
+   },
+   "pages": [
+    1
+   ]
+  }
+ ]
+}

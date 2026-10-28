@@ -1,0 +1,124 @@
+{
+ "file": "assembly/refs-by-index.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "X-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "X-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "X-0003",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "X-0004",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 4,
+   "object": 8,
+   "identity": "X-0005",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 5,
+   "object": 9,
+   "identity": "X-0006",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  }
+ ],
+ "outline": [
+  {
+   "object": 21,
+   "title": "X-0001",
+   "form": "dest",
+   "targetPage": 4,
+   "targetIdentity": "X-0001",
+   "open": null,
+   "children": []
+  },
+  {
+   "object": 22,
+   "title": "integer destination 2",
+   "form": "dest",
+   "targetPage": null,
+   "targetIdentity": null,
+   "open": null,
+   "children": [],
+   "integerPage": 2,
+   "note": "an integer page in a LOCAL destination; no target is claimed, and a repair must leave it as written"
+  }
+ ],
+ "links": [
+  {
+   "page": 0,
+   "object": 11,
+   "form": "dest",
+   "targetPage": 7,
+   "targetIdentity": "X-0004"
+  },
+  {
+   "page": 0,
+   "object": 12,
+   "form": "dest",
+   "targetPage": 10,
+   "targetIdentity": null,
+   "outsidePageTree": true,
+   "orphanShows": "X-0099"
+  }
+ ]
+}

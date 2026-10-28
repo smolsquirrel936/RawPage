@@ -66,7 +66,7 @@ TEST_CASE("permissions refuse by name where this build cannot write", "[doc][per
     std::vector<CosPageFacts> rotated = factsOf(3);
     rotated[1].rotation = 90;
     std::vector<CosPageFacts> resized = factsOf(3);
-    resized[2].mediaSize = PdfSize{612.0, 792.0};
+    resized[2].drawnSize = PdfSize{612.0, 792.0};
 
     const std::vector<Planted> planted = {
         {"encrypted", Permissions::assess(treeOf(3), CosReading::Encrypted, {}), "error.edit.encrypted"},
@@ -108,14 +108,14 @@ TEST_CASE("permissions do not compare a size the file never stated", "[doc][perm
     // A page with no /MediaBox anywhere above it gets the ENGINE's default size, which the file never
     // stated; holding the first-party reading to it would refuse a legal file.
     std::vector<CosPageFacts> unstated = factsOf(2);
-    unstated[0].mediaSize.reset();
+    unstated[0].drawnSize.reset();
     CHECK(Permissions::assess(treeOf(2), CosReading::Read, unstated).canEditPages());
 
     // And the tolerance is a tolerance, not a free pass: 0.005 agrees, 0.5 does not.
     std::vector<CosPageFacts> nearly = factsOf(1);
-    nearly[0].mediaSize->width += 0.005;
+    nearly[0].drawnSize->width += 0.005;
     CHECK(Permissions::assess(treeOf(1), CosReading::Read, nearly).canEditPages());
-    nearly[0].mediaSize->width += 0.5;
+    nearly[0].drawnSize->width += 0.5;
     CHECK_FALSE(Permissions::assess(treeOf(1), CosReading::Read, nearly).canEditPages());
 }
 

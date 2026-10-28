@@ -1,0 +1,201 @@
+{
+ "file": "assembly/untagged-headings.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica",
+  "size": 9,
+  "placement": "footer"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "TG-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "TG-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "TG-0003",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  }
+ ],
+ "tagged": false,
+ "bodySize": 11,
+ "headingSizes": {
+  "1": 20,
+  "2": 16,
+  "3": 13
+ },
+ "headingPattern": "^[0-9]+(\\.[0-9]+)* ",
+ "headings": [
+  {
+   "level": 1,
+   "text": "1 Assembly overview",
+   "pageIndex": 0,
+   "pageIdentity": "TG-0001",
+   "fontSize": 20,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 2,
+   "text": "1.1 Moving pages",
+   "pageIndex": 0,
+   "pageIdentity": "TG-0001",
+   "fontSize": 16,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 3,
+   "text": "1.1.1 Page maps",
+   "pageIndex": 0,
+   "pageIdentity": "TG-0001",
+   "fontSize": 13,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 2,
+   "text": "1.2 Copying pages",
+   "pageIndex": 1,
+   "pageIdentity": "TG-0002",
+   "fontSize": 16,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 3,
+   "text": "1.2.1 Shared resources",
+   "pageIndex": 1,
+   "pageIdentity": "TG-0002",
+   "fontSize": 13,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 1,
+   "text": "2 New documents",
+   "pageIndex": 1,
+   "pageIdentity": "TG-0002",
+   "fontSize": 20,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 2,
+   "text": "2.1 Splitting",
+   "pageIndex": 2,
+   "pageIdentity": "TG-0003",
+   "fontSize": 16,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 2,
+   "text": "2.2 Merging",
+   "pageIndex": 2,
+   "pageIdentity": "TG-0003",
+   "fontSize": 16,
+   "bold": true,
+   "object": null
+  },
+  {
+   "level": 3,
+   "text": "2.2.1 Field names",
+   "pageIndex": 2,
+   "pageIdentity": "TG-0003",
+   "fontSize": 13,
+   "bold": true,
+   "object": null
+  }
+ ],
+ "expectedOutline": [
+  {
+   "level": 1,
+   "text": "1 Assembly overview",
+   "pageIdentity": "TG-0001",
+   "children": [
+    {
+     "level": 2,
+     "text": "1.1 Moving pages",
+     "pageIdentity": "TG-0001",
+     "children": [
+      {
+       "level": 3,
+       "text": "1.1.1 Page maps",
+       "pageIdentity": "TG-0001",
+       "children": []
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "text": "1.2 Copying pages",
+     "pageIdentity": "TG-0002",
+     "children": [
+      {
+       "level": 3,
+       "text": "1.2.1 Shared resources",
+       "pageIdentity": "TG-0002",
+       "children": []
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "level": 1,
+   "text": "2 New documents",
+   "pageIdentity": "TG-0002",
+   "children": [
+    {
+     "level": 2,
+     "text": "2.1 Splitting",
+     "pageIdentity": "TG-0003",
+     "children": []
+    },
+    {
+     "level": 2,
+     "text": "2.2 Merging",
+     "pageIdentity": "TG-0003",
+     "children": [
+      {
+       "level": 3,
+       "text": "2.2.1 Field names",
+       "pageIdentity": "TG-0003",
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "paragraphs": 9
+}

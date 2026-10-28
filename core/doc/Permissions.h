@@ -75,16 +75,23 @@ struct AnnotationFact {
 enum class CosReading { Read, Encrypted, NoPageMap };
 
 // One page, as the first-party reader sees it.
+//
+// `drawnSize` is the size of the box the page is DRAWN in -- its /MediaBox intersected with its
+// /CropBox, each its own or inherited. Until Stage 7 T1 this compared the /MediaBox alone, and the
+// engine's media box was the page dictionary's own: a page inheriting its boxes read as US Letter to
+// the engine and as A4 here, and the whole document was refused (Stage 7 guide I-01). The drawn box
+// is what both readers can state through inheritance -- PDFium exposes the inherited media box only
+// intersected with the crop box -- and it is the box a rotation is seen in.
 struct CosPageFacts {
     int rotation = 0;                    // effective, normalized to 0 / 90 / 180 / 270
-    std::optional<PdfSize> mediaSize;    // absent when no /MediaBox is written anywhere above it
+    std::optional<PdfSize> drawnSize;    // absent when no /MediaBox is written anywhere above it
 };
 
 class Permissions {
 public:
     Permissions() = default;             // refused: not assessed
 
-    // Media box sizes agree within this many points: the engine reports them through `float`.
+    // Drawn box sizes agree within this many points: the engine reports them through `float`.
     static constexpr double kSizeTolerance = 0.01;
 
     static Permissions assess(const PageTree& engine, CosReading reading,

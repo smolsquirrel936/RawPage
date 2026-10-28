@@ -1,0 +1,162 @@
+{
+ "file": "assembly/merge-c.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "MC-0001",
+   "mediaBox": [
+    0,
+    0,
+    419.528,
+    595.276
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "MC-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    419.528
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "MC-0003",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "MC-0004",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0
+  }
+ ],
+ "title": "Merge source C",
+ "outline": [
+  {
+   "object": 27,
+   "title": "MC-0001",
+   "form": "dest",
+   "targetPage": 4,
+   "targetIdentity": "MC-0001",
+   "open": true,
+   "children": [
+    {
+     "object": 28,
+     "title": "MC-0002",
+     "form": "dest",
+     "targetPage": 5,
+     "targetIdentity": "MC-0002",
+     "open": null,
+     "children": []
+    },
+    {
+     "object": 29,
+     "title": "MC-0003",
+     "form": "dest",
+     "targetPage": 6,
+     "targetIdentity": "MC-0003",
+     "open": null,
+     "children": []
+    },
+    {
+     "object": 30,
+     "title": "MC-0004",
+     "form": "dest",
+     "targetPage": 7,
+     "targetIdentity": "MC-0004",
+     "open": null,
+     "children": []
+    }
+   ]
+  }
+ ],
+ "links": [
+  {
+   "page": 0,
+   "object": 21,
+   "form": "dest",
+   "targetPage": 7,
+   "targetIdentity": "MC-0004"
+  }
+ ],
+ "comments": [
+  {
+   "object": 20,
+   "subtype": "Text",
+   "pageIdentity": "MC-0004"
+  }
+ ],
+ "fields": [
+  {
+   "name": "name",
+   "object": 11,
+   "kids": null,
+   "value": "Chen Wei"
+  },
+  {
+   "name": "date",
+   "object": 13,
+   "kids": null,
+   "value": "2026-10-03"
+  },
+  {
+   "name": "address",
+   "object": 15,
+   "kids": [
+    {
+     "name": "city",
+     "object": 17
+    }
+   ],
+   "value": "Taipei"
+  },
+  {
+   "name": "c-only",
+   "object": 18,
+   "kids": null,
+   "value": "third source"
+  }
+ ],
+ "layers": [
+  {
+   "object": 8,
+   "name": "Draft"
+  },
+  {
+   "object": 9,
+   "name": "Source C notes"
+  }
+ ],
+ "collidingFields": [
+  "name",
+  "date",
+  "address"
+ ]
+}

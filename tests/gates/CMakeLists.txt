@@ -919,11 +919,13 @@ if(Python3_Interpreter_FOUND)
     # T1's four (an /AP planted on annots-no-ap.pdf, /RawPageTestKey removed, an annotation
     # fixture with no label, an exchange file with no PROVENANCE.md row), and Stage 6 guide
     # I-27's and I-28's two (a <contents> put back in threads-acrobat26.xfdf, an /IRT reference
-    # in threads-acrobat26.fdf), each matched to the FILE it damaged so it cannot fire for
-    # another file's reason (convention 7).
+    # in threads-acrobat26.fdf), and Stage 7 T1's three (a wrong identity in an assembly label,
+    # /Resources planted on an inheriting page of inherit-resources.pdf, an assembly fixture with no
+    # label), each matched to the FILE it damaged so it cannot fire for another file's reason
+    # (convention 7).
     rawpage_add_gate_test(NAME gates.corpus.self_test
         COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --self-test
-        EXPECT_EXIT 0 EXPECT_MATCH "16 of 16 controls fired")
+        EXPECT_EXIT 0 EXPECT_MATCH "19 of 19 controls fired")
 
     # Stage 5 T1 (Stage5-TextSearch-Testing-Guide.md A-14): each text fixture carries the fault or
     # feature its PROVENANCE.md row claims, read from its bytes with every stream decoded -- a
@@ -932,10 +934,12 @@ if(Python3_Interpreter_FOUND)
     # control word planted, must each be reported.
     # Stage 6 T1 (Stage6-Annotations-Testing-Guide.md A-15) extends it to the annotation
     # fixtures, the exchange files and the stamp images, and holds every labels/annots-*.json
-    # entry to the object it names.
+    # entry to the object it names. Stage 7 T1 (Stage7-Assembly-Testing-Guide.md A-15) adds the
+    # assembly fixtures: every labels/assembly-*.json claim -- the page tree's order, the identity
+    # each page shows, each reference's form and target -- held to the bytes.
     rawpage_add_gate_test(NAME gates.corpus.faults
         COMMAND ${Python3_EXECUTABLE} ${CORPUS_DRIVER} --check-faults
-        EXPECT_EXIT 0 EXPECT_MATCH "every Stage 5 and Stage 6 fixture carries what its row claims")
+        EXPECT_EXIT 0 EXPECT_MATCH "every Stage 5, 6 and 7 fixture carries what its row claims")
 
     # Stage 5 T1 (A-15): every comparison record re-derives its revised document from its base, by
     # code that shares nothing with the edits, and each kind of pair keeps its promise about words.

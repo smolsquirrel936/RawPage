@@ -4,7 +4,7 @@
     python corpus/make-corpus.py                  # write every file
     python corpus/make-corpus.py --verify         # regenerate in memory, compare against disk
     python corpus/make-corpus.py --check-provenance
-    python corpus/make-corpus.py --check-faults    # the Stage 5 and 6 fixtures carry what they claim
+    python corpus/make-corpus.py --check-faults    # the Stage 5, 6 and 7 fixtures carry what they claim
     python corpus/make-corpus.py --list
 
 WHY `--verify` IS THE POINT OF THIS FILE. D2-11 (`Stage2-Rendering-Plan.md` section 3) makes every
@@ -66,7 +66,7 @@ def build_all():
     files["minimal.pdf"] = _load("make-minimal.py").build()
     files["a2-text-page.pdf"] = _load("make-a2-text-page.py").build()
     for script in ("make-ordinary.py", "make-malformed.py", "make-encrypted.py", "make-signed.py",
-                   "make-text.py", "make-compare.py", "make-annots.py"):
+                   "make-text.py", "make-compare.py", "make-annots.py", "make-assembly.py"):
         files.update(_load(script).generate())
     return files
 
@@ -184,11 +184,13 @@ def check_sidecars(files, labelled=None):
     every comparison record names a base and a revised file that exist. A label for a file that is
     gone is ground truth for nothing, and a text fixture with no label is one nobody can grade.
     Stage 6 T1 adds the annotation fixtures, whose labels are `labels/annots-<name>.json`, and the
-    migration label, which names a revised document as well."""
+    migration label, which names a revised document as well. Stage 7 T1 adds `assembly/`, whose
+    labels are `labels/assembly-<name>.json` -- every fixture there but the one that is not a PDF."""
     problems = []
     if labelled is None:
         labelled = ["ordinary/" + name for name in _load("make-text.py").FILES]
         labelled += ["ordinary/" + name for name in _load("make-annots.py").FILES]
+        labelled += ["assembly/" + name for name in _load("make-assembly.py").FILES]
     for relative, data in files.items():
         if relative.startswith("labels/"):
             body = json.loads(data.decode("utf-8"))
@@ -204,9 +206,12 @@ def check_sidecars(files, labelled=None):
                     problems.append("EXPECTED  %s -- its %s %r is not in the corpus"
                                     % (relative, key, record.get(key)))
     annots = _load("make-annots.py")
+    assembly = _load("make-assembly.py")
     for fixture in labelled:
         name = fixture.split("/")[-1]
-        if name in annots.FILES:
+        if fixture.startswith("assembly/"):
+            label = assembly.label_name(name)
+        elif name in annots.FILES:
             label = annots.label_name(name)
         else:
             label = "labels/" + name.replace(".pdf", ".json")
@@ -226,8 +231,9 @@ def self_test(files):
     `--verify` passing on a clean tree is equally satisfied by a checker that returns success
     without looking -- which is the shape of Stage 1's I-30 and of every waived gate this project
     has had to re-examine. So each detection gets an input that must trigger it -- the five of Stage
-    2 T4, the five Stage 5 T1 added for labels, comparison records and fixture faults, and the four
-    Stage 6 T1 added for the annotation fixtures, their labels and the exchange files -- and a
+    2 T4, the five Stage 5 T1 added for labels, comparison records and fixture faults, the four
+    Stage 6 T1 added for the annotation fixtures, their labels and the exchange files, Stage 6's two
+    for Acrobat's exchange shapes, and the three Stage 7 T1 added for the assembly fixtures -- and a
     detection that stays quiet fails this test.
 
     Nothing here touches the corpus on disk: the stand-in tree and the stand-in row list are
@@ -310,6 +316,24 @@ def self_test(files):
     control("an /IRT reference in threads-acrobat26.fdf is FAULT", check_faults(referenced),
             "FAULT     exchange/threads-acrobat26.fdf")
 
+    # Stage 7 T1 (Stage7-Assembly-Testing-Guide.md A-14, A-15): a label that names the wrong identity
+    # for one page, an inherited-attribute page given /Resources of its own, and an assembly fixture
+    # with no label -- each matched to the file it damaged.
+    relabelled = dict(clean)
+    label = json.loads(clean["labels/assembly-refs-every-kind.json"].decode("utf-8"))
+    label["pages"][3]["identity"] = "P-0099"
+    relabelled["labels/assembly-refs-every-kind.json"] = json.dumps(label).encode("utf-8")
+    control("a wrong identity in an assembly label is FAULT", check_faults(relabelled),
+            "FAULT     assembly/refs-every-kind.pdf -- page 3 shows")
+    owned = dict(clean)
+    owned["assembly/inherit-resources.pdf"] = clean["assembly/inherit-resources.pdf"].replace(
+        b"/Type /Page /Parent", b"/Type /Page /Resources 5 0 R /Parent", 1)
+    control("/Resources on an inheriting page is FAULT", check_faults(owned),
+            "FAULT     assembly/inherit-resources.pdf -- page 0 carries its own /Resources")
+    no_assembly_label = {k: v for k, v in clean.items() if k != "labels/assembly-layers.json"}
+    control("assembly fixture, no label", check_sidecars(no_assembly_label),
+            "UNLABELLED assembly/layers.pdf")
+
     for name, fired, sample in results:
         print("  %-32s %s%s" % (name, "detected" if fired else "NOT DETECTED",
                                 ("  <- " + sample[0]) if fired and sample else ""))
@@ -327,7 +351,7 @@ def main():
     parser.add_argument("--check-provenance", action="store_true",
                         help="every file has a PROVENANCE.md row and every row has a file")
     parser.add_argument("--check-faults", action="store_true",
-                        help="the Stage 5 and 6 fixtures carry the fault or feature each claims")
+                        help="the Stage 5, 6 and 7 fixtures carry the fault or feature each claims")
     parser.add_argument("--self-test", action="store_true",
                         help="the negative controls: prove each --verify failure path fires")
     parser.add_argument("--list", action="store_true",
@@ -373,7 +397,7 @@ def main():
             sum(1 for k in files if k.startswith("labels/")),
             sum(1 for k in files if k.startswith("compare/") and k.endswith(".json"))))
     if arguments.check_faults:
-        checked.append("every Stage 5 and Stage 6 fixture carries what its row claims")
+        checked.append("every Stage 5, 6 and 7 fixture carries what its row claims")
     if checked:
         print("corpus check ok: " + "; ".join(checked))
     return 0

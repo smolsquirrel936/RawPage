@@ -36,6 +36,7 @@ struct Frame {
     int depth = 0;
     int inheritedRotate = 0;
     std::optional<std::array<double, 4>> inheritedBox;
+    std::optional<std::array<double, 4>> inheritedCrop;
 };
 
 } // namespace
@@ -73,7 +74,7 @@ core::Result<PageWalk> PageOps::walk(cos::XrefTable& table)
     PageWalk result;
     std::set<long long> visited;
     // Depth first, children pushed in reverse so they pop in document order.
-    std::vector<Frame> stack{Frame{pagesRef.reference().number, 0, 0, std::nullopt}};
+    std::vector<Frame> stack{Frame{pagesRef.reference().number, 0, 0, std::nullopt, std::nullopt}};
 
     while (!stack.empty()) {
         Frame frame = stack.back();
@@ -92,6 +93,7 @@ core::Result<PageWalk> PageOps::walk(cos::XrefTable& table)
 
         const CosObject* ownRotate = node.find("Rotate");
         const std::optional<std::array<double, 4>> ownBox = boxOf(node.get("MediaBox"));
+        const std::optional<std::array<double, 4>> ownCrop = boxOf(node.get("CropBox"));
         const CosObject& kids = node.get("Kids");
 
         if (!kids.isArray()) {
@@ -101,6 +103,7 @@ core::Result<PageWalk> PageOps::walk(cos::XrefTable& table)
                 page.ownRotate = normalizeRotate(*ownRotate);
             page.inheritedRotate = frame.inheritedRotate;
             page.mediaBox = ownBox ? ownBox : frame.inheritedBox;
+            page.cropBox = ownCrop ? ownCrop : frame.inheritedCrop;
             result.pages.push_back(page);
             continue;
         }
@@ -113,12 +116,13 @@ core::Result<PageWalk> PageOps::walk(cos::XrefTable& table)
                                    ? normalizeRotate(*ownRotate)
                                    : frame.inheritedRotate;
         const auto passBox = ownBox ? ownBox : frame.inheritedBox;
+        const auto passCrop = ownCrop ? ownCrop : frame.inheritedCrop;
         for (auto kid = kids.items().rbegin(); kid != kids.items().rend(); ++kid) {
             if (!kid->isReference()) {
                 result.notes.push_back({PageWalkNote::KidNotAReference, frame.number});
                 continue;
             }
-            stack.push_back(Frame{kid->reference().number, frame.depth + 1, passRotate, passBox});
+            stack.push_back(Frame{kid->reference().number, frame.depth + 1, passRotate, passBox, passCrop});
         }
     }
     return result;

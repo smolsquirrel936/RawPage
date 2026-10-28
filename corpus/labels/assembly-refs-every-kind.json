@@ -1,0 +1,487 @@
+{
+ "file": "assembly/refs-every-kind.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "P-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "i"
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "P-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "ii"
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "P-0003",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "iii"
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "P-0004",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "1"
+  },
+  {
+   "index": 4,
+   "object": 8,
+   "identity": "P-0005",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "2"
+  },
+  {
+   "index": 5,
+   "object": 9,
+   "identity": "P-0006",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "3"
+  },
+  {
+   "index": 6,
+   "object": 10,
+   "identity": "P-0007",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "4"
+  },
+  {
+   "index": 7,
+   "object": 11,
+   "identity": "P-0008",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "5"
+  },
+  {
+   "index": 8,
+   "object": 12,
+   "identity": "P-0009",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "6"
+  },
+  {
+   "index": 9,
+   "object": 13,
+   "identity": "P-0010",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "A-1"
+  },
+  {
+   "index": 10,
+   "object": 14,
+   "identity": "P-0011",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "A-2"
+  },
+  {
+   "index": 11,
+   "object": 15,
+   "identity": "P-0012",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "pageLabel": "A-3"
+  }
+ ],
+ "namedDestinations": [
+  {
+   "name": "dest-alpha",
+   "form": "namesTree",
+   "entryForm": "array",
+   "targetPage": 6,
+   "targetIdentity": "P-0003"
+  },
+  {
+   "name": "dest-beta",
+   "form": "namesTree",
+   "entryForm": "dictionary",
+   "targetPage": 10,
+   "targetIdentity": "P-0007"
+  },
+  {
+   "name": "dest-gamma",
+   "form": "namesTree",
+   "entryForm": "array",
+   "targetPage": 13,
+   "targetIdentity": "P-0010"
+  },
+  {
+   "name": "old-delta",
+   "form": "destsDict",
+   "entryForm": "array",
+   "targetPage": 7,
+   "targetIdentity": "P-0004"
+  },
+  {
+   "name": "old-epsilon",
+   "form": "destsDict",
+   "entryForm": "array",
+   "targetPage": 14,
+   "targetIdentity": "P-0011"
+  }
+ ],
+ "links": [
+  {
+   "page": 0,
+   "object": 19,
+   "form": "dest",
+   "rect": [
+    44,
+    767.89,
+    330,
+    782.89
+   ],
+   "targetIdentity": "P-0009",
+   "targetPage": 12
+  },
+  {
+   "page": 0,
+   "object": 20,
+   "form": "goto",
+   "rect": [
+    44,
+    753.89,
+    330,
+    768.89
+   ],
+   "targetIdentity": "P-0006",
+   "targetPage": 9
+  },
+  {
+   "page": 1,
+   "object": 21,
+   "form": "destString",
+   "rect": [
+    44,
+    767.89,
+    330,
+    782.89
+   ],
+   "targetIdentity": "P-0007",
+   "name": "dest-beta"
+  },
+  {
+   "page": 1,
+   "object": 22,
+   "form": "destName",
+   "rect": [
+    44,
+    753.89,
+    330,
+    768.89
+   ],
+   "targetIdentity": "P-0004",
+   "name": "old-delta"
+  },
+  {
+   "page": 2,
+   "object": 23,
+   "form": "gotoNamed",
+   "rect": [
+    44,
+    767.89,
+    330,
+    782.89
+   ],
+   "targetIdentity": "P-0010",
+   "name": "dest-gamma"
+  },
+  {
+   "page": 3,
+   "object": 24,
+   "form": "goToR",
+   "rect": [
+    44,
+    767.89,
+    330,
+    782.89
+   ],
+   "targetIdentity": "P-0005",
+   "file": "refs-every-kind.pdf",
+   "pageNumber": 4
+  }
+ ],
+ "outline": [
+  {
+   "object": 26,
+   "title": "P-0001",
+   "form": "dest",
+   "targetPage": 4,
+   "targetIdentity": "P-0001",
+   "open": true,
+   "children": [
+    {
+     "object": 29,
+     "title": "P-0002",
+     "form": "dest",
+     "targetPage": 5,
+     "targetIdentity": "P-0002",
+     "open": null,
+     "children": []
+    },
+    {
+     "object": 30,
+     "title": "P-0003",
+     "form": "dest",
+     "targetPage": 6,
+     "targetIdentity": "P-0003",
+     "open": null,
+     "children": []
+    }
+   ]
+  },
+  {
+   "object": 27,
+   "title": "P-0005",
+   "form": "dest",
+   "targetPage": 8,
+   "targetIdentity": "P-0005",
+   "open": false,
+   "children": [
+    {
+     "object": 31,
+     "title": "P-0006",
+     "form": "dest",
+     "targetPage": 9,
+     "targetIdentity": "P-0006",
+     "open": null,
+     "children": []
+    },
+    {
+     "object": 32,
+     "title": "P-0008",
+     "form": "action",
+     "targetPage": 11,
+     "targetIdentity": "P-0008",
+     "open": null,
+     "children": []
+    }
+   ]
+  },
+  {
+   "object": 28,
+   "title": "P-0012",
+   "form": "dest",
+   "targetPage": 15,
+   "targetIdentity": "P-0012",
+   "open": null,
+   "children": []
+  }
+ ],
+ "pageLabelRanges": [
+  {
+   "start": 0,
+   "style": "r"
+  },
+  {
+   "start": 3,
+   "style": "D",
+   "first": 1
+  },
+  {
+   "start": 9,
+   "style": "D",
+   "prefix": "A-",
+   "first": 1
+  }
+ ],
+ "structure": [
+  {
+   "object": 34,
+   "type": "Document",
+   "pageIdentity": "P-0001"
+  },
+  {
+   "object": 35,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0001"
+  },
+  {
+   "object": 36,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0002"
+  },
+  {
+   "object": 37,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0003"
+  },
+  {
+   "object": 38,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0004"
+  },
+  {
+   "object": 39,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0005"
+  },
+  {
+   "object": 40,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0006"
+  },
+  {
+   "object": 41,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0007"
+  },
+  {
+   "object": 42,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0008"
+  },
+  {
+   "object": 43,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0009"
+  },
+  {
+   "object": 44,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0010"
+  },
+  {
+   "object": 45,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0011"
+  },
+  {
+   "object": 46,
+   "type": "P",
+   "mcid": 0,
+   "pageIdentity": "P-0012"
+  }
+ ],
+ "threads": [
+  {
+   "object": 48,
+   "title": "Thread one",
+   "beads": [
+    {
+     "object": 49,
+     "pageIdentity": "P-0005"
+    },
+    {
+     "object": 50,
+     "pageIdentity": "P-0006"
+    },
+    {
+     "object": 51,
+     "pageIdentity": "P-0007"
+    }
+   ]
+  },
+  {
+   "object": 52,
+   "title": "Thread two",
+   "beads": [
+    {
+     "object": 53,
+     "pageIdentity": "P-0010"
+    },
+    {
+     "object": 54,
+     "pageIdentity": "P-0012"
+    }
+   ]
+  }
+ ],
+ "openAction": {
+  "targetPage": 6,
+  "targetIdentity": "P-0003"
+ }
+}

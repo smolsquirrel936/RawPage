@@ -1,0 +1,120 @@
+{
+ "file": "assembly/merge-b.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "MB-0001",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "MB-0002",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  }
+ ],
+ "title": "Merge source B",
+ "outline": [
+  {
+   "object": 23,
+   "title": "MB-0001",
+   "form": "dest",
+   "targetPage": 4,
+   "targetIdentity": "MB-0001",
+   "open": true,
+   "children": [
+    {
+     "object": 24,
+     "title": "MB-0002",
+     "form": "dest",
+     "targetPage": 5,
+     "targetIdentity": "MB-0002",
+     "open": null,
+     "children": []
+    }
+   ]
+  }
+ ],
+ "links": [
+  {
+   "page": 0,
+   "object": 19,
+   "form": "dest",
+   "targetPage": 5,
+   "targetIdentity": "MB-0002"
+  }
+ ],
+ "comments": [
+  {
+   "object": 18,
+   "subtype": "Text",
+   "pageIdentity": "MB-0002"
+  }
+ ],
+ "fields": [
+  {
+   "name": "name",
+   "object": 9,
+   "kids": null,
+   "value": "Ben Okafor"
+  },
+  {
+   "name": "date",
+   "object": 11,
+   "kids": null,
+   "value": "2026-10-02"
+  },
+  {
+   "name": "address",
+   "object": 13,
+   "kids": [
+    {
+     "name": "street",
+     "object": 15
+    }
+   ],
+   "value": "1 Long Road"
+  },
+  {
+   "name": "b-only",
+   "object": 16,
+   "kids": null,
+   "value": "second source"
+  }
+ ],
+ "layers": [
+  {
+   "object": 6,
+   "name": "Draft"
+  },
+  {
+   "object": 7,
+   "name": "Source B notes"
+  }
+ ],
+ "collidingFields": [
+  "name",
+  "date",
+  "address"
+ ]
+}

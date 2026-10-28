@@ -1,0 +1,77 @@
+{
+ "file": "assembly/decorated-elsewhere.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "DE-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "contents": [
+    7,
+    10,
+    11
+   ]
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "DE-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "contents": [
+    12,
+    15,
+    16
+   ]
+  }
+ ],
+ "decorations": [
+  {
+   "kind": "Header",
+   "pageIdentity": "DE-0001",
+   "stream": 10,
+   "form": 8,
+   "text": "Confidential draft - page 1 of 2"
+  },
+  {
+   "kind": "Watermark",
+   "pageIdentity": "DE-0001",
+   "stream": 11,
+   "form": 9,
+   "text": "DRAFT"
+  },
+  {
+   "kind": "Header",
+   "pageIdentity": "DE-0002",
+   "stream": 15,
+   "form": 13,
+   "text": "Confidential draft - page 2 of 2"
+  },
+  {
+   "kind": "Watermark",
+   "pageIdentity": "DE-0002",
+   "stream": 16,
+   "form": 14,
+   "text": "DRAFT"
+  }
+ ],
+ "ours": 0
+}

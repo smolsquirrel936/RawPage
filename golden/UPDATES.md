@@ -70,3 +70,9 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 3 (filtered on `redaction-marks`, `redaction-overlay`, `sounds`)
 - **Reason** Stage 6 T14 (D6-25, D6-18): new appearance cases -- redaction marks, their /RO overlay, and the sound icons; no existing baseline touched
+
+## 2026-10-28T22:30:23Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 99 (filtered on `assembly/`)
+- **Reason** Stage 7 T1: the assembly corpus (Stage7-Assembly-Plan.md 5.2), captured after Stage 7 guide I-01's fix; every page looked at in a scratch capture first

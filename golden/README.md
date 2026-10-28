@@ -1,12 +1,13 @@
 # `golden/` — reference rasters
 
-**369 PNGs, 103 corpus files, 123 pages, three resolutions, one rasterizer.** Produced by
+**468 PNGs, 124 corpus files, 156 pages, three resolutions, one rasterizer.** Produced by
 `tools/golden-update` — 198 at Stage 2 T17, 24 more at Stage 3 T1 for the six corpus files that
-task added, 9 more at Stage 4 T1 for its three, 84 more at Stage 5 T1 for its twenty-seven, and 54
-more at Stage 6 T1 for its eleven annotated PDFs — each
+task added, 9 more at Stage 4 T1 for its three, 84 more at Stage 5 T1 for its twenty-seven, 54
+more at Stage 6 T1 for its eleven annotated PDFs, and 99 more at Stage 7 T1 for its twenty-one
+assembly PDFs (captured after Stage 7 guide I-01's fix; the twenty-second file is not a PDF) — each
 one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). **Beside them, since Stage 6 T8, APPEARANCE baselines** -- 31 at T8, 39 since T10's eight stamps, 40 since T11's file attachments, 42 since T12's two measurement cases -- under `golden/appearance/` -- see
-*Appearance baselines* below; they are not corpus pages and are not counted in the 369. This directory is **data, not code** — nothing links it, and
+*Appearance baselines* below; they are not corpus pages and are not counted in the 468. This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
 ## What a green golden run claims — and what it does not
@@ -143,6 +144,7 @@ the same way at Stage 4 T1, whose nine are six grey and three RGB — `cropbox-m
 one of its three files that carries colour — and **279 of 315** at Stage 5 T1, whose 84 are 81 grey and
 three RGB, `search-classes.pdf`'s yellow note — and **279 of 369** at Stage 6 T1, whose 54 are all
 RGB, every one of its fixtures carrying coloured annotations (re-counted 2026-10-05; 30.6 MB in all) —
+and **360 of 468** at Stage 7 T1, whose 99 are 81 grey and eighteen RGB (re-counted 2026-10-29; 33.1 MB) —
 and expanded back to RGB
 on read, which is lossless in both directions and took the T17 tree from 30.5 MB to 13.1 MB. The comparison reads the three colour bytes on both sides, so the encoding is
 invisible above `readPng`.

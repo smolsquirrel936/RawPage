@@ -42,10 +42,12 @@ Permissions Permissions::assess(const PageTree& engine, CosReading reading,
 
         // A first-party reading with no /MediaBox anywhere cannot be compared on size -- the engine
         // substitutes a default the file never stated -- so only a stated size is held to agree.
-        if (ours.mediaSize) {
-            const PdfSize engineSize = theirs->mediaBox().size;
-            if (std::fabs(std::fabs(ours.mediaSize->width) - std::fabs(engineSize.width)) > kSizeTolerance
-                || std::fabs(std::fabs(ours.mediaSize->height) - std::fabs(engineSize.height))
+        // What is compared is the DRAWN box, the media box intersected with the crop box (see
+        // `CosPageFacts`, Stage 7 guide I-01).
+        if (ours.drawnSize) {
+            const PdfSize engineSize = intersect(theirs->mediaBox(), theirs->cropBox()).size;
+            if (std::fabs(std::fabs(ours.drawnSize->width) - std::fabs(engineSize.width)) > kSizeTolerance
+                || std::fabs(std::fabs(ours.drawnSize->height) - std::fabs(engineSize.height))
                        > kSizeTolerance) {
                 return refused("error.edit.pageSizeDisagrees", page);
             }

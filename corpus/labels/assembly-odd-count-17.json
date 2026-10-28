@@ -1,0 +1,217 @@
+{
+ "file": "assembly/odd-count-17.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "C17-0001",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "C17-0002",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "C17-0003",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "C17-0004",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 4,
+   "object": 8,
+   "identity": "C17-0005",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 5,
+   "object": 9,
+   "identity": "C17-0006",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 6,
+   "object": 10,
+   "identity": "C17-0007",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 7,
+   "object": 11,
+   "identity": "C17-0008",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 8,
+   "object": 12,
+   "identity": "C17-0009",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 9,
+   "object": 13,
+   "identity": "C17-0010",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 10,
+   "object": 14,
+   "identity": "C17-0011",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 11,
+   "object": 15,
+   "identity": "C17-0012",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 12,
+   "object": 16,
+   "identity": "C17-0013",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 13,
+   "object": 17,
+   "identity": "C17-0014",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 14,
+   "object": 18,
+   "identity": "C17-0015",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 15,
+   "object": 19,
+   "identity": "C17-0016",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  },
+  {
+   "index": 16,
+   "object": 20,
+   "identity": "C17-0017",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  }
+ ],
+ "count": 17
+}

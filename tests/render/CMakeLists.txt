@@ -89,6 +89,9 @@ add_executable(rawpage_render_tests
     tst_measuregeometry.cpp       # Stage 6 T12 -- guide A-89's engine half and A-91 (D6-14): a page's paths read
                                   #   by PDFium against the generator's segments, a form's matrix and a curve's
                                   #   anchors, the 100,000-segment bound, and the read as an engine task, once
+    tst_assemblylabels.cpp        # Stage 7 T1 -- guide A-15's engine half (D7-17, D7-18): every identity page of
+                                  #   corpus/assembly/ shows PDFium the identity its label gives, the outline and named
+                                  #   destinations land on the labelled pages, and Stage 7 guide I-01's regression
     tst_migratecorpus.cpp         # Stage 6 T13 -- guide A-98, A-99 (D6-21): annots-report-v1.pdf's comments carried
                                   #   to compare/report-v2.pdf over the engine's text and Stage 5's alignment, graded on
                                   #   §3.5 against labels/annots-migration.json

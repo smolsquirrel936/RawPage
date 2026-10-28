@@ -1,0 +1,25 @@
+{
+ "file": "assembly/odd-count-1.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "C01-0001",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0
+  }
+ ],
+ "count": 1
+}

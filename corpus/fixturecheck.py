@@ -193,7 +193,7 @@ def check(files):
     claim("ordinary/", len(authors) >= 4,
           "the Stage 5 fixtures name %d distinct authors; the metadata filter needs several"
           % len(authors))
-    return problems + check_annots(files)
+    return problems + check_annots(files) + check_assembly(files)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -502,4 +502,334 @@ def check_annots(files):
     if data is not None:
         claim(name, data.startswith(b"\xff\xd8") and b"\xff\xc0" in data
               and b"\xff\xc2" not in data, "not a baseline (SOF0) JPEG")
+    return problems
+
+
+# ---------------------------------------------------------------------------------------------
+# Stage 7 T1 -- the assembly fixtures (Stage7-Assembly-Testing-Guide.md case A-15)
+# ---------------------------------------------------------------------------------------------
+
+_IDENTITY = re.compile(rb"(?<![A-Za-z0-9-])[A-Z][A-Z0-9]*-[0-9]{4}(?![A-Za-z0-9-])")
+
+
+def _stream_data(body):
+    head, _, rest = body.partition(b"\nstream\n")
+    data = rest.rsplit(b"\nendstream", 1)[0]
+    if b"/FlateDecode" in head:
+        data = zlib.decompress(data)
+    return data
+
+
+def _refs_in(body, key):
+    """The object numbers a key names: one reference, or every reference in an array."""
+    found = re.search(rb"%s (\d+) 0 R" % re.escape(key), body)
+    if found:
+        return [int(found.group(1))]
+    found = re.search(rb"%s \[([^\]]*)\]" % re.escape(key), body)
+    return [int(n) for n in re.findall(rb"(\d+) 0 R", found.group(1))] if found else []
+
+
+def _shown_strings(bodies, page_body):
+    """Every string a page's own content streams show with Tj -- not its annotations', whose
+    appearances are not page text."""
+    shown = []
+    for number in _refs_in(page_body, b"/Contents"):
+        data = _stream_data(bodies.get(number, b""))
+        shown += re.findall(rb"\(((?:[^()\\]|\\.)*)\) Tj", data)
+    return shown
+
+
+def _page_tree(bodies, data):
+    """The catalog's object number and the page objects in tree order, from the trailer's /Root
+    down /Kids -- never from the label, which is what is being checked."""
+    root = int(re.findall(rb"/Root (\d+) 0 R", data)[-1])
+    out = []
+
+    def walk(number, depth):
+        body = bodies.get(number, b"")
+        if depth > 32:
+            return
+        if re.search(rb"/Type /Pages\b", body):
+            for kid in _refs_in(body, b"/Kids"):
+                walk(kid, depth + 1)
+        elif re.search(rb"/Type /Page\b", body):
+            out.append(number)
+    walk(_refs_in(bodies[root], b"/Pages")[0], 0)
+    return root, out
+
+
+def _pdfnum(value):
+    import pdfbuild
+    return pdfbuild.num(value)
+
+
+def check_assembly(files):
+    """Every `labels/assembly-*.json` claim held to the bytes of the file it names: the page tree's
+    order, the identity each page's content shows, each reference in the form its entry names and
+    at the page whose identity it gives, and each fixture's feature. The engine half -- PDFium
+    extracting the same identities -- is `render.assembly labels ...`."""
+    import json
+    import pdfbuild
+
+    problems = []
+
+    def claim(name, condition, what):
+        if not condition:
+            problems.append("FAULT     %s -- %s" % (name, what))
+
+    labels = {relative: json.loads(data.decode("utf-8")) for relative, data in files.items()
+              if relative.startswith("labels/assembly-")}
+    claim("labels/", len(labels) == 21, "%d assembly labels, expected 21" % len(labels))
+
+    for relative, label in sorted(labels.items()):
+        name = label["file"]
+        data = files.get(name)
+        if data is None:
+            claim(name, False, "the fixture is missing")
+            continue
+        bodies = objects(data)
+        root, tree = _page_tree(bodies, data)
+        catalog = bodies[root]
+        pages = label["pages"]
+        identity_of = {page["object"]: page["identity"] for page in pages}
+
+        claim(name, tree == [page["object"] for page in pages],
+              "the page tree's order %s is not the label's %s" % (tree, [p["object"] for p in pages]))
+        for page in pages:
+            body = bodies.get(page["object"], b"")
+            drawn = page.get("drawnIdentity", page["identity"])
+            tokens = [t.decode() for s in _shown_strings(bodies, body) for t in _IDENTITY.findall(s)]
+            claim(name, tokens == ([drawn] if drawn else []),
+                  "page %d shows %s, the label says %s" % (page["index"], tokens, drawn))
+
+        def target(entry, where):
+            if entry.get("targetPage") is None:
+                return
+            claim(name, identity_of.get(entry["targetPage"]) == entry["targetIdentity"],
+                  "%s targets object %s, which is not %s" % (where, entry["targetPage"],
+                                                              entry["targetIdentity"]))
+
+        def outline(entries):
+            for entry in entries:
+                body = bodies.get(entry["object"], b"")
+                claim(name, pdfbuild.utf16(entry["title"]) in body,
+                      "outline object %d is not titled %r" % (entry["object"], entry["title"]))
+                if entry.get("integerPage") is not None:
+                    claim(name, (b"/Dest [ %d /Fit ]" % entry["integerPage"]) in body,
+                          "outline object %d does not name page %d by integer"
+                          % (entry["object"], entry["integerPage"]))
+                elif entry["form"] == "dest":
+                    claim(name, (b"/Dest [ %d 0 R" % entry["targetPage"]) in body,
+                          "outline object %d has no /Dest to its page" % entry["object"])
+                else:
+                    claim(name, (b"/S /GoTo /D [ %d 0 R" % entry["targetPage"]) in body,
+                          "outline object %d has no GoTo action to its page" % entry["object"])
+                target(entry, "outline object %d" % entry["object"])
+                outline(entry["children"])
+        if "outline" in label:
+            claim(name, b"/Outlines " in catalog, "the catalog has no /Outlines")
+            outline(label["outline"])
+
+        named = {}
+        for entry in label.get("namedDestinations", []):
+            named[entry["name"]] = entry["targetIdentity"]
+            target(entry, "named destination %s" % entry["name"])
+            if entry["form"] == "namesTree":
+                shape = ((rb"\(%s\) \[ %d 0 R" if entry["entryForm"] == "array"
+                          else rb"\(%s\) << /D \[ %d 0 R") % (entry["name"].encode(), entry["targetPage"]))
+            else:
+                shape = rb"/%s \[ %d 0 R" % (entry["name"].encode(), entry["targetPage"])
+            claim(name, re.search(shape, data) is not None,
+                  "named destination %s is not in its %s form" % (entry["name"], entry["form"]))
+
+        for entry in label.get("links", []):
+            body = bodies.get(entry["object"], b"")
+            claim(name, b"/Subtype /Link" in body, "object %d is not a link" % entry["object"])
+            page_object = pages[entry["page"]]["object"]
+            claim(name, entry["object"] in _refs_in(bodies[page_object], b"/Annots"),
+                  "link %d is not in its page's /Annots" % entry["object"])
+            form = entry["form"]
+            shapes = {"dest": b"/Dest [ %d 0 R" % (entry.get("targetPage") or 0),
+                      "goto": b"/S /GoTo /D [ %d 0 R" % (entry.get("targetPage") or 0),
+                      "destString": b"/Dest (%s)" % entry.get("name", "").encode(),
+                      "destName": b"/Dest /%s" % entry.get("name", "").encode(),
+                      "gotoNamed": b"/S /GoTo /D (%s)" % entry.get("name", "").encode(),
+                      "goToR": b"/S /GoToR /F (%s) /D [ %d /Fit ]"
+                               % (entry.get("file", "").encode(), entry.get("pageNumber", -1))}
+            claim(name, shapes[form] in body, "link %d is not in its %s form" % (entry["object"], form))
+            if form in ("destString", "destName", "gotoNamed"):
+                claim(name, named.get(entry["name"]) == entry["targetIdentity"],
+                      "link %d's name does not resolve to %s" % (entry["object"], entry["targetIdentity"]))
+            elif form == "goToR":
+                claim(name, pages[entry["pageNumber"]]["identity"] == entry["targetIdentity"],
+                      "link %d's remote page number is not %s" % (entry["object"], entry["targetIdentity"]))
+            elif entry.get("outsidePageTree"):
+                claim(name, entry["targetPage"] not in tree
+                      and re.search(rb"/Type /Page\b", bodies.get(entry["targetPage"], b"")) is not None,
+                      "link %d's target is not a page object outside the tree" % entry["object"])
+            else:
+                target(entry, "link %d" % entry["object"])
+
+        page_of = {page["identity"]: page["object"] for page in pages if page["identity"]}
+        for entry in label.get("structure", []):
+            claim(name, (b"/Pg %d 0 R" % page_of.get(entry["pageIdentity"], -1)) in bodies.get(entry["object"], b""),
+                  "structure element %d has no /Pg to %s" % (entry["object"], entry["pageIdentity"]))
+        for thread in label.get("threads", []):
+            for bead in thread["beads"]:
+                claim(name, (b"/P %d 0 R" % page_of.get(bead["pageIdentity"], -1)) in bodies.get(bead["object"], b""),
+                      "bead %d is not on %s" % (bead["object"], bead["pageIdentity"]))
+        if "threads" in label:
+            claim(name, b"/Threads [" in catalog, "the catalog has no /Threads")
+        if "openAction" in label:
+            claim(name, (b"/OpenAction [ %d 0 R" % label["openAction"]["targetPage"]) in catalog,
+                  "the catalog's /OpenAction does not name its page")
+            target(label["openAction"], "/OpenAction")
+        if "pageLabelRanges" in label:
+            claim(name, b"/PageLabels" in catalog and b"/S /r" in catalog and b"/P (A-)" in catalog,
+                  "the three /PageLabels ranges are not in the catalog")
+        if "structure" in label:
+            claim(name, b"/StructTreeRoot" in catalog, "the catalog has no /StructTreeRoot")
+
+        stem = name.split("/")[-1]
+        if stem == "refs-none.pdf":
+            for key in (b"/Outlines", b"/Names", b"/Dests", b"/PageLabels", b"/StructTreeRoot",
+                        b"/Threads", b"/OpenAction"):
+                claim(name, key not in catalog, "the catalog carries %s" % key.decode())
+            claim(name, b"/Annots" not in data, "a page carries /Annots")
+
+        if stem == "inherit-resources.pdf":
+            for page in pages:
+                body = bodies[page["object"]]
+                for key in (b"/Resources", b"/MediaBox", b"/CropBox"):
+                    claim(name, key not in body, "page %d carries its own %s" % (page["index"], key.decode()))
+                claim(name, (b"/Rotate" in body) == ("Rotate" in page["ownKeys"]),
+                      "page %d's own /Rotate is not as labelled" % page["index"])
+                walked, at = [], page["object"]
+                while _ref(bodies[at], b"/Parent") is not None:
+                    at = _ref(bodies[at], b"/Parent")
+                    walked.append(at)
+                claim(name, list(reversed(walked)) == page["path"],
+                      "page %d's ancestors are %s, not %s" % (page["index"], walked[::-1], page["path"]))
+            shared = label["shared"]
+            body = bodies[shared["resources"]]
+            claim(name, (b"%d 0 R" % shared["font"]) in body and (b"/Im1 %d 0 R" % shared["image"]) in body,
+                  "the shared resources do not name the shared font and image")
+            claim(name, max(len(p["path"]) for p in pages) == 4, "no page sits under three intermediate nodes")
+
+        if stem == "annots-on-pages.pdf":
+            for page in pages:
+                listed = _refs_in(bodies[page["object"]], b"/Annots")
+                claim(name, [a["object"] for a in page["annots"]] == listed,
+                      "page %d's /Annots is not the label's" % page["index"])
+                for annot in page["annots"]:
+                    body = bodies.get(annot["object"], b"")
+                    claim(name, (b"/Subtype /%s" % annot["subtype"].encode()) in body,
+                          "object %d is not a %s" % (annot["object"], annot["subtype"]))
+                    for key, field in ((b"/IRT", "irt"), (b"/Popup", "popup"), (b"/Parent", "parent")):
+                        if field in annot:
+                            claim(name, _ref(body, key) == annot[field],
+                                  "object %d's %s is not %s" % (annot["object"], key.decode(), annot[field]))
+                    if annot["role"] == "link":
+                        target(annot, "link %d" % annot["object"])
+                    if annot["role"] == "widget":
+                        claim(name, (b"/T (%s)" % annot["field"].encode()) in body,
+                              "widget %d is not the field %s" % (annot["object"], annot["field"]))
+            claim(name, b"/AcroForm" in catalog, "the catalog has no /AcroForm")
+
+        if stem.startswith("merge-"):
+            claim(name, pdfbuild.utf16(label["title"]) in data, "the /Title is not %r" % label["title"])
+            for key in (b"/AcroForm", b"/OCProperties", b"/Outlines"):
+                claim(name, key in catalog, "the catalog has no %s" % key.decode())
+            for field in label["fields"]:
+                claim(name, (b"/T (%s)" % field["name"].encode()) in bodies.get(field["object"], b""),
+                      "object %d is not the field %s" % (field["object"], field["name"]))
+            for layer in label["layers"]:
+                claim(name, pdfbuild.utf16(layer["name"]) in bodies.get(layer["object"], b""),
+                      "object %d is not the layer %s" % (layer["object"], layer["name"]))
+            for comment in label["comments"]:
+                claim(name, b"/Subtype /Text" in bodies.get(comment["object"], b""),
+                      "object %d is not a comment" % comment["object"])
+
+        if stem == "layers.pdf":
+            config = catalog.split(b"/D <<", 1)[1] if b"/D <<" in catalog else b""
+            locked = _refs_in(config, b"/Locked")
+            off = _refs_in(config, b"/OFF")
+            radio = re.search(rb"/RBGroups \[ \[([^\]]*)\]", config)
+            radio = [int(n) for n in re.findall(rb"(\d+) 0 R", radio.group(1))] if radio else []
+            for group in label["groups"]:
+                body = bodies.get(group["object"], b"")
+                claim(name, b"/Type /OCG" in body and pdfbuild.utf16(group["name"]) in body,
+                      "object %d is not the group %s" % (group["object"], group["name"]))
+                claim(name, (group["object"] in locked) == group["locked"], "the lock of %s" % group["name"])
+                claim(name, (group["object"] not in off) == group["defaultOn"], "the state of %s" % group["name"])
+                claim(name, (group["object"] in radio) == (group["radioGroup"] is not None),
+                      "the radio group of %s" % group["name"])
+                if group["usage"]:
+                    claim(name, (b"/PrintState /%s" % group["usage"]["print"].encode()) in body
+                          and (b"/ViewState /%s" % group["usage"]["view"].encode()) in body,
+                          "the usage of %s" % group["name"])
+            for page in pages:
+                body = bodies[page["object"]]
+                for prop, group in page["properties"].items():
+                    claim(name, (b"/%s %d 0 R" % (prop.encode(), group)) in body,
+                          "page %d has no /Properties entry %s" % (page["index"], prop))
+                streams = b"".join(_stream_data(bodies[n]) for n in _refs_in(body, b"/Contents"))
+                claim(name, len(set(re.findall(rb"/OC /(\w+) BDC", streams))) >= 2,
+                      "page %d draws content in fewer than two groups" % page["index"])
+            claim(name, b"/AS [" in catalog, "no /AS usage application")
+
+        if stem in ("tagged-headings.pdf", "untagged-headings.pdf"):
+            claim(name, (b"/StructTreeRoot" in catalog) == label["tagged"], "/StructTreeRoot is not as labelled")
+            for heading in label["headings"]:
+                if heading["object"] is not None:
+                    claim(name, (b"/S /H%d" % heading["level"]) in bodies.get(heading["object"], b""),
+                          "element %d is not an H%d" % (heading["object"], heading["level"]))
+            twin = files.get("assembly/" + ("untagged-headings.pdf" if label["tagged"] else "tagged-headings.pdf"))
+            if twin is not None:
+                theirs = objects(twin)
+                _, their_tree = _page_tree(theirs, twin)
+                for page, other in zip(pages, their_tree):
+                    claim(name, _shown_strings(bodies, bodies[page["object"]])
+                          == _shown_strings(theirs, theirs[other]),
+                          "page %d's text differs from its twin's" % page["index"])
+
+        if stem == "split-blanks.pdf":
+            for page in pages:
+                body = bodies[page["object"]]
+                if page["kind"] == "absent":
+                    claim(name, b"/Contents" not in body, "page %d has /Contents" % page["index"])
+                elif page["kind"] == "empty":
+                    stream = _stream_data(bodies[_refs_in(body, b"/Contents")[0]])
+                    claim(name, stream.strip() == b"q Q", "page %d's stream paints something" % page["index"])
+                elif page["kind"] == "white":
+                    stream = _stream_data(bodies[_refs_in(body, b"/Contents")[0]])
+                    claim(name, stream.startswith(b"1 g") and b"1 g BT /F2 48" in stream
+                          and b"0 g" not in stream.split(b"1 g BT /F2 48")[0],
+                          "page %d is not drawn in white" % page["index"])
+            claim(name, label["partStarts"] == [p["index"] for p in pages if p["heading"]],
+                  "the part starts are not the pages with a heading")
+
+        if stem == "boxes.pdf":
+            first = bodies[pages[0]["object"]]
+            for key in (b"/CropBox", b"/BleedBox", b"/TrimBox", b"/ArtBox"):
+                claim(name, key in first, "page 1 has no %s" % key.decode())
+            claim(name, b"/CropBox [ -40 " in bodies[pages[1]["object"]], "page 2's CropBox is inside its MediaBox")
+            x0, y0, x1, y1 = pages[2]["contentBox"]
+            stream = _stream_data(bodies[_refs_in(bodies[pages[2]["object"]], b"/Contents")[0]])
+            claim(name, (b"%s %s %s %s re f" % tuple(_pdfnum(v) for v in (x0, y0, x1 - x0, y1 - y0))) in stream,
+                  "page 3's content box is not the filled rectangle")
+
+        if stem == "decorated-elsewhere.pdf":
+            blob = decoded(data)
+            for kind in (b"Header", b"Watermark"):
+                claim(name, (b"/Type /Pagination /Subtype /%s >> BDC" % kind) in blob,
+                      "no /Artifact pagination %s" % kind.decode())
+                claim(name, (b"/Private /%s" % kind) in blob, "no /PieceInfo for the %s" % kind.decode())
+            claim(name, b"/RawPageDecoration" not in blob, "it carries a RawPage decoration")
+
+        if stem.startswith("odd-count-"):
+            claim(name, len(tree) == label["count"], "%d pages, not %d" % (len(tree), label["count"]))
+
+    name = "assembly/merge-not-a-pdf.pdf"
+    claim(name, name in files and not files[name].startswith(b"%PDF"), "it is a PDF, or it is missing")
     return problems

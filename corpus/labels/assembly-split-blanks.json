@@ -1,0 +1,200 @@
+{
+ "file": "assembly/split-blanks.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "SB-0001",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "ink",
+   "heading": "Part 1: Intake",
+   "blankToEye": false,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0001"
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "SB-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "ink",
+   "heading": null,
+   "blankToEye": false,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0002"
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": null,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "absent",
+   "heading": null,
+   "blankToEye": true,
+   "contentBoxEmpty": true,
+   "drawnIdentity": null
+  },
+  {
+   "index": 3,
+   "object": 7,
+   "identity": "SB-0004",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "ink",
+   "heading": "Part 2: Review",
+   "blankToEye": false,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0004"
+  },
+  {
+   "index": 4,
+   "object": 8,
+   "identity": "SB-0005",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "ink",
+   "heading": null,
+   "blankToEye": false,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0005"
+  },
+  {
+   "index": 5,
+   "object": 9,
+   "identity": null,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "empty",
+   "heading": null,
+   "blankToEye": true,
+   "contentBoxEmpty": true,
+   "drawnIdentity": null
+  },
+  {
+   "index": 6,
+   "object": 10,
+   "identity": null,
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "white",
+   "heading": null,
+   "blankToEye": true,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0007"
+  },
+  {
+   "index": 7,
+   "object": 11,
+   "identity": "SB-0008",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "ink",
+   "heading": "Part 3: Archive",
+   "blankToEye": false,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0008"
+  },
+  {
+   "index": 8,
+   "object": 12,
+   "identity": "SB-0009",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "kind": "ink",
+   "heading": null,
+   "blankToEye": false,
+   "contentBoxEmpty": false,
+   "drawnIdentity": "SB-0009"
+  }
+ ],
+ "headingPattern": "^Part [0-9]+:",
+ "partStarts": [
+  0,
+  3,
+  7
+ ],
+ "outline": [
+  {
+   "object": 22,
+   "title": "Part 1: Intake",
+   "form": "dest",
+   "targetPage": 4,
+   "targetIdentity": "SB-0001",
+   "open": null,
+   "children": []
+  },
+  {
+   "object": 23,
+   "title": "Part 2: Review",
+   "form": "dest",
+   "targetPage": 7,
+   "targetIdentity": "SB-0004",
+   "open": null,
+   "children": []
+  },
+  {
+   "object": 24,
+   "title": "Part 3: Archive",
+   "form": "dest",
+   "targetPage": 11,
+   "targetIdentity": "SB-0008",
+   "open": null,
+   "children": []
+  }
+ ]
+}

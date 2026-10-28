@@ -25,10 +25,10 @@ already lives in its owner — the task's row in `Implementation-Plan.md` §4, t
 
 | | |
 |---|---|
-| **Stage** | **Stage 6 (annotations and review) is SIGNED OFF by the user, 2026-10-28**, with every `Stage6-Annotations-Testing-Guide.md` §9 item met — fifteen tasks (T1 2026-10-05 … T15 2026-10-20), 108 automated cases each carrying a result, all thirteen manual cases walked and signed off (M-13 the last, 2026-10-28), and fifty-one issues raised and all closed, I-47 by the user's decision. Each task's detail, deviations and CI runs are its row in `Implementation-Plan.md`'s Stage 6 block; its cases and issue log are the guide's §5–§8. Stages 0–5 signed off; the one open issue carried from them is Stage 4 guide **I-07** (S4, `Stage4-ViewingSurface-Testing-Guide.md` §8), deferred as `DW-1` (`Deferred-Work.md`). |
-| **Next action** | **Stage 7 T1, the corpus** (`Stage7-Assembly-Plan.md` §6) -- the plan's §0 was answered 2026-10-29, all five approved, and `FullWriter` brought in from Stage 8 as D7-25; the plan and its testing guide, `Stage7-Assembly-Testing-Guide.md`, were drafted 2026-10-28 before any Stage 7 code, and every case written against a proposal was re-read against its answer (all stand). The plan's **P-3**, a duplex printer for the booklet walk (M-04, at T16), is open. |
+| **Stage** | **Stage 7 (document assembly) is IN PROGRESS: T1, the corpus, done 2026-10-29** — 22 files in `corpus/assembly/` with 21 labels, every page a reference case uses printing its own identity (`Stage7-Assembly-Plan.md` D7-17). It raised and closed **I-01** (S2, `Stage7-Assembly-Testing-Guide.md` §8): a page inheriting its `/MediaBox` or `/CropBox` was shown at US Letter, uncropped, and its document refused for editing. Each task's detail is its row in `Implementation-Plan.md`'s Stage 7 block; its cases and issue log are the guide's §5–§8. Stages 0–6 signed off (Stage 6 on 2026-10-28); the one open issue carried from them is Stage 4 guide **I-07** (S4, `Stage4-ViewingSurface-Testing-Guide.md` §8), deferred as `DW-1` (`Deferred-Work.md`). |
+| **Next action** | **Stage 7 T2, moving pages without breaking what points at them** (`Stage7-Assembly-Plan.md` §6). The plan's **P-3**, a duplex printer for the booklet walk (M-04, at T16), is open. |
 | **Owed** | **A2 at Stage 6 is `go, with named custom work`** (the user's choice, kept 2026-10-20) and **still outside the guide's §3.1 through the shipped surfaces** -- the scrolling pane p95 21.9–29.4 ms beside the shipped pencil, edit-to-pixels p95 201–505 ms (`Tech-Stack-Plan.md` §3.3); the two remaining causes are **`DW-4`** (`Deferred-Work.md`): the show step's growth **taken by Stage 7 T4** (`Stage7-Assembly-Plan.md` Q4, 2026-10-29), the annotated page's tile cost unassigned. |
-| **Latest tests** | **2026-10-28, Stage 6 guide I-50's fix, after builds of both presets: 1846/1846 on `x64-release` (201 s) and on `x64-debug` (295 s)**, at `-j 8` from the presets (convention 25), five named skips — the battery case (no battery), Stage 4 guide A-85 `[I-14]` and A-94 `[I-23]` (real desktop), Stage 5 guide A-50 `[D5-10]` (system clipboard), Stage 6 guide A-101 `[A-101-record]` (microphone); A-101's by-hand run passed 2026-10-28 (`Stage6-Annotations-Testing-Guide.md` §5); `checks` clean -- `mutation-lint` twelve commands, `layer-lint` 670 files, `license-audit` five Qt modules; `gates` not re-run (nothing it builds changed, 137/137 at I-36); no `warning:` in either build (incremental) -- the last clean-build census, 0 over 434 objects, is T15's. Earlier runs: each task's row in `Implementation-Plan.md` §4 and the guide's §8 suites lines. |
+| **Latest tests** | **2026-10-29, Stage 7 T1, after builds of both presets: 1850/1850 on `x64-release` (198 s) and on `x64-debug` (288 s)**, at `-j 8` from the presets (convention 25), five named skips — the battery case (no battery), Stage 4 guide A-85 `[I-14]` and A-94 `[I-23]` (real desktop), Stage 5 guide A-50 `[D5-10]` (system clipboard), Stage 6 guide A-101 `[A-101-record]` (microphone); `gates` 137/137; `checks` clean -- `mutation-lint` twelve commands, `layer-lint` 671 files and 15 escapes, `license-audit` five Qt modules; no `warning:` in either build (incremental) -- the last clean-build census, 0 over 434 objects, is Stage 6 T15's. Earlier runs: each task's row in `Implementation-Plan.md` §4 and the guides' §8 suites lines. |
 | **Latest CI read** | Run **40626533138** on `f052a09` (Stage 6 guide I-50's fix and M-13's result, `Stage6-Annotations-Testing-Guide.md` §8), all five jobs green, read from their logs 2026-10-28: Windows **1846** (six named skips, the runner's), `portable-asan` **996** with no sanitizer report and `qpdf` 71 files 0 failed, `gates` 123, each fuzz target 61 s with no finding. Fuzz soak **40476873228** on `d21c1f1`, the commit of Stage 6 guide I-36's and I-37's fix, read from its logs 2026-10-28: all five targets about 601 s, no finding, `fuzz_annot_pipeline` 16,514 runs. At sign-off, the four commits after `f052a09` (documents, and `scripts/run.ps1`'s I-51 fix) were not pushed, so no CI job has run over them. Per-run figures: `Implementation-Plan.md`'s Stage 6 block and its Stage 0 block. |
 | **Authority for status** | The stage status blocks in [`Implementation-Plan.md`](claude-plan/Implementation-Plan.md) §4 — task by task and deviation by deviation, with every issue — and each stage's testing guide, which owns its cases, results and issue log. **Read them rather than trusting a figure remembered from here.** |
 
@@ -414,7 +414,7 @@ a command that works only *without* it is itself a finding.
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks    # the live gates; CI runs this BEFORE compiling
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure        # 1846/1846 as of 2026-10-28 (S6 I-50), 5 skipped
+ctest --preset x64-release --output-on-failure        # 1850/1850 as of 2026-10-29 (S7 T1), 5 skipped
                                                       #   at -j 8 from the preset, ~190 s (convention 25); `-j 1` for one at a time
 ```
 
@@ -423,13 +423,16 @@ verification dependency and deliberately **not** a build one (`cmake --build` ne
 run as `gates.corpus.*` in the `gates` preset; by hand:
 
 ```powershell
-python corpus/make-corpus.py                     # regenerate all 108 PDFs, 36 JSON sidecars, 8 FDF/XFDF, 2 images (S6 T1 added 11 PDFs; S6 I-27, I-28 two exchange files)
+python corpus/make-corpus.py                     # regenerate all 130 PDFs, 57 JSON sidecars, 8 FDF/XFDF, 2 images (S7 T1 added 22 files to assembly/, one of them not a PDF, and 21 labels)
 python corpus/make-corpus.py --verify            # they regenerate BYTE-IDENTICALLY (D2-11, S2 T4)
 python corpus/make-corpus.py --check-provenance  # every file has a PROVENANCE.md row, and vice versa
 python corpus/make-corpus.py --self-test         # the negative control: each detection must fire
 python corpus/make-corpus.py --check-faults      # S5: each text fixture carries what its row claims (A-14)
 python corpus/make-compare.py --self-test        # S5: every comparison record re-derives its pair (A-15)
 python corpus/make-annots.py                     # S6: writes ONLY the annotation fixtures, labels, exchange/ and stamps/
+python corpus/make-assembly.py                   # S7: writes ONLY assembly/ and labels/assembly-*.json -- every page a
+                                                 #   reference case uses prints its identity, graded through PDFium by
+                                                 #   `ctest -R "assembly labels"` (Stage 7 guide A-15)
 python tools/cjk-coverage/make-cjk-coverage.py   # S6 T7: REWRITES core/doc/CjkCoverage.inc, the CJK characters a typed
                                                  #   comment can show; --verify and --self-test are its two gate cases.
                                                  #   Narrow it in its EXCLUDED table, never by hand -- and only on the

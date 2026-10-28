@@ -1,0 +1,106 @@
+{
+ "file": "assembly/boxes.pdf",
+ "generator": "corpus/make-assembly.py",
+ "identity": {
+  "pattern": "[A-Z][A-Z0-9]*-[0-9]{4}",
+  "font": "Helvetica-Bold",
+  "size": 48,
+  "placement": "centre"
+ },
+ "pages": [
+  {
+   "index": 0,
+   "object": 4,
+   "identity": "BX-0001",
+   "mediaBox": [
+    0,
+    0,
+    612.0,
+    792.0
+   ],
+   "rotate": 0,
+   "boxes": {
+    "MediaBox": [
+     0,
+     0,
+     612.0,
+     792.0
+    ],
+    "CropBox": [
+     18,
+     18,
+     594,
+     774
+    ],
+    "BleedBox": [
+     27,
+     27,
+     585,
+     765
+    ],
+    "TrimBox": [
+     36,
+     36,
+     576,
+     756
+    ],
+    "ArtBox": [
+     72,
+     72,
+     540,
+     720
+    ]
+   }
+  },
+  {
+   "index": 1,
+   "object": 5,
+   "identity": "BX-0002",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "boxes": {
+    "MediaBox": [
+     0,
+     0,
+     595.276,
+     841.89
+    ],
+    "CropBox": [
+     -40,
+     200,
+     400,
+     900
+    ]
+   },
+   "cropBoxClippedToMedia": [
+    0,
+    200,
+    400,
+    841.89
+   ]
+  },
+  {
+   "index": 2,
+   "object": 6,
+   "identity": "BX-0003",
+   "mediaBox": [
+    0,
+    0,
+    595.276,
+    841.89
+   ],
+   "rotate": 0,
+   "contentBox": [
+    167.638,
+    330.945,
+    427.638,
+    510.945
+   ]
+  }
+ ]
+}
