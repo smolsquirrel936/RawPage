@@ -1134,7 +1134,7 @@ missed it, and the control that was run red before the fix — the shape every e
 | # | Sev | Title | State |
 |---|---|---|---|
 | **I-01** | S2 | A page that inherits its `/MediaBox` or `/CropBox` from a `/Pages` node was shown at US Letter, uncropped, and its whole document refused for editing | **Closed** at T1, 2026-10-29 |
-| **I-02** | S3 | The fuzz soak built nothing: `ubuntu-latest` moved it to Ubuntu 26.04, whose Clang 21 refuses an unused field in `core/text/FolderSearch.h` under `-Werror` | **Fixed** 2026-10-29, not yet read from a CI log |
+| **I-02** | S3 | The fuzz soak built nothing: `ubuntu-latest` moved it to Ubuntu 26.04, whose Clang 21 refuses an unused field in `core/text/FolderSearch.h` under `-Werror` | **Closed** 2026-10-29, soak 40875917394 read from its log |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1181,8 +1181,12 @@ the image's `qt6-base-dev` is the floor convention 24 (`Implementation-Plan.md` 
 layers to and 26.04 would raise it to 6.10.2 with nothing deciding to — `ci.yml`'s header says so, and
 moving off 24.04 is a change to both files and that convention together. *Control:* none on this
 machine, which has no clang; the red is run 40853107406 itself, and the pin means the next run builds
-with Clang 18 again, so **Clang 21's verdict on the fix is not measured by CI**. *Closed* when a soak on
-the fix is read from its log.
+with Clang 18 again, so **Clang 21's verdict on the fix is not measured by CI**. *Closed* 2026-10-29 on
+`afb6f0d`, read from the logs: soak **40875917394**, dispatched by hand, every target on `ubuntu-24.04`,
+`Clang 18.1.3` and `qt6-base-dev 6.4.2`, each about 601 s with no sanitizer line — `fuzz_cos_lexer`
+2,857,939 runs, `fuzz_cos_parser` 1,623,517, `fuzz_text_pipeline` 34,687, `fuzz_annot_pipeline` 15,569,
+`fuzz_cos_roundtrip` 12,402 (611 s); and CI run **40875904825**, all five jobs green on `ubuntu-24.04`
+for the Linux four.
 
 ---
 
