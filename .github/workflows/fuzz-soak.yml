@@ -58,7 +58,7 @@ concurrency:
 jobs:
   soak:
     name: Fuzz soak (${{ matrix.target }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned with ci.yml's Linux jobs: its header says why
     # Budget: ~5 min to install and build, the soak itself, and slack. A hung job must not hold a
     # runner for GitHub's six-hour default.
     timeout-minutes: 45

@@ -303,7 +303,10 @@ to prevent, one level up — and **CI runs
 
 24. **`core/`, `pdf/cos/` and `pdf/ops/` may use only Qt APIs that the DISTRO Qt has, not the
    pinned one.** Those three layers are portable by rule and CI builds them on Linux against
-   `qt6-base-dev` from `ubuntu-latest` — **Qt 6.4** — while every local build and the Windows job
+   `qt6-base-dev` from the **`ubuntu-24.04`** runner — **Qt 6.4** — pinned rather than
+   `ubuntu-latest` since 2026-10-29, because `ubuntu-26.04` ships Qt 6.10.2 and a rolling label
+   would raise this floor without anyone deciding to (Stage 7 guide **I-02**,
+   `Stage7-Assembly-Testing-Guide.md` §8) — while every local build and the Windows job
    use the pinned **Qt 6.11.1**. So a Qt 6.5+ API compiles clean here, passes the whole Windows
    suite on both presets, and fails `portable-asan` and `portable-fuzz` minutes after the push,
    at a step that builds nothing else. *(Stage 4 T4: `core/doc/Metadata` used

@@ -8,6 +8,15 @@
 # That is only possible because the gate executables link nothing but the C++ standard
 # library (decision D0-1) and the root CMakeLists has a RAWPAGE_GATES_ONLY configuration that
 # does not call find_package(Qt6). Measured locally: 3.8 s from configure to green.
+#
+# THE LINUX JOBS ARE PINNED TO ubuntu-24.04, NOT ubuntu-latest, and fuzz-soak.yml is pinned with
+# them. The image IS part of what these jobs test: its qt6-base-dev is the Qt that convention 24
+# (Implementation-Plan.md 1.5) holds core/, pdf/cos/ and pdf/ops/ to -- 6.4 on 24.04, 6.10.2 on 26.04,
+# where the floor would quietly rise to almost the pinned 6.11.1 -- and its clang and GCC are the
+# compilers -Werror answers to. ubuntu-latest began moving to 26.04 on 2026-10-19 and moved the soak
+# first: run 40853107406 got Clang 21.1.8 where the day before had 18.1.3, and every target stopped
+# at the build (Stage7-Assembly-Testing-Guide.md 8, I-02). Moving off 24.04 is a decision, made in
+# both files together with convention 24's figure, never something the runner label decides.
 
 name: CI
 
@@ -27,7 +36,7 @@ jobs:
   # =====================================================================================
   gates:
     name: Gates (layer-lint, license-audit)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned, not ubuntu-latest: this file's header
     steps:
       - uses: actions/checkout@v4
 
@@ -399,7 +408,7 @@ jobs:
   portable-asan:
     name: Portable ASan + UBSan (Linux)
     needs: gates
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned, not ubuntu-latest: this file's header
     steps:
       - uses: actions/checkout@v4
 
@@ -484,7 +493,7 @@ jobs:
   portable-fuzz:
     name: Portable libFuzzer (Linux, clang)
     needs: gates
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned, not ubuntu-latest: this file's header
     steps:
       - uses: actions/checkout@v4
 
@@ -603,7 +612,7 @@ jobs:
     name: Coverage actually obtained
     needs: [gates, windows, portable-asan, portable-fuzz]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned, not ubuntu-latest: this file's header
     steps:
       - name: Say what ran and what did not
         shell: bash

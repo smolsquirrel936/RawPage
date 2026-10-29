@@ -160,8 +160,7 @@ private:
     IDocumentBackend& backend_;
     render::RenderScheduler& scheduler_;
     DocumentIndex& index_;
-    SearchEngine& engine_;
-    SearchSession session_;
+    SearchSession session_;   // the engine is reached through it alone
     render::RenderScheduler::SubscriptionToken taskToken_ = 0;
 
     // ---- The run, on the pumping thread ---------------------------------------------------------

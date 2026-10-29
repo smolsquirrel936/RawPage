@@ -1134,6 +1134,7 @@ missed it, and the control that was run red before the fix — the shape every e
 | # | Sev | Title | State |
 |---|---|---|---|
 | **I-01** | S2 | A page that inherits its `/MediaBox` or `/CropBox` from a `/Pages` node was shown at US Letter, uncropped, and its whole document refused for editing | **Closed** at T1, 2026-10-29 |
+| **I-02** | S3 | The fuzz soak built nothing: `ubuntu-latest` moved it to Ubuntu 26.04, whose Clang 21 refuses an unused field in `core/text/FolderSearch.h` under `-Werror` | **Fixed** 2026-10-29, not yet read from a CI log |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1161,6 +1162,27 @@ sweeps `assembly/`. *Control:* with the facade change reverted alone, the I-01 c
 page's drawn box (off by 20 pt and the crop's width) and the sweep refused `inherit-resources.pdf` by
 `error.edit.pageSizeDisagrees` on page 1; restored, both pass. The 99 baselines were captured after the
 fix.
+
+**I-02 (S3) — the runner image moved under CI, and the soak stopped at the build.** *Found* 2026-10-29
+by the scheduled fuzz soak, run **40853107406** on `0ed701e`: all five targets failed at their build
+step on `core/text/FolderSearch.h:163: error: private field 'engine_' is not used
+[-Werror,-Wunused-private-field]`, so no target was fuzzed for a second — the *no sanitizer report* step
+failed only because no log existed. No product behaviour is wrong; the severity is S3 because what was
+lost is evidence: §9 item 6 is read from these jobs. *Mechanism:* two faults. `FolderSearch` stored
+`engine_` (Stage 5) and read it nowhere — `session_` is built from the constructor's argument, and every
+engine call goes through it. And every Linux job named `ubuntu-latest`, which GitHub began moving to
+Ubuntu 26.04 on 2026-10-19: the run's own log reads `Image: ubuntu-26.04`, `Clang 21.1.8` and
+`qt6-base-dev 6.10.2`, where the soak the day before (40665395393, on `db09265`) and CI run
+40783851053's `portable-fuzz` job on `0ed701e` itself read `ubuntu-24.04` and `Clang 18.1.3`. *Why no suite saw it:*
+MinGW's GCC has no `-Wunused-private-field`, and Clang 18 compiled the file clean; why the two Clang
+versions differ on this field was not established. *Fix:* the field and its initializer removed; the
+four Linux jobs in `ci.yml` and the soak in `fuzz-soak.yml` pinned to `runs-on: ubuntu-24.04`, because
+the image's `qt6-base-dev` is the floor convention 24 (`Implementation-Plan.md` §1.5) holds the portable
+layers to and 26.04 would raise it to 6.10.2 with nothing deciding to — `ci.yml`'s header says so, and
+moving off 24.04 is a change to both files and that convention together. *Control:* none on this
+machine, which has no clang; the red is run 40853107406 itself, and the pin means the next run builds
+with Clang 18 again, so **Clang 21's verdict on the fix is not measured by CI**. *Closed* when a soak on
+the fix is read from its log.
 
 ---
 

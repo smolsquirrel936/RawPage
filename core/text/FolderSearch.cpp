@@ -14,7 +14,7 @@ namespace rawpage::core::text {
 
 FolderSearch::FolderSearch(IDocumentBackend& backend, render::RenderScheduler& scheduler, DocumentIndex& index,
                            SearchEngine& engine)
-    : backend_(backend), scheduler_(scheduler), index_(index), engine_(engine), session_(engine)
+    : backend_(backend), scheduler_(scheduler), index_(index), session_(engine)
 {
     // Removed by TOKEN in the destructor -- convention 10's threaded form, as every scheduler client does.
     taskToken_ = scheduler_.subscribeTasks([this](render::RenderTicket ticket) { onTask(ticket); });
